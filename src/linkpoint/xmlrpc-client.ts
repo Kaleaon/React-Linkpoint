@@ -196,7 +196,7 @@ export class XMLRPCClient {
    * Parse XML value
    */
   static parseValue(valueElement: Element): any {
-    const firstChild = Array.from(valueElement.children).find(el => el.nodeType === 1) as Element;
+    const firstChild = valueElement.firstElementChild;
     
     if (!firstChild) {
       return valueElement.textContent?.trim() || '';
