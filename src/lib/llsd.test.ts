@@ -8,24 +8,14 @@ describe('LLSD parseXML', () => {
     expect(parseXML(xml)).toBeNull();
   });
 
-  it('should parse boolean (true)', () => {
-    const xml = '<llsd><boolean>true</boolean></llsd>';
-    expect(parseXML(xml)).toBe(true);
-  });
-
-  it('should parse boolean (1)', () => {
-    const xml = '<llsd><boolean>1</boolean></llsd>';
-    expect(parseXML(xml)).toBe(true);
-  });
-
-  it('should parse boolean (false)', () => {
-    const xml = '<llsd><boolean>false</boolean></llsd>';
-    expect(parseXML(xml)).toBe(false);
-  });
-
-  it('should parse boolean (0)', () => {
-    const xml = '<llsd><boolean>0</boolean></llsd>';
-    expect(parseXML(xml)).toBe(false);
+  it.each([
+    ['true', true],
+    ['1', true],
+    ['false', false],
+    ['0', false],
+  ])('should parse boolean from "%s" to %s', (value, expected) => {
+    const xml = `<llsd><boolean>${value}</boolean></llsd>`;
+    expect(parseXML(xml)).toBe(expected);
   });
 
   it('should parse integer', () => {
