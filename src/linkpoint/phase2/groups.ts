@@ -193,11 +193,26 @@ export class GroupsManager {
   }
 
   getStats() {
+    let totalMembers = 0;
+    for (const members of this.groupMembers.values()) {
+      totalMembers += members.size;
+    }
+
+    let totalRoles = 0;
+    for (const roles of this.groupRoles.values()) {
+      totalRoles += roles.size;
+    }
+
+    let totalNotices = 0;
+    for (const notices of this.groupNotices.values()) {
+      totalNotices += notices.length;
+    }
+
     return {
       totalGroups: this.groups.size,
-      totalMembers: Array.from(this.groupMembers.values()).reduce((sum, m) => sum + m.size, 0),
-      totalRoles: Array.from(this.groupRoles.values()).reduce((sum, r) => sum + r.size, 0),
-      totalNotices: Array.from(this.groupNotices.values()).reduce((sum, n) => sum + n.length, 0)
+      totalMembers,
+      totalRoles,
+      totalNotices
     };
   }
 }
