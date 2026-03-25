@@ -4,15 +4,17 @@
 
 import { Utils } from './utils';
 import { LLSD } from './llsd';
+import { SLConnectionFull } from './sl-connection-full';
+import { AuthManager } from './auth';
 
 export class InventoryManager extends Utils.EventEmitter {
-  public protocol: any;
-  public auth: any;
+  public protocol: SLConnectionFull;
+  public auth: AuthManager;
   public rootFolder: any = null;
   public items: Map<string, any> = new Map();
   public folders: Map<string, any> = new Map();
 
-  constructor(protocolManager: any, authManager: any) {
+  constructor(protocolManager: SLConnectionFull, authManager: AuthManager) {
     super();
     this.protocol = protocolManager;
     this.auth = authManager;
