@@ -136,14 +136,48 @@ export class InventorySpecialTypes {
     console.log(`[InventoryTypes] Registered sound: ${sound.name}`);
   }
 
-  async preloadSound(soundId: string) {
+  async preloadSound(soundId: string): Promise<void> {
     const sound = this.sounds.get(soundId);
-    if (sound) {
-      // TODO: Implement actual preloading
-      sound.preloaded = true;
-      console.log(`[InventoryTypes] Preloaded sound: ${soundId}`);
+
+    if (!sound) {
+      return Promise.resolve();
     }
-    return Promise.resolve();
+
+    if (sound.preloaded) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      // If there's no URL, we can't actually preload it via Audio
+      if (!sound.url) {
+        sound.preloaded = true;
+        console.log(`[InventoryTypes] Preloaded sound (no URL): ${soundId}`);
+        resolve();
+        return;
+      }
+
+      try {
+        const audio = new Audio(sound.url);
+
+        audio.oncanplaythrough = () => {
+          sound.preloaded = true;
+          console.log(`[InventoryTypes] Preloaded sound: ${soundId}`);
+          resolve();
+        };
+
+        audio.onerror = (e) => {
+          console.error(`[InventoryTypes] Failed to preload sound ${soundId}: `, e);
+          // Even if it fails, we resolve to avoid blocking the queue, but don't mark as preloaded
+          resolve();
+        };
+
+        // For some browsers, we might need to explicitly load
+        audio.load();
+      } catch (err) {
+        console.error(`[InventoryTypes] Error creating Audio for sound ${soundId}: `, err);
+        resolve();
+      }
+    });
   }
 
   /**
