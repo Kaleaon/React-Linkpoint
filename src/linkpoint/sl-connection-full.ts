@@ -1,0 +1,154 @@
+/**
+ * Linkpoint PWA - Complete SL Connection Implementation
+ */
+
+import { Utils } from './utils';
+import { SLProtocol } from './sl-protocol-real';
+import { LLSD } from './llsd';
+import { corsHandler } from './cors-handler';
+
+export class SLConnectionFull extends Utils.EventEmitter {
+  public state: string = 'IDLE'; // IDLE, AUTHENTICATING, CONNECTING, CONNECTED
+  public connected: boolean = false;
+  public authReply: any = null;
+  public agentId: string | null = null;
+  public sessionId: string | null = null;
+  public circuitCode: number | null = null;
+  public simAddress: string | null = null;
+  public simPort: number | null = null;
+  public seedCapability: string | null = null;
+  public capabilities: Record<string, string> = {};
+  public eventQueueRunning: boolean = false;
+  private lastEventId: number | null = null;
+
+  constructor() {
+    super();
+  }
+
+  async connect(gridId: string, username: string, password: string, startLocation: string = 'last') {
+    this.setState('AUTHENTICATING');
+
+    try {
+      const protocol = new SLProtocol();
+      const loginResult = await protocol.login(gridId, username, password, startLocation);
+
+      this.authReply = loginResult;
+      this.agentId = loginResult.agent_id;
+      this.sessionId = loginResult.session_id;
+      this.circuitCode = parseInt(loginResult.circuit_code);
+      this.simAddress = loginResult.sim_ip;
+      this.simPort = parseInt(loginResult.sim_port);
+      this.seedCapability = loginResult.seed_capability;
+
+      if (this.seedCapability) {
+        await this.fetchCapabilities();
+      }
+
+      this.setState('CONNECTING');
+      // In browser, we simulate circuit establishment via capabilities
+      
+      if (this.capabilities.EventQueueGet) {
+        this.startEventQueue();
+      }
+
+      this.setState('CONNECTED');
+      this.connected = true;
+      this.emit('connected', loginResult);
+      return true;
+
+    } catch (error) {
+      this.setState('IDLE');
+      this.emit('connection_failed', error);
+      throw error;
+    }
+  }
+
+  async fetchCapabilities() {
+    try {
+      const capsToRequest = ['EventQueueGet', 'FetchInventoryDescendents2', 'ChatSessionRequest', 'GetDisplayNames'];
+      const response = await corsHandler.makeRequest(this.seedCapability!, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/llsd+xml' },
+        body: LLSD.buildXML(capsToRequest)
+      });
+
+      if (response && response.ok) {
+        const text = await response.text();
+        this.capabilities = LLSD.parseXML(text);
+        this.emit('capabilities_ready', this.capabilities);
+      }
+    } catch (error) {
+      console.error('Failed to fetch capabilities:', error);
+    }
+  }
+
+  startEventQueue() {
+    if (this.eventQueueRunning) return;
+    this.eventQueueRunning = true;
+    this.pollEventQueue();
+  }
+
+  async pollEventQueue() {
+    if (!this.eventQueueRunning) return;
+
+    try {
+      const url = this.capabilities.EventQueueGet;
+      const body = this.lastEventId 
+        ? LLSD.buildXML({ ack: this.lastEventId, done: false })
+        : LLSD.buildXML({ done: false });
+
+      const response = await corsHandler.makeRequest(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/llsd+xml' },
+        body
+      });
+
+      if (response && response.ok) {
+        const text = await response.text();
+        const data = LLSD.parseXML(text);
+        
+        if (data && data.events) {
+          data.events.forEach((event: any) => this.handleEvent(event));
+          if (data.id) this.lastEventId = data.id;
+        }
+      }
+    } catch (error) {
+      console.error('Event queue error:', error);
+    }
+
+    if (this.eventQueueRunning) {
+      setTimeout(() => this.pollEventQueue(), 1000);
+    }
+  }
+
+  handleEvent(event: any) {
+    console.log('Event:', event.message, event.body);
+    this.emit(event.message, event.body);
+  }
+
+  async sendChat(message: string, channel: number = 0, type: number = 1) {
+    if (!this.connected || !this.capabilities.ChatSessionRequest) return;
+
+    try {
+      await corsHandler.makeRequest(this.capabilities.ChatSessionRequest, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/llsd+xml' },
+        body: LLSD.buildXML({ message, channel, type })
+      });
+    } catch (error) {
+      console.error('Failed to send chat:', error);
+    }
+  }
+
+  private setState(newState: string) {
+    this.state = newState;
+    this.emit('state_changed', newState);
+  }
+
+  async logout() {
+    this.eventQueueRunning = false;
+    this.connected = false;
+    this.setState('IDLE');
+    this.emit('disconnected');
+  }
+}

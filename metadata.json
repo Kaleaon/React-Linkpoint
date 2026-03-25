@@ -1,0 +1,5 @@
+{
+  "name": "LLSD Playground",
+  "description": "A tool for parsing, serializing, and visualizing Linden Lab Structured Data (LLSD) in XML, Notation, and JSON formats.",
+  "requestFramePermissions": ["microphone", "notifications"]
+}
