@@ -1,0 +1,18 @@
+--- LLSD-java/src/test/kotlin/lindenlab/llsd/viewer/secondlife/libraries/VulkanRendererKotlinTest.kt	2023-10-25 15:00:00.000000000 +0000
++++ LLSD-java/src/test/kotlin/lindenlab/llsd/viewer/secondlife/libraries/VulkanRendererKotlinTest.kt	2023-10-25 15:00:00.000000000 +0000
+@@ -259,11 +259,10 @@
+         @Test
+         @DisplayName("Should create and modify render settings")
+         fun testRenderSettings() {
+-            val settings = VulkanRenderer.RenderSettings(
+-                enablePBR = false,
+-                msaaSamples = 16,
+-                enableHDR = false
+-            )
++            val settings = VulkanRenderer.RenderSettings()
++            settings.enablePBR = false
++            settings.msaaSamples = 16
++            settings.enableHDR = false
+
+             assertFalse(settings.enablePBR)
+             assertEquals(16, settings.msaaSamples)
