@@ -9,12 +9,17 @@
  */
 
 export class ChatExtended {
+  private protocol: any;
   private chatHistory: any[] = [];
   private maxHistorySize: number = 1000;
   private filters: Map<string, Function> = new Map();
   private muteList: Set<string> = new Set();
   private typingUsers: Map<string, number> = new Map();
   private typingTimeout: number = 5000; // milliseconds
+
+  constructor(protocolManager?: any) {
+    this.protocol = protocolManager;
+  }
 
   /**
    * Feature 36: Chat history persistence
@@ -142,7 +147,16 @@ export class ChatExtended {
     };
     
     console.log(`[ChatExtended] Sending ${range} message: ${text}`);
-    // TODO: Send to protocol handler
+    if (this.protocol && typeof this.protocol.sendChat === 'function') {
+      try {
+        await this.protocol.sendChat(text, message.channel, 1);
+      } catch (error) {
+        console.error('[ChatExtended] Failed to send message:', error);
+        throw error;
+      }
+    } else {
+      console.warn('[ChatExtended] Protocol handler not available');
+    }
     
     return Promise.resolve(message);
   }
