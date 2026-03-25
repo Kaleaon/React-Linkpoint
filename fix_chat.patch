@@ -1,0 +1,24 @@
+--- LLSD-java/src/main/java/lindenlab/llsd/viewer/secondlife/communication/ChatSystem.java	2023-10-25 15:00:00.000000000 +0000
++++ LLSD-java/src/main/java/lindenlab/llsd/viewer/secondlife/communication/ChatSystem.java	2023-10-25 15:00:00.000000000 +0000
+@@ -570,19 +570,17 @@
+
+     public CompletableFuture<Boolean> sendChatMessage(String message, ChatType type, int channel, Vector3 position) {
++        String finalMessage = (message != null && message.length() > MAX_MESSAGE_LENGTH) ? message.substring(0, MAX_MESSAGE_LENGTH) : message;
+         return CompletableFuture.supplyAsync(() -> {
+             try {
+-                if (message == null || message.trim().isEmpty()) {
++                if (finalMessage == null || finalMessage.trim().isEmpty()) {
+                     return false;
+                 }
+
+-                if (message.length() > MAX_MESSAGE_LENGTH) {
+-                    message = message.substring(0, MAX_MESSAGE_LENGTH);
+-                }
+
+                 UUID currentUserId = getCurrentUserId();
+                 String currentUserName = getCurrentUserName();
+                 ChatMessage chatMessage = new ChatMessage(
+-                    currentUserId, currentUserName, message.trim(),
++                    currentUserId, currentUserName, finalMessage.trim(),
+                     type, channel, position, null
+                 );
