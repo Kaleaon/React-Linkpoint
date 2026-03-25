@@ -61,7 +61,7 @@ export class LinkpointApp {
     this.inventoryCore = new InventoryCore();
     this.inventoryOps = new InventoryOperations(this.inventoryCore);
     this.inventoryTypes = new InventorySpecialTypes();
-    this.chatExtended = new ChatExtended();
+    this.chatExtended = new ChatExtended(this.protocol);
     this.groups = new GroupsManager();
     this.friends = new FriendsExtended();
   }
