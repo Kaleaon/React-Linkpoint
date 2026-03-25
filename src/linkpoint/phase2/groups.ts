@@ -9,10 +9,15 @@
  */
 
 export class GroupsManager {
+  private protocol: any;
   private groups: Map<string, any> = new Map();
   private groupMembers: Map<string, Map<string, any>> = new Map();
   private groupRoles: Map<string, Map<string, any>> = new Map();
   private groupNotices: Map<string, any[]> = new Map();
+
+  constructor(protocolManager?: any) {
+    this.protocol = protocolManager;
+  }
 
   /**
    * Feature 41: Group info
@@ -135,7 +140,18 @@ export class GroupsManager {
     };
     
     console.log(`[Groups] Sending group chat to ${groupId}: ${message}`);
-    // TODO: Send via protocol handler
+
+    if (this.protocol && typeof this.protocol.sendChat === 'function') {
+      try {
+        // Group chat usually uses a specific channel or type (e.g. type 2 for group chat)
+        await this.protocol.sendChat(message, 0, 2);
+      } catch (error) {
+        console.error('[Groups] Failed to send group chat:', error);
+        throw error;
+      }
+    } else {
+      console.warn('[Groups] Protocol handler not available');
+    }
     
     return Promise.resolve(chatMsg);
   }
