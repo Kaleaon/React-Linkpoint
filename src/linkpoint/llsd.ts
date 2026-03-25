@@ -83,7 +83,8 @@ export class LLSD {
     const result: Record<string, any> = {};
     let currentKey: string | null = null;
 
-    for (const child of Array.from(mapElement.children)) {
+    for (let i = 0; i < mapElement.children.length; i++) {
+      const child = mapElement.children[i];
       if (child.nodeType !== 1) continue; // Skip non-elements
 
       if (child.tagName.toLowerCase() === 'key') {
@@ -104,7 +105,8 @@ export class LLSD {
   private static _parseArray(arrayElement: Element): any {
     const result: any[] = [];
 
-    for (const child of Array.from(arrayElement.children)) {
+    for (let i = 0; i < arrayElement.children.length; i++) {
+      const child = arrayElement.children[i];
       if (child.nodeType !== 1) continue;
       result.push(this._parseElement(child));
     }
