@@ -38,11 +38,11 @@ export const Utils = {
     else if (type === 'warning') toast.classList.add('bg-yellow-500', 'text-black');
     else toast.classList.add('bg-blue-600', 'text-white');
 
-    const escapedMessage = String(message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escapeHTML = (str: string) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     toast.innerHTML = `
       <div class="toast-content">
-        <strong>${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
-        <p>${escapedMessage}</p>
+        <strong>${escapeHTML(type).charAt(0).toUpperCase() + escapeHTML(type).slice(1)}</strong>
+        <p>${escapeHTML(message)}</p>
       </div>
     `;
 
