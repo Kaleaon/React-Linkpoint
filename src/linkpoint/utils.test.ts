@@ -16,15 +16,15 @@ describe('Utils', () => {
     });
 
     it('should generate unique UUIDs', () => {
-      const iterations = 1000;
+      const ITERATIONS = 1000;
       const uuids = new Set<string>();
 
-      for (let i = 0; i < iterations; i++) {
+      for (let i = 0; i < ITERATIONS; i++) {
         uuids.add(Utils.generateUUID());
       }
 
       // The number of unique UUIDs should equal the number of iterations
-      expect(uuids.size).toBe(iterations);
+      expect(uuids.size).toBe(ITERATIONS);
     });
   });
 });
