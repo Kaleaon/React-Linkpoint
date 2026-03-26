@@ -18,6 +18,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   public simPort: number | null = null;
   public seedCapability: string | null = null;
   public capabilities: Record<string, string> = {};
+  public inventoryRoot: string | null = null;
   public eventQueueRunning: boolean = false;
   private lastEventId: number | null = null;
 
@@ -39,6 +40,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.simAddress = loginResult.sim_ip;
       this.simPort = parseInt(loginResult.sim_port);
       this.seedCapability = loginResult.seed_capability;
+      this.inventoryRoot = loginResult['inventory-root']?.[0]?.folder_id || null;
 
       if (this.seedCapability) {
         await this.fetchCapabilities();
@@ -54,7 +56,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.setState('CONNECTED');
       this.connected = true;
       this.emit('connected', loginResult);
-      return true;
+      return loginResult;
 
     } catch (error) {
       this.setState('IDLE');
@@ -140,6 +142,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
     }
   }
 
+
+  getCapability(name: string) {
+    return this.capabilities[name];
+  }
   private setState(newState: string) {
     this.state = newState;
     this.emit('state_changed', newState);
