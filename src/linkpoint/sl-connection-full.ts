@@ -17,6 +17,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
   public simAddress: string | null = null;
   public simPort: number | null = null;
   public seedCapability: string | null = null;
+  public get inventoryRoot() {
+    return this.authReply?.inventory_root;
+  }
+
+  public getCapability(cap: string) {
+    return this.capabilities[cap];
+  }
   public capabilities: Record<string, string> = {};
   public inventoryRoot: string | null = null;
   public eventQueueRunning: boolean = false;
