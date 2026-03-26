@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toJSON, fromJSON } from './llsd.js';
+import { toJSON } from './llsd.js';
 
 describe('LLSD JSON Serialization (toJSON)', () => {
   it('serializes null', () => {
