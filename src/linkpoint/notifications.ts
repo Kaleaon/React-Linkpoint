@@ -3,21 +3,28 @@
  */
 
 import { Utils } from './utils';
+import { SLConnectionFull } from './sl-connection-full';
+
+export interface NotificationData {
+  title?: string;
+  message?: string;
+  [key: string]: any;
+}
 
 export class NotificationsManager extends Utils.EventEmitter {
-  public protocol: any;
+  public protocol: SLConnectionFull;
   public unreadCount: number = 0;
 
-  constructor(protocolManager: any) {
+  constructor(protocolManager: SLConnectionFull) {
     super();
     this.protocol = protocolManager;
   }
 
   init() {
-    this.protocol.on('notification', (data: any) => this.handleNotification(data));
+    this.protocol.on('notification', (data: NotificationData) => this.handleNotification(data));
   }
 
-  handleNotification(data: any) {
+  handleNotification(data: NotificationData) {
     this.unreadCount++;
     this.emit('notification_received', data);
     Utils.showToast(data.title || 'Notification', 'info');

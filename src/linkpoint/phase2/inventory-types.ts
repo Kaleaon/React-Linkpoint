@@ -180,6 +180,46 @@ export class InventorySpecialTypes {
     });
   }
 
+  playSound(soundId: string) {
+    const sound = this.sounds.get(soundId);
+    if (!sound) {
+      console.warn(`[InventoryTypes] Cannot play unknown sound: ${soundId}`);
+      return;
+    }
+
+    if (!sound.url) {
+      console.warn(`[InventoryTypes] Cannot play sound without URL: ${soundId}`);
+      return;
+    }
+
+    try {
+      if (!sound.audioElement) {
+        sound.audioElement = new Audio(sound.url);
+      }
+
+      sound.audioElement.volume = sound.volume || 1.0;
+      sound.audioElement.currentTime = 0;
+
+      sound.audioElement.play().catch((err) => {
+        console.error(`[InventoryTypes] Error playing sound ${soundId}:`, err);
+      });
+    } catch (err) {
+      console.error(`[InventoryTypes] Error creating Audio for playing sound ${soundId}:`, err);
+    }
+  }
+
+  stopSound(soundId: string) {
+    const sound = this.sounds.get(soundId);
+    if (sound && sound.audioElement) {
+      try {
+        sound.audioElement.pause();
+        sound.audioElement.currentTime = 0;
+      } catch (err) {
+        console.error(`[InventoryTypes] Error stopping sound ${soundId}:`, err);
+      }
+    }
+  }
+
   /**
    * Feature 35: Textures
    * Register texture asset
