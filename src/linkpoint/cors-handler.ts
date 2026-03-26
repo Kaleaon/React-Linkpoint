@@ -7,17 +7,18 @@ export class CORSHandler {
   public environment: any;
   private corsProxies: any[];
   private currentProxyIndex: number;
+  private customProxyUrl: string | null;
 
   constructor() {
     this.environment = this.detectEnvironment();
+    this.customProxyUrl = (import.meta.env.VITE_SL_PROXY_URL || '').trim() || null;
     this.checkLocalProxy();
-    // Updated CORS proxies
-    this.corsProxies = [
-      {
-        url: '/api/proxy?url=',
-        name: 'Local Server Proxy',
-        encode: true
-      },
+    this.corsProxies = this.buildProxyList();
+    this.currentProxyIndex = 0;
+  }
+
+  private buildProxyList() {
+    const defaultProxies = [
       { 
         url: 'https://api.allorigins.win/raw?url=', 
         name: 'AllOrigins',
@@ -34,13 +35,36 @@ export class CORSHandler {
         encode: false
       }
     ];
-    this.currentProxyIndex = 0;
+
+    const proxies = [...defaultProxies];
+
+    if (this.customProxyUrl) {
+      proxies.unshift({
+        url: this.customProxyUrl,
+        name: 'Custom Proxy',
+        encode: true
+      });
+    }
+
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalhost) {
+      proxies.unshift({
+        url: '/api/proxy?url=',
+        name: 'Local Server Proxy',
+        encode: true
+      });
+    }
+
+    return proxies;
   }
 
   /**
    * Check if local proxy is reachable
    */
   async checkLocalProxy() {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isLocalhost) return;
+
     try {
       const response = await fetch('/api/health');
       if (response.ok) {
@@ -77,19 +101,19 @@ export class CORSHandler {
       return {
         type: 'pwa-installed',
         name: 'Installed Progressive Web App',
-        corsSupport: 'server-proxy',
+        corsSupport: 'server-or-custom-proxy',
         needsProxy: true
       };
     }
     
     // Regular web browser
-    return {
-      type: 'browser',
-      name: 'Web Browser',
-      corsSupport: 'server-proxy',
-      needsProxy: true
-    };
-  }
+      return {
+        type: 'browser',
+        name: 'Web Browser',
+        corsSupport: 'server-or-custom-proxy',
+        needsProxy: true
+      };
+    }
 
   /**
    * Get environment info for display
@@ -142,7 +166,7 @@ export class CORSHandler {
           return response;
         } catch (directError) {
           // CORS blocked, use proxy
-          console.log('[CORS] Direct connection failed, using public CORS proxy');
+          console.log('[CORS] Direct connection failed, using configured CORS proxies');
           return await this.usePublicProxy(url, options);
         }
       }
@@ -203,7 +227,7 @@ export class CORSHandler {
     const errorMessage = `All CORS proxies failed:\n${errors.join('\n')}`;
     console.error('[CORS]', errorMessage);
     
-    throw new Error(errorMessage + '\n\n💡 Solutions:\n1. Try without VPN\n2. Try different network\n3. Use desktop app (no CORS issues)');
+    throw new Error(errorMessage + '\n\n💡 Solutions:\n1. Provide VITE_SL_PROXY_URL for a dedicated proxy\n2. Try without VPN\n3. Use desktop app (no CORS issues)');
   }
 
   /**
@@ -233,8 +257,9 @@ export class CORSHandler {
         helpMessage += '💡 Solutions:\n';
         helpMessage += '1. **Try without VPN** - Most VPNs cause CORS proxy issues\n';
         helpMessage += '2. **Use different network** - Try mobile hotspot or different WiFi\n';
-        helpMessage += '3. **Download desktop app** - ZERO CORS issues, no proxy needed\n';
-        helpMessage += '4. **Wait and retry** - Proxy may be temporarily unavailable\n\n';
+        helpMessage += '3. **Set VITE_SL_PROXY_URL** - Dedicated proxy for stable SL access\n';
+        helpMessage += '4. **Download desktop app** - ZERO CORS issues, no proxy needed\n';
+        helpMessage += '5. **Wait and retry** - Proxy may be temporarily unavailable\n\n';
         helpMessage += '📱 Best Solution: Use Electron/Tauri desktop app for direct connections\n';
       }
       
@@ -253,14 +278,14 @@ export class CORSHandler {
     
     const solutions: Record<string, any> = {
       browser: {
-        primary: 'Install as PWA',
-        alternatives: ['Download Desktop App', 'Use Mobile App'],
-        instructions: 'Click the install button in your browser or download a native app for best performance.'
+        primary: 'Configure dedicated proxy',
+        alternatives: ['Install as PWA', 'Download Desktop App', 'Use Mobile App'],
+        instructions: 'Set VITE_SL_PROXY_URL for reliable Second Life access, then deploy.'
       },
       'pwa-installed': {
-        primary: 'Currently using CORS proxy',
+        primary: 'Using CORS proxy',
         alternatives: ['Upgrade to Desktop App'],
-        instructions: 'PWA is working with a public CORS proxy. For better reliability, consider the desktop app.'
+        instructions: 'If available, configure VITE_SL_PROXY_URL for better reliability than public proxies.'
       },
       capacitor: {
         primary: 'Using native HTTP (optimal)',
