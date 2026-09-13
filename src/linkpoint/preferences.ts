@@ -20,7 +20,7 @@ export class PreferencesManager extends Utils.EventEmitter {
     };
   }
 
-  async init() {
+  init() {
     const defaults = this.getDefaultPreferences();
     const saved = Utils.storage.get('linkpoint_preferences');
     if (saved) {
