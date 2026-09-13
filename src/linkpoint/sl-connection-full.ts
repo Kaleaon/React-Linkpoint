@@ -26,7 +26,23 @@ export class SLConnectionFull extends Utils.EventEmitter {
     super();
   }
 
+  private resetConnectionState() {
+    this.connected = false;
+    this.authReply = null;
+    this.agentId = null;
+    this.sessionId = null;
+    this.circuitCode = null;
+    this.simAddress = null;
+    this.simPort = null;
+    this.seedCapability = null;
+    this.capabilities = {};
+    this.inventoryRoot = null;
+    this.eventQueueRunning = false;
+    this.lastEventId = null;
+  }
+
   async connect(gridId: string, username: string, password: string, startLocation: string = 'last') {
+    this.resetConnectionState();
     this.setState('AUTHENTICATING');
 
     try {
@@ -59,6 +75,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       return loginResult;
 
     } catch (error) {
+      this.resetConnectionState();
       this.setState('IDLE');
       this.emit('connection_failed', error);
       throw error;

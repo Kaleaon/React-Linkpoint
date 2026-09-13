@@ -6,12 +6,31 @@
 }
 
 :root {
-  --background: #F5F5F4;
-  --foreground: #141414;
+  --background: #100f0e;
+  --foreground: #e2e8f0;
+  --surface: #101a1c;
+  --surface-muted: #1b2a2d;
+  --border: #1e293b;
+  --brand: #4a9eff;
+  --brand-strong: #3476ff;
+  --accent: #6cff9a;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+}
+
+html {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(108, 255, 154, 0.12), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(74, 158, 255, 0.14), transparent 36%),
+    var(--background);
 }
 
 body {
-  background-color: var(--background);
+  background: transparent;
   color: var(--foreground);
   margin: 0;
   font-family: var(--font-sans);
@@ -30,11 +49,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #E5E5E5;
+  background: #334155;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #D4D4D4;
+  background: #475569;
 }
-
