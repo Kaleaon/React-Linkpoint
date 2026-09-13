@@ -63,6 +63,8 @@ describe('LLSD JSON Serialization (toJSON)', () => {
     expect(parsed.payload).toBe(btoa(String.fromCharCode(1, 2, 3)));
     expect(parsed.items[0]).toEqual({ id: 1, valid: true });
     expect(parsed.items[1].data).toBe(btoa(String.fromCharCode(255, 0)));
+  });
+});
 import { parseXML } from './llsd';
 import { parseISO } from 'date-fns';
 
@@ -192,6 +194,8 @@ describe('LLSD parseXML', () => {
   it('should return null for unknown tag', () => {
     const xml = '<llsd><unknown>value</unknown></llsd>';
     expect(parseXML(xml)).toBeNull();
+  });
+});
 import { detectFormat, LLSDFormat } from './llsd';
 
 describe('detectFormat', () => {
