@@ -113,17 +113,21 @@ const ViewerWorkbench: React.FC = () => {
       }
     };
 
+    const hydrateInterfacePreferences = () => {
+      const savedDesignStyle = app.preferences.get('interface', 'designStyle');
+      const savedPalette = app.preferences.get('interface', 'colorPalette');
+      if (savedDesignStyle === 'glass' || savedDesignStyle === 'solid' || savedDesignStyle === 'minimal') {
+        setDesignStyle(savedDesignStyle);
+      }
+      if (savedPalette === 'linkpoint-blue' || savedPalette === 'neon-mint' || savedPalette === 'royal-violet') {
+        setColorPalette(savedPalette);
+      }
+    };
+
     const boot = async () => {
       await app.init();
       if (mounted) {
-        const savedDesignStyle = app.preferences.get('interface', 'designStyle');
-        const savedPalette = app.preferences.get('interface', 'colorPalette');
-        if (savedDesignStyle === 'glass' || savedDesignStyle === 'solid' || savedDesignStyle === 'minimal') {
-          setDesignStyle(savedDesignStyle);
-        }
-        if (savedPalette === 'linkpoint-blue' || savedPalette === 'neon-mint' || savedPalette === 'royal-violet') {
-          setColorPalette(savedPalette);
-        }
+        hydrateInterfacePreferences();
         setReady(true);
         setMessages([...app.chat.messages]);
       }
@@ -146,6 +150,8 @@ const ViewerWorkbench: React.FC = () => {
     app.inventory.on('inventory_loaded', onInventory);
     app.inventory.on('inventory_updated', onInventory);
     app.preferences.on('preference_changed', onPreferenceChanged);
+    app.preferences.init();
+    hydrateInterfacePreferences();
     boot().catch((e) => {
       if (mounted) {
         setError(e?.message || 'Initialization error');
