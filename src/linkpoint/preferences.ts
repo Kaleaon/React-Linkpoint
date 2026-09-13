@@ -15,7 +15,7 @@ export class PreferencesManager extends Utils.EventEmitter {
   getDefaultPreferences() {
     return {
       graphics: { quality: 'medium', fov: 60 },
-      interface: { theme: 'dark', showFPS: true },
+      interface: { theme: 'dark', showFPS: true, designStyle: 'glass', colorPalette: 'linkpoint-blue' },
       notifications: { enabled: true, soundEnabled: true }
     };
   }
