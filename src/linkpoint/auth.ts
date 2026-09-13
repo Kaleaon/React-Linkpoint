@@ -93,7 +93,7 @@ export class AuthManager extends Utils.EventEmitter {
     if (!savedCreds?.username || !savedCreds?.grid) {
       throw new Error('No saved credentials to reconnect with');
     }
-    return this.login(savedCreds.grid, savedCreds.username, password, true, startLocation);
+    return this.login(savedCreds.grid, savedCreds.username, password, savedCreds.rememberMe === true, startLocation);
   }
 
   hasSavedSession() {

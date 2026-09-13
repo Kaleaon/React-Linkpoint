@@ -134,16 +134,7 @@ export class SLProtocol extends Utils.EventEmitter {
 
   async logout() {
     this.sessionId = null;
-    this.secureSessionId = null;
     this.agentId = null;
-    this.circuitCode = null;
-    this.simAddress = null;
-    this.simPort = null;
-    this.seedCapability = null;
-    this.capabilities = {};
-    this.region = null;
-    this.inventoryRoot = null;
-    this.friends = [];
     this.connected = false;
     this.emit('logout');
   }
