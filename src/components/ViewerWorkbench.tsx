@@ -186,11 +186,13 @@ const ViewerWorkbench: React.FC = () => {
   const handleDesignStyleChange = (nextStyle: DesignStyle) => {
     setDesignStyle(nextStyle);
     app.preferences.set('interface', 'designStyle', nextStyle);
+    app.preferences.save();
   };
 
   const handlePaletteChange = (nextPalette: ColorPalette) => {
     setColorPalette(nextPalette);
     app.preferences.set('interface', 'colorPalette', nextPalette);
+    app.preferences.save();
   };
 
   return (

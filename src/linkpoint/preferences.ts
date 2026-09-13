@@ -29,10 +29,14 @@ export class PreferencesManager extends Utils.EventEmitter {
     return this.preferences[category]?.[key];
   }
 
+  save() {
+    Utils.storage.set('linkpoint_preferences', this.preferences);
+  }
+
   set(category: string, key: string, value: any) {
     if (!this.preferences[category]) this.preferences[category] = {};
     this.preferences[category][key] = value;
-    Utils.storage.set('linkpoint_preferences', this.preferences);
+    this.save();
     this.emit('preference_changed', { category, key, value });
   }
 }
