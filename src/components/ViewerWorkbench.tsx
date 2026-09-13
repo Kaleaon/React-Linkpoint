@@ -138,6 +138,7 @@ const ViewerWorkbench: React.FC = () => {
         brandText: 'text-emerald-300',
         primaryButton: 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-slate-900 hover:from-emerald-300 hover:to-emerald-400 shadow-emerald-900/30',
         focus: 'focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/30',
+        buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
         chip: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
         sender: 'text-emerald-300',
         checkboxAccent: 'accent-emerald-400',
@@ -149,6 +150,7 @@ const ViewerWorkbench: React.FC = () => {
         brandText: 'text-violet-300',
         primaryButton: 'bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-400 hover:to-indigo-400 shadow-indigo-900/30',
         focus: 'focus:border-violet-300 focus:ring-2 focus:ring-violet-500/30',
+        buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
         chip: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30',
         sender: 'text-violet-300',
         checkboxAccent: 'accent-violet-400',
@@ -159,6 +161,7 @@ const ViewerWorkbench: React.FC = () => {
       brandText: 'text-blue-300',
       primaryButton: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-400 hover:to-blue-500 shadow-blue-900/30',
       focus: 'focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30',
+      buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
       chip: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30',
       sender: 'text-blue-300',
       checkboxAccent: 'accent-blue-500',
@@ -312,7 +315,7 @@ const ViewerWorkbench: React.FC = () => {
           <form className="mt-2 flex gap-2" onSubmit={handleSendChat}>
             <label htmlFor="chat-input" className="sr-only">Chat message</label>
             <input id="chat-input" className={`flex-1 rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 ${paletteClass.focus}`} value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
-            <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white" type="submit">Send</button>
+            <button className={`rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white ${paletteClass.buttonFocus}`} type="submit">Send</button>
           </form>
         </div>
 
