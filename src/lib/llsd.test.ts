@@ -71,7 +71,6 @@ describe('LLSD JSON Serialization (toJSON)', () => {
 });
 
 
-
 describe('LLSD parseXML', () => {
   it('should parse undef', () => {
     const xml = '<llsd><undef /></llsd>';
@@ -198,7 +197,6 @@ describe('LLSD parseXML', () => {
   it('should return null for unknown tag', () => {
     const xml = '<llsd><unknown>value</unknown></llsd>';
     expect(parseXML(xml)).toBeNull();
-
   });
 });
 
