@@ -140,6 +140,8 @@ const ViewerWorkbench: React.FC = () => {
         focus: 'focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/30',
         chip: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
         sender: 'text-emerald-300',
+        checkboxAccent: 'accent-emerald-400',
+        checkboxFocus: 'focus-visible:ring-emerald-400',
       };
     }
     if (colorPalette === 'royal-violet') {
@@ -149,6 +151,8 @@ const ViewerWorkbench: React.FC = () => {
         focus: 'focus:border-violet-300 focus:ring-2 focus:ring-violet-500/30',
         chip: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30',
         sender: 'text-violet-300',
+        checkboxAccent: 'accent-violet-400',
+        checkboxFocus: 'focus-visible:ring-violet-400',
       };
     }
     return {
@@ -157,6 +161,8 @@ const ViewerWorkbench: React.FC = () => {
       focus: 'focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30',
       chip: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30',
       sender: 'text-blue-300',
+      checkboxAccent: 'accent-blue-500',
+      checkboxFocus: 'focus-visible:ring-blue-400',
     };
   }, [colorPalette]);
 
@@ -228,7 +234,7 @@ const ViewerWorkbench: React.FC = () => {
             <input type="password" className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`} value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input className="h-4 w-4 accent-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900" type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+            <input className={`h-4 w-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${paletteClass.checkboxAccent} ${paletteClass.checkboxFocus}`} type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
             Remember username + grid
           </label>
           <button className={`w-full rounded-lg px-3 py-2 font-semibold shadow-md transition ${paletteClass.primaryButton}`} type="submit">Connect</button>
