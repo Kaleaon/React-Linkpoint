@@ -125,7 +125,6 @@ const ViewerWorkbench: React.FC = () => {
         }
         setReady(true);
         setMessages([...app.chat.messages]);
-        app.preferences.on('preference_changed', onPreferenceChanged);
       }
     };
 
@@ -145,6 +144,7 @@ const ViewerWorkbench: React.FC = () => {
     app.chat.on('message_sent', onMessage);
     app.inventory.on('inventory_loaded', onInventory);
     app.inventory.on('inventory_updated', onInventory);
+    app.preferences.on('preference_changed', onPreferenceChanged);
     boot().catch((e) => setError(e?.message || 'Initialization error'));
 
     return () => {
@@ -220,9 +220,9 @@ const ViewerWorkbench: React.FC = () => {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${paletteClass.brandText}`}>Linkpoint</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">Second Life Viewer Workbench</h2>
+            <h2 className="mt-1 text-xl font-semibold text-white">Second Life Communicator Workbench</h2>
             <p className="mt-1 text-sm text-slate-300">
-              Connected tools for protocol state, world rendering, chat, and inventory.
+              Grid-first communicator tools for protocol state, world rendering, chat, and inventory.
             </p>
           </div>
           <div className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>

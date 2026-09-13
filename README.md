@@ -4,7 +4,7 @@
 
 # Linkpoint PWA
 
-LLSD playground + Second Life connectivity utilities packaged as a Progressive Web App.
+A Second Life communicator and viewer utility suite packaged as a Progressive Web App.
 
 ## Local development
 
