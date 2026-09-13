@@ -84,6 +84,15 @@ const ViewerWorkbench: React.FC = () => {
     const onLoginFailed = (err: Error) => setError(err?.message || 'Login failed');
     const onMessage = () => setMessages([...app.chat.messages]);
     const onInventory = () => setInventoryVersion((x) => x + 1);
+    const onPreferenceChanged = ({ category, key, value }: { category: string; key: string; value: unknown }) => {
+      if (category !== 'interface') return;
+      if (key === 'designStyle' && (value === 'glass' || value === 'solid' || value === 'minimal')) {
+        setDesignStyle(value);
+      }
+      if (key === 'colorPalette' && (value === 'linkpoint-blue' || value === 'neon-mint' || value === 'royal-violet')) {
+        setColorPalette(value);
+      }
+    };
 
     app.protocol.on('state_changed', onStateChange);
     app.auth.on('login_success', onLoginSuccess);
@@ -92,6 +101,7 @@ const ViewerWorkbench: React.FC = () => {
     app.chat.on('message_sent', onMessage);
     app.inventory.on('inventory_loaded', onInventory);
     app.inventory.on('inventory_updated', onInventory);
+    app.preferences.on('preference_changed', onPreferenceChanged);
 
     boot().catch((e) => setError(e?.message || 'Initialization error'));
 
@@ -104,6 +114,7 @@ const ViewerWorkbench: React.FC = () => {
       app.chat.off('message_sent', onMessage);
       app.inventory.off('inventory_loaded', onInventory);
       app.inventory.off('inventory_updated', onInventory);
+      app.preferences.off('preference_changed', onPreferenceChanged);
     };
   }, []);
 
