@@ -217,21 +217,21 @@ const ViewerWorkbench: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-3">
         <form onSubmit={handleLogin} className={`space-y-3 rounded-2xl border p-4 ${panelStyleClass}`}>
           <h3 className="font-semibold text-white">Login</h3>
-          <label className="block text-sm text-slate-200">
+          <label htmlFor="login-grid" className="block text-sm text-slate-200">
             Grid
-            <select className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`} value={grid} onChange={(e) => setGrid(e.target.value)}>
+            <select id="login-grid" className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`} value={grid} onChange={(e) => setGrid(e.target.value)}>
               <option value="agni">Second Life (Agni)</option>
               <option value="aditi">Second Life Beta (Aditi)</option>
               <option value="osgrid">OSGrid</option>
             </select>
           </label>
-          <label className="block text-sm text-slate-200">
+          <label htmlFor="login-username" className="block text-sm text-slate-200">
             Username
-            <input className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition placeholder:text-slate-500 ${paletteClass.focus}`} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="first last" />
+            <input id="login-username" className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition placeholder:text-slate-500 ${paletteClass.focus}`} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="first last" />
           </label>
-          <label className="block text-sm text-slate-200">
+          <label htmlFor="login-password" className="block text-sm text-slate-200">
             Password
-            <input type="password" className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input id="login-password" type="password" className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`} value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input className={`h-4 w-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${paletteClass.checkboxAccent} ${paletteClass.checkboxFocus}`} type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
@@ -262,9 +262,11 @@ const ViewerWorkbench: React.FC = () => {
           Style controls surface treatment and depth; palette controls accent color language.
         </p>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <label className="block text-sm text-slate-200">
+          <label htmlFor="settings-style" className="block text-sm text-slate-200">
             Style
             <select
+              id="settings-style"
+              disabled={!ready}
               className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`}
               value={designStyle}
               onChange={(e) => handleDesignStyleChange(e.target.value as DesignStyle)}
@@ -276,9 +278,11 @@ const ViewerWorkbench: React.FC = () => {
             </span>
           </label>
 
-          <label className="block text-sm text-slate-200">
+          <label htmlFor="settings-palette" className="block text-sm text-slate-200">
             Palette
             <select
+              id="settings-palette"
+              disabled={!ready}
               className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`}
               value={colorPalette}
               onChange={(e) => handlePaletteChange(e.target.value as ColorPalette)}
