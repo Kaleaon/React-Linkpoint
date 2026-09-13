@@ -83,12 +83,15 @@ export class AuthManager extends Utils.EventEmitter {
   }
 
   async logout() {
-    await this.protocol.logout();
-    this.user = null;
-    this.sessionSnapshot = null;
-    Utils.storage.remove(SESSION_KEY);
-    this.credentials = Utils.storage.get(CREDENTIALS_KEY) || null;
-    this.emit('logout');
+    try {
+      await this.protocol.logout();
+    } finally {
+      this.user = null;
+      this.sessionSnapshot = null;
+      Utils.storage.remove(SESSION_KEY);
+      this.credentials = Utils.storage.get(CREDENTIALS_KEY) || null;
+      this.emit('logout');
+    }
   }
 
   async reconnect(password: string, startLocation: string = 'last') {
