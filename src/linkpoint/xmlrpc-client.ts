@@ -257,14 +257,11 @@ export class XMLRPCClient {
    * Generate MAC address
    */
   static generateMAC(): string {
-    const hex = '0123456789ABCDEF';
-    let mac = '';
-    for (let i = 0; i < 6; i++) {
-      if (i > 0) mac += ':';
-      mac += hex[Math.floor(Math.random() * 16)];
-      mac += hex[Math.floor(Math.random() * 16)];
-    }
-    return mac;
+    const bytes = new Uint8Array(6);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+      .join(':');
   }
 
   /**
