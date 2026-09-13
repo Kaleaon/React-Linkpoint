@@ -16,6 +16,48 @@ const PALETTE_OPTIONS: Array<{ value: ColorPalette; label: string; description: 
   { value: 'royal-violet', label: 'Royal Violet', description: 'Cool violet accents with softer intensity.' },
 ];
 
+const PALETTE_CLASS_MAP: Record<ColorPalette, {
+  brandText: string;
+  primaryButton: string;
+  focus: string;
+  buttonFocus: string;
+  chip: string;
+  sender: string;
+  checkboxAccent: string;
+  checkboxFocus: string;
+}> = {
+  'linkpoint-blue': {
+    brandText: 'text-blue-300',
+    primaryButton: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-400 hover:to-blue-500 shadow-blue-900/30',
+    focus: 'focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30',
+    buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
+    chip: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30',
+    sender: 'text-blue-300',
+    checkboxAccent: 'accent-blue-500',
+    checkboxFocus: 'focus-visible:ring-blue-400',
+  },
+  'neon-mint': {
+    brandText: 'text-emerald-300',
+    primaryButton: 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-slate-900 hover:from-emerald-300 hover:to-emerald-400 shadow-emerald-900/30',
+    focus: 'focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/30',
+    buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
+    chip: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
+    sender: 'text-emerald-300',
+    checkboxAccent: 'accent-emerald-400',
+    checkboxFocus: 'focus-visible:ring-emerald-400',
+  },
+  'royal-violet': {
+    brandText: 'text-violet-300',
+    primaryButton: 'bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-400 hover:to-indigo-400 shadow-indigo-900/30',
+    focus: 'focus:border-violet-300 focus:ring-2 focus:ring-violet-500/30',
+    buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
+    chip: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30',
+    sender: 'text-violet-300',
+    checkboxAccent: 'accent-violet-400',
+    checkboxFocus: 'focus-visible:ring-violet-400',
+  },
+};
+
 function flattenInventoryTree(rootId: string | null) {
   if (!rootId) return [] as Array<{ id: string; name: string; type: 'folder' | 'item'; depth: number }>;
 
@@ -60,6 +102,16 @@ const ViewerWorkbench: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
+    const onPreferenceChanged = ({ category, key, value }: { category: string; key: string; value: unknown }) => {
+      if (category !== 'interface') return;
+      if (key === 'designStyle' && (value === 'glass' || value === 'solid' || value === 'minimal')) {
+        setDesignStyle(value);
+      }
+      if (key === 'colorPalette' && (value === 'linkpoint-blue' || value === 'neon-mint' || value === 'royal-violet')) {
+        setColorPalette(value);
+      }
+    };
+
     const boot = async () => {
       await app.init();
       if (mounted) {
@@ -73,6 +125,7 @@ const ViewerWorkbench: React.FC = () => {
         }
         setReady(true);
         setMessages([...app.chat.messages]);
+        app.preferences.on('preference_changed', onPreferenceChanged);
       }
     };
 
@@ -84,15 +137,6 @@ const ViewerWorkbench: React.FC = () => {
     const onLoginFailed = (err: Error) => setError(err?.message || 'Login failed');
     const onMessage = () => setMessages([...app.chat.messages]);
     const onInventory = () => setInventoryVersion((x) => x + 1);
-    const onPreferenceChanged = ({ category, key, value }: { category: string; key: string; value: unknown }) => {
-      if (category !== 'interface') return;
-      if (key === 'designStyle' && (value === 'glass' || value === 'solid' || value === 'minimal')) {
-        setDesignStyle(value);
-      }
-      if (key === 'colorPalette' && (value === 'linkpoint-blue' || value === 'neon-mint' || value === 'royal-violet')) {
-        setColorPalette(value);
-      }
-    };
 
     app.protocol.on('state_changed', onStateChange);
     app.auth.on('login_success', onLoginSuccess);
@@ -101,8 +145,6 @@ const ViewerWorkbench: React.FC = () => {
     app.chat.on('message_sent', onMessage);
     app.inventory.on('inventory_loaded', onInventory);
     app.inventory.on('inventory_updated', onInventory);
-    app.preferences.on('preference_changed', onPreferenceChanged);
-
     boot().catch((e) => setError(e?.message || 'Initialization error'));
 
     return () => {
@@ -144,40 +186,7 @@ const ViewerWorkbench: React.FC = () => {
   }, [designStyle]);
 
   const paletteClass = useMemo(() => {
-    if (colorPalette === 'neon-mint') {
-      return {
-        brandText: 'text-emerald-300',
-        primaryButton: 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-slate-900 hover:from-emerald-300 hover:to-emerald-400 shadow-emerald-900/30',
-        focus: 'focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/30',
-        buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
-        chip: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
-        sender: 'text-emerald-300',
-        checkboxAccent: 'accent-emerald-400',
-        checkboxFocus: 'focus-visible:ring-emerald-400',
-      };
-    }
-    if (colorPalette === 'royal-violet') {
-      return {
-        brandText: 'text-violet-300',
-        primaryButton: 'bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-400 hover:to-indigo-400 shadow-indigo-900/30',
-        focus: 'focus:border-violet-300 focus:ring-2 focus:ring-violet-500/30',
-        buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
-        chip: 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30',
-        sender: 'text-violet-300',
-        checkboxAccent: 'accent-violet-400',
-        checkboxFocus: 'focus-visible:ring-violet-400',
-      };
-    }
-    return {
-      brandText: 'text-blue-300',
-      primaryButton: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-400 hover:to-blue-500 shadow-blue-900/30',
-      focus: 'focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30',
-      buttonFocus: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900',
-      chip: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30',
-      sender: 'text-blue-300',
-      checkboxAccent: 'accent-blue-500',
-      checkboxFocus: 'focus-visible:ring-blue-400',
-    };
+    return PALETTE_CLASS_MAP[colorPalette];
   }, [colorPalette]);
 
   const handleLogin = async (event: React.FormEvent) => {
