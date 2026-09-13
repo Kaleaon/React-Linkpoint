@@ -185,7 +185,7 @@ const ViewerWorkbench: React.FC = () => {
           </div>
           <form className="mt-2 flex gap-2" onSubmit={handleSendChat}>
             <label htmlFor="chat-input" className="sr-only">Chat message</label>
-            <input id="chat-input" aria-label="Chat message" className="flex-1 rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
+            <input id="chat-input" className="flex-1 rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
             <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white" type="submit">Send</button>
           </form>
         </div>
