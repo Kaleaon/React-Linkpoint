@@ -96,6 +96,8 @@ const ViewerWorkbench: React.FC = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [inventoryVersion, setInventoryVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [restoredSession, setRestoredSession] = useState<any | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [designStyle, setDesignStyle] = useState<DesignStyle>('glass');
   const [colorPalette, setColorPalette] = useState<ColorPalette>('linkpoint-blue');
 
@@ -136,15 +138,27 @@ const ViewerWorkbench: React.FC = () => {
     const onStateChange = (nextState: string) => setStatus(nextState);
     const onLoginSuccess = () => {
       setError(null);
+      setRestoredSession(null);
       setMessages([...app.chat.messages]);
     };
     const onLoginFailed = (err: Error) => setError(err?.message || 'Login failed');
     const onMessage = () => setMessages([...app.chat.messages]);
     const onInventory = () => setInventoryVersion((x) => x + 1);
+    const onCredentialsLoaded = (creds: { username?: string; grid?: string }) => {
+      if (creds?.username) setUsername(creds.username);
+      if (creds?.grid) setGrid(creds.grid);
+    };
+    const onSessionRestored = (session: any) => {
+      setRestoredSession(session);
+      if (session?.username) setUsername(session.username);
+      if (session?.grid) setGrid(session.grid);
+    };
 
     app.protocol.on('state_changed', onStateChange);
     app.auth.on('login_success', onLoginSuccess);
     app.auth.on('login_failed', onLoginFailed);
+    app.auth.on('credentials_loaded', onCredentialsLoaded);
+    app.auth.on('session_restored', onSessionRestored);
     app.chat.on('message_received', onMessage);
     app.chat.on('message_sent', onMessage);
     app.inventory.on('inventory_loaded', onInventory);
@@ -161,6 +175,8 @@ const ViewerWorkbench: React.FC = () => {
       app.protocol.off('state_changed', onStateChange);
       app.auth.off('login_success', onLoginSuccess);
       app.auth.off('login_failed', onLoginFailed);
+      app.auth.off('credentials_loaded', onCredentialsLoaded);
+      app.auth.off('session_restored', onSessionRestored);
       app.chat.off('message_received', onMessage);
       app.chat.off('message_sent', onMessage);
       app.inventory.off('inventory_loaded', onInventory);
@@ -215,6 +231,24 @@ const ViewerWorkbench: React.FC = () => {
     setChatInput('');
   };
 
+  const handleReconnect = async () => {
+    if (!password.trim()) {
+      setError('Enter your password to reconnect the saved Linkpoint session.');
+      return;
+    }
+
+    setError(null);
+    setIsReconnecting(true);
+    try {
+      await app.auth.reconnect(password.trim(), 'last');
+      setRestoredSession(null);
+    } catch (e: any) {
+      setError(e?.message || 'Reconnect failed');
+    } finally {
+      setIsReconnecting(false);
+    }
+  };
+
   const handleDesignStyleChange = (nextStyle: DesignStyle) => {
     app.preferences.set('interface', 'designStyle', nextStyle);
   };
@@ -247,6 +281,34 @@ const ViewerWorkbench: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-3">
         <form onSubmit={handleLogin} className={`space-y-3 rounded-2xl border p-4 ${panelStyleClass}`}>
           <h3 className="font-semibold text-white">Login</h3>
+          {restoredSession ? (
+            <div className="rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-xs text-slate-300">
+              <p className="font-semibold text-slate-200">Saved session found</p>
+              <p className="mt-0.5">User: {restoredSession.user?.fullName || restoredSession.username}</p>
+              <p className="mt-0.5">Grid: {restoredSession.grid}</p>
+              <p className="mt-0.5">Last login: {new Date(restoredSession.lastLoginAt).toLocaleString()}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  className={`rounded px-2 py-1 text-xs font-semibold ${paletteClass.chip} disabled:cursor-not-allowed disabled:opacity-60`}
+                  type="button"
+                  onClick={handleReconnect}
+                  disabled={isReconnecting}
+                >
+                  {isReconnecting ? 'Reconnecting…' : 'Reconnect saved session'}
+                </button>
+                <button
+                  className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-600"
+                  type="button"
+                  onClick={() => {
+                    app.auth.clearSavedSession();
+                    setRestoredSession(null);
+                  }}
+                >
+                  Clear saved session
+                </button>
+              </div>
+            </div>
+          ) : null}
           <label htmlFor="login-grid" className="block text-sm text-slate-200">
             Grid
             <select id="login-grid" className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`} value={grid} onChange={(e) => setGrid(e.target.value)}>
