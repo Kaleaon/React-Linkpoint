@@ -88,6 +88,13 @@ const ViewerWorkbench: React.FC = () => {
     return flattenInventoryTree(app.inventory.rootFolder?.id || null);
   }, [inventoryVersion]);
 
+  const statusTone = useMemo(() => {
+    if (status === 'CONNECTED') return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30';
+    if (status === 'CONNECTING') return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-400/30';
+    if (status === 'ERROR' || error) return 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-400/30';
+    return 'bg-slate-500/15 text-slate-300 ring-1 ring-slate-400/30';
+  }, [error, status]);
+
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -106,71 +113,94 @@ const ViewerWorkbench: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold">Second Life Viewer Workbench</h2>
-        <p className="text-sm text-gray-600">Protocol status: <span className="font-mono">{status}</span> • Initialized: {ready ? 'yes' : 'no'}</p>
-        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+    <div className="space-y-5 text-slate-100">
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-5 shadow-[0_20px_65px_-35px_rgba(74,158,255,0.55)] backdrop-blur">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">Linkpoint</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Second Life Viewer Workbench</h2>
+            <p className="mt-1 text-sm text-slate-300">
+              Connected tools for protocol state, world rendering, chat, and inventory.
+            </p>
+          </div>
+          <div className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>
+            {status}
+          </div>
+        </div>
+        <p className="mt-3 text-sm text-slate-300">
+          Initialized: <span className="font-mono text-slate-100">{ready ? 'yes' : 'no'}</span>
+        </p>
+        {error ? <p className="mt-2 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200 ring-1 ring-rose-500/30">{error}</p> : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <form onSubmit={handleLogin} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-          <h3 className="font-semibold">Login</h3>
-          <label className="block text-sm">
+        <form onSubmit={handleLogin} className="space-y-3 rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-lg backdrop-blur">
+          <h3 className="font-semibold text-white">Login</h3>
+          <label className="block text-sm text-slate-200">
             Grid
-            <select className="mt-1 w-full rounded border border-gray-300 p-2" value={grid} onChange={(e) => setGrid(e.target.value)}>
+            <select className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={grid} onChange={(e) => setGrid(e.target.value)}>
               <option value="agni">Second Life (Agni)</option>
               <option value="aditi">Second Life Beta (Aditi)</option>
               <option value="osgrid">OSGrid</option>
             </select>
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm text-slate-200">
             Username
-            <input className="mt-1 w-full rounded border border-gray-300 p-2" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="first last" />
+            <input className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="first last" />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm text-slate-200">
             Password
-            <input type="password" className="mt-1 w-full rounded border border-gray-300 p-2" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input type="password" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input className="h-4 w-4 accent-blue-500" type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
             Remember username + grid
           </label>
-          <button className="w-full rounded bg-blue-600 px-3 py-2 text-white hover:bg-blue-700" type="submit">Connect</button>
+          <button className="w-full rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-2 font-semibold text-white shadow-md shadow-blue-900/30 transition hover:from-blue-400 hover:to-blue-500" type="submit">Connect</button>
         </form>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-          <h3 className="mb-2 font-semibold">World</h3>
-          <div className="h-64 overflow-hidden rounded border border-gray-200 bg-gray-50">
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-lg backdrop-blur lg:col-span-2">
+          <h3 className="mb-2 font-semibold text-white">World</h3>
+          <div className="h-72 overflow-hidden rounded-xl border border-slate-700 bg-slate-950/80 shadow-inner">
             <canvas id="world-canvas" className="h-full w-full" />
           </div>
-          <p className="mt-2 text-xs text-gray-500">
-            Region: <span id="region-name">Unknown</span> • Coordinates: <span id="coordinates">0, 0, 0</span>
+          <p className="mt-2 text-xs text-slate-400">
+            Region: <span id="region-name" className="text-slate-200">Unknown</span> • Coordinates: <span id="coordinates" className="text-slate-200">0, 0, 0</span>
           </p>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="font-semibold">Local Chat</h3>
-          <div className="mt-2 h-56 overflow-y-auto rounded border border-gray-200 p-2 text-sm">
-            {messages.length === 0 ? <p className="text-gray-500">No messages yet.</p> : messages.map((msg) => (
-              <p key={msg.id} className="mb-1"><span className="font-semibold">{msg.sender}:</span> {msg.text}</p>
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-lg backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-semibold text-white">Local Chat</h3>
+            <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-300 ring-1 ring-blue-500/30">
+              {messages.length} messages
+            </span>
+          </div>
+          <div className="mt-2 h-56 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm">
+            {messages.length === 0 ? <p className="text-slate-500">No messages yet.</p> : messages.map((msg) => (
+              <p key={msg.id} className="mb-1 text-slate-200"><span className="font-semibold text-blue-300">{msg.sender}:</span> {msg.text}</p>
             ))}
           </div>
           <form className="mt-2 flex gap-2" onSubmit={handleSendChat}>
-            <input className="flex-1 rounded border border-gray-300 p-2 text-sm" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
-            <button className="rounded bg-gray-800 px-3 py-2 text-sm text-white" type="submit">Send</button>
+            <input className="flex-1 rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
+            <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white" type="submit">Send</button>
           </form>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 className="font-semibold">Inventory</h3>
-          <div className="mt-2 h-64 overflow-y-auto rounded border border-gray-200 p-2 text-sm">
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-lg backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-semibold text-white">Inventory</h3>
+            <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs text-slate-300 ring-1 ring-slate-500/30">
+              {inventoryRows.length} entries
+            </span>
+          </div>
+          <div className="mt-2 h-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950/70 p-2 text-sm">
             {inventoryRows.length === 0 ? (
-              <p className="text-gray-500">Inventory will populate after successful login and caps fetch.</p>
+              <p className="text-slate-500">Inventory will populate after successful login and caps fetch.</p>
             ) : inventoryRows.map((row) => (
-              <p key={row.id} style={{ paddingLeft: `${row.depth * 14}px` }}>
+              <p key={row.id} className="text-slate-200" style={{ paddingLeft: `${row.depth * 14}px` }}>
                 {row.type === 'folder' ? '📁' : '📄'} {row.name}
               </p>
             ))}
