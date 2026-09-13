@@ -1,11 +1,27 @@
-import React from 'react';
-import ViewerWorkbench from './components/ViewerWorkbench';
+import React, { useState, useEffect } from 'react';
+import LoginScreen from './components/LoginScreen';
+import MainLayout from './components/MainLayout';
+import { app } from './linkpoint/app';
 
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    // Basic init
+    app.init();
+
+    // Check if session exists (restoring logic can go here later)
+
+  }, []);
+
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6 sm:py-8">
-      <ViewerWorkbench />
-    </div>
+    <>
+      {isAuthenticated ? (
+        <MainLayout />
+      ) : (
+        <LoginScreen onLoginSuccess={() => setIsAuthenticated(true)} />
+      )}
+    </>
   );
 };
 
