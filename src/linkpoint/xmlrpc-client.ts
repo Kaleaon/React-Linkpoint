@@ -6,6 +6,7 @@
 import { Utils } from './utils';
 import { corsHandler } from './cors-handler';
 import SparkMD5 from 'spark-md5';
+import { VIEWER_CHANNEL, VIEWER_VERSION } from './viewer-identity';
 
 export class XMLRPCClient {
   /**
@@ -20,8 +21,8 @@ export class XMLRPCClient {
     stringFields.push({ name: 'last', value: params.lastName });
     stringFields.push({ name: 'passwd', value: `$1$${params.passwordHash}` });
     stringFields.push({ name: 'start', value: params.startLocation || 'last' });
-    stringFields.push({ name: 'channel', value: params.channel || 'Linkpoint PWA' });
-    stringFields.push({ name: 'version', value: params.version || '1.0.0' });
+    stringFields.push({ name: 'channel', value: params.channel || VIEWER_CHANNEL });
+    stringFields.push({ name: 'version', value: params.version || VIEWER_VERSION });
     stringFields.push({ name: 'platform', value: 'Web' });
     stringFields.push({ name: 'platform_version', value: navigator.userAgent });
     stringFields.push({ name: 'mac', value: params.macAddress || this.generateMAC() });

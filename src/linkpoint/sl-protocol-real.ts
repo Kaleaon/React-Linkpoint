@@ -6,6 +6,7 @@ import { Utils } from './utils';
 import { XMLRPCClient } from './xmlrpc-client';
 import { LLSD } from './llsd';
 import { corsHandler } from './cors-handler';
+import { VIEWER_CHANNEL, VIEWER_VERSION } from './viewer-identity';
 
 export class SLProtocol extends Utils.EventEmitter {
   public sessionId: string | null = null;
@@ -51,8 +52,8 @@ export class SLProtocol extends Utils.EventEmitter {
         lastName,
         passwordHash,
         startLocation,
-        channel: 'Linkpoint PWA',
-        version: '1.0.0',
+        channel: VIEWER_CHANNEL,
+        version: VIEWER_VERSION,
         loginUri: grid.loginUrl
       };
 
