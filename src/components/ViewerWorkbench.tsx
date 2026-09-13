@@ -267,7 +267,7 @@ const ViewerWorkbench: React.FC = () => {
             <select
               id="settings-style"
               disabled={!ready}
-              className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`}
+              className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition disabled:cursor-not-allowed disabled:opacity-60 ${paletteClass.focus}`}
               value={designStyle}
               onChange={(e) => handleDesignStyleChange(e.target.value as DesignStyle)}
             >
@@ -283,7 +283,7 @@ const ViewerWorkbench: React.FC = () => {
             <select
               id="settings-palette"
               disabled={!ready}
-              className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition ${paletteClass.focus}`}
+              className={`mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition disabled:cursor-not-allowed disabled:opacity-60 ${paletteClass.focus}`}
               value={colorPalette}
               onChange={(e) => handlePaletteChange(e.target.value as ColorPalette)}
             >
