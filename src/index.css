@@ -6,19 +6,20 @@
 }
 
 :root {
-  --background: #020617;
+  --background: #100f0e;
   --foreground: #e2e8f0;
-  --surface: #0f172a;
-  --surface-muted: #111f3e;
+  --surface: #101a1c;
+  --surface-muted: #1b2a2d;
   --border: #1e293b;
   --brand: #4a9eff;
   --brand-strong: #3476ff;
+  --accent: #6cff9a;
 }
 
 body {
   background:
-    radial-gradient(circle at 0% 0%, rgba(74, 158, 255, 0.14), transparent 34%),
-    radial-gradient(circle at 100% 100%, rgba(52, 118, 255, 0.13), transparent 36%),
+    radial-gradient(circle at 0% 0%, rgba(108, 255, 154, 0.12), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(74, 158, 255, 0.14), transparent 36%),
     var(--background);
   color: var(--foreground);
   margin: 0;

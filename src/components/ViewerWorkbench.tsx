@@ -117,7 +117,7 @@ const ViewerWorkbench: React.FC = () => {
       <div className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-5 shadow-[0_20px_65px_-35px_rgba(74,158,255,0.55)] backdrop-blur">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">Linkpoint</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Linkpoint</p>
             <h2 className="mt-1 text-xl font-semibold text-white">Second Life Viewer Workbench</h2>
             <p className="mt-1 text-sm text-slate-300">
               Connected tools for protocol state, world rendering, chat, and inventory.
@@ -153,7 +153,7 @@ const ViewerWorkbench: React.FC = () => {
             <input type="password" className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-slate-100 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input className="h-4 w-4 accent-blue-500" type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+            <input className="h-4 w-4 accent-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900" type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
             Remember username + grid
           </label>
           <button className="w-full rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-2 font-semibold text-white shadow-md shadow-blue-900/30 transition hover:from-blue-400 hover:to-blue-500" type="submit">Connect</button>
@@ -184,7 +184,8 @@ const ViewerWorkbench: React.FC = () => {
             ))}
           </div>
           <form className="mt-2 flex gap-2" onSubmit={handleSendChat}>
-            <input className="flex-1 rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
+            <label htmlFor="chat-input" className="sr-only">Chat message</label>
+            <input id="chat-input" aria-label="Chat message" className="flex-1 rounded-lg border border-slate-600 bg-slate-950/70 p-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type chat message" />
             <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white" type="submit">Send</button>
           </form>
         </div>
