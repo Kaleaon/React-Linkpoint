@@ -69,7 +69,7 @@ export class LinkpointApp {
   async init() {
     console.log('🔗 Linkpoint PWA Starting...');
 
-    this.preferences.init();
+    await this.preferences.init();
     this.auth.init();
     await this.world.init();
     this.chat.init();

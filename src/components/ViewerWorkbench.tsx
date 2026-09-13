@@ -125,6 +125,10 @@ const ViewerWorkbench: React.FC = () => {
     };
 
     const boot = async () => {
+      await app.preferences.init();
+      if (mounted) {
+        hydrateInterfacePreferences();
+      }
       await app.init();
       if (mounted) {
         hydrateInterfacePreferences();
@@ -150,8 +154,6 @@ const ViewerWorkbench: React.FC = () => {
     app.inventory.on('inventory_loaded', onInventory);
     app.inventory.on('inventory_updated', onInventory);
     app.preferences.on('preference_changed', onPreferenceChanged);
-    app.preferences.init();
-    hydrateInterfacePreferences();
     boot().catch((e) => {
       if (mounted) {
         setError(e?.message || 'Initialization error');
