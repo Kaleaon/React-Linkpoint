@@ -48,8 +48,10 @@ export class AuthManager extends Utils.EventEmitter {
       const response = await this.protocol.connect(grid, username, password, startLocation);
 
       if (rememberMe) {
-        Utils.storage.set(CREDENTIALS_KEY, { username, grid, rememberMe: true });
+        this.credentials = { username, grid, rememberMe: true };
+        Utils.storage.set(CREDENTIALS_KEY, this.credentials);
       } else {
+        this.credentials = null;
         Utils.storage.remove(CREDENTIALS_KEY);
       }
 
@@ -85,6 +87,7 @@ export class AuthManager extends Utils.EventEmitter {
     this.user = null;
     this.sessionSnapshot = null;
     Utils.storage.remove(SESSION_KEY);
+    this.credentials = Utils.storage.get(CREDENTIALS_KEY) || null;
     this.emit('logout');
   }
 

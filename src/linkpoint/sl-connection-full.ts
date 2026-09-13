@@ -169,7 +169,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   async logout() {
-    this.resetConnectionState();
+    this.eventQueueRunning = false;
+    this.connected = false;
     this.setState('IDLE');
     this.emit('disconnected');
   }

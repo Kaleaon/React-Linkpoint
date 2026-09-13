@@ -144,9 +144,10 @@ const ViewerWorkbench: React.FC = () => {
     const onLoginFailed = (err: Error) => setError(err?.message || 'Login failed');
     const onMessage = () => setMessages([...app.chat.messages]);
     const onInventory = () => setInventoryVersion((x) => x + 1);
-    const onCredentialsLoaded = (creds: { username?: string; grid?: string }) => {
+    const onCredentialsLoaded = (creds: { username?: string; grid?: string; rememberMe?: boolean }) => {
       if (creds?.username) setUsername(creds.username);
       if (creds?.grid) setGrid(creds.grid);
+      setRememberMe(creds?.rememberMe === true);
     };
     const onSessionRestored = (session: any) => {
       setRestoredSession(session);
