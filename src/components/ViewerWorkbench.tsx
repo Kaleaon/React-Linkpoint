@@ -103,6 +103,7 @@ const ViewerWorkbench: React.FC = () => {
     let mounted = true;
 
     const onPreferenceChanged = ({ category, key, value }: { category: string; key: string; value: unknown }) => {
+      if (!mounted) return;
       if (category !== 'interface') return;
       if (key === 'designStyle' && (value === 'glass' || value === 'solid' || value === 'minimal')) {
         setDesignStyle(value);
