@@ -146,7 +146,11 @@ const ViewerWorkbench: React.FC = () => {
     app.inventory.on('inventory_loaded', onInventory);
     app.inventory.on('inventory_updated', onInventory);
     app.preferences.on('preference_changed', onPreferenceChanged);
-    boot().catch((e) => setError(e?.message || 'Initialization error'));
+    boot().catch((e) => {
+      if (mounted) {
+        setError(e?.message || 'Initialization error');
+      }
+    });
 
     return () => {
       mounted = false;
