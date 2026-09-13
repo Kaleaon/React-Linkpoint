@@ -125,10 +125,6 @@ const ViewerWorkbench: React.FC = () => {
     };
 
     const boot = async () => {
-      await app.preferences.init();
-      if (mounted) {
-        hydrateInterfacePreferences();
-      }
       await app.init();
       if (mounted) {
         hydrateInterfacePreferences();

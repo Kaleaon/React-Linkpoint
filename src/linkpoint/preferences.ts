@@ -21,8 +21,19 @@ export class PreferencesManager extends Utils.EventEmitter {
   }
 
   async init() {
+    const defaults = this.getDefaultPreferences();
     const saved = Utils.storage.get('linkpoint_preferences');
-    if (saved) this.preferences = { ...this.getDefaultPreferences(), ...saved };
+    if (saved) {
+      this.preferences = {
+        ...defaults,
+        ...saved,
+        graphics: { ...defaults.graphics, ...(saved.graphics || {}) },
+        interface: { ...defaults.interface, ...(saved.interface || {}) },
+        notifications: { ...defaults.notifications, ...(saved.notifications || {}) },
+      };
+      return;
+    }
+    this.preferences = defaults;
   }
 
   get(category: string, key: string) {
