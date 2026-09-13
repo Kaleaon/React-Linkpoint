@@ -73,7 +73,7 @@ async function startServer() {
 
       const contentType = response.headers["content-type"];
       if (contentType) {
-        res.setHeader("Content-Type", contentType);
+        res.setHeader("Content-Type", contentType as any);
       }
       
       res.setHeader("Access-Control-Allow-Origin", "*");

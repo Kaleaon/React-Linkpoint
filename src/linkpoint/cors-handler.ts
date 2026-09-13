@@ -11,7 +11,7 @@ export class CORSHandler {
 
   constructor() {
     this.environment = this.detectEnvironment();
-    this.customProxyUrl = (import.meta.env.VITE_SL_PROXY_URL || '').trim() || null;
+    this.customProxyUrl = ((import.meta as any).env.VITE_SL_PROXY_URL || '').trim() || null;
     this.checkLocalProxy();
     this.corsProxies = this.buildProxyList();
     this.currentProxyIndex = 0;

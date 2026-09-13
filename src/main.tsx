@@ -9,10 +9,10 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if ('serviceWorker' in navigator && (import.meta as any).env.PROD) {
   window.addEventListener('load', async () => {
     try {
-      const basePath = import.meta.env.BASE_URL || '/';
+      const basePath = (import.meta as any).env.BASE_URL || '/';
       await navigator.serviceWorker.register(`${basePath}service-worker.js`, {
         scope: basePath,
       });

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Utils } from './utils';
 
 describe('Utils', () => {
@@ -25,10 +25,9 @@ describe('Utils', () => {
 
       // The number of unique UUIDs should equal the number of iterations
       expect(uuids.size).toBe(ITERATIONS);
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Utils } from './utils';
+    });
+  });
 
-describe('Utils', () => {
   describe('debounce', () => {
     beforeEach(() => {
       vi.useFakeTimers();
