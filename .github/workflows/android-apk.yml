@@ -37,7 +37,7 @@ jobs:
           cache: gradle
 
       - name: Install web dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       # Capacitor is installed only in the build workspace until the packages
       # are added to the project dependency lockfile.
