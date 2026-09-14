@@ -4,8 +4,12 @@ import axios from "axios";
 import path from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
+import http from "http";
+import { WebSocketServer, WebSocket } from "ws";
+import dgram from "dgram";
 import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy";
 import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/proxy-permit";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,7 +122,66 @@ async function startServer() {
   const PORT = Number(process.env.PORT || 3000);
   console.log(`[Server] Starting in ${process.env.NODE_ENV || 'development'} mode...`);
   const app = await createApp();
-  app.listen(PORT, "0.0.0.0", () => {
+
+  const server = http.createServer(app);
+
+  // WebSocket to UDP bridging
+  const wss = new WebSocketServer({ server, path: '/api/udp-proxy' });
+
+  wss.on('connection', (ws) => {
+    let udpSocket = null;
+    let targetIp = null;
+    let targetPort = null;
+
+    ws.on('message', (message) => {
+      // First message must be a JSON config containing ip and port
+      if (!udpSocket) {
+        try {
+          const config = JSON.parse(message.toString());
+          if (!config.ip || !config.port) {
+            throw new Error("Missing ip or port");
+          }
+          targetIp = config.ip;
+          targetPort = config.port;
+
+          udpSocket = dgram.createSocket('udp4');
+
+          udpSocket.on('message', (msg, rinfo) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(msg);
+            }
+          });
+
+          udpSocket.on('error', (err) => {
+            console.error(`[UDP Error] ${err.message}`);
+            ws.close();
+          });
+
+          ws.send(JSON.stringify({ status: "connected" }));
+          console.log(`[UDP Proxy] Bridged to ${targetIp}:${targetPort}`);
+        } catch (e) {
+          console.error("[UDP Proxy] Invalid initialization message:", e);
+          ws.close();
+        }
+      } else {
+        // Forward binary WebSocket messages to UDP
+        if (targetIp && targetPort) {
+          udpSocket.send(message, targetPort, targetIp, (err) => {
+             if (err) console.error("[UDP Proxy] Send error:", err);
+          });
+        }
+      }
+    });
+
+    ws.on('close', () => {
+      if (udpSocket) {
+        udpSocket.close();
+      }
+      console.log(`[UDP Proxy] Disconnected from ${targetIp}:${targetPort}`);
+    });
+  });
+
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`[Server] Running on http://localhost:${PORT}`);
   });
 }

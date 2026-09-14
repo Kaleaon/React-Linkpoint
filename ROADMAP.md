@@ -5,11 +5,11 @@ This document outlines the strategic phases for developing Linkpoint into a full
 ## Phase 1: Foundation & TPV Compliance (Current Phase)
 *Establish the core architecture, security, and networking layers.*
 - [x] **Core Protocol Implementation:** Initial TypeScript implementation of SLLogin, LLSD parsing, and basic messaging (`src/linkpoint/`).
-- [ ] **Networking Bifurcation Setup:**
+- [x] **Networking Bifurcation Setup:**
   - Define local proxy setup with full CORS support (`server.ts`).
   - Create stub logic for WebSockets-to-UDP bridging for the Web version.
-- [ ] **TPV Policy Baseline:** Document and implement Viewer Identity (Login Channel strings), MAC Address hashing, and basic privacy standards (`TPV_COMPLIANCE.md`).
-- [ ] **React Native / Expo Migration:** Scaffolding the new universal codebase that supports Web, Android, and iOS natively.
+- [x] **TPV Policy Baseline:** Document and implement Viewer Identity (Login Channel strings), MAC Address hashing, and basic privacy standards (`TPV_COMPLIANCE.md`).
+- [x] **React Native / Expo Migration:** Scaffolding the new universal codebase that supports Web, Android, and iOS natively. (Also includes Electron Desktop build!)
 
 ## Phase 2: Core Viewer Features (The Text/UI Client)
 *Implement the essential interactions for engaging in the Second Life world without rendering graphics.*

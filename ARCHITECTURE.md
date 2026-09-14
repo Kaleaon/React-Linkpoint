@@ -31,4 +31,5 @@ A fully working 3D worldview is a primary goal.
 
 ## 5. Deployment Strategy
 - **Web App:** CI/CD via GitHub Actions to deploy static web files directly to **GitHub Pages**.
+- **Desktop App (Electron):** CI/CD via GitHub Actions to wrap the Expo Web export in an Electron shell and build executables (.exe, .dmg, .AppImage).
 - **Mobile Apps:** GitHub Actions configured with EAS (Expo Application Services) to automatically build Android (.apk/.aab) and iOS binaries upon commit.
