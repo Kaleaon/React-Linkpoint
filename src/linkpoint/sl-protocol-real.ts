@@ -38,7 +38,8 @@ export class SLProtocol extends Utils.EventEmitter {
   };
 
   async login(gridId: string, username: string, password: string, startLocation: string = 'last') {
-    const grid = SLProtocol.GRIDS[gridId];
+    const configuredGrid = SLProtocol.GRIDS[gridId];
+    const grid = configuredGrid || this.createCustomGrid(gridId);
     if (!grid) throw new Error('Invalid grid selected');
 
     const nameParts = username.replace(/[._]/g, ' ').trim().split(/\s+/);
@@ -81,10 +82,6 @@ export class SLProtocol extends Utils.EventEmitter {
 
       this.connected = true;
 
-      if (this.seedCapability) {
-        await this.fetchCapabilities();
-      }
-
       this.emit('login_success', response);
       return response;
 
@@ -92,6 +89,18 @@ export class SLProtocol extends Utils.EventEmitter {
       console.error('Login error:', error);
       this.emit('login_failed', error);
       throw error;
+    }
+  }
+
+  private createCustomGrid(loginUrl: string) {
+    try {
+      const endpoint = new URL(loginUrl);
+      if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) {
+        return null;
+      }
+      return { name: endpoint.hostname, loginUrl: endpoint.toString() };
+    } catch {
+      return null;
     }
   }
 
