@@ -35,12 +35,10 @@ export class AuthManager extends Utils.EventEmitter {
       this.emit('credentials_loaded', savedCreds);
     }
 
-    const savedSession = Utils.storage.get(SESSION_KEY);
-    if (savedSession && savedSession.user) {
-      this.sessionSnapshot = savedSession;
-      this.user = savedSession.user;
-      this.emit('session_restored', savedSession);
-    }
+    // Session and agent identifiers are valid only for the live protocol
+    // connection.  Do not restore them from localStorage after a reload.
+    // Remove snapshots written by older versions as a one-time migration.
+    Utils.storage.remove(SESSION_KEY);
   }
 
   async login(grid: string, username: string, password: string, rememberMe: boolean, startLocation: string = 'last') {
@@ -72,8 +70,6 @@ export class AuthManager extends Utils.EventEmitter {
         agentId: this.protocol.agentId,
         lastLoginAt: new Date().toISOString(),
       };
-      Utils.storage.set(SESSION_KEY, this.sessionSnapshot);
-
       this.emit('login_success', this.user);
       return this.user;
     } catch (error) {

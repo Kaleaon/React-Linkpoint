@@ -6,37 +6,18 @@
 export class CORSHandler {
   public environment: any;
   private corsProxies: any[];
-  private currentProxyIndex: number;
   private customProxyUrl: string | null;
+  private capabilityPermit: string | null = null;
 
   constructor() {
     this.environment = this.detectEnvironment();
     this.customProxyUrl = ((import.meta as any).env.VITE_SL_PROXY_URL || '').trim() || null;
     this.checkLocalProxy();
     this.corsProxies = this.buildProxyList();
-    this.currentProxyIndex = 0;
   }
 
   private buildProxyList() {
-    const defaultProxies = [
-      { 
-        url: 'https://api.allorigins.win/raw?url=', 
-        name: 'AllOrigins',
-        encode: true
-      },
-      { 
-        url: 'https://api.codetabs.com/v1/proxy?quest=', 
-        name: 'CodeTabs',
-        encode: true
-      },
-      {
-        url: 'https://thingproxy.freeboard.io/fetch/',
-        name: 'ThingProxy',
-        encode: false
-      }
-    ];
-
-    const proxies = [...defaultProxies];
+    const proxies: { url: string; name: string; encode: boolean }[] = [];
 
     if (this.customProxyUrl) {
       proxies.unshift({
@@ -62,6 +43,8 @@ export class CORSHandler {
    * Check if local proxy is reachable
    */
   async checkLocalProxy() {
+    // Unit tests do not run the Express development proxy.
+    if ((import.meta as any).env.MODE === 'test') return;
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (!isLocalhost) return;
 
@@ -163,11 +146,12 @@ export class CORSHandler {
           });
           
           console.log('[CORS] Direct connection succeeded');
+          this.capturePermit(response);
           return response;
         } catch (directError) {
           // CORS blocked, use proxy
           console.log('[CORS] Direct connection failed, using configured CORS proxies');
-          return await this.usePublicProxy(url, options);
+          return await this.useTrustedProxy(url, options);
         }
       }
       
@@ -179,14 +163,14 @@ export class CORSHandler {
   }
 
   /**
-   * Use public CORS proxy
+   * Use a Linkpoint-operated proxy configured for this deployment.
    */
-  async usePublicProxy(url: string, options: any) {
+  async useTrustedProxy(url: string, options: any) {
     const errors: string[] = [];
     
-    // Try each proxy in sequence
-    for (let i = 0; i < this.corsProxies.length; i++) {
-      const proxy = this.corsProxies[this.currentProxyIndex];
+    // Never send login credentials or capability traffic through public proxy
+    // services.  A configured proxy must be operated by the viewer provider.
+    for (const proxy of this.corsProxies) {
       const proxiedUrl = proxy.encode ? 
         proxy.url + encodeURIComponent(url) : 
         proxy.url + url;
@@ -199,7 +183,10 @@ export class CORSHandler {
 
         const response = await fetch(proxiedUrl, {
           method: options.method || 'GET',
-          headers: options.headers || {},
+          headers: {
+            ...(options.headers || {}),
+            ...(this.capabilityPermit ? { 'X-Linkpoint-Capability-Permit': this.capabilityPermit } : {}),
+          },
           body: options.body,
           signal: controller.signal
         });
@@ -207,6 +194,7 @@ export class CORSHandler {
         clearTimeout(timeoutId);
 
         if (response.ok) {
+          this.capturePermit(response);
           console.log(`[CORS] ${proxy.name} proxy succeeded`);
           return response;
         } else {
@@ -219,15 +207,20 @@ export class CORSHandler {
         console.warn(`[CORS] ${proxy.name} failed:`, error.message);
       }
       
-      // Try next proxy
-      this.currentProxyIndex = (this.currentProxyIndex + 1) % this.corsProxies.length;
     }
     
     // All proxies failed
-    const errorMessage = `All CORS proxies failed:\n${errors.join('\n')}`;
+    const errorMessage = this.corsProxies.length === 0
+      ? 'No trusted Second Life proxy is configured.'
+      : `All trusted Second Life proxies failed:\n${errors.join('\n')}`;
     console.error('[CORS]', errorMessage);
     
-    throw new Error(errorMessage + '\n\n💡 Solutions:\n1. Provide VITE_SL_PROXY_URL for a dedicated proxy\n2. Try without VPN\n3. Use desktop app (no CORS issues)');
+    throw new Error(errorMessage + '\n\n💡 Provide VITE_SL_PROXY_URL for a dedicated Linkpoint proxy.');
+  }
+
+  private capturePermit(response: Response) {
+    const permit = response.headers.get('x-linkpoint-capability-permit');
+    if (permit) this.capabilityPermit = permit;
   }
 
   /**

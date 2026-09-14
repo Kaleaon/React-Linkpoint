@@ -7,6 +7,10 @@
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
+    "android:build": "VITE_BASE_PATH=/ npm run build",
+    "android:sync": "npm run android:build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npm run android:sync && npx cap run android",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "vitest run"

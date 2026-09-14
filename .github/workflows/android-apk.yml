@@ -1,0 +1,65 @@
+name: Build Android test APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build unsigned debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Install web dependencies
+        run: npm ci
+
+      # Capacitor is installed only in the build workspace until the packages
+      # are added to the project dependency lockfile.
+      - name: Install Capacitor Android tooling
+        run: npm install --no-save --ignore-scripts @capacitor/core @capacitor/android @capacitor/cli
+
+      - name: Build and synchronize Android web assets
+        run: |
+          npm run android:build
+          npx cap add android
+          npx cap sync android
+
+      - name: Assemble debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkpoint-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

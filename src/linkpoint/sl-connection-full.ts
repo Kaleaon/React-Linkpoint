@@ -21,6 +21,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
   public inventoryRoot: string | null = null;
   public eventQueueRunning: boolean = false;
   private lastEventId: number | null = null;
+  private eventQueueTimer: ReturnType<typeof setTimeout> | null = null;
+  private eventQueueFailures = 0;
 
   constructor() {
     super();
@@ -39,6 +41,9 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.inventoryRoot = null;
     this.eventQueueRunning = false;
     this.lastEventId = null;
+    if (this.eventQueueTimer) clearTimeout(this.eventQueueTimer);
+    this.eventQueueTimer = null;
+    this.eventQueueFailures = 0;
   }
 
   async connect(gridId: string, username: string, password: string, startLocation: string = 'last') {
@@ -130,13 +135,23 @@ export class SLConnectionFull extends Utils.EventEmitter {
           data.events.forEach((event: any) => this.handleEvent(event));
           if (data.id) this.lastEventId = data.id;
         }
+        this.eventQueueFailures = 0;
+      } else {
+        this.eventQueueFailures++;
       }
     } catch (error) {
       console.error('Event queue error:', error);
+      this.eventQueueFailures++;
     }
 
     if (this.eventQueueRunning) {
-      setTimeout(() => this.pollEventQueue(), 1000);
+      if (this.eventQueueFailures >= 5) {
+        this.eventQueueRunning = false;
+        this.emit('event_queue_failed');
+        return;
+      }
+      const delay = Math.min(30_000, 1_000 * 2 ** this.eventQueueFailures);
+      this.eventQueueTimer = setTimeout(() => this.pollEventQueue(), delay);
     }
   }
 
@@ -170,6 +185,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async logout() {
     this.eventQueueRunning = false;
+    if (this.eventQueueTimer) clearTimeout(this.eventQueueTimer);
+    this.eventQueueTimer = null;
     this.connected = false;
     this.setState('IDLE');
     this.emit('disconnected');

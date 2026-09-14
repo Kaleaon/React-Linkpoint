@@ -112,7 +112,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <input
               value={customUri}
               onChange={(e) => setCustomUri(e.target.value)}
-              placeholder="http://login.example-grid.org"
+              placeholder="https://login.example-grid.org"
               style={controlStyle(t)}
               aria-label="Login URI"
             />

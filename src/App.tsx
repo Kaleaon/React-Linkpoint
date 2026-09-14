@@ -17,8 +17,9 @@ const Root: React.FC = () => {
 
   useEffect(() => {
     app.init();
-    // A session snapshot from a previous run means we can go straight in.
-    if (app.auth.hasSavedSession?.()) setAuthenticated(true);
+    // A saved snapshot identifies the last account, not a live grid session.
+    // The protocol is disconnected after a reload, so the resident must
+    // reconnect before the authenticated shell is rendered.
   }, []);
 
   if (authenticated) {
