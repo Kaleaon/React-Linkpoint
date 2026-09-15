@@ -20,6 +20,18 @@ A Second Life communicator and viewer utility suite packaged as a Progressive We
    npm run dev
    ```
 
+
+## Desktop Execution
+
+The codebase now supports building standalone desktop applications for Windows, macOS, and Linux using Electron.
+The GitHub Actions workflow `.github/workflows/desktop-build.yml` automatically packages the Expo web build into a standalone desktop executable on push.
+
+### Build Desktop Locally
+```bash
+npm run build:desktop
+```
+Outputs will be placed in the `build-desktop` directory.
+
 ## PWA notes
 
 - The app registers `public/service-worker.js` in production builds.

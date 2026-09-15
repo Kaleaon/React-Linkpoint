@@ -25,7 +25,16 @@ export class XMLRPCClient {
     stringFields.push({ name: 'version', value: params.version || VIEWER_VERSION });
     stringFields.push({ name: 'platform', value: 'Web' });
     stringFields.push({ name: 'platform_version', value: navigator.userAgent });
-    stringFields.push({ name: 'mac', value: params.macAddress || this.generateMAC() });
+    // MD5 hash the MAC address before sending, per TPV_COMPLIANCE.md
+    const rawMac = params.macAddress || this.generateMAC();
+    let hashedMac = '';
+    // We compute the hash synchronously if possible, or assume it's pre-hashed if it's 32 chars
+    if (rawMac.length === 32 && !rawMac.includes(':')) {
+       hashedMac = rawMac;
+    } else {
+       hashedMac = SparkMD5.hash(rawMac);
+    }
+    stringFields.push({ name: 'mac', value: hashedMac });
     stringFields.push({ name: 'id0', value: params.id0 || this.generateID0() });
     stringFields.push({ name: 'viewer_digest', value: params.viewerDigest || this.generateViewerDigest() });
     
@@ -258,11 +267,16 @@ export class XMLRPCClient {
    * Generate MAC address
    */
   static generateMAC(): string {
-    const bytes = new Uint8Array(6);
-    globalThis.crypto.getRandomValues(bytes);
-    return Array.from(bytes)
-      .map(b => b.toString(16).padStart(2, '0').toUpperCase())
-      .join(':');
+    let mac = Utils.storage.get('linkpoint_mac', null);
+    if (!mac) {
+      const bytes = new Uint8Array(6);
+      globalThis.crypto.getRandomValues(bytes);
+      mac = Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+        .join(':');
+      Utils.storage.set('linkpoint_mac', mac);
+    }
+    return mac;
   }
 
   /**
