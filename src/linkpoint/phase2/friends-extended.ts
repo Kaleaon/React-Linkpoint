@@ -248,10 +248,24 @@ export class FriendsExtended {
   }
 
   getStats() {
+    let onlineFriends = 0;
+    for (const f of this.friends.values()) {
+      if (f.onlineStatus === 'online') {
+        onlineFriends++;
+      }
+    }
+
+    let pendingRequests = 0;
+    for (const r of this.friendRequests.values()) {
+      if (r.status === 'pending') {
+        pendingRequests++;
+      }
+    }
+
     return {
       totalFriends: this.friends.size,
-      onlineFriends: this.getOnlineFriends().length,
-      pendingRequests: Array.from(this.friendRequests.values()).filter(r => r.status === 'pending').length,
+      onlineFriends,
+      pendingRequests,
       friendGroups: this.friendGroups.size
     };
   }

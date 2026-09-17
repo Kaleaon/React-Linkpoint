@@ -9,10 +9,15 @@
  */
 
 export class GroupsManager {
+  private protocol: any;
   private groups: Map<string, any> = new Map();
   private groupMembers: Map<string, Map<string, any>> = new Map();
   private groupRoles: Map<string, Map<string, any>> = new Map();
   private groupNotices: Map<string, any[]> = new Map();
+
+  constructor(protocolManager?: any) {
+    this.protocol = protocolManager;
+  }
 
   /**
    * Feature 41: Group info
@@ -135,7 +140,18 @@ export class GroupsManager {
     };
     
     console.log(`[Groups] Sending group chat to ${groupId}: ${message}`);
-    // TODO: Send via protocol handler
+
+    if (this.protocol && typeof this.protocol.sendChat === 'function') {
+      try {
+        // Group chat usually uses a specific channel or type (e.g. type 2 for group chat)
+        await this.protocol.sendChat(message, 0, 2);
+      } catch (error) {
+        console.error('[Groups] Failed to send group chat:', error);
+        throw error;
+      }
+    } else {
+      console.warn('[Groups] Protocol handler not available');
+    }
     
     return Promise.resolve(chatMsg);
   }
@@ -193,11 +209,26 @@ export class GroupsManager {
   }
 
   getStats() {
+    let totalMembers = 0;
+    for (const members of this.groupMembers.values()) {
+      totalMembers += members.size;
+    }
+
+    let totalRoles = 0;
+    for (const roles of this.groupRoles.values()) {
+      totalRoles += roles.size;
+    }
+
+    let totalNotices = 0;
+    for (const notices of this.groupNotices.values()) {
+      totalNotices += notices.length;
+    }
+
     return {
       totalGroups: this.groups.size,
-      totalMembers: Array.from(this.groupMembers.values()).reduce((sum, m) => sum + m.size, 0),
-      totalRoles: Array.from(this.groupRoles.values()).reduce((sum, r) => sum + r.size, 0),
-      totalNotices: Array.from(this.groupNotices.values()).reduce((sum, n) => sum + n.length, 0)
+      totalMembers,
+      totalRoles,
+      totalNotices
     };
   }
 }

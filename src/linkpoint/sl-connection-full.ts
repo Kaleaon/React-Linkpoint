@@ -18,14 +18,36 @@ export class SLConnectionFull extends Utils.EventEmitter {
   public simPort: number | null = null;
   public seedCapability: string | null = null;
   public capabilities: Record<string, string> = {};
+  public inventoryRoot: string | null = null;
   public eventQueueRunning: boolean = false;
   private lastEventId: number | null = null;
+  private eventQueueTimer: ReturnType<typeof setTimeout> | null = null;
+  private eventQueueFailures = 0;
 
   constructor() {
     super();
   }
 
+  private resetConnectionState() {
+    this.connected = false;
+    this.authReply = null;
+    this.agentId = null;
+    this.sessionId = null;
+    this.circuitCode = null;
+    this.simAddress = null;
+    this.simPort = null;
+    this.seedCapability = null;
+    this.capabilities = {};
+    this.inventoryRoot = null;
+    this.eventQueueRunning = false;
+    this.lastEventId = null;
+    if (this.eventQueueTimer) clearTimeout(this.eventQueueTimer);
+    this.eventQueueTimer = null;
+    this.eventQueueFailures = 0;
+  }
+
   async connect(gridId: string, username: string, password: string, startLocation: string = 'last') {
+    this.resetConnectionState();
     this.setState('AUTHENTICATING');
 
     try {
@@ -39,6 +61,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.simAddress = loginResult.sim_ip;
       this.simPort = parseInt(loginResult.sim_port);
       this.seedCapability = loginResult.seed_capability;
+      this.inventoryRoot = loginResult['inventory-root']?.[0]?.folder_id || null;
 
       if (this.seedCapability) {
         await this.fetchCapabilities();
@@ -54,9 +77,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.setState('CONNECTED');
       this.connected = true;
       this.emit('connected', loginResult);
-      return true;
+      return loginResult;
 
     } catch (error) {
+      this.resetConnectionState();
       this.setState('IDLE');
       this.emit('connection_failed', error);
       throw error;
@@ -111,13 +135,23 @@ export class SLConnectionFull extends Utils.EventEmitter {
           data.events.forEach((event: any) => this.handleEvent(event));
           if (data.id) this.lastEventId = data.id;
         }
+        this.eventQueueFailures = 0;
+      } else {
+        this.eventQueueFailures++;
       }
     } catch (error) {
       console.error('Event queue error:', error);
+      this.eventQueueFailures++;
     }
 
     if (this.eventQueueRunning) {
-      setTimeout(() => this.pollEventQueue(), 1000);
+      if (this.eventQueueFailures >= 5) {
+        this.eventQueueRunning = false;
+        this.emit('event_queue_failed');
+        return;
+      }
+      const delay = Math.min(30_000, 1_000 * 2 ** this.eventQueueFailures);
+      this.eventQueueTimer = setTimeout(() => this.pollEventQueue(), delay);
     }
   }
 
@@ -140,6 +174,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
     }
   }
 
+
+  getCapability(name: string) {
+    return this.capabilities[name];
+  }
   private setState(newState: string) {
     this.state = newState;
     this.emit('state_changed', newState);
@@ -147,6 +185,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async logout() {
     this.eventQueueRunning = false;
+    if (this.eventQueueTimer) clearTimeout(this.eventQueueTimer);
+    this.eventQueueTimer = null;
     this.connected = false;
     this.setState('IDLE');
     this.emit('disconnected');

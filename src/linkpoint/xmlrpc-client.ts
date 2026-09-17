@@ -6,6 +6,8 @@ import CryptoJS from 'crypto-js';
 
 import { Utils } from './utils';
 import { corsHandler } from './cors-handler';
+import SparkMD5 from 'spark-md5';
+import { VIEWER_CHANNEL, VIEWER_VERSION } from './viewer-identity';
 
 export class XMLRPCClient {
   /**
@@ -20,11 +22,20 @@ export class XMLRPCClient {
     stringFields.push({ name: 'last', value: params.lastName });
     stringFields.push({ name: 'passwd', value: `$1$${params.passwordHash}` });
     stringFields.push({ name: 'start', value: params.startLocation || 'last' });
-    stringFields.push({ name: 'channel', value: params.channel || 'Linkpoint PWA' });
-    stringFields.push({ name: 'version', value: params.version || '1.0.0' });
+    stringFields.push({ name: 'channel', value: params.channel || VIEWER_CHANNEL });
+    stringFields.push({ name: 'version', value: params.version || VIEWER_VERSION });
     stringFields.push({ name: 'platform', value: 'Web' });
     stringFields.push({ name: 'platform_version', value: navigator.userAgent });
-    stringFields.push({ name: 'mac', value: params.macAddress || this.generateMAC() });
+    // MD5 hash the MAC address before sending, per TPV_COMPLIANCE.md
+    const rawMac = params.macAddress || this.generateMAC();
+    let hashedMac = '';
+    // We compute the hash synchronously if possible, or assume it's pre-hashed if it's 32 chars
+    if (rawMac.length === 32 && !rawMac.includes(':')) {
+       hashedMac = rawMac;
+    } else {
+       hashedMac = SparkMD5.hash(rawMac);
+    }
+    stringFields.push({ name: 'mac', value: hashedMac });
     stringFields.push({ name: 'id0', value: params.id0 || this.generateID0() });
     stringFields.push({ name: 'viewer_digest', value: params.viewerDigest || this.generateViewerDigest() });
     
@@ -196,7 +207,7 @@ export class XMLRPCClient {
    * Parse XML value
    */
   static parseValue(valueElement: Element): any {
-    const firstChild = Array.from(valueElement.children).find(el => el.nodeType === 1) as Element;
+    const firstChild = valueElement.firstElementChild;
     
     if (!firstChild) {
       return valueElement.textContent?.trim() || '';
@@ -257,12 +268,14 @@ export class XMLRPCClient {
    * Generate MAC address
    */
   static generateMAC(): string {
-    const hex = '0123456789ABCDEF';
-    let mac = '';
-    for (let i = 0; i < 6; i++) {
-      if (i > 0) mac += ':';
-      mac += hex[Math.floor(Math.random() * 16)];
-      mac += hex[Math.floor(Math.random() * 16)];
+    let mac = Utils.storage.get('linkpoint_mac', null);
+    if (!mac) {
+      const bytes = new Uint8Array(6);
+      globalThis.crypto.getRandomValues(bytes);
+      mac = Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+        .join(':');
+      Utils.storage.set('linkpoint_mac', mac);
     }
     return mac;
   }

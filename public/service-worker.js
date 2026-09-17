@@ -1,5 +1,5 @@
 // Linkpoint PWA Service Worker
-const CACHE_VERSION = 'linkpoint-v1.0.0';
+const CACHE_VERSION = 'linkpoint-v1.1.0';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_ASSETS = `${CACHE_VERSION}-assets`;
@@ -12,7 +12,9 @@ const CACHE_SL_ANIMATIONS = `${CACHE_VERSION}-sl-animations`;
 const STATIC_FILES = [
   './',
   './index.html',
-  './manifest.json'
+  './manifest.webmanifest',
+  './icons/icon.svg',
+  './icons/icon-maskable.svg'
 ];
 
 const MAX_CACHE_SIZE = 50;
@@ -46,6 +48,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
   if (url.protocol === 'chrome-extension:') return;
@@ -65,8 +68,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (request.mode === 'navigate') {
+    event.respondWith(appShellStrategy(request));
+    return;
+  }
+
   event.respondWith(staleWhileRevalidateStrategy(request));
 });
+
+async function appShellStrategy(request) {
+  try {
+    return await fetch(request);
+  } catch (error) {
+    const cache = await caches.open(CACHE_STATIC);
+    return cache.match('./index.html');
+  }
+}
 
 async function networkFirstStrategy(request) {
   try {

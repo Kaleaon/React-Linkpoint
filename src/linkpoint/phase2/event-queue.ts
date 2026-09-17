@@ -9,6 +9,8 @@
  */
 
 import { SLProtocol } from '../sl-protocol-real';
+import { corsHandler } from '../cors-handler';
+import { LLSD } from '../llsd';
 
 export class EventQueueManager {
   private protocol: SLProtocol;
@@ -18,6 +20,9 @@ export class EventQueueManager {
   private handlers: Map<string, Function[]> = new Map();
   private eventBuffer: any[] = [];
   private ackId: number | null = null;
+  private baseDelay: number = 1000;
+  private maxDelay: number = 30000;
+  private currentDelay: number = 1000;
 
   constructor(protocol: SLProtocol) {
     if (!protocol) throw new Error('Protocol instance is required');
@@ -35,10 +40,54 @@ export class EventQueueManager {
     
     this.queueUrl = seedCapability;
     this.isPolling = true;
+    this.currentDelay = this.baseDelay;
+    this.ackId = null;
     console.log('[EventQueue] Started polling:', this.queueUrl);
     
-    // TODO: Implement actual polling loop with exponential backoff
+    this.pollLoop();
     return Promise.resolve();
+  }
+
+  private async pollLoop() {
+    if (!this.isPolling || !this.queueUrl) return;
+
+    try {
+      const body = this.ackId !== null
+        ? LLSD.buildXML({ ack: this.ackId, done: false })
+        : LLSD.buildXML({ done: false });
+
+      const response = await corsHandler.makeRequest(this.queueUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/llsd+xml' },
+        body
+      });
+
+      if (response && response.ok) {
+        // Reset delay on success
+        this.currentDelay = this.baseDelay;
+
+        const text = await response.text();
+        const data = LLSD.parseXML(text);
+
+        if (data && data.events) {
+          data.events.forEach((event: any) => this.enqueueEvent(event));
+          if (data.id) this.ackId = data.id;
+        }
+      } else {
+        // Exponential backoff
+        this.currentDelay = Math.min(this.currentDelay * 2, this.maxDelay);
+        console.warn(`[EventQueue] Polling error. Backing off to ${this.currentDelay}ms`);
+      }
+    } catch (error) {
+      // Exponential backoff
+      this.currentDelay = Math.min(this.currentDelay * 2, this.maxDelay);
+      console.error(`[EventQueue] Polling exception:`, error);
+      console.warn(`[EventQueue] Backing off to ${this.currentDelay}ms`);
+    }
+
+    if (this.isPolling) {
+      setTimeout(() => this.pollLoop(), this.currentDelay);
+    }
   }
 
   stopPolling() {
