@@ -42,7 +42,7 @@ jobs:
       # Capacitor is installed only in the build workspace until the packages
       # are added to the project dependency lockfile.
       - name: Install Capacitor Android tooling
-        run: npm install --no-save --ignore-scripts @capacitor/core @capacitor/android @capacitor/cli
+        run: npm install --legacy-peer-deps --no-save --ignore-scripts @capacitor/core @capacitor/android @capacitor/cli
 
       - name: Build and synchronize Android web assets
         run: |

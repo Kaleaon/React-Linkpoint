@@ -19,9 +19,6 @@ export class SLConnectionFull extends Utils.EventEmitter {
   public seedCapability: string | null = null;
   public capabilities: Record<string, string> = {};
 
-  public getCapability(cap: string) {
-    return this.capabilities[cap];
-  }
   public inventoryRoot: string | null = null;
   public eventQueueRunning: boolean = false;
   private lastEventId: number | null = null;
