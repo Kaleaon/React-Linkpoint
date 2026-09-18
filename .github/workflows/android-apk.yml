@@ -47,7 +47,7 @@ jobs:
       - name: Build and synchronize Android web assets
         run: |
           npm run android:build
-          npx cap add android
+          if [ ! -d "android" ]; then npx cap add android; fi
           npx cap sync android
 
       - name: Assemble debug APK
