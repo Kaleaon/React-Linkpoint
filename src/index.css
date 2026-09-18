@@ -1,73 +1,175 @@
-/*
- * Typefaces the layout packs call for. Each pack names a stack and a system
- * fallback, so a blocked font request degrades to something sensible rather
- * than to a default the pack was never designed around.
- */
-@import url("https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Jost:wght@300;400;500;600;700&family=Nunito+Sans:wght@300;400;600;700&family=Open+Sans:wght@300;400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap");
+/* Ported from the <style> block inside index.html's helmet.
+   That stylesheet mostly styled the design-canvas chrome (the dv-* picker
+   panels around the prototype) plus four @keyframes the prototype itself
+   uses inline. The dv-* rules are kept because App.jsx reuses the same
+   picker-panel layout for the palette/layout/device/screen controls. */
+
+* {
+  box-sizing: border-box;
+}
 
 html,
 body,
 #root {
   height: 100%;
-  margin: 0;
 }
 
 body {
-  /* Every colour comes from the active skin's custom properties, which the
-     shell writes onto its own wrapper — nothing here may hard-code a colour. */
-  background: var(--bg, #0a1112);
-  color: var(--ink, #d7f5e6);
-  font-family: var(--font, ui-monospace, monospace);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior: none;
+  margin: 0;
+  background: #100f0e;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #e8e5df;
 }
 
-* {
-  -webkit-tap-highlight-color: transparent;
+a {
+  color: #6cff9a;
+}
+a:hover {
+  color: #a9ffc7;
 }
 
-button {
-  font-family: inherit;
+.app-shell {
+  padding: 28px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-/* Inputs carry an explicit 16px in their own styles: iOS zooms the viewport
-   on focus for anything smaller, which throws the whole shell off. */
-input,
-select,
-textarea {
-  font-family: inherit;
+.app-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-@keyframes lp-spin {
-  from {
-    transform: rotate(0deg);
+.app-tid {
+  font: 600 10px ui-monospace, monospace;
+  padding: 3px 7px;
+  background: #6cff9a;
+  color: #03240f;
+  border-radius: 4px;
+}
+
+.app-tname {
+  font: 600 13px/1.2 "JetBrains Mono", monospace;
+  color: #e8e5df;
+  letter-spacing: 0.04em;
+}
+
+.app-note {
+  font: 400 11px/1.6 "JetBrains Mono", monospace;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: 720px;
+}
+
+.app-body {
+  display: flex;
+  gap: 26px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.pnl {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 14px;
+  background: #171614;
+}
+
+.pnlh {
+  font: 600 10px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.26em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 10px;
+}
+
+.pick {
+  padding: 7px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+.pick:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.tag {
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  cursor: pointer;
+  font: 500 10.5px/1 "JetBrains Mono", monospace;
+  color: rgba(255, 255, 255, 0.78);
+  background: none;
+}
+.tag:hover {
+  border-color: #6cff9a;
+  color: #6cff9a;
+}
+
+.sidepanels {
+  width: 288px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: none;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: none;
+}
+
+/* Icon module: lucide-react renders inline SVG directly, this just sizes the
+   wrapper the mockup used around each <i data-lucide>. */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
   }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ping {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+@keyframes wig {
+  0%,
+  100% {
+    transform: rotate(-1.1deg);
   }
-}
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--outv, #365047);
-  border-radius: 4px;
+  50% {
+    transform: rotate(1.1deg);
+  }
 }
