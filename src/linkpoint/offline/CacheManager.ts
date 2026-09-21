@@ -1,4 +1,5 @@
 import { Utils } from '../utils';
+import { gridConsole, GridConsole, LOG_COMPONENTS } from './GridConsole';
 
 export interface CacheSettings {
   maxSizeBytes: number;
@@ -13,10 +14,16 @@ export const CACHE_SIZE_DEFAULT_BYTES = 1024 * 1024 * 1024;
 
 export class CacheManager extends Utils.EventEmitter {
   private settings: CacheSettings;
+  private console: GridConsole;
 
-  constructor() {
+  constructor(console: GridConsole = gridConsole) {
     super();
+    this.console = console;
     this.settings = this.loadSettings();
+  }
+
+  public getConsole(): GridConsole {
+    return this.console;
   }
 
   private loadSettings(): CacheSettings {
@@ -31,9 +38,22 @@ export class CacheManager extends Utils.EventEmitter {
   }
 
   public setMaxSizeBytes(bytes: number): CacheSettings {
-    const clampedBytes = Utils.clamp(bytes, CACHE_SIZE_MIN_BYTES, CACHE_SIZE_MAX_BYTES);
+    const requested = Number.isFinite(bytes) ? bytes : CACHE_SIZE_DEFAULT_BYTES;
+    const clampedBytes = Utils.clamp(requested, CACHE_SIZE_MIN_BYTES, CACHE_SIZE_MAX_BYTES);
+    if (clampedBytes !== requested) {
+      this.console.warn(
+        LOG_COMPONENTS.CACHE,
+        `Requested cache limit ${Utils.formatFileSize(requested)} is out of range; clamped to ${Utils.formatFileSize(clampedBytes)}.`
+      );
+    }
+
     this.settings.maxSizeBytes = clampedBytes;
-    Utils.storage.set(CACHE_SETTINGS_STORAGE_KEY, this.settings);
+    const persisted = Utils.storage.set(CACHE_SETTINGS_STORAGE_KEY, this.settings);
+    if (!persisted) {
+      this.console.warn(LOG_COMPONENTS.CACHE, 'Cache settings could not be saved; the change applies to this session only.');
+    }
+
+    this.console.info(LOG_COMPONENTS.CACHE, `Cache limit set to ${Utils.formatFileSize(clampedBytes)}.`);
     this.emit('cacheSettingsUpdated', this.settings);
     return this.settings;
   }
@@ -63,7 +83,7 @@ export class CacheManager extends Utils.EventEmitter {
         }
       }
     } catch (e) {
-      // Ignore
+      this.console.captureError(LOG_COMPONENTS.CACHE, 'Could not measure cache usage.', e);
     }
     return totalChars * 2;
   }
@@ -88,10 +108,14 @@ export class CacheManager extends Utils.EventEmitter {
         for (const key of keysToRemove) {
           localStorage.removeItem(key);
         }
+        this.console.info(
+          LOG_COMPONENTS.CACHE,
+          `Cleared ${keysToRemove.length} cached item(s), freeing about ${Utils.formatFileSize(usageBefore)}.`
+        );
       }
       this.emit('cacheCleared', { freedBytes: usageBefore });
     } catch (e) {
-      console.error('Error clearing cache:', e);
+      this.console.captureError(LOG_COMPONENTS.CACHE, 'Error clearing cache.', e);
     }
     return usageBefore;
   }

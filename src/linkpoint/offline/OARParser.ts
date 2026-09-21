@@ -1,5 +1,6 @@
 import { LocalRegion, LocalPrim } from './LocalGridServer';
 import { Utils } from '../utils';
+import { gridConsole, GridConsole, LOG_COMPONENTS } from './GridConsole';
 
 export interface OARMetadata {
   majorVersion: number;
@@ -15,6 +16,12 @@ export interface ParsedOAR {
 }
 
 export class OARParser {
+  private console: GridConsole;
+
+  constructor(console: GridConsole = gridConsole) {
+    this.console = console;
+  }
+
   public async parseOAR(fileData: ArrayBuffer | Uint8Array | string): Promise<ParsedOAR> {
     const defaultRegionId = Utils.generateUUID();
     const regionName = 'Imported OAR Region';
@@ -31,9 +38,32 @@ export class OARParser {
       prims: []
     };
 
-    if (typeof fileData === 'string' && fileData.includes('<SceneObjectGroup>')) {
-      const prims = this.parseSceneObjectXml(fileData);
-      region.prims = prims;
+    this.console.info(LOG_COMPONENTS.ARCHIVER, 'Loading OAR data into a new region...');
+
+    if (typeof fileData === 'string') {
+      if (fileData.includes('<SceneObjectGroup>')) {
+        try {
+          const prims = this.parseSceneObjectXml(fileData);
+          region.prims = prims;
+          this.console.info(
+            LOG_COMPONENTS.ARCHIVER,
+            `Loaded ${prims.length} object(s) into region "${regionName}".`
+          );
+        } catch (e) {
+          this.console.captureError(LOG_COMPONENTS.ARCHIVER, 'Failed to parse SceneObjectGroup XML.', e);
+        }
+      } else {
+        this.console.warn(
+          LOG_COMPONENTS.ARCHIVER,
+          'No <SceneObjectGroup> elements found in the supplied data; the region was created empty.'
+        );
+      }
+    } else {
+      // Binary .oar archives are gzipped tar; only the scene XML path is implemented so far.
+      this.console.warn(
+        LOG_COMPONENTS.ARCHIVER,
+        'Binary OAR archives are not supported yet; supply SceneObjectGroup XML instead. The region was created empty.'
+      );
     }
 
     return {
@@ -82,6 +112,10 @@ export class OARParser {
         shape: 'box',
         textureAssets: []
       };
+
+      if (!nameMatch) {
+        this.console.debug(LOG_COMPONENTS.ARCHIVER, `Object ${prim.id} has no <Name>; imported as "Object".`);
+      }
 
       prims.push(prim);
     }

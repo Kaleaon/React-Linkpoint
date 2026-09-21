@@ -38,6 +38,14 @@ The Offline Module enables Linkpoint to operate as a self-contained local OpenSi
 - **Storage Bar Gauge**: Visual progress bar showing estimated cache usage vs max limit.
 - **Action Button**: `Clear Offline Cache`.
 
+### Screen 6: Grid Console & Error Log (`GridConsolePanel`)
+- **Console Output Pane**: Monospace, dark, scrolling log rendered in OpenSim console style — `16:30:33,123 INFO  [LOGIN SERVICE]: message`. Levels are colour-coded (`DEBUG` grey, `INFO` teal, `WARN` amber, `ERROR` orange, `FATAL` red) and error detail/stack traces render indented beneath their entry.
+- **Level Filter**: Select dropdown (`DEBUG`/`INFO`/`WARN`/`ERROR`/`FATAL` and above) applying a severity threshold.
+- **Search Field**: Free-text filter matching message, component tag and detail.
+- **Auto-scroll Toggle**: Checkbox pinning the pane to the newest entry.
+- **Header Badges**: Live totals for entries, warnings and errors; the count turns red when any error or fatal entry is present.
+- **Action Buttons**: `Copy` (clipboard), `Download` (timestamped `.log` file), `Clear`.
+
 ---
 
 ## 3. Data & State Architecture
@@ -53,6 +61,10 @@ The Offline Module enables Linkpoint to operate as a self-contained local OpenSi
    - Handles asset creation, persistence (`linkpoint_local_asset_<uuid>`), and UUID generation for textures, sounds, scripts, and meshes.
 5. **`CacheManager.ts`**:
    - Controls cache limits between 256 MB and 1 TB and provides cache clearing logic.
+6. **`GridConsole.ts`**:
+   - Bounded (ring-buffer) console and error log shared by every offline service. Provides levels, OpenSim-style `[COMPONENT]` tags, filtering, text export, `captureError()` for thrown values, and `attachGlobalErrorHandlers()` to route uncaught viewer errors and unhandled rejections into the same stream. Exports a shared `gridConsole` singleton; each service also accepts an injected instance for testing.
+7. **`password.ts`**:
+   - Salted PBKDF2-SHA256 hashing for the local account. Uses native WebCrypto where available (210,000 iterations) and falls back to crypto-js on non-secure-context origins (100,000 iterations). Verification replays the parameters stored in the record, so records stay valid if the defaults change.
 
 ---
 
@@ -63,3 +75,17 @@ The Offline Module enables Linkpoint to operate as a self-contained local OpenSi
   - `accountConfigured` (`user: LocalUser`)
   - `assetUploaded` (`asset: LocalAsset`)
   - `cacheSettingsUpdated` (`settings: CacheSettings`)
+  - `logEntry` (`entry: LogEntry`) and `logCleared` — emitted by `GridConsole`
+- The console panel is exported separately from `src/linkpoint/offline/GridConsolePanel.tsx` and takes a `GridConsole` instance, so it can be embedded in any screen.
+
+---
+
+## 5. Credential Handling
+
+The local account password is **never stored in a recoverable form**.
+
+- `setupOfflineAccount()` and `LocalGridServer.registerUser()` take the plaintext password, derive a salted PBKDF2-SHA256 record, and retain only that record. Both are asynchronous, as is `processLogin()` / `authenticate()`.
+- A fresh 16-byte random salt is generated per account; the stored record holds `{ version, algo, iterations, salt, hash }` and no plaintext.
+- Verification is a length-independent comparison against the re-derived digest.
+- Accounts persisted by earlier builds (which stored the password itself under `passwordHash`) are **rejected and deleted** on load rather than trusted, and the user is asked to set the account up again.
+- Design note: because the password cannot be recovered, account setup UI should treat it as unrecoverable — the reset path is re-running first-time setup, and `changePassword()` exists for in-place changes.
