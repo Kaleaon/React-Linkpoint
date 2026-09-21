@@ -3,32 +3,30 @@
  */
 
 export const Utils = {
-  /**
-   * Generate UUID v4
-   */
   generateUUID() {
-    return globalThis.crypto.randomUUID();
+    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   },
 
-  /**
-   * Format timestamp to readable string
-   */
   formatTime(timestamp: number) {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   },
 
-  /**
-   * Show toast notification
-   */
   showToast(message: string, type: string = 'info', duration: number = 3000) {
+    if (typeof document === 'undefined') return;
     const container = document.getElementById('toast-container');
     if (!container) return;
 
     const toast = document.createElement('div');
     toast.className = `toast ${type} p-4 mb-2 rounded shadow-lg transition-all duration-300 transform translate-x-0`;
     
-    // Simple Tailwind-based coloring
     if (type === 'success') toast.classList.add('bg-green-600', 'text-white');
     else if (type === 'error') toast.classList.add('bg-red-600', 'text-white');
     else if (type === 'warning') toast.classList.add('bg-yellow-500', 'text-black');
@@ -53,44 +51,50 @@ export const Utils = {
     }, duration);
   },
 
-  /**
-   * Local storage wrapper with error handling
-   */
   storage: {
+    memoryStore: new Map<string, string>(),
+
     get(key: string, defaultValue: any = null) {
       try {
-        const item = localStorage.getItem(key);
-        return item ? JSON.parse(item) : defaultValue;
+        if (typeof localStorage !== 'undefined') {
+          const item = localStorage.getItem(key);
+          return item ? JSON.parse(item) : defaultValue;
+        } else {
+          const item = this.memoryStore.get(key);
+          return item ? JSON.parse(item) : defaultValue;
+        }
       } catch (e) {
-        console.error('Storage get error:', e);
         return defaultValue;
       }
     },
 
     set(key: string, value: any) {
       try {
-        localStorage.setItem(key, JSON.stringify(value));
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(key, JSON.stringify(value));
+        } else {
+          this.memoryStore.set(key, JSON.stringify(value));
+        }
         return true;
       } catch (e) {
-        console.error('Storage set error:', e);
         return false;
       }
     },
 
     remove(key: string) {
       try {
-        localStorage.removeItem(key);
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem(key);
+        } else {
+          this.memoryStore.delete(key);
+        }
         return true;
       } catch (e) {
-        console.error('Storage remove error:', e);
         return false;
       }
     }
   },
 
-  /**
-   * Debounce function
-   */
   debounce(func: Function, wait: number) {
     let timeout: any;
     return function executedFunction(...args: any[]) {
@@ -103,9 +107,6 @@ export const Utils = {
     };
   },
 
-  /**
-   * Throttle function
-   */
   throttle(func: Function, limit: number) {
     let inThrottle: boolean;
     return function(this: any, ...args: any[]) {
@@ -117,16 +118,10 @@ export const Utils = {
     };
   },
 
-  /**
-   * Deep clone object
-   */
   deepClone(obj: any) {
     return JSON.parse(JSON.stringify(obj));
   },
 
-  /**
-   * Format file size
-   */
   formatFileSize(bytes: number) {
     if (bytes === 0) return '0 Bytes';
     const isNegative = bytes < 0;
@@ -139,10 +134,7 @@ export const Utils = {
     return (isNegative ? '-' : '') + value + ' ' + sizes[sizeIndex];
   },
 
-  /**
-   * Parse query string
-   */
-  parseQueryString(url: string = window.location.href) {
+  parseQueryString(url: string = typeof window !== 'undefined' ? window.location.href : '') {
     const params: Record<string, string> = {};
     const queryString = url.split('?')[1];
     if (queryString) {
@@ -154,39 +146,36 @@ export const Utils = {
     return params;
   },
 
-  /**
-   * Validate email
-   */
   isValidEmail(email: string) {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   },
 
-  /**
-   * Clamp value between min and max
-   */
   clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
   },
 
-  /**
-   * Linear interpolation
-   */
   lerp(start: number, end: number, t: number) {
     return start * (1 - t) + end * t;
   },
 
-  /**
-   * Check if device is mobile
-   */
   isMobile() {
+    if (typeof navigator === 'undefined') return false;
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   },
 
-  /**
-   * Get device info
-   */
   getDeviceInfo() {
+    if (typeof navigator === 'undefined') {
+      return {
+        userAgent: 'Node.js',
+        platform: 'Server',
+        vendor: '',
+        language: 'en',
+        isMobile: false,
+        isOnline: true,
+        cookiesEnabled: false
+      };
+    }
     return {
       userAgent: navigator.userAgent,
       platform: navigator.platform,
@@ -198,16 +187,10 @@ export const Utils = {
     };
   },
 
-  /**
-   * Async sleep
-   */
   sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
   },
 
-  /**
-   * Retry async function
-   */
   async retry(fn: Function, retries: number = 3, delay: number = 1000): Promise<any> {
     try {
       return await fn();
@@ -218,9 +201,6 @@ export const Utils = {
     }
   },
 
-  /**
-   * Event emitter
-   */
   EventEmitter: class {
     private events: Record<string, Function[]> = {};
 
