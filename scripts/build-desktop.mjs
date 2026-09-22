@@ -1,14 +1,32 @@
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import process from 'node:process';
+#!/usr/bin/env node
+/**
+ * Cross-platform desktop packaging driver.
+ *
+ * Builds the web bundle with a relative asset base (Electron loads
+ * dist/index.html over file://, where the GitHub Pages base path would break
+ * every asset URL) and then hands off to electron-builder. Any extra CLI
+ * arguments are forwarded, e.g. `npm run build:desktop -- --linux AppImage`.
+ */
+import {spawnSync} from 'node:child_process';
 
-function run(binary, args, extraEnv = {}) {
-  const result = spawnSync(process.execPath, [path.resolve('node_modules', binary), ...args], {
+const forwarded = process.argv.slice(2);
+
+function run(command, args, env = {}) {
+  const result = spawnSync(command, args, {
     stdio: 'inherit',
-    env: { ...process.env, ...extraEnv },
+    shell: process.platform === 'win32',
+    env: {...process.env, ...env},
   });
-  if (result.status !== 0) process.exit(result.status ?? 1);
+
+  if (result.error) {
+    console.error(`Failed to start ${command}: ${result.error.message}`);
+    process.exit(1);
+  }
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
 }
 
-run('vite/bin/vite.js', ['build'], { VITE_BASE_PATH: './' });
-run('electron-builder/out/cli/cli.js', ['--publish', 'never']);
+run('npx', ['--no-install', 'vite', 'build'], {VITE_BASE_PATH: './'});
+run('npx', ['--no-install', 'electron-builder', ...forwarded]);
