@@ -52,6 +52,10 @@ describe('offline account password hashing', () => {
     await expect(hashPassword('')).rejects.toThrow();
   });
 
+  // crypto-js computes PBKDF2 in pure JavaScript, so replaying the full
+  // PBKDF2_ITERATIONS count here takes ~4s locally and tips over vitest's 5s
+  // default on a CI runner. The assertion is the point of the test, so the
+  // clock is what gets relaxed rather than the iteration count.
   it('verifies against an independently computed PBKDF2-SHA256 digest', async () => {
     // Guards the WebCrypto and crypto-js paths against drifting apart: a record
     // written by one implementation must verify under the other.
@@ -62,7 +66,7 @@ describe('offline account password hashing', () => {
       hasher: CryptoJS.algo.SHA256
     }).toString(CryptoJS.enc.Hex);
     expect(record.hash).toBe(expected);
-  });
+  }, 30_000);
 
   it('replays the stored iteration count rather than the current default', async () => {
     const record = await hashPassword('legacy params');
