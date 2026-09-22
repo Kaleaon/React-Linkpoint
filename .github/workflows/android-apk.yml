@@ -5,10 +5,12 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'App.tsx'
+      - 'app.json'
+      - 'android/**'
       - 'public/**'
       - 'package.json'
       - 'package-lock.json'
-      - 'capacitor.config.ts'
       - '.github/workflows/android-apk.yml'
 
 permissions:
@@ -36,25 +38,11 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Install web dependencies
+      - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      # Capacitor is installed only in the build workspace until the packages
-      # are added to the project dependency lockfile.
-      - name: Install Capacitor Android tooling
-        run: npm install --legacy-peer-deps --no-save --ignore-scripts @capacitor/core @capacitor/android @capacitor/cli
-
-      - name: Build and synchronize Android web assets
-        run: |
-          npm run android:build
-          if [ ! -d "android" ]; then npx cap add android; fi
-          npx cap sync android
-
       - name: Assemble debug APK
-        run: |
-          chmod +x android/gradlew
-          cd android
-          ./gradlew --no-daemon assembleDebug
+        run: npm run android:build -- --no-daemon
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

@@ -50,26 +50,23 @@ VITE_BASE_PATH="/<your-repo-name>/" npm run build
 
 Deploy the `dist/` directory to GitHub Pages.
 
-## Android testing without a browser proxy
+## Android app
 
-The browser build requires a Linkpoint-operated proxy because browsers cannot
-make the required native network requests. For free Android-device testing,
-wrap the same Vite build with Capacitor. Capacitor's native HTTP bridge avoids
-browser CORS restrictions for XML-RPC login and HTTPS capability requests.
+The Android app is the Expo/React Native application in `App.tsx`, backed by
+the checked-in native Gradle project in `android/`. It is separate from the
+Vite browser application in `src/`.
 
 ### One-time workstation setup
 
-Install Android Studio, an Android SDK platform, and a JDK supported by the
-installed Android Studio. Then install the Capacitor tooling in this project:
+Install Android Studio, an Android SDK platform, and JDK 21. Then install the
+locked JavaScript dependencies:
 
 ```bash
-npm install @capacitor/core @capacitor/android
-npm install --save-dev @capacitor/cli
-npx cap add android
+npm ci --legacy-peer-deps
 ```
 
-The generated `android/` directory is intentionally local development output;
-do not commit signing keys or `local.properties`.
+The `android/` directory is source-controlled. Do not commit signing keys or
+`android/local.properties`.
 
 ### Build and run on a device
 
@@ -80,9 +77,16 @@ to Android Studio, then run:
 npm run android:run
 ```
 
-Alternatively, use `npm run android:open` after `npm run android:sync` and
-run the app from Android Studio. `android:build` always uses `/` as the asset
-base path, unlike the GitHub Pages production build.
+This launches Metro, builds the native app, installs it, and starts it on the
+connected device or running emulator. To only create a debug APK, run:
+
+```bash
+npm run android:build
+```
+
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
+You can also open the checked-in `android/` directory directly in Android
+Studio.
 
 ### Build an APK entirely in GitHub
 
@@ -92,18 +96,18 @@ repository's **Actions** tab, select **Build Android test APK**, choose
 Artifacts section. Transfer `app-debug.apk` to the Android device and approve
 the Android installer prompt for this test-only unsigned-debug build.
 
-The workflow also runs automatically for pull requests that change the web
-app, Capacitor configuration, or Android build workflow. The artifact expires
-after 14 days and is not Play Store signed; release signing and store uploads
-remain a separate production-release process.
+The workflow also runs automatically for pull requests that change the native
+app, Android project, dependencies, or Android build workflow. The artifact
+expires after 14 days and is not Play Store signed; release signing and store
+uploads remain a separate production-release process.
 
-### Current native networking scope
+### Current native app scope
 
-The native HTTP bridge enables login and HTTPS capability testing without a
-browser proxy. It does **not** add raw UDP support for simulator circuits, so
-the complete 3D world/movement transport remains a separate native-module
-milestone. Use a dedicated Aditi/OpenSim test account when live testing is
-ready; do not use a main-grid account during development.
+The React Native shell currently provides Login, World, and Settings views.
+Second Life login, capability, and raw UDP transport still need native-facing
+implementations before live grid connectivity can be enabled. Use a dedicated
+Aditi/OpenSim test account when that work is ready; do not use a main-grid
+account during development.
 
 ## Second Life connectivity in static hosting
 
