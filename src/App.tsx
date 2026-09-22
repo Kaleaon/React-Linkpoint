@@ -1,69 +1,37 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import {useMemo} from 'react';
+import {AppProvider} from './context/AppContext.jsx';
+import {ThemeProvider} from './context/ThemeContext.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+import AppShell from './components/AppShell.jsx';
+import Workbench from './components/Workbench.jsx';
 
-const VIEWS = ['Login', 'World', 'Settings'];
-
-export default function App() {
-  const [currentView, setCurrentView] = useState('Login');
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.text}>{currentView} Screen</Text>
-      </View>
-      <View style={styles.tabBar}>
-        {VIEWS.map((view) => (
-          <Pressable
-            key={view}
-            style={[styles.tab, currentView === view && styles.activeTab]}
-            onPress={() => setCurrentView(view)}
-          >
-            <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
-              {view}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
+// Web entry point. The viewer UI lives in src/components + src/screens and is
+// DOM-based, so this is the React DOM side of the app; the Expo/React Native
+// entry is the root App.tsx and is a separate tree.
+//
+// A deployed build always renders the application itself. The design canvas --
+// the layout/colour-pack/device/screen pickers around a device bezel -- is a
+// development aid for reviewing the design, so it is reachable only from a dev
+// server and only when explicitly asked for with ?design.
+function useDesignCanvas() {
+  return useMemo(() => {
+    if (!(import.meta as any).env?.DEV) return false;
+    try {
+      return new URLSearchParams(window.location.search).has('design');
+    } catch {
+      return false;
+    }
+  }, []);
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#100f0e',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    color: '#fff',
-    fontSize: 20,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    height: 60,
-    backgroundColor: '#1a1a1a',
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  tab: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activeTab: {
-    borderTopWidth: 2,
-    borderTopColor: '#4a9eff',
-  },
-  tabText: {
-    color: '#888',
-    fontSize: 12,
-  },
-  activeTabText: {
-    color: '#4a9eff',
-    fontWeight: 'bold',
-  },
-});
+export default function App() {
+  const designCanvas = useDesignCanvas();
+
+  return (
+    <ErrorBoundary label="Linkpoint">
+      <AppProvider>
+        <ThemeProvider>{designCanvas ? <Workbench /> : <AppShell />}</ThemeProvider>
+      </AppProvider>
+    </ErrorBoundary>
+  );
+}

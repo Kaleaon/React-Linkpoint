@@ -46,12 +46,25 @@ stamps that version into the desktop installers.
 npm run build:desktop            # packages for the current OS
 npm run build:desktop -- --linux # or --win / --mac
 npm run build:desktop:dir        # unpacked app only, for quick iteration
+npm run desktop                  # run the Electron app against dist/
 ```
 
 Output lands in `build-desktop/`. `scripts/build-desktop.mjs` builds the web
 bundle with a relative asset base (Electron loads `dist/index.html` over
 `file://`, where the GitHub Pages base path would break every asset URL) and
-then runs electron-builder using `electron-builder.yml`.
+then runs electron-builder using `electron-builder.config.js`.
+
+### Design canvas (development only)
+
+The layout / colour-pack / device / screen pickers around a device bezel are a
+development aid for reviewing the design, not part of the app. A deployed build
+always renders the application itself, sized to the real viewport. To open the
+canvas, run the dev server and add `?design`:
+
+```bash
+npm run dev
+# then visit http://localhost:5173/?design
+```
 
 ### Build mobile packages locally
 
@@ -87,6 +100,12 @@ Signing is not wired up by default, and the packages reflect that:
 The desktop packages also use the default Electron icon; supplying
 `build/icon.icns`, `build/icon.ico`, and `build/icon.png` would replace it.
 
+On Linux, run the generated AppImage directly (after `chmod +x`) or extract
+the `.tar.gz` archive. The desktop build uses an isolated preload bridge for
+grid login and capability requests, so it does not require the development
+proxy. Public custom-grid login endpoints must use HTTPS; private-network
+targets are rejected.
+
 ## PWA notes
 
 - The app registers `public/service-worker.js` in production builds.
@@ -117,7 +136,7 @@ Install Android Studio, an Android SDK platform, and JDK 21. Then install the
 locked JavaScript dependencies:
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 ```
 
 The `android/` directory is source-controlled. Do not commit signing keys or
@@ -182,3 +201,19 @@ VITE_SL_PROXY_URL="https://your-proxy.example/proxy?url="
 
 Without `VITE_SL_PROXY_URL`, browser login and capability access fails closed;
 the client never sends credentials through a public proxy.
+
+### 3D world support
+
+The packaged desktop viewer uses `@caspertech/node-metaverse` to establish the
+simulator UDP circuit, handle reliable packets/ACKs, decode object updates, and
+send/receive nearby chat. Decoded object and avatar transforms are streamed
+through the isolated Electron bridge and applied to the WebGL scene.
+
+The browser/PWA build cannot open a simulator UDP circuit and therefore remains
+limited to login/capability metadata. It labels this state explicitly. The
+desktop scene currently represents decoded objects with basic cube/avatar
+geometry; complete Firestorm-equivalent terrain, prim parameter meshing,
+textures, mesh/sculpt assets, avatar appearance/animation, spatial sound, and
+Vivox voice rendering remain separate renderer/media work. Vivox voice also
+requires service credentials and the licensed Vivox SDK supplied to approved
+viewer projects; it cannot be implemented by substituting ordinary WebRTC.
