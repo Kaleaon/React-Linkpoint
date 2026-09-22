@@ -14,6 +14,7 @@ export interface NotificationData {
 export class NotificationsManager extends Utils.EventEmitter {
   public protocol: SLConnectionFull;
   public unreadCount: number = 0;
+  public items: NotificationData[] = [];
 
   constructor(protocolManager: SLConnectionFull) {
     super();
@@ -25,6 +26,7 @@ export class NotificationsManager extends Utils.EventEmitter {
   }
 
   handleNotification(data: NotificationData) {
+    this.items.push({ ...data });
     this.unreadCount++;
     this.emit('notification_received', data);
     Utils.showToast(data.title || 'Notification', 'info');
@@ -32,6 +34,7 @@ export class NotificationsManager extends Utils.EventEmitter {
 
   clear() {
     this.unreadCount = 0;
+    this.items = [];
     this.emit('cleared');
   }
 }

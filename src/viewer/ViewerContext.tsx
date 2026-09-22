@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { SystemDialogKind } from '../data/slTypes';
-import type { ScreenCondition } from '../data/slData';
 
 /** The screens the viewer ships. Order is the order the nav offers them. */
 export const SCREENS = [
@@ -17,6 +16,8 @@ export const SCREENS = [
   'Settings',
   'Diagnostics',
 ] as const;
+
+export type ScreenCondition = 'normal' | 'loading' | 'empty' | 'error';
 
 export type ScreenId = (typeof SCREENS)[number];
 

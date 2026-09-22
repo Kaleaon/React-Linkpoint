@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
+import { app } from "../linkpoint/app.ts";
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -12,11 +13,11 @@ export function useAppState() {
   const [layout, setLayout] = useState("terminal");
   const [palette, setPalette] = useState("ink");
   const [device, setDevice] = useState("ios");
-  const [screen, setScreen] = useState("Chat");
+  const [screen, setScreen] = useState("Login");
   const [dialog, setDialog] = useState(null);
   const [dense, setDense] = useState(false);
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
-  const [chip, setChip] = useState("Nyx Vaher");
+  const [chip, setChip] = useState("");
   const [tileOk, setTileOk] = useState(true);
   const [invOpen, setInvOpen] = useState({ Objects: true });
   const [dismissed, setDismissed] = useState({});
@@ -54,7 +55,10 @@ export function useAppState() {
   const [loginGrid, setLoginGrid] = useState("agni");
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState(null);
-  const [customGrids, setCustomGrids] = useState([]);
+  const [loginName, setLoginName] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [rememberLogin, setRememberLogin] = useState(true);
+  const [customGrids, setCustomGrids] = useState(() => app.preferences.get("network", "customGrids") || []);
   const [addGrid, setAddGrid] = useState(false);
   const [addGridName, setAddGridName] = useState("");
   const [addGridHost, setAddGridHost] = useState("");
@@ -152,18 +156,33 @@ export function useAppState() {
     setLoginModeState(m);
     setLoginError(null);
   }, []);
-  const connectLogin = useCallback(() => {
-    setLoginBusy((busy) => {
-      if (busy) return busy;
-      clearTimeout(loginTimerRef.current);
-      loginTimerRef.current = setTimeout(() => {
-        setLoginBusy(false);
-        setLoginError(loginMode === "grid" ? "Unable to reach " + (allGrids().find((g) => g.key === loginGrid) || GRIDS[0]).host + " — check your connection and try again." : null);
-      }, 900);
-      return true;
-    });
+  const connectLogin = useCallback(async () => {
+    if (loginBusy) return;
+    if (loginMode === "offline") {
+      setLoginError(null);
+      setScreen("Chat");
+      notify("Offline session ready");
+      return;
+    }
+    if (!loginName.trim() || !loginPassword) {
+      setLoginError("Enter your avatar name and password.");
+      return;
+    }
+    setLoginBusy(true);
     setLoginError(null);
-  }, [loginMode, loginGrid, allGrids]);
+    const grid = allGrids().find((item) => item.key === loginGrid) || GRIDS[0];
+    const endpoint = /^https?:\/\//i.test(grid.host) ? grid.host : `https://${grid.host}`;
+    try {
+      await app.auth.login(endpoint, loginName.trim(), loginPassword, rememberLogin);
+      setLoginPassword("");
+      setScreen("Chat");
+      notify(`Welcome, ${app.auth.getUserDisplayName()}`);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : `Unable to reach ${grid.host}.`);
+    } finally {
+      setLoginBusy(false);
+    }
+  }, [loginBusy, loginMode, loginName, loginPassword, rememberLogin, loginGrid, allGrids, notify]);
 
   // ---- login: add a custom grid ------------------------------------------
   // A resident can point the viewer at any OpenSim grid, not just the
@@ -186,7 +205,11 @@ export function useAppState() {
       name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 24) +
       "-" +
       (customGrids.length + 1);
-    setCustomGrids((g) => g.concat([{ key, label: name, host }]));
+    setCustomGrids((grids) => {
+      const next = grids.concat([{ key, label: name, host }]);
+      app.preferences.set("network", "customGrids", next);
+      return next;
+    });
     setLoginGrid(key);
     setAddGrid(false);
     notify("Added grid — " + name);
@@ -418,7 +441,7 @@ export function useAppState() {
       toggles, cond, hudOn, hudPos, hudPicker, target, targetPicker, navPeek,
       cPad, cHeld, cRun, cCam, cHdg, cPitch, cDrag, cEdit, cFlash, cReason, cTog,
       rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu, tick,
-      loginMode, loginGrid, loginBusy, loginError, customGrids, addGrid, addGridName, addGridHost,
+      loginMode, loginGrid, loginBusy, loginError, loginName, loginPassword, rememberLogin, customGrids, addGrid, addGridName, addGridHost,
       searchFrom, searchQuery, searchState, reconnecting, toast,
     },
     actions: {
@@ -432,7 +455,7 @@ export function useAppState() {
       holdStart, holdEnd, endEdit, togglePad, toggleRun, flyUpDown, flyDnDown, flyRelease, addSlot, removeDockSlot,
       radarTap, radarHold, radarRelease, radarBlipPick,
       setRMode,
-      setLoginMode, setLoginGrid, connectLogin, openSearch, setSearchQuery, searchAdd, reconnect, notify,
+      setLoginMode, setLoginGrid, setLoginName, setLoginPassword, setRememberLogin, connectLogin, openSearch, setSearchQuery, searchAdd, reconnect, notify,
     },
     T, D, navMode,
   };

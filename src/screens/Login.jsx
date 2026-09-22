@@ -11,13 +11,6 @@ export default function Login() {
   const [animatedLogo, setAnimatedLogo] = useState(true);
 
   const isGrid = state.loginMode === "grid";
-  const fields = isGrid
-    ? [
-        { label: "AVATAR NAME", value: "Ruth   /   Resident" },
-        { label: "PASSWORD", value: "••••••••" },
-      ]
-    : [{ label: "AVATAR NAME", value: "Ruth Resident" }];
-
   return (
     <div style={{ flex: 1, minHeight: 0, position: "relative", overflowY: "auto" }}>
       <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: "120px", background: "repeating-linear-gradient(135deg," + V.surf2 + " 0 12px," + V.surf + " 12px 24px)" }} />
@@ -56,7 +49,7 @@ export default function Login() {
           <LinkpointLogo animated={animatedLogo} showTitle={true} width="100%" height="auto" />
         </div>
 
-        <div style={{ width: "100%", marginTop: "8px", border: "1px solid " + V.outv, borderRadius: V.rp, background: V.surf, padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ width: "100%", maxWidth: "440px", marginTop: "8px", border: "1px solid " + V.outv, borderRadius: V.rp, background: V.surf, padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
           <div style={{ display: "flex", border: "1px solid " + V.outv, borderRadius: V.rs, overflow: "hidden", marginBottom: "2px" }}>
             {[
               { mode: "grid", label: "GRID LOGIN" },
@@ -178,12 +171,23 @@ export default function Login() {
             </div>
           ) : null}
 
-          {fields.map((lf) => (
-            <div key={lf.label}>
-              <div style={{ font: "400 10px/1 " + t.font, letterSpacing: ".2em", color: V.pri, margin: "6px 0 4px" }}>{lf.label}</div>
-              <div style={{ minHeight: "36px", display: "flex", alignItems: "center", padding: "0 10px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.bg, font: "400 12px/1 " + t.font, color: V.ink2 }}>{lf.value}</div>
-            </div>
-          ))}
+          <label>
+            <div style={{ font: "400 10px/1 " + t.font, letterSpacing: ".2em", color: V.pri, margin: "6px 0 4px" }}>AVATAR NAME</div>
+            <input className="login-input" autoComplete="username" value={state.loginName} onChange={(e) => actions.setLoginName(e.target.value)} placeholder="First Last" />
+          </label>
+          {isGrid ? (
+            <label>
+              <div style={{ font: "400 10px/1 " + t.font, letterSpacing: ".2em", color: V.pri, margin: "6px 0 4px" }}>PASSWORD</div>
+              <input className="login-input" type="password" autoComplete="current-password" value={state.loginPassword} onChange={(e) => actions.setLoginPassword(e.target.value)} placeholder="Password" />
+            </label>
+          ) : null}
+
+          {isGrid ? (
+            <label className="remember-login">
+              <input type="checkbox" checked={state.rememberLogin} onChange={(e) => actions.setRememberLogin(e.target.checked)} />
+              <span>Remember avatar name and grid</span>
+            </label>
+          ) : null}
 
           {!isGrid ? (
             <div style={{ font: "400 10px/1.4 " + t.font, color: V.ink2 }}>&gt; Offline mode: no grid connection, chat stays local.</div>
@@ -245,9 +249,7 @@ export default function Login() {
             <div style={{ font: "400 10px/1.4 " + t.font, color: V.err, marginTop: "6px", border: "1px solid " + V.err, borderRadius: V.rs, padding: "6px" }}>
               &gt; {state.loginError}
             </div>
-          ) : (
-            <div style={{ font: "400 10px/1.4 " + t.font, color: V.ink2, marginTop: "6px" }}>&gt; last: Agni · Da Boom · 14:02 · biometric unlock available</div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

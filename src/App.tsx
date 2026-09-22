@@ -1,69 +1,60 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useEffect } from "react";
+import { AppProvider, useApp } from "./context/AppContext.jsx";
+import { ThemeProvider, useTheme } from "./context/ThemeContext.jsx";
+import Shell from "./components/Shell.jsx";
+import SystemDialog from "./components/SystemDialog.jsx";
+import Toast from "./components/Toast.jsx";
+import BottomTabs from "./components/BottomTabs.jsx";
+import TileNav from "./components/TileNav.jsx";
+import { app } from "./linkpoint/app";
 
-const VIEWS = ['Login', 'World', 'Settings'];
+let startup: Promise<void> | null = null;
 
-export default function App() {
-  const [currentView, setCurrentView] = useState('Login');
+function Viewer() {
+  const { state, actions } = useApp();
+  const { V, t } = useTheme();
+
+  useEffect(() => {
+    startup ||= app.init();
+    void startup;
+  }, []);
+
+  useEffect(() => {
+    const selectLayout = () => {
+      const width = window.innerWidth;
+      actions.setDevice(width >= 1180 ? "desk" : width >= 760 ? "tab" : width >= 400 ? "and" : "ios");
+    };
+    selectLayout();
+    window.addEventListener("resize", selectLayout);
+    return () => window.removeEventListener("resize", selectLayout);
+  }, [actions.setDevice]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.text}>{currentView} Screen</Text>
-      </View>
-      <View style={styles.tabBar}>
-        {VIEWS.map((view) => (
-          <Pressable
-            key={view}
-            style={[styles.tab, currentView === view && styles.activeTab]}
-            onPress={() => setCurrentView(view)}
-          >
-            <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
-              {view}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
+    <main
+      className={`viewer-app layout-${state.layout} palette-${state.palette}`}
+      style={{
+        background: V.bg,
+        color: V.ink,
+        fontFamily: t.font,
+      }}
+    >
+      <div className="viewer-workspace">
+        <Shell />
+        <SystemDialog />
+        <Toast />
+      </div>
+      {state.screen !== "Login" ? <BottomTabs /> : null}
+      {state.screen !== "Login" ? <TileNav /> : null}
+    </main>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#100f0e',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    color: '#fff',
-    fontSize: 20,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    height: 60,
-    backgroundColor: '#1a1a1a',
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  tab: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activeTab: {
-    borderTopWidth: 2,
-    borderTopColor: '#4a9eff',
-  },
-  tabText: {
-    color: '#888',
-    fontSize: 12,
-  },
-  activeTabText: {
-    color: '#4a9eff',
-    fontWeight: 'bold',
-  },
-});
+export default function App() {
+  return (
+    <AppProvider>
+      <ThemeProvider>
+        <Viewer />
+      </ThemeProvider>
+    </AppProvider>
+  );
+}

@@ -96,6 +96,11 @@ export class ObjectManagerExtended {
     return new Set(this.selectedObjects);
   }
 
+  /** Snapshot of objects populated by simulator updates. */
+  getObjects() {
+    return Array.from(this.objects.entries()).map(([id, object]) => ({ id, ...object }));
+  }
+
   clearSelection() {
     this.selectedObjects.clear();
     console.log(`[Objects] Cleared selections`);

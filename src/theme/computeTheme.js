@@ -13,18 +13,16 @@ export function computeTheme(state, cf) {
   const t = { name: L.name + " / " + P.name, nav: L.nav, font: L.font, dfont: L.dfont, note: L.note + "   Colour pack: " + P.note + ".", v: { ...P.c, ...L.s } };
   const d = DEVICES[state.device];
 
-  let nav;
-  if (d.desk) nav = "floaters";
-  else if (t.nav === "SWEEP") nav = "sweep";
-  else if (d.split) nav = "rail";
-  else nav = t.nav === "TILES" ? "tiles" : t.nav === "RAIL" && d.w > 700 ? "rail" : "tabs";
+  // Runtime navigation follows the actual viewport. The design-canvas-only
+  // console and floating-window presentations are deliberately not app modes.
+  const nav = d.split || d.desk ? "rail" : t.nav === "TILES" ? "tiles" : "tabs";
 
   const V = t.v;
   const pad = state.dense ? "8px" : V.pad;
   const C = cf();
-  const isConsole = nav === "sweep";
+  const isConsole = false;
   const consoleScene = isConsole && state.screen === "3D View" && state.cond === "normal";
-  const isFloat = nav === "floaters";
+  const isFloat = false;
   const bleed = isConsole || isFloat;
   const LK = LAYOUTS[state.layout].look;
 

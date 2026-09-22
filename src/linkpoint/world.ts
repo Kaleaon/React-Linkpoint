@@ -16,12 +16,34 @@ export class WorldViewer extends Utils.EventEmitter {
   private animationId: number | null = null;
   public use3D: boolean = true;
   
-  public region: any = { name: 'Simulated Region', x: 256000, y: 256000 };
+  public region: any = null;
   public objects: any[] = [];
 
   constructor(protocolManager: any) {
     super();
     this.protocol = protocolManager;
+    this.protocol.on('RegionHandshake', (data: any) => {
+      this.region = {
+        id: data.regionID || data.region_id,
+        name: data.regionName || data.region_name || data.name || 'Unnamed region',
+        x: data.regionX ?? data.region_x,
+        y: data.regionY ?? data.region_y,
+      };
+      this.emit('region_changed', { ...this.region });
+      this.updateLocationDisplay();
+    });
+    this.protocol.on('ObjectUpdate', (data: any) => {
+      const updates = Array.isArray(data) ? data : data?.objects || [data];
+      for (const update of updates.filter(Boolean)) {
+        const id = update.id || update.objectId || update.full_id;
+        if (!id) continue;
+        const index = this.objects.findIndex((object) => object.id === id);
+        const record = { ...(index >= 0 ? this.objects[index] : {}), ...update, id };
+        if (index >= 0) this.objects[index] = record;
+        else this.objects.push(record);
+      }
+      this.emit('objects_changed', [...this.objects]);
+    });
   }
 
   async init() {
@@ -41,7 +63,6 @@ export class WorldViewer extends Utils.EventEmitter {
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
 
-      this.addDemo3DObjects();
       this.startRendering();
       this.updateLocationDisplay();
     } catch (error) {
@@ -51,26 +72,6 @@ export class WorldViewer extends Utils.EventEmitter {
 
     window.addEventListener('resize', () => this.resizeCanvas());
     this.resizeCanvas();
-  }
-
-  private addDemo3DObjects() {
-    if (!this.scene3d) return;
-
-    this.scene3d.addObject('ground', {
-      mesh: 'plane',
-      position: [128, 128, 0],
-      scale: [25.6, 25.6, 1],
-      color: [0.2, 0.4, 0.2, 1]
-    });
-
-    for (let i = 0; i < 5; i++) {
-      this.scene3d.addObject(`cube_${i}`, {
-        mesh: 'cube',
-        position: [128 + (Math.random() - 0.5) * 50, 128 + (Math.random() - 0.5) * 50, 2],
-        scale: [4, 4, 4],
-        color: [Math.random(), Math.random(), Math.random(), 1]
-      });
-    }
   }
 
   private resizeCanvas() {
@@ -101,7 +102,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public updateLocationDisplay() {
     const regionName = document.getElementById('region-name');
     const coordinates = document.getElementById('coordinates');
-    if (regionName) regionName.textContent = this.region.name;
+    if (regionName) regionName.textContent = this.region?.name || '';
     if (coordinates && this.camera3d) {
       const [x, y, z] = this.camera3d.position;
       coordinates.textContent = `${Math.floor(x)}, ${Math.floor(y)}, ${Math.floor(z)}`;
