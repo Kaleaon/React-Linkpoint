@@ -117,7 +117,7 @@ Install Android Studio, an Android SDK platform, and JDK 21. Then install the
 locked JavaScript dependencies:
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 ```
 
 The `android/` directory is source-controlled. Do not commit signing keys or

@@ -85,7 +85,7 @@ jobs:
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
-        run: npm ci --legacy-peer-deps
+        run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -141,7 +141,7 @@ jobs:
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
-        run: npm ci --legacy-peer-deps
+        run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -206,7 +206,7 @@ jobs:
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
-        run: npm ci --legacy-peer-deps
+        run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -290,7 +290,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Build desktop packages
         run: npm run build:desktop -- ${{ matrix.target }} --publish never --config.extraMetadata.version="$VERSION"
