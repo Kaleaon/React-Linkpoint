@@ -12,7 +12,7 @@ export function useAppState() {
   const [layout, setLayout] = useState("terminal");
   const [palette, setPalette] = useState("ink");
   const [device, setDevice] = useState("ios");
-  const [screen, setScreen] = useState("Chat");
+  const [screen, setScreen] = useState("Login");
   const [dialog, setDialog] = useState(null);
   const [dense, setDense] = useState(false);
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
@@ -179,6 +179,13 @@ export function useAppState() {
       host = addGridHost.trim();
     if (!name || !host) {
       notify("Grid name and login URI are both required");
+      return;
+    }
+    try {
+      const endpoint = new URL(host);
+      if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) throw new Error();
+    } catch {
+      notify("Login URI must be a valid HTTPS URL without embedded credentials");
       return;
     }
     const key =

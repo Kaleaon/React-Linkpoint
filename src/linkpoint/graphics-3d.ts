@@ -54,7 +54,7 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     const gl = this.gl;
-    console.log('WebGL version:', gl instanceof WebGL2RenderingContext ? '2.0' : '1.0');
+    console.log('WebGL version:', typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext ? '2.0' : '1.0');
 
     // Get capabilities
     this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);

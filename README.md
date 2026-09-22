@@ -28,9 +28,16 @@ The GitHub Actions workflow `.github/workflows/desktop-build.yml` automatically 
 
 ### Build Desktop Locally
 ```bash
+npm install --legacy-peer-deps
 npm run build:desktop
 ```
 Outputs will be placed in the `build-desktop` directory.
+
+On Linux, run the generated AppImage directly (after `chmod +x`) or extract
+the `.tar.gz` archive. The desktop build uses an isolated preload bridge for
+grid login and capability requests, so it does not require the development
+proxy. Public custom-grid login endpoints must use HTTPS; private-network
+targets are rejected.
 
 ## PWA notes
 
@@ -122,3 +129,19 @@ VITE_SL_PROXY_URL="https://your-proxy.example/proxy?url="
 
 Without `VITE_SL_PROXY_URL`, browser login and capability access fails closed;
 the client never sends credentials through a public proxy.
+
+### 3D world support
+
+The packaged desktop viewer uses `@caspertech/node-metaverse` to establish the
+simulator UDP circuit, handle reliable packets/ACKs, decode object updates, and
+send/receive nearby chat. Decoded object and avatar transforms are streamed
+through the isolated Electron bridge and applied to the WebGL scene.
+
+The browser/PWA build cannot open a simulator UDP circuit and therefore remains
+limited to login/capability metadata. It labels this state explicitly. The
+desktop scene currently represents decoded objects with basic cube/avatar
+geometry; complete Firestorm-equivalent terrain, prim parameter meshing,
+textures, mesh/sculpt assets, avatar appearance/animation, spatial sound, and
+Vivox voice rendering remain separate renderer/media work. Vivox voice also
+requires service credentials and the licensed Vivox SDK supplied to approved
+viewer projects; it cannot be implemented by substituting ordinary WebRTC.

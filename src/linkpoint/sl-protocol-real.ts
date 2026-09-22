@@ -34,8 +34,25 @@ export class SLProtocol extends Utils.EventEmitter {
     osgrid: {
       name: 'OSGrid',
       loginUrl: 'http://login.osgrid.org/'
+    },
+    kitely: {
+      name: 'Kitely',
+      loginUrl: 'https://grid.kitely.com:8002/'
     }
   };
+
+  static getLoginUrl(gridId: string) {
+    const configured = SLProtocol.GRIDS[gridId];
+    if (configured) return configured.loginUrl as string;
+    try {
+      const endpoint = new URL(gridId);
+      return endpoint.protocol === 'https:' && !endpoint.username && !endpoint.password
+        ? endpoint.toString()
+        : null;
+    } catch {
+      return null;
+    }
+  }
 
   async login(gridId: string, username: string, password: string, startLocation: string = 'last') {
     const configuredGrid = SLProtocol.GRIDS[gridId];
@@ -146,6 +163,8 @@ export class SLProtocol extends Utils.EventEmitter {
     this.sessionId = null;
     this.agentId = null;
     this.connected = false;
+    this.capabilities = {};
+    this.seedCapability = null;
     this.emit('logout');
   }
 }

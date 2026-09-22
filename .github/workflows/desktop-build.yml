@@ -17,9 +17,7 @@ jobs:
         with:
           node-version: 20
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-      - name: Export Expo Web App
-        run: npx expo export -p web
+        run: npm install --legacy-peer-deps
       - name: Build Electron App
         run: npm run build:desktop
         env:
@@ -32,3 +30,4 @@ jobs:
             build-desktop/*.exe
             build-desktop/*.dmg
             build-desktop/*.AppImage
+            build-desktop/*.tar.gz

@@ -2,10 +2,13 @@
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "desktop": "electron .",
     "android:build": "cd android && ./gradlew assembleDebug",
     "android:clean": "cd android && ./gradlew clean",
     "android:run": "expo run:android",
@@ -16,15 +19,16 @@
     "sync-design": "tsx scripts/sync-design.ts"
   },
   "dependencies": {
+    "@caspertech/node-metaverse": "^0.8.21",
     "@expo/metro-runtime": "~57.0.15",
     "@expo/vector-icons": "^15.1.1",
-    "@google/genai": "^1.29.0",
     "@react-navigation/bottom-tabs": "^7.18.18",
     "@react-navigation/native": "^7.3.18",
     "@tailwindcss/vite": "^4.1.14",
     "@types/crypto-js": "^4.2.2",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "@xmldom/xmldom": "0.9.12",
     "axios": "^1.13.6",
     "cors": "^2.8.6",
     "crypto-js": "^4.2.0",
@@ -45,8 +49,7 @@
     "spark-md5": "^3.0.2",
     "uuid": "^13.0.0",
     "vite": "^6.2.0",
-    "ws": "^8.21.3",
-    "xmldom": "^0.6.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -54,10 +57,35 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/spark-md5": "^3.0.5",
     "@types/ws": "^8.18.1",
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
     "jsdom": "^29.0.1",
     "tsx": "^4.23.13",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^4.1.1"
+  },
+  "build": {
+    "appId": "com.linkpoint.viewer",
+    "productName": "Linkpoint Viewer",
+    "directories": {
+      "output": "build-desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Network"
+    },
+    "artifactName": "linkpoint-viewer-${version}-${os}-${arch}.${ext}"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.9.12"
   }
 }

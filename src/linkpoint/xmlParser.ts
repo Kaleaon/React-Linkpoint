@@ -5,7 +5,7 @@
  * Copyright (C) 2024 Linden Lab
  */
 
-import { DOMParser } from 'xmldom';
+import { DOMParser } from '@xmldom/xmldom';
 import { LLSD, LLSDValue, LLSDMap, LLSDArray, LLSDException, LLSDUtils } from './types';
 
 export class LLSDXMLParser {
@@ -13,15 +13,9 @@ export class LLSDXMLParser {
 
     constructor() {
         this.parser = new DOMParser({
-            errorHandler: {
-                warning: () => {
-                    // Just log warnings, don't fail on them
-                }, 
-                error: (error: string) => {
-                    throw new LLSDException(`XML parsing error: ${error}`);
-                },
-                fatalError: (error: string) => {
-                    throw new LLSDException(`XML fatal error: ${error}`);
+            onError: (level, error) => {
+                if (level !== 'warning') {
+                    throw new LLSDException(`XML ${level}: ${error}`);
                 }
             }
         });
@@ -52,11 +46,11 @@ export class LLSDXMLParser {
             }
 
             // Find the first child element (the actual data)
-            let dataElement: Element | null = null;
+            let dataElement: any = null;
             for (let i = 0; i < llsdElement.childNodes.length; i++) {
                 const node = llsdElement.childNodes[i];
                 if (node.nodeType === 1) { // Element node
-                    dataElement = node as Element;
+                    dataElement = node;
                     break;
                 }
             }
@@ -78,7 +72,7 @@ export class LLSDXMLParser {
     /**
      * Parse an individual XML element into LLSD value
      */
-    private parseElement(element: Element): LLSDValue {
+    private parseElement(element: any): LLSDValue {
         const tagName = element.tagName.toLowerCase();
 
         switch (tagName) {
@@ -156,7 +150,7 @@ export class LLSDXMLParser {
                 for (let i = 0; i < element.childNodes.length; i++) {
                     const node = element.childNodes[i];
                     if (node.nodeType === 1) { // Element node
-                        const value = this.parseElement(node as Element);
+                        const value = this.parseElement(node);
                         array.push(value);
                     }
                 }
@@ -169,7 +163,7 @@ export class LLSDXMLParser {
                 for (let i = 0; i < element.childNodes.length; i++) {
                     const node = element.childNodes[i];
                     if (node.nodeType === 1) { // Element node
-                        const childElement = node as Element;
+                        const childElement = node as any;
                         if (childElement.tagName.toLowerCase() === 'key') {
                             currentKey = this.getElementText(childElement);
                         } else if (currentKey !== null) {
@@ -189,7 +183,7 @@ export class LLSDXMLParser {
     /**
      * Get the text content of an element
      */
-    private getElementText(element: Element): string {
+    private getElementText(element: any): string {
         let text = '';
         for (let i = 0; i < element.childNodes.length; i++) {
             const node = element.childNodes[i];

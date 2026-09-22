@@ -22,7 +22,8 @@ export class ChatManager extends Utils.EventEmitter {
   }
 
   async sendMessage(message: string, channel: number = 0, type: number = 1) {
-    if (!message.trim() || !this.auth.isLoggedIn()) return;
+    if (!message.trim()) throw new Error('Message cannot be empty');
+    if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
     try {
       await this.protocol.sendChat(message, channel, type);
@@ -40,6 +41,7 @@ export class ChatManager extends Utils.EventEmitter {
       this.emit('message_sent', messageData);
     } catch (error) {
       console.error('Error sending message:', error);
+      throw error;
     }
   }
 

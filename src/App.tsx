@@ -1,69 +1,46 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useEffect } from "react";
+import { AppProvider } from "./context/AppContext.jsx";
+import { ThemeProvider } from "./context/ThemeContext.jsx";
+import { useApp } from "./context/AppContext.jsx";
+import { useTheme } from "./context/ThemeContext.jsx";
+import Login from "./screens/Login.jsx";
+import Chat from "./screens/Chat.jsx";
+import World3D, { World3DActionBar } from "./screens/World3D.jsx";
+import { app } from "./linkpoint/app";
 
-const VIEWS = ['Login', 'World', 'Settings'];
+function Viewer() {
+  const { state, actions } = useApp();
+  const { V, t } = useTheme();
+  useEffect(() => {
+    void app.init().catch((error) => console.error("Linkpoint failed to initialize", error));
+    return () => app.world.stopRendering();
+  }, []);
 
-export default function App() {
-  const [currentView, setCurrentView] = useState('Login');
+  if (state.screen === "Login") return <main aria-label="Linkpoint login" style={{ minHeight: "100dvh", display: "flex", background: V.bg, color: V.ink, fontFamily: t.font }}><Login /></main>;
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.text}>{currentView} Screen</Text>
-      </View>
-      <View style={styles.tabBar}>
-        {VIEWS.map((view) => (
-          <Pressable
-            key={view}
-            style={[styles.tab, currentView === view && styles.activeTab]}
-            onPress={() => setCurrentView(view)}
-          >
-            <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
-              {view}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
+  const logout = async () => {
+    await app.auth.logout();
+    actions.setScreen("Login");
+  };
+
+  return <main aria-label="Linkpoint Second Life viewer" style={{ height: "100dvh", display: "flex", flexDirection: "column", overflow: "hidden", background: V.bg, color: V.ink, fontFamily: t.font }}>
+    <nav aria-label="Viewer sections" style={{ display: "flex", alignItems: "center", gap: 6, padding: 8, borderBottom: `1px solid ${V.outv}`, background: V.surf }}>
+      <strong style={{ color: V.pri, marginRight: 8 }}>LINKPOINT</strong>
+      {["Chat", "3D View"].map((screen) => <button key={screen} onClick={() => actions.setScreen(screen)} aria-current={state.screen === screen ? "page" : undefined} style={{ minHeight: 40, padding: "0 14px", border: `1px solid ${state.screen === screen ? V.pri : V.outv}`, borderRadius: V.rs, background: state.screen === screen ? V.priC : V.bg, color: state.screen === screen ? V.pri : V.ink, cursor: "pointer" }}>{screen === "3D View" ? "World" : screen}</button>)}
+      <span style={{ flex: 1 }} />
+      <span style={{ color: V.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{app.auth.getUserDisplayName()}</span>
+      <button onClick={logout} style={{ minHeight: 40, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, cursor: "pointer" }}>Log out</button>
+    </nav>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>{state.screen === "3D View" ? <><World3D /><World3DActionBar /></> : <Chat />}</div>
+  </main>;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#100f0e',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  text: {
-    color: '#fff',
-    fontSize: 20,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    height: 60,
-    backgroundColor: '#1a1a1a',
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  tab: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activeTab: {
-    borderTopWidth: 2,
-    borderTopColor: '#4a9eff',
-  },
-  tabText: {
-    color: '#888',
-    fontSize: 12,
-  },
-  activeTabText: {
-    color: '#4a9eff',
-    fontWeight: 'bold',
-  },
-});
+export default function App() {
+  return (
+    <AppProvider>
+      <ThemeProvider>
+        <Viewer />
+      </ThemeProvider>
+    </AppProvider>
+  );
+}
