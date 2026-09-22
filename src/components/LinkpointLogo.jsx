@@ -4,15 +4,17 @@ import { useTheme } from "../context/ThemeContext.jsx";
 export default function LinkpointLogo({ animated = true, showTitle = true, width = "100%", height = "auto" }) {
   const { V, t } = useTheme();
 
+  // width/height go through style rather than the SVG presentation attributes:
+  // callers pass CSS values ("100%", "auto") and an SVG attribute only accepts
+  // a length, so height="auto" was rejected by the browser with
+  // `<svg> attribute height: Expected length, "auto"` on every Login render.
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
       id="linkpoint-logo-react"
       viewBox={showTitle ? "0 0 512 580" : "0 0 512 512"}
-      width={width}
-      height={height}
-      style={{ filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.3))" }}
+      style={{ width, height, filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.3))" }}
     >
       <style>{`
         .top-crystal-r {
