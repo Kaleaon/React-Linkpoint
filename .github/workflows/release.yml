@@ -1,0 +1,340 @@
+name: Build all packages
+
+# Produces every distributable package for Linkpoint:
+#   * web     - PWA bundle (dist/) as a zip
+#   * android - release APK + Play Store AAB (Expo prebuild native project)
+#   * ios     - unsigned IPA archived with xcodebuild
+#   * desktop - Windows (NSIS + zip), macOS (dmg + zip), Linux (AppImage + deb)
+#
+# Every run uploads the packages as workflow artifacts. Pushing a `v*` tag
+# additionally attaches them to a GitHub Release.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Which packages to build
+        type: choice
+        default: all
+        options:
+          - all
+          - web
+          - android
+          - ios
+          - desktop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  prepare:
+    name: Resolve build metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      is_release: ${{ steps.meta.outputs.is_release }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve package version
+        id: meta
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            # Untagged builds keep the package.json version; the git sha only
+            # goes into the artifact name, because installer formats such as
+            # NSIS require a plain numeric version.
+            version="$(node -p "require('./package.json').version")"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building packages as version $version"
+
+  web:
+    name: Web (PWA bundle)
+    needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web"]'), inputs.platforms) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        # The electron package is only needed by the desktop jobs; skipping its
+        # ~100 MB binary download keeps the other jobs fast.
+        run: npm ci --legacy-peer-deps
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Package web bundle
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          (cd dist && zip -qry "../artifacts/Linkpoint-${VERSION}-web.zip" .)
+
+      - name: Upload web package
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkpoint-web
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+  android:
+    name: Android (APK + AAB)
+    needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","android"]'), inputs.platforms) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      # Optional upload-signing material. When these secrets are absent the
+      # build falls back to the project's debug keystore, which produces an
+      # installable APK that Google Play will not accept.
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install dependencies
+        # The electron package is only needed by the desktop jobs; skipping its
+        # ~100 MB binary download keeps the other jobs fast.
+        run: npm ci --legacy-peer-deps
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Decode upload keystore
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Assemble release APK and AAB
+        run: |
+          set -euo pipefail
+          signing_args=()
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "Signing with the supplied upload keystore."
+            signing_args=(
+              "-Pandroid.injected.signing.store.file=$RUNNER_TEMP/release.keystore"
+              "-Pandroid.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD"
+              "-Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS"
+              "-Pandroid.injected.signing.key.password=$ANDROID_KEY_PASSWORD"
+            )
+          else
+            echo "No ANDROID_KEYSTORE_BASE64 secret set; falling back to the debug keystore."
+          fi
+          chmod +x android/gradlew
+          cd android
+          ./gradlew --no-daemon assembleRelease bundleRelease "${signing_args[@]}"
+
+      - name: Collect Android packages
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          apk="$(find android/app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          aab="$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)"
+          cp "$apk" "artifacts/Linkpoint-${VERSION}-android.apk"
+          cp "$aab" "artifacts/Linkpoint-${VERSION}-android.aab"
+
+      - name: Upload Android packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkpoint-android
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    name: iOS (unsigned IPA)
+    needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","ios"]'), inputs.platforms) }}
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        # The electron package is only needed by the desktop jobs; skipping its
+        # ~100 MB binary download keeps the other jobs fast.
+        run: npm ci --legacy-peer-deps
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile', 'package-lock.json') }}
+          restore-keys: pods-${{ runner.os }}-
+
+      - name: Install pods
+        run: cd ios && pod install
+
+      - name: Archive app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace ios/reactexample.xcworkspace \
+            -scheme reactexample \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Linkpoint.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            archive
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          app="$(find "$RUNNER_TEMP/Linkpoint.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" artifacts
+          cp -R "$app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry payload.ipa Payload)
+          cp "$RUNNER_TEMP/ipa/payload.ipa" "artifacts/Linkpoint-${VERSION}-ios-unsigned.ipa"
+
+      - name: Upload iOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkpoint-ios
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+  desktop:
+    name: Desktop (${{ matrix.label }})
+    needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","desktop"]'), inputs.platforms) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+            target: --win
+          - os: macos-latest
+            label: macOS
+            target: --mac
+          - os: ubuntu-latest
+            label: Linux
+            target: --linux
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      # No Apple Developer certificate is available in CI, so electron-builder
+      # must not try to discover and use one.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build desktop packages
+        run: npm run build:desktop -- ${{ matrix.target }} --publish never --config.extraMetadata.version="$VERSION"
+
+      - name: Collect desktop packages
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          find build-desktop -maxdepth 1 -type f \
+            \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' \) \
+            -exec cp {} artifacts/ \;
+          ls -lh artifacts
+
+      - name: Upload desktop packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkpoint-desktop-${{ matrix.label }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    needs: [prepare, web, android, ios, desktop]
+    if: ${{ needs.prepare.outputs.is_release == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all packages
+        uses: actions/download-artifact@v4
+        with:
+          path: downloads
+
+      - name: Flatten package list
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          find downloads -type f -exec cp {} release/ \;
+          ls -lh release
+
+      - name: Attach packages to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -21,16 +21,71 @@ A Second Life communicator and viewer utility suite packaged as a Progressive We
    ```
 
 
-## Desktop Execution
+## Packaging
 
-The codebase now supports building standalone desktop applications for Windows, macOS, and Linux using Electron.
-The GitHub Actions workflow `.github/workflows/desktop-build.yml` automatically packages the Expo web build into a standalone desktop executable on push.
+`.github/workflows/release.yml` builds every distributable package. It runs on
+pushes to `main`, on `v*` tags, and on demand from the **Actions** tab (where a
+dropdown lets you build a single platform instead of all of them).
 
-### Build Desktop Locally
+| Package | Built on | Produces |
+| --- | --- | --- |
+| Web | `ubuntu-latest` | `Linkpoint-<version>-web.zip` (the `dist/` PWA bundle) |
+| Android | `ubuntu-latest` | release `.apk` and Play Store `.aab` |
+| iOS | `macos-latest` | unsigned `.ipa` |
+| Windows | `windows-latest` | NSIS installer `.exe` and portable `.zip` (x64 + arm64) |
+| macOS | `macos-latest` | `.dmg` and `.zip` (x64 + arm64) |
+| Linux | `ubuntu-latest` | `.AppImage` and `.deb` |
+
+Every run uploads the packages as workflow artifacts. Pushing a tag such as
+`v1.2.3` additionally creates a GitHub Release with all packages attached and
+stamps that version into the desktop installers.
+
+### Build desktop packages locally
+
 ```bash
-npm run build:desktop
+npm run build:desktop            # packages for the current OS
+npm run build:desktop -- --linux # or --win / --mac
+npm run build:desktop:dir        # unpacked app only, for quick iteration
 ```
-Outputs will be placed in the `build-desktop` directory.
+
+Output lands in `build-desktop/`. `scripts/build-desktop.mjs` builds the web
+bundle with a relative asset base (Electron loads `dist/index.html` over
+`file://`, where the GitHub Pages base path would break every asset URL) and
+then runs electron-builder using `electron-builder.yml`.
+
+### Build mobile packages locally
+
+The `android/` and `ios/` directories are committed Expo prebuild output, so no
+`expo prebuild` step is required:
+
+```bash
+npm run android:assemble   # android/app/build/outputs/apk/release
+npm run android:bundle     # android/app/build/outputs/bundle/release
+npm run ios:pods && open ios/reactexample.xcworkspace
+```
+
+Android needs a JDK 17 toolchain and an Android SDK; iOS needs Xcode and
+CocoaPods.
+
+### Signing
+
+Signing is not wired up by default, and the packages reflect that:
+
+- **Android** falls back to the project's debug keystore, which produces an
+  installable APK that Google Play will reject. To sign with a real upload key,
+  add the repository secrets `ANDROID_KEYSTORE_BASE64` (the keystore,
+  base64-encoded), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+  `ANDROID_KEY_PASSWORD`. When `ANDROID_KEYSTORE_BASE64` is present the workflow
+  passes them to Gradle as injected signing properties; no build file changes
+  are needed.
+- **iOS** is archived with code signing disabled, so the `.ipa` installs only on
+  a jailbroken device or after re-signing. App Store builds need an Apple
+  Developer account, a distribution certificate, and a provisioning profile.
+- **Windows and macOS** desktop packages are unsigned and unnotarized, so both
+  operating systems will warn on first launch.
+
+The desktop packages also use the default Electron icon; supplying
+`build/icon.icns`, `build/icon.ico`, and `build/icon.png` would replace it.
 
 ## PWA notes
 
@@ -86,16 +141,17 @@ base path, unlike the GitHub Pages production build.
 
 ### Build an APK entirely in GitHub
 
-No local Android Studio installation is required for a test APK. Open the
-repository's **Actions** tab, select **Build Android test APK**, choose
-**Run workflow**, and download `linkpoint-debug-apk` from the completed run's
-Artifacts section. Transfer `app-debug.apk` to the Android device and approve
-the Android installer prompt for this test-only unsigned-debug build.
+No local Android Studio installation is required. Open the repository's
+**Actions** tab, select **Build all packages**, choose **Run workflow**, pick
+`android`, and download `linkpoint-android` from the completed run.
 
-The workflow also runs automatically for pull requests that change the web
-app, Capacitor configuration, or Android build workflow. The artifact expires
-after 14 days and is not Play Store signed; release signing and store uploads
-remain a separate production-release process.
+Note that the CI APK is built from the committed Expo prebuild project in
+`android/`, not from the Capacitor wrapper described above. `MainActivity`
+extends React Native's `ReactActivity`, and `android/settings.gradle` does not
+include `capacitor.settings.gradle`, so `npx cap sync android` only copies the
+web assets into an app that never loads them. Making the Capacitor path
+buildable in CI requires wiring Capacitor into the Android project (or
+generating a separate one) first.
 
 ### Current native networking scope
 

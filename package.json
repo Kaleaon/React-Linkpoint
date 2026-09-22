@@ -2,9 +2,13 @@
   "name": "react-example",
   "private": true,
   "version": "0.0.0",
+  "description": "Second Life communicator and viewer utility suite.",
+  "author": "Linkpoint Contributors",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "build:desktop:dir": "node scripts/build-desktop.mjs --dir",
     "preview": "vite preview",
     "android:build": "VITE_BASE_PATH=/ npm run build",
     "android:sync": "npm run android:build && npx cap sync android",
@@ -14,7 +18,10 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "web": "expo start --web",
-    "sync-design": "tsx scripts/sync-design.ts"
+    "sync-design": "tsx scripts/sync-design.ts",
+    "android:assemble": "cd android && ./gradlew assembleRelease",
+    "android:bundle": "cd android && ./gradlew bundleRelease",
+    "ios:pods": "cd ios && pod install"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
@@ -55,6 +62,8 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/spark-md5": "^3.0.5",
     "@types/ws": "^8.18.1",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3",
     "jsdom": "^29.0.1",
     "tsx": "^4.23.13",
     "typescript": "~5.8.2",
