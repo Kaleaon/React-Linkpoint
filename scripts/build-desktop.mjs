@@ -29,4 +29,8 @@ function run(command, args, env = {}) {
 }
 
 run('npx', ['--no-install', 'vite', 'build'], {VITE_BASE_PATH: './'});
-run('npx', ['--no-install', 'electron-builder', ...forwarded]);
+// The config is passed explicitly: electron-builder's auto-discovery does not
+// pick up electron-builder.config.js here, and silently falling back to its
+// defaults drops directories.output and extraMetadata.main, which fails the
+// build with `Application entry file "index.js" ... was not found`.
+run('npx', ['--no-install', 'electron-builder', '--config', 'electron-builder.config.js', ...forwarded]);

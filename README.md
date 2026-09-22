@@ -52,7 +52,19 @@ npm run desktop                  # run the Electron app against dist/
 Output lands in `build-desktop/`. `scripts/build-desktop.mjs` builds the web
 bundle with a relative asset base (Electron loads `dist/index.html` over
 `file://`, where the GitHub Pages base path would break every asset URL) and
-then runs electron-builder using `electron-builder.yml`.
+then runs electron-builder using `electron-builder.config.js`.
+
+### Design canvas (development only)
+
+The layout / colour-pack / device / screen pickers around a device bezel are a
+development aid for reviewing the design, not part of the app. A deployed build
+always renders the application itself, sized to the real viewport. To open the
+canvas, run the dev server and add `?design`:
+
+```bash
+npm run dev
+# then visit http://localhost:5173/?design
+```
 
 ### Build mobile packages locally
 
@@ -124,7 +136,7 @@ Install Android Studio, an Android SDK platform, and JDK 21. Then install the
 locked JavaScript dependencies:
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 ```
 
 The `android/` directory is source-controlled. Do not commit signing keys or
