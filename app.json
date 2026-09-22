@@ -1,8 +1,8 @@
 {
   "android": {
-    "package": "com.anonymous.reactexample"
+    "package": "com.reactexample"
   },
   "ios": {
-    "bundleIdentifier": "com.anonymous.reactexample"
+    "bundleIdentifier": "com.reactexample"
   }
 }

@@ -59,12 +59,12 @@ The `android/` and `ios/` directories are committed Expo prebuild output, so no
 `expo prebuild` step is required:
 
 ```bash
-npm run android:assemble   # android/app/build/outputs/apk/release
-npm run android:bundle     # android/app/build/outputs/bundle/release
+npm run android:build:release    # android/app/build/outputs/apk/release
+npm run android:bundle:release   # android/app/build/outputs/bundle/release
 npm run ios:pods && open ios/reactexample.xcworkspace
 ```
 
-Android needs a JDK 17 toolchain and an Android SDK; iOS needs Xcode and
+Android needs a JDK 21 toolchain and an Android SDK; iOS needs Xcode and
 CocoaPods.
 
 ### Signing
@@ -105,26 +105,23 @@ VITE_BASE_PATH="/<your-repo-name>/" npm run build
 
 Deploy the `dist/` directory to GitHub Pages.
 
-## Android testing without a browser proxy
+## Android app
 
-The browser build requires a Linkpoint-operated proxy because browsers cannot
-make the required native network requests. For free Android-device testing,
-wrap the same Vite build with Capacitor. Capacitor's native HTTP bridge avoids
-browser CORS restrictions for XML-RPC login and HTTPS capability requests.
+The Android app is the Expo/React Native application in `App.tsx`, backed by
+the checked-in native Gradle project in `android/`. It is separate from the
+Vite browser application in `src/`.
 
 ### One-time workstation setup
 
-Install Android Studio, an Android SDK platform, and a JDK supported by the
-installed Android Studio. Then install the Capacitor tooling in this project:
+Install Android Studio, an Android SDK platform, and JDK 21. Then install the
+locked JavaScript dependencies:
 
 ```bash
-npm install @capacitor/core @capacitor/android
-npm install --save-dev @capacitor/cli
-npx cap add android
+npm ci --legacy-peer-deps
 ```
 
-The generated `android/` directory is intentionally local development output;
-do not commit signing keys or `local.properties`.
+The `android/` directory is source-controlled. Do not commit signing keys or
+`android/local.properties`.
 
 ### Build and run on a device
 
@@ -135,31 +132,42 @@ to Android Studio, then run:
 npm run android:run
 ```
 
-Alternatively, use `npm run android:open` after `npm run android:sync` and
-run the app from Android Studio. `android:build` always uses `/` as the asset
-base path, unlike the GitHub Pages production build.
+This launches Metro, builds the native app, installs it, and starts it on the
+connected device or running emulator. To only create a debug APK, run:
+
+```bash
+npm run android:build
+```
+
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
+You can also open the checked-in `android/` directory directly in Android
+Studio.
 
 ### Build an APK entirely in GitHub
 
-No local Android Studio installation is required. Open the repository's
-**Actions** tab, select **Build all packages**, choose **Run workflow**, pick
-`android`, and download `linkpoint-android` from the completed run.
+No local Android Studio installation is required. Two workflows build Android
+packages, and both use the checked-in native Gradle project:
 
-Note that the CI APK is built from the committed Expo prebuild project in
-`android/`, not from the Capacitor wrapper described above. `MainActivity`
-extends React Native's `ReactActivity`, and `android/settings.gradle` does not
-include `capacitor.settings.gradle`, so `npx cap sync android` only copies the
-web assets into an app that never loads them. Making the Capacitor path
-buildable in CI requires wiring Capacitor into the Android project (or
-generating a separate one) first.
+- **Build Android test APK** (`android-apk.yml`) produces a debug APK. It runs
+  automatically for pull requests that change the native app, Android project,
+  dependencies, or that workflow, and can be started from the **Actions** tab.
+  Download `linkpoint-debug-apk` from the completed run; the artifact expires
+  after 14 days.
+- **Build all packages** (`release.yml`) produces a release APK and a Play
+  Store AAB alongside the other platforms' packages. Choose **Run workflow**
+  and pick `android` to build only Android, then download `linkpoint-android`.
 
-### Current native networking scope
+Neither artifact is Play Store signed by default. See
+[Signing](#signing) for the secrets that switch the release build over to a
+real upload key.
 
-The native HTTP bridge enables login and HTTPS capability testing without a
-browser proxy. It does **not** add raw UDP support for simulator circuits, so
-the complete 3D world/movement transport remains a separate native-module
-milestone. Use a dedicated Aditi/OpenSim test account when live testing is
-ready; do not use a main-grid account during development.
+### Current native app scope
+
+The React Native shell currently provides Login, World, and Settings views.
+Second Life login, capability, and raw UDP transport still need native-facing
+implementations before live grid connectivity can be enabled. Use a dedicated
+Aditi/OpenSim test account when that work is ready; do not use a main-grid
+account during development.
 
 ## Second Life connectivity in static hosting
 
