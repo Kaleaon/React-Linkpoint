@@ -254,6 +254,11 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
     if (this.extensions.vao) {
+      // OES VAOs capture attribute and element-buffer bindings. Previously the
+      // VAO was created but never populated, so WebGL 1 implementations with
+      // OES_vertex_array_object drew empty meshes.
+      const basicProgram = this.programs.get('basic');
+      if (basicProgram) this.bindMeshAttributes(mesh, basicProgram.attributes);
       this.extensions.vao.bindVertexArrayOES(null);
     }
 
@@ -414,5 +419,7 @@ export class Graphics3D extends Utils.EventEmitter {
 
     this.meshes.clear();
     this.programs.clear();
+    this.textures.clear();
+    this.gl = null;
   }
 }

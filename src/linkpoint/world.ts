@@ -23,6 +23,8 @@ export class WorldViewer extends Utils.EventEmitter {
   public camera3d: Camera3D | null = null;
   public scene3d: Scene3D | null = null;
   private animationId: number | null = null;
+  private resizeAttached = false;
+  private readonly handleResize = () => this.resizeCanvas();
   public use3D: boolean = true;
   
   public region: any = { name: 'Region unavailable', x: 0, y: 0 };
@@ -78,8 +80,15 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   async init() {
-    this.canvas = document.getElementById('world-canvas') as HTMLCanvasElement;
-    if (!this.canvas) return;
+    const canvas = document.getElementById('world-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+    if (this.graphics3d && this.canvas === canvas) {
+      this.resizeCanvas();
+      this.startRendering();
+      return;
+    }
+    this.destroyRenderer();
+    this.canvas = canvas;
 
     try {
       this.graphics3d = new Graphics3D(this.canvas);
@@ -102,7 +111,8 @@ export class WorldViewer extends Utils.EventEmitter {
       this.use3D = false;
     }
 
-    window.addEventListener('resize', () => this.resizeCanvas());
+    window.addEventListener('resize', this.handleResize);
+    this.resizeAttached = true;
     this.resizeCanvas();
   }
 
@@ -113,10 +123,12 @@ export class WorldViewer extends Utils.EventEmitter {
       this.canvas.width = parent.clientWidth;
       this.canvas.height = parent.clientHeight;
       if (this.graphics3d) this.graphics3d.resize(this.canvas.width, this.canvas.height);
+      if (this.camera3d && this.canvas.height > 0) this.camera3d.setAspect(this.canvas.width / this.canvas.height);
     }
   }
 
   public startRendering() {
+    if (this.animationId !== null) return;
     const render = (time: number) => {
       if (this.use3D && this.scene3d && this.camera3d) {
         this.camera3d.updateMatrices();
@@ -128,7 +140,19 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   public stopRendering() {
-    if (this.animationId) cancelAnimationFrame(this.animationId);
+    if (this.animationId !== null) cancelAnimationFrame(this.animationId);
+    this.animationId = null;
+  }
+
+  public destroyRenderer() {
+    this.stopRendering();
+    if (this.resizeAttached) window.removeEventListener('resize', this.handleResize);
+    this.resizeAttached = false;
+    this.graphics3d?.destroy();
+    this.graphics3d = null;
+    this.camera3d = null;
+    this.scene3d = null;
+    this.canvas = null;
   }
 
   public updateLocationDisplay() {
