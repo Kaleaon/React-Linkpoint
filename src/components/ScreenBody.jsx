@@ -5,10 +5,11 @@ import Header from "./Header.jsx";
 import Icon from "./Icon.jsx";
 import Chat from "../screens/Chat.jsx";
 import Inventory from "../screens/Inventory.jsx";
+import World3D from "../screens/World3D.jsx";
 import Login from "../screens/Login.jsx";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
-import { FriendsScreen, GenericInventoryScreen, GroupsScreen, MapScreen, MuteListScreen, NoticesScreen, RadarScreen, SearchScreen, WorldScreen } from "../screens/LiveScreens.jsx";
+import { FriendsScreen, GenericInventoryScreen, GroupsScreen, MapScreen, MuteListScreen, NoticesScreen, RadarScreen, SearchScreen } from "../screens/LiveScreens.jsx";
 import { AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsScreen, ParcelScreen, TeleportScreen, TransactionsScreen } from "../screens/LumiyaTools.jsx";
 
 export default function ScreenBody() {
@@ -23,7 +24,7 @@ export default function ScreenBody() {
       {scr === "Friends" ? <FriendsScreen /> : null}
       {scr === "Radar" ? <RadarScreen /> : null}
       {scr === "Map" ? <MapScreen /> : null}
-      {scr === "3D View" ? <WorldScreen /> : null}
+      {scr === "3D View" ? <World3D /> : null}
       {scr === "Groups" ? <GroupsScreen /> : null}
       {scr === "Notices" ? <NoticesScreen /> : null}
       {scr === "Mute List" ? <MuteListScreen /> : null}

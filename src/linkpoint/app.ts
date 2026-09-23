@@ -24,6 +24,7 @@ import { GroupsManager } from './phase2/groups';
 import { FriendsExtended } from './phase2/friends-extended';
 
 export class LinkpointApp {
+  private initialization: Promise<void> | null = null;
   public protocol: SLConnectionFull;
   public auth: AuthManager;
   public world: WorldViewer;
@@ -67,6 +68,12 @@ export class LinkpointApp {
   }
 
   async init() {
+    if (this.initialization) return this.initialization;
+    this.initialization = this.initialize();
+    return this.initialization;
+  }
+
+  private async initialize() {
     console.log('🔗 Linkpoint PWA Starting...');
 
     this.preferences.init();

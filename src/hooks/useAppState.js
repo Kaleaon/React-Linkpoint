@@ -200,6 +200,13 @@ export function useAppState() {
       notify("Grid name and login URI are both required");
       return;
     }
+    try {
+      const endpoint = new URL(host);
+      if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) throw new Error();
+    } catch {
+      notify("Login URI must be a valid HTTPS URL without embedded credentials");
+      return;
+    }
     const key =
       "custom-" +
       name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 24) +

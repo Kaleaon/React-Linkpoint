@@ -7,6 +7,7 @@ import Toast from "./components/Toast.jsx";
 import BottomTabs from "./components/BottomTabs.jsx";
 import TileNav from "./components/TileNav.jsx";
 import { app } from "./linkpoint/app";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 let startup: Promise<void> | null = null;
 
@@ -51,10 +52,12 @@ function Viewer() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <ThemeProvider>
-        <Viewer />
-      </ThemeProvider>
-    </AppProvider>
+    <ErrorBoundary label="Linkpoint">
+      <AppProvider>
+        <ThemeProvider>
+          <Viewer />
+        </ThemeProvider>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

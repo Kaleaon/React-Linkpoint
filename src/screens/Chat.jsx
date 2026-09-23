@@ -1,77 +1,64 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
-import { app } from "../linkpoint/app.ts";
-import { useApp } from "../context/AppContext.jsx";
 import Icon from "../components/Icon.jsx";
+import { app } from "../linkpoint/app";
 
-function formatTime(timestamp) {
-  if (!timestamp) return "";
-  return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-/** Local chat backed only by ChatManager's received and persisted messages. */
 export default function Chat() {
   const { V, t } = useTheme();
-  const { state } = useApp();
   const [messages, setMessages] = useState(() => [...app.chat.messages]);
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const connected = app.auth.isLoggedIn();
 
   useEffect(() => {
     const refresh = () => setMessages([...app.chat.messages]);
     app.chat.on("message_received", refresh);
     app.chat.on("message_sent", refresh);
-    app.chat.on("history_cleared", refresh);
-    refresh();
     return () => {
       app.chat.off("message_received", refresh);
       app.chat.off("message_sent", refresh);
-      app.chat.off("history_cleared", refresh);
     };
   }, []);
 
-  const offline = state.loginMode === "offline";
-  const canSend = (app.auth.isLoggedIn() || offline) && draft.trim().length > 0;
-  const ordered = useMemo(() => [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)), [messages]);
-  const send = async () => {
-    if (!canSend) return;
+  const formatted = useMemo(() => messages.map((message) => ({
+    ...message,
+    time: new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  })), [messages]);
+
+  const send = async (event) => {
+    event.preventDefault();
     const text = draft.trim();
-    setDraft("");
-    if (offline) {
-      app.chat.addMessage({ id: crypto.randomUUID(), sender: "You", text, timestamp: Date.now(), type: "local-offline" });
-      app.chat.emit("message_sent");
-    } else {
-      await app.chat.sendMessage(text);
+    if (!text || sending) return;
+    if (!connected) return setError("Chat is unavailable while disconnected.");
+    setSending(true);
+    setError("");
+    try {
+      await app.chat.sendMessage(text, 0, 1);
+      setDraft("");
+      setMessages([...app.chat.messages]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Message could not be sent.");
+    } finally {
+      setSending(false);
     }
   };
 
-  return (
-    <section className="live-screen">
-      <div className="live-list" aria-live="polite">
-        {ordered.length ? ordered.map((message) => {
-          const mine = message.senderId && message.senderId === app.auth.user?.id;
-          return (
-            <article className={`chat-message${mine ? " mine" : ""}`} key={message.id || `${message.timestamp}-${message.sender}`} style={{ borderColor: V.outv, background: mine ? V.priC : V.surf }}>
-              <div style={{ color: V.pri, font: `600 10px/1.3 ${t.font}` }}>{message.sender || "Unknown"} · {formatTime(message.timestamp)}</div>
-              <div style={{ marginTop: 4, font: `400 13px/1.45 ${t.font}` }}>{message.text}</div>
-            </article>
-          );
-        }) : <Empty text={app.auth.isLoggedIn() || offline ? "No local chat has been received in this session." : "Connect to a grid to receive local chat."} />}
-      </div>
-      <div className="composer" style={{ borderColor: V.outv, background: V.surf }}>
-        <input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => event.key === "Enter" && void send()}
-          placeholder={app.auth.isLoggedIn() || offline ? "Say to local chat" : "Grid connection required"}
-          disabled={!app.auth.isLoggedIn() && !offline}
-          aria-label="Local chat message"
-        />
-        <button type="button" onClick={() => void send()} disabled={!canSend} style={{ background: V.pri, color: V.onpri }} aria-label="Send local chat message"><Icon name="send" size={18} /></button>
-      </div>
+  return <>
+    <section aria-label="Local chat transcript" aria-live="polite" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+      {!formatted.length && <div style={{ color: V.ink2, margin: "auto", textAlign: "center" }}>No messages in this session.</div>}
+      {formatted.map((m) => <article key={m.id} style={{ alignSelf: m.senderId === app.auth.user?.id ? "flex-end" : "flex-start", maxWidth: "88%", padding: "8px 10px", border: `1px solid ${V.outv}`, borderRadius: V.rp, background: V.surf }}>
+        <header style={{ color: V.pri, font: `600 10px/1.3 ${t.font}` }}>[{m.time}] {m.sender}</header>
+        <div style={{ color: V.ink, font: `400 13px/1.45 ${t.font}`, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{m.text}</div>
+      </article>)}
     </section>
-  );
-}
-
-function Empty({ text }) {
-  return <div className="honest-empty"><Icon name="message-square" size={28} /><p>{text}</p></div>;
+    <form onSubmit={send} style={{ padding: 12, borderTop: `1px solid ${V.outv}`, background: V.surf }}>
+      {error && <div role="alert" style={{ color: V.err, marginBottom: 7 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <label htmlFor="local-chat" className="sr-only">Message local chat</label>
+        <input id="local-chat" value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!connected || sending} placeholder={connected ? "Say to local…" : "Disconnected"} autoComplete="off" style={{ flex: 1, minWidth: 0, minHeight: 44, padding: "0 12px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, fontSize: 16 }} />
+        <button type="submit" disabled={!connected || !draft.trim() || sending} aria-label="Send local chat" style={{ width: 48, border: 0, borderRadius: V.rs, background: V.pri, color: V.onpri, cursor: "pointer" }}><Icon name="send" size={19} /></button>
+      </div>
+    </form>
+  </>;
 }
