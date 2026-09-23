@@ -5,6 +5,14 @@ The comparison used the Android manifest, `NavDrawerAdapter`, and the activity/
 fragment inventory. Lumiya is a behavioral reference only; no recovered code is
 copied into this project.
 
+Update reviewed: `b7094b0` (2026-09-22). The recovered Lumiya runtime confirmed
+three behaviors now mirrored by Linkpoint: bounded `next_url`/`next_method`
+login redirects, coarse avatar-location updates for radar, and parcel-property
+updates attached to the current region. Its inventory recovery also confirms
+that folder responses must be committed atomically and stale children removed;
+Linkpoint's in-memory inventory currently merges responses and tracks that
+replacement behavior as a follow-up rather than deleting data on partial fetches.
+
 ## Primary navigation parity
 
 | Lumiya surface | Linkpoint counterpart | Runtime source |

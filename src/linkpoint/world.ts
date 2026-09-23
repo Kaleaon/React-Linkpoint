@@ -27,6 +27,8 @@ export class WorldViewer extends Utils.EventEmitter {
   
   public region: any = { name: 'Region unavailable', x: 0, y: 0 };
   public objects: any[] = [];
+  public nearbyUsers: any[] = [];
+  public avatarPosition: [number, number, number] | null = null;
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
 
@@ -60,6 +62,15 @@ export class WorldViewer extends Utils.EventEmitter {
         const id = update.id || update.objectId || update.full_id;
         if (id) this.upsertSceneObject({ ...update, id });
       }
+    });
+    this.protocol.on('CoarseLocationUpdate', (data: any) => this.updateCoarseLocations(data));
+    this.protocol.on('ParcelProperties', (data: any) => {
+      const parcels = data?.ParcelData || data?.parcelData || [];
+      const parcel = Array.isArray(parcels) ? parcels[0] : parcels;
+      if (!parcel) return;
+      this.region = { ...this.region, parcel: { ...parcel } };
+      this.emit('parcel_changed', { ...parcel });
+      this.emit('region_changed', { ...this.region });
     });
     this.protocol.on('scene:object-add', (object: any) => this.upsertSceneObject(object));
     this.protocol.on('scene:object-update', (object: any) => this.upsertSceneObject(object));
@@ -157,11 +168,14 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applySceneObject(object: any) {
     if (!this.scene3d) return;
+    const position = Array.isArray(object.position) ? object.position : [0, 0, 0];
+    const rotation = Array.isArray(object.rotation) && object.rotation.length === 4 ? object.rotation : [0, 0, 0, 1];
+    const scale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
     const config = {
       mesh: object.avatar ? 'sphere' : 'cube',
-      position: object.position,
-      rotation: this.quaternionToEuler(object.rotation),
-      scale: object.scale,
+      position,
+      rotation: this.quaternionToEuler(rotation),
+      scale,
       color: object.avatar ? [0.3, 0.65, 1, 1] : [0.8, 0.8, 0.8, 1],
     };
     if (this.scene3d.objects.has(object.id)) this.scene3d.updateObject(object.id, config);
@@ -178,5 +192,33 @@ export class WorldViewer extends Utils.EventEmitter {
     this.scene3d?.removeObject(id);
     this.objects = Array.from(this.sceneObjects.values());
     this.emit('objects_changed', this.objects);
+  }
+
+  private updateCoarseLocations(data: any) {
+    const locations = data?.Location_Fields || data?.locations || [];
+    const agents = data?.AgentData_Fields || data?.agents || [];
+    const you = Number(data?.Index_Field?.You ?? data?.youIndex ?? -1);
+    const next: any[] = [];
+    for (let index = 0; index < locations.length; index++) {
+      const location = locations[index];
+      const position: [number, number, number] = [
+        Number(location.X ?? location.x ?? 0),
+        Number(location.Y ?? location.y ?? 0),
+        Number(location.Z ?? location.z ?? 0) * 4,
+      ];
+      if (index === you) {
+        this.avatarPosition = position;
+        continue;
+      }
+      const agent = agents[index] || {};
+      const id = agent.AgentID || agent.agentId || agent.id;
+      if (!id || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(String(id))) continue;
+      const distance = this.avatarPosition
+        ? Math.hypot(position[0] - this.avatarPosition[0], position[1] - this.avatarPosition[1], position[2] - this.avatarPosition[2])
+        : null;
+      next.push({ id: String(id), position, distance });
+    }
+    this.nearbyUsers = next;
+    this.emit('nearby_changed', next.map(user => ({ ...user })));
   }
 }

@@ -94,5 +94,14 @@ describe('XMLRPCClient', () => {
       expect(xml).toContain('<name>last</name>\n<value><string>User &lt;&quot;Tag&quot;&gt;</string></value>');
       expect(xml).toContain('<name>passwd</name>\n<value><string>$1$hash&apos;123</string></value>');
     });
+
+    it('supports the next_method used by indeterminate grid login replies', () => {
+      const xml = XMLRPCClient.buildLoginRequest({
+        firstName: 'Redirected',
+        lastName: 'Resident',
+        passwordHash: 'hash',
+      }, 'login_to_simulator_v2');
+      expect(xml).toContain('<methodName>login_to_simulator_v2</methodName>');
+    });
   });
 });

@@ -60,4 +60,26 @@ describe('runtime UI manager snapshots', () => {
     expect(regionListener).toHaveBeenCalledOnce();
     expect(objectListener).toHaveBeenCalledOnce();
   });
+
+  it('tracks coarse avatar locations and parcel properties for radar and map', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    const nearbyListener = vi.fn();
+    const parcelListener = vi.fn();
+    world.on('nearby_changed', nearbyListener);
+    world.on('parcel_changed', parcelListener);
+
+    protocol.emit('CoarseLocationUpdate', {
+      Index_Field: { You: 0 },
+      Location_Fields: [{ X: 10, Y: 10, Z: 5 }, { X: 13, Y: 14, Z: 5 }],
+      AgentData_Fields: [{ AgentID: 'self' }, { AgentID: 'nearby-agent' }],
+    });
+    protocol.emit('ParcelProperties', { ParcelData: [{ LocalID: 4, Name: 'Live parcel' }] });
+
+    expect(world.avatarPosition).toEqual([10, 10, 20]);
+    expect(world.nearbyUsers[0]).toMatchObject({ id: 'nearby-agent', position: [13, 14, 20], distance: 5 });
+    expect(world.region.parcel).toMatchObject({ LocalID: 4, Name: 'Live parcel' });
+    expect(nearbyListener).toHaveBeenCalledOnce();
+    expect(parcelListener).toHaveBeenCalledOnce();
+  });
 });

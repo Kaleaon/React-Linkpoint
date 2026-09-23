@@ -19,8 +19,13 @@ export function FriendsScreen() {
 
 export function RadarScreen() {
   const [objects, setObjects] = useState(() => [...app.world.objects]);
+  const [nearby, setNearby] = useState(() => [...app.world.nearbyUsers]);
   useEffect(() => { const refresh = (items) => setObjects([...items]); app.world.on("objects_changed", refresh); return () => app.world.off("objects_changed", refresh); }, []);
-  const rows = objects.map((object) => ({ ...object, name: object.name || object.id, meta: object.distance != null ? `${object.distance} m` : "Simulator object" }));
+  useEffect(() => { const refresh = (items) => setNearby([...items]); app.world.on("nearby_changed", refresh); return () => app.world.off("nearby_changed", refresh); }, []);
+  const rows = [
+    ...nearby.map((user) => ({ ...user, name: user.name || user.id, meta: user.distance != null ? `${user.distance.toFixed(1)} m` : "Nearby avatar", icon: "user" })),
+    ...objects.map((object) => ({ ...object, name: object.name || object.id, meta: object.distance != null ? `${object.distance} m` : "Simulator object" })),
+  ];
   return rows.length ? <Rows rows={rows} icon="box" /> : <Empty icon="radar">No nearby simulator objects or avatars have been received.</Empty>;
 }
 
