@@ -125,6 +125,10 @@ export class ChatExtended {
     return this.muteList.has(userId);
   }
 
+  getMutedUsers() {
+    return Array.from(this.muteList);
+  }
+
   /**
    * Feature 39: Chat range (whisper/shout)
    * Send message with specific range

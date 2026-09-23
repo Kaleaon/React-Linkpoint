@@ -86,7 +86,14 @@ export class InventoryManager extends Utils.EventEmitter {
 
       if (folderData.items) {
         folderData.items.forEach((itemData: any) => {
-           const item = { id: itemData.item_id, name: itemData.name, type: 'item', parent: itemData.parent_id };
+           const item = {
+             ...itemData,
+             id: itemData.item_id,
+             name: itemData.name,
+             type: 'item',
+             assetType: itemData.asset_type ?? itemData.type_default,
+             parent: itemData.parent_id,
+           };
            this.items.set(item.id, item);
            const parent = this.folders.get(item.parent);
            if (parent && !parent.children.includes(item.id)) parent.children.push(item.id);

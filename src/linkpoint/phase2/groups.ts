@@ -208,6 +208,11 @@ export class GroupsManager {
     return userGroups;
   }
 
+  /** Snapshot of group records received during this session. */
+  getGroups() {
+    return Array.from(this.groups.values()).map(group => ({ ...group }));
+  }
+
   getStats() {
     let totalMembers = 0;
     for (const members of this.groupMembers.values()) {

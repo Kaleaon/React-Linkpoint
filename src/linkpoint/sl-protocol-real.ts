@@ -75,10 +75,27 @@ export class SLProtocol extends Utils.EventEmitter {
         loginUri: grid.loginUrl
       };
 
-      const xmlRequest = XMLRPCClient.buildLoginRequest(loginParams);
-      const response = await XMLRPCClient.sendRequest(grid.loginUrl, xmlRequest);
+      let loginUrl = grid.loginUrl;
+      let loginMethod = 'login_to_simulator';
+      let response: any = null;
+      // Lumiya follows indeterminate XML-RPC replies (next_url/next_method)
+      // with a bounded retry loop. Some OpenSim frontends depend on this.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const xmlRequest = XMLRPCClient.buildLoginRequest(loginParams, loginMethod);
+        response = await XMLRPCClient.sendRequest(loginUrl, xmlRequest);
+        const nextUrl = response.next_url || response.nextURL;
+        const nextMethod = response.next_method || response.nextMethod;
+        const indeterminate = response.login === 'indeterminate' || response.indeterminate === true;
+        if (!indeterminate || !nextUrl || !nextMethod) break;
+        const endpoint = new URL(nextUrl, loginUrl);
+        if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) {
+          throw new Error('Grid returned an unsafe login redirect');
+        }
+        loginUrl = endpoint.toString();
+        loginMethod = String(nextMethod);
+      }
 
-      if (!response.login || response.login === 'false') {
+      if (!response?.login || response.login === 'false' || response.login === 'indeterminate') {
         throw new Error(response.message || 'Login failed');
       }
 

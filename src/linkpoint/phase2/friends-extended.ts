@@ -124,6 +124,10 @@ export class FriendsExtended {
     }
   }
 
+  removeStatusListener(listener: Function) {
+    this.onlineStatusListeners.delete(listener);
+  }
+
   /**
    * Notify all listeners of status change
    */
@@ -245,6 +249,11 @@ export class FriendsExtended {
    */
   getOnlineFriends() {
     return Array.from(this.friends.values()).filter(f => f.onlineStatus === 'online');
+  }
+
+  /** Snapshot for UI rendering; callers cannot mutate the backing map. */
+  getFriends() {
+    return Array.from(this.friends.values()).map(friend => ({ ...friend }));
   }
 
   getStats() {

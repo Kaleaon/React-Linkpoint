@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { WorldViewer } from '../world';
 import { Utils } from '../utils';
 
@@ -41,5 +41,23 @@ describe('WorldViewer data status', () => {
 
     protocol.emit('scene:object-remove', { localId: 4 });
     expect(world.objects).toEqual([]);
+  });
+
+  it('starts only one animation loop and cancels it cleanly', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    const request = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(42);
+    const cancel = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => undefined);
+
+    world.startRendering();
+    world.startRendering();
+    expect(request).toHaveBeenCalledOnce();
+
+    world.stopRendering();
+    expect(cancel).toHaveBeenCalledWith(42);
+    world.stopRendering();
+    expect(cancel).toHaveBeenCalledOnce();
+    request.mockRestore();
+    cancel.mockRestore();
   });
 });

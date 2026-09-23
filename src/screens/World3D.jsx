@@ -15,7 +15,7 @@ export default function World3D() {
     const updateObjects = (objects) => { if (active) setObjectCount(objects.length); };
     app.world.on("objects_changed", updateObjects);
     app.world.init().then(() => { if (active) { setReady(!!app.world.graphics3d); refresh(); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "WebGL initialization failed"); });
-    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.stopRendering(); };
+    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.destroyRenderer(); };
   }, []);
 
   const move = (forward, right, up = 0) => { app.world.moveCamera(right, forward, up); refresh(); };

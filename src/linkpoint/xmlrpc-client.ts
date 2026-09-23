@@ -13,7 +13,7 @@ export class XMLRPCClient {
   /**
    * Build XML-RPC login request
    */
-  static buildLoginRequest(params: any): string {
+  static buildLoginRequest(params: any, methodName: string = 'login_to_simulator'): string {
     // String fields (non-boolean)
     const stringFields: { name: string, value: string }[] = [];
     
@@ -68,7 +68,7 @@ export class XMLRPCClient {
     // Build XML
     let xml = '<?xml version="1.0"?>\n';
     xml += '<methodCall>\n';
-    xml += '<methodName>login_to_simulator</methodName>\n';
+    xml += `<methodName>${this.escapeXml(methodName)}</methodName>\n`;
     xml += '<params>\n';
     xml += '<param>\n';
     xml += '<value><struct>\n';
