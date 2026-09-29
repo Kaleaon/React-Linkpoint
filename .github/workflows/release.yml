@@ -4,7 +4,7 @@ name: Build all packages
 #   * web     - PWA bundle (dist/) as a zip
 #   * android - release APK + Play Store AAB (Expo prebuild native project)
 #   * ios     - unsigned IPA archived with xcodebuild
-#   * desktop - Windows (NSIS + zip), macOS (dmg + zip), Linux (AppImage + deb)
+#   * desktop - Windows (NSIS + portable exe + zip), macOS (dmg + zip), Linux (AppImage + deb)
 #
 # Every run uploads the packages as workflow artifacts. Pushing a `v*` tag
 # additionally attaches them to a GitHub Release.

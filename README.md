@@ -32,7 +32,7 @@ dropdown lets you build a single platform instead of all of them).
 | Web | `ubuntu-latest` | `Linkpoint-<version>-web.zip` (the `dist/` PWA bundle) |
 | Android | `ubuntu-latest` | release `.apk` and Play Store `.aab` |
 | iOS | `macos-latest` | unsigned `.ipa` |
-| Windows | `windows-latest` | NSIS installer `.exe` and portable `.zip` (x64 + arm64) |
+| Windows | `windows-latest` | NSIS installer, no-install portable `.exe`, and portable `.zip` (x64 + arm64) |
 | macOS | `macos-latest` | `.dmg` and `.zip` (x64 + arm64) |
 | Linux | `ubuntu-latest` | `.AppImage` and `.deb` |
 
@@ -53,6 +53,12 @@ Output lands in `build-desktop/`. `scripts/build-desktop.mjs` builds the web
 bundle with a relative asset base (Electron loads `dist/index.html` over
 `file://`, where the GitHub Pages base path would break every asset URL) and
 then runs electron-builder using `electron-builder.config.js`.
+
+For a Windows PC that must not install anything, download the artifact ending
+in `windows-x64-portable.exe` (or `windows-arm64-portable.exe` for a Windows on
+ARM device) and run it directly. The `.zip` is also installation-free after it
+is extracted. Linux users can run the `.AppImage` directly after making it
+executable; macOS users can extract the `.zip` and open the app bundle.
 
 ### Design canvas (development only)
 

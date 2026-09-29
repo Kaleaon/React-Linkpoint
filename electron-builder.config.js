@@ -127,10 +127,21 @@ module.exports = {
   win: {
     target: [
       { target: 'nsis', arch: ['x64', 'arm64'] },
+      // A single executable that can be copied to a USB drive and launched
+      // without an installer or administrator access.
+      { target: 'portable', arch: ['x64', 'arm64'] },
       { target: 'zip', arch: ['x64', 'arm64'] },
     ],
   },
-  nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true },
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    artifactName: '${productName}-${version}-windows-${arch}-setup.${ext}',
+  },
+  portable: {
+    artifactName: '${productName}-${version}-windows-${arch}-portable.${ext}',
+  },
 
   mac: {
     category: 'public.app-category.social-networking',
