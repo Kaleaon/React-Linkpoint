@@ -2,6 +2,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL } from "../data/content.js";
 import Icon from "./Icon.jsx";
+import { navActive } from "../theme/look.js";
 
 // Ported from the `isTiles` <sc-if> block — Metro's bottom tile strip.
 export default function TileNav() {
@@ -12,11 +13,21 @@ export default function TileNav() {
   return (
     <div style={{ flex: "none", display: "flex", gap: "2px", background: V.bg, padding: "2px" }}>
       {NAV_ALL.map((n) => {
-        const active = state.screen === n.id;
+        const active = navActive(state.screen, n.id);
         return (
           <div
             key={n.id}
             onClick={() => actions.setScreen(n.id)}
+            role="button"
+            tabIndex={0}
+            aria-label={"Go to " + n.id}
+            aria-pressed={active}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                actions.setScreen(n.id);
+              }
+            }}
             style={{ flex: 1, height: "62px", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "7px", cursor: "pointer", background: active ? V.pri : V.surf, color: active ? V.onpri : V.ink }}
           >
             <Icon name={n.icon} size={18} />

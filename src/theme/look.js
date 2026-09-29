@@ -44,3 +44,7 @@ export function segOnLooks(V) {
     text: { color: V.pri, boxShadow: "inset 0 -2px 0 " + V.pri },
   };
 }
+
+// Cache is reached from Settings and has no nav entry of its own, so it keeps the
+// Settings/MORE item lit rather than leaving the whole nav unhighlighted.
+export const navActive = (screen, id) => screen === id || (id === "Settings" && screen === "Cache");

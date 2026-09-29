@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
@@ -13,6 +13,17 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const grids = actions.allGrids();
+
+  useEffect(() => {
+    const loadSaved = (credentials) => {
+      setUsername(credentials?.username || "");
+      const savedGrid = grids.find((grid) => grid.key === credentials?.grid || grid.host === credentials?.grid);
+      if (savedGrid) actions.setLoginGrid(savedGrid.key);
+    };
+    app.auth.on("credentials_loaded", loadSaved);
+    if (app.auth.credentials) loadSaved(app.auth.credentials);
+    return () => app.auth.off("credentials_loaded", loadSaved);
+  }, []);
 
   const submit = async (event) => {
     event.preventDefault();

@@ -1,5 +1,5 @@
 // Linkpoint PWA Service Worker
-const CACHE_VERSION = 'linkpoint-v1.1.0';
+const CACHE_VERSION = 'linkpoint-v2.0.0';
 const CACHE_STATIC = `${CACHE_VERSION}-static`;
 const CACHE_DYNAMIC = `${CACHE_VERSION}-dynamic`;
 const CACHE_ASSETS = `${CACHE_VERSION}-assets`;
