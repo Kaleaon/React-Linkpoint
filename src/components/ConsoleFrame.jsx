@@ -7,11 +7,7 @@ import { CBTN, CSUB, CPAD, CPADR, subView, setSub } from "../theme/constants.js"
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
 import { navActive } from "../theme/look.js";
-
-// The 3D View's sim/location — shared by the in-scene region tag and the
-// console's own top bar so the two never disagree.
-const SIM_NAME = "Heliotrope";
-const SIM_COORD = { x: 128, y: 64, z: 42 };
+import { app } from "../linkpoint/app";
 
 // Ported from the `isConsole` block (lines ~140-222 of the source template)
 // plus the matching `cf*`/`consoleNav`/`cdock`/`cfPad`/`cfFly` computations in
@@ -23,11 +19,16 @@ export default function ConsoleFrame() {
   const { V, t, C, ink, consoleScene } = useTheme();
   const tick = state.tick || 0;
 
+  const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "Second Life" : "Offline");
+  const simCoord = app.world.avatarPosition
+    ? { x: Math.round(app.world.avatarPosition[0]), y: Math.round(app.world.avatarPosition[1]), z: Math.round(app.world.avatarPosition[2]) }
+    : { x: Number(app.world.region?.x) || 128, y: Number(app.world.region?.y) || 128, z: 25 };
+
   const cfBar = { position: "absolute", left: 0, top: 0, right: 0, height: C.bar + "px", background: V.pri, borderRadius: Math.round(C.bar * 0.66) + "px 0 0 0" };
   const cfBarEnd = { position: "absolute", right: 0, top: 0, width: (C.wide ? 104 : 66) + "px", height: C.bar + "px", background: V.sec2 };
   const cfBarGap = { position: "absolute", right: (C.wide ? 108 : 70) + "px", top: 0, width: C.gap + "px", height: C.bar + "px", background: V.bg };
   const headMap = HEAD(LAYOUTS[state.layout].name, PALETTES[state.palette].name, { cleared: state.cacheCleared, limit: state.prefs.cacheLimit, loc: state.prefs.cacheLoc });
-  const cfTitleText = consoleScene ? SIM_NAME : (headMap[state.screen] || ["", ""])[0];
+  const cfTitleText = consoleScene ? simName : (headMap[state.screen] || ["", ""])[0];
   const cfTitle = {
     position: "absolute", right: (C.wide ? 128 : 84) + "px", left: C.rail + C.gap + "px", top: 0, height: C.bar + "px",
     display: "flex", alignItems: "flex-end", justifyContent: "flex-end", paddingBottom: (C.wide ? 11 : 7) + "px",
@@ -51,9 +52,9 @@ export default function ConsoleFrame() {
     // instead of the generic grid-link stats every other screen shows here.
     const items = consoleScene
       ? [
-          { label: "LOC", value: SIM_COORD.x + "," + SIM_COORD.y },
-          { label: "HEIGHT", value: SIM_COORD.z + "M" },
-          { label: "PING", value: (24 + (tick % 19)) + "MS" },
+          { label: "LOC", value: simCoord.x + "," + simCoord.y },
+          { label: "HEIGHT", value: simCoord.z + "M" },
+          { label: "REGION", value: simName.toUpperCase() },
         ]
       : [
           { label: "PING", value: (24 + (tick % 19)) + "MS" },

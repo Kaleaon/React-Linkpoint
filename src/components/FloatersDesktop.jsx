@@ -4,7 +4,8 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
 import { FLOATERS, FBAR, CBTN } from "../theme/constants.js";
-import { LOCAL_MSGS, RADAR_AVATARS, FRIEND_ROWS, INVENTORY_SOURCE, REGIONS, buildCards } from "../data/content.js";
+import { REGIONS, buildCards } from "../data/content.js";
+import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
 
@@ -31,15 +32,26 @@ export default function FloatersDesktop() {
     position: "absolute", inset: "-20% -40%", transform: "translate(" + (-state.cHdg * 0.9).toFixed(1) + "px," + (state.cPitch * 0.8).toFixed(1) + "px)",
     transition: state.cDrag ? "none" : "transform .35s ease-out", opacity: 0.45, backgroundImage: "repeating-linear-gradient(90deg," + V.outv + " 0 1px,transparent 1px 104px)",
   };
-  const regionRead = "HELIOTROPE · 128,64,42 · HDG " + String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0") + "° " + (state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL");
+  const currentRegion = (app.world?.regionName || app.protocol?.authReply?.sim_name || "Arapaima").toUpperCase();
+  const avatarPos = app.world?.avatarPosition || [128, 128, 25];
+  const regionRead = `${currentRegion} · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])} · HDG ${String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0")}° ${state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL"}`;
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
   const flFocused = state.flOpen[state.screen] && !state.flMin[state.screen] ? actions.flR(state.screen) : null;
 
-  const sendQuickChat = (e) => {
+  const sendQuickChat = async (e) => {
     e?.preventDefault();
-    if (!quickMsg.trim()) return;
-    actions.notify("Local Chat (" + quickMsg.trim() + ")");
+    const text = quickMsg.trim();
+    if (!text) return;
+    try {
+      if (app.auth.isLoggedIn()) {
+        await app.chat.sendMessage(text, 0, 1);
+      } else {
+        actions.notify("Local Chat (" + text + ")");
+      }
+    } catch (err) {
+      actions.notify("Chat error: " + (err.message || String(err)));
+    }
     setQuickMsg("");
   };
 
@@ -275,23 +287,37 @@ export default function FloatersDesktop() {
 // Ported from `FBODY` — unfocused floaters keep ticking with real data, not
 // placeholders.
 function buildFBody(state, cardsByScreen) {
-  const invNodes = INVENTORY_SOURCE.map(([name, icon, depth, parent, ver]) => ({ name, ver, parent, depth })).filter((n) => n.depth === 0 || (n.parent && state.invOpen[n.parent] !== false));
+  const friends = app.friends?.getFriends?.() || [];
+  const groups = app.groups?.getGroups?.() || [];
+  const invFolders = Array.from(app.inventory?.folders?.values() || []);
+  const chatMessages = app.chat?.messages || [];
+  const nearby = app.world?.nearbyUsers || [];
+
   return {
-    Chat: LOCAL_MSGS.slice(-6).map((m) => ({ a: m.sender, b: m.ts })),
-    Radar: RADAR_AVATARS.slice()
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, 8)
-      .map((r) => ({ a: r[0], b: r[1] + "m" })),
-    Friends: FRIEND_ROWS.map((r) => ({ a: r[0], b: r[1].split(" · ")[0] })),
-    Inventory: invNodes.map((n) => ({ a: n.name, b: n.ver })),
+    Chat: chatMessages.slice(-6).map((m) => ({
+      a: m.sender || "Resident",
+      b: new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    })),
+    Radar: nearby.slice(0, 8).map((r) => ({
+      a: r.name || `Resident ${r.id.slice(0, 8)}`,
+      b: `${Math.round(r.distance || 0)}m`,
+    })),
+    Friends: friends.slice(0, 12).map((r) => ({
+      a: r.name,
+      b: r.onlineStatus || "offline",
+    })),
+    Inventory: invFolders.slice(0, 10).map((n) => ({
+      a: n.name,
+      b: `${(n.children || []).length} items`,
+    })),
     Map: REGIONS.map(([name, meta]) => ({ a: name, b: meta })),
     Profile: [
-      { a: "Nyx Vaher", b: "online" },
-      { a: "Region", b: "Da Boom" },
-      { a: "Rezzed", b: "2007-03-14" },
-      { a: "Groups", b: "12" },
+      { a: app.auth.user?.fullName || "Resident", b: "online" },
+      { a: "Region", b: app.world?.regionName || "Arapaima" },
+      { a: "Grid", b: "agni (Second Life)" },
+      { a: "Groups", b: String(groups.length) },
     ],
-    Groups: (cardsByScreen.Groups || []).map((c) => ({ a: c.title, b: c.right || "" })),
+    Groups: groups.map((g) => ({ a: g.name, b: g.title || "Member" })),
     Notices: (cardsByScreen.Notices || []).map((c) => ({ a: c.title, b: c.right || "" })),
     Teleport: (cardsByScreen.Teleport || []).map((c) => ({ a: c.title, b: c.right || "" })),
     Settings: (cardsByScreen.Settings || []).map((c) => ({ a: c.title, b: c.right || "" })),

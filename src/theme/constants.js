@@ -43,10 +43,12 @@ export const SCREENS = ["Chat","Friends","Radar","Map","3D View","Inventory","Pr
 // Grid picker for Login: Second Life's own two (Agni/Aditi) plus a few
 // well-known OpenSim grids, so the login screen isn't LL-only.
 export const GRIDS = [
-  { key: "agni", label: "Agni (Main)", host: "login.agni.lindenlab.com" },
-  { key: "aditi", label: "Aditi (Beta)", host: "login.aditi.lindenlab.com" },
-  { key: "osgrid", label: "OSgrid", host: "login.osgrid.org" },
-  { key: "kitely", label: "Kitely", host: "login.kitely.com" },
+  { key: "agni", label: "Second Life (Main Grid - Agni)", host: "login.agni.lindenlab.com" },
+  { key: "aditi", label: "Second Life Beta (Aditi)", host: "login.aditi.lindenlab.com" },
+  { key: "osgrid", label: "OSgrid (OpenSim)", host: "login.osgrid.org" },
+  { key: "kitely", label: "Kitely (OpenSim)", host: "login.kitely.com" },
+  { key: "gemini", label: "Gemini AI Grid Proxy", host: "gemini-proxy" },
+  { key: "offline", label: "Offline (Local Grid)", host: "127.0.0.1:9000" },
 ];
 
 // Firestorm-style custom button array: the user's dock is a list of keys into this palette.

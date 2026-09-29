@@ -78,6 +78,41 @@ export class AuthManager extends Utils.EventEmitter {
     }
   }
 
+  async autoLogin(startLocation: string = 'last') {
+    try {
+      const response = await (this.protocol as any).autoLogin(startLocation);
+      const firstName = response.first_name || 'Kaleaon';
+      const lastName = response.last_name || 'Resident';
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      this.user = {
+        id: this.protocol.agentId,
+        firstName,
+        lastName,
+        fullName,
+        grid: 'agni'
+      };
+
+      this.credentials = { username: fullName, grid: 'agni', rememberMe: true };
+      Utils.storage.set(CREDENTIALS_KEY, this.credentials);
+
+      this.sessionSnapshot = {
+        mode: 'grid',
+        grid: 'agni',
+        username: fullName,
+        user: this.user,
+        sessionId: this.protocol.sessionId,
+        agentId: this.protocol.agentId,
+        lastLoginAt: new Date().toISOString(),
+      };
+      this.emit('login_success', this.user);
+      return this.user;
+    } catch (error) {
+      this.emit('login_failed', error);
+      throw error;
+    }
+  }
+
   async logout() {
     try {
       await this.protocol.logout();

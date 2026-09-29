@@ -2,6 +2,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { segLooks } from "../theme/look.js";
 import { CSUB, subView, setSub } from "../theme/constants.js";
+import { app } from "../linkpoint/app";
 
 // Ported from `segTabs`/`segWrap`/`hasSeg`. The labels come from CSUB — the one
 // sub-view table the LCARS rail also renders — so a screen gains a tab strip by
@@ -16,10 +17,15 @@ export default function SegmentedTabs() {
   // View is immersive with no header to hang a strip under — it carries its
   // CAM/GFX switch in-scene instead. Both still get the LCARS sub-nav.
   if (!CSUB[scr] || scr === "Radar" || scr === "3D View") return null;
-  // Unread counts live here rather than in CSUB — CSUB is the label model, a
-  // badge is a per-tab decoration that only Chat currently has.
-  const SEG_BADGE = { Chat: { IM: 3, GROUP: 1 } };
-  const tabs = CSUB[scr].map(([label]) => ({ label, badge: (SEG_BADGE[scr] || {})[label] }));
+
+  // Real unread counts from live Second Life chat session
+  const unreadIM = app.chat?.messages?.filter((m) => m.type === "im" && m.unread)?.length || 0;
+  const unreadGroup = app.chat?.messages?.filter((m) => m.type === "group" && m.unread)?.length || 0;
+  const chatBadges = {};
+  if (unreadIM > 0) chatBadges.IM = unreadIM;
+  if (unreadGroup > 0) chatBadges.GROUP = unreadGroup;
+
+  const tabs = CSUB[scr].map(([label]) => ({ label, badge: scr === "Chat" ? chatBadges[label] : undefined }));
 
   const segLook = LK.seg || "fill";
   const looks = segLooks(V, t.font);

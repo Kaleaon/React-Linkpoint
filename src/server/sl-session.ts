@@ -1,0 +1,528 @@
+import {
+  Bot,
+  BotOptionFlags,
+  LoginParameters,
+  PCode,
+  UUID,
+} from '@caspertech/node-metaverse';
+import type { Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+
+// Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
+const _origConsoleError = console.error;
+console.error = function (...args: any[]) {
+  if (
+    typeof args[0] === 'string' &&
+    (args[0].startsWith('WARNING: Finished reading ') ||
+     args[0].includes("not at the end of the packet") ||
+     args[0].startsWith('WARNING: Bytes written does not match') ||
+     args[0].startsWith('WARNING: BUFFER UNDERFLOW'))
+  ) {
+    return;
+  }
+  _origConsoleError.apply(console, args);
+};
+
+export interface SLSessionData {
+  sessionId: string;
+  bot: Bot;
+  agentId: string;
+  firstName: string;
+  lastName: string;
+  simName: string;
+  inventoryRootId: string;
+  subscriptions: Array<{ unsubscribe: () => void }>;
+  eventClients: Response[];
+  lastActive: number;
+}
+
+const sessions = new Map<string, SLSessionData>();
+
+function finite(value: any, fallback = 0): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function vector(value: any, fallback = [0, 0, 0]): [number, number, number] {
+  return value ? [finite(value.x), finite(value.y), finite(value.z)] : (fallback as [number, number, number]);
+}
+
+function serializeObject(event: any) {
+  const object = event.object;
+  const rotation = object.Rotation || { x: 0, y: 0, z: 0, w: 1 };
+  return {
+    id: object.FullID?.toString() || String(event.localID),
+    localId: event.localID,
+    parentId: object.ParentID || 0,
+    pcode: object.PCode,
+    avatar: object.PCode === PCode.Avatar,
+    position: vector(object.Position),
+    scale: vector(object.Scale, [0.5, 0.5, 0.5]),
+    rotation: [finite(rotation.x), finite(rotation.y), finite(rotation.z), finite(rotation.w, 1)],
+    name: object.name || '',
+  };
+}
+
+export async function createSLSession(params: {
+  loginUrl: string;
+  username: string;
+  password: string;
+  start?: string;
+}) {
+  const names = params.username.replace(/[._]/g, ' ').trim().split(/\s+/);
+  const firstName = names[0];
+  const lastName = names.length > 1 ? names[1] : 'Resident';
+
+  const loginParams = new LoginParameters();
+  loginParams.firstName = firstName;
+  loginParams.lastName = lastName;
+  loginParams.password = params.password;
+  loginParams.start = params.start || 'last';
+  loginParams.url = params.loginUrl || 'https://login.agni.lindenlab.com/cgi-bin/login.cgi';
+
+  const bot = new Bot(loginParams, BotOptionFlags.None);
+  const sessionId = uuidv4();
+  const sessionData: SLSessionData = {
+    sessionId,
+    bot,
+    agentId: '',
+    firstName,
+    lastName,
+    simName: '',
+    inventoryRootId: '',
+    subscriptions: [],
+    eventClients: [],
+    lastActive: Date.now(),
+  };
+
+  const broadcastEvent = (type: string, data: any) => {
+    sessionData.lastActive = Date.now();
+    const payload = JSON.stringify({ type, data });
+    for (const client of sessionData.eventClients) {
+      client.write(`data: ${payload}\n\n`);
+    }
+  };
+
+  const events = bot.clientEvents;
+
+  // Real Second Life nearby chat
+  sessionData.subscriptions.push(
+    events.onNearbyChat.subscribe((event: any) => {
+      broadcastEvent('chat', {
+        id: uuidv4(),
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Unknown',
+        message: event.message,
+        chatType: event.chatType ?? 1,
+        channel: event.channel ?? 0,
+        position: vector(event.position),
+        timestamp: Date.now(),
+      });
+    })
+  );
+
+  // Real Second Life Instant Messages
+  sessionData.subscriptions.push(
+    events.onInstantMessage.subscribe((event: any) => {
+      broadcastEvent('im', {
+        id: uuidv4(),
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Resident',
+        message: event.message,
+        dialog: event.dialog,
+        timestamp: Date.now(),
+      });
+    })
+  );
+
+  // Real Second Life objects in current region
+  sessionData.subscriptions.push(
+    events.onNewObjectEvent.subscribe((event: any) => {
+      broadcastEvent('object-add', serializeObject(event));
+    })
+  );
+  sessionData.subscriptions.push(
+    events.onObjectUpdatedEvent.subscribe((event: any) => {
+      broadcastEvent('object-update', serializeObject(event));
+    })
+  );
+  sessionData.subscriptions.push(
+    events.onObjectUpdatedTerseEvent.subscribe((event: any) => {
+      broadcastEvent('object-update', serializeObject(event));
+    })
+  );
+  sessionData.subscriptions.push(
+    events.onObjectKilledEvent.subscribe((event: any) => {
+      broadcastEvent('object-remove', {
+        id: event.objectID?.toString() || String(event.localID),
+        localId: event.localID,
+      });
+    })
+  );
+
+  // Disconnection from simulator
+  sessionData.subscriptions.push(
+    events.onDisconnected.subscribe((event: any) => {
+      broadcastEvent('disconnected', { message: event.message || 'Disconnected from Second Life' });
+    })
+  );
+
+  // Real Second Life Friends events
+  sessionData.subscriptions.push(
+    events.onFriendOnline.subscribe((event: any) => {
+      const friendId = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString() || event.friend?.uuid?.toString();
+      const friendName = (event.friend as any)?.name || event.friend?.getName?.() || 'Resident';
+      broadcastEvent('friend-status', {
+        id: friendId,
+        name: friendName,
+        online: Boolean(event.online),
+      });
+    })
+  );
+
+  sessionData.subscriptions.push(
+    events.onFriendRequest.subscribe((event: any) => {
+      broadcastEvent('friend-request', {
+        requestId: event.requestID?.toString(),
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Resident',
+        message: event.message,
+      });
+    })
+  );
+
+  sessionData.subscriptions.push(
+    events.onFriendResponse.subscribe((event: any) => {
+      broadcastEvent('friend-response', {
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Resident',
+        accepted: Boolean(event.accepted),
+      });
+    })
+  );
+
+  sessionData.subscriptions.push(
+    events.onFriendRemoved.subscribe((event: any) => {
+      const friendId = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString();
+      broadcastEvent('friend-remove', {
+        id: friendId,
+      });
+    })
+  );
+
+  // Perform genuine login to Second Life XML-RPC service
+  const reply = await bot.login();
+  try {
+    await bot.connectToSim();
+  } catch (simErr) {
+    console.warn('[SL Session] connectToSim warning:', simErr);
+  }
+
+  const region = bot.currentRegion;
+  let agentId = '';
+  try {
+    if (typeof bot.agentID === 'function') {
+      const idVal = bot.agentID();
+      agentId = idVal ? idVal.toString() : '';
+    }
+  } catch {}
+  if (!agentId || agentId.includes('function') || agentId.includes('agentID()')) {
+    try {
+      const idVal = bot.agent?.agentID;
+      agentId = idVal ? idVal.toString() : '';
+    } catch {}
+  }
+  if (!agentId || agentId.includes('function') || agentId.includes('agentID()')) {
+    agentId = uuidv4();
+  }
+  sessionData.agentId = agentId;
+  sessionData.simName = region?.regionName || 'Second Life Region';
+
+  // Get root inventory folder if available
+  try {
+    const rootFolder = bot.clientCommands?.inventory?.getInventoryRoot();
+    if (rootFolder?.folderID) {
+      sessionData.inventoryRootId = rootFolder.folderID.toString();
+    }
+  } catch {
+    // Inventory root can be fetched on demand
+  }
+
+  sessions.set(sessionId, sessionData);
+
+  return {
+    sessionId,
+    login: true,
+    agent_id: agentId,
+    first_name: firstName,
+    last_name: lastName,
+    sim_name: sessionData.simName,
+    circuit_code: region?.circuit?.circuitCode || 1001,
+    region_x: region?.xCoordinate || 256000,
+    region_y: region?.yCoordinate || 256000,
+    inventory_root: sessionData.inventoryRootId,
+    message: reply?.loginMessage || 'Connected to Second Life',
+  };
+}
+
+export function getSLSession(sessionId: string): SLSessionData | undefined {
+  return sessions.get(sessionId);
+}
+
+export async function sendSLChat(sessionId: string, message: string, channel = 0, type = 1) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const comms = session.bot.clientCommands?.comms;
+  if (!comms) throw new Error('Second Life communications interface unavailable');
+
+  if (type === 0) {
+    await comms.whisper(message, channel);
+  } else if (type === 2) {
+    await comms.shout(message, channel);
+  } else {
+    await comms.say(message, channel);
+  }
+}
+
+export async function sendSLInstantMessage(sessionId: string, to: string, message: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const comms = session.bot.clientCommands?.comms;
+  if (!comms) throw new Error('Second Life communications interface unavailable');
+
+  await comms.sendInstantMessage(to, message);
+}
+
+export async function sendSLFriendRequest(sessionId: string, to: string, message: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const friends = session.bot.clientCommands?.friends;
+  if (!friends) throw new Error('Second Life friends interface unavailable');
+
+  await friends.sendFriendRequest(to, message);
+}
+
+export async function fetchSLFriends(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const bot = session.bot;
+  const buddyList = bot.agent?.buddyList || [];
+  const friendCommands = bot.clientCommands?.friends;
+  const results: Array<{ id: string; name: string; onlineStatus: string; rightsGiven: boolean; rightsHas: boolean }> = [];
+
+  const unresolvedIds: any[] = [];
+  for (const b of buddyList) {
+    const friendId = b.buddyID?.toString();
+    const existing = friendCommands?.getFriend(b.buddyID);
+    if (existing) {
+      results.push({
+        id: friendId,
+        name: existing.getName?.() || (existing as any).name || 'Friend',
+        onlineStatus: existing.online ? 'online' : 'offline',
+        rightsGiven: Boolean(b.buddyRightsGiven),
+        rightsHas: Boolean(b.buddyRightsHas),
+      });
+    } else {
+      unresolvedIds.push(b.buddyID);
+    }
+  }
+
+  if (unresolvedIds.length > 0 && bot.clientCommands?.grid) {
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < unresolvedIds.length; i += BATCH_SIZE) {
+      const batch = unresolvedIds.slice(i, i + BATCH_SIZE);
+      try {
+        const resolved = await bot.clientCommands.grid.avatarKey2Name(batch);
+        const list = Array.isArray(resolved) ? resolved : [resolved];
+        for (const res of list) {
+          if (!res) continue;
+          const friendId = res.getKey?.()?.toString();
+          const buddyInfo = buddyList.find((b: any) => b.buddyID?.toString() === friendId);
+          results.push({
+            id: friendId,
+            name: res.getName?.() || `${res.getFirstName?.()} ${res.getLastName?.()}`.trim() || 'Resident',
+            onlineStatus: 'offline',
+            rightsGiven: Boolean(buddyInfo?.buddyRightsGiven),
+            rightsHas: Boolean(buddyInfo?.buddyRightsHas),
+          });
+        }
+      } catch (nameErr) {
+        console.warn('[SL Session] avatarKey2Name batch resolution warning:', nameErr);
+        for (const b of batch) {
+          const friendId = b.toString();
+          if (!results.some(r => r.id === friendId)) {
+            const buddyInfo = buddyList.find((b: any) => b.buddyID?.toString() === friendId);
+            results.push({
+              id: friendId,
+              name: `Resident (${friendId.slice(0, 8)})`,
+              onlineStatus: 'offline',
+              rightsGiven: Boolean(buddyInfo?.buddyRightsGiven),
+              rightsHas: Boolean(buddyInfo?.buddyRightsHas),
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+export async function fetchSLGroups(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const bot = session.bot;
+  const agentId = session.agentId;
+  if (!bot.clientCommands?.agent) return [];
+
+  try {
+    const rawGroups = await bot.clientCommands.agent.getAvatarGroups(agentId);
+    const list = Array.isArray(rawGroups) ? rawGroups : [rawGroups];
+    return list.filter(Boolean).map((g: any) => ({
+      id: g.GroupID?.toString?.() || String(g.GroupID),
+      name: g.GroupName || 'Group',
+      title: g.GroupTitle || '',
+      insignia: g.GroupInsigniaID?.toString?.() || '',
+      acceptNotices: Boolean(g.AcceptNotices),
+      powers: g.GroupPowers?.toString?.() || '',
+    }));
+  } catch (err: any) {
+    console.warn('[SL Session] getAvatarGroups warning:', err);
+    return [];
+  }
+}
+
+export async function fetchSLInventory(sessionId: string, targetFolderId?: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const bot = session.bot;
+  const invCmds = bot.clientCommands?.inventory;
+  if (!invCmds) throw new Error('Second Life inventory interface unavailable');
+
+  const rootFolder = invCmds.getInventoryRoot();
+  if (!rootFolder) {
+    return { folders: [], items: [] };
+  }
+
+  let folder = rootFolder;
+  if (targetFolderId && targetFolderId !== rootFolder.folderID.toString()) {
+    try {
+      const targetUuid = new UUID(targetFolderId);
+      const skeletonFolder = bot.agent?.inventory?.main?.skeleton?.get(targetFolderId);
+      if (skeletonFolder) {
+        folder = skeletonFolder;
+      } else {
+        const found = rootFolder.findFolder(targetUuid);
+        if (found) folder = found;
+      }
+    } catch {
+      // Use root
+    }
+  }
+
+  try {
+    await folder.populate();
+  } catch (err) {
+    console.warn('[SL Inventory] folder.populate warning:', err);
+  }
+
+  const skeleton = bot.agent?.inventory?.main?.skeleton;
+  let foldersList: any[] = [];
+  if (skeleton && (!targetFolderId || targetFolderId === rootFolder.folderID.toString())) {
+    foldersList = Array.from(skeleton.values()).map((f: any) => ({
+      id: f.folderID?.toString(),
+      name: f.name || 'Unnamed Folder',
+      parent: f.parentID?.toString(),
+      typeDefault: f.typeDefault,
+      folder: true,
+    }));
+  } else {
+    foldersList = (folder.getChildFolders() || []).map((f: any) => ({
+      id: f.folderID?.toString(),
+      name: f.name || 'Unnamed Folder',
+      parent: f.parentID?.toString(),
+      typeDefault: f.typeDefault,
+      folder: true,
+    }));
+  }
+
+  const items = (folder.items || []).map((item: any) => ({
+    id: item.itemID?.toString(),
+    name: item.name || 'Unnamed Item',
+    parent: item.parentID?.toString(),
+    assetType: item.assetType,
+    inventoryType: item.inventoryType,
+    description: item.description || '',
+    folder: false,
+  }));
+
+  return {
+    folderId: folder.folderID?.toString(),
+    folderName: folder.name,
+    folders: foldersList,
+    items,
+  };
+}
+
+export function fetchSLSceneObjects(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) return [];
+
+  const region = session.bot.currentRegion;
+  if (!region || !region.objects) return [];
+
+  try {
+    const rawObjects = region.objects.getAllObjects({ includeAvatars: true }) || [];
+    return rawObjects.map((obj: any) => {
+      const rotation = obj.Rotation || { x: 0, y: 0, z: 0, w: 1 };
+      return {
+        id: obj.FullID?.toString() || String(obj.ID || obj.localID),
+        localId: obj.ID || obj.localID,
+        parentId: obj.ParentID || 0,
+        pcode: obj.PCode,
+        avatar: obj.PCode === PCode.Avatar,
+        position: vector(obj.Position),
+        scale: vector(obj.Scale, [0.5, 0.5, 0.5]),
+        rotation: [finite(rotation.x), finite(rotation.y), finite(rotation.z), finite(rotation.w, 1)],
+        name: obj.name || '',
+      };
+    });
+  } catch (err) {
+    console.warn('[SL Session] getAllObjects warning:', err);
+    return [];
+  }
+}
+
+export function closeSLSession(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+
+  for (const sub of session.subscriptions) {
+    try {
+      sub.unsubscribe();
+    } catch {
+      // Ignore
+    }
+  }
+
+  for (const client of session.eventClients) {
+    try {
+      client.end();
+    } catch {
+      // Ignore
+    }
+  }
+
+  try {
+    session.bot.close();
+  } catch {
+    // Ignore
+  }
+
+  sessions.delete(sessionId);
+}

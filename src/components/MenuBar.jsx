@@ -72,7 +72,7 @@ export default function MenuBar() {
         );
       })}
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "16px", font: "500 10.5px/1 " + t.font, color: V.ink2, letterSpacing: ".06em" }}>
-        {"L$ 2 480   ·   Heliotrope (Adult)   ·   64 FPS   ·   14:32"}
+        {app.auth.isLoggedIn() ? `${app.auth.getUserDisplayName()}   ·   ${app.protocol.authReply?.sim_name || app.world.region?.name || "Second Life"}   ·   Connected` : "Disconnected"}
       </div>
     </div>
   );

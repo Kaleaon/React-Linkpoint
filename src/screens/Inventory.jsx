@@ -29,12 +29,49 @@ export default function Inventory() {
       .sort((a, b) => Number(b.folder) - Number(a.folder) || String(a.name).localeCompare(String(b.name)));
   }, [filter, revision]);
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await app.inventory.load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <section className="live-screen">
-      <label className="filter-field" style={{ borderColor: V.outv, background: V.surf }}>
-        <Icon name="search" size={16} />
-        <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter loaded inventory" aria-label="Filter inventory" />
-      </label>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label className="filter-field" style={{ borderColor: V.outv, background: V.surf, flex: 1, margin: 0 }}>
+          <Icon name="search" size={16} />
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter Second Life inventory" aria-label="Filter inventory" />
+        </label>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing || !app.auth.isLoggedIn()}
+          style={{
+            height: "40px",
+            padding: "0 12px",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: V.surf,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            color: V.pri,
+            fontSize: "11px",
+            fontWeight: 700,
+            cursor: "pointer",
+            flex: "none",
+          }}
+          title="Reload Second Life inventory"
+        >
+          <Icon name="rotate-cw" size={14} />
+          {refreshing ? "FETCHING…" : "REFRESH"}
+        </button>
+      </div>
       <div className="live-list">
         {rows.length ? rows.map((entry) => (
           <button className="inventory-row inventory-button" key={entry.id} style={{ borderColor: V.outv }} onClick={() => {

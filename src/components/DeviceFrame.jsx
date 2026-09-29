@@ -1,5 +1,6 @@
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
+import { app } from "../linkpoint/app";
 import MenuBar from "./MenuBar.jsx";
 import Shell from "./Shell.jsx";
 import ConsoleFrame from "./ConsoleFrame.jsx";
@@ -15,6 +16,7 @@ import TileNav from "./TileNav.jsx";
 export default function DeviceFrame() {
   const { state } = useApp();
   const { V, t, isFloat, isConsole } = useTheme();
+  const loggedIn = app.auth.isLoggedIn();
 
   const frameStyle = { position: "relative", overflow: "hidden", background: V.bg, color: V.ink, fontFamily: t.font, display: "flex", flexDirection: "column", width: "100%", height: "100%" };
   const cfWrap = { flex: 1, minHeight: 0, minWidth: 0, position: "relative", display: "flex", overflow: "hidden", background: V.bg };
@@ -22,9 +24,17 @@ export default function DeviceFrame() {
   return (
     <div className="device-frame">
       <div style={frameStyle}>
-        {state.screen !== "Login" && <MenuBar />}
+        {loggedIn && state.screen !== "Login" && <MenuBar />}
         <div style={cfWrap}>
-          {state.screen === "Login" ? <Shell /> : isConsole ? <ConsoleFrame /> : isFloat ? <FloatersDesktop /> : <Shell />}
+          {state.screen === "Login" || !loggedIn ? (
+            <Shell />
+          ) : isConsole ? (
+            <ConsoleFrame />
+          ) : isFloat ? (
+            <FloatersDesktop />
+          ) : (
+            <Shell />
+          )}
           <SystemDialog />
           <Toast />
         </div>

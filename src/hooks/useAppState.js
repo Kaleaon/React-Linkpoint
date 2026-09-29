@@ -4,6 +4,7 @@ import { PALETTES } from "../theme/palettes.js";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
 import { CACHE_ROWS } from "../data/content.js";
 import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
+import { app } from "../linkpoint/app";
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -29,7 +30,7 @@ export function useAppState() {
   const [dialog, setDialog] = useState(null);
   const [dense, setDense] = useState(false);
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
-  const [chip, setChip] = useState("Nyx Vaher");
+  const [chip, setChip] = useState("");
   const [tileOk, setTileOk] = useState(true);
   const [invOpen, setInvOpen] = useState({ Objects: true });
   const [dismissed, setDismissed] = useState({});
@@ -70,10 +71,10 @@ export function useAppState() {
   const [rOpen, setROpen] = useState(null);
   const [rMenu, setRMenu] = useState(null);
   const [cDock, setCDock] = useState(["fly", "sit", "snap", "mini", "inv", "home", "ao", "sun"]);
-  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true });
+  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true, Settings: true });
   const [flMin, setFlMin] = useState({});
   const [flRect, setFlRect] = useState({});
-  const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat"]);
+  const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat", "Settings"]);
   const [menu, setMenu] = useState(null);
   const [tick, setTick] = useState(0);
   const [loginMode, setLoginModeState] = useState("grid");
@@ -389,6 +390,7 @@ export function useAppState() {
 
   const flClose = useCallback((id) => {
     setFlOpen((o) => ({ ...o, [id]: false }));
+    setScreen((cur) => (cur === id ? (app.auth.isLoggedIn() ? "Chat" : "Login") : cur));
     setMenu(null);
   }, []);
 
@@ -560,7 +562,7 @@ export function useAppState() {
 
   const screenPick = useCallback(
     (id) => {
-      if (navMode() === "floaters" && FLOATERS.some((f) => f.id === id)) {
+      if (app.auth.isLoggedIn() && navMode() === "floaters" && FLOATERS.some((f) => f.id === id)) {
         flFocus(id);
         setDialog(null);
         return;

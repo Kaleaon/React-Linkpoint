@@ -19,13 +19,40 @@ export default function World3D() {
   }, []);
 
   const move = (forward, right, up = 0) => { app.world.moveCamera(right, forward, up); refresh(); };
-  const region = app.protocol.authReply?.sim_name || app.protocol.authReply?.region_name || "Region unavailable";
+  const region = app.protocol.authReply?.sim_name || app.protocol.authReply?.region_name || app.world.region?.name || "Region unavailable";
   const dataStatus = app.world.getDataStatus();
   const button = { minWidth: 44, minHeight: 44, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.pri, cursor: "pointer" };
 
+  const handleRefreshScene = async () => {
+    try {
+      await app.world.loadScene();
+      setObjectCount(app.world.objects.length);
+      refresh();
+    } catch (err) {
+      console.warn('Refresh scene error:', err);
+    }
+  };
+
   return <section aria-label="3D world view" style={{ flex: 1, minHeight: 0, position: "relative", background: "#000" }}>
     <canvas id="world-canvas" aria-label={`3D canvas for ${region}`} style={{ width: "100%", height: "100%", display: "block" }} />
-    <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}` }}>{region}<br />{position.join(", ")}<br />{dataStatus}<br />{objectCount} scene objects{!ready && !error ? <><br />Starting renderer…</> : null}{error ? <><br /><span style={{ color: V.err }}>{error}</span></> : null}</output>
+    <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
+      <strong>{region}</strong><br />
+      Pos: {position.join(", ")}<br />
+      {dataStatus}<br />
+      {objectCount} simulator objects
+      <div style={{ marginTop: 4 }}>
+        <button
+          type="button"
+          onClick={handleRefreshScene}
+          disabled={!app.auth.isLoggedIn()}
+          style={{ padding: "2px 8px", fontSize: "10px", background: V.pri, color: V.onpri, border: 0, borderRadius: V.rs, cursor: "pointer" }}
+        >
+          SYNC SCENE
+        </button>
+      </div>
+      {!ready && !error ? <><br />Starting renderer…</> : null}
+      {error ? <><br /><span style={{ color: V.err }}>{error}</span></> : null}
+    </output>
     <div aria-label="Movement controls" style={{ position: "absolute", left: 14, bottom: 14, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 4 }}>
       <span /><button aria-label="Move forward" onClick={() => move(1, 0)} style={button}>↑</button><span />
       <button aria-label="Move left" onClick={() => move(0, -1)} style={button}>←</button><button aria-label="Move backward" onClick={() => move(-1, 0)} style={button}>↓</button><button aria-label="Move right" onClick={() => move(0, 1)} style={button}>→</button>
@@ -37,6 +64,10 @@ export default function World3D() {
 export function World3DActionBar() {
   const { V } = useTheme();
   const connected = app.auth.isLoggedIn();
-  const live = app.world.liveSceneSupported;
-  return <div role="status" style={{ padding: 8, textAlign: "center", color: connected ? V.pri : V.err, background: V.surf }}>{connected ? (live ? "CONNECTED — LIVE SIMULATOR SCENE" : "CONNECTED — REGION METADATA ONLY; LIVE SCENE REQUIRES DESKTOP") : "DISCONNECTED"}</div>;
+  const count = app.world.objects.length;
+  return (
+    <div role="status" style={{ padding: 8, textAlign: "center", color: connected ? V.pri : V.err, background: V.surf, fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px" }}>
+      {connected ? `CONNECTED — LIVE SECOND LIFE SCENE (${count} OBJECTS)` : "DISCONNECTED"}
+    </div>
+  );
 }

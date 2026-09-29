@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
+import { useTheme } from "../context/ThemeContext.jsx";
+import { useApp } from "../context/AppContext.jsx";
 
 function Empty({ icon, children }) {
   return <div className="honest-empty"><Icon name={icon} size={30} /><p>{children}</p></div>;
@@ -11,10 +13,190 @@ function Rows({ rows, icon = "circle" }) {
 }
 
 export function FriendsScreen() {
-  const [, refresh] = useState(0);
-  useEffect(() => { const listener = () => refresh((n) => n + 1); app.friends.addStatusListener(listener); return () => app.friends.removeStatusListener(listener); }, []);
-  const rows = app.friends.getFriends().map((friend) => ({ ...friend, meta: friend.onlineStatus || "unknown" }));
-  return rows.length ? <Rows rows={rows} icon="user" /> : <Empty icon="users">No friends have been received from the grid.</Empty>;
+  const { V } = useTheme();
+  const { state, actions } = useApp();
+  const [, setRevision] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState(null);
+
+  useEffect(() => {
+    const listener = () => setRevision((n) => n + 1);
+    app.friends.addStatusListener(listener);
+    app.protocol.on("friends_loaded", listener);
+    app.protocol.on("friend_status", listener);
+    void app.loadFriends();
+    return () => {
+      app.friends.removeStatusListener(listener);
+      app.protocol.off("friends_loaded", listener);
+      app.protocol.off("friend_status", listener);
+    };
+  }, []);
+
+  const handleSyncFriends = async () => {
+    setSyncing(true);
+    try {
+      await app.loadFriends();
+      setRevision((n) => n + 1);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const filterTab = state.tabs?.Friends || "ALL";
+  const allFriends = app.friends.getFriends();
+  const filtered = allFriends.filter((f) => {
+    if (filterTab === "ONLINE") return f.onlineStatus === "online";
+    return true;
+  });
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 12, gap: 10, background: V.bg }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: "11px", color: V.ink2, fontWeight: 700 }}>
+          {allFriends.filter(f => f.onlineStatus === 'online').length} ONLINE · {allFriends.length} TOTAL FRIENDS
+        </div>
+        <button
+          type="button"
+          onClick={handleSyncFriends}
+          disabled={syncing || !app.auth.isLoggedIn()}
+          style={{
+            padding: "4px 10px",
+            fontSize: "11px",
+            fontWeight: 700,
+            background: V.surf,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            color: V.pri,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6
+          }}
+          title="Reload friends list from Second Life"
+        >
+          <Icon name="rotate-cw" size={13} />
+          {syncing ? "SYNCING…" : "SYNC FRIENDS"}
+        </button>
+      </div>
+
+      {!filtered.length ? (
+        <Empty icon="users">
+          {app.auth.isLoggedIn()
+            ? (filterTab === "ONLINE" ? "None of your friends are currently online." : "No friends loaded from the grid.")
+            : "Connect to a grid to see your friends."}
+        </Empty>
+      ) : (
+        <div className="live-list" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+          {filtered.map((friend) => {
+            const isOnline = friend.onlineStatus === "online";
+            return (
+              <div
+                key={friend.id}
+                className="inventory-row"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 12px",
+                  background: V.surf,
+                  border: `1px solid ${V.outv}`,
+                  borderRadius: V.rs,
+                  marginBottom: 6,
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flex: 1 }}
+                  onClick={() => setSelectedFriend(selectedFriend?.id === friend.id ? null : friend)}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: "50%",
+                      background: isOnline ? "#22c55e" : "#6b7280",
+                      boxShadow: isOnline ? "0 0 6px rgba(34, 197, 94, 0.6)" : "none",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div>
+                    <strong style={{ color: V.ink, fontSize: "13px" }}>{friend.name}</strong>
+                    <div style={{ fontSize: "11px", color: isOnline ? "#22c55e" : V.ink2, textTransform: "capitalize" }}>
+                      {friend.onlineStatus || "offline"}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => actions.startIm(friend.name)}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      background: V.pri,
+                      color: V.onpri,
+                      border: 0,
+                      borderRadius: V.rs,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Icon name="message-circle" size={13} />
+                    IM
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedFriend && (
+        <aside className="record-detail" style={{ background: V.surf, borderColor: V.outv, padding: 12 }}>
+          <button className="detail-close" onClick={() => setSelectedFriend(null)} aria-label="Close friend details">×</button>
+          <h2>{selectedFriend.name}</h2>
+          <dl>
+            <dt>Resident UUID</dt>
+            <dd>{selectedFriend.id}</dd>
+            <dt>Status</dt>
+            <dd style={{ color: selectedFriend.onlineStatus === 'online' ? '#22c55e' : V.ink2, textTransform: 'capitalize' }}>{selectedFriend.onlineStatus || 'offline'}</dd>
+            <dt>Permissions</dt>
+            <dd>
+              {selectedFriend.permissions?.canSeeOnline ? '✓ See online status ' : ''}
+              {selectedFriend.permissions?.canSeeOnMap ? '✓ Map location ' : ''}
+              {selectedFriend.permissions?.canModifyObjects ? '✓ Modify objects' : ''}
+              {!selectedFriend.permissions?.canSeeOnline && !selectedFriend.permissions?.canSeeOnMap && !selectedFriend.permissions?.canModifyObjects ? 'Standard friendship' : ''}
+            </dd>
+          </dl>
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                actions.startIm(selectedFriend.name);
+                setSelectedFriend(null);
+              }}
+              style={{
+                width: "100%",
+                padding: "8px",
+                background: V.pri,
+                color: V.onpri,
+                border: 0,
+                borderRadius: V.rs,
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              START INSTANT MESSAGE
+            </button>
+          </div>
+        </aside>
+      )}
+    </div>
+  );
 }
 
 export function RadarScreen() {

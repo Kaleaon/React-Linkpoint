@@ -10,6 +10,7 @@ import { InventoryManager } from './inventory';
 import { PreferencesManager } from './preferences';
 import { NotificationsManager } from './notifications';
 import { Utils } from './utils';
+import { slBridge } from './sl-bridge';
 
 // Phase 2 Modules
 import { EventQueueManager } from './phase2/event-queue';
@@ -89,15 +90,92 @@ export class LinkpointApp {
   }
 
   private setupEventListeners() {
-    this.auth.on('login_success', (user: any) => {
+    this.protocol.on('friends_loaded', (friends: any[]) => {
+      console.log('Real friends loaded from Second Life:', friends.length);
+      for (const f of friends) {
+        this.friends.addFriend(f.id, {
+          name: f.name,
+          onlineStatus: f.onlineStatus,
+          permissions: {
+            canSeeOnline: f.rightsHas,
+            canSeeOnMap: f.rightsHas,
+            canModifyObjects: f.rightsGiven,
+          }
+        });
+      }
+    });
+
+    this.protocol.on('friend_status', (data: any) => {
+      if (data?.id) {
+        this.friends.updateFriendStatus(data.id, data.online ? 'online' : 'offline');
+      }
+    });
+
+    this.protocol.on('friend_request', (data: any) => {
+      this.notifications.handleNotification({
+        id: data.requestId || String(Date.now()),
+        title: 'Friend Request',
+        message: `${data.fromName} offered friendship: "${data.message || ''}"`,
+        type: 'friend_request',
+        data,
+      });
+    });
+
+    this.auth.on('login_success', async (user: any) => {
       console.log('User logged in:', user);
-      this.inventory.load();
+      await this.inventory.load();
+      await this.loadFriends();
+      await this.loadGroups();
     });
 
     this.auth.on('logout', () => {
       console.log('User logged out');
       this.chat.clearHistory();
     });
+  }
+
+  async loadGroups() {
+    if (!this.auth.isLoggedIn()) return [];
+    try {
+      if (slBridge.connected) {
+        const groups = await slBridge.fetchGroups();
+        if (Array.isArray(groups) && groups.length > 0) {
+          for (const g of groups) {
+            this.groups.setGroupInfo(g.id, g);
+          }
+          return groups;
+        }
+      }
+    } catch (err) {
+      console.warn('[LinkpointApp] loadGroups warning:', err);
+    }
+    return this.groups.getGroups();
+  }
+
+  async loadFriends() {
+    if (!this.auth.isLoggedIn()) return [];
+    try {
+      if (slBridge.connected) {
+        const friends = await slBridge.fetchFriends();
+        if (Array.isArray(friends) && friends.length > 0) {
+          for (const f of friends) {
+            this.friends.addFriend(f.id, {
+              name: f.name,
+              onlineStatus: f.onlineStatus,
+              permissions: {
+                canSeeOnline: f.rightsHas,
+                canSeeOnMap: f.rightsHas,
+                canModifyObjects: f.rightsGiven,
+              }
+            });
+          }
+          return friends;
+        }
+      }
+    } catch (err) {
+      console.warn('[LinkpointApp] loadFriends warning:', err);
+    }
+    return this.friends.getFriends();
   }
 }
 

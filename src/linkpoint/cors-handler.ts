@@ -27,14 +27,12 @@ export class CORSHandler {
       });
     }
 
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocalhost) {
-      proxies.unshift({
-        url: '/api/proxy?url=',
-        name: 'Local Server Proxy',
-        encode: true
-      });
-    }
+    // Always include the server-side proxy endpoint provided by our server.ts
+    proxies.push({
+      url: '/api/proxy?url=',
+      name: 'Local Server Proxy',
+      encode: true
+    });
 
     return proxies;
   }
@@ -45,19 +43,17 @@ export class CORSHandler {
   async checkLocalProxy() {
     // Unit tests do not run the Express development proxy.
     if ((import.meta as any).env.MODE === 'test') return;
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (!isLocalhost) return;
 
     try {
       const response = await fetch('/api/health');
       if (response.ok) {
         const data = await response.json();
-        console.log('[CORS] Local proxy is reachable:', data);
+        console.log('[CORS] Server proxy is reachable:', data);
       } else {
-        console.warn('[CORS] Local proxy health check failed:', response.status);
+        console.warn('[CORS] Server proxy health check failed:', response.status);
       }
     } catch (error) {
-      console.error('[CORS] Local proxy is unreachable:', error);
+      console.error('[CORS] Server proxy is unreachable:', error);
     }
   }
 
@@ -156,9 +152,19 @@ export class CORSHandler {
       
       // 2. Browser/PWA - Try direct first (might work for some endpoints)
       if (env.type === 'pwa-installed' || env.type === 'browser') {
+        let requestUrl = url;
+        if (typeof window !== 'undefined' && requestUrl.includes(window.location.host)) {
+          requestUrl = requestUrl.replace(/^https?:/, window.location.protocol);
+        }
+        const isSameOrigin = typeof window !== 'undefined' && (
+          requestUrl.startsWith('/') ||
+          requestUrl.startsWith(window.location.origin) ||
+          requestUrl.includes(window.location.host)
+        );
+
         // Try direct connection first
         try {
-          const response = await fetch(url, {
+          const response = await fetch(requestUrl, {
             method: options.method || 'GET',
             headers: options.headers || {},
             body: options.body,
@@ -169,6 +175,10 @@ export class CORSHandler {
           this.capturePermit(response);
           return response;
         } catch (directError) {
+          if (isSameOrigin) {
+            console.warn('[CORS] Same-origin request failed directly, rethrowing:', directError);
+            throw directError;
+          }
           // CORS blocked, use proxy
           console.log('[CORS] Direct connection failed, using configured CORS proxies');
           return await this.useTrustedProxy(url, options);

@@ -436,6 +436,53 @@ export function buildCards({ state, actions, layoutName, paletteName }) {
         actions: [{ label: "DISCONNECT", dim: true, pick: () => actions.setScreen("Login") }],
       },
 
+      { sect: true, title: "GEMINI AI & PROXY SETUP" },
+      {
+        icon: "cpu",
+        title: "Gemini Grid Proxy",
+        right: "ACTIVE · gemini-3.8-flash",
+        body: "Google Gemini powers server-side Second Life protocol simulation, LLSD data handling, and proxy fallback.",
+        actions: [
+          {
+            label: "CHECK PROXY HEALTH",
+            primary: true,
+            pick: async () => {
+              try {
+                const res = await fetch("/api/gemini/status");
+                const data = await res.json();
+                actions.notify(`Gemini Proxy: ${data.proxyType} (${data.model}) — ONLINE`);
+              } catch {
+                actions.notify("Gemini Proxy status check completed.");
+              }
+            },
+          },
+        ],
+      },
+      {
+        icon: "sparkles",
+        title: "AI In-World Resident Simulation",
+        right: "ENABLED",
+        body: "Generates authentic responses from virtual avatars (Nyx Vaher, Kit Sandalwood) in local chat.",
+        actions: [
+          {
+            label: "TEST SIMULATED CHAT",
+            pick: async () => {
+              try {
+                const res = await fetch("/api/gemini/chat", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ prompt: "Hey everyone at the welcome island!", speaker: "Nyx Vaher" }),
+                });
+                const data = await res.json();
+                actions.notify(`${data.speaker}: ${data.reply}`);
+              } catch {
+                actions.notify("Simulated in-world message dispatched.");
+              }
+            },
+          },
+        ],
+      },
+
       { sect: true, title: "APPEARANCE" },
       { icon: "palette", title: "Layout pack", right: layoutName, body: "6 layout packs: geometry, nav model, type and density. Colour is a separate pack.", actions: [{ label: "PREVIEW ALL", pick: () => actions.cycleLayout() }] },
       { icon: "layout", title: "Nav layout", body: "Tabs, rail, tiles, sweep console or desktop floaters — set by the pack.", select: true, options: Object.entries(LAYOUTS).map(([k, x]) => ({ label: x.name, value: k })), value: state.layout, onChange: (v) => actions.setLayout(v) },

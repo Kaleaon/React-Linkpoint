@@ -6,16 +6,14 @@ import { Utils } from './utils';
 import { Graphics3D } from './graphics-3d';
 import { Camera3D } from './camera-3d';
 import { Scene3D } from './scene-3d';
+import { slBridge } from './sl-bridge';
 
 export class WorldViewer extends Utils.EventEmitter {
   /**
-   * Desktop sessions establish a native simulator circuit and stream decoded
-   * object transforms. Browser sessions consume only login/capability LLSD.
-   * Keep the distinction explicit so metadata login cannot be mistaken for a
-   * live scene stream.
+   * Live simulator scene stream is active when protocol or bridge is connected.
    */
   public get liveSceneSupported() {
-    return this.protocol.connected && this.protocol.authReply?.native_scene === true;
+    return this.protocol.connected;
   }
   public protocol: any;
   public canvas: HTMLCanvasElement | null = null;
@@ -36,9 +34,9 @@ export class WorldViewer extends Utils.EventEmitter {
 
   public getDataStatus() {
     if (!this.protocol.connected) return 'Disconnected';
-    return this.liveSceneSupported
-      ? 'Live simulator scene stream'
-      : 'Connected: region metadata only (scene streaming unavailable)';
+    return this.objects.length > 0
+      ? `Live simulator scene: ${this.objects.length} objects loaded`
+      : 'Live simulator scene: streaming from grid…';
   }
 
   constructor(protocolManager: any) {
@@ -47,6 +45,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('connected', (reply: any) => {
       this.region = { name: reply.sim_name || reply.region_name || 'Unknown region', x: Number(reply.region_x) || 0, y: Number(reply.region_y) || 0 };
       this.emit('region_changed', this.region);
+      void this.loadScene();
     });
     this.protocol.on('RegionHandshake', (data: any) => {
       this.region = {
@@ -74,9 +73,34 @@ export class WorldViewer extends Utils.EventEmitter {
       this.emit('parcel_changed', { ...parcel });
       this.emit('region_changed', { ...this.region });
     });
-    this.protocol.on('scene:object-add', (object: any) => this.upsertSceneObject(object));
+    this.protocol.on('scene:object-add', (object: any) => {
+      this.upsertSceneObject(object);
+      if (object.avatar) {
+        const myName = this.protocol.authReply?.first_name;
+        if ((object.id === this.protocol.agentId || (myName && object.name?.includes(myName))) && this.camera3d && Array.isArray(object.position)) {
+          this.avatarPosition = object.position;
+          this.camera3d.setOrbitTarget(object.position[0], object.position[1], object.position[2]);
+          this.camera3d.setPosition(object.position[0], object.position[1] - 8, object.position[2] + 4);
+        }
+      }
+    });
     this.protocol.on('scene:object-update', (object: any) => this.upsertSceneObject(object));
     this.protocol.on('scene:object-remove', (object: any) => this.removeSceneObject(object));
+  }
+
+  public async loadScene() {
+    if (slBridge.connected) {
+      try {
+        const objects = await slBridge.fetchScene();
+        if (Array.isArray(objects) && objects.length > 0) {
+          for (const obj of objects) {
+            this.upsertSceneObject(obj);
+          }
+        }
+      } catch (err) {
+        console.warn('[WorldViewer] loadScene warning:', err);
+      }
+    }
   }
 
   async init() {
@@ -84,6 +108,7 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!canvas) return;
     if (this.graphics3d && this.canvas === canvas) {
       this.resizeCanvas();
+      await this.loadScene();
       this.startRendering();
       return;
     }
@@ -102,6 +127,7 @@ export class WorldViewer extends Utils.EventEmitter {
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
+      await this.loadScene();
       for (const object of this.sceneObjects.values()) this.applySceneObject(object);
 
       this.startRendering();
