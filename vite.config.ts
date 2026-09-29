@@ -4,7 +4,10 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
-  const base = env.VITE_BASE_PATH || (mode === 'production' ? '/React-Linkpoint/' : '/');
+  // Vercel (and installed PWAs) serve the application from the origin root.
+  // GitHub Pages can still opt into its repository prefix with
+  // VITE_BASE_PATH=/React-Linkpoint/ at build time.
+  const base = env.VITE_BASE_PATH || '/';
 
   return {
     base,

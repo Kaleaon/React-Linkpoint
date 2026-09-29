@@ -2,6 +2,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL, TABS_NAV_IDS } from "../data/content.js";
 import Icon from "./Icon.jsx";
+import { navActive } from "../theme/look.js";
 
 // Ported from the `isTabs` <sc-if> block — bottom tab bar (Ink Terminal,
 // Aero Glass, Press packs).
@@ -14,7 +15,7 @@ export default function BottomTabs() {
   return (
     <div style={{ flex: "none", display: "flex", background: V.surf, borderTop: "1px solid " + V.outv, padding: "6px 0 10px" }}>
       {items.map((n) => {
-        const active = state.screen === n.id;
+        const active = navActive(state.screen, n.id);
         return (
           <div
             key={n.id}

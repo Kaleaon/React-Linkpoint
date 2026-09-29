@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
-import { app } from "../linkpoint/app.ts";
+import { CACHE_ROWS } from "../data/content.js";
+import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -12,17 +13,41 @@ import { app } from "../linkpoint/app.ts";
 export function useAppState() {
   const [layout, setLayout] = useState("terminal");
   const [palette, setPalette] = useState("ink");
-  const [device, setDevice] = useState("ios");
-  const [screen, setScreen] = useState("Login");
+  const [customTheme, setCustomTheme] = useState(() => {
+    const shared = decodeSharedTheme(new URLSearchParams(window.location.search).get("theme") || "");
+    return shared || readSavedTheme() || themeFromPalette(PALETTES.ink);
+  });
+  const deviceForViewport = useCallback(() => {
+    const width = window.innerWidth;
+    if (width >= 1280) return "desk";
+    if (width >= 900) return "tab";
+    if (width >= 600) return "fold";
+    return width >= 400 ? "and" : "ios";
+  }, []);
+  const [device, setDevice] = useState(deviceForViewport);
+  const [screen, setScreen] = useState("Chat");
   const [dialog, setDialog] = useState(null);
   const [dense, setDense] = useState(false);
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
-  const [chip, setChip] = useState("");
+  const [chip, setChip] = useState("Nyx Vaher");
   const [tileOk, setTileOk] = useState(true);
   const [invOpen, setInvOpen] = useState({ Objects: true });
   const [dismissed, setDismissed] = useState({});
   const [pinned, setPinned] = useState({});
-  const [toggles, setToggles] = useState({ largeType: false, push: true, voice: true, chatCmds: true, autoresponse: true });
+  const [toggles, setToggles] = useState({
+    largeType: false, push: true, voice: true, chatCmds: true, autoresponse: true,
+    rlv: false, shadows: false, battery: true, timestamps: true, imLogs: true, mediaAuto: false,
+    showOnline: true, typingSent: true, cacheOnExit: false,
+  });
+  // Everything the preferences screens expose as a <select>: one flat bag so a
+  // new preference is one entry here plus one card, not a new state key each time.
+  const [prefs, setPrefs] = useState({
+    draw: "96 m", quality: "Balanced", fps: "60 fps", complexity: "80 000",
+    volume: "70%", translate: "Off", maturity: "Moderate", bandwidth: "1 500 kbps",
+    cacheLimit: 512, cacheLoc: "Internal storage",
+  });
+  const [cacheCleared, setCacheCleared] = useState({});
+  const [camPreset, setCamPreset] = useState("ORBIT");
   const [cond, setCond] = useState("normal");
   const [hudOn, setHudOn] = useState({ ...HUD_DEFAULT });
   const [hudPos, setHudPos] = useState({});
@@ -55,14 +80,39 @@ export function useAppState() {
   const [loginGrid, setLoginGrid] = useState("agni");
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState(null);
-  const [loginName, setLoginName] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [rememberLogin, setRememberLogin] = useState(true);
-  const [customGrids, setCustomGrids] = useState(() => app.preferences.get("network", "customGrids") || []);
+  const [customGrids, setCustomGrids] = useState([]);
   const [addGrid, setAddGrid] = useState(false);
   const [addGridName, setAddGridName] = useState("");
   const [addGridHost, setAddGridHost] = useState("");
   const [searchFrom, setSearchFrom] = useState("Friends");
+  const [offlineRunning, setOfflineRunning] = useState(true);
+  const [offlineUser, setOfflineUser] = useState({ firstName: "Jane", lastName: "Doe" });
+  const [offlineAccountModal, setOfflineAccountModal] = useState(false);
+  const [offlineAccountFirstName, setOfflineAccountFirstName] = useState("Jane");
+  const [offlineAccountLastName, setOfflineAccountLastName] = useState("Doe");
+  const [offlineAccountPassword, setOfflineAccountPassword] = useState("");
+  const [oarFile] = useState("A1_Grid_Region_v2.oar");
+  const [oarRegionName] = useState("Welcome Island");
+  const [oarCoords] = useState("1000, 1000");
+  const [oarPrims] = useState(1420);
+  const [assetName, setAssetName] = useState("Grass Texture");
+  const [assetType, setAssetType] = useState("Texture");
+  const [localAssets, setLocalAssets] = useState([
+    { id: "ast-1", name: "Grass Texture 1024", type: "Texture", size: "2.1 MB", uuid: "e84d72a9-1102-4211-9a99-0a8811f3d82a" },
+    { id: "ast-2", name: "Ambient Forest Sound", type: "Sound", size: "512 KB", uuid: "f32a0018-912c-491a-b118-2993881023a1" }
+  ]);
+  const [offlineCacheSize, setOfflineCacheSize] = useState(1024);
+  const [consoleLevel, setConsoleLevel] = useState("ALL");
+  const [consoleQuery, setConsoleQuery] = useState("");
+  const [consoleAutoscroll, setConsoleAutoscroll] = useState(true);
+  const [consoleLogs, setConsoleLogs] = useState([
+    { ts: "16:30:33,123", level: "INFO", tag: "[LOGIN SERVICE]", msg: "User Jane Doe authenticated via XML-RPC." },
+    { ts: "16:30:35,456", level: "INFO", tag: "[SCENE]", msg: "Region Welcome Island loaded 1420 prims from OAR archive." },
+    { ts: "16:31:02,890", level: "WARN", tag: "[ASSET SERVICE]", msg: "Texture 89a2f1... fetch took > 1500ms." },
+    { ts: "16:32:10,012", level: "ERROR", tag: "[HYPERGRID]", msg: "Unable to resolve remote grid link test.osgrid.org:8002." },
+    { ts: "16:33:01,500", level: "INFO", tag: "[LOCAL GRID]", msg: "Grid listener active on 127.0.0.1:9000." }
+  ]);
+  const [searchTab, setSearchTab] = useState("FRIENDS");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchState, setSearchState] = useState({});
   const [reconnecting, setReconnecting] = useState(false);
@@ -73,6 +123,15 @@ export function useAppState() {
     const iv = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(iv);
   }, []);
+
+  // Form factor is an implementation concern in the real app. The design
+  // canvas exposes a manual device picker, but the React port follows its host
+  // viewport and changes navigation/layout at the same breakpoints instead.
+  useEffect(() => {
+    const syncDevice = () => setDevice(deviceForViewport());
+    window.addEventListener("resize", syncDevice);
+    return () => window.removeEventListener("resize", syncDevice);
+  }, [deviceForViewport]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout
@@ -109,6 +168,26 @@ export function useAppState() {
     toastTimerRef.current = setTimeout(() => setToast(""), 2200);
   }, []);
 
+  const setThemeColor = useCallback((key, value) => setCustomTheme((theme) => ({ ...theme, active: true, colors: { ...theme.colors, [key]: value } })), []);
+  const renameTheme = useCallback((name) => setCustomTheme((theme) => ({ ...theme, active: true, name })), []);
+  const selectPalette = useCallback((key) => { setPalette(key); setCustomTheme(themeFromPalette(PALETTES[key])); }, []);
+  const saveTheme = useCallback(() => { localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(customTheme)); notify("Theme saved to this device."); }, [customTheme, notify]);
+  const resetTheme = useCallback(() => { setCustomTheme(themeFromPalette(PALETTES[palette])); localStorage.removeItem(THEME_STORAGE_KEY); notify("Theme reset to the selected colour pack."); }, [palette, notify]);
+  const importTheme = useCallback(async (json) => {
+    try { const imported = sanitizeTheme(JSON.parse(json)); if (!imported) throw new Error(); setCustomTheme(imported); notify(`Imported “${imported.name}”.`); return true; }
+    catch { notify("That file is not a valid Linkpoint theme."); return false; }
+  }, [notify]);
+  const downloadTheme = useCallback(() => {
+    const blob = new Blob([JSON.stringify(customTheme, null, 2)], { type: "application/json" });
+    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `${customTheme.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "linkpoint-theme"}.json`; link.click(); URL.revokeObjectURL(link.href);
+    notify("Theme JSON exported.");
+  }, [customTheme, notify]);
+  const shareTheme = useCallback(async () => {
+    const url = new URL(window.location.href); url.searchParams.set("theme", encodeSharedTheme(customTheme));
+    try { await navigator.clipboard.writeText(url.toString()); notify("Share link copied."); }
+    catch { window.prompt("Copy this theme link", url.toString()); }
+  }, [customTheme, notify]);
+
   // ---- derived lookups (T()/D()/navMode()) -------------------------------
   const T = useCallback(() => {
     const L = LAYOUTS[layout],
@@ -138,6 +217,7 @@ export function useAppState() {
   const setTab = useCallback((scr, v) => setTabs((s) => ({ ...s, [scr]: v })), []);
   const dismiss = useCallback((key) => setDismissed((s) => ({ ...s, [key]: true })), []);
   const toggleSetting = useCallback((key) => setToggles((s) => ({ ...s, [key]: !s[key] })), []);
+  const setPref = useCallback((key, v) => setPrefs((s) => ({ ...s, [key]: v })), []);
   const pin = useCallback((key) => setPinned((s) => ({ ...s, [key]: !s[key] })), []);
   const cycleLayout = useCallback(() => {
     const ks = Object.keys(LAYOUTS);
@@ -145,8 +225,10 @@ export function useAppState() {
   }, []);
   const cyclePalette = useCallback(() => {
     const ks = Object.keys(PALETTES);
-    setPalette((cur) => ks[(ks.indexOf(cur) + 1) % ks.length]);
-  }, []);
+    const next = ks[(ks.indexOf(palette) + 1) % ks.length];
+    setPalette(next);
+    setCustomTheme(themeFromPalette(PALETTES[next]));
+  }, [palette]);
 
   // ---- login (setLoginMode/setLoginGrid/connectLogin) --------------------
   // All known grids: the built-in Second Life / OpenSim presets plus
@@ -156,33 +238,18 @@ export function useAppState() {
     setLoginModeState(m);
     setLoginError(null);
   }, []);
-  const connectLogin = useCallback(async () => {
-    if (loginBusy) return;
-    if (loginMode === "offline") {
-      setLoginError(null);
-      setScreen("Chat");
-      notify("Offline session ready");
-      return;
-    }
-    if (!loginName.trim() || !loginPassword) {
-      setLoginError("Enter your avatar name and password.");
-      return;
-    }
-    setLoginBusy(true);
+  const connectLogin = useCallback(() => {
+    setLoginBusy((busy) => {
+      if (busy) return busy;
+      clearTimeout(loginTimerRef.current);
+      loginTimerRef.current = setTimeout(() => {
+        setLoginBusy(false);
+        setLoginError(loginMode === "grid" ? "Unable to reach " + (allGrids().find((g) => g.key === loginGrid) || GRIDS[0]).host + " — check your connection and try again." : null);
+      }, 900);
+      return true;
+    });
     setLoginError(null);
-    const grid = allGrids().find((item) => item.key === loginGrid) || GRIDS[0];
-    const endpoint = /^https?:\/\//i.test(grid.host) ? grid.host : `https://${grid.host}`;
-    try {
-      await app.auth.login(endpoint, loginName.trim(), loginPassword, rememberLogin);
-      setLoginPassword("");
-      setScreen("Chat");
-      notify(`Welcome, ${app.auth.getUserDisplayName()}`);
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : `Unable to reach ${grid.host}.`);
-    } finally {
-      setLoginBusy(false);
-    }
-  }, [loginBusy, loginMode, loginName, loginPassword, rememberLogin, loginGrid, allGrids, notify]);
+  }, [loginMode, loginGrid, allGrids]);
 
   // ---- login: add a custom grid ------------------------------------------
   // A resident can point the viewer at any OpenSim grid, not just the
@@ -200,31 +267,24 @@ export function useAppState() {
       notify("Grid name and login URI are both required");
       return;
     }
-    try {
-      const endpoint = new URL(host);
-      if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) throw new Error();
-    } catch {
-      notify("Login URI must be a valid HTTPS URL without embedded credentials");
-      return;
-    }
     const key =
       "custom-" +
       name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 24) +
       "-" +
       (customGrids.length + 1);
-    setCustomGrids((grids) => {
-      const next = grids.concat([{ key, label: name, host }]);
-      app.preferences.set("network", "customGrids", next);
-      return next;
-    });
+    setCustomGrids((g) => g.concat([{ key, label: name, host }]));
     setLoginGrid(key);
     setAddGrid(false);
     notify("Added grid — " + name);
   }, [addGridName, addGridHost, customGrids]);
 
   // ---- resident search (openSearch/searchAdd) -----------------------------
-  const openSearch = useCallback((from) => {
+  // `tab` picks which of the picker's three panes opens first: FRIENDS (the
+  // contacts list, default — matches a real SL viewer's "start a conversation"
+  // flow), NEARBY (radar-range residents), or SEARCH (grid-wide name lookup).
+  const openSearch = useCallback((from, tab = "FRIENDS") => {
     setSearchFrom(from);
+    setSearchTab(tab);
     setSearchQuery("");
     setScreen("Search");
   }, []);
@@ -233,6 +293,25 @@ export function useAppState() {
     clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(() => setSearchState((s) => ({ ...s, [name]: "sent" })), 700);
   }, []);
+  // Start (or resume) an IM thread with a resident picked from Friends/Nearby.
+  const startIm = useCallback((name) => {
+    setTabs((s) => ({ ...s, Chat: "IM" }));
+    setChip(name);
+    setScreen("Chat");
+  }, []);
+
+  // ---- cache management ---------------------------------------------------
+  const clearCache = useCallback(
+    (key, name) => {
+      setCacheCleared((c) => ({ ...c, [key]: true }));
+      notify(name + " cleared \u2014 assets refetch on demand");
+    },
+    [notify]
+  );
+  const clearAllCache = useCallback(() => {
+    setCacheCleared(Object.fromEntries(CACHE_ROWS.map((r) => [r.key, true])));
+    notify("All caches cleared \u2014 assets refetch on demand");
+  }, [notify]);
 
   // ---- settings: reconnect to grid ---------------------------------------
   const reconnect = useCallback(() => {
@@ -250,7 +329,12 @@ export function useAppState() {
     [flRect]
   );
 
+  // Focusing a window has to open it as well: only five floaters start open, so
+  // navigating to Preferences/Groups/Notices/Teleport/Profile/Statistics on Desktop
+  // used to raise and un-minimise a window that was never opened — the screen
+  // simply did not change.
   const flFocus = useCallback((id) => {
+    setFlOpen((o) => (o[id] ? o : { ...o, [id]: true }));
     setFlZ((z) => z.filter((x) => x !== id).concat(id));
     setScreen(id);
     setFlMin((m) => ({ ...m, [id]: false }));
@@ -429,6 +513,51 @@ export function useAppState() {
     setInvOpen((st) => ({ ...st, [name]: !(st[name] !== false) }));
   }, []);
 
+    const toggleOfflineGrid = useCallback(() => {
+    setOfflineRunning((r) => {
+      const next = !r;
+      notify(next ? "Local OpenSim Grid STARTED (127.0.0.1:9000)" : "Local OpenSim Grid SHUTDOWN");
+      return next;
+    });
+  }, [notify]);
+
+  const saveOfflineAccount = useCallback(() => {
+    setOfflineUser({ firstName: offlineAccountFirstName || "Jane", lastName: offlineAccountLastName || "Resident" });
+    setOfflineAccountModal(false);
+    notify("Local Account Saved: " + (offlineAccountFirstName || "Jane") + " " + (offlineAccountLastName || "Resident"));
+  }, [offlineAccountFirstName, offlineAccountLastName, notify]);
+
+  const importOarBackup = useCallback(() => {
+    notify("Importing OAR backup " + oarFile + "...");
+  }, [oarFile, notify]);
+
+  const addLocalAsset = useCallback(() => {
+    const name = assetName || "New Asset";
+    const type = assetType || "Texture";
+    const newAst = { id: "ast-" + Date.now(), name, type, size: "1.4 MB", uuid: "a" + Math.random().toString(16).substr(2, 8) + "-4000-8000-100000000000" };
+    setLocalAssets((ast) => [newAst, ...ast]);
+    setAssetName("");
+    notify("Local Asset Created: " + name);
+  }, [assetName, assetType, notify]);
+
+  const clearOfflineCache = useCallback(() => {
+    setOfflineCacheSize(256);
+    notify("Offline Asset & Region Cache Cleared.");
+  }, [notify]);
+
+  const clearConsoleLogs = useCallback(() => {
+    setConsoleLogs([]);
+    notify("Grid Console Logs Cleared.");
+  }, [notify]);
+
+  const copyConsoleLogs = useCallback(() => {
+    notify("Console Logs copied to clipboard.");
+  }, [notify]);
+
+  const downloadConsoleLogs = useCallback(() => {
+    notify("Downloading opensim-grid-log.txt...");
+  }, [notify]);
+
   const screenPick = useCallback(
     (id) => {
       if (navMode() === "floaters" && FLOATERS.some((f) => f.id === id)) {
@@ -444,15 +573,16 @@ export function useAppState() {
 
   return {
     state: {
-      layout, palette, device, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
+      layout, palette, customTheme, device, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
       toggles, cond, hudOn, hudPos, hudPicker, target, targetPicker, navPeek,
       cPad, cHeld, cRun, cCam, cHdg, cPitch, cDrag, cEdit, cFlash, cReason, cTog,
       rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu, tick,
-      loginMode, loginGrid, loginBusy, loginError, loginName, loginPassword, rememberLogin, customGrids, addGrid, addGridName, addGridHost,
-      searchFrom, searchQuery, searchState, reconnecting, toast,
+      loginMode, loginGrid, loginBusy, loginError, customGrids, addGrid, addGridName, addGridHost,
+      searchFrom, searchTab, searchQuery, searchState, reconnecting, toast, offlineRunning, offlineUser, offlineAccountModal, offlineAccountFirstName, offlineAccountLastName, offlineAccountPassword, oarFile, oarRegionName, oarCoords, oarPrims, assetName, assetType, localAssets, offlineCacheSize, consoleLevel, consoleQuery, consoleAutoscroll, consoleLogs,
+      prefs, cacheCleared, camPreset,
     },
     actions: {
-      setLayout, setPalette, setDevice, setScreen: screenPick, setDialog, setDense,
+      setLayout, setPalette: selectPalette, setThemeColor, renameTheme, saveTheme, resetTheme, importTheme, downloadTheme, shareTheme, setDevice, setScreen: screenPick, setDialog, setDense,
       allGrids, openAddGrid, cancelAddGrid, saveCustomGrid, setAddGridName, setAddGridHost,
       setTab, setChip, setTileOk, toggleInvFolder, dismiss, toggleSetting, pin,
       cycleLayout, cyclePalette, setCond, setMenu,
@@ -462,7 +592,8 @@ export function useAppState() {
       holdStart, holdEnd, endEdit, togglePad, toggleRun, flyUpDown, flyDnDown, flyRelease, addSlot, removeDockSlot,
       radarTap, radarHold, radarRelease, radarBlipPick,
       setRMode,
-      setLoginMode, setLoginGrid, setLoginName, setLoginPassword, setRememberLogin, connectLogin, openSearch, setSearchQuery, searchAdd, reconnect, notify,
+      setLoginMode, setLoginGrid, connectLogin, openSearch, setSearchTab, setSearchQuery, searchAdd, startIm, reconnect, notify,
+      setPref, clearCache, clearAllCache, setCamPreset, toggleOfflineGrid, setOfflineAccountModal, setOfflineAccountFirstName, setOfflineAccountLastName, setOfflineAccountPassword, saveOfflineAccount, importOarBackup, setAssetName, setAssetType, addLocalAsset, setOfflineCacheSize, clearOfflineCache, setConsoleLevel, setConsoleQuery, setConsoleAutoscroll, clearConsoleLogs, copyConsoleLogs, downloadConsoleLogs,
     },
     T, D, navMode,
   };
