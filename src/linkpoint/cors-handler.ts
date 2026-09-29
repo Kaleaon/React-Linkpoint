@@ -11,7 +11,7 @@ export class CORSHandler {
 
   constructor() {
     this.environment = this.detectEnvironment();
-    this.customProxyUrl = ((import.meta as any).env.VITE_SL_PROXY_URL || '').trim() || null;
+    this.customProxyUrl = ((import.meta as any)?.env?.VITE_SL_PROXY_URL || (typeof process !== 'undefined' && process.env?.VITE_SL_PROXY_URL) || '').trim() || null;
     this.checkLocalProxy();
     this.corsProxies = this.buildProxyList();
   }
@@ -42,10 +42,11 @@ export class CORSHandler {
    */
   async checkLocalProxy() {
     // Unit tests do not run the Express development proxy.
-    if ((import.meta as any).env.MODE === 'test') return;
+    if (((import.meta as any)?.env?.MODE || (typeof process !== 'undefined' && process.env?.NODE_ENV) || '') === 'test') return;
 
     try {
-      const response = await fetch('/api/health');
+      if (typeof window === 'undefined') return;
+    const response = await fetch('/api/health');
       if (response.ok) {
         const data = await response.json();
         console.log('[CORS] Server proxy is reachable:', data);
@@ -61,6 +62,9 @@ export class CORSHandler {
    * Detect current environment
    */
   detectEnvironment() {
+    if (typeof window === 'undefined') {
+      return { type: 'node', name: 'Node.js Environment', corsSupport: 'native', needsProxy: false };
+    }
     if ((window as any).linkpointDesktop?.request) {
       return { type: 'electron', name: 'Linkpoint Desktop', corsSupport: 'native', needsProxy: false };
     }
@@ -75,9 +79,9 @@ export class CORSHandler {
     }
     
     // Check if installed as PWA
-    const isInstalled = window.matchMedia('(display-mode: standalone)').matches || 
-                        (window.navigator as any).standalone || 
-                        document.referrer.includes('android-app://');
+    const isInstalled = (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) ||
+                        Boolean((window.navigator as any)?.standalone) ||
+                        Boolean(typeof document !== 'undefined' && document.referrer?.includes('android-app://'));
     
     if (isInstalled) {
       return {
@@ -89,13 +93,13 @@ export class CORSHandler {
     }
     
     // Regular web browser
-      return {
-        type: 'browser',
-        name: 'Web Browser',
-        corsSupport: 'server-or-custom-proxy',
-        needsProxy: true
-      };
-    }
+    return {
+      type: 'browser',
+      name: 'Web Browser',
+      corsSupport: 'server-or-custom-proxy',
+      needsProxy: true
+    };
+  }
 
   /**
    * Get environment info for display
