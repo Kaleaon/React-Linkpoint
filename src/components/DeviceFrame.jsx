@@ -22,9 +22,9 @@ export default function DeviceFrame() {
   return (
     <div className="device-frame">
       <div style={frameStyle}>
-        <MenuBar />
+        {state.screen !== "Login" && <MenuBar />}
         <div style={cfWrap}>
-          {isConsole ? <ConsoleFrame /> : isFloat ? <FloatersDesktop /> : <Shell />}
+          {state.screen === "Login" ? <Shell /> : isConsole ? <ConsoleFrame /> : isFloat ? <FloatersDesktop /> : <Shell />}
           <SystemDialog />
           <Toast />
         </div>

@@ -1,6 +1,7 @@
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { FMENU, FLOATERS } from "../theme/constants.js";
+import { app } from "../linkpoint/app.ts";
 
 // Ported from `fmBar`/`fmMenus` — the desktop-only File/Edit/View/World/
 // Build/Help bar with Firestorm-style interactive menu commands.
@@ -9,7 +10,7 @@ export default function MenuBar() {
   const { V, t, ink, isFloat, isSweepDesk } = useTheme();
   if (!isFloat) return null;
 
-  const handleMenuClick = (menuLabel, itemLabel) => {
+  const handleMenuClick = async (menuLabel, itemLabel) => {
     actions.setMenu(null);
     if (itemLabel === "Teleport Home") {
       actions.setScreen("Map");
@@ -21,6 +22,7 @@ export default function MenuBar() {
     } else if (itemLabel === "About Linkpoint") {
       actions.notify("Linkpoint Viewer v2.0 (Firestorm Edition)");
     } else if (itemLabel === "Quit") {
+      if (app.auth.isLoggedIn()) await app.auth.logout();
       actions.setScreen("Login");
     } else {
       actions.notify(menuLabel + " > " + itemLabel);
@@ -55,7 +57,7 @@ export default function MenuBar() {
                         const f = FLOATERS.find((x) => x.title === it[0]);
                         if (f) actions.flToggle(f.id);
                       } else {
-                        handleMenuClick(mm.label, it[0]);
+                        void handleMenuClick(mm.label, it[0]);
                       }
                     }}
                     style={{ display: "flex", alignItems: "center", gap: "10px", minHeight: "26px", padding: "0 12px", cursor: "pointer", font: "400 11.5px/1 " + t.font, color: V.ink }}

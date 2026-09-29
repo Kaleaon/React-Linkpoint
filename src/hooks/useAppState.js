@@ -25,7 +25,7 @@ export function useAppState() {
     return width >= 400 ? "and" : "ios";
   }, []);
   const [device, setDevice] = useState(deviceForViewport);
-  const [screen, setScreen] = useState("Chat");
+  const [screen, setScreen] = useState("Login");
   const [dialog, setDialog] = useState(null);
   const [dense, setDense] = useState(false);
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });

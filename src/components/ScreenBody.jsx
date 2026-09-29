@@ -17,12 +17,12 @@ import World3D, { World3DActionBar } from "../screens/World3D.jsx";
 import Inventory from "../screens/Inventory.jsx";
 import Profile from "../screens/Profile.jsx";
 import Login from "../screens/Login.jsx";
-import Search from "../screens/Search.jsx";
 import OfflineGrid from "../screens/OfflineGrid.jsx";
 import GridConsole from "../screens/GridConsole.jsx";
+import { FriendsScreen, GroupsScreen, NoticesScreen, MuteListScreen, GenericInventoryScreen, SearchScreen } from "../screens/LiveScreens.jsx";
 import { AccountsScreen, GridsScreen, MediaScreen, NotecardsScreen } from "../screens/LumiyaTools.jsx";
 
-const CARD_SCREENS = ["Friends", "Groups", "Notices", "Teleport", "Outfits", "Objects", "Parcel", "Transactions", "Mute List", "Settings", "Cache", "Diagnostics"];
+const CARD_SCREENS = ["Teleport", "Parcel", "Transactions", "Settings", "Cache", "Diagnostics"];
 
 // Ported from the big content column inside `shellStyle` (headers -> segTabs
 // -> chips -> the 13 screens' bodies), plus the split-view detail pane that
@@ -38,7 +38,7 @@ export default function ScreenBody() {
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", position: "relative" }}>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <Header />
+        {scr !== "Login" && <Header />}
         <SegmentedTabs />
         <ChipRow />
         {norm && scr === "Chat" && <Chat />}
@@ -54,13 +54,19 @@ export default function ScreenBody() {
         {norm && scr === "Profile" && <Profile />}
         {norm && scr === "Offline Grid" && <OfflineGrid />}
         {norm && scr === "Grid Console" && <GridConsole />}
+        {norm && scr === "Friends" && <FriendsScreen />}
+        {norm && scr === "Groups" && <GroupsScreen />}
+        {norm && scr === "Notices" && <NoticesScreen />}
+        {norm && scr === "Mute List" && <MuteListScreen />}
+        {norm && scr === "Outfits" && <GenericInventoryScreen kind="wearable" />}
+        {norm && scr === "Objects" && <GenericInventoryScreen kind="object" />}
         {norm && scr === "Notecards" && <NotecardsScreen />}
         {norm && scr === "Media" && <MediaScreen />}
         {norm && scr === "Accounts" && <AccountsScreen />}
         {norm && scr === "Grids" && <GridsScreen />}
         {norm && isCardScreen && <CardList cards={(cardsByScreen[scr] || []).filter((c) => inSub(c, curSub))} />}
         {scr === "Login" && <Login />}
-        {scr === "Search" && <Search />}
+        {scr === "Search" && <SearchScreen />}
         {!norm && <StateBlock />}
       </div>
       <SplitDetail />
