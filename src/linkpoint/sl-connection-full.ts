@@ -151,6 +151,9 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
       slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
       slBridge.on('material-ready', (data: any) => this.emit('scene:material-ready', data));
+      slBridge.on('world-data', (data: any) => this.emit('scene:world-data', data));
+      slBridge.on('environment', (data: any) => this.emit('scene:environment', data));
+      slBridge.on('terrain', (data: any) => this.emit('scene:terrain', data));
       slBridge.on('parcel-properties', (data: any) => this.emit('ParcelProperties', { parcelData: data }));
       slBridge.on('coarse-avatar', (data: any) => this.emit('CoarseAvatarUpdate', data));
       slBridge.on('disconnected', (data: any) => {
@@ -214,6 +217,9 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
       slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
       slBridge.on('material-ready', (data: any) => this.emit('scene:material-ready', data));
+      slBridge.on('world-data', (data: any) => this.emit('scene:world-data', data));
+      slBridge.on('environment', (data: any) => this.emit('scene:environment', data));
+      slBridge.on('terrain', (data: any) => this.emit('scene:terrain', data));
       slBridge.on('parcel-properties', (data: any) => this.emit('ParcelProperties', { parcelData: data }));
       slBridge.on('coarse-avatar', (data: any) => this.emit('CoarseAvatarUpdate', data));
       slBridge.on('disconnected', (data: any) => {

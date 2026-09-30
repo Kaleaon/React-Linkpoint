@@ -19,6 +19,8 @@ export class Scene3D extends Utils.EventEmitter {
   public showGrid: boolean = true;
   public gridSize: number = 256;
   public gridDivisions: number = 16;
+  public environment: any = null;
+  private terrainLoaded = false;
 
   constructor(graphics: Graphics3D, camera: Camera3D) {
     super();
@@ -102,6 +104,42 @@ export class Scene3D extends Utils.EventEmitter {
     return this.graphics.createTexture(`texture:${assetId}`, width, height, rgba);
   }
 
+  /** Replace the flat helper grid with the simulator's height field. */
+  setTerrain(heights: number[], size = 256) {
+    if (!Array.isArray(heights) || size < 2 || heights.length < size * size) return false;
+    const cells = Math.min(128, size - 1);
+    const vertices: number[] = [], normals: number[] = [], texCoords: number[] = [], indices: number[] = [];
+    const sample = (x: number, y: number) => Number(heights[Math.min(size - 1, y) * size + Math.min(size - 1, x)]) || 0;
+    for (let y = 0; y <= cells; y++) {
+      const sy = Math.round(y * (size - 1) / cells);
+      for (let x = 0; x <= cells; x++) {
+        const sx = Math.round(x * (size - 1) / cells);
+        vertices.push(sx, sy, sample(sx, sy));
+        const dx = sample(Math.min(size - 1, sx + 1), sy) - sample(Math.max(0, sx - 1), sy);
+        const dy = sample(sx, Math.min(size - 1, sy + 1)) - sample(sx, Math.max(0, sy - 1));
+        const length = Math.hypot(dx, dy, 2) || 1;
+        normals.push(-dx / length, -dy / length, 2 / length);
+        texCoords.push(sx / (size - 1), sy / (size - 1));
+      }
+    }
+    for (let y = 0; y < cells; y++) for (let x = 0; x < cells; x++) {
+      const a = y * (cells + 1) + x, b = a + 1, c = a + cells + 1, d = c + 1;
+      indices.push(a, b, c, b, d, c);
+    }
+    this.graphics.createMesh('terrain', vertices, indices, normals, texCoords);
+    this.terrainLoaded = true;
+    return true;
+  }
+
+  setEnvironment(environment: any) {
+    this.environment = environment || null;
+    const sky = environment?.sky || environment?.currentSky || {};
+    const color = sky.blueHorizon || sky.sunlightColor || [0.53, 0.81, 0.92];
+    const normalized = color.slice(0, 3).map((value: number) => Math.max(0, Math.min(1, Number(value) || 0)));
+    this.graphics.gl?.clearColor(normalized[0], normalized[1], normalized[2], 1);
+    if (this.lights[0] && sky.sunlightColor) this.lights[0].color = sky.sunlightColor.slice(0, 3);
+  }
+
   /**
    * Add object to scene
    */
@@ -176,7 +214,7 @@ export class Scene3D extends Utils.EventEmitter {
     const projectionMatrix = this.camera.getProjectionMatrix();
     
     // Render grid first
-    if (this.showGrid) {
+    if (this.showGrid || this.terrainLoaded) {
       this.renderGrid(viewMatrix, projectionMatrix);
     }
     
@@ -222,7 +260,7 @@ export class Scene3D extends Utils.EventEmitter {
     
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
     
-    this.graphics.drawMesh('grid', 'basic', {
+    this.graphics.drawMesh(this.terrainLoaded ? 'terrain' : 'grid', 'basic', {
       uModelMatrix: modelMatrix,
       uViewMatrix: viewMatrix,
       uProjectionMatrix: projectionMatrix,

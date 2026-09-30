@@ -2,9 +2,22 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { serializeObject } = require('../../../electron/viewer-session.cjs');
+const { serializeEnvironment, serializeObject, serializeTerrain } = require('../../../electron/viewer-session.cjs');
 
 describe('desktop simulator object bridge', () => {
+  it('serializes region WindLight and terrain without leaking class instances', () => {
+    const sky = { type: 'sky', blueHorizon: { toArray: () => [0.2, 0.4, 0.8] }, sunlightColor: [1, 0.9, 0.7] };
+    const environment = serializeEnvironment({
+      regionID: { toString: () => 'region-id' }, dayLength: 14400,
+      dayCycle: { frames: new Map([['sky', sky]]) },
+    });
+    const terrain = Array.from({ length: 256 }, (_, x) => Array.from({ length: 256 }, (_, y) => x + y));
+
+    expect(environment).toMatchObject({ regionId: 'region-id', dayLength: 14400, currentSky: { blueHorizon: [0.2, 0.4, 0.8] } });
+    expect(serializeTerrain({ terrain })).toMatchObject({ size: 256, heights: expect.arrayContaining([0, 1, 255, 510]) });
+    expect(() => structuredClone(environment)).not.toThrow();
+  });
+
   it('converts node-metaverse objects into structured-clone-safe scene data', () => {
     const result = serializeObject({
       localID: 42,
