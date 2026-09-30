@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 
 # Standalone Codex/bootstrap setup for Linkpoint's web and unit-test suite.
-# Run from any directory inside the checkout. Pass --skip-check to install only.
+# Run from any directory inside the checkout. Pass --check to validate afterward.
 set -Eeuo pipefail
 
 readonly BUN_VERSION="1.4.2"
-RUN_CHECKS=true
+RUN_CHECKS=false
 
 case "${1:-}" in
-  "") ;;
-  --skip-check) RUN_CHECKS=false ;;
+  ""|--skip-check) ;;
+  --check) RUN_CHECKS=true ;;
   -h|--help)
     cat <<'EOF'
-Usage: ./scripts/codex-setup.sh [--skip-check]
+Usage: ./scripts/codex-setup.sh [--check]
 
-Installs the locked dependencies and creates a local environment file. By
-default it then runs the same type-check, unit-test, and web-build checks used
-to validate the application. No credentials are needed for these checks.
+Installs the locked dependencies and creates a local environment file. Pass
+--check to additionally run the type-check, unit tests, and production build.
+No credentials are needed for setup or for these checks.
 EOF
     exit 0
     ;;
@@ -91,5 +91,5 @@ if [[ "$RUN_CHECKS" == true ]]; then
   ./node_modules/.bin/vitest run
   ./node_modules/.bin/vite build
 else
-  echo "Setup complete. Re-run without --skip-check to validate the app."
+  echo "Setup complete. Re-run with --check to validate the app."
 fi
