@@ -1,3 +1,4 @@
+import { app } from "../linkpoint/app.ts";
 // Ported verbatim from the copy/content literals inside renderVals() in
 // index.html — chat transcripts, friend/radar rosters, the
 // inventory tree, map regions, profile blocks, login fields and the
@@ -285,71 +286,59 @@ export function buildCards({ state, actions, layoutName, paletteName }) {
       { sub: "OBJECTS", icon: "box", title: "Annoying Vendor Script", right: "OBJECT", body: "Muted chat spam · Sep 02", actions: [{ label: "UNMUTE", dim: true, pick: () => actions.notify("Unmuted Annoying Vendor Script") }] },
       { sub: "OBJECTS", icon: "box", title: "Roadside Ad Board", right: "OBJECT", body: "Muted chat spam · Aug 30", actions: [{ label: "UNMUTE", dim: true, pick: () => actions.notify("Unmuted Roadside Ad Board") }] },
     ],
-    Friends: [
-      ...(state.tabs.Friends === "ONLINE" || dismissed.friendReq
-        ? []
-        : [
+    Friends: app.friends.getFriends().length
+      ? app.friends.getFriends()
+          .filter((f) => state.tabs.Friends !== "ONLINE" || f.onlineStatus === "online")
+          .map((f) => ({
+            title: f.name,
+            body: f.onlineStatus === "online" ? "Online" : "Offline",
+            icon: f.onlineStatus === "online" ? "circle-dot" : "circle",
+            right: f.onlineStatus === "online" ? "IM" : "",
+            actions: [
+              {
+                label: "IM",
+                primary: true,
+                pick: () => actions.startIm(f.name),
+              },
+            ],
+          }))
+      : [
+          {
+            icon: "users",
+            title: app.auth.isLoggedIn() ? "No friends added" : "Not connected to grid",
+            body: app.auth.isLoggedIn()
+              ? "Your Second Life friends list is empty."
+              : "Connect to a grid to view your friends.",
+          },
+        ],
+    Groups: app.groups.getGroups().length
+      ? app.groups.getGroups().map((g) => ({
+          sub: "GROUPS",
+          icon: "users",
+          title: g.name,
+          body: g.title ? "Title: " + g.title : "Group member",
+          actions: [
             {
-              icon: "user-plus",
-              title: "Kit Sandalwood",
-              right: "14:28",
-              body: "“met you at the Bay City build jam”",
-              accent: "sec2",
-              actions: [
-                { label: "DECLINE", dim: true, pick: () => actions.dismiss("friendReq") },
-                { label: "ACCEPT", primary: true, pick: () => actions.dismiss("friendReq") },
-              ],
+              label: "GROUP CHAT",
+              primary: true,
+              pick: () => {
+                actions.setTab("Chat", "GROUP");
+                actions.setChip(g.name);
+                actions.setScreen("Chat");
+              },
             },
-          ]),
-      ...FRIEND_ROWS.filter(([, , online]) => state.tabs.Friends !== "ONLINE" || online).map(([n, m, online, rights]) => ({
-        title: n,
-        body: m,
-        icon: online ? "circle-dot" : "circle",
-        right: online ? "IM" : "",
-        rights,
-      })),
-    ],
-    Groups: [
-      ...(dismissed.groupNotice
-        ? []
-        : [
-            {
-              sub: "GROUPS", icon: "megaphone", title: "Notice · Bay City Builders", right: "2h",
-              body: "Build jam Saturday 14:00 SLT — landmark attached.", accent: "pri",
-              actions: [
-                { label: "KEEP LANDMARK", pick: () => actions.dismiss("groupNotice") },
-                { label: "OPEN CHAT", primary: true, pick: () => { actions.setTab("Chat", "GROUP"); actions.setChip("Bay City Builders"); actions.setScreen("Chat"); } },
-              ],
-            },
-          ]),
-      { sub: "GROUPS", icon: "users", title: "Bay City Builders", body: "412 members · officer · notices on", badge: 4,
-        actions: [{ label: "ROLES & ABILITIES", pick: () => actions.setTab("Groups", "ROLES") }] },
-      { sub: "GROUPS", icon: "users", title: "Sansara Cartographers", body: "88 members · member · notices on" },
-      { sub: "GROUPS", icon: "users", title: "Terraform Co-op", body: "1 204 members · member · muted", badge: 12 },
-      { sub: "GROUPS", icon: "users", title: "Mono Script Guild", body: "56 members · member · notices off" },
-      ...(dismissed.groupInvite
-        ? []
-        : [
-            {
-              sub: "GROUPS", icon: "user-plus", title: "Invite · Aurora Dance Crew",
-              body: "Nyx Vaher invited you — no join fee.", accent: "sec2",
-              actions: [
-                { label: "IGNORE", dim: true, pick: () => actions.dismiss("groupInvite") },
-                { label: "JOIN", primary: true, pick: () => actions.dismiss("groupInvite") },
-              ],
-            },
-          ]),
-      // ROLES is scoped to the group you are an officer of — the one row whose
-      // abilities you can actually act on.
-      { sub: "ROLES", sect: true, title: "BAY CITY BUILDERS · ROLES" },
-      { sub: "ROLES", icon: "crown", title: "Owners", right: "2", body: "Full abilities · can assign every role, change land and eject members." },
-      { sub: "ROLES", icon: "shield", title: "Officers", right: "9", body: "Your role · send notices, invite members, deed and terraform land.", accent: "pri",
-        actions: [{ label: "SEND A NOTICE", primary: true, pick: () => actions.notify("Bay City Builders — compose notice") }] },
-      { sub: "ROLES", icon: "users", title: "Everyone", right: "412", body: "Default role · receive notices, chat in group, rez on group land." },
-      { sub: "ROLES", icon: "user-round-x", title: "Probation", right: "3", body: "No rez, no notices · assigned by an officer after an abuse report." },
-      { sub: "ROLES", icon: "arrow-left", title: "Back to groups", body: "Return to the list of groups you belong to.",
-        actions: [{ label: "ALL GROUPS", primary: true, pick: () => actions.setTab("Groups", "GROUPS") }] },
-    ],
+          ],
+        }))
+      : [
+          {
+            sub: "GROUPS",
+            icon: "users",
+            title: app.auth.isLoggedIn() ? "No groups joined" : "Not connected to grid",
+            body: app.auth.isLoggedIn()
+              ? "You belong to no groups on this account."
+              : "Connect to a grid to view your groups.",
+          },
+        ],
     // IM is person-to-person traffic; SYSTEM is everything the grid itself sent.
     Notices: [
       ...(dismissed.offlineIm

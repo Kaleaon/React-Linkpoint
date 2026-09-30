@@ -13,7 +13,6 @@
  * always replays those, never the current defaults.
  */
 
-import CryptoJS from 'crypto-js';
 
 export interface PasswordRecord {
   version: 1;
@@ -63,15 +62,14 @@ function hasSubtleCrypto(): boolean {
 
 function randomSalt(size: number = SALT_BYTES): Uint8Array {
   const out = new Uint8Array(size);
-  try {
-    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
-      globalThis.crypto.getRandomValues(out);
-      return out;
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(out);
+  } else {
+    for (let i = 0; i < size; i++) {
+      out[i] = Math.floor(Math.random() * 256);
     }
-  } catch (e) {
-    // Fall through to the crypto-js PRNG below.
   }
-  return hexToBytes(CryptoJS.lib.WordArray.random(size).toString(CryptoJS.enc.Hex));
+  return out;
 }
 
 async function deriveWithSubtle(password: string, salt: Uint8Array, iterations: number): Promise<string> {
@@ -99,10 +97,7 @@ function deriveWithCryptoJS(password: string, salt: Uint8Array, iterations: numb
 }
 
 async function derive(password: string, salt: Uint8Array, iterations: number): Promise<string> {
-  if (hasSubtleCrypto()) {
-    return deriveWithSubtle(password, salt, iterations);
-  }
-  return deriveWithCryptoJS(password, salt, iterations);
+  return deriveWithSubtle(password, salt, iterations);
 }
 
 /** Length-independent comparison so verification does not leak the digest byte by byte. */
