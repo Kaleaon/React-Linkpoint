@@ -89,10 +89,13 @@ export class Scene3D extends Utils.EventEmitter {
     this.graphics.createMesh('grid', grid.vertices, grid.indices, grid.normals, grid.texCoords);
   }
 
-  addAssetMesh(assetId: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }) {
-    const name = `asset:${assetId}`;
-    this.graphics.createMesh(name, geometry.vertices, geometry.indices, geometry.normals, geometry.texCoords);
-    return name;
+  addAssetMesh(assetId: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[]; parts?: any[] }) {
+    const parts = geometry.parts?.length ? geometry.parts : [geometry];
+    return parts.map((part, index) => {
+      const name = `asset:${assetId}:${index}`;
+      this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords);
+      return { mesh: name, materialIndex: Number(part.materialIndex ?? index) };
+    });
   }
 
   addAssetTexture(assetId: string, width: number, height: number, rgba: Uint8Array) {
@@ -106,11 +109,13 @@ export class Scene3D extends Utils.EventEmitter {
     const object = {
       id,
       mesh: config.mesh || 'cube',
+      meshes: config.meshes || null,
       position: config.position || [0, 0, 0],
       rotation: config.rotation || [0, 0, 0],
       scale: config.scale || [1, 1, 1],
       color: config.color || [1, 1, 1, 1],
       material: config.material || 'basic',
+      reflectionProbe: config.reflectionProbe || null,
       visible: config.visible !== false
     };
     
@@ -162,6 +167,7 @@ export class Scene3D extends Utils.EventEmitter {
    * Render scene
    */
   render() {
+    this.renderMirrors();
     // Clear
     this.graphics.clear();
     
@@ -180,6 +186,31 @@ export class Scene3D extends Utils.EventEmitter {
         this.renderObject(object, viewMatrix, projectionMatrix);
       }
     });
+  }
+
+  private renderMirrors() {
+    const mirrors = [...this.objects.values()].filter(object => object.visible && object.reflectionProbe?.mirror);
+    for (const mirror of mirrors.slice(0, 2)) {
+      const targetName = this.graphics.createRenderTarget(`mirror:${mirror.id}`, 256, 256);
+      if (!this.graphics.beginRenderTarget(targetName)) continue;
+      const [rx, ry, rz] = mirror.rotation;
+      const sx = Math.sin(rx), cx = Math.cos(rx), sy = Math.sin(ry), cy = Math.cos(ry), sz = Math.sin(rz), cz = Math.cos(rz);
+      const normal = [cz * sy * cx + sz * sx, sz * sy * cx - cz * sx, cy * cx];
+      const reflect = (point: number[]) => {
+        const offset = point.map((value, index) => value - mirror.position[index]);
+        const distance = offset[0] * normal[0] + offset[1] * normal[1] + offset[2] * normal[2];
+        return point.map((value, index) => value - 2 * distance * normal[index]);
+      };
+      const eye = reflect(this.camera.position);
+      const focus = reflect(this.camera.mode === 'orbit' ? this.camera.orbitTarget : this.camera.target);
+      const view = this.camera.mat4LookAt(eye, focus, [0, 0, 1]);
+      if (this.showGrid) this.renderGrid(view, this.camera.getProjectionMatrix());
+      for (const object of this.objects.values()) {
+        if (object.visible && object !== mirror && !object.reflectionProbe?.mirror) this.renderObject(object, view, this.camera.getProjectionMatrix());
+      }
+      this.graphics.endRenderTarget();
+      mirror.mirrorTexture = targetName;
+    }
   }
 
   /**
@@ -217,18 +248,40 @@ export class Scene3D extends Utils.EventEmitter {
     const normalMatrix = this.mat3FromMat4(modelMatrix);
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
     
-    this.graphics.drawMesh(object.mesh, object.material, {
-      uModelMatrix: modelMatrix,
-      uViewMatrix: viewMatrix,
-      uProjectionMatrix: projectionMatrix,
-      uNormalMatrix: normalMatrix,
-      uLightPos: new Float32Array(light.position),
-      uLightColor: new Float32Array(light.color),
-      uAmbientColor: new Float32Array([0.2, 0.2, 0.2]),
-      uColor: new Float32Array(object.color),
-      uUseTexture: Boolean(object.texture),
-      uTextureName: object.texture,
-    });
+    const draws = object.meshes?.length ? object.meshes : [{ mesh: object.mesh, materialIndex: 0 }];
+    for (const draw of draws) {
+      const face = object.faces?.[draw.materialIndex];
+      const pbr = face?.pbr || {};
+      const alphaMode = pbr.alphaMode === 'MASK' || pbr.alphaMode === 1 ? 1 : pbr.alphaMode === 'BLEND' || pbr.alphaMode === 2 ? 2 : 0;
+      this.graphics.drawMesh(draw.mesh, object.material, {
+        uModelMatrix: modelMatrix,
+        uViewMatrix: viewMatrix,
+        uProjectionMatrix: projectionMatrix,
+        uNormalMatrix: normalMatrix,
+        uLightPos: new Float32Array(light.position),
+        uLightColor: new Float32Array(light.color),
+        uAmbientColor: new Float32Array([0.2, 0.2, 0.2]),
+        uColor: new Float32Array(face?.color || object.color),
+        uUseTexture: Boolean(object.mirrorTexture || face?.texture || object.texture),
+        uTextureName: object.mirrorTexture || face?.texture || object.texture,
+        uTexTransform: new Float32Array([...(face?.repeat || [1, 1]), ...(face?.offset || [0, 0])]),
+        uTexRotation: face?.rotation || 0,
+        uFullBright: Boolean(face?.fullBright),
+        uCameraPos: new Float32Array(this.camera.position),
+        uMetallic: pbr.metallic ?? 0,
+        uRoughness: pbr.roughness ?? 1,
+        uEmissive: new Float32Array(pbr.emissive || [0, 0, 0]),
+        uMetallicRoughnessTextureName: pbr.metallicRoughnessTexture,
+        uNormalTextureName: pbr.normalTexture,
+        uEmissiveTextureName: pbr.emissiveTexture,
+        uUseMetallicRoughnessTexture: Boolean(pbr.metallicRoughnessTexture),
+        uUseNormalTexture: Boolean(pbr.normalTexture),
+        uUseEmissiveTexture: Boolean(pbr.emissiveTexture),
+        uAlphaMode: alphaMode,
+        uAlphaCutoff: pbr.alphaCutoff ?? 0.5,
+        uDoubleSided: Boolean(pbr.doubleSided),
+      });
+    }
   }
 
   /**

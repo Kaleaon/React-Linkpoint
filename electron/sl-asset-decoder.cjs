@@ -1,6 +1,6 @@
 const sharp = require('sharp');
 const { JpxImage } = require('jpeg2000');
-const { LLMesh } = require('@caspertech/node-metaverse');
+const { LLMesh, LLGLTFMaterial } = require('@caspertech/node-metaverse');
 
 function number(value, axis) {
   if (typeof value?.[axis] === 'number') return value[axis];
@@ -10,24 +10,122 @@ function number(value, axis) {
 
 async function decodeLLMesh(buffer) {
   const mesh = await LLMesh.from(buffer);
-  const level = mesh.lodLevels.high_lod || mesh.lodLevels.medium_lod || mesh.lodLevels.low_lod || mesh.lodLevels.lowest_lod;
-  if (!level) throw new Error('LLMesh contains no renderable LOD');
-  const vertices = [], normals = [], texCoords = [], indices = [];
-  for (const submesh of level) {
-    if (submesh.noGeometry || !submesh.position || !submesh.triangleList) continue;
-    const offset = vertices.length / 3;
-    if (offset + submesh.position.length > 65535) break;
-    submesh.position.forEach((point) => vertices.push(number(point, 'x'), number(point, 'y'), number(point, 'z')));
-    submesh.position.forEach((_point, index) => {
-      const normal = submesh.normal?.[index];
-      normals.push(normal ? number(normal, 'x') : 0, normal ? number(normal, 'y') : 0, normal ? number(normal, 'z') : 1);
-      const uv = submesh.texCoord0?.[index];
-      texCoords.push(uv ? number(uv, 'x') : 0, uv ? number(uv, 'y') : 0);
-    });
-    submesh.triangleList.forEach((index) => indices.push(offset + index));
+  return normalizeLLMesh(mesh);
+}
+
+function matrixValues(matrix) {
+  if (!matrix) return null;
+  if (Array.isArray(matrix)) return matrix.map(Number);
+  if (typeof matrix.toArray === 'function') return matrix.toArray().map(Number);
+  const values = matrix.values || matrix.elements || matrix.m;
+  return Array.isArray(values) || ArrayBuffer.isView(values) ? Array.from(values, Number) : null;
+}
+
+function decodeWeights(weights, vertexCount) {
+  const joints = [], jointWeights = [];
+  for (let vertex = 0; vertex < vertexCount; vertex++) {
+    const influences = Object.entries(weights?.[vertex] || {})
+      .map(([joint, weight]) => [Number(joint), Number(weight) / 65535])
+      .filter(([joint, weight]) => Number.isInteger(joint) && joint >= 0 && weight > 0)
+      .sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const total = influences.reduce((sum, influence) => sum + influence[1], 0) || 1;
+    for (let slot = 0; slot < 4; slot++) {
+      joints.push(influences[slot]?.[0] || 0);
+      jointWeights.push((influences[slot]?.[1] || 0) / total);
+    }
   }
-  if (!indices.length) throw new Error('LLMesh LOD has no supported geometry');
-  return { vertices, normals, texCoords, indices };
+  return { joints, jointWeights };
+}
+
+function decodeSubmesh(submesh, materialIndex) {
+  if (submesh.noGeometry || !submesh.position?.length || !submesh.triangleList?.length) return null;
+  const vertexCount = submesh.position.length;
+  const vertices = [], normals = [], texCoords = [];
+  submesh.position.forEach((point, index) => {
+    vertices.push(number(point, 'x'), number(point, 'y'), number(point, 'z'));
+    const normal = submesh.normal?.[index];
+    normals.push(normal ? number(normal, 'x') : 0, normal ? number(normal, 'y') : 0, normal ? number(normal, 'z') : 1);
+    const uv = submesh.texCoord0?.[index];
+    texCoords.push(uv ? number(uv, 'x') : 0, uv ? number(uv, 'y') : 0);
+  });
+  const indices = submesh.triangleList.map(Number);
+  if (indices.some((index) => !Number.isInteger(index) || index < 0 || index >= vertexCount)) {
+    throw new Error(`LLMesh material ${materialIndex} contains an invalid vertex index`);
+  }
+  return { materialIndex, vertices, normals, texCoords, indices, ...decodeWeights(submesh.weights, vertexCount) };
+}
+
+function normalizeLLMesh(mesh) {
+  const lods = {};
+  for (const name of ['high_lod', 'medium_lod', 'low_lod', 'lowest_lod']) {
+    const parts = (mesh.lodLevels?.[name] || []).map(decodeSubmesh).filter(Boolean);
+    if (parts.length) lods[name] = parts;
+  }
+  const selectedLod = ['high_lod', 'medium_lod', 'low_lod', 'lowest_lod'].find((name) => lods[name]);
+  if (!selectedLod) throw new Error('LLMesh contains no renderable LOD');
+  const parts = lods[selectedLod];
+  const skin = mesh.skin ? {
+    jointNames: [...(mesh.skin.jointNames || [])],
+    bindShapeMatrix: matrixValues(mesh.skin.bindShapeMatrix),
+    inverseBindMatrices: (mesh.skin.inverseBindMatrix || []).map(matrixValues),
+    alternateInverseBindMatrices: (mesh.skin.altInverseBindMatrix || []).map(matrixValues),
+    pelvisOffset: matrixValues(mesh.skin.pelvisOffset),
+  } : null;
+  const physics = mesh.physicsConvex ? {
+    hullList: [...(mesh.physicsConvex.hullList || [])],
+    positions: (mesh.physicsConvex.positions || []).map((point) => [number(point, 'x'), number(point, 'y'), number(point, 'z')]),
+    boundingVertices: (mesh.physicsConvex.boundingVerts || []).map((point) => [number(point, 'x'), number(point, 'y'), number(point, 'z')]),
+    domain: mesh.physicsConvex.domain ? {
+      min: [number(mesh.physicsConvex.domain.min, 'x'), number(mesh.physicsConvex.domain.min, 'y'), number(mesh.physicsConvex.domain.min, 'z')],
+      max: [number(mesh.physicsConvex.domain.max, 'x'), number(mesh.physicsConvex.domain.max, 'y'), number(mesh.physicsConvex.domain.max, 'z')],
+    } : null,
+  } : null;
+  return {
+    format: 'llmesh-v1', selectedLod, parts, lods, skin, physics,
+    metadata: { version: mesh.version ?? null, creatorId: mesh.creatorID?.toString?.() || null, submodelId: mesh.submodel_id ?? null, cost: mesh.costData || null },
+    // Keep the original shape for older web clients while no longer truncating
+    // meshes at the WebGL unsigned-short boundary: each material is its own draw.
+    ...parts[0],
+  };
+}
+
+function materialTexture(data, info) {
+  if (!info || !Number.isInteger(info.index)) return null;
+  const source = data.textures?.[info.index]?.source;
+  const uri = Number.isInteger(source) ? data.images?.[source]?.uri : null;
+  const textureId = typeof uri === 'string' ? uri.replace(/^(?:asset|sl|uuid):(?:\/\/)?/i, '') : null;
+  const transform = info.extensions?.KHR_texture_transform;
+  return textureId ? {
+    textureId,
+    texCoord: transform?.texCoord ?? info.texCoord ?? 0,
+    offset: transform?.offset || [0, 0], scale: transform?.scale || [1, 1], rotation: transform?.rotation || 0,
+  } : null;
+}
+
+function decodeGLTFMaterial(buffer) {
+  const envelope = new LLGLTFMaterial(buffer);
+  return normalizeGLTFMaterial(envelope.data || {});
+}
+
+function normalizeGLTFMaterial(data) {
+  const material = data.materials?.[0] || {};
+  const metallic = material.pbrMetallicRoughness || {};
+  return {
+    format: 'gltf-pbr-v1', name: material.name || '',
+    baseColor: metallic.baseColorFactor || [1, 1, 1, 1],
+    metallic: metallic.metallicFactor ?? 1,
+    roughness: metallic.roughnessFactor ?? 1,
+    emissive: material.emissiveFactor || [0, 0, 0],
+    alphaMode: material.alphaMode || 'OPAQUE', alphaCutoff: material.alphaCutoff ?? 0.5,
+    doubleSided: Boolean(material.doubleSided),
+    textures: {
+      baseColor: materialTexture(data, metallic.baseColorTexture),
+      metallicRoughness: materialTexture(data, metallic.metallicRoughnessTexture),
+      normal: materialTexture(data, material.normalTexture),
+      occlusion: materialTexture(data, material.occlusionTexture),
+      emissive: materialTexture(data, material.emissiveTexture),
+    },
+  };
 }
 
 async function decodePixels(buffer) {
@@ -78,4 +176,4 @@ async function decodeJPEG2000(buffer) {
   return { width: decoded.width, height: decoded.height, rgba: decoded.data.toString('base64') };
 }
 
-module.exports = { decodeLLMesh, decodeSculpt, decodeJPEG2000 };
+module.exports = { decodeLLMesh, normalizeLLMesh, decodeGLTFMaterial, normalizeGLTFMaterial, decodeSculpt, decodeJPEG2000 };

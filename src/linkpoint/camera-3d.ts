@@ -30,6 +30,9 @@ export class Camera3D extends Utils.EventEmitter {
   public orbitDistance: number = 10;
   public orbitTarget: number[] = [128, 128, 25];
 
+  /** Firestorm-style named camera positions. */
+  public preset: 'rear' | 'front' | 'first-person' | 'free' = 'rear';
+
   constructor() {
     super();
     this.viewMatrix = this.createMatrix4();
@@ -83,9 +86,10 @@ export class Camera3D extends Utils.EventEmitter {
       0
     ];
     
-    this.position[0] += forwardVec[0] * forward + rightVec[0] * right;
-    this.position[1] += forwardVec[1] * forward + rightVec[1] * right;
-    this.position[2] += forwardVec[2] * forward + rightVec[2] * right + up;
+    const destination = this.mode === 'orbit' ? this.orbitTarget : this.position;
+    destination[0] += forwardVec[0] * forward + rightVec[0] * right;
+    destination[1] += forwardVec[1] * forward + rightVec[1] * right;
+    destination[2] += forwardVec[2] * forward + rightVec[2] * right + up;
     
     this.updateMatrices();
     this.emit('moved', this.position);
@@ -127,6 +131,33 @@ export class Camera3D extends Utils.EventEmitter {
     this.mode = mode;
     this.updateMatrices();
     this.emit('mode_changed', mode);
+  }
+
+  setPreset(preset: 'rear' | 'front' | 'first-person' | 'free') {
+    this.preset = preset;
+    if (preset === 'first-person') {
+      this.mode = 'first-person';
+      this.position = [...this.orbitTarget];
+      this.position[2] += 1.65;
+    } else {
+      this.mode = preset === 'free' ? 'first-person' : 'orbit';
+      if (preset === 'rear') this.rotation = [-0.28, Math.PI, 0];
+      if (preset === 'front') this.rotation = [-0.18, 0, 0];
+      if (preset !== 'free') this.orbitDistance = 7.5;
+    }
+    this.updateMatrices();
+    this.emit('preset_changed', preset);
+  }
+
+  /** Pan parallel to the view plane, as Firestorm's Alt+Ctrl+Shift drag does. */
+  pan(horizontal: number, vertical: number) {
+    const yaw = this.rotation[1];
+    const right = [Math.cos(yaw), -Math.sin(yaw), 0];
+    const delta = [right[0] * horizontal, right[1] * horizontal, vertical];
+    const destination = this.mode === 'orbit' ? this.orbitTarget : this.position;
+    for (let index = 0; index < 3; index++) destination[index] += delta[index];
+    this.updateMatrices();
+    this.emit('panned', [...destination]);
   }
 
   /**
