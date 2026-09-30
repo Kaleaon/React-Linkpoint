@@ -16,7 +16,7 @@ export default function Header() {
   const headMap = HEAD(LAYOUTS[state.layout].name, PALETTES[state.palette].name, { cleared: state.cacheCleared, limit: state.prefs.cacheLimit, loc: state.prefs.cacheLoc });
   const [rawTitle, rawSubtitle] = headMap[scr] || ["", ""];
   const title = rawTitle;
-  const subtitle = condPack ? condPack.sub || null : rawSubtitle;
+  const subtitle = condPack ? condPack.sub || null : runtimeSubtitle(scr, rawSubtitle);
 
   if (headLook === "none" || headLook === "sweep") {
     // "sweep" head only renders outside the console frame (isSweepHead requires
@@ -28,6 +28,27 @@ export default function Header() {
   if (headLook === "rule") return <RuleHead title={title} subtitle={subtitle} scr={scr} />;
   if (headLook === "editorial") return <EditorialHead title={title} subtitle={subtitle} scr={scr} />;
   return <StackHead title={title} subtitle={subtitle} scr={scr} />;
+}
+
+function runtimeSubtitle(screen, fallback) {
+  const connected = app.auth.isLoggedIn();
+  const region = app.world.region;
+  const inventoryCount = app.inventory.items.size;
+  const folderCount = app.inventory.folders.size;
+  const runtime = {
+    Chat: connected ? `> ${app.auth.getUserDisplayName()} · ${region?.name || "waiting for region"}` : "> disconnected",
+    Friends: `> ${app.friends.getFriends().filter((friend) => friend.onlineStatus === "online").length} online / ${app.friends.getFriends().length} loaded from grid`,
+    Radar: `> ${app.world.nearbyUsers.length} avatars · ${app.world.objects.length} simulator objects`,
+    Map: region ? `> ${region.name || "current region"}${Number.isFinite(region.x) ? ` <${region.x}, ${region.y}>` : ""}` : "> waiting for region handshake",
+    Inventory: `> ${inventoryCount} items · ${folderCount} folders${connected ? ` · ${app.auth.getUserDisplayName()}` : ""}`,
+    Profile: connected ? `> ${app.auth.getUserDisplayName()} · grid resident` : "> disconnected",
+    Groups: `> ${app.groups.getGroups().length} groups loaded from grid`,
+    Notices: `> ${app.notifications.items.length} notifications received this session`,
+    Parcel: region?.parcel ? `> ${region.parcel.Name || region.parcel.name || "current parcel"}` : "> waiting for parcel properties",
+    Transactions: "> transaction records returned by the grid",
+    Diagnostics: `> ${app.protocol.state.toLowerCase()} · ${Object.keys(app.protocol.capabilities || {}).length} capabilities`,
+  };
+  return runtime[screen] ?? fallback;
 }
 
 function StackHead({ title, subtitle, scr }) {
@@ -42,7 +63,7 @@ function StackHead({ title, subtitle, scr }) {
           { icon: "search", label: "SEARCH", pick: () => actions.openSearch("Friends", "SEARCH") },
         ]
       : scr === "Diagnostics"
-      ? [{ icon: "refresh-cw", label: "RE-RUN PROBE", pick: () => actions.notify("RE-RUN PROBE — " + (Math.floor(Math.random() * 60) + 40) + "ms") }]
+      ? [{ icon: "refresh-cw", label: "REFRESH STATUS", pick: () => actions.notify(`${app.protocol.connected ? "Connected" : "Disconnected"} · ${Object.keys(app.protocol.capabilities || {}).length} capabilities`) }]
       : null;
   return (
     <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px 8px" }}>

@@ -20,9 +20,9 @@ import Login from "../screens/Login.jsx";
 import OfflineGrid from "../screens/OfflineGrid.jsx";
 import GridConsole from "../screens/GridConsole.jsx";
 import { FriendsScreen, GroupsScreen, NoticesScreen, MuteListScreen, GenericInventoryScreen, SearchScreen } from "../screens/LiveScreens.jsx";
-import { AccountsScreen, GridsScreen, MediaScreen, NotecardsScreen } from "../screens/LumiyaTools.jsx";
+import { AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsScreen, ParcelScreen, TeleportScreen, TransactionsScreen } from "../screens/LumiyaTools.jsx";
 
-const CARD_SCREENS = ["Teleport", "Parcel", "Transactions", "Settings", "Cache", "Diagnostics"];
+const CARD_SCREENS = ["Settings", "Cache"];
 
 // Ported from the big content column inside `shellStyle` (headers -> segTabs
 // -> chips -> the 13 screens' bodies), plus the split-view detail pane that
@@ -64,6 +64,10 @@ export default function ScreenBody() {
         {norm && scr === "Media" && <MediaScreen />}
         {norm && scr === "Accounts" && <AccountsScreen />}
         {norm && scr === "Grids" && <GridsScreen />}
+        {norm && scr === "Teleport" && <TeleportScreen />}
+        {norm && scr === "Parcel" && <ParcelScreen />}
+        {norm && scr === "Transactions" && <TransactionsScreen />}
+        {norm && scr === "Diagnostics" && <DiagnosticsScreen />}
         {norm && isCardScreen && <CardList cards={(cardsByScreen[scr] || []).filter((c) => inSub(c, curSub))} />}
         {scr === "Login" && <Login />}
         {scr === "Search" && <SearchScreen />}

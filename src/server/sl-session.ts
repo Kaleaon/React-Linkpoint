@@ -181,6 +181,33 @@ export async function createSLSession(params: {
 
   const events = bot.clientEvents;
 
+  sessionData.subscriptions.push(
+    events.onParcelPropertiesEvent.subscribe((parcel: any) => {
+      broadcastEvent('parcel-properties', {
+        id: parcel.LocalID,
+        name: parcel.Name || '',
+        description: parcel.Desc || '',
+        area: parcel.Area,
+        ownerId: parcel.OwnerID?.toString?.() || null,
+        groupId: parcel.GroupID?.toString?.() || null,
+        maxPrims: parcel.MaxPrims,
+        totalPrims: parcel.TotalPrims,
+        musicUrl: parcel.MusicURL || '',
+        mediaUrl: parcel.MediaURL || '',
+      });
+    })
+  );
+
+  sessionData.subscriptions.push(
+    events.onAvatarEnteredRegion.subscribe((avatar: any) => {
+      broadcastEvent('coarse-avatar', {
+        id: avatar.getKey?.()?.toString?.() || avatar.id?.toString?.() || avatar.uuid?.toString?.(),
+        name: avatar.getName?.() || [avatar.firstName, avatar.lastName].filter(Boolean).join(' ') || '',
+        position: vector(avatar.coarsePosition),
+      });
+    })
+  );
+
   const loadObjectAsset = (object: any) => {
     const appearance = primAppearance(object);
     if (!appearance.assetId || sessionData.assetRequests.has(appearance.assetId)) return;
@@ -382,7 +409,7 @@ export async function createSLSession(params: {
     agentId = uuidv4();
   }
   sessionData.agentId = agentId;
-  sessionData.simName = region?.regionName || 'Second Life Region';
+  sessionData.simName = region?.regionName || '';
 
   // Get root inventory folder if available
   try {
@@ -402,10 +429,10 @@ export async function createSLSession(params: {
     agent_id: agentId,
     first_name: firstName,
     last_name: lastName,
-    sim_name: sessionData.simName,
+    sim_name: sessionData.simName || null,
     circuit_code: region?.circuit?.circuitCode || 1001,
-    region_x: region?.xCoordinate || 256000,
-    region_y: region?.yCoordinate || 256000,
+    region_x: Number.isFinite(region?.xCoordinate) ? region.xCoordinate : null,
+    region_y: Number.isFinite(region?.yCoordinate) ? region.yCoordinate : null,
     inventory_root: sessionData.inventoryRootId,
     message: reply?.loginMessage || 'Connected to Second Life',
   };
