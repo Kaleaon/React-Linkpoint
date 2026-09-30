@@ -27,7 +27,7 @@ export class WorldViewer extends Utils.EventEmitter {
   private readonly handleResize = () => this.resizeCanvas();
   public use3D: boolean = true;
   
-  public region: any = { name: 'Region unavailable', x: 0, y: 0 };
+  public region: any = null;
   public objects: any[] = [];
   public nearbyUsers: any[] = [];
   public avatarPosition: [number, number, number] | null = null;
@@ -48,9 +48,31 @@ export class WorldViewer extends Utils.EventEmitter {
     super();
     this.protocol = protocolManager;
     this.protocol.on('connected', (reply: any) => {
-      this.region = { name: reply.sim_name || reply.region_name || 'Unknown region', x: Number(reply.region_x) || 0, y: Number(reply.region_y) || 0 };
+      const normalizeGridCoordinate = (value: any) => {
+        const coordinate = Number(value);
+        if (!Number.isFinite(coordinate)) return null;
+        // Login replies generally use global metre coordinates while region
+        // handshakes and map services use region-grid coordinates.
+        return coordinate >= 25600 ? Math.floor(coordinate / 256) : coordinate;
+      };
+      this.region = {
+        name: reply.sim_name || reply.region_name || null,
+        x: normalizeGridCoordinate(reply.region_x),
+        y: normalizeGridCoordinate(reply.region_y),
+      };
       this.emit('region_changed', this.region);
       void this.loadScene();
+    });
+    this.protocol.on('disconnected', () => {
+      this.region = null;
+      this.avatarPosition = null;
+      this.nearbyUsers = [];
+      this.sceneObjects.clear();
+      this.localObjectIds.clear();
+      this.objects = [];
+      this.emit('region_changed', null);
+      this.emit('nearby_changed', []);
+      this.emit('objects_changed', []);
     });
     this.protocol.on('RegionHandshake', (data: any) => {
       this.region = {
@@ -70,6 +92,18 @@ export class WorldViewer extends Utils.EventEmitter {
       }
     });
     this.protocol.on('CoarseLocationUpdate', (data: any) => this.updateCoarseLocations(data));
+    this.protocol.on('CoarseAvatarUpdate', (data: any) => {
+      if (!data?.id || data.id === this.protocol.agentId) return;
+      const position = Array.isArray(data.position) ? data.position.map(Number) : null;
+      const distance = position && this.avatarPosition
+        ? Math.hypot(position[0] - this.avatarPosition[0], position[1] - this.avatarPosition[1], position[2] - this.avatarPosition[2])
+        : null;
+      const next = { ...data, position, distance };
+      const index = this.nearbyUsers.findIndex((user) => user.id === data.id);
+      if (index >= 0) this.nearbyUsers = this.nearbyUsers.map((user, itemIndex) => itemIndex === index ? next : user);
+      else this.nearbyUsers = [...this.nearbyUsers, next];
+      this.emit('nearby_changed', this.nearbyUsers.map((user) => ({ ...user })));
+    });
     this.protocol.on('ParcelProperties', (data: any) => {
       const parcels = data?.ParcelData || data?.parcelData || [];
       const parcel = Array.isArray(parcels) ? parcels[0] : parcels;
@@ -272,7 +306,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public updateLocationDisplay() {
     const regionName = document.getElementById('region-name');
     const coordinates = document.getElementById('coordinates');
-    if (regionName) regionName.textContent = this.region.name;
+    if (regionName) regionName.textContent = this.region?.name || '';
     if (coordinates && this.camera3d) {
       const [x, y, z] = this.camera3d.position;
       coordinates.textContent = `${Math.floor(x)}, ${Math.floor(y)}, ${Math.floor(z)}`;

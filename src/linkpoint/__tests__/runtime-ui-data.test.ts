@@ -61,6 +61,26 @@ describe('runtime UI manager snapshots', () => {
     expect(objectListener).toHaveBeenCalledOnce();
   });
 
+  it('uses login grid coordinates without inventing a region and clears world data on disconnect', () => {
+    const protocol = new ProtocolStub() as any;
+    protocol.connected = true;
+    protocol.agentId = 'self';
+    const world = new WorldViewer(protocol);
+
+    expect(world.region).toBeNull();
+    protocol.emit('connected', { sim_name: 'Grid Region', region_x: 256000, region_y: 256256 });
+    expect(world.region).toMatchObject({ name: 'Grid Region', x: 1000, y: 1001 });
+
+    protocol.emit('CoarseAvatarUpdate', { id: 'nearby', name: 'Live Resident', position: [12, 14, 20] });
+    expect(world.nearbyUsers).toMatchObject([{ id: 'nearby', name: 'Live Resident', position: [12, 14, 20] }]);
+
+    protocol.connected = false;
+    protocol.emit('disconnected');
+    expect(world.region).toBeNull();
+    expect(world.nearbyUsers).toEqual([]);
+    expect(world.objects).toEqual([]);
+  });
+
   it('tracks coarse avatar locations and parcel properties for radar and map', () => {
     const protocol = new ProtocolStub();
     const world = new WorldViewer(protocol);

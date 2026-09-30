@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
 import { FLOATERS, FBAR, CBTN } from "../theme/constants.js";
-import { REGIONS, buildCards } from "../data/content.js";
+import { buildCards } from "../data/content.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
@@ -25,6 +25,23 @@ export default function FloatersDesktop() {
   const { V, t, ink, isSweepDesk } = useTheme();
   const [quickMsg, setQuickMsg] = useState("");
   const [showCamHud, setShowCamHud] = useState(true);
+  const [, setRuntimeRevision] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setRuntimeRevision((value) => value + 1);
+    const worldEvents = ["region_changed", "objects_changed", "nearby_changed"];
+    const protocolEvents = ["friends_loaded", "friend_status", "connected", "disconnected"];
+    worldEvents.forEach((event) => app.world.on(event, refresh));
+    protocolEvents.forEach((event) => app.protocol.on(event, refresh));
+    app.inventory.on("inventory_loaded", refresh);
+    app.notifications.on("notification_received", refresh);
+    return () => {
+      worldEvents.forEach((event) => app.world.off(event, refresh));
+      protocolEvents.forEach((event) => app.protocol.off(event, refresh));
+      app.inventory.off("inventory_loaded", refresh);
+      app.notifications.off("notification_received", refresh);
+    };
+  }, []);
 
   const cardsByScreen = buildCards({ state, actions, layoutName: LAYOUTS[state.layout].name, paletteName: PALETTES[state.palette].name });
   const fBody = buildFBody(state, cardsByScreen);
@@ -33,9 +50,9 @@ export default function FloatersDesktop() {
     position: "absolute", inset: 0, overflow: "hidden", cursor: state.cDrag ? "grabbing" : "grab",
     background: "linear-gradient(180deg," + V.sky1 + " 0%," + V.sky2 + " 52%," + V.gnd + " 52%," + V.gnd2 + " 100%)",
   };
-  const currentRegion = (app.world?.region?.name || app.protocol?.authReply?.sim_name || "Arapaima").toUpperCase();
-  const avatarPos = app.world?.avatarPosition || [128, 128, 25];
-  const regionRead = `${currentRegion} · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])} · HDG ${String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0")}° ${state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL"}`;
+  const currentRegion = (app.world?.region?.name || "NO REGION DATA").toUpperCase();
+  const avatarPos = app.world?.avatarPosition;
+  const regionRead = `${currentRegion}${avatarPos ? ` · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])}` : ""} · HDG ${String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0")}° ${state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL"}`;
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
   const flFocused = state.flOpen[state.screen] && !state.flMin[state.screen] ? actions.flR(state.screen) : null;
@@ -311,18 +328,24 @@ function buildFBody(state, cardsByScreen) {
       a: n.name,
       b: `${(n.children || []).length} items`,
     })),
-    Map: REGIONS.map(([name, meta]) => ({ a: name, b: meta })),
+    Map: app.world?.region ? [{
+      a: app.world.region.name || "Current region",
+      b: Number.isFinite(app.world.region.x) ? `${app.world.region.x}, ${app.world.region.y}` : "coordinates unavailable",
+    }] : [],
     Profile: [
-      { a: app.auth.user?.fullName || "Resident", b: "online" },
-      { a: "Region", b: app.world?.regionName || "Arapaima" },
-      { a: "Grid", b: "agni (Second Life)" },
+      { a: app.auth.user?.fullName || "Not connected", b: app.auth.isLoggedIn() ? "online" : "offline" },
+      { a: "Region", b: app.world?.region?.name || "not supplied" },
+      { a: "Grid", b: app.auth.user?.grid || "not connected" },
       { a: "Groups", b: String(groups.length) },
     ],
     Groups: groups.map((g) => ({ a: g.name, b: g.title || "Member" })),
-    Notices: (cardsByScreen.Notices || []).map((c) => ({ a: c.title, b: c.right || "" })),
-    Teleport: (cardsByScreen.Teleport || []).map((c) => ({ a: c.title, b: c.right || "" })),
+    Notices: (app.notifications?.items || []).map((item) => ({ a: item.title || item.message, b: item.type || "" })),
+    Teleport: [],
     Settings: (cardsByScreen.Settings || []).map((c) => ({ a: c.title, b: c.right || "" })),
-    Diagnostics: (cardsByScreen.Diagnostics || []).map((c) => ({ a: c.title, b: c.right || "" })),
+    Diagnostics: [
+      { a: "Connection", b: app.protocol.connected ? "connected" : "disconnected" },
+      { a: "Capabilities", b: String(Object.keys(app.protocol.capabilities || {}).length) },
+    ],
     "Offline Grid": [
       { a: "Local Grid Engine", b: state.offlineRunning ? "ONLINE" : "OFFLINE" },
       { a: "Active User", b: ((state.offlineUser && state.offlineUser.firstName) || "Jane") + " " + ((state.offlineUser && state.offlineUser.lastName) || "Doe") },
