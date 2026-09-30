@@ -58,6 +58,42 @@ function vector(value: any, fallback = [0, 0, 0]): [number, number, number] {
   return value ? [finite(value.x), finite(value.y), finite(value.z)] : (fallback as [number, number, number]);
 }
 
+function serializableValue(value: any): any {
+  if (value == null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (Array.isArray(value) || ArrayBuffer.isView(value)) return Array.from(value as any, serializableValue);
+  if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]) => [String(key), serializableValue(item)]));
+  if (typeof value?.toArray === 'function') return value.toArray().map(serializableValue);
+  const result: Record<string, any> = {};
+  for (const [key, item] of Object.entries(value || {})) {
+    if (typeof item !== 'function' && !key.startsWith('_')) result[key] = serializableValue(item);
+  }
+  return result;
+}
+
+function serializeEnvironment(environment: any) {
+  if (!environment) return null;
+  const cycle = environment.dayCycle;
+  const frames = cycle?.frames instanceof Map ? [...cycle.frames.values()] : [];
+  const sky = frames.find((frame: any) => frame?.type === 'sky') || frames.find((frame: any) => frame?.sunlightColor || frame?.blueHorizon);
+  const water = frames.find((frame: any) => frame?.type === 'water') || frames.find((frame: any) => frame?.waterFogColor);
+  return {
+    regionId: environment.regionID?.toString?.() || null,
+    parcelId: (environment.parcelID?.toString?.() || environment.parcelID) ?? null,
+    dayLength: finite(environment.dayLength), dayOffset: finite(environment.dayOffset),
+    trackAltitudes: serializableValue(environment.trackAltitudes) || null,
+    currentSky: serializableValue(sky), water: serializableValue(water), dayCycle: serializableValue(cycle),
+  };
+}
+
+function serializeTerrain(region: any) {
+  const size = 256;
+  if (!region?.terrain || region.terrain.length < size) return null;
+  const heights = new Array(size * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) heights[y * size + x] = finite(region.terrain[x]?.[y]);
+  return { size, heights };
+}
+
 function primAppearance(object: any) {
   const profile = finite(object.ProfileCurve) & 0x0f;
   const path = finite(object.PathCurve) & 0xf0;
@@ -422,6 +458,11 @@ export async function createSLSession(params: {
   }
 
   sessions.set(sessionId, sessionData);
+  const worldData = {
+    region: { name: region?.regionName || null, x: region?.xCoordinate, y: region?.yCoordinate },
+    environment: serializeEnvironment(region?.environment),
+  };
+  region?.waitForTerrain?.().then(() => broadcastEvent('terrain', serializeTerrain(region))).catch(() => {});
 
   return {
     sessionId,
@@ -435,6 +476,7 @@ export async function createSLSession(params: {
     region_y: Number.isFinite(region?.yCoordinate) ? region.yCoordinate : null,
     inventory_root: sessionData.inventoryRootId,
     message: reply?.loginMessage || 'Connected to Second Life',
+    world_data: worldData,
   };
 }
 

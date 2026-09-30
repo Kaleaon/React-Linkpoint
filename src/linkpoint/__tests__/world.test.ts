@@ -56,6 +56,23 @@ describe('WorldViewer data status', () => {
     });
   });
 
+  it('retains simulator terrain and WindLight data received before WebGL mounts', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    const heights = [1, 2, 3, 4];
+    const environment = { currentSky: { blueHorizon: [0.2, 0.3, 0.5] }, dayLength: 14400 };
+
+    protocol.emit('scene:world-data', {
+      region: { name: 'Live Region', x: 1000, y: 1001 },
+      environment,
+      terrain: { size: 2, heights },
+    });
+
+    expect(world.region).toMatchObject({ name: 'Live Region', x: 1000, y: 1001 });
+    expect(world.environment).toEqual(environment);
+    expect(world.terrain).toEqual({ size: 2, heights });
+  });
+
   it('resolves linked child prim positions and reapplies them when the root moves', () => {
     const protocol = new ProtocolStub();
     const world = new WorldViewer(protocol);

@@ -66,6 +66,9 @@ export class Graphics3D extends Utils.EventEmitter {
     this.extensions.depthTexture = gl.getExtension('WEBGL_depth_texture');
     this.extensions.floatTexture = gl.getExtension('OES_texture_float');
     this.extensions.vao = gl.getExtension('OES_vertex_array_object');
+    this.extensions.uintIndices = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
+      ? true
+      : gl.getExtension('OES_element_index_uint');
 
     // Initial GL state
     gl.enable(gl.DEPTH_TEST);
@@ -241,11 +244,23 @@ export class Graphics3D extends Utils.EventEmitter {
    */
   createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[]) {
     const gl = this.gl!;
+    let maxIndex = 0;
+    for (const index of indices) {
+      if (!Number.isInteger(index) || index < 0 || index >= vertices.length / 3) {
+        throw new Error(`Mesh ${name} contains an invalid vertex index`);
+      }
+      if (index > maxIndex) maxIndex = index;
+    }
+    if (maxIndex > 65535 && !this.extensions.uintIndices) {
+      throw new Error(`Mesh ${name} needs 32-bit indices, which this WebGL context does not support`);
+    }
+    const indexType = maxIndex > 65535 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
 
     const mesh: any = {
       vao: null,
       buffers: {},
       indexCount: indices.length,
+      indexType,
       vertexCount: vertices.length / 3
     };
 
@@ -284,7 +299,7 @@ export class Graphics3D extends Utils.EventEmitter {
     // Index buffer
     mesh.buffers.index = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.index);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexType === gl.UNSIGNED_INT ? new Uint32Array(indices) : new Uint16Array(indices), gl.STATIC_DRAW);
 
     if (this.extensions.vao) {
       // OES VAOs capture attribute and element-buffer bindings. Previously the
@@ -341,7 +356,7 @@ export class Graphics3D extends Utils.EventEmitter {
     if (uniforms.uDoubleSided) gl.disable(gl.CULL_FACE);
 
     // Draw
-    gl.drawElements(gl.TRIANGLES, mesh.indexCount, gl.UNSIGNED_SHORT, 0);
+    gl.drawElements(gl.TRIANGLES, mesh.indexCount, mesh.indexType, 0);
     if (uniforms.uAlphaMode === 2) { gl.depthMask(true); gl.disable(gl.BLEND); }
     if (uniforms.uDoubleSided) gl.enable(gl.CULL_FACE);
 

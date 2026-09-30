@@ -31,6 +31,8 @@ export class WorldViewer extends Utils.EventEmitter {
   public objects: any[] = [];
   public nearbyUsers: any[] = [];
   public avatarPosition: [number, number, number] | null = null;
+  public environment: any = null;
+  public terrain: { size: number; heights: number[] } | null = null;
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
   private decodedAssets = new Map<string, any>();
@@ -48,6 +50,7 @@ export class WorldViewer extends Utils.EventEmitter {
     super();
     this.protocol = protocolManager;
     this.protocol.on('connected', (reply: any) => {
+      this.applyWorldData(reply.world_data);
       const normalizeGridCoordinate = (value: any) => {
         const coordinate = Number(value);
         if (!Number.isFinite(coordinate)) return null;
@@ -56,6 +59,7 @@ export class WorldViewer extends Utils.EventEmitter {
         return coordinate >= 25600 ? Math.floor(coordinate / 256) : coordinate;
       };
       this.region = {
+        ...this.region,
         name: reply.sim_name || reply.region_name || null,
         x: normalizeGridCoordinate(reply.region_x),
         y: normalizeGridCoordinate(reply.region_y),
@@ -67,6 +71,8 @@ export class WorldViewer extends Utils.EventEmitter {
       this.region = null;
       this.avatarPosition = null;
       this.nearbyUsers = [];
+      this.environment = null;
+      this.terrain = null;
       this.sceneObjects.clear();
       this.localObjectIds.clear();
       this.objects = [];
@@ -128,6 +134,27 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
     this.protocol.on('scene:texture-ready', (asset: any) => this.applyTexture(asset));
     this.protocol.on('scene:material-ready', (asset: any) => this.applyMaterial(asset));
+    this.protocol.on('scene:world-data', (data: any) => this.applyWorldData(data));
+    this.protocol.on('scene:environment', (data: any) => this.applyWorldData({ environment: data }));
+    this.protocol.on('scene:terrain', (data: any) => this.applyWorldData({ terrain: data }));
+  }
+
+  private applyWorldData(data: any) {
+    if (!data) return;
+    if (data.region) {
+      this.region = { ...(this.region || {}), ...data.region };
+      this.emit('region_changed', { ...this.region });
+    }
+    if (data.environment) {
+      this.environment = data.environment;
+      this.scene3d?.setEnvironment(data.environment);
+      this.emit('environment_changed', data.environment);
+    }
+    if (data.terrain?.heights && Number(data.terrain.size) > 1) {
+      this.terrain = { size: Number(data.terrain.size), heights: Array.from(data.terrain.heights, Number) };
+      this.scene3d?.setTerrain(this.terrain.heights, this.terrain.size);
+      this.emit('terrain_changed', this.terrain);
+    }
   }
 
   private applyAsset(asset: any) {
@@ -245,6 +272,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
+      if (this.environment) this.scene3d.setEnvironment(this.environment);
+      if (this.terrain) this.scene3d.setTerrain(this.terrain.heights, this.terrain.size);
       for (const [assetId, geometry] of this.decodedAssets) this.scene3d.addAssetMesh(assetId, geometry);
       for (const texture of this.decodedTextures.values()) this.applyTexture(texture);
       await this.loadScene();
