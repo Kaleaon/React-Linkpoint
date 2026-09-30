@@ -21,9 +21,9 @@ const TOOLBAR = [
 export default function DesktopChrome() {
   const { state, actions } = useApp();
   const { V, t, ink } = useTheme();
-  const region = app.world?.regionName || app.protocol?.authReply?.sim_name || "Arapaima";
-  const position = app.world?.avatarPosition || [128, 128, 25];
-  const canonicalLocation = `${region} (${position.slice(0, 3).map((value) => Math.round(value)).join(", ")})`;
+  const region = app.world?.regionName || app.protocol?.authReply?.sim_name || "No region data";
+  const position = app.world?.avatarPosition;
+  const canonicalLocation = position ? `${region} (${position.slice(0, 3).map((value) => Math.round(value)).join(", ")})` : region;
   const [location, setLocation] = useState(canonicalLocation);
 
   const goToLocation = (event) => {
