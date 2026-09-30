@@ -67,7 +67,7 @@ describe('ChatManager', () => {
     const autoReplySentListener = vi.fn();
     manager.on('auto_reply_sent', autoReplySentListener);
 
-    manager.handleIncomingMessage({
+    await manager.handleIncomingMessage({
       type: 'im',
       fromId: 'friend-uuid-1',
       fromName: 'Steller Sunshine',
