@@ -148,6 +148,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('object-add', (data: any) => this.emit('scene:object-add', data));
       slBridge.on('object-update', (data: any) => this.emit('scene:object-update', data));
       slBridge.on('object-remove', (data: any) => this.emit('scene:object-remove', data));
+      slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
+      slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
       slBridge.on('disconnected', (data: any) => {
         this.connected = false;
         this.setState('IDLE');
@@ -206,6 +208,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('object-add', (data: any) => this.emit('scene:object-add', data));
       slBridge.on('object-update', (data: any) => this.emit('scene:object-update', data));
       slBridge.on('object-remove', (data: any) => this.emit('scene:object-remove', data));
+      slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
+      slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
       slBridge.on('disconnected', (data: any) => {
         this.connected = false;
         this.setState('IDLE');

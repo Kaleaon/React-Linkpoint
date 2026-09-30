@@ -31,6 +31,8 @@ export class WorldViewer extends Utils.EventEmitter {
   public avatarPosition: [number, number, number] | null = null;
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
+  private decodedAssets = new Map<string, any>();
+  private decodedTextures = new Map<string, any>();
 
   public getDataStatus() {
     if (!this.protocol.connected) return 'Disconnected';
@@ -86,6 +88,33 @@ export class WorldViewer extends Utils.EventEmitter {
     });
     this.protocol.on('scene:object-update', (object: any) => this.upsertSceneObject(object));
     this.protocol.on('scene:object-remove', (object: any) => this.removeSceneObject(object));
+    this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
+    this.protocol.on('scene:texture-ready', (asset: any) => this.applyTexture(asset));
+  }
+
+  private applyAsset(asset: any) {
+    if (!asset?.assetId || !asset.geometry) return;
+    this.decodedAssets.set(asset.assetId, asset.geometry);
+    const mesh = this.scene3d?.addAssetMesh(asset.assetId, asset.geometry);
+    for (const object of this.sceneObjects.values()) {
+      if (object.assetId !== asset.assetId) continue;
+      object.decodedMesh = mesh || `asset:${asset.assetId}`;
+      this.applySceneObject(object);
+    }
+  }
+
+  private applyTexture(asset: any) {
+    if (!asset?.assetId || !asset.rgba) return;
+    this.decodedTextures.set(asset.assetId, asset);
+    if (!this.scene3d) return;
+    const binary = atob(asset.rgba);
+    const rgba = Uint8Array.from(binary, character => character.charCodeAt(0));
+    const texture = this.scene3d.addAssetTexture(asset.assetId, asset.width, asset.height, rgba);
+    for (const object of this.sceneObjects.values()) {
+      if (object.textureId !== asset.assetId) continue;
+      object.decodedTexture = texture;
+      this.applySceneObject(object);
+    }
   }
 
   public async loadScene() {
@@ -127,6 +156,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
+      for (const [assetId, geometry] of this.decodedAssets) this.scene3d.addAssetMesh(assetId, geometry);
+      for (const texture of this.decodedTextures.values()) this.applyTexture(texture);
       await this.loadScene();
       for (const object of this.sceneObjects.values()) this.applySceneObject(object);
 
@@ -209,24 +240,80 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private upsertSceneObject(object: any) {
     if (!object?.id) return;
-    this.sceneObjects.set(object.id, object);
+    // Terse simulator updates only carry motion fields.  Keep the shape,
+    // material and link metadata learned from the full ObjectUpdate packet.
+    const previous = this.sceneObjects.get(object.id);
+    const merged = previous ? { ...previous, ...object } : object;
+    this.sceneObjects.set(object.id, merged);
     if (object.localId) this.localObjectIds.set(object.localId, object.id);
     this.objects = Array.from(this.sceneObjects.values());
-    this.applySceneObject(object);
+    this.applySceneObject(merged);
+    // A root prim moving changes every child prim's world transform even when
+    // the simulator quite correctly sends no update for those children.
+    if (merged.localId) this.reapplyChildren(merged.localId);
     this.emit('objects_changed', this.objects);
+  }
+
+  private reapplyChildren(parentLocalId: number, visited = new Set<number>()) {
+    if (visited.has(parentLocalId)) return;
+    visited.add(parentLocalId);
+    for (const child of this.sceneObjects.values()) {
+      if (Number(child.parentId) !== Number(parentLocalId)) continue;
+      this.applySceneObject(child);
+      if (child.localId) this.reapplyChildren(child.localId, visited);
+    }
+  }
+
+  private multiplyQuaternion(a: number[], b: number[]) {
+    return [
+      a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+      a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+      a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+      a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
+    ];
+  }
+
+  private rotateVector(vector: number[], quaternion: number[]) {
+    const [x, y, z] = vector;
+    const [qx, qy, qz, qw] = quaternion;
+    const ix = qw * x + qy * z - qz * y;
+    const iy = qw * y + qz * x - qx * z;
+    const iz = qw * z + qx * y - qy * x;
+    const iw = -qx * x - qy * y - qz * z;
+    return [
+      ix * qw + iw * -qx + iy * -qz - iz * -qy,
+      iy * qw + iw * -qy + iz * -qx - ix * -qz,
+      iz * qw + iw * -qz + ix * -qy - iy * -qx,
+    ];
+  }
+
+  private worldTransform(object: any, visited = new Set<string>()): { position: number[]; rotation: number[] } {
+    const position = Array.isArray(object.position) ? object.position : [0, 0, 0];
+    const rotation = Array.isArray(object.rotation) && object.rotation.length === 4 ? object.rotation : [0, 0, 0, 1];
+    if (!object.parentId || visited.has(object.id)) return { position, rotation };
+    const parentId = this.localObjectIds.get(Number(object.parentId));
+    const parent = parentId && this.sceneObjects.get(parentId);
+    if (!parent) return { position, rotation };
+    visited.add(object.id);
+    const parentTransform = this.worldTransform(parent, visited);
+    const offset = this.rotateVector(position, parentTransform.rotation);
+    return {
+      position: parentTransform.position.map((value, index) => value + offset[index]),
+      rotation: this.multiplyQuaternion(parentTransform.rotation, rotation),
+    };
   }
 
   private applySceneObject(object: any) {
     if (!this.scene3d) return;
-    const position = Array.isArray(object.position) ? object.position : [0, 0, 0];
-    const rotation = Array.isArray(object.rotation) && object.rotation.length === 4 ? object.rotation : [0, 0, 0, 1];
+    const { position, rotation } = this.worldTransform(object);
     const scale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
     const config = {
-      mesh: object.avatar ? 'sphere' : 'cube',
+      mesh: object.decodedMesh || (object.avatar ? 'sphere' : ['cube', 'cylinder', 'sphere', 'prism', 'torus', 'asset-proxy'].includes(object.shape) ? object.shape : 'cube'),
       position,
       rotation: this.quaternionToEuler(rotation),
       scale,
-      color: object.avatar ? [0.3, 0.65, 1, 1] : [0.8, 0.8, 0.8, 1],
+      color: object.avatar ? [0.3, 0.65, 1, 1] : object.color || [0.8, 0.8, 0.8, 1],
+      texture: object.decodedTexture,
     };
     if (this.scene3d.objects.has(object.id)) this.scene3d.updateObject(object.id, config);
     else this.scene3d.addObject(object.id, config);

@@ -3,7 +3,9 @@ const {
   BotOptionFlags,
   LoginParameters,
   PCode,
+  AssetType,
 } = require('@caspertech/node-metaverse');
+const { decodeLLMesh, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -11,6 +13,35 @@ function finite(value, fallback = 0) {
 
 function vector(value, fallback = [0, 0, 0]) {
   return value ? [finite(value.x), finite(value.y), finite(value.z)] : fallback;
+}
+
+function primAppearance(object) {
+  const profile = finite(object.ProfileCurve) & 0x0f;
+  const path = finite(object.PathCurve) & 0xf0;
+  const rgba = object.TextureEntry?.defaultTexture?.rgba;
+  const meshData = object.MeshData || object.extraParams?.meshData;
+  const sculptData = object.SculptData || object.extraParams?.sculptData;
+  const asset = meshData?.meshData || sculptData?.texture;
+  const rawTextureId = object.TextureEntry?.defaultTexture?.textureID?.toString?.() || null;
+  const textureId = rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
+  const component = (method, property, fallback) => {
+    const value = typeof rgba?.[method] === 'function' ? rgba[method]() : rgba?.[property];
+    return Number.isFinite(Number(value)) ? Number(value) : fallback;
+  };
+  return {
+    shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
+    assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
+    assetId: asset?.toString?.() || null,
+    textureId,
+    color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
+    shapeParams: {
+      pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,
+      pathBegin: object.PathBegin, pathEnd: object.PathEnd,
+      pathScaleX: object.PathScaleX, pathScaleY: object.PathScaleY,
+      profileBegin: object.ProfileBegin, profileEnd: object.ProfileEnd,
+      profileHollow: object.ProfileHollow,
+    },
+  };
 }
 
 function serializeObject(event) {
@@ -26,6 +57,7 @@ function serializeObject(event) {
     scale: vector(object.Scale, [0.5, 0.5, 0.5]),
     rotation: [finite(rotation.x), finite(rotation.y), finite(rotation.z), finite(rotation.w, 1)],
     name: object.name || '',
+    ...primAppearance(object),
   };
 }
 
@@ -34,6 +66,38 @@ class ViewerSession {
     this.send = send;
     this.bot = null;
     this.subscriptions = [];
+    this.assetRequests = new Map();
+  }
+
+  loadObjectAsset(object) {
+    const appearance = primAppearance(object);
+    if (!appearance.assetId || this.assetRequests.has(appearance.assetId)) return;
+    const request = (async () => {
+      const type = appearance.assetKind === 'mesh' ? AssetType.Mesh : AssetType.Texture;
+      const buffer = await this.bot.clientCommands.asset.downloadAsset(type, appearance.assetId);
+      const geometry = appearance.assetKind === 'mesh'
+        ? await decodeLLMesh(buffer)
+        : await decodeSculpt(buffer, (object.SculptData || object.extraParams?.sculptData)?.type);
+      this.send('asset-ready', { assetId: appearance.assetId, assetKind: appearance.assetKind, geometry });
+    })().catch((error) => this.send('asset-error', { assetId: appearance.assetId, message: error.message }));
+    this.assetRequests.set(appearance.assetId, request);
+  }
+
+  loadObjectTexture(object) {
+    const assetId = primAppearance(object).textureId;
+    const key = `texture:${assetId}`;
+    if (!assetId || this.assetRequests.has(key)) return;
+    const request = (async () => {
+      const buffer = await this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+      this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
+    })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
+    this.assetRequests.set(key, request);
+  }
+
+  streamObject(type, event) {
+    this.send(type, serializeObject(event));
+    this.loadObjectAsset(event.object);
+    this.loadObjectTexture(event.object);
   }
 
   subscribe(subject, type, serialize = (value) => value) {
@@ -54,8 +118,8 @@ class ViewerSession {
     // ObjectUpdateCached and terse updates from the simulator UDP circuit.
     this.bot = new Bot(params, BotOptionFlags.None);
     const events = this.bot.clientEvents;
-    this.subscribe(events.onNewObjectEvent, 'object-add', serializeObject);
-    this.subscribe(events.onObjectUpdatedEvent, 'object-update', serializeObject);
+    this.subscriptions.push(events.onNewObjectEvent.subscribe((event) => this.streamObject('object-add', event)));
+    this.subscriptions.push(events.onObjectUpdatedEvent.subscribe((event) => this.streamObject('object-update', event)));
     this.subscribe(events.onObjectUpdatedTerseEvent, 'object-update', serializeObject);
     this.subscribe(events.onObjectKilledEvent, 'object-remove', (event) => ({
       id: event.objectID?.toString() || String(event.localID),
@@ -99,6 +163,7 @@ class ViewerSession {
     if (!this.bot) return;
     const bot = this.bot;
     this.bot = null;
+    this.assetRequests.clear();
     try { await bot.close(); } catch { /* circuit may already be closed */ }
   }
 }

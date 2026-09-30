@@ -11,18 +11,24 @@ renderer**.
 - Native desktop simulator object add/update/remove streaming.
 - Region handshake, coarse avatar locations, parcel metadata, nearby chat, and
   camera movement controls.
-- Placeholder geometry for decoded objects (cube) and avatars (sphere), with
-  position, rotation, and scale updates.
+- UDP ObjectUpdate/Compressed/Cached/terse data drives object lifecycle,
+  transforms, cube/cylinder/sphere/prism/torus selection, and base face color.
+- Uploaded LLMesh assets are downloaded through simulator capabilities, decoded
+  at high available LOD, and streamed to WebGL with positions, normals, UVs,
+  and triangle indices. JPEG2000 textures are decoded to RGBA, including sculpt
+  maps which are converted to indexed scene geometry.
+- Parent-relative linkset transforms are resolved into world space and child
+  prims follow root motion even when only the root receives a terse update.
 
 ## Not implemented yet
 
 - Second Life prim shape/path/profile sculpting.
-- Mesh and sculpt asset download/decoding.
-- Texture, material, alpha mode, normal/specular map, and PBR rendering.
+- Per-face materials, alpha modes, normal/specular maps, and PBR rendering.
 - Terrain heightmaps, water, sky/environment settings, and parcel overlays.
 - Avatar skeletons, appearance baking, rigged mesh, attachments, animations,
   particles, flexible prims, and lighting beyond the renderer's default light.
-- Parent-relative transform resolution for linked object sets.
+- Complete SL path/profile prim tessellation (cuts, hollow, twist and taper are
+  preserved in scene data but currently render with a closest-shape fallback).
 - Object picking, touch, sit, edit, and build interactions in the 3D canvas.
 
 The World screen reports whether it has a native live scene stream or only

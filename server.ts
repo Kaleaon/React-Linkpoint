@@ -26,6 +26,7 @@ import {
   fetchSLGroups,
   fetchSLInventory,
   fetchSLSceneObjects,
+  fetchSLSceneAssets,
   closeSLSession,
 } from "./src/server/sl-session.ts";
 
@@ -210,6 +211,10 @@ export async function createApp() {
       const initialObjects = fetchSLSceneObjects(sessionId);
       for (const obj of initialObjects) {
         res.write(`data: ${JSON.stringify({ type: "object-add", data: obj })}\n\n`);
+      }
+      for (const asset of fetchSLSceneAssets(sessionId)) {
+        const payload = asset.type ? asset : { type: "asset-ready", data: asset };
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
       }
     } catch (objErr) {
       console.warn('[SL Events] Error streaming initial objects:', objErr);

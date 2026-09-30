@@ -3,10 +3,19 @@ import {
   BotOptionFlags,
   LoginParameters,
   PCode,
+  AssetType,
   UUID,
 } from '@caspertech/node-metaverse';
 import type { Response } from 'express';
+import { createRequire } from 'node:module';
 import { v4 as uuidv4 } from 'uuid';
+
+const require = createRequire(import.meta.url);
+const { decodeLLMesh, decodeSculpt, decodeJPEG2000 } = require('../../electron/sl-asset-decoder.cjs') as {
+  decodeLLMesh: (buffer: Buffer) => Promise<any>;
+  decodeSculpt: (buffer: Buffer, type?: number) => Promise<any>;
+  decodeJPEG2000: (buffer: Buffer) => Promise<any>;
+};
 
 // Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
 const _origConsoleError = console.error;
@@ -34,6 +43,8 @@ export interface SLSessionData {
   subscriptions: Array<{ unsubscribe: () => void }>;
   eventClients: Response[];
   lastActive: number;
+  assetRequests: Map<string, Promise<void>>;
+  decodedAssets: Map<string, any>;
 }
 
 const sessions = new Map<string, SLSessionData>();
@@ -44,6 +55,38 @@ function finite(value: any, fallback = 0): number {
 
 function vector(value: any, fallback = [0, 0, 0]): [number, number, number] {
   return value ? [finite(value.x), finite(value.y), finite(value.z)] : (fallback as [number, number, number]);
+}
+
+function primAppearance(object: any) {
+  const profile = finite(object.ProfileCurve) & 0x0f;
+  const path = finite(object.PathCurve) & 0xf0;
+  const rgba = object.TextureEntry?.defaultTexture?.rgba;
+  const meshData = object.MeshData || object.extraParams?.meshData;
+  const sculptData = object.SculptData || object.extraParams?.sculptData;
+  const asset = meshData?.meshData || sculptData?.texture;
+  const rawTextureId = object.TextureEntry?.defaultTexture?.textureID?.toString?.() || null;
+  const textureId = rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
+  const component = (method: string, property: string, fallback: number) => {
+    const value = typeof rgba?.[method] === 'function' ? rgba[method]() : rgba?.[property];
+    return Number.isFinite(Number(value)) ? Number(value) : fallback;
+  };
+  return {
+    // SL's standard sphere is a half-circle profile swept around a circle;
+    // straight circular profiles are cylinders. Unsupported parametric shapes
+    // retain all their shape parameters while using a cube fallback for now.
+    shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
+    assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
+    assetId: asset?.toString?.() || null,
+    textureId,
+    color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
+    shapeParams: {
+      pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,
+      pathBegin: object.PathBegin, pathEnd: object.PathEnd,
+      pathScaleX: object.PathScaleX, pathScaleY: object.PathScaleY,
+      profileBegin: object.ProfileBegin, profileEnd: object.ProfileEnd,
+      profileHollow: object.ProfileHollow,
+    },
+  };
 }
 
 function serializeObject(event: any) {
@@ -59,6 +102,7 @@ function serializeObject(event: any) {
     scale: vector(object.Scale, [0.5, 0.5, 0.5]),
     rotation: [finite(rotation.x), finite(rotation.y), finite(rotation.z), finite(rotation.w, 1)],
     name: object.name || '',
+    ...primAppearance(object),
   };
 }
 
@@ -92,6 +136,8 @@ export async function createSLSession(params: {
     subscriptions: [],
     eventClients: [],
     lastActive: Date.now(),
+    assetRequests: new Map(),
+    decodedAssets: new Map(),
   };
 
   const broadcastEvent = (type: string, data: any) => {
@@ -103,6 +149,38 @@ export async function createSLSession(params: {
   };
 
   const events = bot.clientEvents;
+
+  const loadObjectAsset = (object: any) => {
+    const appearance = primAppearance(object);
+    if (!appearance.assetId || sessionData.assetRequests.has(appearance.assetId)) return;
+    const request = (async () => {
+      const type = appearance.assetKind === 'mesh' ? AssetType.Mesh : AssetType.Texture;
+      const buffer = await bot.clientCommands.asset.downloadAsset(type, appearance.assetId!);
+      const geometry = appearance.assetKind === 'mesh'
+        ? await decodeLLMesh(buffer)
+        : await decodeSculpt(buffer, (object.SculptData || object.extraParams?.sculptData)?.type);
+      const payload = { assetId: appearance.assetId, assetKind: appearance.assetKind, geometry };
+      sessionData.decodedAssets.set(appearance.assetId!, payload);
+      broadcastEvent('asset-ready', payload);
+    })().catch((error: Error) => {
+      broadcastEvent('asset-error', { assetId: appearance.assetId, message: error.message });
+    });
+    sessionData.assetRequests.set(appearance.assetId, request);
+  };
+
+  const loadObjectTexture = (object: any) => {
+    const appearance = primAppearance(object);
+    const assetId = appearance.textureId;
+    if (!assetId || sessionData.assetRequests.has(`texture:${assetId}`)) return;
+    const request = (async () => {
+      const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+      const texture = await decodeJPEG2000(buffer);
+      const payload = { assetId, ...texture };
+      sessionData.decodedAssets.set(`texture:${assetId}`, { type: 'texture-ready', data: payload });
+      broadcastEvent('texture-ready', payload);
+    })().catch((error: Error) => broadcastEvent('asset-error', { assetId, message: error.message }));
+    sessionData.assetRequests.set(`texture:${assetId}`, request);
+  };
 
   // Real Second Life nearby chat
   sessionData.subscriptions.push(
@@ -138,11 +216,15 @@ export async function createSLSession(params: {
   sessionData.subscriptions.push(
     events.onNewObjectEvent.subscribe((event: any) => {
       broadcastEvent('object-add', serializeObject(event));
+      loadObjectAsset(event.object);
+      loadObjectTexture(event.object);
     })
   );
   sessionData.subscriptions.push(
     events.onObjectUpdatedEvent.subscribe((event: any) => {
       broadcastEvent('object-update', serializeObject(event));
+      loadObjectAsset(event.object);
+      loadObjectTexture(event.object);
     })
   );
   sessionData.subscriptions.push(
@@ -490,12 +572,17 @@ export function fetchSLSceneObjects(sessionId: string) {
         scale: vector(obj.Scale, [0.5, 0.5, 0.5]),
         rotation: [finite(rotation.x), finite(rotation.y), finite(rotation.z), finite(rotation.w, 1)],
         name: obj.name || '',
+        ...primAppearance(obj),
       };
     });
   } catch (err) {
     console.warn('[SL Session] getAllObjects warning:', err);
     return [];
   }
+}
+
+export function fetchSLSceneAssets(sessionId: string) {
+  return Array.from(sessions.get(sessionId)?.decodedAssets.values() || []);
 }
 
 export function closeSLSession(sessionId: string) {

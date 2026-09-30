@@ -49,6 +49,7 @@
     "dotenv": "^17.2.3",
     "expo": "~57.0.22",
     "express": "^4.21.2",
+    "jpeg2000": "1.1.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.3.0",
@@ -59,6 +60,7 @@
     "react-native-svg": "^15.15.5",
     "react-native-web": "^0.21.2",
     "react-syntax-highlighter": "^16.1.1",
+    "sharp": "^0.34.4",
     "spark-md5": "^3.0.2",
     "uuid": "^13.0.0",
     "ws": "^8.21.3"
