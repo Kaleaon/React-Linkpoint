@@ -5,11 +5,35 @@ A Second Life communicator and viewer utility suite packaged as a Progressive We
 
 ## Local development
 
-**Prerequisites:** Node.js 20+
+**Prerequisites:** Node.js 22+
+
+### Codex / fresh checkout setup
+
+Copy the contents of `scripts/codex-setup.sh` into the Codex setup-script field,
+or run it from anywhere inside the checkout. It fetches the exact Bun binary
+through npm's user cache (without requiring a global or privileged install),
+installs locked dependencies, and creates a credential-free local environment
+file:
+
+```bash
+./scripts/codex-setup.sh
+```
+
+The script is self-contained and does not call another test/setup script. Setup
+does not run the test suite, because Codex executes setup before applying a task's
+changes and the checked-out revision might have known failing tests. To validate
+the checkout afterward, run `./scripts/codex-setup.sh --check`; this directly
+runs TypeScript, Vitest, and the production web build. These checks do not need
+Second Life or Gemini credentials. The setup intentionally skips the Electron
+runtime download because the standard checks do not launch Electron; omit
+`ELECTRON_SKIP_BINARY_DOWNLOAD` and reinstall dependencies when interactive
+desktop testing is required.
+
+### Manual setup
 
 1. Install dependencies:
    ```bash
-   npm install
+   bun install --frozen-lockfile
    ```
 2. Create a local env file:
    ```bash
@@ -17,7 +41,7 @@ A Second Life communicator and viewer utility suite packaged as a Progressive We
    ```
 3. Start the dev server:
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 
