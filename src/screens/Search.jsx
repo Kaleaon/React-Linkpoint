@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
-import { FRIEND_ROWS, RADAR_AVATARS, SEARCH_STRANGERS, IM_CHIPS } from "../data/content.js";
+import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
 
 const TABS = [
@@ -9,18 +10,32 @@ const TABS = [
   { id: "SEARCH", label: "SEARCH", icon: "search" },
 ];
 
-// Ported/extended from the `isSearchScreen` <sc-if> block. This is the
-// picker a real SL viewer shows when you go to start a conversation: your
-// friends list, who's nearby right now, and a grid-wide name search — not
-// just a bare text box. Reached from Friends' header icons (opens straight
-// to SEARCH) and Chat's "ALL (n)" chip (opens on FRIENDS, see searchFrom).
 export default function Search() {
   const { state, actions } = useApp();
   const { V, t } = useTheme();
 
+  const [friendsList, setFriendsList] = useState(() => app.friends.getFriends());
+  const [nearbyList, setNearbyList] = useState(() => app.world.getNearbyUsers());
+
+  useEffect(() => {
+    const updateFriends = () => setFriendsList(app.friends.getFriends());
+    const updateNearby = (users) => setNearbyList(users);
+
+    app.friends.on("friend_added", updateFriends);
+    app.friends.on("friend_updated", updateFriends);
+    app.friends.on("friend_removed", updateFriends);
+    app.world.on("nearby_changed", updateNearby);
+
+    return () => {
+      app.friends.off("friend_added", updateFriends);
+      app.friends.off("friend_updated", updateFriends);
+      app.friends.off("friend_removed", updateFriends);
+      app.world.off("nearby_changed", updateNearby);
+    };
+  }, []);
+
   const tab = TABS.some((x) => x.id === state.searchTab) ? state.searchTab : "FRIENDS";
   const q = (state.searchQuery || "").trim().toLowerCase();
-  const friendNames = new Set(FRIEND_ROWS.map((r) => r[0]));
 
   const startIm = (name) => actions.startIm(name);
 
@@ -44,81 +59,61 @@ export default function Search() {
   let emptyText = "";
 
   if (tab === "FRIENDS") {
-    const list = FRIEND_ROWS.filter(([n]) => !q || n.toLowerCase().includes(q));
-    rows = list.map(([name, meta, online]) => (
-      <div key={name} onClick={() => startIm(name)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, cursor: "pointer" }}>
-        <Icon name={online ? "circle-dot" : "circle"} size={20} style={{ color: online ? V.ok : V.ink2, flex: "none" }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ font: "600 13px/1.3 " + t.font, color: V.ink }}>{name}</div>
-          <div style={{ font: "400 10px/1.3 " + t.font, color: V.ink2, marginTop: "1px" }}>{meta}</div>
+    const list = friendsList.filter((f) => !q || (f.name || "").toLowerCase().includes(q));
+    rows = list.map((f) => {
+      const isOnline = f.onlineStatus === "online";
+      return (
+        <div key={f.id} onClick={() => startIm(f.name)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, cursor: "pointer" }}>
+          <Icon name={isOnline ? "circle-dot" : "circle"} size={20} style={{ color: isOnline ? V.ok : V.ink2, flex: "none" }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "600 13px/1.3 " + t.font, color: V.ink }}>{f.name}</div>
+            <div style={{ font: "400 10px/1.3 " + t.font, color: V.ink2, marginTop: "1px" }}>{isOnline ? "Online" : "Offline"}</div>
+          </div>
+          <div onClick={(e) => { e.stopPropagation(); startIm(f.name); }} style={imPillStyle(true)}>
+            IM
+          </div>
         </div>
-        <div onClick={(e) => { e.stopPropagation(); startIm(name); }} style={imPillStyle(IM_CHIPS.includes(name))}>
-          IM
-        </div>
-      </div>
-    ));
-    emptyText = q ? "> no friends match “" + state.searchQuery + "”" : "> no friends yet";
+      );
+    });
+    emptyText = q ? `> no friends match “${state.searchQuery}”` : "> no friends added yet";
   } else if (tab === "NEARBY") {
-    const list = RADAR_AVATARS.filter(([n]) => !q || n.toLowerCase().includes(q)).slice().sort((a, b) => a[1] - b[1]);
-    rows = list.map(([name, dm, , meta]) => (
-      <div key={name} onClick={() => startIm(name)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, cursor: "pointer" }}>
-        <Icon name="circle-user-round" size={20} style={{ color: V.sec2, flex: "none" }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ font: "600 13px/1.3 " + t.font, color: V.ink }}>{name}</div>
-          <div style={{ font: "400 10px/1.3 " + t.font, color: V.ink2, marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
+    const list = nearbyList.filter((n) => !q || (n.name || "").toLowerCase().includes(q)).sort((a, b) => Number(a.distance ?? Infinity) - Number(b.distance ?? Infinity));
+    rows = list.map((item) => {
+      const name = item.name || item.id;
+      const dm = item.distance != null ? Math.round(item.distance) : 0;
+      return (
+        <div key={item.id} onClick={() => startIm(name)} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, cursor: "pointer" }}>
+          <Icon name="circle-user-round" size={20} style={{ color: V.sec2, flex: "none" }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ font: "600 13px/1.3 " + t.font, color: V.ink }}>{name}</div>
+            <div style={{ font: "400 10px/1.3 " + t.font, color: V.ink2, marginTop: "1px" }}>Nearby resident</div>
+          </div>
+          <div style={{ padding: "4px 8px", border: "1px solid " + V.outv, borderRadius: V.rs, font: "400 11px/1 " + t.font, color: V.ink2, flex: "none" }}>{dm}m</div>
+          <div onClick={(e) => { e.stopPropagation(); startIm(name); }} style={imPillStyle(false)}>
+            IM
+          </div>
         </div>
-        <div style={{ padding: "4px 8px", border: "1px solid " + V.outv, borderRadius: V.rs, font: "400 11px/1 " + t.font, color: V.ink2, flex: "none" }}>{dm}m</div>
-        <div onClick={(e) => { e.stopPropagation(); startIm(name); }} style={imPillStyle(IM_CHIPS.includes(name))}>
-          IM
-        </div>
-      </div>
-    ));
-    emptyText = q ? "> nobody nearby matches “" + state.searchQuery + "”" : "> nobody in range right now";
+      );
+    });
+    emptyText = q ? `> nobody nearby matches “${state.searchQuery}”` : "> nobody in range right now";
   } else {
-    const results =
-      q.length < 2
-        ? []
-        : [...FRIEND_ROWS.map((r) => r[0]), ...SEARCH_STRANGERS]
-            .filter((n) => n.toLowerCase().includes(q))
-            .map((n) => {
-              const isFriend = friendNames.has(n);
-              const st = state.searchState[n];
-              const label = isFriend ? "FRIEND" : st === "sending" ? "…" : st === "sent" ? "OFFERED" : "ADD";
-              const pillOn = isFriend || st === "sent";
-              return {
-                name: n,
-                id: n.toLowerCase().replace(/\s+/g, "-").slice(0, 8),
-                label,
-                pick: !isFriend && !st ? () => actions.searchAdd(n) : () => {},
-                style: {
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  height: "36px",
-                  padding: "0 12px",
-                  borderRadius: V.rs,
-                  border: "1px solid " + (pillOn ? V.ok : V.pri),
-                  background: pillOn ? "transparent" : V.pri,
-                  color: pillOn ? V.ok : V.onpri,
-                  font: "700 10.5px/1 " + t.font,
-                  letterSpacing: ".14em",
-                  cursor: !isFriend && !st ? "pointer" : "default",
-                },
-              };
-            });
-    rows = results.map((sr) => (
-      <div key={sr.name} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf }}>
+    const matchedFriends = friendsList.filter((f) => q.length >= 2 && (f.name || "").toLowerCase().includes(q));
+    const matchedNearby = nearbyList.filter((n) => q.length >= 2 && (n.name || "").toLowerCase().includes(q) && !matchedFriends.some((f) => f.name === n.name));
+    const combined = [...matchedFriends.map((f) => ({ ...f, type: "friend" })), ...matchedNearby.map((n) => ({ id: n.id, name: n.name, type: "nearby" }))];
+
+    rows = combined.map((sr) => (
+      <div key={sr.id || sr.name} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf }}>
         <Icon name="circle-user-round" size={22} style={{ color: V.sec2, flex: "none" }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: "600 13px/1.3 " + t.font, color: V.ink }}>{sr.name}</div>
-          <div style={{ font: "400 10px/1.3 " + t.font, color: V.ink2, marginTop: "1px" }}>resident · {sr.id}</div>
+          <div style={{ font: "400 10px/1.3 " + t.font, color: V.ink2, marginTop: "1px" }}>{sr.type === "friend" ? "Friend" : "Nearby resident"}</div>
         </div>
-        <div onClick={sr.pick} style={sr.style}>
-          {sr.label}
+        <div onClick={() => startIm(sr.name)} style={imPillStyle(true)}>
+          IM
         </div>
       </div>
     ));
-    emptyText = q.length < 2 ? "> type a name to search the grid" : "> no residents match";
+    emptyText = q.length < 2 ? "> type a name to filter resident contacts" : "> no matching residents found";
   }
 
   return (
@@ -132,7 +127,7 @@ export default function Search() {
         </div>
         <div>
           <div style={{ font: "700 18px/1 " + t.dfont, letterSpacing: ".16em", color: V.pri }}>PEOPLE</div>
-          <div style={{ font: "400 10.5px/1.3 " + t.font, color: V.ink2, marginTop: "2px" }}>&gt; friends, who's nearby, or search the grid</div>
+          <div style={{ font: "400 10.5px/1.3 " + t.font, color: V.ink2, marginTop: "2px" }}>&gt; friends or who's nearby</div>
         </div>
       </div>
 

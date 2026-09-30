@@ -98,10 +98,7 @@ export function useAppState() {
   const [oarPrims] = useState(1420);
   const [assetName, setAssetName] = useState("Grass Texture");
   const [assetType, setAssetType] = useState("Texture");
-  const [localAssets, setLocalAssets] = useState([
-    { id: "ast-1", name: "Grass Texture 1024", type: "Texture", size: "2.1 MB", uuid: "e84d72a9-1102-4211-9a99-0a8811f3d82a" },
-    { id: "ast-2", name: "Ambient Forest Sound", type: "Sound", size: "512 KB", uuid: "f32a0018-912c-491a-b118-2993881023a1" }
-  ]);
+  const [localAssets, setLocalAssets] = useState([]);
   const [offlineCacheSize, setOfflineCacheSize] = useState(1024);
   const [consoleLevel, setConsoleLevel] = useState("ALL");
   const [consoleQuery, setConsoleQuery] = useState("");
@@ -239,18 +236,28 @@ export function useAppState() {
     setLoginModeState(m);
     setLoginError(null);
   }, []);
-  const connectLogin = useCallback(() => {
-    setLoginBusy((busy) => {
-      if (busy) return busy;
-      clearTimeout(loginTimerRef.current);
-      loginTimerRef.current = setTimeout(() => {
-        setLoginBusy(false);
-        setLoginError(loginMode === "grid" ? "Unable to reach " + (allGrids().find((g) => g.key === loginGrid) || GRIDS[0]).host + " — check your connection and try again." : null);
-      }, 900);
-      return true;
-    });
+  const connectLogin = useCallback(async (gridKey, user, pass, remember = true, startLoc = "last") => {
+    setLoginBusy(true);
     setLoginError(null);
-  }, [loginMode, loginGrid, allGrids]);
+    try {
+      const gridToUse = gridKey || loginGrid;
+      if (gridToUse === "offline") {
+        await app.auth.login("offline", user?.trim() || "Ruth Resident", pass || "offline", remember, startLoc);
+      } else if (gridToUse === "gemini") {
+        await app.auth.login("gemini", user?.trim() || "Ruth Resident", pass || "gemini", remember, startLoc);
+      } else {
+        const gridObj = allGrids().find((g) => g.key === gridToUse);
+        const endpoint = gridObj?.key.startsWith("custom-") ? gridObj.host : (gridObj?.key || "agni");
+        await app.auth.login(endpoint, user?.trim() || "", pass, remember, startLoc);
+      }
+      setScreen("Chat");
+      notify("Connected as " + app.auth.getUserDisplayName());
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Unable to connect to grid. Check your connection.");
+    } finally {
+      setLoginBusy(false);
+    }
+  }, [loginGrid, allGrids, notify]);
 
   // ---- login: add a custom grid ------------------------------------------
   // A resident can point the viewer at any OpenSim grid, not just the
