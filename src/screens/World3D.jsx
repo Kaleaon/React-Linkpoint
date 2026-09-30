@@ -36,7 +36,11 @@ export default function World3D({ desktopBackdrop = false }) {
     }
   };
 
-  return <section aria-label="3D world view" style={{ flex: 1, minHeight: 0, position: "relative", background: "#000" }}>
+  const sceneStyle = desktopBackdrop
+    ? { position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "hidden", background: "#000" }
+    : { flex: 1, minHeight: 0, position: "relative", background: "#000" };
+
+  return <section aria-label="3D world view" style={sceneStyle}>
     <canvas id="world-canvas" aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
     {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
