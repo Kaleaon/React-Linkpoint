@@ -56,7 +56,18 @@ export default function Chat() {
   }, [messages, activeTab, selectedContact]);
 
   // Friends and IM Threads for Contact Picker
-  const friends = useMemo(() => app.friends.getFriends(), [messages]);
+  const [friends, setFriends] = useState(() => app.friends.getFriends());
+  useEffect(() => {
+    const refreshFriends = () => setFriends(app.friends.getFriends());
+    app.friends.on("friend_added", refreshFriends);
+    app.friends.on("friend_updated", refreshFriends);
+    app.friends.on("friend_removed", refreshFriends);
+    return () => {
+      app.friends.off("friend_added", refreshFriends);
+      app.friends.off("friend_updated", refreshFriends);
+      app.friends.off("friend_removed", refreshFriends);
+    };
+  }, []);
   const imThreads = useMemo(() => app.chat.getIMThreads(), [messages]);
 
   // Filter messages based on activeTab

@@ -22,11 +22,17 @@ export function FriendsScreen() {
   useEffect(() => {
     const listener = () => setRevision((n) => n + 1);
     app.friends.addStatusListener(listener);
+    app.friends.on("friend_added", listener);
+    app.friends.on("friend_updated", listener);
+    app.friends.on("friend_removed", listener);
     app.protocol.on("friends_loaded", listener);
     app.protocol.on("friend_status", listener);
     void app.loadFriends();
     return () => {
       app.friends.removeStatusListener(listener);
+      app.friends.off("friend_added", listener);
+      app.friends.off("friend_updated", listener);
+      app.friends.off("friend_removed", listener);
       app.protocol.off("friends_loaded", listener);
       app.protocol.off("friend_status", listener);
     };

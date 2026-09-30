@@ -11,7 +11,7 @@ import { PALETTES } from "../theme/palettes.js";
 // Ported from `nvAll`/`nvList` — the 7-item navigation model shared by every
 // nav rendering (tabs/rail/tiles/sweep rail/console rail/desktop peek menu).
 export const NAV_ALL = [
-  { id: "Chat", label: "CHAT", tile: "chat", icon: "message-square", badge: 3 },
+  { id: "Chat", label: "CHAT", tile: "chat", icon: "message-square" },
   { id: "Friends", label: "FRIENDS", tile: "people", icon: "users" },
   { id: "Radar", label: "RADAR", tile: "radar", icon: "radar" },
   { id: "Map", label: "MAP", tile: "map", icon: "map" },

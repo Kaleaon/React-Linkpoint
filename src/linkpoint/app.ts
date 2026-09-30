@@ -95,18 +95,18 @@ export class LinkpointApp {
       this.friends.replaceFriends(friends.map((f) => ({
         id: f.id,
         name: f.name,
-        onlineStatus: f.onlineStatus,
+        onlineStatus: f.onlineStatus ?? f.online,
         permissions: {
-          canSeeOnline: f.rightsHas,
-          canSeeOnMap: f.rightsHas,
-          canModifyObjects: f.rightsGiven,
+          canSeeOnline: typeof f.rightsHasMask === 'number' ? Boolean(f.rightsHasMask & 1) : Boolean(f.rightsHas),
+          canSeeOnMap: typeof f.rightsHasMask === 'number' ? Boolean(f.rightsHasMask & 2) : Boolean(f.rightsHas),
+          canModifyObjects: typeof f.rightsGivenMask === 'number' ? Boolean(f.rightsGivenMask & 4) : Boolean(f.rightsGiven),
         }
       })));
     });
 
     this.protocol.on('friend_status', (data: any) => {
       if (data?.id) {
-        this.friends.updateFriendStatus(data.id, data.online ? 'online' : 'offline');
+        this.friends.updateFriendStatus(data.id, data.online ? 'online' : 'offline', data);
       }
     });
 
