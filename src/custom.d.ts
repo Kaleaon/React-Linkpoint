@@ -20,6 +20,9 @@ interface Window {
     }>;
     connectViewer(request: { loginUrl: string; username: string; password: string; start?: string }): Promise<Record<string, any>>;
     sendChat(request: { message: string; channel?: number; type?: number }): Promise<void>;
+    sendInstantMessage(request: { recipientId: string; message: string }): Promise<void>;
+    sendFriendRequest(request: { recipientId: string; message?: string }): Promise<void>;
+    fetchFriends(): Promise<any[]>;
     disconnectViewer(): Promise<void>;
     onViewerEvent(listener: (event: { type: string; data: any }) => void): () => void;
   };

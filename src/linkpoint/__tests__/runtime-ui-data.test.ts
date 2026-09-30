@@ -35,6 +35,24 @@ describe('runtime UI manager snapshots', () => {
     expect(objects.getObjects()[0]).toMatchObject({ id: 'object-id', primParams: { shape: 'sphere' } });
   });
 
+  it('emits friend list mutations and dispatches real friend requests', async () => {
+    const sendFriendRequest = vi.fn().mockResolvedValue(undefined);
+    const friends = new FriendsExtended({ sendFriendRequest });
+    const added = vi.fn();
+    const removed = vi.fn();
+    friends.on('friend_added', added);
+    friends.on('friend_removed', removed);
+
+    friends.replaceFriends([{ id: 'one', name: 'One Resident' }, { id: 'two', name: 'Two Resident' }]);
+    friends.replaceFriends([{ id: 'two', name: 'Two Renamed' }]);
+    await friends.sendFriendRequest('three', 'Hello');
+
+    expect(added).toHaveBeenCalledTimes(2);
+    expect(removed).toHaveBeenCalledWith(expect.objectContaining({ id: 'one' }));
+    expect(friends.getFriends()).toEqual([expect.objectContaining({ id: 'two', name: 'Two Renamed' })]);
+    expect(sendFriendRequest).toHaveBeenCalledWith('three', 'Hello');
+  });
+
   it('retains and clears live notifications', () => {
     const notifications = new NotificationsManager(new ProtocolStub() as any);
     notifications.handleNotification({ title: 'Grid notice', message: 'Live payload' });

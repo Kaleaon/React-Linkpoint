@@ -111,6 +111,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
         await window.linkpointDesktop.allowLoginEndpoint(loginUrl);
         this.removeNativeListener = window.linkpointDesktop.onViewerEvent(({ type, data }) => {
           if (type === 'chat') this.emit('ChatFromSimulator', data);
+          else if (type === 'im') this.emit('ChatFromSimulator', { ...data, chatType: 'im' });
+          else if (type === 'friend-status') this.emit('friend_status', data);
+          else if (type === 'friend-request') this.emit('friend_request', data);
+          else if (type === 'friend-remove') this.emit('friend_remove', data);
           else if (type === 'disconnected') {
             this.connected = false;
             this.emit('disconnected', data);
@@ -359,6 +363,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async sendInstantMessage(recipientId: string, message: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
+    if (window.linkpointDesktop?.sendInstantMessage) {
+      await window.linkpointDesktop.sendInstantMessage({ recipientId, message });
+      return;
+    }
     if (slBridge.connected) {
       await slBridge.sendInstantMessage(recipientId, message);
       return;
@@ -376,10 +384,22 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async sendFriendRequest(recipientId: string, message?: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
+    if (window.linkpointDesktop?.sendFriendRequest) {
+      await window.linkpointDesktop.sendFriendRequest({ recipientId, message });
+      return;
+    }
     if (slBridge.connected) {
       await slBridge.sendFriendRequest(recipientId, message);
       return;
     }
+    throw new Error('Friend requests are unavailable on this connection');
+  }
+
+  async fetchFriends() {
+    if (!this.connected) return [];
+    if (window.linkpointDesktop?.fetchFriends) return window.linkpointDesktop.fetchFriends();
+    if (slBridge.connected) return slBridge.fetchFriends();
+    return [];
   }
 
 

@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('linkpointDesktop', {
   request: (request) => ipcRenderer.invoke('linkpoint:request', request),
   connectViewer: (request) => ipcRenderer.invoke('linkpoint:viewer-connect', request),
   sendChat: (request) => ipcRenderer.invoke('linkpoint:viewer-chat', request),
+  sendInstantMessage: (request) => ipcRenderer.invoke('linkpoint:viewer-im', request),
+  sendFriendRequest: (request) => ipcRenderer.invoke('linkpoint:viewer-friend-request', request),
+  fetchFriends: () => ipcRenderer.invoke('linkpoint:viewer-friends'),
   disconnectViewer: () => ipcRenderer.invoke('linkpoint:viewer-disconnect'),
   onViewerEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);

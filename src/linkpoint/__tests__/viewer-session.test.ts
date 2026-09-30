@@ -2,9 +2,17 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { serializeEnvironment, serializeObject, serializeTerrain } = require('../../../electron/viewer-session.cjs');
+const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../electron/viewer-session.cjs');
 
 describe('desktop simulator object bridge', () => {
+  it('serializes native friends for the renderer process', () => {
+    expect(serializeFriend({
+      getKey: () => ({ toString: () => 'friend-id' }),
+      getName: () => 'Friend Resident', online: true, myRights: 1, theirRights: 0,
+    })).toEqual({
+      id: 'friend-id', name: 'Friend Resident', onlineStatus: 'online', rightsGiven: true, rightsHas: false,
+    });
+  });
   it('serializes region WindLight and terrain without leaking class instances', () => {
     const sky = { type: 'sky', blueHorizon: { toArray: () => [0.2, 0.4, 0.8] }, sunlightColor: [1, 0.9, 0.7] };
     const environment = serializeEnvironment({

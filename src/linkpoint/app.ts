@@ -65,7 +65,7 @@ export class LinkpointApp {
     this.inventoryTypes = new InventorySpecialTypes();
     this.chatExtended = new ChatExtended(this.protocol);
     this.groups = new GroupsManager(this.protocol);
-    this.friends = new FriendsExtended();
+    this.friends = new FriendsExtended(this.protocol);
   }
 
   async init() {
@@ -92,17 +92,16 @@ export class LinkpointApp {
   private setupEventListeners() {
     this.protocol.on('friends_loaded', (friends: any[]) => {
       console.log('Real friends loaded from Second Life:', friends.length);
-      for (const f of friends) {
-        this.friends.addFriend(f.id, {
-          name: f.name,
-          onlineStatus: f.onlineStatus,
-          permissions: {
-            canSeeOnline: f.rightsHas,
-            canSeeOnMap: f.rightsHas,
-            canModifyObjects: f.rightsGiven,
-          }
-        });
-      }
+      this.friends.replaceFriends(friends.map((f) => ({
+        id: f.id,
+        name: f.name,
+        onlineStatus: f.onlineStatus,
+        permissions: {
+          canSeeOnline: f.rightsHas,
+          canSeeOnMap: f.rightsHas,
+          canModifyObjects: f.rightsGiven,
+        }
+      })));
     });
 
     this.protocol.on('friend_status', (data: any) => {
@@ -121,6 +120,11 @@ export class LinkpointApp {
       });
     });
 
+    this.protocol.on('friend_remove', (data: any) => {
+      const id = data?.id || data?.friendId;
+      if (id) this.friends.removeFriend(String(id));
+    });
+
     this.auth.on('login_success', async (user: any) => {
       console.log('User logged in:', user);
       await this.inventory.load();
@@ -131,6 +135,7 @@ export class LinkpointApp {
     this.auth.on('logout', () => {
       console.log('User logged out');
       this.chat.clearHistory();
+      this.friends.clear();
     });
   }
 
@@ -155,20 +160,10 @@ export class LinkpointApp {
   async loadFriends() {
     if (!this.auth.isLoggedIn()) return [];
     try {
-      if (slBridge.connected) {
-        const friends = await slBridge.fetchFriends();
-        if (Array.isArray(friends) && friends.length > 0) {
-          for (const f of friends) {
-            this.friends.addFriend(f.id, {
-              name: f.name,
-              onlineStatus: f.onlineStatus,
-              permissions: {
-                canSeeOnline: f.rightsHas,
-                canSeeOnMap: f.rightsHas,
-                canModifyObjects: f.rightsGiven,
-              }
-            });
-          }
+      if (typeof this.protocol.fetchFriends === 'function') {
+        const friends = await this.protocol.fetchFriends();
+        if (Array.isArray(friends)) {
+          this.protocol.emit('friends_loaded', friends);
           return friends;
         }
       }

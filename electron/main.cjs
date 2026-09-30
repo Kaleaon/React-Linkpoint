@@ -80,6 +80,9 @@ ipcMain.handle('linkpoint:viewer-connect', async (event, request) => {
   return sessionFor(event).connect({ ...request, loginUrl: target.toString() });
 });
 ipcMain.handle('linkpoint:viewer-chat', (event, request) => sessionFor(event).sendChat(request.message, request.channel, request.type));
+ipcMain.handle('linkpoint:viewer-im', (event, request) => sessionFor(event).sendInstantMessage(request.recipientId, request.message));
+ipcMain.handle('linkpoint:viewer-friend-request', (event, request) => sessionFor(event).sendFriendRequest(request.recipientId, request.message));
+ipcMain.handle('linkpoint:viewer-friends', (event) => sessionFor(event).getFriends());
 ipcMain.handle('linkpoint:viewer-disconnect', async (event) => {
   const session = viewerSessions.get(event.sender.id);
   viewerSessions.delete(event.sender.id);
