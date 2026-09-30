@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
 
-export default function World3D() {
+export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -38,7 +38,7 @@ export default function World3D() {
 
   return <section aria-label="3D world view" style={{ flex: 1, minHeight: 0, position: "relative", background: "#000" }}>
     <canvas id="world-canvas" aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
-    <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
+    {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
       {dataStatus}<br />
@@ -56,15 +56,15 @@ export default function World3D() {
       </div>
       {!ready && !error ? <><br />Starting renderer…</> : null}
       {error ? <><br /><span style={{ color: V.err }}>{error}</span></> : null}
-    </output>
-    <div aria-label="Camera view" style={{ position: "absolute", right: 14, top: 14, display: "flex", gap: 4 }}>
+    </output>}
+    {!desktopBackdrop && <div aria-label="Camera view" style={{ position: "absolute", right: 14, top: 14, display: "flex", gap: 4 }}>
       {[['rear','REAR'], ['front','FRONT'], ['first-person','MOUSELOOK'], ['free','FREE']].map(([value, label]) => <button key={value} type="button" aria-pressed={cameraPreset === value} onClick={() => { app.world.setCameraPreset(value); setCameraPreset(value); refresh(); }} style={{ ...button, minWidth: 0, padding: "0 8px", background: cameraPreset === value ? V.pri : V.surf, color: cameraPreset === value ? V.onpri : V.pri, fontSize: 9 }}>{label}</button>)}
-    </div>
-    <div aria-label="Movement controls" style={{ position: "absolute", left: 14, bottom: 14, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 4 }}>
+    </div>}
+    {!desktopBackdrop && <div aria-label="Movement controls" style={{ position: "absolute", left: 14, bottom: 14, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 4 }}>
       <span /><button aria-label="Move forward" onClick={() => move(1, 0)} style={button}>↑</button><span />
       <button aria-label="Move left" onClick={() => move(0, -1)} style={button}>←</button><button aria-label="Move backward" onClick={() => move(-1, 0)} style={button}>↓</button><button aria-label="Move right" onClick={() => move(0, 1)} style={button}>→</button>
-    </div>
-    <div style={{ position: "absolute", right: 14, bottom: 14, display: "grid", gap: 5 }}><button aria-label="Move up" onClick={() => move(0, 0, 1)} style={button}>UP</button><button aria-label="Move down" onClick={() => move(0, 0, -1)} style={button}>DN</button></div>
+    </div>}
+    {!desktopBackdrop && <div style={{ position: "absolute", right: 14, bottom: 14, display: "grid", gap: 5 }}><button aria-label="Move up" onClick={() => move(0, 0, 1)} style={button}>UP</button><button aria-label="Move down" onClick={() => move(0, 0, -1)} style={button}>DN</button></div>}
   </section>;
 }
 

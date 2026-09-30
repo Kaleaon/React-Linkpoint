@@ -9,6 +9,7 @@ import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
 import DesktopChrome from "./DesktopChrome.jsx";
+import World3D from "../screens/World3D.jsx";
 
 const DESKTOP_TOP = 38;
 const DESKTOP_RAIL = 42;
@@ -32,11 +33,7 @@ export default function FloatersDesktop() {
     position: "absolute", inset: 0, overflow: "hidden", cursor: state.cDrag ? "grabbing" : "grab",
     background: "linear-gradient(180deg," + V.sky1 + " 0%," + V.sky2 + " 52%," + V.gnd + " 52%," + V.gnd2 + " 100%)",
   };
-  const flHorizon = {
-    position: "absolute", inset: "-20% -40%", transform: "translate(" + (-state.cHdg * 0.9).toFixed(1) + "px," + (state.cPitch * 0.8).toFixed(1) + "px)",
-    transition: state.cDrag ? "none" : "transform .35s ease-out", opacity: 0.45, backgroundImage: "repeating-linear-gradient(90deg," + V.outv + " 0 1px,transparent 1px 104px)",
-  };
-  const currentRegion = (app.world?.regionName || app.protocol?.authReply?.sim_name || "Arapaima").toUpperCase();
+  const currentRegion = (app.world?.region?.name || app.protocol?.authReply?.sim_name || "Arapaima").toUpperCase();
   const avatarPos = app.world?.avatarPosition || [128, 128, 25];
   const regionRead = `${currentRegion} · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])} · HDG ${String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0")}° ${state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL"}`;
 
@@ -62,14 +59,12 @@ export default function FloatersDesktop() {
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: V.bg }}>
       <div
-        onMouseDown={actions.sceneDown}
-        onMouseMove={actions.sceneMove}
-        onMouseUp={actions.sceneUp}
-        onMouseLeave={actions.sceneUp}
         onClick={() => state.menu && actions.setMenu(null)}
         style={flScene}
       >
-        <div style={flHorizon} />
+        {/* Desktop uses the same live WebGL scene and simulator object stream as
+            mobile. Floaters and desktop chrome remain layered above it. */}
+        <World3D desktopBackdrop />
         <div style={{ position: "absolute", left: "14px", bottom: "52px", display: "flex", alignItems: "center", height: "24px", padding: "0 11px", background: V.surf, color: V.ink2, font: "500 10px/1 " + t.font, letterSpacing: ".08em", borderLeft: "5px solid " + V.sec2 }}>
           {regionRead}
         </div>
