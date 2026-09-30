@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Reproducible Codex/bootstrap setup for Linkpoint's web and unit-test suite.
+# Standalone Codex/bootstrap setup for Linkpoint's web and unit-test suite.
 # Run from any directory inside the checkout. Pass --skip-check to install only.
 set -Eeuo pipefail
 
@@ -26,8 +26,12 @@ EOF
     ;;
 esac
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+if REPO_ROOT="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)"; then
+  : # A pasted Codex setup script starts with the checkout as its working tree.
+else
+  SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+  REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+fi
 cd "$REPO_ROOT"
 
 if ! command -v node >/dev/null 2>&1; then
@@ -41,26 +45,39 @@ if (( node_major < 22 )); then
   exit 1
 fi
 
-if ! command -v bun >/dev/null 2>&1; then
-  if ! command -v npm >/dev/null 2>&1; then
-    echo "npm is required to bootstrap Bun when Bun is not already installed." >&2
-    exit 1
-  fi
-  echo "Installing Bun ${BUN_VERSION}..."
-  npm install --global "bun@${BUN_VERSION}"
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is required to run the pinned Bun binary without a global install." >&2
+  exit 1
 fi
 
-installed_bun_version="$(bun --version)"
-if [[ "$installed_bun_version" != "$BUN_VERSION" ]]; then
-  printf 'Expected Bun %s (found %s); installing the pinned version...\n' \
-    "$BUN_VERSION" "$installed_bun_version"
-  npm install --global "bun@${BUN_VERSION}"
-fi
+# Do not install tools globally: Codex containers commonly use an unprivileged
+# account. npm exec downloads the exact Bun binary into npm's user cache and
+# works whether or not the image happens to have another Bun version installed.
+BUN=(npm exec --yes --package="bun@${BUN_VERSION}" -- bun)
 
 # Electron is not exercised by the browser/unit-test checks. Avoid downloading
 # its large runtime binary while still installing the package APIs and types.
 export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-bun install --frozen-lockfile
+"${BUN[@]}" install --frozen-lockfile --ignore-scripts
+
+# package.json normally applies this compatibility patch through postinstall.
+# Inline it here so this standalone bootstrap does not invoke that helper.
+node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const packetPath = path.join(
+  process.cwd(),
+  'node_modules/@caspertech/node-metaverse/dist/lib/classes/Packet.js',
+);
+if (fs.existsSync(packetPath)) {
+  const target = "console.error('WARNING: Finished reading ' + (0, MessageClasses_1.nameFromID)(messageID) + ' but we\\'re not at the end of the packet (' + pos + ' < ' + buf.length + ', seq ' + this.sequenceNumber + ')');";
+  const replacement = '// Second Life simulator packets frequently contain extra padding or newer unparsed fields; ignore gracefully';
+  const content = fs.readFileSync(packetPath, 'utf8');
+  if (content.includes(target)) {
+    fs.writeFileSync(packetPath, content.replace(target, replacement), 'utf8');
+  }
+}
+NODE
 
 if [[ ! -e .env.local ]]; then
   cp .env.example .env.local
@@ -68,7 +85,11 @@ if [[ ! -e .env.local ]]; then
 fi
 
 if [[ "$RUN_CHECKS" == true ]]; then
-  bun run check
+  # Keep this file standalone: invoke the installed tools directly instead of
+  # depending on package.json helper scripts or another repository script.
+  ./node_modules/.bin/tsc --noEmit
+  ./node_modules/.bin/vitest run
+  ./node_modules/.bin/vite build
 else
-  echo "Setup complete. Run 'bun run check' to validate the app."
+  echo "Setup complete. Re-run without --skip-check to validate the app."
 fi
