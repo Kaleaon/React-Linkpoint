@@ -27,6 +27,7 @@ export const FLOATERS = [
   { id:"Settings",    title:"Preferences",   icon:"settings",       x:290,  y:80,  w:540, h:470 },
   { id:"Cache",       title:"Cache",         icon:"hard-drive",     x:360,  y:120, w:460, h:420 },
   { id:"Diagnostics", title:"Statistics",    icon:"activity",       x:1056, y:462, w:346, h:196 },
+  { id:"Search",      title:"Search",        icon:"search",         x:390,  y:70,  w:520, h:440 },
   { id:"Offline Grid", title:"Offline Grid", icon:"server",         x:220,  y:60,  w:520, h:480 },
   { id:"Grid Console", title:"Grid Console", icon:"terminal",       x:180,  y:90,  w:560, h:450 },
 ];
