@@ -29,6 +29,51 @@ describe('desktop simulator object bridge', () => {
       scale: [4, 5, 6],
       rotation: [0, 0, 0, 1],
       name: 'Decoded prim',
+      shape: 'cube',
+      assetKind: null,
+      assetId: null,
+      textureId: null,
+      color: [1, 1, 1, 1],
+      shapeParams: {
+        pathCurve: undefined, profileCurve: undefined,
+        pathBegin: undefined, pathEnd: undefined,
+        pathScaleX: undefined, pathScaleY: undefined,
+        profileBegin: undefined, profileEnd: undefined,
+        profileHollow: undefined,
+      },
+    });
+    expect(() => structuredClone(result)).not.toThrow();
+  });
+
+  it('preserves UDP prim appearance and selects standard SL geometry', () => {
+    const result = serializeObject({
+      localID: 9,
+      object: {
+        FullID: { toString: () => 'sphere-id' }, PCode: 9,
+        PathCurve: 0x20, ProfileCurve: 0x05,
+        TextureEntry: { defaultTexture: { rgba: {
+          getRed: () => 0.1, getGreen: () => 0.2,
+          getBlue: () => 0.3, getAlpha: () => 0.4,
+        } } },
+      },
+    });
+
+    expect(result.shape).toBe('sphere');
+    expect(result.color).toEqual([0.1, 0.2, 0.3, 0.4]);
+    expect(result.shapeParams).toMatchObject({ pathCurve: 0x20, profileCurve: 0x05 });
+  });
+
+  it('keeps uploaded mesh identity and gives it a visible renderer proxy', () => {
+    const result = serializeObject({
+      localID: 10,
+      object: {
+        FullID: { toString: () => 'object-id' }, PCode: 9,
+        extraParams: { meshData: { meshData: { toString: () => 'mesh-asset-id' }, type: 5 } },
+      },
+    });
+
+    expect(result).toMatchObject({
+      shape: 'asset-proxy', assetKind: 'mesh', assetId: 'mesh-asset-id',
     });
     expect(() => structuredClone(result)).not.toThrow();
   });

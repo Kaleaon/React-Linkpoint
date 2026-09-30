@@ -68,6 +68,17 @@ export class Scene3D extends Utils.EventEmitter {
     // Cylinder
     const cylinder = Primitives3D.createCylinder(1, 1, 2, 32);
     this.graphics.createMesh('cylinder', cylinder.vertices, cylinder.indices, cylinder.normals, cylinder.texCoords);
+
+    const prism = Primitives3D.createPrism();
+    this.graphics.createMesh('prism', prism.vertices, prism.indices, prism.normals, prism.texCoords);
+
+    const torus = Primitives3D.createTorus();
+    this.graphics.createMesh('torus', torus.vertices, torus.indices, torus.normals, torus.texCoords);
+
+    // Until LLMesh/JP2 decoding is available in WebGL, uploaded mesh and sculpt
+    // assets get an unmistakable non-cube proxy rather than silently vanishing.
+    const assetProxy = Primitives3D.createTorus(0.28, 0.22, 16, 8);
+    this.graphics.createMesh('asset-proxy', assetProxy.vertices, assetProxy.indices, assetProxy.normals, assetProxy.texCoords);
   }
 
   /**
@@ -76,6 +87,16 @@ export class Scene3D extends Utils.EventEmitter {
   createGrid() {
     const grid = Primitives3D.createGrid(this.gridSize, this.gridDivisions);
     this.graphics.createMesh('grid', grid.vertices, grid.indices, grid.normals, grid.texCoords);
+  }
+
+  addAssetMesh(assetId: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }) {
+    const name = `asset:${assetId}`;
+    this.graphics.createMesh(name, geometry.vertices, geometry.indices, geometry.normals, geometry.texCoords);
+    return name;
+  }
+
+  addAssetTexture(assetId: string, width: number, height: number, rgba: Uint8Array) {
+    return this.graphics.createTexture(`texture:${assetId}`, width, height, rgba);
   }
 
   /**
@@ -205,7 +226,8 @@ export class Scene3D extends Utils.EventEmitter {
       uLightColor: new Float32Array(light.color),
       uAmbientColor: new Float32Array([0.2, 0.2, 0.2]),
       uColor: new Float32Array(object.color),
-      uUseTexture: false
+      uUseTexture: Boolean(object.texture),
+      uTextureName: object.texture,
     });
   }
 

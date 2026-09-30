@@ -207,6 +207,56 @@ export class Primitives3D {
     return { vertices, normals, texCoords, indices };
   }
 
+  /** Create a triangular prism used by straight-path SL triangle profiles. */
+  static createPrism() {
+    const vertices: number[] = [];
+    const normals: number[] = [];
+    const texCoords: number[] = [];
+    const indices: number[] = [];
+    const triangle = [[-0.5, -0.5], [0.5, -0.5], [0, 0.5]];
+    const addFace = (points: number[][], normal: number[]) => {
+      const base = vertices.length / 3;
+      points.forEach((point, index) => {
+        vertices.push(point[0], point[1], point[2]);
+        normals.push(...normal);
+        texCoords.push(index === 1 || index === 2 ? 1 : 0, index >= 2 ? 1 : 0);
+      });
+      if (points.length === 3) indices.push(base, base + 1, base + 2);
+      else indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    };
+    addFace(triangle.map(([x, y]) => [x, y, 0.5]), [0, 0, 1]);
+    addFace([...triangle].reverse().map(([x, y]) => [x, y, -0.5]), [0, 0, -1]);
+    for (let edge = 0; edge < 3; edge++) {
+      const a = triangle[edge];
+      const b = triangle[(edge + 1) % 3];
+      const nx = b[1] - a[1], ny = a[0] - b[0];
+      const length = Math.hypot(nx, ny) || 1;
+      addFace([[a[0], a[1], -0.5], [b[0], b[1], -0.5], [b[0], b[1], 0.5], [a[0], a[1], 0.5]], [nx / length, ny / length, 0]);
+    }
+    return { vertices, normals, texCoords, indices };
+  }
+
+  /** Create a torus used by curved-path SL prims and as a visible mesh proxy. */
+  static createTorus(majorRadius = 0.34, tubeRadius = 0.16, radialSegments = 24, tubularSegments = 12) {
+    const vertices: number[] = [], normals: number[] = [], texCoords: number[] = [], indices: number[] = [];
+    for (let radial = 0; radial <= radialSegments; radial++) {
+      const u = radial / radialSegments * Math.PI * 2;
+      for (let tubular = 0; tubular <= tubularSegments; tubular++) {
+        const v = tubular / tubularSegments * Math.PI * 2;
+        const cosU = Math.cos(u), sinU = Math.sin(u), cosV = Math.cos(v), sinV = Math.sin(v);
+        vertices.push((majorRadius + tubeRadius * cosV) * cosU, (majorRadius + tubeRadius * cosV) * sinU, tubeRadius * sinV);
+        normals.push(cosV * cosU, cosV * sinU, sinV);
+        texCoords.push(radial / radialSegments, tubular / tubularSegments);
+      }
+    }
+    const row = tubularSegments + 1;
+    for (let radial = 0; radial < radialSegments; radial++) for (let tubular = 0; tubular < tubularSegments; tubular++) {
+      const a = radial * row + tubular, b = (radial + 1) * row + tubular;
+      indices.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+    return { vertices, normals, texCoords, indices };
+  }
+
   /**
    * Create grid mesh
    */

@@ -286,6 +286,13 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Set uniforms
+    const texture = uniforms.uTextureName && this.textures.get(uniforms.uTextureName);
+    if (texture) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      const sampler = programInfo.uniforms.uTexture;
+      if (sampler) gl.uniform1i(sampler, 0);
+    }
     this.setUniforms(programInfo.uniforms, uniforms);
 
     // Draw
@@ -293,6 +300,25 @@ export class Graphics3D extends Utils.EventEmitter {
 
     this.drawCalls++;
     this.triangles += mesh.indexCount / 3;
+  }
+
+  createTexture(name: string, width: number, height: number, rgba: Uint8Array) {
+    const gl = this.gl!;
+    const existing = this.textures.get(name);
+    if (existing) gl.deleteTexture(existing);
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    const powerOfTwo = (value: number) => value > 0 && (value & (value - 1)) === 0;
+    const canMipmap = powerOfTwo(width) && powerOfTwo(height);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, canMipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+    if (canMipmap) gl.generateMipmap(gl.TEXTURE_2D);
+    this.textures.set(name, texture);
+    return name;
   }
 
   /**
