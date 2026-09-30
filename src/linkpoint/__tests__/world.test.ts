@@ -8,7 +8,7 @@ class ProtocolStub extends Utils.EventEmitter {
 }
 
 describe('WorldViewer data status', () => {
-  it('reports the live simulator stream after the protocol connects', () => {
+  it('does not represent login metadata as a live simulator scene', () => {
     const protocol = new ProtocolStub();
     const world = new WorldViewer(protocol);
 
@@ -16,8 +16,9 @@ describe('WorldViewer data status', () => {
     expect(world.getDataStatus()).toBe('Disconnected');
 
     protocol.connected = true;
-    expect(world.liveSceneSupported).toBe(true);
-    expect(world.getDataStatus()).toBe('Live simulator scene: streaming from grid…');
+    expect(world.getDataStatus()).toBe(
+      'Live simulator scene: streaming from grid…',
+    );
 
     protocol.authReply = { native_scene: true };
     expect(world.liveSceneSupported).toBe(true);

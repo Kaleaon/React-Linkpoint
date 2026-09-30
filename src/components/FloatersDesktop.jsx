@@ -8,10 +8,6 @@ import { REGIONS, buildCards } from "../data/content.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
-import DesktopChrome from "./DesktopChrome.jsx";
-
-const DESKTOP_TOP = 38;
-const DESKTOP_RAIL = 42;
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -112,8 +108,6 @@ export default function FloatersDesktop() {
         )}
       </div>
 
-      <DesktopChrome />
-
       {openFloaters.map((f) => {
         const r = actions.flR(f.id);
         const act = f.id === state.screen;
@@ -123,7 +117,7 @@ export default function FloatersDesktop() {
             key={f.id}
             onMouseDown={() => actions.flFocus(f.id)}
             style={{
-              position: "absolute", left: r.x + DESKTOP_RAIL + "px", top: r.y + DESKTOP_TOP + "px", width: r.w + "px", height: r.h + "px",
+              position: "absolute", left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px",
               zIndex: 10 + Math.max(0, state.flZ.indexOf(f.id)), display: "flex", flexDirection: "column", background: V.surf,
               border: (isSweepDesk ? "2px solid " : "1px solid ") + (act ? V.pri : V.outv), borderRadius: isSweepDesk ? "22px 22px 14px 14px" : V.rp, overflow: "hidden",
               boxShadow: act ? "0 18px 48px rgba(0,0,0,.65)" : "0 6px 18px rgba(0,0,0,.34)",
@@ -198,7 +192,7 @@ export default function FloatersDesktop() {
       {flFocused ? (
         <div
           style={{
-            position: "absolute", left: flFocused.x + DESKTOP_RAIL + "px", top: flFocused.y + DESKTOP_TOP + FBAR + "px", width: flFocused.w + "px", height: flFocused.h - FBAR + "px",
+            position: "absolute", left: flFocused.x + "px", top: flFocused.y + FBAR + "px", width: flFocused.w + "px", height: flFocused.h - FBAR + "px",
             display: "flex", minWidth: 0, overflow: "hidden", background: V.surf, borderWidth: "0 1px 1px", borderStyle: "solid", borderColor: V.pri,
             borderBottomLeftRadius: V.rp, borderBottomRightRadius: V.rp,
             boxSizing: "border-box", zIndex: 50,
