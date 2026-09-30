@@ -129,6 +129,16 @@ function serializeObject(event) {
   };
 }
 
+function serializeFriend(friend, rights = {}) {
+  return {
+    id: friend?.getKey?.()?.toString?.() || friend?.buddyID?.toString?.() || rights.id || null,
+    name: friend?.getName?.() || friend?.name || 'Friend',
+    onlineStatus: friend?.online ? 'online' : 'offline',
+    rightsGiven: Boolean(rights.rightsGiven ?? friend?.myRights),
+    rightsHas: Boolean(rights.rightsHas ?? friend?.theirRights),
+  };
+}
+
 class ViewerSession {
   constructor(send) {
     this.send = send;
@@ -229,6 +239,20 @@ class ViewerSession {
       chatType: event.chatType,
       position: vector(event.position),
     }));
+    this.subscribe(events.onInstantMessage, 'im', (event) => ({
+      fromId: event.from?.toString(), fromName: event.fromName || 'Resident',
+      message: event.message, dialog: event.dialog, timestamp: Date.now(),
+    }));
+    this.subscribe(events.onFriendOnline, 'friend-status', (event) => ({
+      id: event.friend?.getKey?.()?.toString?.(), online: Boolean(event.online),
+    }));
+    this.subscribe(events.onFriendRequest, 'friend-request', (event) => ({
+      fromId: event.from?.toString(), fromName: event.fromName,
+      requestId: event.requestID?.toString(), message: event.message,
+    }));
+    this.subscribe(events.onFriendRemoved, 'friend-remove', (event) => ({
+      id: event.friend?.getKey?.()?.toString?.(),
+    }));
     this.subscribe(events.onDisconnected, 'disconnected', (event) => ({ message: event.message || 'Disconnected' }));
 
     const reply = await this.bot.login();
@@ -262,6 +286,26 @@ class ViewerSession {
     else await communications.say(message, channel);
   }
 
+  async sendInstantMessage(recipientId, message) {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    await this.bot.clientCommands.comms.sendInstantMessage(recipientId, message);
+  }
+
+  async sendFriendRequest(recipientId, message = '') {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    await this.bot.clientCommands.friends.sendFriendRequest(recipientId, message);
+  }
+
+  getFriends() {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    return (this.bot.agent?.buddyList || []).map((buddy) => {
+      const friend = this.bot.clientCommands.friends.getFriend(buddy.buddyID);
+      return serializeFriend(friend || buddy, {
+        id: buddy.buddyID?.toString?.(), rightsGiven: buddy.buddyRightsGiven, rightsHas: buddy.buddyRightsHas,
+      });
+    });
+  }
+
   async close() {
     for (const subscription of this.subscriptions.splice(0)) subscription.unsubscribe();
     if (!this.bot) return;
@@ -272,4 +316,4 @@ class ViewerSession {
   }
 }
 
-module.exports = { ViewerSession, serializeObject, serializeEnvironment, serializeTerrain };
+module.exports = { ViewerSession, serializeObject, serializeEnvironment, serializeTerrain, serializeFriend };

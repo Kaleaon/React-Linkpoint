@@ -136,7 +136,7 @@ export class Scene3D extends Utils.EventEmitter {
     const sky = environment?.sky || environment?.currentSky || {};
     const color = sky.blueHorizon || sky.sunlightColor || [0.53, 0.81, 0.92];
     const normalized = color.slice(0, 3).map((value: number) => Math.max(0, Math.min(1, Number(value) || 0)));
-    this.graphics.gl?.clearColor(normalized[0], normalized[1], normalized[2], 1);
+    this.graphics.setClearColor([...normalized, 1]);
     if (this.lights[0] && sky.sunlightColor) this.lights[0].color = sky.sunlightColor.slice(0, 3);
   }
 
@@ -269,7 +269,23 @@ export class Scene3D extends Utils.EventEmitter {
       uLightColor: new Float32Array(light.color),
       uAmbientColor: new Float32Array([0.3, 0.3, 0.3]),
       uColor: new Float32Array([0.5, 0.5, 0.5, 0.3]),
-      uUseTexture: false
+      uUseTexture: false,
+      // Uniform values persist between WebGL draws. Reset every shader option
+      // used by objects so the grid/terrain cannot inherit the previous
+      // object's alpha mask, full-bright, or PBR material on the next frame.
+      uTexTransform: new Float32Array([1, 1, 0, 0]),
+      uTexRotation: 0,
+      uFullBright: false,
+      uCameraPos: new Float32Array(this.camera.position),
+      uMetallic: 0,
+      uRoughness: 1,
+      uEmissive: new Float32Array([0, 0, 0]),
+      uUseMetallicRoughnessTexture: false,
+      uUseNormalTexture: false,
+      uUseEmissiveTexture: false,
+      uAlphaMode: 0,
+      uAlphaCutoff: 0.5,
+      uDoubleSided: false,
     });
   }
 
@@ -366,7 +382,6 @@ export class Scene3D extends Utils.EventEmitter {
     const m1 = m[1], m2 = m[2];
     const m5 = m[5], m6 = m[6];
     const m9 = m[9], m10 = m[10];
-    const m13 = m[13], m14 = m[14];
     
     m[1] = m1 * c + m2 * s;
     m[2] = m2 * c - m1 * s;
@@ -374,8 +389,6 @@ export class Scene3D extends Utils.EventEmitter {
     m[6] = m6 * c - m5 * s;
     m[9] = m9 * c + m10 * s;
     m[10] = m10 * c - m9 * s;
-    m[13] = m13 * c + m14 * s;
-    m[14] = m14 * c - m13 * s;
   }
 
   private mat4RotateY(m: Float32Array, angle: number) {
@@ -384,7 +397,6 @@ export class Scene3D extends Utils.EventEmitter {
     const m0 = m[0], m2 = m[2];
     const m4 = m[4], m6 = m[6];
     const m8 = m[8], m10 = m[10];
-    const m12 = m[12], m14 = m[14];
     
     m[0] = m0 * c - m2 * s;
     m[2] = m0 * s + m2 * c;
@@ -392,8 +404,6 @@ export class Scene3D extends Utils.EventEmitter {
     m[6] = m4 * s + m6 * c;
     m[8] = m8 * c - m10 * s;
     m[10] = m8 * s + m10 * c;
-    m[12] = m12 * c - m14 * s;
-    m[14] = m12 * s + m14 * c;
   }
 
   private mat4RotateZ(m: Float32Array, angle: number) {
@@ -402,7 +412,6 @@ export class Scene3D extends Utils.EventEmitter {
     const m0 = m[0], m1 = m[1];
     const m4 = m[4], m5 = m[5];
     const m8 = m[8], m9 = m[9];
-    const m12 = m[12], m13 = m[13];
     
     m[0] = m0 * c + m1 * s;
     m[1] = m1 * c - m0 * s;
@@ -410,8 +419,6 @@ export class Scene3D extends Utils.EventEmitter {
     m[5] = m5 * c - m4 * s;
     m[8] = m8 * c + m9 * s;
     m[9] = m9 * c - m8 * s;
-    m[12] = m12 * c + m13 * s;
-    m[13] = m13 * c - m12 * s;
   }
 
   private mat4Scale(m: Float32Array, v: number[]) {
@@ -430,10 +437,22 @@ export class Scene3D extends Utils.EventEmitter {
   }
 
   private mat3FromMat4(m4: Float32Array): Float32Array {
+    // Normals transform by the inverse transpose. Using the model matrix
+    // directly visibly breaks lighting on the heavily non-uniform scales used
+    // by prims and avatar parts.
+    const a00 = m4[0], a01 = m4[1], a02 = m4[2];
+    const a10 = m4[4], a11 = m4[5], a12 = m4[6];
+    const a20 = m4[8], a21 = m4[9], a22 = m4[10];
+    const b01 = a22 * a11 - a12 * a21;
+    const b11 = -a22 * a10 + a12 * a20;
+    const b21 = a21 * a10 - a11 * a20;
+    const determinant = a00 * b01 + a01 * b11 + a02 * b21;
+    if (!determinant) return new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const inverse = 1 / determinant;
     return new Float32Array([
-      m4[0], m4[1], m4[2],
-      m4[4], m4[5], m4[6],
-      m4[8], m4[9], m4[10]
+      b01 * inverse, (-a22 * a01 + a02 * a21) * inverse, (a12 * a01 - a02 * a11) * inverse,
+      b11 * inverse, (a22 * a00 - a02 * a20) * inverse, (-a12 * a00 + a02 * a10) * inverse,
+      b21 * inverse, (-a21 * a00 + a01 * a20) * inverse, (a11 * a00 - a01 * a10) * inverse,
     ]);
   }
 }

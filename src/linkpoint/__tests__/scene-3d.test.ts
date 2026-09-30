@@ -1,0 +1,58 @@
+import { describe, expect, it, vi } from 'vitest';
+import { Scene3D } from '../scene-3d';
+
+function makeScene() {
+  const graphics = {
+    clear: vi.fn(),
+    drawMesh: vi.fn(),
+    setClearColor: vi.fn(),
+    createMesh: vi.fn(),
+    createRenderTarget: vi.fn(),
+    beginRenderTarget: vi.fn(() => false),
+    endRenderTarget: vi.fn(),
+  };
+  const camera = {
+    position: [10, 20, 30],
+    getViewMatrix: () => new Float32Array(16),
+    getProjectionMatrix: () => new Float32Array(16),
+  };
+  return { scene: new Scene3D(graphics as any, camera as any), graphics };
+}
+
+describe('Scene3D rendering state', () => {
+  it('keeps translations fixed when a prim is rotated', () => {
+    const { scene } = makeScene();
+    const matrix = (scene as any).calculateModelMatrix([12, 34, 56], [0.4, -0.7, 1.2], [2, 3, 4]);
+
+    expect(Array.from(matrix.slice(12, 15))).toEqual([12, 34, 56]);
+  });
+
+  it('uses inverse scale for the normal matrix', () => {
+    const { scene } = makeScene();
+    const model = (scene as any).calculateModelMatrix([0, 0, 0], [0, 0, 0], [2, 4, 8]);
+    const normal = (scene as any).mat3FromMat4(model);
+
+    expect(Array.from(normal)).toEqual([0.5, 0, 0, 0, 0.25, 0, 0, 0, 0.125]);
+  });
+
+  it('resets persistent material uniforms when drawing terrain', () => {
+    const { scene, graphics } = makeScene();
+    scene.renderGrid(new Float32Array(16), new Float32Array(16));
+
+    const uniforms = graphics.drawMesh.mock.calls[0][2];
+    expect(uniforms).toMatchObject({
+      uUseTexture: false,
+      uFullBright: false,
+      uUseNormalTexture: false,
+      uAlphaMode: 0,
+    });
+    expect(Array.from(uniforms.uTexTransform)).toEqual([1, 1, 0, 0]);
+  });
+
+  it('persists the environment sky color through the graphics clear path', () => {
+    const { scene, graphics } = makeScene();
+    scene.setEnvironment({ sky: { blueHorizon: [0.2, 0.4, 0.6] } });
+
+    expect(graphics.setClearColor).toHaveBeenCalledWith([0.2, 0.4, 0.6, 1]);
+  });
+});

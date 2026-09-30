@@ -37,6 +37,21 @@ describe('ChatManager', () => {
     expect(manager.messages).toHaveLength(0);
   });
 
+  it('sends instant messages to the selected resident UUID', async () => {
+    const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
+    const manager = new ChatManager(
+      { sendInstantMessage },
+      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+    );
+
+    await manager.sendInstantMessage('friend-id', 'private hello', 'Friend Resident');
+
+    expect(sendInstantMessage).toHaveBeenCalledWith('friend-id', 'private hello');
+    expect(manager.getIMMessages('friend-id')).toEqual([
+      expect.objectContaining({ recipientId: 'friend-id', recipientName: 'Friend Resident', text: 'private hello' }),
+    ]);
+  });
+
   it('allows users to configure away status and set custom away message', () => {
     const manager = new ChatManager({}, { isLoggedIn: () => true });
     expect(manager.isAutoReplyEnabled()).toBe(false);

@@ -11,6 +11,7 @@ export class Graphics3D extends Utils.EventEmitter {
   private meshes: Map<string, any> = new Map();
   private textures: Map<string, any> = new Map();
   private renderTargets: Map<string, { framebuffer: WebGLFramebuffer; depth: WebGLRenderbuffer; width: number; height: number }> = new Map();
+  private clearColor: [number, number, number, number] = [0.53, 0.81, 0.92, 1];
   
   // Rendering state
   public drawCalls: number = 0;
@@ -77,7 +78,7 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.frontFace(gl.CCW);
     gl.depthFunc(gl.LEQUAL);
     // Lighter sky color for better visibility
-    gl.clearColor(0.53, 0.81, 0.92, 1.0); // Light blue sky color
+    gl.clearColor(...this.clearColor);
 
     // Create default shaders
     await this.createDefaultShaders();
@@ -491,9 +492,20 @@ export class Graphics3D extends Utils.EventEmitter {
   /**
    * Clear buffers
    */
-  clear(color: number[] = [0.05, 0.05, 0.1, 1.0]) {
+  setClearColor(color: number[]) {
+    this.clearColor = [
+      Math.max(0, Math.min(1, Number(color[0]) || 0)),
+      Math.max(0, Math.min(1, Number(color[1]) || 0)),
+      Math.max(0, Math.min(1, Number(color[2]) || 0)),
+      Math.max(0, Math.min(1, Number(color[3]) || 0)),
+    ];
+    this.gl?.clearColor(...this.clearColor);
+  }
+
+  clear(color?: number[]) {
     const gl = this.gl!;
-    gl.clearColor(color[0], color[1], color[2], color[3]);
+    if (color) this.setClearColor(color);
+    gl.clearColor(...this.clearColor);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
     this.drawCalls = 0;
