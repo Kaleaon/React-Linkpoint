@@ -11,8 +11,9 @@ import { createRequire } from 'node:module';
 import { v4 as uuidv4 } from 'uuid';
 
 const require = createRequire(import.meta.url);
-const { decodeLLMesh, decodeSculpt, decodeJPEG2000 } = require('../../electron/sl-asset-decoder.cjs') as {
+const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('../../electron/sl-asset-decoder.cjs') as {
   decodeLLMesh: (buffer: Buffer) => Promise<any>;
+  decodeGLTFMaterial: (buffer: Buffer) => any;
   decodeSculpt: (buffer: Buffer, type?: number) => Promise<any>;
   decodeJPEG2000: (buffer: Buffer) => Promise<any>;
 };
@@ -63,6 +64,8 @@ function primAppearance(object: any) {
   const rgba = object.TextureEntry?.defaultTexture?.rgba;
   const meshData = object.MeshData || object.extraParams?.meshData;
   const sculptData = object.SculptData || object.extraParams?.sculptData;
+  const renderMaterials = object.RenderMaterialData || object.extraParams?.renderMaterialData;
+  const reflection = object.ReflectionProbeData || object.extraParams?.reflectionProbeData;
   const asset = meshData?.meshData || sculptData?.texture;
   const rawTextureId = object.TextureEntry?.defaultTexture?.textureID?.toString?.() || null;
   const textureId = rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
@@ -70,6 +73,29 @@ function primAppearance(object: any) {
     const value = typeof rgba?.[method] === 'function' ? rgba[method]() : rgba?.[property];
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   };
+  const faceCount = Math.max(1, object.TextureEntry?.faces?.length || 0);
+  const faceTextures = Array.from({ length: faceCount }, (_, faceIndex) => {
+    const face = object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) || object.TextureEntry?.faces?.[faceIndex] || object.TextureEntry?.defaultTexture;
+    const faceRgba = face?.rgba;
+    const channel = (method: string, property: string, fallback: number) => {
+      const value = typeof faceRgba?.[method] === 'function' ? faceRgba[method]() : faceRgba?.[property];
+      return Number.isFinite(Number(value)) ? Number(value) : fallback;
+    };
+    const id = face?.textureID?.toString?.();
+    const materialParam = renderMaterials?.params?.find((param: any) => Number(param.textureIndex) === faceIndex);
+    const materialId = materialParam?.textureUUID?.toString?.() || null;
+    const override = object.TextureEntry?.gltfMaterialOverrides?.get?.(faceIndex) || null;
+    return {
+      textureId: id && id !== '00000000-0000-0000-0000-000000000000' ? id : null,
+      color: [channel('getRed', 'red', 1), channel('getGreen', 'green', 1), channel('getBlue', 'blue', 1), channel('getAlpha', 'alpha', 1)],
+      repeat: [finite(face?.repeatU, 1), finite(face?.repeatV, 1)],
+      offset: [finite(face?.offsetU), finite(face?.offsetV)],
+      rotation: finite(face?.rotation),
+      fullBright: Boolean(face?.fullBright),
+      materialId,
+      materialOverride: override ? JSON.parse(JSON.stringify(override)) : null,
+    };
+  });
   return {
     // SL's standard sphere is a half-circle profile swept around a circle;
     // straight circular profiles are cylinders. Unsupported parametric shapes
@@ -78,6 +104,11 @@ function primAppearance(object: any) {
     assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
     assetId: asset?.toString?.() || null,
     textureId,
+    faceTextures,
+    reflectionProbe: reflection ? {
+      ambiance: finite(reflection.ambiance), clipDistance: finite(reflection.clipDistance), flags: finite(reflection.flags),
+      box: Boolean(reflection.flags & 0x01), dynamic: Boolean(reflection.flags & 0x02), mirror: Boolean(reflection.flags & 0x04),
+    } : null,
     color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
     shapeParams: {
       pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,
@@ -170,16 +201,48 @@ export async function createSLSession(params: {
 
   const loadObjectTexture = (object: any) => {
     const appearance = primAppearance(object);
-    const assetId = appearance.textureId;
-    if (!assetId || sessionData.assetRequests.has(`texture:${assetId}`)) return;
-    const request = (async () => {
-      const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
-      const texture = await decodeJPEG2000(buffer);
-      const payload = { assetId, ...texture };
-      sessionData.decodedAssets.set(`texture:${assetId}`, { type: 'texture-ready', data: payload });
-      broadcastEvent('texture-ready', payload);
-    })().catch((error: Error) => broadcastEvent('asset-error', { assetId, message: error.message }));
-    sessionData.assetRequests.set(`texture:${assetId}`, request);
+    const assetIds = new Set([appearance.textureId, ...appearance.faceTextures.map((face: any) => face.textureId)].filter(Boolean));
+    for (const assetId of assetIds) {
+      if (sessionData.assetRequests.has(`texture:${assetId}`)) continue;
+      const request = (async () => {
+        const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId!);
+        const texture = await decodeJPEG2000(buffer);
+        const payload = { assetId, ...texture };
+        sessionData.decodedAssets.set(`texture:${assetId}`, { type: 'texture-ready', data: payload });
+        broadcastEvent('texture-ready', payload);
+      })().catch((error: Error) => broadcastEvent('asset-error', { assetId, message: error.message }));
+      sessionData.assetRequests.set(`texture:${assetId}`, request);
+    }
+  };
+
+  const loadObjectMaterials = (object: any) => {
+    const appearance = primAppearance(object);
+    const materialIds = new Set(appearance.faceTextures.map((face: any) => face.materialId).filter(Boolean));
+    for (const assetId of materialIds) {
+      const key = `material:${assetId}`;
+      if (sessionData.assetRequests.has(key)) continue;
+      const request = (async () => {
+        const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Material, assetId as string);
+        const material = decodeGLTFMaterial(buffer);
+        const payload = { assetId, material };
+        sessionData.decodedAssets.set(key, { type: 'material-ready', data: payload });
+        broadcastEvent('material-ready', payload);
+        for (const texture of Object.values(material.textures || {}) as any[]) {
+          const textureId = texture?.textureId;
+          const textureKey = `texture:${textureId}`;
+          if (!textureId || sessionData.assetRequests.has(textureKey)) continue;
+          const textureRequest = (async () => {
+            const image = await bot.clientCommands.asset.downloadAsset(AssetType.Texture, textureId);
+            const decoded = await decodeJPEG2000(image);
+            const texturePayload = { assetId: textureId, ...decoded };
+            sessionData.decodedAssets.set(textureKey, { type: 'texture-ready', data: texturePayload });
+            broadcastEvent('texture-ready', texturePayload);
+          })().catch((error: Error) => broadcastEvent('asset-error', { assetId: textureId, message: error.message }));
+          sessionData.assetRequests.set(textureKey, textureRequest);
+        }
+      })().catch((error: Error) => broadcastEvent('asset-error', { assetId, message: error.message }));
+      sessionData.assetRequests.set(key, request);
+    }
   };
 
   // Real Second Life nearby chat
@@ -218,6 +281,7 @@ export async function createSLSession(params: {
       broadcastEvent('object-add', serializeObject(event));
       loadObjectAsset(event.object);
       loadObjectTexture(event.object);
+      loadObjectMaterials(event.object);
     })
   );
   sessionData.subscriptions.push(
@@ -225,6 +289,7 @@ export async function createSLSession(params: {
       broadcastEvent('object-update', serializeObject(event));
       loadObjectAsset(event.object);
       loadObjectTexture(event.object);
+      loadObjectMaterials(event.object);
     })
   );
   sessionData.subscriptions.push(

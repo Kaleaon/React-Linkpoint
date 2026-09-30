@@ -7,6 +7,7 @@ import { Graphics3D } from './graphics-3d';
 import { Camera3D } from './camera-3d';
 import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
+import { CameraControls } from './camera-controls';
 
 export class WorldViewer extends Utils.EventEmitter {
   /**
@@ -21,6 +22,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public camera3d: Camera3D | null = null;
   public scene3d: Scene3D | null = null;
   private animationId: number | null = null;
+  private cameraControls: CameraControls | null = null;
   private resizeAttached = false;
   private readonly handleResize = () => this.resizeCanvas();
   public use3D: boolean = true;
@@ -33,6 +35,7 @@ export class WorldViewer extends Utils.EventEmitter {
   private localObjectIds = new Map<number, string>();
   private decodedAssets = new Map<string, any>();
   private decodedTextures = new Map<string, any>();
+  private decodedMaterials = new Map<string, any>();
 
   public getDataStatus() {
     if (!this.protocol.connected) return 'Disconnected';
@@ -90,15 +93,16 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:object-remove', (object: any) => this.removeSceneObject(object));
     this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
     this.protocol.on('scene:texture-ready', (asset: any) => this.applyTexture(asset));
+    this.protocol.on('scene:material-ready', (asset: any) => this.applyMaterial(asset));
   }
 
   private applyAsset(asset: any) {
     if (!asset?.assetId || !asset.geometry) return;
     this.decodedAssets.set(asset.assetId, asset.geometry);
-    const mesh = this.scene3d?.addAssetMesh(asset.assetId, asset.geometry);
+    const meshes = this.scene3d?.addAssetMesh(asset.assetId, asset.geometry);
     for (const object of this.sceneObjects.values()) {
       if (object.assetId !== asset.assetId) continue;
-      object.decodedMesh = mesh || `asset:${asset.assetId}`;
+      object.decodedMeshes = meshes || asset.geometry.parts?.map((part: any, index: number) => ({ mesh: `asset:${asset.assetId}:${index}`, materialIndex: part.materialIndex ?? index }));
       this.applySceneObject(object);
     }
   }
@@ -111,10 +115,56 @@ export class WorldViewer extends Utils.EventEmitter {
     const rgba = Uint8Array.from(binary, character => character.charCodeAt(0));
     const texture = this.scene3d.addAssetTexture(asset.assetId, asset.width, asset.height, rgba);
     for (const object of this.sceneObjects.values()) {
-      if (object.textureId !== asset.assetId) continue;
-      object.decodedTexture = texture;
+      const usedByFace = object.faceTextures?.some((face: any) => face.textureId === asset.assetId || this.materialTextureIds(face.materialId).includes(asset.assetId));
+      if (object.textureId !== asset.assetId && !usedByFace) continue;
+      if (object.textureId === asset.assetId) object.decodedTexture = texture;
+      object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
       this.applySceneObject(object);
     }
+  }
+
+  private materialTextureIds(materialId: string | null) {
+    const material = materialId && this.decodedMaterials.get(materialId);
+    return material ? Object.values(material.textures || {}).map((texture: any) => texture?.textureId).filter(Boolean) : [];
+  }
+
+  private applyMaterial(asset: any) {
+    if (!asset?.assetId || !asset.material) return;
+    this.decodedMaterials.set(asset.assetId, asset.material);
+    for (const object of this.sceneObjects.values()) {
+      if (!object.faceTextures?.some((face: any) => face.materialId === asset.assetId)) continue;
+      this.applySceneObject(object);
+    }
+  }
+
+  private resolveFace(face: any) {
+    const base = face.materialId && this.decodedMaterials.get(face.materialId);
+    if (!base) return { ...face, texture: this.decodedTextures.has(face.textureId) ? `texture:${face.textureId}` : undefined };
+    const override = face.materialOverride || {};
+    const overrideTextures = override.textures || [];
+    const baseTransform = override.textureTransforms?.[0] || base.textures?.baseColor || {};
+    const texture = (role: string, index: number) => {
+      const textureId = overrideTextures[index] || base.textures?.[role]?.textureId;
+      return textureId && this.decodedTextures.has(textureId) ? `texture:${textureId}` : undefined;
+    };
+    return {
+      ...face,
+      color: override.baseColor || base.baseColor || face.color,
+      repeat: baseTransform.scale || face.repeat,
+      offset: baseTransform.offset || face.offset,
+      rotation: baseTransform.rotation ?? face.rotation,
+      pbr: {
+        metallic: override.metallicFactor ?? base.metallic,
+        roughness: override.roughnessFactor ?? base.roughness,
+        emissive: override.emissiveFactor || base.emissive,
+        alphaMode: override.alphaMode ?? base.alphaMode,
+        alphaCutoff: override.alphaCutoff ?? base.alphaCutoff,
+        doubleSided: override.doubleSided ?? base.doubleSided,
+        baseColorTexture: texture('baseColor', 0), normalTexture: texture('normal', 1),
+        metallicRoughnessTexture: texture('metallicRoughness', 2), emissiveTexture: texture('emissive', 3),
+      },
+      texture: texture('baseColor', 0),
+    };
   }
 
   public async loadScene() {
@@ -153,6 +203,11 @@ export class WorldViewer extends Utils.EventEmitter {
       this.camera3d.setRotation(-0.3, -Math.PI / 2, 0);
       this.camera3d.setMode('orbit');
       this.camera3d.setOrbitTarget(128, 128, 25);
+      this.camera3d.setPreset('rear');
+      this.cameraControls = new CameraControls(this.canvas, this.camera3d, () => {
+        this.updateLocationDisplay();
+        this.emit('camera_changed', this.getCameraState());
+      });
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
@@ -205,6 +260,8 @@ export class WorldViewer extends Utils.EventEmitter {
     this.stopRendering();
     if (this.resizeAttached) window.removeEventListener('resize', this.handleResize);
     this.resizeAttached = false;
+    this.cameraControls?.destroy();
+    this.cameraControls = null;
     this.graphics3d?.destroy();
     this.graphics3d = null;
     this.camera3d = null;
@@ -227,6 +284,16 @@ export class WorldViewer extends Utils.EventEmitter {
       this.camera3d.move(dy, dx, dz);
       this.updateLocationDisplay();
     }
+  }
+
+  public setCameraPreset(preset: 'rear' | 'front' | 'first-person' | 'free') {
+    this.camera3d?.setPreset(preset);
+    this.updateLocationDisplay();
+    this.emit('camera_changed', this.getCameraState());
+  }
+
+  public getCameraState() {
+    return this.camera3d ? { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode } : null;
   }
 
   private quaternionToEuler([x, y, z, w]: number[]) {
@@ -307,16 +374,33 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!this.scene3d) return;
     const { position, rotation } = this.worldTransform(object);
     const scale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
+    object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
     const config = {
-      mesh: object.decodedMesh || (object.avatar ? 'sphere' : ['cube', 'cylinder', 'sphere', 'prism', 'torus', 'asset-proxy'].includes(object.shape) ? object.shape : 'cube'),
+      mesh: object.avatar ? 'sphere' : ['cube', 'cylinder', 'sphere', 'prism', 'torus', 'asset-proxy'].includes(object.shape) ? object.shape : 'cube',
+      meshes: object.decodedMeshes,
       position,
       rotation: this.quaternionToEuler(rotation),
       scale,
       color: object.avatar ? [0.3, 0.65, 1, 1] : object.color || [0.8, 0.8, 0.8, 1],
       texture: object.decodedTexture,
+      faces: object.decodedFaceTextures,
+      reflectionProbe: object.reflectionProbe,
     };
     if (this.scene3d.objects.has(object.id)) this.scene3d.updateObject(object.id, config);
     else this.scene3d.addObject(object.id, config);
+    if (object.avatar) this.applyAvatarParts(object.id, config);
+  }
+
+  private applyAvatarParts(id: string, config: any) {
+    if (!this.scene3d) return;
+    const [x, y, z] = config.position;
+    const parts = [
+      [`${id}:body`, { ...config, mesh: 'cylinder', position: [x, y, z + .95], scale: [.42, .3, .85] }],
+      [`${id}:head`, { ...config, mesh: 'sphere', position: [x, y, z + 2.05], scale: [.38, .38, .42], color: [.82, .62, .48, 1] }],
+      [`${id}:legs`, { ...config, mesh: 'cylinder', position: [x, y, z + .15], scale: [.32, .25, .75], color: [.16, .24, .38, 1] }],
+    ] as const;
+    for (const [partId, part] of parts) this.scene3d.objects.has(partId) ? this.scene3d.updateObject(partId, part) : this.scene3d.addObject(partId, part);
+    this.scene3d.updateObject(id, { visible: false });
   }
 
   private removeSceneObject(object: any) {
@@ -327,6 +411,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.sceneObjects.delete(id);
     this.localObjectIds.delete(object.localId);
     this.scene3d?.removeObject(id);
+    for (const suffix of [':body', ':head', ':legs']) this.scene3d?.removeObject(`${id}${suffix}`);
     this.objects = Array.from(this.sceneObjects.values());
     this.emit('objects_changed', this.objects);
   }

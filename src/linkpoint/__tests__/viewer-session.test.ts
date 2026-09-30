@@ -33,6 +33,17 @@ describe('desktop simulator object bridge', () => {
       assetKind: null,
       assetId: null,
       textureId: null,
+      faceTextures: [{
+        textureId: null,
+        color: [1, 1, 1, 1],
+        repeat: [1, 1],
+        offset: [0, 0],
+        rotation: 0,
+        fullBright: false,
+        materialId: null,
+        materialOverride: null,
+      }],
+      reflectionProbe: null,
       color: [1, 1, 1, 1],
       shapeParams: {
         pathCurve: undefined, profileCurve: undefined,
@@ -76,5 +87,42 @@ describe('desktop simulator object bridge', () => {
       shape: 'asset-proxy', assetKind: 'mesh', assetId: 'mesh-asset-id',
     });
     expect(() => structuredClone(result)).not.toThrow();
+  });
+
+  it('preserves per-material texture entries received with UDP object updates', () => {
+    const texture = (id: string, red: number) => ({
+      textureID: { toString: () => id }, rgba: { getRed: () => red, getGreen: () => .2, getBlue: () => .3, getAlpha: () => 1 },
+      repeatU: 2, repeatV: 3, offsetU: .1, offsetV: .2, rotation: .5, fullBright: true,
+    });
+    const faces = [texture('face-zero', .4), texture('face-one', .8)];
+    const result = serializeObject({
+      localID: 11,
+      object: {
+        FullID: { toString: () => 'multi-material-mesh' }, PCode: 9,
+        TextureEntry: { faces, defaultTexture: faces[0], getEffectiveEntryForFace: (index: number) => faces[index] },
+      },
+    });
+
+    expect(result.faceTextures).toEqual([
+      expect.objectContaining({ textureId: 'face-zero', color: [.4, .2, .3, 1], repeat: [2, 3] }),
+      expect.objectContaining({ textureId: 'face-one', color: [.8, .2, .3, 1], offset: [.1, .2], rotation: .5, fullBright: true }),
+    ]);
+  });
+
+  it('identifies modern PBR materials and mirror reflection probes from UDP extra params', () => {
+    const result = serializeObject({
+      localID: 12,
+      object: {
+        FullID: { toString: () => 'mirror-id' }, PCode: 9,
+        extraParams: {
+          renderMaterialData: { params: [{ textureIndex: 0, textureUUID: { toString: () => 'material-id' } }] },
+          reflectionProbeData: { ambiance: .75, clipDistance: .1, flags: 0x07 },
+        },
+        TextureEntry: { faces: [{}], getEffectiveEntryForFace: () => ({}) },
+      },
+    });
+
+    expect(result.faceTextures[0].materialId).toBe('material-id');
+    expect(result.reflectionProbe).toMatchObject({ ambiance: .75, clipDistance: .1, box: true, dynamic: true, mirror: true });
   });
 });

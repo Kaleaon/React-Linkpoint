@@ -5,7 +5,7 @@ const {
   PCode,
   AssetType,
 } = require('@caspertech/node-metaverse');
-const { decodeLLMesh, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
+const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -21,6 +21,8 @@ function primAppearance(object) {
   const rgba = object.TextureEntry?.defaultTexture?.rgba;
   const meshData = object.MeshData || object.extraParams?.meshData;
   const sculptData = object.SculptData || object.extraParams?.sculptData;
+  const renderMaterials = object.RenderMaterialData || object.extraParams?.renderMaterialData;
+  const reflection = object.ReflectionProbeData || object.extraParams?.reflectionProbeData;
   const asset = meshData?.meshData || sculptData?.texture;
   const rawTextureId = object.TextureEntry?.defaultTexture?.textureID?.toString?.() || null;
   const textureId = rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
@@ -28,11 +30,36 @@ function primAppearance(object) {
     const value = typeof rgba?.[method] === 'function' ? rgba[method]() : rgba?.[property];
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   };
+  const faceCount = Math.max(1, object.TextureEntry?.faces?.length || 0);
+  const faceTextures = Array.from({ length: faceCount }, (_, faceIndex) => {
+    const face = object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) || object.TextureEntry?.faces?.[faceIndex] || object.TextureEntry?.defaultTexture;
+    const faceRgba = face?.rgba;
+    const channel = (method, property, fallback) => {
+      const value = typeof faceRgba?.[method] === 'function' ? faceRgba[method]() : faceRgba?.[property];
+      return Number.isFinite(Number(value)) ? Number(value) : fallback;
+    };
+    const id = face?.textureID?.toString?.();
+    const materialParam = renderMaterials?.params?.find((param) => Number(param.textureIndex) === faceIndex);
+    const override = object.TextureEntry?.gltfMaterialOverrides?.get?.(faceIndex) || null;
+    return {
+      textureId: id && id !== '00000000-0000-0000-0000-000000000000' ? id : null,
+      color: [channel('getRed', 'red', 1), channel('getGreen', 'green', 1), channel('getBlue', 'blue', 1), channel('getAlpha', 'alpha', 1)],
+      repeat: [finite(face?.repeatU, 1), finite(face?.repeatV, 1)],
+      offset: [finite(face?.offsetU), finite(face?.offsetV)], rotation: finite(face?.rotation), fullBright: Boolean(face?.fullBright),
+      materialId: materialParam?.textureUUID?.toString?.() || null,
+      materialOverride: override ? JSON.parse(JSON.stringify(override)) : null,
+    };
+  });
   return {
     shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
     assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
     assetId: asset?.toString?.() || null,
     textureId,
+    faceTextures,
+    reflectionProbe: reflection ? {
+      ambiance: finite(reflection.ambiance), clipDistance: finite(reflection.clipDistance), flags: finite(reflection.flags),
+      box: Boolean(reflection.flags & 1), dynamic: Boolean(reflection.flags & 2), mirror: Boolean(reflection.flags & 4),
+    } : null,
     color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
     shapeParams: {
       pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,
@@ -84,20 +111,49 @@ class ViewerSession {
   }
 
   loadObjectTexture(object) {
-    const assetId = primAppearance(object).textureId;
-    const key = `texture:${assetId}`;
-    if (!assetId || this.assetRequests.has(key)) return;
-    const request = (async () => {
-      const buffer = await this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
-      this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
-    })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
-    this.assetRequests.set(key, request);
+    const appearance = primAppearance(object);
+    const assetIds = new Set([appearance.textureId, ...appearance.faceTextures.map((face) => face.textureId)].filter(Boolean));
+    for (const assetId of assetIds) {
+      const key = `texture:${assetId}`;
+      if (this.assetRequests.has(key)) continue;
+      const request = (async () => {
+        const buffer = await this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+        this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
+      })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
+      this.assetRequests.set(key, request);
+    }
+  }
+
+  loadObjectMaterials(object) {
+    const appearance = primAppearance(object);
+    const ids = new Set(appearance.faceTextures.map((face) => face.materialId).filter(Boolean));
+    for (const assetId of ids) {
+      const key = `material:${assetId}`;
+      if (this.assetRequests.has(key)) continue;
+      const request = (async () => {
+        const buffer = await this.bot.clientCommands.asset.downloadAsset(AssetType.Material, assetId);
+        const material = decodeGLTFMaterial(buffer);
+        this.send('material-ready', { assetId, material });
+        for (const texture of Object.values(material.textures || {})) {
+          const textureId = texture?.textureId;
+          const textureKey = `texture:${textureId}`;
+          if (!textureId || this.assetRequests.has(textureKey)) continue;
+          const textureRequest = this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, textureId)
+            .then((image) => decodeJPEG2000(image))
+            .then((decoded) => this.send('texture-ready', { assetId: textureId, ...decoded }))
+            .catch((error) => this.send('asset-error', { assetId: textureId, message: error.message }));
+          this.assetRequests.set(textureKey, textureRequest);
+        }
+      })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
+      this.assetRequests.set(key, request);
+    }
   }
 
   streamObject(type, event) {
     this.send(type, serializeObject(event));
     this.loadObjectAsset(event.object);
     this.loadObjectTexture(event.object);
+    this.loadObjectMaterials(event.object);
   }
 
   subscribe(subject, type, serialize = (value) => value) {

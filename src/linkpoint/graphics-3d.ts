@@ -10,6 +10,7 @@ export class Graphics3D extends Utils.EventEmitter {
   private programs: Map<string, any> = new Map();
   private meshes: Map<string, any> = new Map();
   private textures: Map<string, any> = new Map();
+  private renderTargets: Map<string, { framebuffer: WebGLFramebuffer; depth: WebGLRenderbuffer; width: number; height: number }> = new Map();
   
   // Rendering state
   public drawCalls: number = 0;
@@ -123,9 +124,25 @@ export class Graphics3D extends Utils.EventEmitter {
         uniform vec4 uColor;
         uniform sampler2D uTexture;
         uniform bool uUseTexture;
+        uniform vec4 uTexTransform;
+        uniform float uTexRotation;
+        uniform bool uFullBright;
+        uniform vec3 uCameraPos;
+        uniform float uMetallic;
+        uniform float uRoughness;
+        uniform vec3 uEmissive;
+        uniform sampler2D uMetallicRoughnessTexture;
+        uniform sampler2D uNormalTexture;
+        uniform sampler2D uEmissiveTexture;
+        uniform bool uUseMetallicRoughnessTexture;
+        uniform bool uUseNormalTexture;
+        uniform bool uUseEmissiveTexture;
+        uniform float uAlphaCutoff;
+        uniform int uAlphaMode;
         
         void main() {
           vec3 normal = normalize(vNormal);
+          if (uUseNormalTexture) normal = normalize(normal + (texture2D(uNormalTexture, vTexCoord).xyz * 2.0 - 1.0));
           vec3 lightDir = normalize(uLightPos - vPosition);
           
           // Ambient
@@ -136,8 +153,24 @@ export class Graphics3D extends Utils.EventEmitter {
           vec3 diffuse = diff * uLightColor;
           
           // Final color
-          vec4 baseColor = uUseTexture ? texture2D(uTexture, vTexCoord) : uColor;
-          vec3 result = (ambient + diffuse) * baseColor.rgb;
+          vec2 centered = vTexCoord - vec2(0.5);
+          float texSin = sin(uTexRotation);
+          float texCos = cos(uTexRotation);
+          vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
+          vec2 transformedUV = rotated * uTexTransform.xy + uTexTransform.zw;
+          vec4 baseColor = uUseTexture ? texture2D(uTexture, transformedUV) * uColor : uColor;
+          if (uAlphaMode == 1 && baseColor.a < uAlphaCutoff) discard;
+          vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, transformedUV).rgb : vec3(1.0);
+          float metallic = clamp(uMetallic * orm.b, 0.0, 1.0);
+          float roughness = clamp(uRoughness * orm.g, 0.04, 1.0);
+          vec3 viewDir = normalize(uCameraPos - vPosition);
+          vec3 halfDir = normalize(lightDir + viewDir);
+          float specPower = mix(128.0, 2.0, roughness);
+          float specular = pow(max(dot(normal, halfDir), 0.0), specPower);
+          vec3 f0 = mix(vec3(0.04), baseColor.rgb, metallic);
+          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * (ambient + diffuse);
+          vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, transformedUV).rgb : vec3(1.0));
+          vec3 result = uFullBright ? baseColor.rgb : diffusePbr + f0 * specular + emission;
           
           gl_FragColor = vec4(result, baseColor.a);
         }
@@ -286,17 +319,31 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Set uniforms
-    const texture = uniforms.uTextureName && this.textures.get(uniforms.uTextureName);
-    if (texture) {
-      gl.activeTexture(gl.TEXTURE0);
+    const bindings = [
+      ['uTextureName', 'uTexture'], ['uMetallicRoughnessTextureName', 'uMetallicRoughnessTexture'],
+      ['uNormalTextureName', 'uNormalTexture'], ['uEmissiveTextureName', 'uEmissiveTexture'],
+    ];
+    bindings.forEach(([valueName, uniformName], unit) => {
+      const texture = uniforms[valueName] && this.textures.get(uniforms[valueName]);
+      if (!texture) return;
+      gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      const sampler = programInfo.uniforms.uTexture;
-      if (sampler) gl.uniform1i(sampler, 0);
-    }
+      const sampler = programInfo.uniforms[uniformName];
+      if (sampler) gl.uniform1i(sampler, unit);
+    });
     this.setUniforms(programInfo.uniforms, uniforms);
+
+    if (uniforms.uAlphaMode === 2) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+    }
+    if (uniforms.uDoubleSided) gl.disable(gl.CULL_FACE);
 
     // Draw
     gl.drawElements(gl.TRIANGLES, mesh.indexCount, gl.UNSIGNED_SHORT, 0);
+    if (uniforms.uAlphaMode === 2) { gl.depthMask(true); gl.disable(gl.BLEND); }
+    if (uniforms.uDoubleSided) gl.enable(gl.CULL_FACE);
 
     this.drawCalls++;
     this.triangles += mesh.indexCount / 3;
@@ -319,6 +366,46 @@ export class Graphics3D extends Utils.EventEmitter {
     if (canMipmap) gl.generateMipmap(gl.TEXTURE_2D);
     this.textures.set(name, texture);
     return name;
+  }
+
+  createRenderTarget(name: string, width = 256, height = 256) {
+    if (this.renderTargets.has(name)) return name;
+    const gl = this.gl!;
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const depth = gl.createRenderbuffer()!;
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+    const framebuffer = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('Unable to create reflection render target');
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.textures.set(name, texture);
+    this.renderTargets.set(name, { framebuffer, depth, width, height });
+    return name;
+  }
+
+  beginRenderTarget(name: string) {
+    const target = this.renderTargets.get(name);
+    if (!target) return false;
+    const gl = this.gl!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
+    gl.viewport(0, 0, target.width, target.height);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    return true;
+  }
+
+  endRenderTarget() {
+    const gl = this.gl!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
   }
 
   /**
@@ -378,7 +465,8 @@ export class Graphics3D extends Utils.EventEmitter {
           gl.uniform2fv(location as WebGLUniformLocation, value);
         }
       } else if (typeof value === 'number') {
-        gl.uniform1f(location as WebGLUniformLocation, value);
+        if (name === 'uAlphaMode') gl.uniform1i(location as WebGLUniformLocation, value);
+        else gl.uniform1f(location as WebGLUniformLocation, value);
       } else if (typeof value === 'boolean') {
         gl.uniform1i(location as WebGLUniformLocation, value ? 1 : 0);
       }
@@ -445,7 +533,13 @@ export class Graphics3D extends Utils.EventEmitter {
 
     this.meshes.clear();
     this.programs.clear();
+    this.textures.forEach(texture => gl.deleteTexture(texture));
     this.textures.clear();
+    this.renderTargets.forEach(target => {
+      gl.deleteFramebuffer(target.framebuffer);
+      gl.deleteRenderbuffer(target.depth);
+    });
+    this.renderTargets.clear();
     this.gl = null;
   }
 }

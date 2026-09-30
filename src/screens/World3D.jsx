@@ -8,14 +8,17 @@ export default function World3D() {
   const [error, setError] = useState("");
   const [position, setPosition] = useState([0, 0, 0]);
   const [objectCount, setObjectCount] = useState(app.world.objects.length);
+  const [cameraPreset, setCameraPreset] = useState("rear");
 
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
     let active = true;
     const updateObjects = (objects) => { if (active) setObjectCount(objects.length); };
+    const updateCamera = (camera) => { if (active && camera) { setPosition(camera.position.map(Math.round)); setCameraPreset(camera.preset); } };
     app.world.on("objects_changed", updateObjects);
+    app.world.on("camera_changed", updateCamera);
     app.world.init().then(() => { if (active) { setReady(!!app.world.graphics3d); refresh(); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "WebGL initialization failed"); });
-    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.destroyRenderer(); };
+    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.destroyRenderer(); };
   }, []);
 
   const move = (forward, right, up = 0) => { app.world.moveCamera(right, forward, up); refresh(); };
@@ -34,12 +37,13 @@ export default function World3D() {
   };
 
   return <section aria-label="3D world view" style={{ flex: 1, minHeight: 0, position: "relative", background: "#000" }}>
-    <canvas id="world-canvas" aria-label={`3D canvas for ${region}`} style={{ width: "100%", height: "100%", display: "block" }} />
+    <canvas id="world-canvas" aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
     <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
       {dataStatus}<br />
       {objectCount} simulator objects
+      <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan<br />Wheel/pinch: zoom · WASD/QE: move</div>
       <div style={{ marginTop: 4 }}>
         <button
           type="button"
@@ -53,6 +57,9 @@ export default function World3D() {
       {!ready && !error ? <><br />Starting renderer…</> : null}
       {error ? <><br /><span style={{ color: V.err }}>{error}</span></> : null}
     </output>
+    <div aria-label="Camera view" style={{ position: "absolute", right: 14, top: 14, display: "flex", gap: 4 }}>
+      {[['rear','REAR'], ['front','FRONT'], ['first-person','MOUSELOOK'], ['free','FREE']].map(([value, label]) => <button key={value} type="button" aria-pressed={cameraPreset === value} onClick={() => { app.world.setCameraPreset(value); setCameraPreset(value); refresh(); }} style={{ ...button, minWidth: 0, padding: "0 8px", background: cameraPreset === value ? V.pri : V.surf, color: cameraPreset === value ? V.onpri : V.pri, fontSize: 9 }}>{label}</button>)}
+    </div>
     <div aria-label="Movement controls" style={{ position: "absolute", left: 14, bottom: 14, display: "grid", gridTemplateColumns: "repeat(3,44px)", gap: 4 }}>
       <span /><button aria-label="Move forward" onClick={() => move(1, 0)} style={button}>↑</button><span />
       <button aria-label="Move left" onClick={() => move(0, -1)} style={button}>←</button><button aria-label="Move backward" onClick={() => move(-1, 0)} style={button}>↓</button><button aria-label="Move right" onClick={() => move(0, 1)} style={button}>→</button>
