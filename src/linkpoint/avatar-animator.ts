@@ -30,18 +30,23 @@ export function bundledAnimationLoader(baseUrl = `${assetBase()}anims/`, fetcher
 }
 
 export class AvatarAnimator {
-  private cache = new Map<string, Promise<KeyframeAnimation | null>>();
+  private cache = new Map<string, { promise: Promise<KeyframeAnimation | null>; failedAt: number | null }>();
+  /** A failed download is retried after this many seconds (an unknown animation is not hammered every message). */
+  static readonly RETRY_AFTER = 30;
   private running = new Map<string, Map<string, Entry | { pending: true; seq: number; startedAt: number }>>();
 
   constructor(private loader: AnimationLoader, private clock: () => number = () => performance.now() / 1000) {}
 
   private load(id: string) {
-    let promise = this.cache.get(id);
-    if (!promise) {
-      promise = this.loader(id).catch(() => null);
-      this.cache.set(id, promise);
-    }
-    return promise;
+    const cached = this.cache.get(id);
+    if (cached && (cached.failedAt === null || this.clock() - cached.failedAt < AvatarAnimator.RETRY_AFTER)) return cached.promise;
+    const entry: { promise: Promise<KeyframeAnimation | null>; failedAt: number | null } = { promise: Promise.resolve(null), failedAt: null };
+    entry.promise = this.loader(id).catch(() => null).then((anim) => {
+      if (!anim) entry.failedAt = this.clock();
+      return anim;
+    });
+    this.cache.set(id, entry);
+    return entry.promise;
   }
 
   /**

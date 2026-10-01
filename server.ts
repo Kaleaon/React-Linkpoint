@@ -28,6 +28,7 @@ import {
   sendSLFriendRequest,
   fetchSLFriends,
   fetchSLGroups,
+  fetchSLAnimation,
   fetchSLInventory,
   fetchSLSceneObjects,
   fetchSLSceneAssets,
@@ -201,6 +202,19 @@ export async function createApp() {
       }
       const friends = await fetchSLFriends(sessionId);
       res.json(friends);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/sl/animation", async (req, res) => {
+    try {
+      const sessionId = req.query.sessionId as string;
+      const id = req.query.id as string;
+      if (!sessionId || !id) {
+        return res.status(400).json({ error: "Missing sessionId or id" });
+      }
+      res.json(await fetchSLAnimation(sessionId, id));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

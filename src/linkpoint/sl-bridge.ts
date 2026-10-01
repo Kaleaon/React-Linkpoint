@@ -215,6 +215,14 @@ export class SLBridge extends Utils.EventEmitter {
     }
   }
 
+  /** An animation asset from the simulator, base64-encoded. */
+  async fetchAnimation(id: string): Promise<{ id: string; data: string }> {
+    if (!this.sessionId) throw new Error('Not connected to Second Life');
+    const response = await fetch(`/api/sl/animation?sessionId=${encodeURIComponent(this.sessionId)}&id=${encodeURIComponent(id)}`);
+    if (!response.ok) throw new Error(`Animation unavailable (HTTP ${response.status})`);
+    return await response.json();
+  }
+
   async fetchGroups() {
     if (!this.sessionId) return [];
 

@@ -10,7 +10,7 @@ import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
-import type { JointPose } from './avatar-animation';
+import { parseAnimation, type JointPose } from './avatar-animation';
 import { packJointRows } from './skinning';
 import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
 import { BODY_PARTS, bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, type BodyPartGeometry } from './avatar-body';
@@ -187,7 +187,23 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private skeleton: AvatarSkeleton | null = null;
   private restSkinRows = new Map<string, Float32Array | null>();
-  private animator = new AvatarAnimator(bundledAnimationLoader());
+  private animator = new AvatarAnimator(this.animationLoader());
+  /** Bundled animations first, then (for custom/uploaded ones) the simulator's asset service. */
+  private animationLoader() {
+    const bundled = bundledAnimationLoader();
+    return async (id: string) => {
+      const local = await bundled(id);
+      if (local) return local;
+      if (typeof this.protocol?.fetchAnimation !== 'function') return null;
+      try {
+        return parseAnimation(await this.protocol.fetchAnimation(id));
+      } catch (error) {
+        console.warn(`[WorldViewer] animation ${id} unavailable:`, error);
+        return null;
+      }
+    };
+  }
+
   /** Avatars without any announced animation stand (the viewer's default idle). */
   private static readonly STAND_ANIMATION = '2408fe9e-df1d-1d7d-f4ff-1384fa7b350f';
   private bodyParts: Map<string, BodyPartGeometry> | null = null;
@@ -748,7 +764,7 @@ export class WorldViewer extends Utils.EventEmitter {
     };
     if (this.scene3d.objects.has(object.id)) this.scene3d.updateObject(object.id, config);
     else this.scene3d.addObject(object.id, config);
-    if (object.avatar) this.applyAvatarParts(object.id, config);
+    if (object.avatar) this.applyAvatarParts(object.id, config, object);
   }
 
   /** Load the base avatar meshes once; on failure avatars keep the placeholder shapes. */
@@ -788,19 +804,38 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   /** Draw an avatar as the skinned base body, standing with its feet at the ground under the reported position. */
-  private applyAvatarBody(id: string, config: any) {
+  /** Texture-entry faces that hold an avatar's baked textures. */
+  private static readonly BAKED_FACE: Record<string, number> = { head: 8, upper: 9, lower: 10, eyes: 11, skirt: 19, hair: 20 };
+  /** Placeholder textures the simulator uses before a bake exists. */
+  private static readonly UNBAKED_TEXTURES = new Set([
+    '00000000-0000-0000-0000-000000000000', 'c228d1cf-4b5d-4ba8-84f4-899a0796aa97', '5748decc-f629-461c-9a36-a35a221fe21f',
+  ]);
+
+  /** Name of the decoded baked texture for a body slot, or null while it is missing or not yet downloaded. */
+  private bakedTexture(object: any, bake: string): string | null {
+    const index = WorldViewer.BAKED_FACE[bake];
+    const textureId: string | null | undefined = object?.faceTextures?.[index]?.textureId;
+    if (!textureId || WorldViewer.UNBAKED_TEXTURES.has(textureId) || !this.decodedTextures.has(textureId)) return null;
+    return `texture:${textureId}`;
+  }
+
+  private applyAvatarBody(id: string, config: any, object?: any) {
     if (!this.scene3d) return;
     if (!this.animator.subjects().includes(id)) this.animator.setAnimations(id, [{ id: WorldViewer.STAND_ANIMATION, seq: 0 }]);
     const [x, y, z] = config.position;
     // The simulator reports the avatar's bounding box centre and its height in scale.z.
     const height = Array.isArray(config.scale) && config.scale[2] > 0.5 ? config.scale[2] : 1.9;
     const rows = this.avatarBodyRows(id);
-    for (const { part, instance, color } of BODY_PARTS) {
+    for (const { part, instance, color, bake } of BODY_PARTS) {
       if (!rows.has(instance)) continue;
+      const texture = this.bakedTexture(object, bake);
       const partId = `${id}:body:${instance}`;
       const part3d = {
         mesh: 'cube', meshes: [{ mesh: `avatar-body:${part}`, materialIndex: 0 }],
-        position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1], color, faces: [],
+        position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1],
+        // A baked texture replaces the flat fallback colour; hair blends, skin and eyes are cut out.
+        color: texture ? [1, 1, 1, 1] : color,
+        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5 } }] : [],
         skin: rows.get(instance), visible: true,
       };
       if (this.scene3d.objects.has(partId)) this.scene3d.updateObject(partId, part3d);
@@ -821,9 +856,9 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
-  private applyAvatarParts(id: string, config: any) {
+  private applyAvatarParts(id: string, config: any, object?: any) {
     if (!this.scene3d) return;
-    if (this.bodyParts && this.bodyMeshesReadyFor === this.scene3d) return this.applyAvatarBody(id, config);
+    if (this.bodyParts && this.bodyMeshesReadyFor === this.scene3d) return this.applyAvatarBody(id, config, object);
     const [x, y, z] = config.position;
     const parts = [
       [`${id}:body`, { ...config, mesh: 'cylinder', position: [x, y, z + .95], scale: [.42, .3, .85] }],

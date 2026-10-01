@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('linkpointDesktop', {
   sendChat: (request) => ipcRenderer.invoke('linkpoint:viewer-chat', request),
   sendInstantMessage: (request) => ipcRenderer.invoke('linkpoint:viewer-im', request),
   sendGroupMessage: (request) => ipcRenderer.invoke('linkpoint:viewer-group-message', request),
+  fetchAnimation: (request) => ipcRenderer.invoke('linkpoint:viewer-animation', request),
   fetchGroups: () => ipcRenderer.invoke('linkpoint:viewer-groups'),
   sendFriendRequest: (request) => ipcRenderer.invoke('linkpoint:viewer-friend-request', request),
   fetchFriends: () => ipcRenderer.invoke('linkpoint:viewer-friends'),

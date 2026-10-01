@@ -59,4 +59,20 @@ describe('AvatarAnimator', () => {
     expect(await loader('038fcec9-5ebd-8a8e-0e2e-6e71a0a1ac53')).toBeNull();
     expect(calls).toEqual(['/anims/038fcec9-5ebd-8a8e-0e2e-6e71a0a1ac53']);
   });
+
+  it('retries a failed download after the retry window but not before', async () => {
+    let t = 0, calls = 0;
+    const animator = new AvatarAnimator(async () => { calls++; return calls < 2 ? null : makeAnim(); }, () => t);
+    animator.setAnimations('a', [{ id: 'custom', seq: 1 }]);
+    await flush();
+    t = 10;
+    animator.setAnimations('a', [{ id: 'custom', seq: 2 }]);
+    await flush();
+    expect(calls).toBe(1); // still inside the window
+    t = 31;
+    animator.setAnimations('a', [{ id: 'custom', seq: 3 }]);
+    await flush();
+    expect(calls).toBe(2);
+    expect(animator.pose('a').size).toBe(1);
+  });
 });

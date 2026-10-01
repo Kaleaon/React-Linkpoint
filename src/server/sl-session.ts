@@ -30,8 +30,9 @@ const actions = require('../../electron/sl-actions.cjs') as {
   getBalance: (bot: any) => Promise<any>;
 };
 
-const { subscribeAnimations } = require('../../electron/sl-animations.cjs') as {
-  subscribeAnimations: (region: any, send: (type: string, data: any) => void) => { unsubscribe(): void } | null;
+const { watchAnimations, downloadAnimation } = require('../../electron/sl-animations.cjs') as {
+  watchAnimations: (getRegion: () => any, send: (type: string, data: any) => void, intervalMs?: number) => { unsubscribe(): void };
+  downloadAnimation: (bot: any, id: string) => Promise<string>;
 };
 const interactions = require('../../electron/sl-interactions.cjs') as {
   PendingInteractions: new () => { clear: () => void };
@@ -509,8 +510,7 @@ export async function createSLSession(params: {
   }
 
   const region = bot.currentRegion;
-  const animationSubscription = subscribeAnimations(region, broadcastEvent);
-  if (animationSubscription) sessionData.subscriptions.push(animationSubscription);
+  sessionData.subscriptions.push(watchAnimations(() => bot.currentRegion, broadcastEvent));
   let agentId = '';
   try {
     if (typeof bot.agentID === 'function') {
@@ -744,6 +744,12 @@ export async function fetchSLFriends(sessionId: string) {
   }
 
   return results;
+}
+
+export async function fetchSLAnimation(sessionId: string, id: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+  return { id, data: await downloadAnimation(session.bot, id) };
 }
 
 export async function fetchSLGroups(sessionId: string) {

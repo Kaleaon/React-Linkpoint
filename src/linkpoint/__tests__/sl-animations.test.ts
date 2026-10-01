@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { serializeAnimationMessage, subscribeAnimations } = require('../../../electron/sl-animations.cjs');
+const { serializeAnimationMessage, subscribeAnimations, watchAnimations } = require('../../../electron/sl-animations.cjs');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const { serializeObject } = require('../../../electron/viewer-session.cjs');
 
@@ -30,6 +30,31 @@ describe('simulator animation messages', () => {
     expect(subscribeToMessages.mock.calls[0][0]).toEqual([Message.AvatarAnimation, Message.ObjectAnimation]);
     expect(send).toHaveBeenCalledWith('animations', { kind: 'avatar', id: 'agent-1', animations: [] });
     expect(subscribeAnimations({}, send)).toBeNull();
+  });
+});
+
+describe('following the agent across regions', () => {
+  it('moves the listener to the new region circuit when the current region changes, and stops on unsubscribe', () => {
+    vi.useFakeTimers();
+    const makeRegion = () => { const unsubscribe = vi.fn(); return { unsubscribe, circuit: { subscribeToMessages: vi.fn(() => ({ unsubscribe })) } }; };
+    const first = makeRegion(), second = makeRegion();
+    let current: any = first;
+    const watcher = watchAnimations(() => current, vi.fn(), 1000);
+    expect(first.circuit.subscribeToMessages).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(3000);
+    expect(first.circuit.subscribeToMessages).toHaveBeenCalledTimes(1); // unchanged: no resubscribe
+    current = second;
+    vi.advanceTimersByTime(1000);
+    expect(first.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(second.circuit.subscribeToMessages).toHaveBeenCalledTimes(1);
+    current = undefined; // between regions: keep the old listener, do not crash
+    vi.advanceTimersByTime(2000);
+    expect(second.unsubscribe).not.toHaveBeenCalled();
+    watcher.unsubscribe();
+    expect(second.unsubscribe).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(5000);
+    expect(second.circuit.subscribeToMessages).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 });
 

@@ -8,7 +8,7 @@ const {
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
 const actions = require('./sl-actions.cjs');
 const interactions = require('./sl-interactions.cjs');
-const { subscribeAnimations } = require('./sl-animations.cjs');
+const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -265,7 +265,7 @@ class ViewerSession {
     }
     await this.bot.connectToSim();
     const region = this.bot.currentRegion;
-    const animations = subscribeAnimations(region, (type, data) => this.send(type, data));
+    const animations = watchAnimations(() => this.bot?.currentRegion, (type, data) => this.send(type, data));
     if (animations) this.subscriptions.push(animations);
     const worldData = {
       region: { name: region.regionName || null, x: region.xCoordinate, y: region.yCoordinate },
@@ -339,6 +339,8 @@ class ViewerSession {
       acceptNotices: Boolean(group.AcceptNotices),
     }));
   }
+
+  fetchAnimation(id) { return downloadAnimation(this.bot, id).then((data) => ({ id, data })); }
 
   getFriends() {
     if (!this.bot) throw new Error('Not connected to a simulator');

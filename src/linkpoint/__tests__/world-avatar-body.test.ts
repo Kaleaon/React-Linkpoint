@@ -24,7 +24,7 @@ function setup(withBody: boolean) {
     addObject: (id: string, c: any) => { objects.set(id, { ...c }); },
     updateObject: (id: string, u: any) => { Object.assign(objects.get(id) || {}, u); },
     removeObject: (id: string) => { objects.delete(id); },
-    addAssetMesh: () => [], addSkinnedMesh: () => '',
+    addAssetMesh: () => [], addSkinnedMesh: () => '', addAssetTexture: () => undefined,
   };
   (world as any).scene3d = scene;
   if (withBody) { (world as any).bodyParts = loadParts(); (world as any).bodyMeshesReadyFor = scene; }
@@ -73,5 +73,43 @@ describe('avatar body in the world', () => {
 
     protocol.emit('scene:object-remove', { id: 'av', localId: 1 });
     expect(bodyIds(scene)).toEqual([]);
+  });
+
+  const faces = (entries: Record<number, string>) => {
+    const list: any[] = Array.from({ length: 21 }, () => ({ textureId: null }));
+    for (const [index, textureId] of Object.entries(entries)) list[Number(index)] = { textureId };
+    return list;
+  };
+
+  it('wears baked textures once downloaded: head, upper, lower, eyes and hair slots', () => {
+    const { protocol, world, scene } = setup(true);
+    for (const id of ['head-bake', 'upper-bake', 'lower-bake', 'eyes-bake', 'hair-bake']) (world as any).decodedTextures.set(id, {});
+    protocol.emit('scene:object-add', { ...avatar, faceTextures: faces({ 8: 'head-bake', 9: 'upper-bake', 10: 'lower-bake', 11: 'eyes-bake', 20: 'hair-bake' }) });
+    expect(scene.objects.get('av:body:head').faces[0].texture).toBe('texture:head-bake');
+    expect(scene.objects.get('av:body:eyelashes').faces[0].texture).toBe('texture:head-bake'); // lashes share the head bake
+    expect(scene.objects.get('av:body:upperBody').faces[0].texture).toBe('texture:upper-bake');
+    expect(scene.objects.get('av:body:lowerBody').faces[0].texture).toBe('texture:lower-bake');
+    expect(scene.objects.get('av:body:eyeLeft').faces[0].texture).toBe('texture:eyes-bake');
+    expect(scene.objects.get('av:body:eyeRight').faces[0].texture).toBe('texture:eyes-bake');
+    expect(scene.objects.get('av:body:hair').faces[0].pbr.alphaMode).toBe('BLEND');
+    expect(scene.objects.get('av:body:upperBody').faces[0].pbr.alphaMode).toBe('MASK');
+    expect(scene.objects.get('av:body:upperBody').color).toEqual([1, 1, 1, 1]);
+  });
+
+  it('keeps flat colours while a bake is missing, undownloaded, or the simulator placeholder', () => {
+    const { protocol, world, scene } = setup(true);
+    (world as any).decodedTextures.set('c228d1cf-4b5d-4ba8-84f4-899a0796aa97', {});
+    protocol.emit('scene:object-add', { ...avatar, faceTextures: faces({ 8: 'not-downloaded-yet', 9: 'c228d1cf-4b5d-4ba8-84f4-899a0796aa97' }) });
+    expect(scene.objects.get('av:body:head').faces).toEqual([]);
+    expect(scene.objects.get('av:body:upperBody').faces).toEqual([]);
+    expect(scene.objects.get('av:body:upperBody').color).not.toEqual([1, 1, 1, 1]);
+  });
+
+  it('applies a bake that arrives after the avatar', () => {
+    const { protocol, scene } = setup(true);
+    protocol.emit('scene:object-add', { ...avatar, faceTextures: faces({ 9: 'late-bake' }) });
+    expect(scene.objects.get('av:body:upperBody').faces).toEqual([]);
+    protocol.emit('scene:texture-ready', { assetId: 'late-bake', width: 1, height: 1, rgba: btoa('\u00ff\u00ff\u00ff\u00ff') });
+    expect(scene.objects.get('av:body:upperBody').faces[0].texture).toBe('texture:late-bake');
   });
 });

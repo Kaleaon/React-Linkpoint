@@ -509,6 +509,17 @@ export class SLConnectionFull extends Utils.EventEmitter {
     await this.sendChat(message, 0, 4);
   }
 
+  /** Download an animation asset (custom/uploaded animations) as raw bytes. */
+  async fetchAnimation(id: string): Promise<Uint8Array> {
+    if (!this.connected) throw new Error('Not connected to a grid');
+    let reply: { data: string } | null = null;
+    if (window.linkpointDesktop?.fetchAnimation) reply = await window.linkpointDesktop.fetchAnimation({ id });
+    else if (slBridge.connected) reply = await slBridge.fetchAnimation(id);
+    if (!reply?.data) throw new Error('Animation downloads are unavailable on this connection');
+    const binary = atob(reply.data);
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  }
+
   async sendGroupMessage(groupId: string, message: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
     if (window.linkpointDesktop?.sendGroupMessage) {

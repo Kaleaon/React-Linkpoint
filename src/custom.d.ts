@@ -22,6 +22,7 @@ interface Window {
     sendChat(request: { message: string; channel?: number; type?: number }): Promise<void>;
     sendInstantMessage(request: { recipientId: string; message: string }): Promise<void>;
     sendGroupMessage(request: { groupId: string; message: string }): Promise<void>;
+    fetchAnimation(request: { id: string }): Promise<{ id: string; data: string }>;
     fetchGroups(): Promise<Array<{ id: string; name: string; title?: string; insignia?: string; acceptNotices?: boolean }>>;
     sendFriendRequest(request: { recipientId: string; message?: string }): Promise<void>;
     fetchFriends(): Promise<any[]>;

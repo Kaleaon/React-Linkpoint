@@ -34,4 +34,42 @@ function subscribeAnimations(region, send) {
   });
 }
 
-module.exports = { serializeAnimationMessage, subscribeAnimations };
+/**
+ * Like subscribeAnimations, but follows the agent across regions: when the bot's current
+ * region (and so its circuit) changes, the listener moves to the new circuit.
+ */
+function watchAnimations(getRegion, send, intervalMs = 2000) {
+  let region = getRegion();
+  let subscription = subscribeAnimations(region, send);
+  const timer = setInterval(() => {
+    const current = getRegion();
+    if (!current || current === region && current.circuit === (region && region.circuit)) return;
+    if (subscription) subscription.unsubscribe();
+    region = current;
+    subscription = subscribeAnimations(region, send);
+  }, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  return {
+    unsubscribe() {
+      clearInterval(timer);
+      if (subscription) subscription.unsubscribe();
+      subscription = null;
+    },
+  };
+}
+
+const MAX_ANIMATION_BYTES = 2 * 1024 * 1024;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Download an animation asset from the simulator's asset service and return it base64-encoded. */
+async function downloadAnimation(bot, id) {
+  if (!bot) throw new Error('Not connected to a simulator');
+  if (!UUID_PATTERN.test(String(id || ''))) throw new Error('Invalid animation id');
+  const { AssetType } = require('@caspertech/node-metaverse');
+  const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Animation, id);
+  if (!buffer || buffer.length === 0) throw new Error('Animation asset is empty');
+  if (buffer.length > MAX_ANIMATION_BYTES) throw new Error('Animation asset is too large');
+  return Buffer.from(buffer).toString('base64');
+}
+
+module.exports = { serializeAnimationMessage, subscribeAnimations, watchAnimations, downloadAnimation };
