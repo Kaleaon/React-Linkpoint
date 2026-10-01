@@ -70,11 +70,8 @@ class WorldRenderer(
     private val tm get() = engine.transformManager
     private val rm get() = engine.renderableManager
 
-    private var waterEntity = 0
-    private var waterHeightShown = Float.NaN
-    private var waterVb: VertexBuffer? = null
-    private var waterIb: IndexBuffer? = null
-    private var waterMi: MaterialInstance? = null
+    private val environmentRenderer = EnvironmentRenderer(engine, scene, materials)
+    private var viewportHeight = 1
     private val terrain = TerrainRenderer(engine, scene, materials, gpuTextures)
     private val particleBatches = HashMap<Pair<UUID, Boolean>, Pair<ParticleBatch, MaterialInstance>>()
     private val particleTextureApplied = HashSet<Pair<UUID, Boolean>>()
@@ -113,6 +110,7 @@ class WorldRenderer(
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         view.viewport = Viewport(0, 0, width, height)
+        viewportHeight = height
         aspect = width.toDouble() / height.coerceAtLeast(1)
         camera.setProjection(60.0, aspect, 0.1, 1100.0, Camera.Fov.VERTICAL)
     }
@@ -164,11 +162,11 @@ class WorldRenderer(
         }
         val region = session.region.value
         if (region != null && region.handle != 0L) {
-            terrain.setLight(lighting, 128f, 128f, 30f)
+            terrain.setLight(lighting, targetX, targetY, targetZ)
             terrain.update(session.heightmap, region.terrain, region.gridX, region.gridY, now)
             terrain.updateDetail(region.terrain)
         }
-        syncWater()
+        syncEnvironment(now)
         stepParticles(dt)
     }
 
@@ -315,31 +313,20 @@ class WorldRenderer(
         EntityManager.get().destroy(d.entity)
     }
 
-    // ---- water ---------------------------------------------------------------------------------
+    // ---- environment (sky, water, light) ------------------------------------------------------
 
-    private fun syncWater() {
-        val h = session.region.value?.waterHeight ?: return
-        if (h == waterHeightShown) return
-        waterHeightShown = h
-        if (waterEntity == 0) {
-            val vb = VertexBuffer.Builder().bufferCount(1).vertexCount(4)
-                .attribute(VertexBuffer.VertexAttribute.POSITION, 0, VertexBuffer.AttributeType.FLOAT3, 0, 12).build(engine)
-            val ib = IndexBuffer.Builder().indexCount(6).bufferType(IndexBuffer.Builder.IndexType.USHORT).build(engine)
-            val ibData = java.nio.ByteBuffer.allocateDirect(12).order(java.nio.ByteOrder.nativeOrder())
-            for (i in shortArrayOf(0, 1, 2, 0, 2, 3)) ibData.putShort(i)
-            ibData.flip(); ib.setBuffer(engine, ibData)
-            val mi = materials.flat.createInstance().also { it.setParameter("uColor", 0.09f, 0.22f, 0.36f, 0.72f) }
-            val e = EntityManager.get().create()
-            RenderableManager.Builder(1).boundingBox(Box(128f, 128f, 0f, 128f, 128f, 1f))
-                .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vb, ib, 0, 6).material(0, mi).culling(false).build(engine, e)
-            scene.addEntity(e)
-            waterEntity = e; waterVb = vb; waterIb = ib; waterMi = mi
-        }
-        val data = java.nio.ByteBuffer.allocateDirect(48).order(java.nio.ByteOrder.nativeOrder())
-        // The region is 256 m square with its origin at one corner; extend a little past it so the edge is not visible.
-        for ((x, y) in listOf(-512f to -512f, 768f to -512f, 768f to 768f, -512f to 768f)) data.putFloat(x).putFloat(y).putFloat(h)
-        data.flip()
-        waterVb!!.setBufferAt(engine, 0, data)
+    private var lastEnv = 0L
+    private val envStart = System.nanoTime()
+
+    private fun syncEnvironment(now: Long) {
+        if (now - lastEnv < 1_000_000_000L && lastEnv != 0L) return
+        lastEnv = now
+        val sample = session.environment.value.sample(System.currentTimeMillis() / 1000.0)
+        val water = session.region.value?.waterHeight ?: 20f
+        val pixelAngle = (Math.toRadians(60.0) / viewportHeight.coerceAtLeast(1)).toFloat()
+        environmentRenderer.update(sample, water, camPos, ((now - envStart) / 1e9).toFloat(), pixelAngle, lighting)
+        materials.relight(lighting)
+        skybox.setColor(lighting.sky[0], lighting.sky[1], lighting.sky[2], 1f)
     }
 
     // ---- particles -----------------------------------------------------------------------------
@@ -420,8 +407,7 @@ class WorldRenderer(
         particleBatches.clear()
         gpuTextures.destroy()
         terrain.destroy()
-        if (waterEntity != 0) { scene.removeEntity(waterEntity); engine.destroyEntity(waterEntity); EntityManager.get().destroy(waterEntity) }
-        waterVb?.let { engine.destroyVertexBuffer(it) }; waterIb?.let { engine.destroyIndexBuffer(it) }; waterMi?.let { engine.destroyMaterialInstance(it) }
+        environmentRenderer.destroy()
         materials.destroy()
         engine.destroySkybox(skybox)
         swapChain?.let { engine.destroySwapChain(it) }

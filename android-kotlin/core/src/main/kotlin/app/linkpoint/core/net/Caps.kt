@@ -9,7 +9,7 @@ import kotlinx.coroutines.isActive
 
 /** Capabilities: HTTP endpoints a simulator hands out through its seed capability. */
 object Caps {
-    val WANTED = listOf("EventQueueGet", "GetTexture", "ViewerAsset", "GetMesh", "GetMesh2", "FetchInventoryDescendents2", "ParcelVoiceInfoRequest", "ProvisionVoiceAccountRequest", "RenderMaterials")
+    val WANTED = listOf("EventQueueGet", "GetTexture", "ViewerAsset", "GetMesh", "GetMesh2", "FetchInventoryDescendents2", "ExtEnvironment", "ParcelVoiceInfoRequest", "ProvisionVoiceAccountRequest", "RenderMaterials")
 
     suspend fun fetch(http: Http, seedUrl: String, names: List<String> = WANTED): Map<String, String> {
         val r = http.post(seedUrl, Llsd.toXml(names).toByteArray(), "application/llsd+xml", mapOf("Accept" to "application/llsd+xml"), 30_000)

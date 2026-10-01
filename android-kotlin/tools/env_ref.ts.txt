@@ -1,0 +1,33 @@
+import { skyState, atmosphereColor as _x, normalizeSky, normalizeWater, dayFraction, skyAt, waterAt, slerp, directionFrom, DEFAULT_SKY } from '/home/user/React-Linkpoint/src/linkpoint/eep.ts';
+import { atmosphereColor } from '/home/user/React-Linkpoint/src/linkpoint/atmosphere.ts';
+
+const cycle = {
+  tracks: [
+    [{ key_keyframe: 0.0, key_name: 'w0' }, { key_keyframe: 0.5, key_name: 'w1' }],
+    [{ key_keyframe: 0.1, key_name: 's0' }, { key_keyframe: 0.4, key_name: 's1' }, { key_keyframe: 0.8, key_name: 's2' }],
+  ],
+  frames: {
+    w0: { type: 'water', water_fog_color: [0.1, 0.2, 0.3], water_fog_density: 3, fresnel_scale: 0.5 },
+    w1: { type: 'water', water_fog_color: [0.3, 0.2, 0.1], water_fog_density: 1, fresnel_scale: 0.2 },
+    s0: { type: 'sky', sunlight_color: [0.9, 0.8, 0.7], legacy_haze: { ambient_color: [0.3, 0.3, 0.4], blue_horizon: [0.5, 0.5, 0.7], blue_density: [0.25, 0.45, 0.75], haze_density: 0.6, haze_horizon: 0.2, density_multiplier: 0.0002 }, sun_rotation: [0, -0.5, 0, 0.8660254], moon_rotation: [0, 0.5, 0, 0.8660254], glow: [5, 0.001, -0.48], cloud_shadow: 0.3, max_y: 1500 },
+    s1: { type: 'sky', sunlight_color: [1.2, 1.1, 1.0], legacy_haze: { ambient_color: [0.4, 0.4, 0.5], blue_horizon: [0.4, 0.5, 0.8], blue_density: [0.2, 0.4, 0.8], haze_density: 0.5, haze_horizon: 0.25, density_multiplier: 0.0001 }, sun_rotation: [0, -0.7071, 0, 0.7071], moon_rotation: [0, 0.7071, 0, 0.7071], glow: [4, 0.001, -0.4], cloud_shadow: 0.2 },
+    s2: { type: 'sky', sunlight_color: [0.2, 0.2, 0.3], legacy_haze: { ambient_color: [0.1, 0.1, 0.2], blue_horizon: [0.1, 0.1, 0.3], blue_density: [0.1, 0.1, 0.4], haze_density: 0.9, haze_horizon: 0.1, density_multiplier: 0.0003 }, sun_rotation: [0, 0.5, 0, 0.8660254], moon_rotation: [0, -0.7071, 0, 0.7071], glow: [5, 0.001, -0.48], cloud_shadow: 0.1, moon_brightness: 0.8 },
+  },
+};
+const out: any = { fractions: {} };
+for (const f of [0.0, 0.05, 0.25, 0.4, 0.6, 0.9, 0.999]) {
+  const sky = skyAt(cycle as any, f);
+  const state = skyState(sky);
+  const water = waterAt(cycle as any, f);
+  const dirs = [[0, 0, 1], [1, 0, 0.1], [0, 1, 0.5], [-1, -1, 0.02], [0.3, 0.2, 0.9], [0, 0, -1]];
+  out.fractions[String(f)] = {
+    sunlightColor: sky.sunlightColor, ambient: sky.ambient, blueHorizon: sky.blueHorizon, hazeDensity: sky.hazeDensity, maxY: sky.maxY,
+    sunRotation: sky.sunRotation, moonBrightness: sky.moonBrightness,
+    sunDirection: state.sunDirection, lightDirection: state.lightDirection, sunUp: state.sunUp, glowFactor: state.sunMoonGlowFactor,
+    sunDiffuse: state.sunDiffuse, sunAmbient: state.sunAmbient, moonDiffuse: state.moonDiffuse,
+    waterFog: water.fogColor, waterDensity: water.fogDensity, fresnelScale: water.fresnelScale,
+    atmosphere: dirs.map((d) => atmosphereColor(sky, state, d as any)),
+  };
+}
+out.dayFraction = [dayFraction(1000, 14400, 0), dayFraction(-5, 14400, 100), dayFraction(30000, 7200, 99)];
+console.log(JSON.stringify({ cycle, out }));

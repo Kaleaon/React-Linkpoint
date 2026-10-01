@@ -1,5 +1,6 @@
 package app.linkpoint.core
 
+import app.linkpoint.core.env.RegionEnvironment
 import app.linkpoint.core.llsd.Llsd
 import app.linkpoint.core.llsd.asLlsdList
 import app.linkpoint.core.llsd.asLlsdMap
@@ -58,6 +59,9 @@ class ViewerSession(
     private val _offers = MutableStateFlow<List<PendingOffer>>(emptyList())
     val offers: StateFlow<List<PendingOffer>> = _offers
     private val profileWaits = java.util.concurrent.ConcurrentHashMap<UUID, CompletableDeferred<Incoming.AvatarProperties>>()
+    private val _environment = MutableStateFlow(RegionEnvironment.FALLBACK)
+    /** The region's sky/water settings, or an estimated Windlight sky until the region answers. */
+    val environment: StateFlow<RegionEnvironment> = _environment
     private val _capabilities = MutableStateFlow<Map<String, String>>(emptyMap())
     val capabilities: StateFlow<Map<String, String>> = _capabilities
 
@@ -140,6 +144,7 @@ class ViewerSession(
         _nearby.value = emptyList()
         scene.clear()
         heightmap.clear()
+        _environment.value = RegionEnvironment.FALLBACK
         startCaps(seedCapability)
     }
 
@@ -151,6 +156,14 @@ class ViewerSession(
             try {
                 val caps = Caps.fetch(http, seed)
                 _capabilities.value = caps
+                caps["ExtEnvironment"]?.let { url ->
+                    launch {
+                        try {
+                            val r = http.get("$url?parcelid=-1", mapOf("Accept" to "application/llsd+xml"), 30_000)
+                            if (r.ok) RegionEnvironment.fromLlsd(Llsd.parseXml(r.body).asLlsdMap())?.let { _environment.value = it }
+                        } catch (e: CancellationException) { throw e } catch (_: Exception) { /* keep the estimated sky */ }
+                    }
+                }
                 val eq = caps["EventQueueGet"] ?: return@launch
                 EventQueue(http, eq).run(this, ::onEvent) { _notices.tryEmit(ViewerNotice.Error(it)) }
             } catch (e: CancellationException) {

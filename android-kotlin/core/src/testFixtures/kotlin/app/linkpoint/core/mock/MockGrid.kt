@@ -83,7 +83,7 @@ class MockGrid(
         http.createContext("/login") { ex -> reply(ex, 200, "text/xml", loginResponse().toByteArray()) }
         http.createContext("/seed") { ex ->
             val base = "http://$advertisedHost:${http.address.port}"
-            val caps = mapOf("EventQueueGet" to "$base/eq", "GetTexture" to "$base/tex", "GetMesh2" to "$base/mesh", "FetchInventoryDescendents2" to "$base/inv")
+            val caps = mapOf("EventQueueGet" to "$base/eq", "GetTexture" to "$base/tex", "GetMesh2" to "$base/mesh", "FetchInventoryDescendents2" to "$base/inv", "ExtEnvironment" to "$base/env")
             reply(ex, 200, "application/llsd+xml", Llsd.toXml(caps).toByteArray())
         }
         val eqPolls = java.util.concurrent.atomic.AtomicInteger()
@@ -108,6 +108,17 @@ class MockGrid(
                 try { Thread.sleep(8000) } catch (_: InterruptedException) { }
                 reply(ex, 200, "application/llsd+xml", Llsd.toXml(mapOf("id" to eqPolls.get(), "events" to emptyList<Any>())).toByteArray())
             }
+        }
+        http.createContext("/env") { ex ->
+            // A day cycle with a single sunny sky frame and a water frame.
+            val body = mapOf("environment" to mapOf("day_length" to 14400, "day_offset" to 0, "day_cycle" to mapOf(
+                "tracks" to listOf(listOf(mapOf("key_keyframe" to 0.0, "key_name" to "w")), listOf(mapOf("key_keyframe" to 0.0, "key_name" to "s"))),
+                "frames" to mapOf(
+                    "w" to mapOf("type" to "water", "water_fog_color" to listOf(0.05, 0.2, 0.3), "water_fog_density" to 2.0),
+                    "s" to mapOf("type" to "sky", "sunlight_color" to listOf(0.73, 0.78, 0.9), "sun_rotation" to listOf(0.0, -0.5, 0.0, 0.8660254),
+                        "legacy_haze" to mapOf("ambient_color" to listOf(0.25, 0.25, 0.25), "blue_horizon" to listOf(0.5, 0.5, 0.64), "blue_density" to listOf(0.24, 0.45, 0.76), "haze_density" to 0.7, "haze_horizon" to 0.19, "density_multiplier" to 0.0001)),
+                ))))
+            reply(ex, 200, "application/llsd+xml", Llsd.toXml(body).toByteArray())
         }
         http.createContext("/inv") { ex ->
             val req = Llsd.parseXml(ex.requestBody.readBytes()) as? Map<*, *>

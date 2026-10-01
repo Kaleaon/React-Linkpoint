@@ -106,6 +106,12 @@ class MockGridTest {
             val parcel = eventually(what = "parcel") { s.parcel.value }
             assertEquals("Mock Parcel", parcel.name); assertEquals(4096, parcel.areaSqm); assertEquals(468, parcel.maxPrims); assertEquals(grid.agent, parcel.ownerId)
 
+            // Environment: the grid's day cycle replaces the estimated sky.
+            val env = eventually(what = "region environment") { s.environment.value.takeIf { !it.estimated } }
+            val sample = env.sample(1000.0)
+            assertFalse(sample.estimated); assertTrue(sample.state.sunUp)
+            assertEquals(0.05, sample.water.fogColor[0], 1e-9)
+
             // Inventory: skeleton from login, contents fetched on demand.
             val inv = s.inventory.value
             assertEquals(MockGrid.INV_ROOT, inv.rootId); assertEquals(5, inv.folders.size)

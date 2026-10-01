@@ -27,7 +27,7 @@ import java.io.File
 import java.time.*
 import java.time.format.DateTimeParseException
 
-private enum class MoreScreen(val label: String) { CONTACTS("Contacts"), CALENDAR("Calendar event (.ics)"), SETTINGS("Settings & colours"), DIAGNOSTICS("Diagnostics") }
+private enum class MoreScreen(val label: String) { INVENTORY("Inventory"), GROUPS("Groups"), PARCEL("Parcel"), OBJECTS("Nearby objects"), CONTACTS("Contacts"), CALENDAR("Calendar event (.ics)"), SETTINGS("Settings & colours"), DIAGNOSTICS("Diagnostics") }
 
 @Composable
 fun MoreScreen(host: ViewerHost) {
@@ -48,6 +48,10 @@ fun MoreScreen(host: ViewerHost) {
             Text(s.label, style = MaterialTheme.typography.titleMedium)
         }
         when (s) {
+            MoreScreen.INVENTORY -> InventoryScreen(host)
+            MoreScreen.GROUPS -> GroupsScreen(host)
+            MoreScreen.PARCEL -> ParcelScreen(host)
+            MoreScreen.OBJECTS -> ObjectsScreen(host)
             MoreScreen.CONTACTS -> ContactsScreen(host)
             MoreScreen.CALENDAR -> CalendarScreen()
             MoreScreen.SETTINGS -> SettingsScreen(host)

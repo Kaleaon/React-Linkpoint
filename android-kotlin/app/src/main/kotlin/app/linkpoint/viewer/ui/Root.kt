@@ -80,7 +80,9 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
             }
         },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            OffersBanner(host)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
                 Tab.CHAT -> ChatScreen(host)
                 Tab.PEOPLE -> FriendsScreen(host)
@@ -88,6 +90,7 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
                 Tab.MAP -> MapScreen(host)
                 Tab.WORLD -> WorldScreen(host)
                 Tab.MORE -> MoreScreen(host)
+            }
             }
         }
     }

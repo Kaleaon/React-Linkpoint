@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +24,8 @@ import app.linkpoint.viewer.ViewerHost
 fun FriendsScreen(host: ViewerHost) {
     val friends by host.session.friends.collectAsState()
     val contacts by host.contacts.collectAsState()
+    var profileOf by remember { mutableStateOf<Pair<java.util.UUID, String>?>(null) }
+    profileOf?.let { (id, name) -> ProfileDialog(host, id, name) { profileOf = null } }
     if (friends.isEmpty()) { Empty("The grid sent no friends list."); return }
     val sorted = friends.sortedWith(compareByDescending<app.linkpoint.core.model.Friend> { it.online == true }.thenBy { it.name ?: "~" })
     LazyColumn(Modifier.fillMaxSize()) {
@@ -35,10 +38,13 @@ fun FriendsScreen(host: ViewerHost) {
                     Box(Modifier.size(12.dp).clip(CircleShape).background(if (f.online == true) app.linkpoint.viewer.theme.LocalLinkpoint.current.ok else MaterialTheme.colorScheme.outlineVariant))
                 },
                 trailingContent = {
+                  Row {
+                    IconButton(enabled = f.name != null, onClick = { profileOf = f.id to (f.name ?: "") }) { Icon(Icons.Filled.Info, "Profile") }
                     IconButton(enabled = !saved && f.name != null, onClick = {
                         val now = System.currentTimeMillis()
                         host.saveContact(Contact(f.id.toString(), f.name ?: return@IconButton, savedAt = now, updatedAt = now))
                     }) { Icon(Icons.Filled.PersonAdd, if (saved) "Saved to contacts" else "Save to contacts") }
+                  }
                 },
                 modifier = Modifier.clickable(enabled = f.name != null) { host.imTarget.value = f.id to (f.name ?: "") },
             )
