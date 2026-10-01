@@ -22,6 +22,7 @@ data class WorldStats(
     val meshesPending: Int = 0,
     val meshesFailed: Int = 0,
     val sculptsSkipped: Int = 0,
+    val texturesPending: Int = 0,
     val avatars: Int = 0,
     val particles: Int = 0,
     val fps: Int = 0,
@@ -34,7 +35,13 @@ data class WorldStats(
  * NOT YET RUN ON A DEVICE. It compiles and follows Filament's documented API, but nothing here has
  * been seen on a screen; the unit-tested parts are the geometry and decoding in :core.
  */
-class WorldRenderer(private val context: Context, private val session: ViewerSession, private val meshes: MeshFetcher) :
+class WorldRenderer(
+    private val context: Context,
+    private val session: ViewerSession,
+    private val meshes: MeshFetcher,
+    textureFetcher: app.linkpoint.core.image.TextureFetcher,
+    private val sculpts: SculptFetcher,
+) :
     SurfaceHolder.Callback, Choreographer.FrameCallback {
 
     private val engine: Engine = Engine.create(Engine.Backend.OPENGL)
@@ -45,14 +52,20 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
     private val camera: Camera = engine.createCamera(cameraEntity)
     private var swapChain: SwapChain? = null
     private val materials = Materials(engine, context)
+    private val gpuTextures = GpuTextures(engine, textureFetcher)
+    private val textureFetcherRef = textureFetcher
     val lighting = Lighting()
     private val skybox: Skybox = Skybox.Builder().color(lighting.sky[0], lighting.sky[1], lighting.sky[2], 1f).build(engine)
 
-    private class Drawn(val entity: Int, val signature: Int, val faces: List<GpuFace>) { var tx = FloatArray(16) }
+    private class Drawn(val entity: Int, val signature: Int, val faces: List<GpuFace>, val apps: List<FaceAppearance?>) {
+        var tx = FloatArray(16)
+        val applied = arrayOfNulls<UUID>(faces.size)
+    }
 
     private val drawn = HashMap<Long, Drawn>()
     private val primCache = HashMap<PrimParams, List<GpuFace>>()
     private val meshCache = HashMap<UUID, List<GpuFace>>()
+    private val sculptCache = HashMap<String, List<GpuFace>>()
     private val emitters = HashMap<Long, Pair<Int, ParticleEmitter>>()
     private val tm get() = engine.transformManager
     private val rm get() = engine.renderableManager
@@ -62,9 +75,9 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
     private var waterVb: VertexBuffer? = null
     private var waterIb: IndexBuffer? = null
     private var waterMi: MaterialInstance? = null
-    private val terrain = TerrainRenderer(engine, scene, materials)
-    private val particlesAlpha: ParticleBatch
-    private val particlesAdd: ParticleBatch
+    private val terrain = TerrainRenderer(engine, scene, materials, gpuTextures)
+    private val particleBatches = HashMap<Pair<UUID, Boolean>, Pair<ParticleBatch, MaterialInstance>>()
+    private val particleTextureApplied = HashSet<Pair<UUID, Boolean>>()
 
     // Orbit camera around our avatar.
     @Volatile var yaw = 0f          // direction the camera looks, radians, 0 = +X
@@ -84,8 +97,6 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         view.camera = camera
         view.isPostProcessingEnabled = false // materials already output display-ready colour
         scene.skybox = skybox
-        particlesAlpha = ParticleBatch(engine, scene, materials.particle.createInstance().also { it.setParameter("uUseTexture", 0f); it.setParameter("uTexture", materials.white, materials.sampler) })
-        particlesAdd = ParticleBatch(engine, scene, materials.particleAdd.createInstance().also { it.setParameter("uUseTexture", 0f); it.setParameter("uTexture", materials.white, materials.sampler) })
     }
 
     // ---- surface and frame loop ---------------------------------------------------------------
@@ -133,8 +144,7 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
 
     private fun update(dt: Float, now: Long) {
         // Follow our own avatar object when the simulator is streaming it, else the handshake position.
-        val me = session.selfId
-        val own = me?.let { id -> session.scene.snapshot().firstOrNull { it.isAvatar && it.fullId == id } }
+        val own = ownLocalId?.let { session.scene.get(it) }
         val ownPos = own?.let { session.scene.worldTransform(it)?.first }
         val rp = session.region.value?.position
         if (ownPos != null) { targetX = ownPos.x; targetY = ownPos.y; targetZ = ownPos.z }
@@ -146,24 +156,32 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         camPos[0] = targetX - distance * cp * cy; camPos[1] = targetY - distance * cp * sy; camPos[2] = tz + distance * sp
         camera.lookAt(camPos[0].toDouble(), camPos[1].toDouble(), camPos[2].toDouble(), targetX.toDouble(), targetY.toDouble(), tz.toDouble(), 0.0, 0.0, 1.0)
 
+        gpuTextures.beginFrame()
         val v = session.scene.version
         if (v != lastVersion || now - lastSync > 500_000_000L) {
             lastVersion = v; lastSync = now
-            syncObjects(own?.localId)
+            syncObjects()
         }
         val region = session.region.value
         if (region != null && region.handle != 0L) {
             terrain.setLight(lighting, 128f, 128f, 30f)
             terrain.update(session.heightmap, region.terrain, region.gridX, region.gridY, now)
+            terrain.updateDetail(region.terrain)
         }
         syncWater()
         stepParticles(dt)
     }
 
-    private fun syncObjects(ownLocalId: Long?) {
+    private var ownLocalId: Long? = null
+    private var particleObjects: List<Long> = emptyList()
+
+    private fun syncObjects() {
         val all = session.scene.snapshot()
+        val me = session.selfId
+        ownLocalId = if (me == null) null else all.firstOrNull { it.isAvatar && it.fullId == me }?.localId
+        particleObjects = all.filter { it.particles != null }.map { it.localId }
         val keep = HashSet<Long>()
-        var avatars = 0; var pending = 0; var failed = 0; var sculpts = 0
+        var avatars = 0; var pending = 0; var failed = 0; var skippedSculpts = 0
         val candidates = ArrayList<Pair<SimObject, Triple<Vec3, Quat, Float>>>()
         for (o in all) {
             if (o.isAvatar) avatars++
@@ -190,7 +208,7 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
                 if (faces == null) {
                     when {
                         o.sculpt?.kind == SculptKind.MESH -> if (meshes.failure(o.sculpt!!.assetId) != null) failed++ else pending++
-                        o.sculpt != null -> sculpts++
+                        o.sculpt != null -> if (sculpts.failure(o.sculpt!!.assetId) != null) skippedSculpts++ else pending++
                     }
                     continue
                 }
@@ -200,6 +218,7 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
             }
             keep += o.localId
             drawnCount++
+            refreshTextures(d, o)
             val scale = if (o.isAvatar) Vec3(AVATAR_WIDTH, AVATAR_WIDTH, AVATAR_HEIGHT) else o.scale
             val m = Geometry.transform(t.first.x, t.first.y, t.first.z, t.second.x, t.second.y, t.second.z, t.second.w, scale.x, scale.y, scale.z)
             if (!m.contentEquals(d.tx)) { tm.setTransform(tm.getInstance(d.entity), m); d.tx = m }
@@ -209,7 +228,7 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
             val e = it.next()
             if (e.key !in keep) { destroyDrawn(e.value); it.remove() }
         }
-        stats = stats.copy(objectsInRegion = all.size, drawn = drawn.size, meshesPending = pending, meshesFailed = failed, sculptsSkipped = sculpts, avatars = avatars)
+        stats = stats.copy(objectsInRegion = all.size, drawn = drawn.size, meshesPending = pending, meshesFailed = failed, sculptsSkipped = skippedSculpts, avatars = avatars, texturesPending = textureFetcherRef.pending)
     }
 
     private fun signature(o: SimObject): Int {
@@ -229,7 +248,15 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         if (o.pcode != PCode.PRIM) return null
         val s = o.sculpt
         if (s != null) {
-            if (s.kind != SculptKind.MESH) return null // sculpt maps are textures: needs the JPEG 2000 decoder
+            if (s.kind != SculptKind.MESH) {
+                val key = "${s.assetId}:${s.type}"
+                sculptCache[key]?.let { return it }
+                if (!sculpts.request(s.assetId)) return null
+                val image = sculpts.peek(s.assetId) ?: return null
+                val up = listOf(Geometry.upload(engine, Sculpt.build(image, s.type)))
+                sculptCache[key] = up
+                return up
+            }
             meshCache[s.assetId]?.let { return it }
             meshes.request(s.assetId)
             val decoded = meshes.peek(s.assetId) ?: return null
@@ -240,17 +267,25 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         return primCache.getOrPut(o.params) { PrimVolume.build(o.params).faces.map { Geometry.upload(engine, it) } }
     }
 
+    private fun faceApp(o: SimObject, f: GpuFace): FaceAppearance? = if (o.isAvatar) null else o.textures?.face(f.faceIndex)
+
+    private fun instanceFor(o: SimObject, f: GpuFace, tex: GpuTexture?): MaterialInstance {
+        val app = faceApp(o, f) ?: (if (o.isAvatar) AVATAR_APPEARANCE else WHITE_APPEARANCE)
+        return materials.face(app, tex?.texture, app.color[3] < 0.99f || (tex?.hasAlpha == true), lighting)
+    }
+
     private fun buildDrawn(o: SimObject, sig: Int, faces: List<GpuFace>): Drawn? {
         if (faces.isEmpty()) return null
         val entity = EntityManager.get().create()
+        tm.create(entity) // object transforms are set per frame
         val b = RenderableManager.Builder(faces.size)
         var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE; var minZ = Float.MAX_VALUE
         var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
+        val apps = ArrayList<FaceAppearance?>()
         for ((i, f) in faces.withIndex()) {
-            val app = if (o.isAvatar) null else o.textures?.face(f.faceIndex)
-            val c = app?.color ?: if (o.isAvatar) AVATAR_COLOR else WHITE
+            apps += faceApp(o, f)
             b.geometry(i, RenderableManager.PrimitiveType.TRIANGLES, f.vb, f.ib, 0, f.indexCount)
-            b.material(i, materials.face(c[0], c[1], c[2], c[3], app?.glow ?: 0f, null, lighting))
+            b.material(i, instanceFor(o, f, null))
             val bx = f.bounds
             val ctr = bx.center; val h = bx.halfExtent
             minX = minOf(minX, ctr[0] - h[0]); minY = minOf(minY, ctr[1] - h[1]); minZ = minOf(minZ, ctr[2] - h[2])
@@ -260,7 +295,18 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         b.culling(true).castShadows(false).receiveShadows(false)
         b.build(engine, entity)
         scene.addEntity(entity)
-        return Drawn(entity, sig, faces)
+        return Drawn(entity, sig, faces, apps)
+    }
+
+    /** Swap in textured material instances as textures finish downloading. */
+    private fun refreshTextures(d: Drawn, o: SimObject) {
+        val inst = rm.getInstance(d.entity)
+        for ((i, app) in d.apps.withIndex()) {
+            if (app == null || !app.hasTexture || d.applied[i] == app.textureId) continue
+            val tex = gpuTextures.get(app.textureId) ?: continue
+            rm.setMaterialInstanceAt(inst, i, instanceFor(o, d.faces[i], tex))
+            d.applied[i] = app.textureId
+        }
     }
 
     private fun destroyDrawn(d: Drawn) {
@@ -300,8 +346,9 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
 
     private fun stepParticles(dt: Float) {
         val seen = HashSet<Long>()
-        val alpha = ArrayList<ParticleSprite>(); val add = ArrayList<ParticleSprite>()
-        for (o in session.scene.snapshot()) {
+        val groups = HashMap<Pair<UUID, Boolean>, ArrayList<ParticleSprite>>()
+        for (id in particleObjects) {
+            val o = session.scene.get(id) ?: continue
             val p = o.particles ?: continue
             val wt = session.scene.worldTransform(o) ?: continue
             val dx = wt.first.x - camPos[0]; val dy = wt.first.y - camPos[1]
@@ -311,15 +358,30 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
             var e = emitters[o.localId]
             if (e == null || e.first != key) { e = key to ParticleEmitter(p); emitters[o.localId] = e }
             e.second.step(dt, wt.first, wt.second)
-            (if (p.emissive) add else alpha) += e.second.sprites()
+            val sprites = e.second.sprites()
+            if (sprites.isNotEmpty()) groups.getOrPut(p.textureId to p.emissive) { ArrayList() } += sprites
         }
         emitters.keys.retainAll(seen)
         val l = FloatArray(3); val u = FloatArray(3)
         camera.getLeftVector(l); camera.getUpVector(u)
-        // Camera's right = -left.
-        particlesAlpha.update(alpha, -l[0], -l[1], -l[2], u[0], u[1], u[2])
-        particlesAdd.update(add, -l[0], -l[1], -l[2], u[0], u[1], u[2])
-        stats = stats.copy(particles = alpha.size + add.size)
+        var total = 0
+        // One batch per (texture, additive) pair; a batch with no live particles is emptied, not destroyed.
+        for (key in groups.keys) if (key !in particleBatches && particleBatches.size < MAX_PARTICLE_BATCHES) {
+            val mi = (if (key.second) materials.particleAdd else materials.particle).createInstance()
+            mi.setParameter("uUseTexture", 0f); mi.setParameter("uTexture", materials.white, materials.sampler)
+            particleBatches[key] = ParticleBatch(engine, scene, mi) to mi
+        }
+        for ((key, pair) in particleBatches) {
+            val sprites = groups[key].orEmpty()
+            // Use the particle's texture once it is available.
+            if (key !in particleTextureApplied && key.first != FaceAppearance.NULL_ID && key.first != FaceAppearance.BLANK_ID) {
+                val tex = gpuTextures.get(key.first)
+                if (tex != null) { pair.second.setParameter("uUseTexture", 1f); pair.second.setParameter("uTexture", tex.texture, materials.sampler); particleTextureApplied += key }
+            }
+            pair.first.update(sprites, -l[0], -l[1], -l[2], u[0], u[1], u[2])
+            total += sprites.size
+        }
+        stats = stats.copy(particles = total)
     }
 
     // ---- input ---------------------------------------------------------------------------------
@@ -352,9 +414,11 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         stop()
         for (d in drawn.values) destroyDrawn(d)
         drawn.clear()
-        for (f in primCache.values.flatten() + meshCache.values.flatten()) f.destroy(engine)
-        primCache.clear(); meshCache.clear()
-        particlesAlpha.destroy(); particlesAdd.destroy()
+        for (f in primCache.values.flatten() + meshCache.values.flatten() + sculptCache.values.flatten()) f.destroy(engine)
+        primCache.clear(); meshCache.clear(); sculptCache.clear()
+        for ((batch, mi) in particleBatches.values) { batch.destroy(); engine.destroyMaterialInstance(mi) }
+        particleBatches.clear()
+        gpuTextures.destroy()
         terrain.destroy()
         if (waterEntity != 0) { scene.removeEntity(waterEntity); engine.destroyEntity(waterEntity); EntityManager.get().destroy(waterEntity) }
         waterVb?.let { engine.destroyVertexBuffer(it) }; waterIb?.let { engine.destroyIndexBuffer(it) }; waterMi?.let { engine.destroyMaterialInstance(it) }
@@ -371,10 +435,11 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         const val PARTICLE_DISTANCE = 96f
         const val MAX_OBJECTS = 1500
         const val MAX_CREATE_PER_SYNC = 40
+        const val MAX_PARTICLE_BATCHES = 12
         const val AVATAR_WIDTH = 0.55f
         const val AVATAR_HEIGHT = 1.8f
         val AVATAR_SHAPE = PrimParams(profileCurve = 0)
-        val AVATAR_COLOR = floatArrayOf(0.85f, 0.65f, 0.45f, 1f)
-        val WHITE = floatArrayOf(1f, 1f, 1f, 1f)
+        val WHITE_APPEARANCE = FaceAppearance(FaceAppearance.NULL_ID, floatArrayOf(1f, 1f, 1f, 1f), 1f, 1f, 0f)
+        val AVATAR_APPEARANCE = FaceAppearance(FaceAppearance.NULL_ID, floatArrayOf(0.85f, 0.65f, 0.45f, 1f), 1f, 1f, 0f)
     }
 }

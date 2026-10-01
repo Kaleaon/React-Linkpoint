@@ -1,6 +1,7 @@
 package app.linkpoint.viewer.world
 
 import android.content.Context
+import app.linkpoint.core.scene.FaceAppearance
 import com.google.android.filament.Engine
 import com.google.android.filament.Material
 import com.google.android.filament.MaterialInstance
@@ -44,16 +45,17 @@ class Materials(private val engine: Engine, private val context: Context) {
 
     private val instances = HashMap<String, MaterialInstance>()
 
-    /** A shared material instance for a face colour (and optional texture). */
-    fun face(r: Float, g: Float, b: Float, a: Float, glow: Float, texture: Texture?, light: Lighting): MaterialInstance {
-        val blend = a < 0.99f
-        val key = "$blend|$r|$g|$b|$a|$glow|${texture?.nativeObject}"
+    /** A shared material instance for one face appearance (colour, glow, texture and its transform). */
+    fun face(app: FaceAppearance, texture: Texture?, blend: Boolean, light: Lighting): MaterialInstance {
+        val key = "$blend|${app.color.joinToString(",")}|${app.glow}|${app.fullbright}|${texture?.nativeObject}|${app.repeatU}|${app.repeatV}|${app.offsetU}|${app.offsetV}|${app.rotation}"
         return instances.getOrPut(key) {
             (if (blend) primBlend else prim).createInstance().also { mi ->
-                mi.setParameter("uColor", r, g, b, a)
-                mi.setParameter("uGlow", glow)
-                mi.setParameter("uFullbright", 0f)
+                mi.setParameter("uColor", app.color[0], app.color[1], app.color[2], app.color[3])
+                mi.setParameter("uGlow", app.glow)
+                mi.setParameter("uFullbright", if (app.fullbright) 1f else 0f)
                 mi.setParameter("uUseTexture", if (texture != null) 1f else 0f)
+                mi.setParameter("uUvXform", app.repeatU, app.repeatV, app.offsetU, app.offsetV)
+                mi.setParameter("uRotation", app.rotation)
                 mi.setParameter("uTexture", texture ?: white, sampler)
                 applyLight(mi, light)
             }

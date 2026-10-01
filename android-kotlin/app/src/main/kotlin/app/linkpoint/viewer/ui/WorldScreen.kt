@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 @Composable
 fun WorldScreen(host: ViewerHost) {
     val ctx = LocalContext.current.applicationContext
-    val renderer = remember { WorldRenderer(ctx, host.session, host.meshes) }
+    val renderer = remember { WorldRenderer(ctx, host.session, host.meshes, host.textures, host.sculpts) }
     val owner = LocalLifecycleOwner.current
 
     DisposableEffect(owner) {
@@ -68,7 +68,8 @@ fun WorldScreen(host: ViewerHost) {
             Text("${stats.drawn} drawn / ${stats.objectsInRegion} objects · ${stats.fps} fps", style = MaterialTheme.typography.labelSmall)
             Text("${stats.avatars} avatars (placeholders) · ${stats.particles} particles", style = MaterialTheme.typography.labelSmall)
             if (stats.meshesPending > 0 || stats.meshesFailed > 0) Text("meshes: ${stats.meshesPending} loading, ${stats.meshesFailed} failed", style = MaterialTheme.typography.labelSmall)
-            if (stats.sculptsSkipped > 0) Text("${stats.sculptsSkipped} sculpts not drawn", style = MaterialTheme.typography.labelSmall)
+            if (stats.sculptsSkipped > 0) Text("${stats.sculptsSkipped} sculpts failed to load", style = MaterialTheme.typography.labelSmall)
+            if (stats.texturesPending > 0) Text("${stats.texturesPending} textures loading", style = MaterialTheme.typography.labelSmall)
         }
 
         // Virtual move pad.

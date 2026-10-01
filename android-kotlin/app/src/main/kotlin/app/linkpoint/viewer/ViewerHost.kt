@@ -8,7 +8,9 @@ import app.linkpoint.core.ViewerSession
 import app.linkpoint.core.login.*
 import app.linkpoint.core.model.ConnectionState
 import app.linkpoint.core.net.UrlConnectionHttp
+import app.linkpoint.core.image.TextureFetcher
 import app.linkpoint.core.scene.MeshFetcher
+import app.linkpoint.core.scene.SculptFetcher
 import app.linkpoint.core.tools.Contact
 import app.linkpoint.viewer.data.Prefs
 import kotlinx.coroutines.*
@@ -31,6 +33,8 @@ class ViewerHost(private val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val http = UrlConnectionHttp()
     val session = ViewerSession(http, scope)
+    val textures = TextureFetcher(http, scope, { session.capabilities.value["GetTexture"] })
+    val sculpts = SculptFetcher(http, scope, { session.capabilities.value["GetTexture"] })
     val meshes = MeshFetcher(http, scope, { session.capabilities.value.let { it["GetMesh2"] ?: it["GetMesh"] } })
     val loginUi = MutableStateFlow<LoginUi>(LoginUi.Idle)
     val contacts = MutableStateFlow(prefs.loadContacts())

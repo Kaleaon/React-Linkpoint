@@ -17,6 +17,8 @@ material {
         { type : float,  name : uGlow },
         { type : float,  name : uUseTexture },
         { type : float,  name : uFullbright },
+        { type : float4, name : uUvXform },
+        { type : float,  name : uRotation },
         { type : sampler2d, name : uTexture }
     ],
     requires : [ uv0, tangents ]
@@ -31,7 +33,12 @@ vertex {
 fragment {
     void material(inout MaterialInputs material) {
         prepareMaterial(material);
-        vec4 tex = texture(materialParams_uTexture, getUV0());
+        // Texture-entry transform: rotate about the face centre, repeat, then offset.
+        vec2 uv = getUV0() - vec2(0.5);
+        float cs = cos(materialParams.uRotation);
+        float sn = sin(materialParams.uRotation);
+        uv = vec2(uv.x * cs - uv.y * sn, uv.x * sn + uv.y * cs) * materialParams.uUvXform.xy + vec2(0.5) + materialParams.uUvXform.zw;
+        vec4 tex = texture(materialParams_uTexture, uv);
         vec4 base = materialParams.uUseTexture > 0.5 ? tex : vec4(1.0);
         vec4 c = base * materialParams.uColor;
         vec3 n = normalize(variable_worldNrm.xyz);

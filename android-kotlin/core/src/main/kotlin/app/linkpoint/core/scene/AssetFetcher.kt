@@ -56,3 +56,50 @@ class MeshFetcher(
 
     fun clear() { cache.clear() }
 }
+
+/**
+ * Downloads sculpt maps (JPEG 2000 textures) and decodes them at the small size sculpt geometry
+ * needs. The decoded image is kept so the same map can be turned into geometry for any sculpt type.
+ */
+class SculptFetcher(
+    private val http: Http,
+    private val scope: CoroutineScope,
+    private val capability: () -> String?,
+    private val maxDimension: Int = 64,
+) {
+    private val gate = Semaphore(2)
+    private val cache = ConcurrentHashMap<UUID, Deferred<Result<app.linkpoint.core.image.J2kImage>>>()
+
+    fun peek(id: UUID): app.linkpoint.core.image.J2kImage? {
+        val d = cache[id] ?: return null
+        return if (d.isCompleted) d.getCompleted().getOrNull() else null
+    }
+
+    fun failure(id: UUID): Throwable? {
+        val d = cache[id] ?: return null
+        return if (d.isCompleted) d.getCompleted().exceptionOrNull() else null
+    }
+
+    fun request(id: UUID): Boolean {
+        if (cache.containsKey(id)) return true
+        val cap = capability() ?: return false
+        val job = scope.async(kotlinx.coroutines.Dispatchers.Default) {
+            gate.withPermit {
+                runCatching {
+                    val sep = if (cap.contains('?')) '&' else '?'
+                    val r = http.get("$cap${sep}texture_id=$id", mapOf("Accept" to "image/x-j2c"), 60_000)
+                    if (!r.ok) throw java.io.IOException("Sculpt map $id: HTTP ${r.status}")
+                    var d = 0
+                    var m = app.linkpoint.core.image.J2kHeader.size(r.body)?.let { maxOf(it.first, it.second) } ?: 0
+                    while (m > maxDimension) { m = (m + 1) / 2; d++ }
+                    app.linkpoint.core.image.J2kDecoder.decode(r.body, d)
+                }
+            }
+        }
+        val prior = cache.putIfAbsent(id, job)
+        if (prior != null) job.cancel()
+        return true
+    }
+
+    fun clear() { cache.clear() }
+}

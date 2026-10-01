@@ -19,7 +19,8 @@ import kotlin.math.sqrt
  * The region's ground: a 256 x 256 height grid coloured by the viewer's height-and-noise
  * composition. Detail textures are not decoded yet, so each layer shows its fallback colour.
  */
-class TerrainRenderer(private val engine: Engine, private val scene: Scene, private val materials: Materials) {
+class TerrainRenderer(private val engine: Engine, private val scene: Scene, private val materials: Materials, private val textures: GpuTextures) {
+    private val detailApplied = BooleanArray(4)
     private var entity = 0
     private var face: GpuFace? = null
     private var composition: Texture? = null
@@ -44,6 +45,20 @@ class TerrainRenderer(private val engine: Engine, private val scene: Scene, priv
         instance.setParameter("uLightPos", centerX + l.lightDir[0] * 5000f, centerY + l.lightDir[1] * 5000f, centerZ + l.lightDir[2] * 5000f)
         instance.setParameter("uLightColor", l.lightColor[0], l.lightColor[1], l.lightColor[2])
         instance.setParameter("uAmbientColor", l.ambient[0], l.ambient[1], l.ambient[2])
+    }
+
+    /** Bind the four detail textures as they finish downloading; until then each layer shows its fallback colour. */
+    fun updateDetail(info: TerrainInfo?) {
+        if (info == null) return
+        for (i in 0..3) {
+            if (detailApplied[i]) continue
+            val id = info.detailTextureIds[i]
+            if (id == app.linkpoint.core.scene.FaceAppearance.NULL_ID) continue
+            val tex = textures.get(id) ?: continue
+            instance.setParameter("uDetail$i", tex.texture, materials.sampler)
+            detailApplied[i] = true
+            instance.setParameter("uDetailUse", if (detailApplied[0]) 1f else 0f, if (detailApplied[1]) 1f else 0f, if (detailApplied[2]) 1f else 0f, if (detailApplied[3]) 1f else 0f)
+        }
     }
 
     /** Rebuild the mesh and colour texture when new patches have arrived (at most about once a second). */
