@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error plain ESM script
 import { RULES, scanText, applyAllowlist } from '../../../scripts/fake-data-rules.mjs';
-// @ts-expect-error plain ESM script
 import { scanRepository } from '../../../scripts/check-fake-data.mjs';
 
 const hits = (text: string, file = 'src/screens/X.jsx') => scanText(text, file).map((f: any) => f.rule);

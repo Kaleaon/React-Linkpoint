@@ -18,7 +18,7 @@ interface Window {
       text: string;
       headers: Record<string, string>;
     }>;
-    connectViewer(request: { loginUrl: string; username: string; password: string; start?: string }): Promise<Record<string, any>>;
+    connectViewer(request: { loginUrl: string; username: string; password: string; start?: string; mfaToken?: string; mfaHash?: string }): Promise<Record<string, any>>;
     sendChat(request: { message: string; channel?: number; type?: number }): Promise<void>;
     sendInstantMessage(request: { recipientId: string; message: string }): Promise<void>;
     sendFriendRequest(request: { recipientId: string; message?: string }): Promise<void>;

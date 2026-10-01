@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-// @ts-expect-error plain JS module
 import { UNKNOWN, show, positiveOrNull, realLatency, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState } from '../../screens/diagnosticsView.js';
 
 describe('diagnostics display rules', () => {

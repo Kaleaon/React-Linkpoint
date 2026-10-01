@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error plain JS module
 import { formatLatency, liveRegionName, formatSlt } from '../../components/menuStatus.js';
 
 describe('menu bar status', () => {

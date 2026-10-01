@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error plain JS module
 import { deskKind, deskGeometry, elbowPath, floaterStyle, chipStyle, sweepSegmentFills } from '../../theme/deskStyle.js';
-// @ts-expect-error plain JS module
 import { LAYOUTS } from '../../theme/layouts.js';
-// @ts-expect-error plain JS module
 import { PALETTES } from '../../theme/palettes.js';
 
 const V = { ...PALETTES.lcars.c, ...LAYOUTS.sweep.s };
@@ -55,7 +52,7 @@ describe('desktop layout families', () => {
   });
 
   it('styles dock chips per family', () => {
-    const args = { V, t: { dfont: 'x', font: 'x' }, on: false, ink };
+    const args = { V, t: { dfont: 'x', font: 'x' }, on: false, ink, dim: false };
     expect(chipStyle('sweep', args).borderRadius).toBe('999px');
     expect(chipStyle('metro', args).borderRadius).toBe(0);
     expect(chipStyle('metro', args).textTransform).toBe('lowercase');

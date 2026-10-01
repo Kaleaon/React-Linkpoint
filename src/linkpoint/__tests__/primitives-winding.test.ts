@@ -19,7 +19,7 @@ function outwardFraction(mesh: { vertices: number[]; normals: number[]; indices:
 }
 
 describe('primitive meshes face outward (counter-clockwise front faces, as the renderer culls back faces)', () => {
-  const meshes: Array<[string, () => { vertices: number[]; indices: number[] }]> = [
+  const meshes: Array<[string, () => { vertices: number[]; normals: number[]; indices: number[] }]> = [
     ['cube', () => Primitives3D.createCube(1)],
     ['sphere', () => Primitives3D.createSphere(0.5, 32, 16)],
     ['cylinder', () => Primitives3D.createCylinder(0.5, 0.5, 1, 32)],
