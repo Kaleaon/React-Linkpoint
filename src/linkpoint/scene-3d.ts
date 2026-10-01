@@ -139,7 +139,8 @@ export class Scene3D extends Utils.EventEmitter {
     const parts = geometry.parts?.length ? geometry.parts : [geometry];
     return parts.map((part, index) => {
       const name = `asset:${assetId}:${index}`;
-      this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords);
+      const skin = Array.isArray(part.joints) && Array.isArray(part.jointWeights) ? { joints: part.joints, weights: part.jointWeights } : undefined;
+      this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords, undefined, skin);
       return { mesh: name, materialIndex: Number(part.materialIndex ?? index) };
     });
   }
@@ -227,6 +228,8 @@ export class Scene3D extends Utils.EventEmitter {
       // HUD prims are kept out of the world and drawn only by the HUD pass.
       hud: Boolean(config.hud),
       hudRoot: config.hudRoot ?? null,
+      // Packed joint matrices (see skinning.ts packJointRows) for rigged meshes.
+      skin: config.skin || null,
     };
     
     this.objects.set(id, object);
@@ -471,6 +474,8 @@ export class Scene3D extends Utils.EventEmitter {
   /** Union of the local-space bounds of every mesh the object draws, or null if any is unknown. */
   private objectLocalBounds(object: any): { min: number[]; max: number[] } | null {
     if (typeof this.graphics.getMeshBounds !== 'function') return null;
+    // A posed rig can extend beyond its bind-pose bounds, so never cull or box-pick it by them.
+    if (object.skin) return null;
     const min = [Infinity, Infinity, Infinity];
     const max = [-Infinity, -Infinity, -Infinity];
     for (const draw of this.objectDraws(object)) {
@@ -583,10 +588,12 @@ export class Scene3D extends Utils.EventEmitter {
    * Render object
    */
   renderObject(object: any, viewMatrix: Float32Array, projectionMatrix: Float32Array, options: { model?: Float32Array; fullBright?: boolean } = {}) {
+    const skinned = Boolean(object.skin) && typeof this.graphics.isSkinnedMesh === 'function';
+    // Rigged meshes are authored in avatar space: the viewer ignores the object's prim scale for them.
     const modelMatrix = options.model || this.calculateModelMatrix(
       object.position,
       object.rotation,
-      object.scale
+      skinned ? [1, 1, 1] : object.scale
     );
     
     const normalMatrix = this.mat3FromMat4(modelMatrix);
@@ -597,7 +604,9 @@ export class Scene3D extends Utils.EventEmitter {
       const face = object.faces?.[draw.materialIndex];
       const pbr = face?.pbr || {};
       const alphaMode = this.faceBlendMode(object, face);
-      this.graphics.drawMesh(draw.mesh, object.material, {
+      const drawSkinned = skinned && this.graphics.isSkinnedMesh(draw.mesh);
+      this.graphics.drawMesh(draw.mesh, drawSkinned ? 'skinned' : object.material, {
+        ...(drawSkinned ? { uJointRows: object.skin } : null),
         uModelMatrix: modelMatrix,
         uViewMatrix: viewMatrix,
         uProjectionMatrix: projectionMatrix,
