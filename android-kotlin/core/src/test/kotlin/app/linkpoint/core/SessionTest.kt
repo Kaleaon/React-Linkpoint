@@ -34,7 +34,7 @@ class FakeSim : AutoCloseable {
             when (p.messageId) {
                 Msg.CompleteAgentMovement -> {
                     send(Outgoing(Msg.AgentMovementComplete, WireWriter().uuid(agent).uuid(UUID.randomUUID()).vec3(10f, 20f, 30f).vec3(1f, 0f, 0f).u64((1000L * 256 shl 32) or (1001L * 256)).u32(0).u16(0).toByteArray(), true), zero = true)
-                    send(Outgoing(Msg.RegionHandshake, WireWriter().u32(0).u8(13).str1("Testville").uuid(UUID.randomUUID()).bool(false).f32(20f).toByteArray(), true), zero = true)
+                    send(Outgoing(Msg.RegionHandshake, WireWriter().u32(0).u8(13).str1("Testville").uuid(UUID.randomUUID()).bool(false).f32(20f).f32(1f).uuid(UUID.randomUUID()).also { w -> repeat(4) { w.uuid(UUID(0, 0)) }; repeat(4) { w.uuid(UUID(9, it.toLong())) }; repeat(4) { w.f32(10f + it) }; repeat(4) { w.f32(40f) } }.toByteArray(), true), zero = true)
                     send(Outgoing(Msg.OnlineNotification, WireWriter().u8(1).uuid(friend).toByteArray(), true))
                     send(Outgoing(Msg.ChatFromSimulator, WireWriter().str1("Someone").uuid(UUID.randomUUID()).uuid(UUID.randomUUID()).u8(1).u8(1).u8(1).vec3(0f, 0f, 0f).str2("welcome").toByteArray(), true))
                 }
@@ -89,6 +89,8 @@ class SessionTest {
             val region = eventually { s.region.value?.takeIf { it.name == "Testville" } }
             assertEquals(1000, region.gridX); assertEquals(1001, region.gridY); assertEquals(13, region.access)
             assertTrue(sim.received.contains(Msg.RegionHandshakeReply))
+            assertEquals(20f, region.waterHeight!!, 0f)
+            assertEquals(UUID(9, 2), region.terrain!!.detailTextureIds[2]); assertEquals(13f, region.terrain!!.startHeights[3], 0f)
 
             // Local chat from the simulator, friend presence, then a name lookup fills in the friend's name.
             eventually { s.chat.value.firstOrNull { it.text == "welcome" } }

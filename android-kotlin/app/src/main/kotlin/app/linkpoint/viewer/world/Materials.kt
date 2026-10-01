@@ -31,6 +31,8 @@ class Materials(private val engine: Engine, private val context: Context) {
     val particle = load("particle")
     val particleAdd = load("particle_add")
     val flat = load("flat")
+    /** Compiled from materials/terrain.mat (shared with the web renderer, same matc version and flags). */
+    val terrain = load("terrain")
 
     /** A 1x1 white texture bound to every sampler that has no real texture, so shaders can always sample. */
     val white: Texture = Texture.Builder().width(1).height(1).levels(1).sampler(Texture.Sampler.SAMPLER_2D)
@@ -71,6 +73,6 @@ class Materials(private val engine: Engine, private val context: Context) {
         for (mi in instances.values) engine.destroyMaterialInstance(mi)
         instances.clear()
         engine.destroyTexture(white)
-        for (m in listOf(prim, primBlend, particle, particleAdd, flat)) engine.destroyMaterial(m)
+        for (m in listOf(prim, primBlend, particle, particleAdd, flat, terrain)) engine.destroyMaterial(m)
     }
 }

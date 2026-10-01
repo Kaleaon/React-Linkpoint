@@ -9,10 +9,23 @@ data class FaceAppearance(
     val color: FloatArray,
     val repeatU: Float, val repeatV: Float,
     val glow: Float,
+    val offsetU: Float = 0f, val offsetV: Float = 0f, val rotation: Float = 0f,
+    /** The face is drawn without lighting. */
+    val fullbright: Boolean = false,
 ) {
     override fun equals(other: Any?) = other is FaceAppearance && textureId == other.textureId && color.contentEquals(other.color) &&
-        repeatU == other.repeatU && repeatV == other.repeatV && glow == other.glow
-    override fun hashCode() = textureId.hashCode() * 31 + color.contentHashCode()
+        repeatU == other.repeatU && repeatV == other.repeatV && glow == other.glow &&
+        offsetU == other.offsetU && offsetV == other.offsetV && rotation == other.rotation && fullbright == other.fullbright
+    override fun hashCode() = ((textureId.hashCode() * 31 + color.contentHashCode()) * 31 + repeatU.hashCode()) * 31 + offsetU.hashCode() + (if (fullbright) 1 else 0)
+
+    /** True when the face has a texture that must be fetched (not the null id and not the viewer's blank white texture). */
+    val hasTexture: Boolean get() = textureId != NULL_ID && textureId != BLANK_ID
+
+    companion object {
+        val NULL_ID = UUID(0, 0)
+        /** The grid's built-in plain white texture. */
+        val BLANK_ID: UUID = UUID.fromString("5748decc-f629-461c-9a36-a35a221fe21f")
+    }
 }
 
 /** The per-face colours and texture ids of an object. Faces without an exception use [default]. */
@@ -64,16 +77,25 @@ class TextureEntry(val default: FaceAppearance, private val faces: Map<Int, Face
             val colors = section(4) { p -> FloatArray(4) { i -> (255 - (data[p + i].toInt() and 0xFF)) / 255f } }
             val repU = section(4, ::floatAt)
             val repV = section(4, ::floatAt)
-            // Offset, rotation, material and media do not affect flat shading; step over them.
-            section(2) { 0 }; section(2) { 0 }; section(2) { 0 }; section(1) { 0 }; section(1) { 0 }
+            fun s16(p: Int) = ((data[p].toInt() and 0xFF) or (data[p + 1].toInt() shl 8)).toShort().toInt()
+            val offU = section(2) { p -> s16(p) / 32767f }
+            val offV = section(2) { p -> s16(p) / 32767f }
+            val rot = section(2) { p -> ((data[p].toInt() and 0xFF) or ((data[p + 1].toInt() and 0xFF) shl 8)) / 32768f * (2f * Math.PI.toFloat()) }
+            val mat = section(1) { p -> data[p].toInt() and 0xFF } // bit 0x20: fullbright
+            section(1) { 0 }                                       // media flags
             val glow = if (more()) section(1) { p -> (data[p].toInt() and 0xFF) / 255f } else 0f to emptyMap()
 
-            val default = FaceAppearance(textures.first, colors.first, repU.first, repV.first, glow.first)
-            val all = HashSet<Int>().apply { addAll(textures.second.keys); addAll(colors.second.keys); addAll(repU.second.keys); addAll(repV.second.keys); addAll(glow.second.keys) }
+            val default = FaceAppearance(textures.first, colors.first, repU.first, repV.first, glow.first, offU.first, offV.first, rot.first, mat.first and 0x20 != 0)
+            val all = HashSet<Int>().apply {
+                addAll(textures.second.keys); addAll(colors.second.keys); addAll(repU.second.keys); addAll(repV.second.keys); addAll(glow.second.keys)
+                addAll(offU.second.keys); addAll(offV.second.keys); addAll(rot.second.keys); addAll(mat.second.keys)
+            }
             val faces = all.associateWith { f ->
                 FaceAppearance(
                     textures.second[f] ?: textures.first, colors.second[f] ?: colors.first,
                     repU.second[f] ?: repU.first, repV.second[f] ?: repV.first, glow.second[f] ?: glow.first,
+                    offU.second[f] ?: offU.first, offV.second[f] ?: offV.first, rot.second[f] ?: rot.first,
+                    ((mat.second[f] ?: mat.first) and 0x20) != 0,
                 )
             }
             return TextureEntry(default, faces)

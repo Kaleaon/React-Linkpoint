@@ -5,6 +5,8 @@ import app.linkpoint.core.model.*
 import app.linkpoint.core.net.*
 import app.linkpoint.core.scene.ObjectDecoder
 import app.linkpoint.core.scene.SceneStore
+import app.linkpoint.core.terrain.Heightmap
+import app.linkpoint.core.terrain.TerrainDecoder
 import java.net.InetSocketAddress
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
@@ -50,6 +52,9 @@ class ViewerSession(
     /** Objects of the current region, kept up to date from the simulator's object messages. */
     val scene = SceneStore()
 
+    /** Terrain heights of the current region, filled in as LayerData arrives. */
+    val heightmap = Heightmap()
+
     private var login: LoginResult? = null
     private lateinit var agentId: UUID
     private lateinit var sessionId: UUID
@@ -70,7 +75,7 @@ class ViewerSession(
     suspend fun connect(result: LoginResult) {
         check(_state.value == ConnectionState.DISCONNECTED) { "Already connected" }
         _state.value = ConnectionState.CONNECTING
-        _chat.value = emptyList(); _region.value = null; _balance.value = null; scene.clear()
+        _chat.value = emptyList(); _region.value = null; _balance.value = null; scene.clear(); heightmap.clear()
         try {
             login = result
             agentId = UUID.fromString(result.agentId)
@@ -117,6 +122,7 @@ class ViewerSession(
         previousJobs.forEach { it.cancel() }
         _nearby.value = emptyList()
         scene.clear()
+        heightmap.clear()
         startCaps(seedCapability)
     }
 
@@ -176,10 +182,13 @@ class ViewerSession(
             is Incoming.RegionHandshake -> {
                 circuit?.send(Messages.regionHandshakeReply(agentId, sessionId))
                 circuit?.send(Messages.agentThrottle(agentId, sessionId, login!!.circuitCode))
-                _region.update { RegionInfo(m.regionName, m.simAccess, it?.handle ?: 0, it?.position, m.waterHeight) }
+                _region.update {
+                    val t = if (m.terrainStartHeights != null && m.terrainHeightRanges != null && m.terrainDetail.size == 4) TerrainInfo(m.terrainDetail, m.terrainStartHeights, m.terrainHeightRanges) else null
+                    RegionInfo(m.regionName, m.simAccess, it?.handle ?: 0, it?.position, m.waterHeight, t)
+                }
             }
             is Incoming.AgentMovementComplete -> {
-                _region.update { RegionInfo(it?.name, it?.access, m.regionHandle, m.position, it?.waterHeight) }
+                _region.update { RegionInfo(it?.name, it?.access, m.regionHandle, m.position, it?.waterHeight, it?.terrain) }
                 movementDone?.complete(Unit)
                 sendAgentUpdate()
             }
@@ -203,6 +212,9 @@ class ViewerSession(
                 scope.launch { teardown() }
             }
             Incoming.LogoutReply -> logoutDone?.complete(Unit)
+            is Incoming.TerrainLayer -> try {
+                TerrainDecoder.decode(m.data).patches.forEach(heightmap::put)
+            } catch (_: IllegalArgumentException) { /* a damaged layer packet: keep what we have */ }
             is Incoming.Unhandled -> Unit
         }
     }

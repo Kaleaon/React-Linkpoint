@@ -25,6 +25,7 @@ object Msg {
 
     val PacketAck = fixed(0xFB)
     val StartPingCheck = high(1)
+    val LayerData = high(11)
     val ObjectUpdate = high(12)
     val ObjectUpdateCompressed = high(13)
     val ObjectUpdateCached = high(14)

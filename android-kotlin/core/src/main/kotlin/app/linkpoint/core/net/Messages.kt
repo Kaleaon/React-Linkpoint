@@ -18,7 +18,14 @@ sealed class Incoming {
         val timestamp: Long, val fromName: String, val message: String, val binaryBucket: ByteArray,
     ) : Incoming()
 
-    data class RegionHandshake(val regionName: String, val simAccess: Int, val regionFlags: Long, val waterHeight: Float, val regionId: UUID?) : Incoming()
+    data class RegionHandshake(
+        val regionName: String, val simAccess: Int, val regionFlags: Long, val waterHeight: Float, val regionId: UUID?,
+        /** The four terrain detail texture ids, lowest layer first, or empty if the block was short. */
+        val terrainDetail: List<UUID> = emptyList(),
+        /** Terrain start heights and height ranges at the SW, SE, NW, NE corners (message order 00, 01, 10, 11). */
+        val terrainStartHeights: FloatArray? = null, val terrainHeightRanges: FloatArray? = null,
+    ) : Incoming()
+    data class TerrainLayer(val type: Int, val data: ByteArray) : Incoming()
     data class AgentMovementComplete(val position: FloatArray, val lookAt: FloatArray, val regionHandle: Long) : Incoming()
     data class OnlineStatus(val ids: List<UUID>, val online: Boolean) : Incoming()
     data class UuidNames(val names: List<Triple<UUID, String, String>>) : Incoming()
@@ -166,7 +173,17 @@ object Messages {
                 val flags = r.u32(); val access = r.u8(); val name = r.str1()
                 r.uuid(); r.bool()
                 val water = r.f32()
-                Incoming.RegionHandshake(name, access, flags, water, null)
+                // The terrain block is optional for our purposes: a short message still names the region.
+                try {
+                    r.f32(); r.uuid()                       // billable factor, cache id
+                    repeat(4) { r.uuid() }                  // terrain base textures (unused)
+                    val detail = List(4) { r.uuid() }
+                    val starts = floatArrayOf(r.f32(), r.f32(), r.f32(), r.f32())
+                    val ranges = floatArrayOf(r.f32(), r.f32(), r.f32(), r.f32())
+                    Incoming.RegionHandshake(name, access, flags, water, null, detail, starts, ranges)
+                } catch (_: IllegalArgumentException) {
+                    Incoming.RegionHandshake(name, access, flags, water, null)
+                }
             }
             Msg.AgentMovementComplete -> {
                 r.uuid(); r.uuid()
@@ -204,6 +221,7 @@ object Messages {
                 })
             }
             Msg.KickUser -> { r.bytes(6); r.uuid(); r.uuid(); Incoming.KickUser(r.str2()) }
+            Msg.LayerData -> { val t = r.u8(); Incoming.TerrainLayer(t, r.bin2()) }
             Msg.LogoutReply -> Incoming.LogoutReply
             else -> Incoming.Unhandled(id)
         }

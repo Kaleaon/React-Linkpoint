@@ -62,6 +62,7 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
     private var waterVb: VertexBuffer? = null
     private var waterIb: IndexBuffer? = null
     private var waterMi: MaterialInstance? = null
+    private val terrain = TerrainRenderer(engine, scene, materials)
     private val particlesAlpha: ParticleBatch
     private val particlesAdd: ParticleBatch
 
@@ -149,6 +150,11 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         if (v != lastVersion || now - lastSync > 500_000_000L) {
             lastVersion = v; lastSync = now
             syncObjects(own?.localId)
+        }
+        val region = session.region.value
+        if (region != null && region.handle != 0L) {
+            terrain.setLight(lighting, 128f, 128f, 30f)
+            terrain.update(session.heightmap, region.terrain, region.gridX, region.gridY, now)
         }
         syncWater()
         stepParticles(dt)
@@ -349,6 +355,7 @@ class WorldRenderer(private val context: Context, private val session: ViewerSes
         for (f in primCache.values.flatten() + meshCache.values.flatten()) f.destroy(engine)
         primCache.clear(); meshCache.clear()
         particlesAlpha.destroy(); particlesAdd.destroy()
+        terrain.destroy()
         if (waterEntity != 0) { scene.removeEntity(waterEntity); engine.destroyEntity(waterEntity); EntityManager.get().destroy(waterEntity) }
         waterVb?.let { engine.destroyVertexBuffer(it) }; waterIb?.let { engine.destroyIndexBuffer(it) }; waterMi?.let { engine.destroyMaterialInstance(it) }
         materials.destroy()

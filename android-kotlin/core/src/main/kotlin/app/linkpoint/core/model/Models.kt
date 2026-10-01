@@ -31,11 +31,15 @@ data class RegionInfo(
     val position: FloatArray?,
     /** Region water level in metres, from the region handshake. */
     val waterHeight: Float? = null,
+    val terrain: TerrainInfo? = null,
 ) {
     /** Region grid coordinates (region index, not metres) from the region handle. */
     val gridX: Int get() = ((handle ushr 32) / 256).toInt()
     val gridY: Int get() = ((handle and 0xFFFFFFFFL) / 256).toInt()
 }
+
+/** Terrain texturing parameters from the region handshake. */
+class TerrainInfo(val detailTextureIds: List<UUID>, val startHeights: FloatArray, val heightRanges: FloatArray)
 
 enum class ConnectionState { DISCONNECTED, CONNECTING, CONNECTED, LOGGING_OUT }
 
