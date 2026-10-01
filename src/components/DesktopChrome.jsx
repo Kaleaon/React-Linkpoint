@@ -8,6 +8,8 @@ import { deskKind, deskGeometry, elbowPath, sweepSegmentFills } from "../theme/d
 const TOOLBAR = [
   ["message-square", "Chat", "Chat"],
   ["users", "People", "Friends"],
+  ["contact", "Contacts", "Contacts"],
+  ["calendar", "Calendar", "Calendar"],
   ["radar", "Nearby", "Radar"],
   ["map", "Map", "Map"],
   ["folder", "Inventory", "Inventory"],

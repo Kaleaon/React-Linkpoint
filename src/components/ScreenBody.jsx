@@ -14,6 +14,8 @@ import Profile from "../screens/Profile.jsx";
 import Login from "../screens/Login.jsx";
 import CacheScreen from "../screens/CacheScreen.jsx";
 import Settings from "../screens/Settings.jsx";
+import ContactsScreen from "../screens/ContactsScreen.jsx";
+import CalendarScreen from "../screens/CalendarScreen.jsx";
 import { FriendsScreen, GroupsScreen, NoticesScreen, MuteListScreen, GenericInventoryScreen, SearchScreen } from "../screens/LiveScreens.jsx";
 import { AOScreen, AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsScreen, ParcelScreen, TeleportScreen, TransactionsScreen } from "../screens/LumiyaTools.jsx";
 
@@ -44,6 +46,8 @@ export default function ScreenBody() {
         {norm && scr === "Cache" && <CacheScreen />}
         {norm && scr === "Settings" && <Settings />}
         {norm && scr === "Friends" && <FriendsScreen />}
+        {norm && scr === "Contacts" && <ContactsScreen />}
+        {norm && scr === "Calendar" && <CalendarScreen />}
         {norm && scr === "Groups" && <GroupsScreen />}
         {norm && scr === "Notices" && <NoticesScreen />}
         {norm && scr === "Mute List" && <MuteListScreen />}
