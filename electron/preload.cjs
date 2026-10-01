@@ -8,6 +8,11 @@ contextBridge.exposeInMainWorld('linkpointDesktop', {
   sendInstantMessage: (request) => ipcRenderer.invoke('linkpoint:viewer-im', request),
   sendFriendRequest: (request) => ipcRenderer.invoke('linkpoint:viewer-friend-request', request),
   fetchFriends: () => ipcRenderer.invoke('linkpoint:viewer-friends'),
+  teleport: (request) => ipcRenderer.invoke('linkpoint:viewer-teleport', request),
+  touchObject: (request) => ipcRenderer.invoke('linkpoint:viewer-touch', request),
+  sit: (request) => ipcRenderer.invoke('linkpoint:viewer-sit', request),
+  stand: () => ipcRenderer.invoke('linkpoint:viewer-stand'),
+  getBalance: () => ipcRenderer.invoke('linkpoint:viewer-balance'),
   disconnectViewer: () => ipcRenderer.invoke('linkpoint:viewer-disconnect'),
   onViewerEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);

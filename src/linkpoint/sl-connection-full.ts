@@ -82,6 +82,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.removeNativeListener?.();
     this.removeNativeListener = null;
     this.connected = false;
+    this.balance = null;
     this.authReply = null;
     this.agentId = null;
     this.sessionId = null;
@@ -376,6 +377,54 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.emit('avatar_presence', body);
       this.emit('avatar-presence', body);
     }
+  }
+
+  // ---- viewer actions -----------------------------------------------------
+  // Both the desktop app and the web server run the same validated actions.
+  private requireConnected() {
+    if (!this.connected && !slBridge.connected) throw new Error('Not connected to a grid');
+  }
+
+  /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
+  async teleportTo(destination: string) {
+    this.requireConnected();
+    const result = window.linkpointDesktop?.teleport
+      ? await window.linkpointDesktop.teleport({ destination })
+      : await slBridge.teleport({ destination });
+    this.emit('teleport_requested', result);
+    return result;
+  }
+
+  /** Touch an object by id. Face and texture coordinates are sent only when known. */
+  async touchObject(target: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
+    this.requireConnected();
+    return window.linkpointDesktop?.touchObject ? window.linkpointDesktop.touchObject(target) : slBridge.touchObject(target);
+  }
+
+  async sit(id?: string) {
+    this.requireConnected();
+    return window.linkpointDesktop?.sit ? window.linkpointDesktop.sit({ id }) : slBridge.sit({ id });
+  }
+
+  async stand() {
+    this.requireConnected();
+    return window.linkpointDesktop?.stand ? window.linkpointDesktop.stand() : slBridge.stand();
+  }
+
+  /** L$ balance, or null when the grid has not answered. Never a guess. */
+  public balance: number | null = null;
+
+  async refreshBalance(): Promise<number | null> {
+    if (!this.connected && !slBridge.connected) { this.balance = null; return null; }
+    try {
+      const { balance } = window.linkpointDesktop?.getBalance ? await window.linkpointDesktop.getBalance() : await slBridge.getBalance();
+      this.balance = Number.isFinite(balance) ? balance : null;
+    } catch (error) {
+      console.warn('[SL Connection] balance unavailable:', error);
+      this.balance = null;
+    }
+    this.emit('balance_updated', this.balance);
+    return this.balance;
   }
 
   async sendChat(message: string, channel: number = 0, type: number = 1) {

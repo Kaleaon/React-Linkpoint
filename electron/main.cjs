@@ -83,6 +83,11 @@ ipcMain.handle('linkpoint:viewer-chat', (event, request) => sessionFor(event).se
 ipcMain.handle('linkpoint:viewer-im', (event, request) => sessionFor(event).sendInstantMessage(request.recipientId, request.message));
 ipcMain.handle('linkpoint:viewer-friend-request', (event, request) => sessionFor(event).sendFriendRequest(request.recipientId, request.message));
 ipcMain.handle('linkpoint:viewer-friends', (event) => sessionFor(event).getFriends());
+ipcMain.handle('linkpoint:viewer-teleport', (event, request) => sessionFor(event).teleport(request));
+ipcMain.handle('linkpoint:viewer-touch', (event, request) => sessionFor(event).touchObject(request));
+ipcMain.handle('linkpoint:viewer-sit', (event, request) => sessionFor(event).sit(request || {}));
+ipcMain.handle('linkpoint:viewer-stand', (event) => sessionFor(event).stand());
+ipcMain.handle('linkpoint:viewer-balance', (event) => sessionFor(event).getBalance());
 ipcMain.handle('linkpoint:viewer-disconnect', async (event) => {
   const session = viewerSessions.get(event.sender.id);
   viewerSessions.delete(event.sender.id);

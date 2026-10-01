@@ -18,6 +18,15 @@ const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = requi
   decodeJPEG2000: (buffer: Buffer) => Promise<any>;
 };
 
+const actions = require('../../electron/sl-actions.cjs') as {
+  attachmentInfo: (object: any) => { attachmentPoint: number; attachmentName: string | null; isHud: boolean };
+  teleport: (bot: any, params: any) => Promise<any>;
+  touchObject: (bot: any, params: any) => Promise<any>;
+  sit: (bot: any, params: any) => Promise<any>;
+  stand: (bot: any) => any;
+  getBalance: (bot: any) => Promise<any>;
+};
+
 // Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
 const _origConsoleError = console.error;
 console.error = function (...args: any[]) {
@@ -164,6 +173,7 @@ function serializeObject(event: any) {
     id: object.FullID?.toString() || String(event.localID),
     localId: event.localID,
     parentId: object.ParentID || 0,
+    ...actions.attachmentInfo(object),
     pcode: object.PCode,
     avatar: object.PCode === PCode.Avatar,
     position: vector(object.Position),
@@ -570,6 +580,18 @@ export async function sendSLGroupMessage(sessionId: string, groupId: string, mes
   }
 }
 
+function connectedBot(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+  return session.bot;
+}
+
+export const teleportSL = (sessionId: string, params: any) => actions.teleport(connectedBot(sessionId), params);
+export const touchSLObject = (sessionId: string, params: any) => actions.touchObject(connectedBot(sessionId), params);
+export const sitSL = (sessionId: string, params: any) => actions.sit(connectedBot(sessionId), params);
+export const standSL = (sessionId: string) => actions.stand(connectedBot(sessionId));
+export const getSLBalance = (sessionId: string) => actions.getBalance(connectedBot(sessionId));
+
 export function getSLDiagnostics(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session || !session.bot) {
@@ -800,6 +822,7 @@ export function fetchSLSceneObjects(sessionId: string) {
         id: obj.FullID?.toString() || String(obj.ID || obj.localID),
         localId: obj.ID || obj.localID,
         parentId: obj.ParentID || 0,
+        ...actions.attachmentInfo(obj),
         pcode: obj.PCode,
         avatar: obj.PCode === PCode.Avatar,
         position: vector(obj.Position),

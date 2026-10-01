@@ -94,6 +94,30 @@ export class SLBridge extends Utils.EventEmitter {
     };
   }
 
+  /** Run a viewer action on the server and return its JSON result, or throw the server's message. */
+  private async action<T>(path: string, method: 'GET' | 'POST', body: Record<string, unknown> = {}): Promise<T> {
+    if (!this.sessionId) throw new Error('Not connected to Second Life');
+    const url = method === 'GET' ? `${path}?sessionId=${encodeURIComponent(this.sessionId)}` : path;
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: method === 'POST' ? JSON.stringify({ sessionId: this.sessionId, ...body }) : undefined,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || data.message || `Request failed (HTTP ${response.status})`);
+    return data as T;
+  }
+
+  teleport(params: { destination?: string; region?: string; x?: number; y?: number; z?: number }) {
+    return this.action<{ requested: { region: string; x: number; y: number; z: number }; message: string }>('/api/sl/teleport', 'POST', params);
+  }
+  touchObject(params: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
+    return this.action<{ touched: string | number }>('/api/sl/touch', 'POST', params);
+  }
+  sit(params: { id?: string } = {}) { return this.action<{ sitting: string }>('/api/sl/sit', 'POST', params); }
+  stand() { return this.action<{ standing: boolean }>('/api/sl/stand', 'POST'); }
+  getBalance() { return this.action<{ balance: number }>('/api/sl/balance', 'GET'); }
+
   async sendChat(message: string, channel = 0, type = 1) {
     if (!this.sessionId) throw new Error('Not connected to Second Life');
 

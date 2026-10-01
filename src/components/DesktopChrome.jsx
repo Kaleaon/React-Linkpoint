@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
@@ -26,6 +26,12 @@ export default function DesktopChrome() {
   const position = app.world?.avatarPosition;
   const canonicalLocation = position ? `${region} (${position.slice(0, 3).map((value) => Math.round(value)).join(", ")})` : region;
   const [location, setLocation] = useState(canonicalLocation);
+  const [balance, setBalance] = useState(app.protocol.balance ?? null);
+  useEffect(() => {
+    const update = (value) => setBalance(typeof value === "number" ? value : null);
+    app.protocol.on("balance_updated", update);
+    return () => app.protocol.off("balance_updated", update);
+  }, []);
   const kind = deskKind(t);
   const G = deskGeometry(kind);
 
@@ -92,7 +98,7 @@ export default function DesktopChrome() {
         </form>
 
         <button type="button" className="desktop-balance" onClick={() => actions.notify("Opening transaction history") } style={balanceStyle}>
-          <span style={{ color: kind === "sweep" ? "inherit" : V.ok }}>L$</span> —
+          <span style={{ color: kind === "sweep" ? "inherit" : V.ok }}>L$</span> {balance === null ? "—" : balance.toLocaleString()}
         </button>
         <button type="button" aria-label="Search" title="Search" style={iconButton} onClick={() => actions.openSearch(state.screen, "ALL")}><Icon name="search" size={14} /></button>
       </div>

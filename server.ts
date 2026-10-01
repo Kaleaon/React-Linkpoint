@@ -13,6 +13,7 @@ import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/
 import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
 import {
   createSLSession,
+  teleportSL, touchSLObject, sitSL, standSL, getSLBalance,
   getSLSession,
   getSLDiagnostics,
   sendSLChat,
@@ -135,6 +136,23 @@ export async function createApp() {
       res.status(500).json({ error: err.message });
     }
   });
+
+  // Viewer actions. Each validates its own input (electron/sl-actions.cjs) and
+  // reports only what the grid answered.
+  const action = (run: (sessionId: string, body: any) => any) => async (req: any, res: any) => {
+    try {
+      const sessionId = String((req.method === "GET" ? req.query.sessionId : req.body?.sessionId) || "");
+      if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
+      res.json(await run(sessionId, req.body || {}));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  };
+  app.post("/api/sl/teleport", action((id, body) => teleportSL(id, body)));
+  app.post("/api/sl/touch", action((id, body) => touchSLObject(id, body)));
+  app.post("/api/sl/sit", action((id, body) => sitSL(id, body)));
+  app.post("/api/sl/stand", action((id) => standSL(id)));
+  app.get("/api/sl/balance", action((id) => getSLBalance(id)));
 
   app.post("/api/sl/im", async (req, res) => {
     try {

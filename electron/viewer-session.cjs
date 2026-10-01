@@ -6,6 +6,7 @@ const {
   AssetType,
 } = require('@caspertech/node-metaverse');
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
+const actions = require('./sl-actions.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -119,6 +120,7 @@ function serializeObject(event) {
     id: object.FullID?.toString() || String(event.localID),
     localId: event.localID,
     parentId: object.ParentID || 0,
+    ...actions.attachmentInfo(object),
     pcode: object.PCode,
     avatar: object.PCode === PCode.Avatar,
     position: vector(object.Position),
@@ -289,6 +291,17 @@ class ViewerSession {
   async sendInstantMessage(recipientId, message) {
     if (!this.bot) throw new Error('Not connected to a simulator');
     await this.bot.clientCommands.comms.sendInstantMessage(recipientId, message);
+  }
+
+  teleport(params) { return actions.teleport(this.requireBot(), params); }
+  touchObject(params) { return actions.touchObject(this.requireBot(), params); }
+  sit(params) { return actions.sit(this.requireBot(), params); }
+  stand() { return actions.stand(this.requireBot()); }
+  getBalance() { return actions.getBalance(this.requireBot()); }
+
+  requireBot() {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    return this.bot;
   }
 
   async sendFriendRequest(recipientId, message = '') {
