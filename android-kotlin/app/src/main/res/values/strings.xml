@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Linkpoint</string>
+    <string name="service_channel">Connection</string>
+    <string name="service_title">Linkpoint is connected</string>
+</resources>
