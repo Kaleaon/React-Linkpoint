@@ -85,6 +85,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.nearbyUsers = [];
       this.environment = null;
       this.terrain = null;
+      this.terrainMaterials = null;
       this.selectedObject = null;
       this.displayedHud = null;
       this.hudSignature = '';
@@ -179,10 +180,30 @@ export class WorldViewer extends Utils.EventEmitter {
       this.applyEnvironment();
       this.emit('environment_changed', data.environment);
     }
+    if (data.terrainMaterials) {
+      this.terrainMaterials = data.terrainMaterials;
+      this.applyTerrainMaterials();
+    }
     if (data.terrain?.heights && Number(data.terrain.size) > 1) {
       this.terrain = { size: Number(data.terrain.size), heights: Array.from(data.terrain.heights, Number) };
       this.scene3d?.setTerrain(this.terrain.heights, this.terrain.size);
       this.emit('terrain_changed', this.terrain);
+    }
+  }
+
+  private terrainMaterials: any = null;
+
+  /** Hand the region's terrain textures, blend ranges and water height to the scene. */
+  private applyTerrainMaterials() {
+    const m = this.terrainMaterials;
+    if (!m || !this.scene3d) return;
+    if (Number.isFinite(m.waterHeight)) this.scene3d.setWaterHeight(m.waterHeight);
+    if (Array.isArray(m.startHeights) && Array.isArray(m.heightRanges)) {
+      this.scene3d.setTerrainMaterials({
+        textureNames: (m.textureIds || []).map((id: string | null) => (id ? `texture:${id}` : '')),
+        startHeights: m.startHeights.map(Number), heightRanges: m.heightRanges.map(Number),
+        origin: [Number(m.origin?.[0]) || 0, Number(m.origin?.[1]) || 0],
+      });
     }
   }
 
@@ -433,6 +454,7 @@ export class WorldViewer extends Utils.EventEmitter {
       await scene.init();
       if (stale()) return;
       this.applyEnvironment();
+      this.applyTerrainMaterials();
       if (this.terrain) scene.setTerrain(this.terrain.heights, this.terrain.size);
       if (this.displayedHud) scene.setDisplayedHud(this.displayedHud.id, this.displayedHud.size);
       await this.loadBody();

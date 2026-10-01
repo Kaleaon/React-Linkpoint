@@ -9,6 +9,7 @@ const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = requi
 const actions = require('./sl-actions.cjs');
 const interactions = require('./sl-interactions.cjs');
 const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
+const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -187,6 +188,20 @@ class ViewerSession {
     }
   }
 
+  /** Download the region's four terrain detail textures; they arrive like any other texture. */
+  loadTerrainTextures(materials) {
+    for (const assetId of materials?.textureIds || []) {
+      if (!assetId) continue;
+      const key = `texture:${assetId}`;
+      if (this.assetRequests.has(key)) continue;
+      const request = (async () => {
+        const buffer = await this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+        this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
+      })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
+      this.assetRequests.set(key, request);
+    }
+  }
+
   loadObjectMaterials(object) {
     const appearance = primAppearance(object);
     const ids = new Set(appearance.faceTextures.map((face) => face.materialId).filter(Boolean));
@@ -275,8 +290,10 @@ class ViewerSession {
     const worldData = {
       region: { name: region.regionName || null, x: region.xCoordinate, y: region.yCoordinate },
       environment: serializeEnvironment(region.environment),
+      terrainMaterials: serializeTerrainMaterials(region),
     };
     queueMicrotask(() => this.send('world-data', worldData));
+    this.loadTerrainTextures(worldData.terrainMaterials);
     region.waitForTerrain().then(() => this.send('terrain', serializeTerrain(region))).catch(() => {});
     return {
       login: true,
@@ -368,4 +385,4 @@ class ViewerSession {
   }
 }
 
-module.exports = { ViewerSession, serializeObject, serializeEnvironment, serializeTerrain, serializeFriend };
+module.exports = { ViewerSession, serializeObject, serializeEnvironment, serializeTerrain, serializeFriend, serializeTerrainMaterials };

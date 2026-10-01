@@ -8,6 +8,7 @@ import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
 import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Frustum } from './frustum';
 import { intersectRayOrientedBox } from './ray-pick';
+import { DETAIL_TILE_METRES, FALLBACK_LAYER_COLORS, TERRAIN_LAYERS, compositionTexture, terrainComposition, type TerrainParams } from './terrain';
 import { fitHud, hudExtents, hudProjection, HUD_SIZE, type HudFit } from './hud';
 import {
   WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater, readVec3,
@@ -34,6 +35,10 @@ export class Scene3D extends Utils.EventEmitter {
   public gridDivisions: number = 16;
   public environment: any = null;
   private terrainLoaded = false;
+  private terrainHeights: number[] | null = null;
+  private terrainSize = 0;
+  private terrainMaterials: (TerrainParams & { textureNames: string[] }) | null = null;
+  private terrainCompositionReady = false;
 
   // Sky, water and culling. Sky/water resources are created in init().
   public showSky = true;
@@ -188,7 +193,36 @@ export class Scene3D extends Utils.EventEmitter {
     }
     this.graphics.createMesh('terrain', vertices, indices, normals, texCoords);
     this.terrainLoaded = true;
+    this.terrainHeights = Array.from(heights, Number);
+    this.terrainSize = size;
+    this.buildTerrainComposition();
     return true;
+  }
+
+  /**
+   * Texture the terrain like the official viewer: four detail textures blended by height + noise,
+   * measured against per-corner start heights and ranges (SW, SE, NW, NE). `textureNames` are the
+   * graphics texture names of the four layers; any not loaded yet show a fallback colour.
+   */
+  setTerrainMaterials(materials: TerrainParams & { textureNames: string[] }) {
+    if (!materials || materials.startHeights?.length < 4 || materials.heightRanges?.length < 4) return false;
+    this.terrainMaterials = materials;
+    this.buildTerrainComposition();
+    return true;
+  }
+
+  private buildTerrainComposition() {
+    this.terrainCompositionReady = false;
+    const materials = this.terrainMaterials;
+    if (!materials || !this.terrainHeights || !this.terrainSize) return;
+    const values = terrainComposition(this.terrainHeights, this.terrainSize, materials);
+    this.graphics.createTexture('terrain:composition', this.terrainSize, this.terrainSize, compositionTexture(values, this.terrainSize));
+    this.terrainCompositionReady = true;
+  }
+
+  /** True when the terrain is drawn with height-blended detail textures. */
+  get terrainTextured() {
+    return this.terrainLoaded && this.terrainCompositionReady;
   }
 
   setEnvironment(environment: any) {
@@ -570,6 +604,23 @@ export class Scene3D extends Utils.EventEmitter {
     
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
     
+    if (this.terrainTextured && this.terrainMaterials) {
+      const names = this.terrainMaterials.textureNames;
+      const use = [0, 1, 2, 3].map((i) => (this.graphics.hasTexture(names[i]) ? 1 : 0));
+      const detail: Record<string, any> = {};
+      for (let i = 0; i < TERRAIN_LAYERS; i++) {
+        detail[`uDetail${i}Name`] = names[i];
+        detail[`uFallback${i}`] = new Float32Array(FALLBACK_LAYER_COLORS[i]);
+      }
+      this.graphics.drawMesh('terrain', 'terrain', {
+        uModelMatrix: modelMatrix, uViewMatrix: viewMatrix, uProjectionMatrix: projectionMatrix, uNormalMatrix: normalMatrix,
+        uLightPos: new Float32Array(light.position), uLightColor: new Float32Array(light.color), uAmbientColor: new Float32Array(this.ambientColor),
+        uCompositionName: 'terrain:composition', uDetailUse: new Float32Array(use),
+        uTileScale: this.terrainSize > 1 ? 256 / DETAIL_TILE_METRES : 16,
+        ...detail,
+      });
+      return;
+    }
     this.graphics.drawMesh(this.terrainLoaded ? 'terrain' : 'grid', 'basic', {
       uModelMatrix: modelMatrix,
       uViewMatrix: viewMatrix,

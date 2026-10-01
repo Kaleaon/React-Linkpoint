@@ -30,6 +30,9 @@ const actions = require('../../electron/sl-actions.cjs') as {
   getBalance: (bot: any) => Promise<any>;
 };
 
+const { serializeTerrainMaterials } = require('../../electron/sl-terrain.cjs') as {
+  serializeTerrainMaterials: (region: any) => { textureIds: Array<string | null> } | null;
+};
 const { watchAnimations, downloadAnimation } = require('../../electron/sl-animations.cjs') as {
   watchAnimations: (getRegion: () => any, send: (type: string, data: any) => void, intervalMs?: number) => { unsubscribe(): void };
   downloadAnimation: (bot: any, id: string) => Promise<string>;
@@ -354,6 +357,20 @@ export async function createSLSession(params: {
     }
   };
 
+  /** The region's four terrain detail textures, delivered like any other texture. */
+  const loadTerrainTextures = (materials: { textureIds: Array<string | null> } | null) => {
+    for (const assetId of materials?.textureIds || []) {
+      if (!assetId || sessionData.assetRequests.has(`texture:${assetId}`)) continue;
+      const request = (async () => {
+        const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+        const payload = { assetId, ...(await decodeJPEG2000(buffer)) };
+        sessionData.decodedAssets.set(`texture:${assetId}`, { type: 'texture-ready', data: payload });
+        broadcastEvent('texture-ready', payload);
+      })().catch((error: Error) => broadcastEvent('asset-error', { assetId, message: error.message }));
+      sessionData.assetRequests.set(`texture:${assetId}`, request);
+    }
+  };
+
   const loadObjectMaterials = (object: any) => {
     const appearance = primAppearance(object);
     const materialIds = new Set(appearance.faceTextures.map((face: any) => face.materialId).filter(Boolean));
@@ -549,7 +566,9 @@ export async function createSLSession(params: {
   const worldData = {
     region: { name: region?.regionName || null, x: region?.xCoordinate, y: region?.yCoordinate },
     environment: serializeEnvironment(region?.environment),
+    terrainMaterials: serializeTerrainMaterials(region),
   };
+  loadTerrainTextures(worldData.terrainMaterials);
   region?.waitForTerrain?.().then(() => broadcastEvent('terrain', serializeTerrain(region))).catch(() => {});
 
   return {

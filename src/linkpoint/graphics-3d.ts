@@ -4,6 +4,7 @@
 
 import { Utils } from './utils';
 import { clampJointIndices, maxSkinJoints, skinnedVertexShader } from './skinning';
+import { TERRAIN_FRAGMENT_SHADER, TERRAIN_VERTEX_SHADER } from './terrain';
 import {
   SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER, STARS_VERTEX_SHADER, STARS_FRAGMENT_SHADER,
   WATER_VERTEX_SHADER, WATER_FRAGMENT_SHADER,
@@ -219,6 +220,7 @@ export class Graphics3D extends Utils.EventEmitter {
     // Skinned (rigged mesh / avatar) variant: same lighting, joint-driven vertices.
     this.maxJoints = maxSkinJoints(Number(this.gl!.getParameter(this.gl!.MAX_VERTEX_UNIFORM_VECTORS)) || 128);
     this.createShaderProgram('skinned', { vertex: skinnedVertexShader(this.maxJoints), fragment: BASIC_FRAGMENT_SHADER });
+    this.createShaderProgram('terrain', { vertex: TERRAIN_VERTEX_SHADER, fragment: TERRAIN_FRAGMENT_SHADER });
 
     // Environment programs (see sky.ts).
     this.createShaderProgram('sky', { vertex: SKY_VERTEX_SHADER, fragment: SKY_FRAGMENT_SHADER });
@@ -427,19 +429,25 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Set uniforms
+    // Sampler uniforms the program declares, bound to consecutive texture units.
     const bindings = [
       ['uTextureName', 'uTexture'], ['uMetallicRoughnessTextureName', 'uMetallicRoughnessTexture'],
       ['uNormalTextureName', 'uNormalTexture'], ['uEmissiveTextureName', 'uEmissiveTexture'],
+      ['uCompositionName', 'uComposition'], ['uDetail0Name', 'uDetail0'], ['uDetail1Name', 'uDetail1'],
+      ['uDetail2Name', 'uDetail2'], ['uDetail3Name', 'uDetail3'],
     ];
-    bindings.forEach(([valueName, uniformName], unit) => {
+    let unit = 0;
+    for (const [valueName, uniformName] of bindings) {
+      const sampler = programInfo.uniforms[uniformName];
+      if (!sampler) continue;
       const fallback = uniformName === 'uNormalTexture' ? '__normal' : '__white';
       const texture = this.textures.get(uniforms[valueName]) || this.textures.get(fallback);
-      if (!texture) return;
+      if (!texture) continue;
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      const sampler = programInfo.uniforms[uniformName];
-      if (sampler) gl.uniform1i(sampler, unit);
-    });
+      gl.uniform1i(sampler, unit);
+      unit++;
+    }
     this.setUniforms(programInfo.uniforms, uniforms, programInfo.arrayUniforms);
 
     const blend = uniforms.uAlphaMode === 2 || options.blend === true;
@@ -483,6 +491,10 @@ export class Graphics3D extends Utils.EventEmitter {
     for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] < 250) { hasAlpha = true; break; } }
     this.textureAlpha.set(name, hasAlpha);
     return name;
+  }
+
+  hasTexture(name: string | undefined | null): boolean {
+    return Boolean(name && this.textures.has(name));
   }
 
   /** True when the named texture has transparent pixels. Unknown textures are opaque. */
