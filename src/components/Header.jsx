@@ -56,7 +56,7 @@ function StackHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { state, actions } = useApp();
   const showLink = scr === "Chat";
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "AO"].includes(scr);
   const headerIcons =
     scr === "Friends"
       ? [
@@ -131,7 +131,7 @@ function StackHead({ title, subtitle, scr }) {
 function SweepHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "AO"].includes(scr);
   return (
     <>
       <div style={{ flex: "none", display: "flex", alignItems: "flex-end", gap: "4px", padding: "10px 12px 6px 4px" }}>
@@ -174,7 +174,7 @@ function PivotHead({ title, subtitle, scr }) {
   const { t, V } = useTheme();
   const { actions } = useApp();
   const nextScr = SCREENS[(SCREENS.indexOf(scr) + 1) % SCREENS.length];
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "AO"].includes(scr);
   return (
     <>
       <div style={{ flex: "none", padding: "14px 16px 2px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", overflow: "hidden" }}>
@@ -215,7 +215,7 @@ function PivotHead({ title, subtitle, scr }) {
 function RuleHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "AO"].includes(scr);
   return (
     <div style={{ flex: "none", padding: "12px 16px 4px" }}>
       <div style={{ height: "1px", background: V.pri }} />
@@ -258,7 +258,7 @@ function RuleHead({ title, subtitle, scr }) {
 function EditorialHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "AO"].includes(scr);
   return (
     <div style={{ flex: "none", padding: "14px 18px 8px", borderBottom: "2px solid " + V.ink }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>

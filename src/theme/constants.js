@@ -50,18 +50,20 @@ export const GRIDS = [
 
 // Firestorm-style custom button array: the user's dock is a list of keys into this palette.
 export const CBTN = {
-  fly:  { label: "FLY",   icon: "plane",           tog: true, off: "no fly in this region" },
+  // `nav` opens the matching screen. Everything else is not implemented yet and
+  // says so when pressed; no button invents a toggle state or a permission.
+  fly:  { label: "FLY",   icon: "plane" },
   sit:  { label: "SIT",   icon: "armchair" },
   snap: { label: "SNAP",  icon: "camera" },
-  mini: { label: "MAP",   icon: "map" },
-  inv:  { label: "INV",   icon: "package" },
+  mini: { label: "MAP",   icon: "map",             nav: "Map" },
+  inv:  { label: "INV",   icon: "package",         nav: "Inventory" },
   home: { label: "HOME",  icon: "house" },
-  ao:   { label: "AO",    icon: "person-standing", tog: true },
-  sun:  { label: "NOON",  icon: "sun",             tog: true },
-  mute: { label: "MUTE",  icon: "volume-x",        tog: true },
+  ao:   { label: "AO",    icon: "person-standing" },
+  sun:  { label: "NOON",  icon: "sun" },
+  mute: { label: "MUTE",  icon: "volume-x" },
   drnd: { label: "DEREND",icon: "eye-off" },
-  rgn:  { label: "REGION",icon: "info" },
-  bld:  { label: "BUILD", icon: "hammer",          off: "not your land" },
+  rgn:  { label: "REGION",icon: "info",            nav: "Parcel" },
+  bld:  { label: "BUILD", icon: "hammer" },
 };
 
 // Rail sub-segments are per-screen sub-nav, not decoration: each active area exposes
@@ -90,8 +92,6 @@ export const CSUB = {
   Parcel:        [["GENERAL", "· 01"], ["MEDIA", "· 02"]],
   Transactions:  [["ALL", "· 01"], ["PAYMENTS", "· 02"]],
   "Mute List":   [["AVATARS", "· 01"], ["OBJECTS", "· 02"]],
-  "Offline Grid": [["STATUS", "· 01"], ["ACCOUNT", "· 02"], ["OAR", "· 03"], ["ASSETS", "· 04"], ["CACHE", "· 05"]],
-  "Grid Console": [["ALL", "· 01"], ["ERRORS", "· 02"]],
 };
 
 // The screen's current sub-view: `tabs[screen]` when it is one of that screen's

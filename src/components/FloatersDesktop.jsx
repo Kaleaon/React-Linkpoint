@@ -7,6 +7,7 @@ import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
 import DesktopChrome from "./DesktopChrome.jsx";
 import World3D from "../screens/World3D.jsx";
+import { formatHeading, useCameraState } from "./cameraReadout.js";
 import { deskKind, deskGeometry, floaterStyle, chipStyle } from "../theme/deskStyle.js";
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
@@ -49,12 +50,14 @@ export default function FloatersDesktop() {
   const fBody = buildFBody(state);
 
   const flScene = {
-    position: "absolute", inset: 0, overflow: "hidden", cursor: state.cDrag ? "grabbing" : "grab",
+    position: "absolute", inset: 0, overflow: "hidden", cursor: "grab",
     background: "linear-gradient(180deg," + V.sky1 + " 0%," + V.sky2 + " 52%," + V.gnd + " 52%," + V.gnd2 + " 100%)",
   };
   const currentRegion = (app.world?.region?.name || "NO REGION DATA").toUpperCase();
   const avatarPos = app.world?.avatarPosition;
-  const regionRead = `${currentRegion}${avatarPos ? ` · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])}` : ""} · HDG ${String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0")}° ${state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL"}`;
+  const camera = useCameraState();
+  const heading = formatHeading(camera);
+  const regionRead = `${currentRegion}${avatarPos ? ` · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])}` : ""}${heading ? ` · ${heading}` : ""}`;
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
   const flFocused = state.flOpen[state.screen] && !state.flMin[state.screen] ? actions.flR(state.screen) : null;
@@ -102,22 +105,22 @@ export default function FloatersDesktop() {
               <span onClick={() => setShowCamHud(false)} style={{ cursor: "pointer", color: V.ink2, fontSize: "12px", lineHeight: 1 }}>&times;</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 24px)", gap: "3px", justifyContent: "center" }}>
-              <button type="button" onClick={() => actions.sceneMove({ clientX: 0, clientY: -10 })} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Up">
+              <button type="button" onClick={() => app.world.rotateCamera(8, 0)} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Up">
                 <Icon name="chevron-up" size={12} />
               </button>
-              <button type="button" onClick={() => { actions.cHold("cam"); }} style={{ height: "24px", background: V.pri, border: "1px solid " + V.pri, color: ink(V.pri, [V.bg, V.onpri, V.ink]), borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 8px/1 " + t.dfont }} aria-label="Toggle Mode">
-                {state.cCam === "ORBIT" ? "ORB" : "LOOK"}
+              <button type="button" onClick={() => app.world.toggleCameraMode()} style={{ height: "24px", background: V.pri, border: "1px solid " + V.pri, color: ink(V.pri, [V.bg, V.onpri, V.ink]), borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 8px/1 " + t.dfont }} aria-label="Toggle Mode">
+                {camera?.mode === "first-person" ? "LOOK" : "ORB"}
               </button>
-              <button type="button" onClick={() => actions.sceneMove({ clientX: 0, clientY: 10 })} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Down">
+              <button type="button" onClick={() => app.world.rotateCamera(-8, 0)} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Down">
                 <Icon name="chevron-down" size={12} />
               </button>
-              <button type="button" onClick={() => actions.sceneMove({ clientX: -15, clientY: 0 })} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Left">
+              <button type="button" onClick={() => app.world.rotateCamera(0, -10)} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Left">
                 <Icon name="chevron-left" size={12} />
               </button>
-              <button type="button" onClick={() => actions.notify("Camera Reset")} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Reset View">
+              <button type="button" onClick={() => { app.world.setCameraPreset(camera?.mode === "first-person" ? "first-person" : "rear"); }} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Reset View">
                 <Icon name="rotate-ccw" size={11} />
               </button>
-              <button type="button" onClick={() => actions.sceneMove({ clientX: 15, clientY: 0 })} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Right">
+              <button type="button" onClick={() => app.world.rotateCamera(0, 10)} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Right">
                 <Icon name="chevron-right" size={12} />
               </button>
             </div>
@@ -347,17 +350,6 @@ function buildFBody(state) {
     Diagnostics: [
       { a: "Connection", b: app.protocol.connected ? "connected" : "disconnected" },
       { a: "Capabilities", b: String(Object.keys(app.protocol.capabilities || {}).length) },
-    ],
-    "Offline Grid": [
-      { a: "Local Grid Engine", b: state.offlineRunning ? "ONLINE" : "OFFLINE" },
-      { a: "Active User", b: ((state.offlineUser && state.offlineUser.firstName) || "Jane") + " " + ((state.offlineUser && state.offlineUser.lastName) || "Doe") },
-      { a: "Local IP/Port", b: "127.0.0.1:9000" },
-      { a: "OAR Region", b: state.oarRegionName || "Welcome Island" }
-    ],
-    "Grid Console": [
-      { a: "Total Entries", b: String((state.consoleLogs || []).length) },
-      { a: "Warnings", b: String((state.consoleLogs || []).filter(e => e.level === "WARN").length) },
-      { a: "Errors", b: String((state.consoleLogs || []).filter(e => e.level === "ERROR" || e.level === "FATAL").length) }
     ],
   };
 }

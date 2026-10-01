@@ -101,6 +101,19 @@ export class Camera3D extends Utils.EventEmitter {
     this.emit('moved', this.position);
   }
 
+  /**
+   * Where the camera is actually looking, as a compass heading (0 = north/+Y,
+   * clockwise) and a pitch in degrees (positive looks up). Orbit mode's rotation
+   * describes the camera's position around its target, so the view direction is
+   * derived rather than read straight from `rotation`.
+   */
+  viewAngles(): { heading: number; pitch: number } {
+    const [hx, hy] = this.horizontalHeading();
+    const heading = ((Math.atan2(hx, hy) * 180) / Math.PI + 360) % 360;
+    const pitch = ((this.mode === 'orbit' ? -this.rotation[0] : this.rotation[0]) * 180) / Math.PI;
+    return { heading, pitch };
+  }
+
   /** Turn the view left/right on screen (positive = right), whichever mode is active. */
   turn(amount: number) {
     this.rotate(0, this.mode === 'orbit' ? -amount : amount);

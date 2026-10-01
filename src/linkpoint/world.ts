@@ -367,7 +367,24 @@ export class WorldViewer extends Utils.EventEmitter {
     if (this.camera3d) {
       this.camera3d.move(dy, dx, dz);
       this.updateLocationDisplay();
+      this.emit('camera_changed', this.getCameraState());
     }
+  }
+
+  /** Rotate the view by the given pitch/yaw deltas in degrees (positive yaw turns right). */
+  public rotateCamera(pitchDegrees: number, yawDegrees: number) {
+    if (!this.camera3d) return;
+    const toRadians = Math.PI / 180;
+    if (pitchDegrees) this.camera3d.rotate(this.camera3d.mode === 'orbit' ? -pitchDegrees * toRadians : pitchDegrees * toRadians, 0);
+    if (yawDegrees) this.camera3d.turn(yawDegrees * toRadians);
+    this.updateLocationDisplay();
+    this.emit('camera_changed', this.getCameraState());
+  }
+
+  /** Switch between the third-person orbit camera and first-person view. */
+  public toggleCameraMode() {
+    if (!this.camera3d) return;
+    this.setCameraPreset(this.camera3d.mode === 'orbit' ? 'first-person' : 'rear');
   }
 
   public setCameraPreset(preset: 'rear' | 'front' | 'first-person' | 'free') {
@@ -377,7 +394,9 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   public getCameraState() {
-    return this.camera3d ? { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode } : null;
+    if (!this.camera3d) return null;
+    const { heading, pitch } = this.camera3d.viewAngles();
+    return { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode, heading, pitch };
   }
 
   public pickObject(x: number, y: number) {

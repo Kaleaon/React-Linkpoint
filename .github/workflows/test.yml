@@ -31,6 +31,9 @@ jobs:
     - name: Run TypeScript type check
       run: npm run lint
 
+    - name: Check for fabricated data
+      run: npm run check:fake-data
+
     - name: Run Unit Tests (Vitest)
       run: npm run test
 

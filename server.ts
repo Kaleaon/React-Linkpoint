@@ -10,12 +10,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import dgram from "dgram";
 import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy.ts";
 import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/proxy-permit.ts";
-import {
-  generateGeminiLoginResponse,
-  parseLoginXmlCredentials,
-  processLLSDWithGemini,
-  generateSimulatedChat
-} from "./src/server/gemini-proxy.ts";
+import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
 import {
   createSLSession,
   getSLSession,
@@ -67,7 +62,7 @@ export async function createApp() {
   // Health check
   app.get("/api/health", (req, res) => {
     console.log("[Server] Health check hit");
-    res.json({ status: "ok", env: process.env.NODE_ENV || 'development', geminiProxy: "active" });
+    res.json({ status: "ok", env: process.env.NODE_ENV || 'development' });
   });
 
   // Real Second Life / OpenSim Session Management
@@ -354,18 +349,17 @@ export async function createApp() {
     }
   });
 
-  // Gemini Proxy Status & Health
+  // LLSD assistant status. This only explains pasted LLSD; it cannot stand in for a grid.
   app.get("/api/gemini/status", (req, res) => {
     res.json({
       status: "ok",
-      proxyType: "Gemini Grid Simulator Proxy",
+      purpose: "LLSD explanation assistant",
       model: "gemini-3.8-flash",
       apiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
-      capabilities: ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"],
     });
   });
 
-  // Gemini LLSD Processor & Assistant
+  // LLSD explanation assistant
   app.post("/api/gemini/llsd", async (req, res) => {
     try {
       const { data, task = "Parse and explain this LLSD structure" } = req.body || {};
@@ -376,87 +370,7 @@ export async function createApp() {
     }
   });
 
-  // Gemini Virtual Resident Chat Simulation
-  app.post("/api/gemini/chat", async (req, res) => {
-    try {
-      const { prompt, speaker = "Nyx Vaher" } = req.body || {};
-      const reply = await generateSimulatedChat(prompt || "hello", speaker);
-      res.json({
-        reply,
-        speaker,
-        ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Capability endpoint for simulated sessions
-  app.all(["/api/caps/:sessionId", "/api/caps/:sessionId/*", "/api/caps/seed", "/api/caps/seed/*"], (req, res) => {
-    const host = req.headers.host || 'localhost:3000';
-    const proto = (req.headers['x-forwarded-proto'] as string) || (req.secure ? 'https' : (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'));
-    const sessionId = req.params.sessionId || 'seed';
-    const subpath = req.params[0] || '';
-
-    res.setHeader("Content-Type", "application/llsd+xml");
-
-    // If requesting seed capability (no subpath or seed), return map of capabilities
-    if (!subpath || subpath === '/' || subpath === 'seed') {
-      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<llsd>
-  <map>
-    <key>EventQueueGet</key><string>${proto}://${host}/api/caps/${sessionId}/EventQueueGet</string>
-    <key>FetchInventoryDescendents2</key><string>${proto}://${host}/api/caps/${sessionId}/FetchInventoryDescendents2</string>
-    <key>ChatSessionRequest</key><string>${proto}://${host}/api/caps/${sessionId}/ChatSessionRequest</string>
-    <key>GetDisplayNames</key><string>${proto}://${host}/api/caps/${sessionId}/GetDisplayNames</string>
-  </map>
-</llsd>`);
-    }
-
-    if (subpath.includes('EventQueueGet')) {
-      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<llsd>
-  <map>
-    <key>events</key><array></array>
-    <key>id</key><integer>1</integer>
-  </map>
-</llsd>`);
-    }
-
-    if (subpath.includes('FetchInventoryDescendents2')) {
-      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<llsd>
-  <map>
-    <key>folders</key><array></array>
-    <key>items</key><array></array>
-    <key>descendents</key><integer>0</integer>
-    <key>version</key><integer>1</integer>
-  </map>
-</llsd>`);
-    }
-
-    if (subpath.includes('GetDisplayNames')) {
-      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<llsd>
-  <map>
-    <key>agents</key>
-    <array>
-      <map>
-        <key>display_name</key><string>Ruth Resident</string>
-        <key>legacy_first_name</key><string>Ruth</string>
-        <key>legacy_last_name</key><string>Resident</string>
-        <key>username</key><string>ruth.resident</string>
-        <key>is_display_name_default</key><boolean>true</boolean>
-      </map>
-    </array>
-  </map>
-</llsd>`);
-    }
-
-    return res.send('<?xml version="1.0" encoding="UTF-8"?><llsd><map><key>events</key><array></array></map></llsd>');
-  });
-
-  // CORS Proxy Endpoint (with Gemini Grid Proxy fallback)
+  // CORS Proxy Endpoint. Failures are reported as failures; nothing is synthesized.
   app.all("/api/proxy", async (req, res) => {
     const targetUrl = (req.query.url || req.body?.url) as string;
     let target: URL | null = null;
@@ -502,26 +416,7 @@ export async function createApp() {
       ? forwardData
       : JSON.stringify(forwardData || '');
 
-    // If no target URL was provided or query requested gemini simulation directly
     if (!target) {
-      if (xmlBodyStr.includes('login_to_simulator') || xmlBodyStr.includes('<methodCall>')) {
-        const credentials = parseLoginXmlCredentials(xmlBodyStr);
-        const simulatedXml = await generateGeminiLoginResponse({
-          firstName: credentials.firstName,
-          lastName: credentials.lastName,
-          gridName: 'Gemini Simulated Grid',
-          startLocation: credentials.startLocation,
-          host,
-          protocol: proto,
-        });
-        res.setHeader("Content-Type", "text/xml");
-        const token = permits.issue([`${proto}://${host}/api/caps/seed/`, `${proto}://${host}/api/caps/`]);
-        if (token) {
-          res.setHeader('X-Linkpoint-Capability-Permit', token);
-          res.setHeader('Access-Control-Expose-Headers', 'X-Linkpoint-Capability-Permit');
-        }
-        return res.send(simulatedXml);
-      }
       return res.status(400).json({ error: "Missing proxy target URL" });
     }
 
@@ -554,34 +449,12 @@ export async function createApp() {
       
       res.send(response.data);
     } catch (error: any) {
-      console.warn(`[Proxy] Target ${target.hostname} unreachable (${error.message}). Invoking Gemini Grid Proxy...`);
-      
-      // If this was a Second Life login request and remote grid is unreachable,
-      // Gemini proxy synthesizes an authentic Second Life XML-RPC login response!
-      if (xmlBodyStr.includes('login_to_simulator') || xmlBodyStr.includes('<methodCall>') || xmlBodyStr.includes('<member>')) {
-        const credentials = parseLoginXmlCredentials(xmlBodyStr);
-        const simulatedXml = await generateGeminiLoginResponse({
-          firstName: credentials.firstName,
-          lastName: credentials.lastName,
-          gridName: target.hostname,
-          startLocation: credentials.startLocation,
-          host,
-          protocol: proto,
-        });
-
-        res.setHeader("Content-Type", "text/xml");
-        const token = permits.issue([`${proto}://${host}/api/caps/seed/`, `${proto}://${host}/api/caps/`]);
-        if (token) {
-          res.setHeader('X-Linkpoint-Capability-Permit', token);
-          res.setHeader('Access-Control-Expose-Headers', 'X-Linkpoint-Capability-Permit');
-        }
-        return res.send(simulatedXml);
-      }
-
-      res.status(error.response?.status || 500).json({ 
+      // An unreachable grid is reported as exactly that. The proxy never invents
+      // a login reply, so a failed connection can never look like a successful one.
+      console.warn(`[Proxy] Target ${target.hostname} unreachable (${error.message}).`);
+      res.status(error.response?.status || 502).json({
         error: "Failed to fetch target URL",
         message: error.message,
-        geminiProxyAvailable: true
       });
     }
   });

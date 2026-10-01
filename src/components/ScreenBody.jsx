@@ -12,12 +12,10 @@ import World3D, { World3DActionBar } from "../screens/World3D.jsx";
 import Inventory from "../screens/Inventory.jsx";
 import Profile from "../screens/Profile.jsx";
 import Login from "../screens/Login.jsx";
-import OfflineGrid from "../screens/OfflineGrid.jsx";
-import GridConsole from "../screens/GridConsole.jsx";
 import CacheScreen from "../screens/CacheScreen.jsx";
 import Settings from "../screens/Settings.jsx";
 import { FriendsScreen, GroupsScreen, NoticesScreen, MuteListScreen, GenericInventoryScreen, SearchScreen } from "../screens/LiveScreens.jsx";
-import { AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsScreen, ParcelScreen, TeleportScreen, TransactionsScreen } from "../screens/LumiyaTools.jsx";
+import { AOScreen, AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsScreen, ParcelScreen, TeleportScreen, TransactionsScreen } from "../screens/LumiyaTools.jsx";
 
 // Ported from the big content column inside `shellStyle` (headers -> segTabs
 // -> chips -> the 13 screens' bodies), plus the split-view detail pane that
@@ -43,8 +41,6 @@ export default function ScreenBody() {
         )}
         {norm && scr === "Inventory" && <Inventory />}
         {norm && scr === "Profile" && <Profile />}
-        {norm && scr === "Offline Grid" && <OfflineGrid />}
-        {norm && scr === "Grid Console" && <GridConsole />}
         {norm && scr === "Cache" && <CacheScreen />}
         {norm && scr === "Settings" && <Settings />}
         {norm && scr === "Friends" && <FriendsScreen />}
@@ -61,6 +57,7 @@ export default function ScreenBody() {
         {norm && scr === "Parcel" && <ParcelScreen />}
         {norm && scr === "Transactions" && <TransactionsScreen />}
         {norm && scr === "Diagnostics" && <DiagnosticsScreen />}
+        {norm && scr === "AO" && <AOScreen />}
         {scr === "Login" && <Login />}
         {scr === "Search" && <SearchScreen />}
         {!norm && <StateBlock />}

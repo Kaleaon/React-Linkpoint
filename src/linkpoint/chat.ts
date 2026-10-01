@@ -3,6 +3,7 @@
  */
 
 import { Utils } from './utils';
+import { isFabricatedContact, purgeFabricatedMessages } from './fabricated-data';
 
 export interface AutoReplyConfig {
   enabled: boolean;
@@ -39,7 +40,9 @@ export class ChatManager extends Utils.EventEmitter {
     try {
       const savedOpen = Utils.storage.get('linkpoint_open_im_sessions', null);
       if (Array.isArray(savedOpen)) {
-        this.openSessions = new Map(savedOpen.map((s: any) => [s.contactName.toLowerCase().trim(), s]));
+        const real = savedOpen.filter((s: any) => s && typeof s.contactName === 'string' && !isFabricatedContact(s.contactId, s.contactName));
+        this.openSessions = new Map(real.map((s: any) => [s.contactName.toLowerCase().trim(), s]));
+        if (real.length !== savedOpen.length) this.saveSessions();
       }
       const savedClosed = Utils.storage.get('linkpoint_closed_im_sessions', null);
       if (Array.isArray(savedClosed)) {
@@ -444,135 +447,12 @@ export class ChatManager extends Utils.EventEmitter {
 
   loadChatHistory() {
     const saved = Utils.storage.get('linkpoint_chat_history', null);
-    if (saved && Array.isArray(saved) && saved.length > 0) {
-      this.messages = saved;
-    } else {
-      this.seedInitialMessages();
-    }
-  }
-
-  seedInitialMessages() {
-    const now = Date.now();
-    const myId = this.auth?.user?.id || 'ruth-uuid';
-    const myName = typeof this.auth?.getUserDisplayName === 'function'
-      ? this.auth.getUserDisplayName()
-      : (this.auth?.user?.fullName || 'Ruth Resident');
-
-    this.messages = [
-      {
-        id: 'seed-local-1',
-        sender: 'Nyx Vaher',
-        senderId: 'nyx-uuid',
-        text: "the roof build is up — teleport when you're free",
-        timestamp: now - 3600000,
-        type: 'local',
-        isObject: false,
-      },
-      {
-        id: 'seed-local-2',
-        sender: myName,
-        senderId: myId,
-        text: 'on my way, just rezzing the last sculpt',
-        timestamp: now - 3500000,
-        type: 'local',
-        isObject: false,
-      },
-      {
-        id: 'seed-local-3',
-        sender: 'Kit Sandalwood',
-        senderId: 'kit-uuid',
-        text: '@Ruth check the landmark, second floor entrance',
-        timestamp: now - 3200000,
-        type: 'local',
-        isObject: false,
-      },
-      {
-        id: 'seed-local-4',
-        sender: myName,
-        senderId: myId,
-        text: 'got it 👍',
-        timestamp: now - 3100000,
-        type: 'local',
-        isObject: false,
-      },
-      {
-        id: 'seed-im-nyx-1',
-        sender: 'Nyx Vaher',
-        senderId: 'nyx-uuid',
-        recipientId: myId,
-        recipientName: myName,
-        text: 'you still at the build site?',
-        timestamp: now - 1800000,
-        type: 'im',
-        unread: false,
-      },
-      {
-        id: 'seed-im-nyx-2',
-        sender: myName,
-        senderId: myId,
-        recipientId: 'nyx-uuid',
-        recipientName: 'Nyx Vaher',
-        text: 'yeah, finishing the roof trim',
-        timestamp: now - 1700000,
-        type: 'im',
-      },
-      {
-        id: 'seed-im-nyx-3',
-        sender: 'Nyx Vaher',
-        senderId: 'nyx-uuid',
-        recipientId: myId,
-        recipientName: myName,
-        text: "send me the landmark when it's done",
-        timestamp: now - 1600000,
-        type: 'im',
-        unread: false,
-      },
-      {
-        id: 'seed-im-nyx-4',
-        sender: myName,
-        senderId: myId,
-        recipientId: 'nyx-uuid',
-        recipientName: 'Nyx Vaher',
-        text: 'will do — maybe 10 more min',
-        timestamp: now - 1400000,
-        type: 'im',
-      },
-      {
-        id: 'seed-im-kit-1',
-        sender: 'Kit Sandalwood',
-        senderId: 'kit-uuid',
-        recipientId: myId,
-        recipientName: myName,
-        text: 'reslotted the brass texture, check inventory',
-        timestamp: now - 900000,
-        type: 'im',
-        unread: true,
-      },
-      {
-        id: 'seed-im-kit-2',
-        sender: 'Kit Sandalwood',
-        senderId: 'kit-uuid',
-        recipientId: myId,
-        recipientName: myName,
-        text: 'lmk if the UVs still look off',
-        timestamp: now - 850000,
-        type: 'im',
-        unread: true,
-      },
-      {
-        id: 'seed-im-sable-1',
-        sender: 'Sable Ashgrove',
-        senderId: 'sable-uuid',
-        recipientId: myId,
-        recipientName: myName,
-        text: 'the texture pack is in your inventory, no rush',
-        timestamp: now - 7200000,
-        type: 'im',
-        unread: false,
-      },
-    ];
-
-    this.saveChatHistory();
+    if (!Array.isArray(saved)) return;
+    const { messages, removed } = purgeFabricatedMessages(saved);
+    this.messages = messages;
+    // Earlier builds seeded invented conversations into the saved history.
+    // Drop them from storage too, so they cannot come back on the next load.
+    if (removed) this.saveChatHistory();
   }
 
   clearHistory() {

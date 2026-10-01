@@ -56,3 +56,10 @@ export function DiagnosticsScreen() {
   const capabilities = Object.keys(app.protocol.capabilities || {});
   return <div className="tool-page"><section className="runtime-card"><h2>Connection</h2><dl><dt>State</dt><dd>{app.protocol.connected ? "Connected" : "Disconnected"}</dd><dt>Agent</dt><dd>{app.protocol.agentId || "—"}</dd><dt>Session</dt><dd>{app.protocol.sessionId || "—"}</dd><dt>Capabilities</dt><dd>{capabilities.length}</dd></dl></section>{capabilities.length ? <section className="runtime-card"><h2>Capabilities</h2>{capabilities.sort().map((name) => <small key={name}>{name}</small>)}</section> : null}</div>;
 }
+
+// The animation overrider is a worn attachment with its own scripts. The grid
+// does not tell the viewer which attachments, scripts or animations are running,
+// so there is nothing real to list here yet.
+export function AOScreen() {
+  return <div className="tool-page"><Empty icon="person-standing">Animation overrider status is not available. The viewer does not receive worn-attachment or script information from the grid yet.</Empty></div>;
+}

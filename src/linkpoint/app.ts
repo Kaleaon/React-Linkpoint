@@ -2,6 +2,7 @@
  * Linkpoint PWA - Main Application
  */
 
+import { purgeFabricatedStorage } from './fabricated-data';
 import { SLConnectionFull } from './sl-connection-full';
 import { AuthManager } from './auth';
 import { WorldViewer } from './world';
@@ -77,6 +78,8 @@ export class LinkpointApp {
   private async initialize() {
     console.log('🔗 Linkpoint PWA Starting...');
 
+    // Remove invented data left in storage by earlier builds before anything reads it.
+    purgeFabricatedStorage();
     this.preferences.init();
     this.auth.init();
     await this.world.init();
