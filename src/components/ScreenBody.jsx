@@ -24,7 +24,7 @@ import { AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsS
 // sits beside it on tablet/foldable devices.
 export default function ScreenBody() {
   const { state, actions } = useApp();
-  const { norm, scr } = useTheme();
+  const { norm, scr, consoleScene } = useTheme();
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", position: "relative" }}>
@@ -35,7 +35,7 @@ export default function ScreenBody() {
         {norm && scr === "Chat" && <Chat />}
         {norm && scr === "Radar" && <Radar />}
         {norm && scr === "Map" && <Map />}
-        {norm && scr === "3D View" && (
+        {norm && scr === "3D View" && !consoleScene && (
           <>
             <World3D />
             <World3DActionBar />

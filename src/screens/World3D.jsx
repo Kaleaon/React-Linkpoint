@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
+  const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [position, setPosition] = useState([0, 0, 0]);
@@ -14,14 +15,15 @@ export default function World3D({ desktopBackdrop = false }) {
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
     let active = true;
+    const canvas = canvasRef.current;
     const updateObjects = (objects) => { if (active) setObjectCount(objects.length); };
     const updateCamera = (camera) => { if (active && camera) { setPosition(camera.position.map(Math.round)); setCameraPreset(camera.preset); } };
     app.world.on("objects_changed", updateObjects);
     app.world.on("camera_changed", updateCamera);
     const updateSelection = (object) => { if (active) setSelection(object); };
     app.world.on("selection_changed", updateSelection);
-    app.world.init().then(() => { if (active) { setReady(!!app.world.graphics3d); refresh(); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "WebGL initialization failed"); });
-    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.off("selection_changed", updateSelection); app.world.destroyRenderer(); };
+    app.world.init(canvas).then(() => { if (active) { setReady(!!app.world.graphics3d); refresh(); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "WebGL initialization failed"); });
+    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.off("selection_changed", updateSelection); app.world.destroyRenderer(canvas); };
   }, []);
 
   const move = (forward, right, up = 0) => { app.world.moveCamera(right, forward, up); refresh(); };
@@ -44,7 +46,7 @@ export default function World3D({ desktopBackdrop = false }) {
     : { flex: 1, minHeight: 0, position: "relative", background: "#000" };
 
   return <section aria-label="3D world view" style={sceneStyle}>
-    <canvas id="world-canvas" aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
+    <canvas ref={canvasRef} id={desktopBackdrop ? "world-canvas-backdrop" : "world-canvas"} aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
     {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />

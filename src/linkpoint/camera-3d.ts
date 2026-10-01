@@ -277,14 +277,24 @@ export class Camera3D extends Utils.EventEmitter {
   /**
    * Create look-at view matrix
    */
-  mat4LookAt(eye: number[], center: number[], up: number[]): Float32Array {
-    const z = this.vec3Normalize([
+  mat4LookAt(eye: number[], center: number[], up: number[] = [0, 0, 1]): Float32Array {
+    const diff = [
       eye[0] - center[0],
       eye[1] - center[1],
       eye[2] - center[2]
-    ]);
+    ];
+    const dist = Math.hypot(diff[0], diff[1], diff[2]);
+    const z = dist > 0.00001 ? [diff[0] / dist, diff[1] / dist, diff[2] / dist] : [0, 0, 1];
 
-    const x = this.vec3Normalize(this.vec3Cross(up, z));
+    let x = this.vec3Cross(up, z);
+    if (Math.hypot(x[0], x[1], x[2]) < 0.0001) {
+      // Degenerate/gimbal lock: up and z are collinear (e.g. looking straight down/up along z)
+      x = this.vec3Cross([0, 1, 0], z);
+      if (Math.hypot(x[0], x[1], x[2]) < 0.0001) {
+        x = this.vec3Cross([1, 0, 0], z);
+      }
+    }
+    x = this.vec3Normalize(x);
     const y = this.vec3Cross(z, x);
 
     return new Float32Array([

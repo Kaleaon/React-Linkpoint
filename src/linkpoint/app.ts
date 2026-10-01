@@ -132,8 +132,17 @@ export class LinkpointApp {
       await this.loadGroups();
     });
 
+    this.protocol.on('capabilities_ready', (caps: any) => {
+      if (caps?.EventQueueGet && !this.eventQueue.isPolling) {
+        this.eventQueue.startPolling(caps.EventQueueGet).catch(err => {
+          console.warn('[LinkpointApp] EventQueue startPolling failed:', err);
+        });
+      }
+    });
+
     this.auth.on('logout', () => {
       console.log('User logged out');
+      this.eventQueue.stopPolling();
       this.chat.clearHistory();
       this.friends.clear();
     });

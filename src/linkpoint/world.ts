@@ -141,9 +141,13 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:environment', (data: any) => this.applyWorldData({ environment: data }));
     this.protocol.on('scene:terrain', (data: any) => this.applyWorldData({ terrain: data }));
     this.protocol.on('avatar_presence', (data: any) => this.handleAvatarPresence(data));
-    this.protocol.on('avatar-presence', (data: any) => this.handleAvatarPresence(data));
-    slBridge.on('avatar_presence', (data: any) => this.handleAvatarPresence(data));
-    slBridge.on('avatar-presence', (data: any) => this.handleAvatarPresence(data));
+    this.protocol.on('AgentMovementComplete', (data: any) => this.handleAgentMovement(data));
+    slBridge.on('avatar_presence', (data: any) => {
+      // Only process bridge event directly if protocol is not connected
+      if (!this.protocol?.connected) {
+        this.handleAvatarPresence(data);
+      }
+    });
   }
 
   private applyWorldData(data: any) {
@@ -252,9 +256,9 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private resizeObserver: any = null;
 
-  async init() {
+  async init(targetCanvas?: HTMLCanvasElement | null) {
     this.use3D = true;
-    const canvas = document.getElementById('world-canvas') as HTMLCanvasElement;
+    const canvas = targetCanvas || (typeof document !== 'undefined' ? (document.getElementById('world-canvas') as HTMLCanvasElement) : null);
     if (!canvas) return;
     if (this.graphics3d && this.canvas === canvas) {
       this.resizeCanvas();
@@ -338,7 +342,10 @@ export class WorldViewer extends Utils.EventEmitter {
     this.animationId = null;
   }
 
-  public destroyRenderer() {
+  public destroyRenderer(forCanvas?: HTMLCanvasElement | null) {
+    if (forCanvas && this.canvas && this.canvas !== forCanvas) {
+      return;
+    }
     this.stopRendering();
     if (this.resizeAttached) window.removeEventListener('resize', this.handleResize);
     this.resizeAttached = false;
@@ -411,7 +418,7 @@ export class WorldViewer extends Utils.EventEmitter {
     return [Math.atan2(sinX, cosX), Math.asin(sinY), Math.atan2(sinZ, cosZ)];
   }
 
-  private upsertSceneObject(object: any) {
+  private upsertSceneObject(object: any, emitChanged = true) {
     if (!object?.id) return;
     // Terse simulator updates only carry motion fields.  Keep the shape,
     // material and link metadata learned from the full ObjectUpdate packet.
@@ -424,7 +431,9 @@ export class WorldViewer extends Utils.EventEmitter {
     // A root prim moving changes every child prim's world transform even when
     // the simulator quite correctly sends no update for those children.
     if (merged.localId) this.reapplyChildren(merged.localId);
-    this.emit('objects_changed', this.objects);
+    if (emitChanged) {
+      this.emit('objects_changed', this.objects);
+    }
   }
 
   private reapplyChildren(parentLocalId: number, visited = new Set<number>()) {
@@ -509,7 +518,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.scene3d.updateObject(id, { visible: false });
   }
 
-  private removeSceneObject(object: any) {
+  private removeSceneObject(object: any, emitChanged = true) {
     const id = object.id && this.sceneObjects.has(object.id)
       ? object.id
       : this.localObjectIds.get(object.localId);
@@ -523,7 +532,9 @@ export class WorldViewer extends Utils.EventEmitter {
       this.selectedObject = null;
       this.emit('selection_changed', null);
     }
-    this.emit('objects_changed', this.objects);
+    if (emitChanged) {
+      this.emit('objects_changed', this.objects);
+    }
   }
 
   private updateCoarseLocations(data: any) {
@@ -608,6 +619,7 @@ export class WorldViewer extends Utils.EventEmitter {
       : [body];
 
     let changed = false;
+    let objectsChanged = false;
 
     for (const item of items) {
       if (!item) continue;
@@ -634,7 +646,8 @@ export class WorldViewer extends Utils.EventEmitter {
           if (this.nearbyUsers.length !== prevCount) {
             changed = true;
           }
-          this.removeSceneObject({ id });
+          this.removeSceneObject({ id }, false);
+          objectsChanged = true;
         }
         continue;
       }
@@ -650,6 +663,16 @@ export class WorldViewer extends Utils.EventEmitter {
           this.avatarPosition = position;
           if (this.camera3d) {
             this.camera3d.setOrbitTarget(position[0], position[1], position[2]);
+          }
+          if (this.sceneObjects.has(id)) {
+            this.upsertSceneObject({
+              id,
+              position,
+              avatar: true,
+              name: name || this.protocol.authReply?.first_name || 'Me',
+              shape: 'sphere',
+            }, false);
+            objectsChanged = true;
           }
           // Recalculate distance and bearing for all nearby users
           this.nearbyUsers = this.nearbyUsers.map((u) => {
@@ -731,12 +754,39 @@ export class WorldViewer extends Utils.EventEmitter {
           avatar: true,
           name: nextUser.name,
           shape: 'sphere',
-        });
+        }, false);
+        objectsChanged = true;
       }
+    }
+
+    if (objectsChanged) {
+      this.emit('objects_changed', this.objects);
     }
 
     if (changed) {
       this.emit('nearby_changed', this.nearbyUsers.map((user) => ({ ...user })));
+    }
+  }
+
+  public handleAgentMovement(data: any) {
+    if (!data) return;
+    const raw = data?.Data?.Position ?? data?.Position ?? data?.position ?? data;
+    const pos = this.parseCoordinates(raw);
+    if (pos) {
+      this.avatarPosition = pos;
+      if (this.camera3d) {
+        this.camera3d.setOrbitTarget(pos[0], pos[1], pos[2]);
+      }
+      if (this.protocol.agentId && this.sceneObjects.has(this.protocol.agentId)) {
+        this.upsertSceneObject({
+          id: this.protocol.agentId,
+          position: pos,
+          avatar: true,
+          name: this.protocol.authReply?.first_name || 'Me',
+          shape: 'sphere',
+        });
+      }
+      this.updateLocationDisplay();
     }
   }
 }
