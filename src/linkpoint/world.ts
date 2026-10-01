@@ -33,6 +33,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public avatarPosition: [number, number, number] | null = null;
   public environment: any = null;
   public terrain: { size: number; heights: number[] } | null = null;
+  public selectedObject: any = null;
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
   private decodedAssets = new Map<string, any>();
@@ -73,12 +74,14 @@ export class WorldViewer extends Utils.EventEmitter {
       this.nearbyUsers = [];
       this.environment = null;
       this.terrain = null;
+      this.selectedObject = null;
       this.sceneObjects.clear();
       this.localObjectIds.clear();
       this.objects = [];
       this.emit('region_changed', null);
       this.emit('nearby_changed', []);
       this.emit('objects_changed', []);
+      this.emit('selection_changed', null);
     });
     this.protocol.on('RegionHandshake', (data: any) => {
       this.region = {
@@ -268,7 +271,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.cameraControls = new CameraControls(this.canvas, this.camera3d, () => {
         this.updateLocationDisplay();
         this.emit('camera_changed', this.getCameraState());
-      });
+      }, (x, y) => this.pickObject(x, y));
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
@@ -360,6 +363,28 @@ export class WorldViewer extends Utils.EventEmitter {
 
   public getCameraState() {
     return this.camera3d ? { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode } : null;
+  }
+
+  public pickObject(x: number, y: number) {
+    if (!this.canvas || !this.scene3d) return null;
+    const bounds = this.canvas.getBoundingClientRect();
+    const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
+    const objectId = hit?.id.replace(/:(body|head|legs)$/, '') || null;
+    this.selectedObject = objectId ? this.sceneObjects.get(objectId) || null : null;
+    const selection = this.selectedObject ? { ...this.selectedObject, hitPoint: hit?.point, distance: hit?.distance } : null;
+    this.emit('selection_changed', selection);
+    return selection;
+  }
+
+  public focusSelectedObject() {
+    if (!this.selectedObject || !this.camera3d) return false;
+    const { position } = this.worldTransform(this.selectedObject);
+    this.camera3d.setOrbitTarget(position[0], position[1], position[2]);
+    this.camera3d.setMode('orbit');
+    this.camera3d.orbitDistance = Math.max(2.5, Math.hypot(...(this.selectedObject.scale || [1, 1, 1])) * 2.5);
+    this.camera3d.updateMatrices();
+    this.emit('camera_changed', this.getCameraState());
+    return true;
   }
 
   private quaternionToEuler([x, y, z, w]: number[]) {
@@ -479,6 +504,10 @@ export class WorldViewer extends Utils.EventEmitter {
     this.scene3d?.removeObject(id);
     for (const suffix of [':body', ':head', ':legs']) this.scene3d?.removeObject(`${id}${suffix}`);
     this.objects = Array.from(this.sceneObjects.values());
+    if (this.selectedObject?.id === id) {
+      this.selectedObject = null;
+      this.emit('selection_changed', null);
+    }
     this.emit('objects_changed', this.objects);
   }
 

@@ -9,8 +9,9 @@ export class CameraControls {
   private pinchDistance = 0;
   private lastFrame = 0;
   private frame: number | null = null;
+  private pointerStart = new Map<number, PointerSample>();
 
-  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined) {
+  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined) {
     canvas.style.touchAction = 'none';
     canvas.tabIndex = 0;
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -29,6 +30,7 @@ export class CameraControls {
     this.canvas.focus({ preventScroll: true });
     this.canvas.setPointerCapture?.(event.pointerId);
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    this.pointerStart.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.pinchDistance = this.distance();
   };
   private onPointerMove = (event: PointerEvent) => {
@@ -50,7 +52,13 @@ export class CameraControls {
     this.changed();
   };
   private onPointerUp = (event: PointerEvent) => {
+    const start = this.pointerStart.get(event.pointerId);
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) {
+      const bounds = this.canvas.getBoundingClientRect();
+      this.picked(event.clientX - bounds.left, event.clientY - bounds.top);
+    }
     this.pointers.delete(event.pointerId);
+    this.pointerStart.delete(event.pointerId);
     this.pinchDistance = this.distance();
   };
   private onWheel = (event: WheelEvent) => {
