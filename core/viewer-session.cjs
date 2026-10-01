@@ -10,6 +10,7 @@ const {
   BotOptionFlags,
   PCode,
   AssetType,
+  ControlFlags,
   UUID,
 } = require('@caspertech/node-metaverse');
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
@@ -60,21 +61,50 @@ class ViewerSession {
     return this.bot;
   }
 
+  /** Reading Bot.currentRegion throws while login/teleport teardown has no active region. */
+  currentRegion() {
+    try { return this.bot?.currentRegion || null; } catch { return null; }
+  }
+
   // ---- asset streaming --------------------------------------------------------------------------
 
   /** Download, decode and stream one asset once; failures are reported to the client as `asset-error`. */
   streamAsset(key, kind, assetId, download, ready) {
     if (this.assetRequests.has(key)) return;
     const request = (async () => {
-      const buffer = await this.bot.clientCommands.asset.downloadAsset(kind, assetId);
+      const buffer = download
+        ? await download()
+        : await this.bot.clientCommands.asset.downloadAsset(kind, assetId);
       await ready(buffer);
     })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
     this.assetRequests.set(key, request);
   }
 
+  /**
+   * Second Life exposes textures through GetTexture. node-metaverse's generic asset downloader uses
+   * ViewerAsset instead, which is present on Agni but does not reliably serve texture assets. Prefer
+   * the texture capability and retain ViewerAsset as a fallback for OpenSim and older regions.
+   */
+  async downloadTexture(assetId) {
+    const caps = this.currentRegion()?.caps;
+    if (caps?.getCapability && caps?.requestGet) {
+      try {
+        const capability = await caps.getCapability('GetTexture');
+        if (capability) {
+          const separator = String(capability).includes('?') ? '&' : '?';
+          const response = await caps.requestGet(`${capability}${separator}texture_id=${encodeURIComponent(assetId)}`);
+          if (response?.body) return response.body;
+        }
+      } catch (error) {
+        console.warn(`[SL Session] GetTexture failed for ${assetId}; falling back to ViewerAsset:`, error.message);
+      }
+    }
+    return this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+  }
+
   loadTexture(assetId) {
     if (!assetId) return;
-    this.streamAsset(`texture:${assetId}`, AssetType.Texture, assetId, null, async (buffer) => {
+    this.streamAsset(`texture:${assetId}`, AssetType.Texture, assetId, () => this.downloadTexture(assetId), async (buffer) => {
       this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
     });
   }
@@ -247,11 +277,11 @@ class ViewerSession {
     try {
       await this.bot.connectToSim();
     } catch (error) {
-      if (!this.bot.currentRegion) throw error;
+      if (!this.currentRegion()) throw error;
       console.warn('[SL Session] connectToSim warning:', error);
     }
-    const region = this.bot.currentRegion;
-    const animations = watchAnimations(() => this.bot?.currentRegion, (type, data) => this.send(type, data));
+    const region = this.currentRegion();
+    const animations = watchAnimations(() => this.currentRegion(), (type, data) => this.send(type, data));
     if (animations) this.subscriptions.push(animations);
 
     let inventoryRootId = '';
@@ -327,6 +357,32 @@ class ViewerSession {
   touchObject(params) { return actions.touchObject(this.requireBot(), params); }
   sit(params = {}) { return actions.sit(this.requireBot(), params); }
   stand() { return actions.stand(this.requireBot()); }
+  setMovement(params = {}) {
+    const agent = this.requireBot().agent;
+    if (!agent?.setControlFlag || !agent?.clearControlFlag || !agent?.sendAgentUpdate) throw new Error('Avatar movement unavailable');
+    const directional = [
+      ControlFlags.AGENT_CONTROL_AT_POS, ControlFlags.AGENT_CONTROL_AT_NEG,
+      ControlFlags.AGENT_CONTROL_LEFT_POS, ControlFlags.AGENT_CONTROL_LEFT_NEG,
+      ControlFlags.AGENT_CONTROL_UP_POS, ControlFlags.AGENT_CONTROL_UP_NEG,
+      ControlFlags.AGENT_CONTROL_TURN_LEFT, ControlFlags.AGENT_CONTROL_TURN_RIGHT,
+      ControlFlags.AGENT_CONTROL_FAST_AT, ControlFlags.AGENT_CONTROL_FAST_LEFT, ControlFlags.AGENT_CONTROL_FAST_UP,
+    ];
+    for (const flag of directional) agent.clearControlFlag(flag);
+    const choose = (value, positive, negative) => {
+      if (Number(value) > 0) agent.setControlFlag(positive);
+      else if (Number(value) < 0) agent.setControlFlag(negative);
+    };
+    choose(params.forward, ControlFlags.AGENT_CONTROL_AT_POS, ControlFlags.AGENT_CONTROL_AT_NEG);
+    // SL names strafe flags from the left axis: positive right is LEFT_NEG.
+    choose(params.right, ControlFlags.AGENT_CONTROL_LEFT_NEG, ControlFlags.AGENT_CONTROL_LEFT_POS);
+    choose(params.up, ControlFlags.AGENT_CONTROL_UP_POS, ControlFlags.AGENT_CONTROL_UP_NEG);
+    choose(params.turn, ControlFlags.AGENT_CONTROL_TURN_RIGHT, ControlFlags.AGENT_CONTROL_TURN_LEFT);
+    if (params.run && params.forward) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_AT);
+    if (params.run && params.right) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_LEFT);
+    if (params.run && params.up) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_UP);
+    agent.sendAgentUpdate();
+    return { moving: Boolean(params.forward || params.right || params.up || params.turn) };
+  }
   getBalance() { return actions.getBalance(this.requireBot()); }
   respondScriptDialog(params = {}) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params); }
   acceptLure(params = {}) { return interactions.acceptLure(this.requireBot(), this.pending, params); }
@@ -467,7 +523,7 @@ class ViewerSession {
     if (!this.bot) {
       return { connected: false, state: 'DISCONNECTED', latencyMs: null, packetLossPct: null, capabilities: 0, circuitCode: null, simAddress: '', simPort: null };
     }
-    const region = this.bot.currentRegion;
+    const region = this.currentRegion();
     const circuit = region?.circuit;
     return {
       connected: true,
@@ -486,7 +542,7 @@ class ViewerSession {
 
   /** Every object currently in the region, serialised exactly like the live `object-add` events. */
   getSceneObjects() {
-    const objects = this.bot?.currentRegion?.objects;
+    const objects = this.currentRegion()?.objects;
     if (!objects) return [];
     try {
       return (objects.getAllObjects({ includeAvatars: true }) || []).map((object) => {

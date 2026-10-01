@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { WorldViewer } from '../world';
 import { Utils } from '../utils';
 import { AvatarAnimator } from '../avatar-animator';
+import { Camera3D } from '../camera-3d';
 import type { KeyframeAnimation } from '../avatar-animation';
 
 class ProtocolStub extends Utils.EventEmitter {
   connected = true;
+  agentId: string | null = null;
   authReply: Record<string, any> | null = null;
 }
 
@@ -33,6 +35,19 @@ function setup() {
 }
 
 describe('rigged mesh in the world', () => {
+  it('keeps the rear camera behind the logged-in avatar', () => {
+    const { protocol, world } = setup();
+    protocol.agentId = 'avatar';
+    const camera = new Camera3D();
+    camera.setPreset('rear');
+    (world as any).camera3d = camera;
+    // Identity avatar rotation faces local +X, so its rear camera belongs west of it.
+    protocol.emit('scene:object-update', { id: 'avatar', avatar: true, position: [10, 20, 30], rotation: [0, 0, 0, 1] });
+    expect(camera.orbitTarget).toEqual([10, 20, 31.2]);
+    expect(camera.position[0]).toBeLessThan(10);
+    expect(camera.position[1]).toBeCloseTo(20, 5);
+  });
+
   it('skins a rigged mesh with rest-pose joint matrices and follows its avatar, ignoring prim scale', () => {
     const { protocol, scene } = setup();
     protocol.emit('scene:object-add', {
@@ -54,6 +69,7 @@ describe('rigged mesh in the world', () => {
     expect(rig.skin[11]).toBeCloseTo(1.067, 2);
     // the mesh uses the avatar's transform, not the attachment offset
     expect(rig.position).toEqual([10, 20, 30]);
+    expect(rig.scale).toEqual([1, 1, 1]);
     expect(rig.meshes).toEqual([{ mesh: 'asset:mesh-1:0', materialIndex: 0 }]);
   });
 
