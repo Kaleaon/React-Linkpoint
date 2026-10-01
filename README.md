@@ -20,7 +20,7 @@ production web build:
 ./scripts/codex-setup.sh
 ```
 
-The script is self-contained and does not call another test/setup script. Use
+The script is self-contained and does not call another test/setup script (it only runs the dependency patcher `scripts/patch-metaverse.cjs`, and falls back to npm if Bun cannot fetch GitHub dependencies). Use
 `./scripts/codex-setup.sh --skip-check` when a Codex environment should only be
 provisioned, then re-run without that flag to validate it. The automated checks
 do not need Second Life or Gemini credentials. The setup intentionally skips

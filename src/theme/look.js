@@ -4,7 +4,7 @@
 
 export function cardLooks(V, pad) {
   return {
-    box: { border: "1px solid " + V.outv, borderRadius: V.rp, background: V.surf, padding: pad },
+    box: { borderWidth: "1px", borderStyle: "solid", borderColor: V.outv, borderRadius: V.rp, background: V.surf, padding: pad },
     flat: { border: "none", borderLeft: "4px solid transparent", borderRadius: "0", background: V.surf, padding: pad },
     soft: { border: "none", borderRadius: V.rp, background: V.surf, padding: pad, boxShadow: "0 3px 12px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.16)" },
     rule: { border: "none", borderTop: "1px solid " + V.outv, borderRadius: "0", background: "transparent", padding: pad + " 2px" },
@@ -23,7 +23,7 @@ export function cardAccentStyle(cardKind, V, accent) {
 }
 
 export function actionButtonStyle(V, font, a) {
-  const base = { flex: 1, height: "44px", border: "1px solid " + V.outv, borderRadius: V.rs, display: "flex", alignItems: "center", justifyContent: "center", font: "700 10.5px/1 " + font, letterSpacing: ".16em", color: V.ink, cursor: "pointer" };
+  const base = { flex: 1, height: "44px", borderWidth: "1px", borderStyle: "solid", borderColor: V.outv, borderRadius: V.rs, display: "flex", alignItems: "center", justifyContent: "center", font: "700 10.5px/1 " + font, letterSpacing: ".16em", color: V.ink, cursor: "pointer" };
   if (a.primary) return { ...base, background: V.pri, color: V.onpri, borderColor: V.pri };
   if (a.dim) return { ...base, color: V.err, borderColor: V.err };
   return base;

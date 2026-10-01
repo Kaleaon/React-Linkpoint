@@ -72,7 +72,7 @@ export default function DesktopChrome() {
     borderColor: V.outv,
     background: kind === "sweep" ? V.pri : kind === "metro" ? V.surf : V.surf2,
     fontFamily: kind === "sweep" ? t.dfont : t.font,
-    ...(kind === "sweep" ? { border: "none", borderRadius: 999, letterSpacing: ".12em" } : kind === "metro" ? { border: "none", borderRadius: 0 } : null),
+    ...(kind === "sweep" ? { borderStyle: "none", borderRadius: 999, letterSpacing: ".12em" } : kind === "metro" ? { borderStyle: "none", borderRadius: 0 } : null),
   };
 
   return (

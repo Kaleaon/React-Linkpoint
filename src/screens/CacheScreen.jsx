@@ -221,7 +221,7 @@ export default function CacheScreen() {
     padding: "0 16px",
     background: primary ? V.pri : V.surf2,
     color: primary ? V.onpri : V.ink,
-    border: primary ? 0 : `1px solid ${V.outv}`,
+    borderWidth: primary ? 0 : 1, borderStyle: "solid", borderColor: V.outv,
     borderRadius: V.rs,
     fontWeight: 700,
     fontSize: 12,
