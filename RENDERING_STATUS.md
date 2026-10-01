@@ -29,16 +29,28 @@ renderer**.
   selection and a camera-focus action inspired by Lumiya's recovered
   `CollisionBox`, `GLRayTrace`, and `WorldViewRenderer.pickObject` flow.
 
-- Keyframe animation core (`src/linkpoint/avatar-animation.ts`): parses Second Life `.anim` data, samples rotation/position keys, applies Lumiya's loop/ease-in/ease-out timing and blends running animations by priority. Checked by parsing all 118 animations bundled in Lumiya's APK, plus unit tests. It is **not yet connected to any rendered avatar**: there is no skeleton, skinning or avatar mesh in the renderer, so nothing visibly animates yet.
+- **Avatar bodies and animation** (verified in headless Chromium by rendering the real meshes and Lumiya's stand animation):
+  - `avatar-animation.ts` parses Second Life `.anim` files, applies Lumiya's loop/ease timing, and blends by priority. All 118 of Lumiya's bundled animations parse (`public/anims`).
+  - `avatar-skeleton.ts` has the full 159-bone Bento skeleton (data from `scripts/extract-lumiya-skeleton.py`), legacy joint aliases, posing, rigged-mesh skin matrices and joint position overrides / pelvis offset.
+  - `skinning.ts` + the `skinned` program in `graphics-3d.ts` do GPU skinning (three vec4 rows per joint, sized to the GPU's uniform limit, up to SL's 110 joints).
+  - `avatar-body.ts` draws the default avatar (head, torso, legs, eyes, eyelashes, hair; geometry from `scripts/extract-lumiya-avatar-meshes.py` into `public/avatar`). Avatars with no announced animation play the standard stand.
+  - `avatar-animator.ts` tracks the simulator's AvatarAnimation / ObjectAnimation messages per avatar and animated object (a changed sequence id restarts an animation; removed ones ease out). Rigged mesh attachments and Animesh (ExtendedMesh `ANIMATED_MESH_ENABLED`) are re-posed every frame.
 
-- Avatar skeleton (`src/linkpoint/avatar-skeleton.ts`, bone data from `scripts/extract-lumiya-skeleton.py`): the full 159-bone Bento hierarchy with legacy joint aliases, posing from blended animations, rigged-mesh skin matrices and Bento-style joint position overrides (alternate inverse bind / pelvis offset). Unit-tested, **not yet used by the renderer**.
+## Avatar and mesh limitations (known)
+- Avatar skin, hair and eyes are flat colours: baked textures (from the avatar's texture entry) are not downloaded or applied yet, so clothing and skin textures do not show.
+- Shape sliders (morph targets) and body-size deformation are not applied; every avatar has the default shape. Skirt and facial expression bones are not driven.
+- Only animations bundled in `public/anims` play. Animations stored as simulator assets (custom/uploaded) are not downloaded yet.
+- The animation subscription is made at login; it is not renewed when moving to a different region's circuit.
+- Static assets are fetched from `BASE_URL`; the packaged desktop build loads from `file://`, where these fetches have not been tested.
+- Skinned objects are never frustum-culled and are picked by their bind-pose box.
 
 ## Not implemented yet
 
 - Second Life prim shape/path/profile sculpting.
 - Per-face materials, alpha modes, normal/specular maps, and PBR rendering.
 - Terrain texturing (terrain is a flat colour), simulator-supplied water height, sun direction, below-water lighting, and parcel overlays.
-- Avatar skeletons, appearance baking, rigged mesh, attachments, animations,
+- Avatar appearance baking (skin/clothing textures), shape sliders, attachment point
+  placement of non-rigged attachments, downloaded (non-bundled) animations,
   particles, flexible prims, and lighting beyond the renderer's default light.
 - Complete SL path/profile prim tessellation (cuts, hollow, twist and taper are
   preserved in scene data but currently render with a closest-shape fallback).

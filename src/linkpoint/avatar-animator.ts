@@ -13,7 +13,10 @@ interface Entry extends RunningAnimation { id: string; seq: number; anim: Keyfra
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
 /** Built-in animations ship as static files named by UUID. */
-export function bundledAnimationLoader(baseUrl = '/anims/', fetcher: typeof fetch = (input, init) => fetch(input, init)): AnimationLoader {
+/** Where the app serves its static assets from (Vite's BASE_URL; '/' in tests). */
+export const assetBase = (): string => ((import.meta as any).env?.BASE_URL as string | undefined) ?? '/';
+
+export function bundledAnimationLoader(baseUrl = `${assetBase()}anims/`, fetcher: typeof fetch = (input, init) => fetch(input, init)): AnimationLoader {
   return async (id) => {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
     try {

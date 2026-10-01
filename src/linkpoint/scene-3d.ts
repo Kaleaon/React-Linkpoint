@@ -145,6 +145,12 @@ export class Scene3D extends Utils.EventEmitter {
     });
   }
 
+  /** Register a skinned mesh (joint indices + weights per vertex) under `name`. */
+  addSkinnedMesh(name: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }, skin: { joints: number[]; weights: number[] }) {
+    this.graphics.createMesh(name, geometry.vertices, geometry.indices, geometry.normals, geometry.texCoords, undefined, skin);
+    return name;
+  }
+
   addAssetTexture(assetId: string, width: number, height: number, rgba: Uint8Array) {
     return this.graphics.createTexture(`texture:${assetId}`, width, height, rgba);
   }

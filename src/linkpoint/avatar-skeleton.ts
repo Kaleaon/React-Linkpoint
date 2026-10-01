@@ -80,6 +80,22 @@ export class AvatarSkeleton {
     visit(DATA.root, null, -1);
   }
 
+  /**
+   * Rest position of a bone in avatar space using the skeleton's default (undeformed) offsets;
+   * the base avatar meshes are authored against these.
+   */
+  defaultPosition(name: string): Vec3 {
+    let index = this.indexOf(name);
+    if (index < 0) return [0, 0, 0];
+    const out: Vec3 = [0, 0, 0];
+    while (index >= 0) {
+      const data = DATA.bones[this.bones[index].name];
+      out[0] += data.position[0]; out[1] += data.position[1]; out[2] += data.position[2];
+      index = this.bones[index].parentIndex;
+    }
+    return out;
+  }
+
   /** Resolve a bone name or any legacy alias ("hip", "lShldr", "avatar_mPelvis"). */
   resolve(name: string): string | null {
     if (this.byName.has(name)) return name;
