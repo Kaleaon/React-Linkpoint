@@ -213,15 +213,9 @@ class ViewerSession {
     this.subscriptions.push(subject.subscribe((value) => this.send(type, serialize(value))));
   }
 
-  async connect({ loginUrl, username, password, start = 'last' }) {
+  async connect(request) {
     await this.close();
-    const names = username.replace(/[._]/g, ' ').trim().split(/\s+/);
-    const params = new LoginParameters();
-    params.firstName = names[0];
-    params.lastName = names[1] || 'Resident';
-    params.password = password;
-    params.start = start;
-    params.url = loginUrl;
+    const params = actions.buildLoginParams(request);
 
     // The full object store decodes ObjectUpdate, ObjectUpdateCompressed,
     // ObjectUpdateCached and terse updates from the simulator UDP circuit.
@@ -257,7 +251,12 @@ class ViewerSession {
     }));
     this.subscribe(events.onDisconnected, 'disconnected', (event) => ({ message: event.message || 'Disconnected' }));
 
-    const reply = await this.bot.login();
+    let reply;
+    try {
+      reply = await this.bot.login();
+    } catch (error) {
+      throw actions.loginFailure(error);
+    }
     await this.bot.connectToSim();
     const region = this.bot.currentRegion;
     const worldData = {
@@ -268,6 +267,7 @@ class ViewerSession {
     region.waitForTerrain().then(() => this.send('terrain', serializeTerrain(region))).catch(() => {});
     return {
       login: true,
+      mfa_hash: (reply && reply.mfaHash) || null,
       agent_id: this.bot.agent.agentID.toString(),
       session_id: region.circuit.sessionID.toString(),
       circuit_code: region.circuit.circuitCode,

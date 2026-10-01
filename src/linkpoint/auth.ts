@@ -3,6 +3,7 @@
  */
 
 import { Utils } from './utils';
+import { getMfaHash, saveMfaHash } from './mfa-store';
 
 const CREDENTIALS_KEY = 'linkpoint_credentials';
 const SESSION_KEY = 'linkpoint_session';
@@ -41,9 +42,11 @@ export class AuthManager extends Utils.EventEmitter {
     Utils.storage.remove(SESSION_KEY);
   }
 
-  async login(grid: string, username: string, password: string, rememberMe: boolean, startLocation: string = 'last') {
+  async login(grid: string, username: string, password: string, rememberMe: boolean, startLocation: string = 'last', mfaToken: string = '') {
     try {
-      const response = await this.protocol.connect(grid, username, password, startLocation);
+      // A remembered device hash lets the grid skip the multi-factor prompt.
+      const response = await this.protocol.connect(grid, username, password, startLocation, { token: mfaToken || undefined, hash: getMfaHash(grid, username) || undefined });
+      if (rememberMe && response?.mfa_hash) saveMfaHash(grid, username, String(response.mfa_hash));
 
       if (rememberMe) {
         this.credentials = { username, grid, rememberMe: true };

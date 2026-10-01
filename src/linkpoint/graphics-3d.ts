@@ -25,6 +25,8 @@ export class Graphics3D extends Utils.EventEmitter {
   private programs: Map<string, any> = new Map();
   private meshes: Map<string, any> = new Map();
   private textures: Map<string, any> = new Map();
+  /** Whether each texture has any transparent pixels, so it can be drawn blended. */
+  private textureAlpha: Map<string, boolean> = new Map();
   private renderTargets: Map<string, { framebuffer: WebGLFramebuffer; depth: WebGLRenderbuffer; width: number; height: number }> = new Map();
   private clearColor: [number, number, number, number] = [0.53, 0.81, 0.92, 1];
   
@@ -444,7 +446,23 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
     if (canMipmap) gl.generateMipmap(gl.TEXTURE_2D);
     this.textures.set(name, texture);
+    let hasAlpha = false;
+    for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] < 250) { hasAlpha = true; break; } }
+    this.textureAlpha.set(name, hasAlpha);
     return name;
+  }
+
+  /** True when the named texture has transparent pixels. Unknown textures are opaque. */
+  textureHasAlpha(name: string | undefined | null): boolean {
+    return Boolean(name && this.textureAlpha.get(name));
+  }
+
+  /** Clear only the depth buffer, so a later pass (the HUD) draws over everything already rendered. */
+  clearDepth() {
+    const gl = this.gl;
+    if (!gl) return;
+    gl.depthMask(true);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
   }
 
   createRenderTarget(name: string, width = 256, height = 256) {
@@ -623,6 +641,7 @@ export class Graphics3D extends Utils.EventEmitter {
     this.programs.clear();
     this.textures.forEach(texture => gl.deleteTexture(texture));
     this.textures.clear();
+    this.textureAlpha.clear();
     this.renderTargets.forEach(target => {
       gl.deleteFramebuffer(target.framebuffer);
       gl.deleteRenderbuffer(target.depth);

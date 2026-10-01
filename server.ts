@@ -106,7 +106,7 @@ export async function createApp() {
 
   app.post("/api/sl/connect", async (req, res) => {
     try {
-      const { loginUrl, username, password, start } = req.body || {};
+      const { loginUrl, username, password, start, mfaToken, mfaHash } = req.body || {};
       if (!username || !password) {
         return res.status(400).json({ error: "Username and password are required" });
       }
@@ -116,24 +116,18 @@ export async function createApp() {
         username,
         password,
         start,
+        mfaToken,
+        mfaHash,
       });
       res.json(session);
     } catch (err: any) {
-      console.error("[SL Connect Error]", err.message);
-      res.status(401).json({ error: err.message || "Failed to log in to Second Life" });
-    }
-  });
-
-  app.post("/api/sl/chat", async (req, res) => {
-    try {
-      const { sessionId, message, channel, type } = req.body || {};
-      if (!sessionId || !message) {
-        return res.status(400).json({ error: "Missing sessionId or message" });
-      }
-      await sendSLChat(sessionId, message, channel ?? 0, type ?? 1);
-      res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      // A login the grid refused carries structured details (reason, whether a
+      // multi-factor code is needed); anything else is a plain failure.
+      const details = err?.details;
+      console.error("[SL Connect Error]", details?.reason || err.message);
+      res.status(401).json(details
+        ? { error: details.message, ...details }
+        : { error: err.message || "Failed to log in to Second Life" });
     }
   });
 

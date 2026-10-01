@@ -20,6 +20,9 @@ const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = requi
 
 const actions = require('../../electron/sl-actions.cjs') as {
   attachmentInfo: (object: any) => { attachmentPoint: number; attachmentName: string | null; isHud: boolean };
+  buildLoginParams: (request: any) => any;
+  parseLoginName: (name: string) => { firstName: string; lastName: string };
+  loginFailure: (error: unknown) => Error;
   teleport: (bot: any, params: any) => Promise<any>;
   touchObject: (bot: any, params: any) => Promise<any>;
   sit: (bot: any, params: any) => Promise<any>;
@@ -189,17 +192,13 @@ export async function createSLSession(params: {
   username: string;
   password: string;
   start?: string;
+  mfaToken?: string;
+  mfaHash?: string;
 }) {
-  const names = params.username.replace(/[._]/g, ' ').trim().split(/\s+/);
-  const firstName = names[0];
-  const lastName = names.length > 1 ? names[1] : 'Resident';
-
-  const loginParams = new LoginParameters();
-  loginParams.firstName = firstName;
-  loginParams.lastName = lastName;
-  loginParams.password = params.password;
-  loginParams.start = params.start || 'last';
-  loginParams.url = params.loginUrl || 'https://login.agni.lindenlab.com/cgi-bin/login.cgi';
+  // Name, start location and MFA fields are validated and normalized in one shared
+  // place (electron/sl-actions.cjs) so the web and desktop logins behave alike.
+  const { firstName, lastName } = actions.parseLoginName(params.username);
+  const loginParams = actions.buildLoginParams(params);
 
   const bot = new Bot(loginParams, BotOptionFlags.None);
   const sessionId = uuidv4();
@@ -476,7 +475,14 @@ export async function createSLSession(params: {
   );
 
   // Perform genuine login to Second Life XML-RPC service
-  const reply = await bot.login();
+  let reply: any;
+  try {
+    reply = await bot.login();
+  } catch (error) {
+    // Keep the grid's reason (wrong password, MFA required, already logged in...)
+    // so the interface can respond to it instead of showing a generic failure.
+    throw actions.loginFailure(error);
+  }
   try {
     await bot.connectToSim();
   } catch (simErr) {
@@ -523,6 +529,8 @@ export async function createSLSession(params: {
   return {
     sessionId,
     login: true,
+    // Returned after a successful multi-factor login so this device is not asked again.
+    mfa_hash: reply?.mfaHash || null,
     agent_id: agentId,
     first_name: firstName,
     last_name: lastName,

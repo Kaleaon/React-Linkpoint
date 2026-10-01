@@ -100,8 +100,8 @@ export class Primitives3D {
         const first = ring * (segments + 1) + seg;
         const second = first + segments + 1;
 
-        indices.push(first, second, first + 1);
-        indices.push(second, second + 1, first + 1);
+        indices.push(first, first + 1, second);
+        indices.push(second, first + 1, second + 1);
       }
     }
 
@@ -201,7 +201,7 @@ export class Primitives3D {
     }
 
     for (let seg = 0; seg < segments; seg++) {
-      indices.push(baseCenter, baseCenter + seg + 2, baseCenter + seg + 1);
+      indices.push(baseCenter, baseCenter + seg + 1, baseCenter + seg + 2);
     }
 
     return { vertices, normals, texCoords, indices };

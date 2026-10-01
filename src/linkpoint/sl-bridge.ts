@@ -1,10 +1,13 @@
 import { Utils } from './utils';
+import { failureFromResponseBody } from './login-failure';
 
 export interface SLBridgeConnectParams {
   loginUrl: string;
   username: string;
   password: string;
   start?: string;
+  mfaToken?: string;
+  mfaHash?: string;
 }
 
 export class SLBridge extends Utils.EventEmitter {
@@ -23,7 +26,7 @@ export class SLBridge extends Utils.EventEmitter {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ error: 'Second Life connection failed' }));
-      throw new Error(err.error || err.message || `Second Life error (HTTP ${response.status})`);
+      throw failureFromResponseBody(err) || new Error(err.error || err.message || `Second Life error (HTTP ${response.status})`);
     }
 
     const data = await response.json();

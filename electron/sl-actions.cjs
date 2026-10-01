@@ -137,7 +137,111 @@ async function getBalance(bot) {
   return { balance: Number(balance) };
 }
 
+// ---- login -----------------------------------------------------------------
+
+/**
+ * Split a login name the way Lumiya did (SLAuth.SendLoginRequest, recovered from
+ * the original smali): the first of ' ', '.' or '_' ends the first name, the rest
+ * is the last name, and a missing last name means "Resident".
+ */
+function parseLoginName(text) {
+  const name = String(text || '').trim();
+  if (!name) throw new Error('Enter your avatar name');
+  let split = name.length;
+  for (const separator of ' ._') {
+    const at = name.indexOf(separator);
+    if (at !== -1 && at < split) split = at;
+  }
+  const firstName = name.slice(0, split).trim();
+  const lastName = (split < name.length ? name.slice(split + 1) : '').trim() || 'Resident';
+  if (!firstName) throw new Error('Enter your avatar name');
+  if (/[\u0000-\u001f<>&"']/.test(firstName + lastName)) throw new Error('The avatar name contains characters that are not allowed');
+  return { firstName, lastName };
+}
+
+/**
+ * Start location, as Lumiya sent it: "first" means the home location, "uri:..."
+ * (a region and coordinates) is passed through, and anything else is "last".
+ * "home" and "last" are accepted directly. A uri must name a region and may only
+ * carry three numeric coordinates, so a caller cannot smuggle other login fields.
+ */
+function normalizeStart(start) {
+  const value = String(start || 'last').trim();
+  if (value === 'first' || value === 'home') return 'home';
+  if (!/^uri:/i.test(value)) return 'last';
+  const parts = value.slice(4).split('&');
+  const region = parts[0];
+  const coordinates = parts.slice(1);
+  if (!region || !/^[\w .'-]{1,64}$/.test(region) || (coordinates.length !== 0 && coordinates.length !== 3) || coordinates.some((c) => !/^-?\d{1,4}$/.test(c))) {
+    throw new Error('The start location is not a valid region and position');
+  }
+  // Without coordinates the grid's default spot in that region is requested.
+  return `uri:${[region, ...(coordinates.length === 3 ? coordinates : ['128', '128', '30'])].join('&')}`;
+}
+
+/** node-metaverse LoginParameters for a request from the browser or renderer. */
+function buildLoginParams(request, lib) {
+  const { LoginParameters } = loadLibrary(lib);
+  const { firstName, lastName } = parseLoginName(request.username);
+  const password = String(request.password || '');
+  if (!password) throw new Error('Enter your password');
+  let url;
+  try { url = new URL(String(request.loginUrl || '')); } catch { throw new Error('The login address is not valid'); }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('The login address must be http(s)');
+  const params = new LoginParameters();
+  params.firstName = firstName;
+  params.lastName = lastName;
+  params.password = password;
+  params.start = normalizeStart(request.start);
+  params.url = url.toString();
+  // Multi-factor authentication: the code the resident typed after a challenge,
+  // and the hash a previous successful MFA login returned for this device.
+  if (request.mfaToken) params.token = String(request.mfaToken).replace(/\s+/g, '').slice(0, 32);
+  if (request.mfaHash) params.mfa_hash = String(request.mfaHash).slice(0, 256);
+  return params;
+}
+
+const LOGIN_REASONS = {
+  mfa_challenge: { code: 'mfa_required', message: 'This account uses multi-factor authentication. Enter the code from your authenticator app.' },
+  key: { code: 'bad_credentials', message: 'The name or password is incorrect.' },
+  presence: { code: 'already_logged_in', message: 'This account is already logged in. Wait a minute and try again, or log out of the other session.' },
+  tos: { code: 'terms', message: 'The grid requires you to accept its Terms of Service before logging in.' },
+  update: { code: 'update_required', message: 'The grid requires a newer viewer version.' },
+  critical: { code: 'critical_message', message: 'The grid has a critical message that must be read before logging in.' },
+  disabled: { code: 'account_disabled', message: 'This account has been disabled.' },
+  mfa_failure: { code: 'mfa_failed', message: 'The multi-factor code was not accepted. Try the next code.' },
+};
+
+/** Error that carries the structured result of describeLoginError across process boundaries. */
+const LOGIN_FAILURE_PREFIX = 'LOGIN_FAILURE:';
+function loginFailure(error) {
+  const details = describeLoginError(error);
+  // Electron only preserves an error's message across IPC, so the details travel in it.
+  const failure = new Error(LOGIN_FAILURE_PREFIX + JSON.stringify(details));
+  failure.details = details;
+  return failure;
+}
+
+/**
+ * Turn a node-metaverse LoginError (or anything thrown while logging in) into
+ * plain data the interface can act on. The grid's own message is kept: it is
+ * what the grid said, and more specific than our summary.
+ */
+function describeLoginError(error) {
+  const reason = error && typeof error.reason === 'string' ? error.reason : '';
+  const known = LOGIN_REASONS[reason];
+  const gridMessage = error && typeof error.message === 'string' ? error.message : '';
+  return {
+    reason,
+    code: known ? known.code : 'login_failed',
+    mfaRequired: reason === 'mfa_challenge' || reason === 'mfa_failure',
+    message: known ? known.message : (gridMessage || 'Login failed'),
+    gridMessage,
+  };
+}
+
 module.exports = {
+  parseLoginName, normalizeStart, buildLoginParams, describeLoginError, loginFailure, LOGIN_FAILURE_PREFIX, LOGIN_REASONS,
   ATTACHMENT_NAMES, isHudPoint, attachmentIdFromState, attachmentInfo,
   parseDestination, teleport, touchObject, sit, stand, getBalance, requireUuid,
 };

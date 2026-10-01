@@ -8,6 +8,7 @@ import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
 import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Frustum } from './frustum';
 import { intersectRayOrientedBox } from './ray-pick';
+import { fitHud, hudExtents, hudProjection, HUD_SIZE, type HudFit } from './hud';
 import {
   WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater,
   createSkyDome, createStarField, createWaterPlane,
@@ -40,6 +41,9 @@ export class Scene3D extends Utils.EventEmitter {
   /** Objects drawn / skipped by frustum culling in the most recent frame. */
   public frameStats = { drawn: 0, culled: 0 };
   private environmentMeshesReady = false;
+
+  /** The HUD currently overlaid on the view, if any. Its prims are objects flagged `hud` with `hudRoot` set to this id. */
+  public displayedHud: { rootId: string; size: number; pan: [number, number] } | null = null;
   private skyUniforms: SkyUniforms = computeSkyUniforms(null);
   private waterUniforms: WaterUniforms = computeWaterUniforms(null);
   private skyClearColor: number[] = [0.53, 0.81, 0.92, 1];
@@ -189,6 +193,11 @@ export class Scene3D extends Utils.EventEmitter {
   /**
    * Add object to scene
    */
+  /** Show one worn HUD over the world (or none). `size` is the fraction of the view height its largest side fills. */
+  setDisplayedHud(rootId: string | null, size: number = HUD_SIZE.initial, pan: [number, number] = [0, 0]) {
+    this.displayedHud = rootId ? { rootId, size: Math.max(HUD_SIZE.min, Math.min(HUD_SIZE.max, size)), pan } : null;
+  }
+
   addObject(id: string, config: any) {
     const object = {
       id,
@@ -202,7 +211,10 @@ export class Scene3D extends Utils.EventEmitter {
       texture: config.texture,
       faces: config.faces || [],
       reflectionProbe: config.reflectionProbe || null,
-      visible: config.visible !== false
+      visible: config.visible !== false,
+      // HUD prims are kept out of the world and drawn only by the HUD pass.
+      hud: Boolean(config.hud),
+      hudRoot: config.hudRoot ?? null,
     };
     
     this.objects.set(id, object);
@@ -282,15 +294,12 @@ export class Scene3D extends Utils.EventEmitter {
     // insertion order changes while simulator updates stream in.
     let culled = 0;
     const visible = [...this.objects.values()].filter(object => {
-      if (!object.visible) return false;
+      if (!object.visible || object.hud) return false;
       if (this.isCulled(object, frustum)) { culled++; return false; }
       return true;
     });
     this.frameStats = { drawn: visible.length, culled };
-    const transparent = (object: any) => object.faces?.some((face: any) => {
-      const mode = face?.pbr?.alphaMode;
-      return mode === 'BLEND' || mode === 2 || Number(face?.color?.[3] ?? object.color?.[3] ?? 1) < 1;
-    });
+    const transparent = (object: any) => this.isTransparent(object);
     const distanceSquared = (object: any) => object.position.reduce((sum: number, value: number, index: number) => sum + (value - this.camera.position[index]) ** 2, 0);
     visible.filter(object => !transparent(object)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
 
@@ -300,6 +309,96 @@ export class Scene3D extends Utils.EventEmitter {
     if (waterActive && !underWater) this.renderWater(viewMatrix, projectionMatrix);
 
     visible.filter(transparent).sort((a, b) => distanceSquared(b) - distanceSquared(a)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
+
+    // The HUD goes last, over everything, in its own orthographic view.
+    this.renderHud();
+  }
+
+  /**
+   * Whether a face is drawn alpha-blended: an explicit material mode wins; with
+   * none, a translucent colour or a texture with transparent pixels blends, as
+   * viewers do for legacy faces.
+   */
+  private faceBlendMode(object: any, face: any): 0 | 1 | 2 {
+    const mode = face?.pbr?.alphaMode;
+    if (mode === 'MASK' || mode === 1) return 1;
+    if (mode === 'BLEND' || mode === 2) return 2;
+    if (mode !== undefined && mode !== null) return 0;
+    const colourAlpha = Number((face?.color ?? object.color)?.[3] ?? 1);
+    const texture = object.mirrorTexture || face?.texture || object.texture;
+    return colourAlpha < 0.99 || this.graphics.textureHasAlpha?.(texture) ? 2 : 0;
+  }
+
+  /** True when any face of an object is drawn blended, so it belongs in the back-to-front pass. */
+  private isTransparent(object: any) {
+    const faces = object.faces?.length ? object.faces : [undefined];
+    return faces.some((face: any) => this.faceBlendMode(object, face) === 2);
+  }
+
+  /** Placement of the displayed HUD: the fit over its prims' extents and the prims themselves. */
+  private hudSetup(): { fit: HudFit; prims: Array<{ object: any; local: Float32Array }> } | null {
+    const displayed = this.displayedHud;
+    if (!displayed) return null;
+    const prims = [...this.objects.values()]
+      .filter((object) => object.hud && object.hudRoot === displayed.rootId && object.visible !== false)
+      .map((object) => ({ object, local: this.calculateModelMatrix(object.position, object.rotation, object.scale) }));
+    if (!prims.length) return null;
+    // Measure each prim's real mesh bounds (the unit cube when unknown) through the same matrix it is drawn with.
+    const boxes = prims.map(({ object, local }) => {
+      const bounds = this.objectLocalBounds(object) || UNIT_CUBE_BOUNDS;
+      return { local, bounds };
+    });
+    const extents = hudExtents(boxes.map(({ local, bounds }) => {
+      // Express the transformed bounds as a prim so the shared extents code can measure it.
+      const world = transformAABB(local, bounds.min, bounds.max);
+      return {
+        position: [(world.min[0] + world.max[0]) / 2, (world.min[1] + world.max[1]) / 2, (world.min[2] + world.max[2]) / 2],
+        rotation: [0, 0, 0, 1],
+        scale: [world.max[0] - world.min[0], world.max[1] - world.min[1], world.max[2] - world.min[2]],
+      };
+    }));
+    return { fit: fitHud(extents, displayed.size, displayed.pan), prims };
+  }
+
+  private hudAspect() {
+    return Number((this.camera as any).aspect) || 1;
+  }
+
+  /** Draw the displayed HUD over the finished world frame. */
+  renderHud() {
+    const setup = this.hudSetup();
+    if (!setup) return;
+    const { fit, prims } = setup;
+    const identity = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    const projection = hudProjection(this.hudAspect());
+    this.graphics.clearDepth?.();
+    // Opaque prims first, then blended ones from far to near (screen -z is away from the viewer).
+    const depthOf = ({ local }: { local: Float32Array }) => fit.matrix[2] * local[12] + fit.matrix[6] * local[13] + fit.matrix[10] * local[14] + fit.matrix[14];
+    const ordered = [
+      ...prims.filter(({ object }) => !this.isTransparent(object)),
+      ...prims.filter(({ object }) => this.isTransparent(object)).sort((a, b) => depthOf(a) - depthOf(b)),
+    ];
+    for (const { object, local } of ordered) {
+      // HUDs are not lit by the sun: they are drawn full-bright, as Lumiya does (no Windlight lighting).
+      this.renderObject(object, identity, projection, { model: multiplyMat4(fit.matrix, local), fullBright: true });
+    }
+  }
+
+  /** Find the HUD prim under a screen point, nearest the viewer first. Distance is in view units. */
+  pickHud(screenX: number, screenY: number, width: number, height: number) {
+    const setup = this.hudSetup();
+    if (!setup || !(width > 0) || !(height > 0)) return null;
+    const x = ((2 * screenX) / width - 1) * this.hudAspect();
+    const y = 1 - (2 * screenY) / height;
+    const ray = { origin: [x, y, 50], direction: [0, 0, -1] };
+    let best: { id: string; distance: number; point: number[] } | null = null;
+    for (const { object, local } of setup.prims) {
+      const bounds = this.objectLocalBounds(object) || UNIT_CUBE_BOUNDS;
+      const distance = intersectRayOrientedBox(ray, multiplyMat4(setup.fit.matrix, local), bounds.min, bounds.max);
+      if (distance === null || (best && distance >= best.distance)) continue;
+      best = { id: object.id, distance, point: [x, y, 50 - distance] };
+    }
+    return best;
   }
 
   /** Windlight-style gradient dome plus optional stars, pinned to the far plane. */
@@ -393,7 +492,7 @@ export class Scene3D extends Utils.EventEmitter {
     const ray = this.camera.screenToWorldRay(screenX, screenY, width, height);
     let best: { id: string; distance: number; point: number[] } | null = null;
     for (const object of this.objects.values()) {
-      if (!object.visible) continue;
+      if (!object.visible || object.hud) continue;
       // Meshes without known bounds are treated as the unit cube prims are scaled from.
       const local = this.objectLocalBounds(object) || UNIT_CUBE_BOUNDS;
       const model = this.calculateModelMatrix(object.position, object.rotation, object.scale);
@@ -423,7 +522,7 @@ export class Scene3D extends Utils.EventEmitter {
       if (this.showGrid) this.renderGrid(view, this.camera.getProjectionMatrix());
       const mirrorFrustum = this.cullingEnabled ? extractFrustum(multiplyMat4(this.camera.getProjectionMatrix(), view)) : null;
       for (const object of this.objects.values()) {
-        if (object.visible && object !== mirror && !object.reflectionProbe?.mirror && !this.isCulled(object, mirrorFrustum)) this.renderObject(object, view, this.camera.getProjectionMatrix());
+        if (object.visible && !object.hud && object !== mirror && !object.reflectionProbe?.mirror && !this.isCulled(object, mirrorFrustum)) this.renderObject(object, view, this.camera.getProjectionMatrix());
       }
       this.graphics.endRenderTarget();
       mirror.mirrorTexture = targetName;
@@ -471,8 +570,8 @@ export class Scene3D extends Utils.EventEmitter {
   /**
    * Render object
    */
-  renderObject(object: any, viewMatrix: Float32Array, projectionMatrix: Float32Array) {
-    const modelMatrix = this.calculateModelMatrix(
+  renderObject(object: any, viewMatrix: Float32Array, projectionMatrix: Float32Array, options: { model?: Float32Array; fullBright?: boolean } = {}) {
+    const modelMatrix = options.model || this.calculateModelMatrix(
       object.position,
       object.rotation,
       object.scale
@@ -485,7 +584,7 @@ export class Scene3D extends Utils.EventEmitter {
     for (const draw of draws) {
       const face = object.faces?.[draw.materialIndex];
       const pbr = face?.pbr || {};
-      const alphaMode = pbr.alphaMode === 'MASK' || pbr.alphaMode === 1 ? 1 : pbr.alphaMode === 'BLEND' || pbr.alphaMode === 2 ? 2 : 0;
+      const alphaMode = this.faceBlendMode(object, face);
       this.graphics.drawMesh(draw.mesh, object.material, {
         uModelMatrix: modelMatrix,
         uViewMatrix: viewMatrix,
@@ -499,7 +598,7 @@ export class Scene3D extends Utils.EventEmitter {
         uTextureName: object.mirrorTexture || face?.texture || object.texture,
         uTexTransform: new Float32Array([...(face?.repeat || [1, 1]), ...(face?.offset || [0, 0])]),
         uTexRotation: face?.rotation || 0,
-        uFullBright: Boolean(face?.fullBright),
+        uFullBright: Boolean(options.fullBright || face?.fullBright),
         uCameraPos: new Float32Array(this.camera.position),
         uMetallic: pbr.metallic ?? 0,
         uRoughness: pbr.roughness ?? 1,

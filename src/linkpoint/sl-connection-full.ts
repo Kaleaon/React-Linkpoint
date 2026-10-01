@@ -2,6 +2,7 @@
  * Linkpoint PWA - Complete SL Connection Implementation
  */
 
+import { toLoginFailure } from './login-failure';
 import { Utils } from './utils';
 import { SLProtocol } from './sl-protocol-real';
 import { LLSD } from './llsd';
@@ -99,7 +100,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.eventQueueFailures = 0;
   }
 
-  async connect(gridId: string, username: string, password: string, startLocation: string = 'last') {
+  async connect(gridId: string, username: string, password: string, startLocation: string = 'last', mfa: { token?: string; hash?: string } = {}) {
     this.resetConnectionState();
     this.setState('AUTHENTICATING');
 
@@ -134,6 +135,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
           username,
           password,
           start: startLocation,
+          mfaToken: mfa.token,
+          mfaHash: mfa.hash,
         });
         this.authReply = loginResult;
         this.agentId = String(loginResult.agent_id);
@@ -188,6 +191,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
         username,
         password,
         start: startLocation,
+        mfaToken: mfa.token,
+        mfaHash: mfa.hash,
       });
 
       this.authReply = loginResult;
@@ -218,8 +223,9 @@ export class SLConnectionFull extends Utils.EventEmitter {
     } catch (error) {
       this.resetConnectionState();
       this.setState('IDLE');
-      this.emit('connection_failed', error);
-      throw error;
+      const failure = toLoginFailure(error);
+      this.emit('connection_failed', failure);
+      throw failure;
     }
   }
 
