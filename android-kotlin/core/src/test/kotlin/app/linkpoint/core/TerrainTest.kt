@@ -1,73 +1,12 @@
 package app.linkpoint.core
 
+import app.linkpoint.core.mock.TerrainEncoder
 import app.linkpoint.core.terrain.*
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import org.junit.Assert.*
 import org.junit.Test
-
-/** Encoder half of the terrain codec, ported from the reference implementation, to build fixtures. */
-private object TerrainEncoder {
-    private val quantize = FloatArray(256) { 1f / (1f + 2f * ((it % 16) + (it / 16))) }
-    private val cosines = FloatArray(256).also { t -> val h = (PI.toFloat() * 0.5f / 16f); for (u in 0 until 16) for (n in 0 until 16) t[u * 16 + n] = cos((2f * n + 1f) * u * h) }
-    private const val OO_SQRT2 = 0.7071067811865475f
-
-    fun layer(patches: List<Triple<Int, Int, FloatArray>>): ByteArray {
-        val w = BitWriter()
-        w.bits(264, 16); w.bits(16, 8); w.bits(TerrainDecoder.LAYER_LAND, 8)
-        for ((x, y, data) in patches) patch(w, data, x, y)
-        w.bits(97, 8)
-        return w.toByteArray()
-    }
-
-    private fun patch(w: BitWriter, data: FloatArray, x: Int, y: Int) {
-        val zmin = data.min(); val zmax = data.max()
-        val dc = zmin; val range = ((zmax - zmin) + 1f).toInt()
-        val prequant = 10
-        val premult = (1f / range) * (1 shl prequant)
-        val sub = (1 shl (prequant - 1)).toFloat() + dc * premult
-        var quantWBits = 136 // header default: wordsize bits and prequant 10
-        val block = FloatArray(256) { data[it] * premult - sub }
-        val ftemp = FloatArray(256)
-        for (line in 0 until 16) {
-            val ls = line * 16
-            var total = 0f
-            for (n in 0 until 16) total += block[ls + n]
-            ftemp[ls] = OO_SQRT2 * total
-            for (u in 1 until 16) { total = 0f; for (n in 0 until 16) total += block[ls + n] * cosines[u * 16 + n]; ftemp[ls + u] = total }
-        }
-        val itemp = IntArray(256)
-        val oosob = 2f / 16f
-        for (col in 0 until 16) {
-            var total = 0f
-            for (n in 0 until 16) total += ftemp[16 * n + col]
-            itemp[TerrainDecoder.copyMatrix[col]] = (OO_SQRT2 * total * oosob * quantize[col]).toInt()
-            for (u in 1 until 16) {
-                total = 0f
-                for (n in 0 until 16) total += ftemp[16 * n + col] * cosines[u * 16 + n]
-                itemp[TerrainDecoder.copyMatrix[16 * u + col]] = (total * oosob * quantize[16 * u + col]).toInt()
-            }
-        }
-        // Header: word bits wide enough for the largest coefficient.
-        var wbits = 2
-        for (v in itemp) { var t = abs(v); var b = 0; while (t > 0) { b++; t = t shr 1 }; if (b + 1 > wbits) wbits = b + 1 }
-        quantWBits = (quantWBits and 0xF0) or (wbits - 2)
-        w.bits(quantWBits, 8); w.float(dc); w.bits(range, 16); w.bits((y and 0x1F) + (x shl 5), 10)
-        // Coefficients: zero = 0, end of block = 10, value = 11s + wbits.
-        for (i in 0 until 256) {
-            val t = itemp[i]
-            if (t == 0) {
-                if ((i until 256).all { itemp[it] == 0 }) { w.bits(2, 2).let { }; return }
-                w.bits(0, 1)
-            } else {
-                // Packed as bits 1,1,sign then the magnitude, written MSB first as the reference does with PackBits(6|7, 3).
-                w.bits(if (t < 0) 7 else 6, 3)
-                w.bits(abs(t), wbits)
-            }
-        }
-    }
-}
 
 class TerrainTest {
     @Test fun bitOrderMatchesTheReference() {

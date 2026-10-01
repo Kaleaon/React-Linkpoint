@@ -1,5 +1,8 @@
 package app.linkpoint.core
 
+import app.linkpoint.core.llsd.Llsd
+import app.linkpoint.core.llsd.asLlsdList
+import app.linkpoint.core.llsd.asLlsdMap
 import app.linkpoint.core.login.LoginResult
 import app.linkpoint.core.model.*
 import app.linkpoint.core.net.*
@@ -46,6 +49,15 @@ class ViewerSession(
     /** Raw simulator messages the 3D layer subscribes to (object updates etc.). */
     private val _raw = MutableSharedFlow<Received>(extraBufferCapacity = 2048, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val rawMessages: SharedFlow<Received> = _raw
+    private val _inventory = MutableStateFlow(InventoryState())
+    val inventory: StateFlow<InventoryState> = _inventory
+    private val _groups = MutableStateFlow<List<GroupInfo>>(emptyList())
+    val groups: StateFlow<List<GroupInfo>> = _groups
+    private val _parcel = MutableStateFlow<ParcelInfo?>(null)
+    val parcel: StateFlow<ParcelInfo?> = _parcel
+    private val _offers = MutableStateFlow<List<PendingOffer>>(emptyList())
+    val offers: StateFlow<List<PendingOffer>> = _offers
+    private val profileWaits = java.util.concurrent.ConcurrentHashMap<UUID, CompletableDeferred<Incoming.AvatarProperties>>()
     private val _capabilities = MutableStateFlow<Map<String, String>>(emptyMap())
     val capabilities: StateFlow<Map<String, String>> = _capabilities
 
@@ -76,11 +88,16 @@ class ViewerSession(
         check(_state.value == ConnectionState.DISCONNECTED) { "Already connected" }
         _state.value = ConnectionState.CONNECTING
         _chat.value = emptyList(); _region.value = null; _balance.value = null; scene.clear(); heightmap.clear()
+        _groups.value = emptyList(); _parcel.value = null; _offers.value = emptyList()
         try {
             login = result
             agentId = UUID.fromString(result.agentId)
             sessionId = UUID.fromString(result.sessionId)
             names[agentId] = result.fullName
+            _inventory.value = InventoryState(
+                rootId = result.inventoryRootId?.let { runCatching { UUID.fromString(it) }.getOrNull() },
+                folders = result.inventorySkeleton.associateBy { it.id },
+            )
             _friends.value = result.buddies.mapNotNull { b ->
                 runCatching { Friend(UUID.fromString(b.id), null, null, b.rightsGiven, b.rightsHas) }.getOrNull()
             }
@@ -156,6 +173,22 @@ class ViewerSession(
                     _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${ex.message}"))
                 }
             }
+            "AgentGroupDataUpdate" -> {
+                val list = e.body["GroupData"].asLlsdList().orEmpty().mapNotNull { g ->
+                    val m = g.asLlsdMap() ?: return@mapNotNull null
+                    GroupInfo(m["GroupID"] as? UUID ?: return@mapNotNull null, m["GroupName"]?.toString() ?: "", m["AcceptNotices"] == true)
+                }
+                if (list.isNotEmpty()) _groups.value = list.sortedBy { it.name.lowercase() }
+            }
+            "ParcelProperties" -> {
+                val d = e.body["ParcelData"].asLlsdList()?.firstOrNull().asLlsdMap() ?: return
+                fun int(k: String) = (d[k] as? Number)?.toInt()
+                _parcel.value = ParcelInfo(
+                    int("LocalID") ?: -1, d["Name"]?.toString() ?: "", d["Desc"]?.toString() ?: "", int("Area") ?: 0,
+                    (d["OwnerID"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L },
+                    int("MaxPrims"), int("TotalPrims"), d["MusicURL"]?.toString() ?: "", d["MediaURL"]?.toString() ?: "",
+                )
+            }
             "CrossedRegion" -> {
                 val rd = (e.body["RegionData"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return
                 val ip = (rd["SimIP"] as? ByteArray)?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: return
@@ -215,6 +248,7 @@ class ViewerSession(
             is Incoming.TerrainLayer -> try {
                 TerrainDecoder.decode(m.data).patches.forEach(heightmap::put)
             } catch (_: IllegalArgumentException) { /* a damaged layer packet: keep what we have */ }
+            is Incoming.AvatarProperties -> profileWaits.remove(m.avatarId)?.complete(m)
             is Incoming.Unhandled -> Unit
         }
     }
@@ -226,8 +260,8 @@ class ViewerSession(
             0 -> if (!m.fromGroup) addChat(ChatEntry(nextId(), ChatKind.IM, from, m.fromName, text, 1, m.sessionId, false, clock()))
             19 -> addChat(ChatEntry(nextId(), ChatKind.OBJECT_IM, m.fromAgentId, m.fromName, text, 1, null, false, clock()))
             4, 9 -> system("${m.fromName} offered you an item: $text")
-            22 -> system("${m.fromName} offered you a teleport: $text")
-            38, 41 -> system("${m.fromName} sent a friendship offer: $text")
+            22 -> { system("${m.fromName} offered you a teleport: $text"); _offers.update { it + PendingOffer.Lure(m.sessionId, m.fromName, text) } }
+            38, 41 -> { system("${m.fromName} sent a friendship offer: $text"); _offers.update { it + PendingOffer.Friend(m.sessionId, m.fromName, text) } }
             else -> Unit // typing indicators, group sessions and other dialogs are not shown
         }
     }
@@ -272,6 +306,69 @@ class ViewerSession(
         val sid = Messages.imSessionId(agentId, toId)
         circuit!!.send(Messages.instantMessage(agentId, sessionId, login!!.fullName, toId, t))
         addChat(ChatEntry(nextId(), ChatKind.IM, toId, login!!.fullName, t, 1, sid, true, clock()))
+    }
+
+    /** Fetch the contents of one inventory folder through the region's inventory capability. */
+    suspend fun fetchInventoryFolder(folderId: UUID) {
+        requireConnected()
+        val cap = _capabilities.value["FetchInventoryDescendents2"] ?: throw java.io.IOException("This region does not offer inventory fetching")
+        val request = Llsd.toXml(mapOf("folders" to listOf(mapOf("folder_id" to folderId, "owner_id" to agentId, "fetch_folders" to true, "fetch_items" to true, "sort_order" to 1))))
+        val r = http.post(cap, request.toByteArray(), "application/llsd+xml", mapOf("Accept" to "application/llsd+xml"), 60_000)
+        if (!r.ok) throw java.io.IOException("Inventory service answered HTTP ${r.status}")
+        val folders = Llsd.parseXml(r.body).asLlsdMap()?.get("folders").asLlsdList().orEmpty()
+        var folderUpdates = emptyList<InventoryFolder>()
+        val newItems = HashMap<UUID, List<InventoryItem>>()
+        for (f in folders) {
+            val fm = f.asLlsdMap() ?: continue
+            val fid = fm["folder_id"] as? UUID ?: continue
+            folderUpdates = folderUpdates + fm["categories"].asLlsdList().orEmpty().mapNotNull { c ->
+                val cm = c.asLlsdMap() ?: return@mapNotNull null
+                InventoryFolder(cm["category_id"] as? UUID ?: return@mapNotNull null, (cm["parent_id"] as? UUID) ?: fid, cm["name"]?.toString() ?: "", (cm["type_default"] as? Number)?.toInt() ?: -1, (cm["version"] as? Number)?.toInt() ?: 0)
+            }
+            newItems[fid] = fm["items"].asLlsdList().orEmpty().mapNotNull { i ->
+                val im = i.asLlsdMap() ?: return@mapNotNull null
+                InventoryItem(
+                    im["item_id"] as? UUID ?: return@mapNotNull null, (im["parent_id"] as? UUID) ?: fid, im["name"]?.toString() ?: "",
+                    (im["type"] as? Number)?.toInt() ?: -1, (im["inv_type"] as? Number)?.toInt() ?: -1, im["desc"]?.toString() ?: "",
+                    (im["asset_id"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L },
+                )
+            }.sortedBy { it.name.lowercase() }
+        }
+        _inventory.update { st ->
+            // Replace the folder's contents wholesale rather than merging, so deleted items disappear.
+            st.copy(folders = st.folders + folderUpdates.associateBy { it.id }, items = st.items + newItems, loaded = st.loaded + newItems.keys)
+        }
+    }
+
+    /** Ask the grid for a resident's profile; null if it does not answer in time. */
+    suspend fun requestProfile(avatarId: UUID): AvatarProfile? {
+        requireConnected()
+        val wait = profileWaits.getOrPut(avatarId) { CompletableDeferred() }
+        circuit!!.send(Messages.avatarPropertiesRequest(agentId, sessionId, avatarId))
+        val p = withTimeoutOrNull(15_000) { wait.await() } ?: run { profileWaits.remove(avatarId); return null }
+        return AvatarProfile(
+            p.avatarId, p.aboutText, p.bornOn, p.partnerId.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L },
+            p.profileUrl, p.flags,
+        )
+    }
+
+    fun acceptOffer(offer: PendingOffer) {
+        requireConnected()
+        when (offer) {
+            is PendingOffer.Lure -> circuit!!.send(Messages.teleportLureRequest(agentId, sessionId, offer.id))
+            is PendingOffer.Friend -> {
+                val inv = _inventory.value
+                val cards = inv.folders.values.firstOrNull { it.typeDefault == 2 }?.id ?: inv.rootId ?: UUID(0, 0)
+                circuit!!.send(Messages.acceptFriendship(agentId, sessionId, offer.id, cards))
+            }
+        }
+        _offers.update { list -> list.filterNot { it.id == offer.id } }
+    }
+
+    fun declineOffer(offer: PendingOffer) {
+        requireConnected()
+        if (offer is PendingOffer.Friend) circuit!!.send(Messages.declineFriendship(agentId, sessionId, offer.id))
+        _offers.update { list -> list.filterNot { it.id == offer.id } }
     }
 
     fun refreshBalance() { requireConnected(); circuit!!.send(Messages.moneyBalanceRequest(agentId, sessionId)) }

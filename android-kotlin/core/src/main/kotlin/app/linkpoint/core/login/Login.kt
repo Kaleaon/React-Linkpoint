@@ -1,6 +1,7 @@
 package app.linkpoint.core.login
 
 import app.linkpoint.core.ViewerIdentity
+import app.linkpoint.core.model.InventoryFolder
 import app.linkpoint.core.net.Http
 import java.security.MessageDigest
 
@@ -11,8 +12,10 @@ data class Grid(val key: String, val label: String, val loginUrl: String) {
         val ADITI = Grid("aditi", "Second Life Beta (Aditi)", "https://login.aditi.lindenlab.com/cgi-bin/login.cgi")
         val OSGRID = Grid("osgrid", "OSgrid (OpenSim)", "http://login.osgrid.org/")
         val KITELY = Grid("kitely", "Kitely (OpenSim)", "http://login.kitely.com/")
+        /** A fake grid for development: run `./gradlew :mockgrid:run --args=10.0.2.2` and point an emulator at it. */
+        val MOCK = Grid("mock", "Mock grid (development)", "http://10.0.2.2:9000/login")
         val ALL = listOf(AGNI, ADITI, OSGRID, KITELY)
-        fun byKey(key: String) = ALL.firstOrNull { it.key == key } ?: AGNI
+        fun byKey(key: String) = (ALL + MOCK).firstOrNull { it.key == key } ?: AGNI
     }
 }
 
@@ -55,6 +58,7 @@ data class LoginResult(
     val message: String,
     val buddies: List<Buddy>,
     val inventoryRootId: String?,
+    val inventorySkeleton: List<InventoryFolder> = emptyList(),
     /** Returned after an MFA login so this device is not challenged again. */
     val mfaHash: String?,
     val raw: Map<String, Any?>,
@@ -193,6 +197,12 @@ object LoginClient {
             Buddy(id, (bm["buddy_rights_given"] as? Number)?.toInt() ?: 0, (bm["buddy_rights_has"] as? Number)?.toInt() ?: 0)
         }
         val root = ((m["inventory-root"] as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("folder_id")?.toString()
+        val skeleton = (m["inventory-skeleton"] as? List<*>).orEmpty().mapNotNull { f ->
+            val fm = f as? Map<*, *> ?: return@mapNotNull null
+            val id = runCatching { java.util.UUID.fromString(fm["folder_id"]?.toString()) }.getOrNull() ?: return@mapNotNull null
+            val parent = runCatching { java.util.UUID.fromString(fm["parent_id"]?.toString()) }.getOrNull()?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
+            InventoryFolder(id, parent, fm["name"]?.toString() ?: "", (fm["type_default"] as? Number)?.toInt() ?: -1, (fm["version"] as? Number)?.toInt() ?: 0)
+        }
         require(str("agent_id").isNotEmpty() && str("session_id").isNotEmpty()) { "The login response is missing the agent or session id" }
         return LoginResult(
             agentId = str("agent_id"), sessionId = str("session_id"), secureSessionId = str("secure_session_id"),
@@ -200,7 +210,7 @@ object LoginClient {
             seedCapability = str("seed_capability"),
             firstName = str("first_name").trim('"'), lastName = str("last_name").trim('"'),
             regionX = int("region_x"), regionY = int("region_y"),
-            message = str("message"), buddies = buddies, inventoryRootId = root,
+            message = str("message"), buddies = buddies, inventoryRootId = root, inventorySkeleton = skeleton,
             mfaHash = m["mfa_hash"]?.toString()?.takeIf { it.isNotEmpty() }, raw = m,
         )
     }

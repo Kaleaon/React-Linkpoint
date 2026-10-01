@@ -10,8 +10,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FakeHttp(private val reply: (String, String) -> HttpResponse) : Http {
-    val requests = mutableListOf<Pair<String, String>>()
-    override suspend fun get(url: String, headers: Map<String, String>, timeoutMs: Int) = reply(url, "").also { requests += url to "" }
+    val requests = java.util.concurrent.CopyOnWriteArrayList<Pair<String, String>>()
+    override suspend fun get(url: String, headers: Map<String, String>, timeoutMs: Int): HttpResponse { requests += url to ""; return reply(url, "") }
     override suspend fun post(url: String, body: ByteArray, contentType: String, headers: Map<String, String>, timeoutMs: Int): HttpResponse {
         val text = body.toString(Charsets.UTF_8)
         requests += url to text

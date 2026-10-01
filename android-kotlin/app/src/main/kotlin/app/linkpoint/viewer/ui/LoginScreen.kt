@@ -45,7 +45,7 @@ fun LoginScreen(host: ViewerHost) {
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             ExposedDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                for (g in Grid.ALL) DropdownMenuItem(text = { Text(g.label) }, onClick = { grid = g; menu = false })
+                for (g in (if (app.linkpoint.viewer.BuildConfig.DEBUG) Grid.ALL + Grid.MOCK else Grid.ALL)) DropdownMenuItem(text = { Text(g.label) }, onClick = { grid = g; menu = false })
             }
         }
         OutlinedTextField(name, { name = it }, label = { Text("Avatar name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !working)

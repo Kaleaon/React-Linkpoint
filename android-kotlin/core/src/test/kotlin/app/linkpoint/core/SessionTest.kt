@@ -88,7 +88,7 @@ class SessionTest {
             // Region and movement data arrive from the (zero-coded) handshake.
             val region = eventually { s.region.value?.takeIf { it.name == "Testville" } }
             assertEquals(1000, region.gridX); assertEquals(1001, region.gridY); assertEquals(13, region.access)
-            assertTrue(sim.received.contains(Msg.RegionHandshakeReply))
+            eventually { sim.received.firstOrNull { it == Msg.RegionHandshakeReply } } // the reply travels to the fake sim asynchronously
             assertEquals(20f, region.waterHeight!!, 0f)
             assertEquals(UUID(9, 2), region.terrain!!.detailTextureIds[2]); assertEquals(13f, region.terrain!!.startHeights[3], 0f)
 

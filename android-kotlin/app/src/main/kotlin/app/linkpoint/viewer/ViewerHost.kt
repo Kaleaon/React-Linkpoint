@@ -39,6 +39,8 @@ class ViewerHost(private val app: Application) {
     val loginUi = MutableStateFlow<LoginUi>(LoginUi.Idle)
     val contacts = MutableStateFlow(prefs.loadContacts())
     val palette = MutableStateFlow(prefs.paletteKey)
+    /** Debug builds only: a tab to switch to (set by an intent extra). */
+    val debugTab = MutableStateFlow<String?>(null)
     /** Set when the resident picks someone to message; the chat screen opens that conversation. */
     val imTarget = MutableStateFlow<Pair<java.util.UUID, String>?>(null)
 

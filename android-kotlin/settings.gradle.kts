@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "linkpoint-android"
-include(":core", ":app")
+include(":core", ":app", ":mockgrid")

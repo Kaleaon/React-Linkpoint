@@ -48,3 +48,40 @@ sealed class ViewerNotice {
     data class Disconnected(val reason: String) : ViewerNotice()
     data class Error(val text: String) : ViewerNotice()
 }
+
+data class InventoryFolder(val id: UUID, val parentId: UUID?, val name: String, val typeDefault: Int, val version: Int)
+
+data class InventoryItem(
+    val id: UUID, val parentId: UUID, val name: String,
+    /** Asset type: 0 texture, 1 sound, 3 landmark, 5 clothing, 6 object, 7 notecard, 10 script, 13 body part, 20 animation, 21 gesture, 49 mesh. */
+    val assetType: Int, val invType: Int, val description: String, val assetId: UUID?,
+)
+
+/** The resident's inventory as far as it has been fetched: the folder tree from login plus folder contents on demand. */
+data class InventoryState(
+    val rootId: UUID? = null,
+    val folders: Map<UUID, InventoryFolder> = emptyMap(),
+    val items: Map<UUID, List<InventoryItem>> = emptyMap(),
+    /** Folders whose contents have been fetched. */
+    val loaded: Set<UUID> = emptySet(),
+) {
+    fun children(folder: UUID): List<InventoryFolder> = folders.values.filter { it.parentId == folder }.sortedBy { it.name.lowercase() }
+}
+
+data class GroupInfo(val id: UUID, val name: String, val acceptNotices: Boolean)
+
+data class ParcelInfo(
+    val localId: Int, val name: String, val description: String, val areaSqm: Int, val ownerId: UUID?,
+    val maxPrims: Int?, val totalPrims: Int?, val musicUrl: String, val mediaUrl: String,
+)
+
+data class AvatarProfile(val id: UUID, val about: String, val bornOn: String, val partnerId: UUID?, val profileUrl: String, val flags: Long)
+
+/** Something another resident asked of us that needs an answer. */
+sealed class PendingOffer {
+    abstract val id: UUID
+    abstract val fromName: String
+    abstract val text: String
+    data class Lure(override val id: UUID, override val fromName: String, override val text: String) : PendingOffer()
+    data class Friend(override val id: UUID, override val fromName: String, override val text: String) : PendingOffer()
+}

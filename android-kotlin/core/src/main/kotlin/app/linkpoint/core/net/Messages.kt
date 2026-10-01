@@ -26,6 +26,10 @@ sealed class Incoming {
         val terrainStartHeights: FloatArray? = null, val terrainHeightRanges: FloatArray? = null,
     ) : Incoming()
     data class TerrainLayer(val type: Int, val data: ByteArray) : Incoming()
+    data class AvatarProperties(
+        val avatarId: UUID, val imageId: UUID, val partnerId: UUID, val aboutText: String, val bornOn: String,
+        val profileUrl: String, val flags: Long,
+    ) : Incoming()
     data class AgentMovementComplete(val position: FloatArray, val lookAt: FloatArray, val regionHandle: Long) : Incoming()
     data class OnlineStatus(val ids: List<UUID>, val online: Boolean) : Incoming()
     data class UuidNames(val names: List<Triple<UUID, String, String>>) : Incoming()
@@ -110,6 +114,18 @@ object Messages {
         localIds.forEach { w.u8(0).u32(it) }
         return Outgoing(Msg.RequestMultipleObjects, w.toByteArray(), true)
     }
+
+    fun avatarPropertiesRequest(agentId: UUID, sessionId: UUID, avatarId: UUID) =
+        Outgoing(Msg.AvatarPropertiesRequest, agentData(agentId, sessionId).uuid(avatarId).toByteArray(), true)
+
+    fun teleportLureRequest(agentId: UUID, sessionId: UUID, lureId: UUID, flags: Long = 0) =
+        Outgoing(Msg.TeleportLureRequest, agentData(agentId, sessionId).uuid(lureId).u32(flags).toByteArray(), true)
+
+    fun acceptFriendship(agentId: UUID, sessionId: UUID, transactionId: UUID, callingCardFolder: UUID) =
+        Outgoing(Msg.AcceptFriendship, agentData(agentId, sessionId).uuid(transactionId).u8(1).uuid(callingCardFolder).toByteArray(), true)
+
+    fun declineFriendship(agentId: UUID, sessionId: UUID, transactionId: UUID) =
+        Outgoing(Msg.DeclineFriendship, agentData(agentId, sessionId).uuid(transactionId).toByteArray(), true)
 
     fun uuidNameRequest(ids: List<UUID>): Outgoing {
         require(ids.size in 1..255) { "1..255 ids per request" }
@@ -221,6 +237,12 @@ object Messages {
                 })
             }
             Msg.KickUser -> { r.bytes(6); r.uuid(); r.uuid(); Incoming.KickUser(r.str2()) }
+            Msg.AvatarPropertiesReply -> {
+                r.uuid(); val avatar = r.uuid()
+                val image = r.uuid(); r.uuid(); val partner = r.uuid()
+                val about = r.str2(); r.str1(); val born = r.str1(); val url = r.str1(); r.bin1()
+                Incoming.AvatarProperties(avatar, image, partner, about, born, url, r.u32())
+            }
             Msg.LayerData -> { val t = r.u8(); Incoming.TerrainLayer(t, r.bin2()) }
             Msg.LogoutReply -> Incoming.LogoutReply
             else -> Incoming.Unhandled(id)

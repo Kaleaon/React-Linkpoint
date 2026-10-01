@@ -43,6 +43,8 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
     val snack = remember { SnackbarHostState() }
     val imTarget by host.imTarget.collectAsState()
     LaunchedEffect(imTarget) { if (imTarget != null) tab = Tab.CHAT }
+    val debugTab by host.debugTab.collectAsState()
+    LaunchedEffect(debugTab) { debugTab?.let { name -> Tab.entries.firstOrNull { it.name == name }?.let { tab = it } } }
 
     LaunchedEffect(session) {
         session.notices.collect { n ->
