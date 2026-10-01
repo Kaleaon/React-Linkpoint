@@ -3,7 +3,7 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
-import { RADAR_AVATARS, RADAR_OBJECTS, COMPASS } from "../data/content.js";
+import { COMPASS } from "../data/content.js";
 
 export default function Radar() {
   const { V, t } = useTheme();
@@ -51,7 +51,8 @@ export default function Radar() {
 
   // Distance range classifications (Firestorm style)
   const getBand = (dist) => {
-    const d = Number(dist ?? 999);
+    if (dist == null || !Number.isFinite(Number(dist))) return { name: "RANGE UNKNOWN", tone: V.ink2, code: "unknown" };
+    const d = Number(dist);
     if (d <= 10) return { name: "WHISPER (≤10m)", tone: V.pri, code: "whisper" };
     if (d <= 20) return { name: "CHAT (≤20m)", tone: V.ok, code: "chat" };
     if (d <= 100) return { name: "SHOUT (≤100m)", tone: V.info, code: "shout" };
@@ -73,8 +74,8 @@ export default function Radar() {
     liveNearby.forEach((u) => {
       if (!u.id || seen.has(u.id)) return;
       seen.add(u.id);
-      const dist = u.distance != null ? Number(u.distance) : 12;
-      const brg = u.bearing ?? 45;
+      const dist = u.distance != null ? Number(u.distance) : null;
+      const brg = u.bearing ?? null;
       result.push({
         id: u.id,
         name: u.name || `Resident ${String(u.id).slice(0, 8)}`,
@@ -82,37 +83,15 @@ export default function Radar() {
         distance: dist,
         bearing: brg,
         compass: getCompass(brg),
-        meta: u.meta || "Nearby resident in region",
+        meta: u.meta || "",
         icon: "user",
         isFriend: Boolean(app.friends?.isFriend?.(u.id) || app.friends?.isFriend?.(u.name)),
         typing: Boolean(u.typing),
         voice: Boolean(u.voice),
-        payment: u.payment || "on file",
-        age: u.age || "active resident",
+        payment: u.payment || null,
+        age: u.age || null,
         altitude: u.position?.[2] ? `${Math.round(u.position[2])}m` : null,
         coords: u.position ? `<${Math.round(u.position[0])}, ${Math.round(u.position[1])}, ${Math.round(u.position[2])}>` : null,
-      });
-    });
-
-    // Simulated/preloaded Second Life avatars
-    RADAR_AVATARS.forEach(([name, dist, brg, meta, icon]) => {
-      if (seen.has(name)) return;
-      seen.add(name);
-      result.push({
-        id: name,
-        name,
-        kind: "person",
-        distance: dist,
-        bearing: brg,
-        compass: getCompass(brg),
-        meta,
-        icon: icon || "user",
-        isFriend: meta.includes("friend"),
-        typing: meta.includes("typing"),
-        voice: meta.includes("voice"),
-        payment: meta.includes("payment info") ? "payment info on file" : "basic account",
-        age: meta.includes("age") ? meta.match(/age\s+[^·]+/)?.[0] || "resident" : "3y account",
-        altitude: "24m",
       });
     });
 
@@ -138,8 +117,8 @@ export default function Radar() {
       );
 
       const locationType = isAttachment ? "on_avatar" : "in_sim";
-      const dist = obj.distance != null ? Number(obj.distance) : 15;
-      const brg = obj.bearing ?? 30;
+      const dist = obj.distance != null ? Number(obj.distance) : null;
+      const brg = obj.bearing ?? null;
 
       result.push({
         id: obj.id,
@@ -150,47 +129,16 @@ export default function Radar() {
         bearing: brg,
         compass: getCompass(brg),
         icon: isAttachment ? "layers" : "box",
-        meta: obj.meta || (isAttachment ? "Attachment on avatar" : "Rezzed simulator prim"),
-        attachedTo: obj.attachedTo || (isAttachment ? (obj.owner || "Nearby resident") : null),
-        attachPoint: obj.attachmentPoint || (isAttachment ? "Worn Attachment" : null),
-        parcel: obj.parcel || (!isAttachment ? (app.world?.region?.name || "Current Simulator") : null),
-        prims: obj.prims || obj.landImpact || (isAttachment ? 1 : 4),
-        scriptTime: obj.scriptTime || "0.08ms",
-        scripts: obj.scripts ?? 1,
-        memory: obj.memory || "32 KB",
-        owner: obj.owner || (isAttachment ? obj.attachedTo : "Simulator Owner"),
+        meta: obj.meta || "",
+        attachedTo: obj.attachedTo || null,
+        attachPoint: obj.attachmentPoint || null,
+        parcel: obj.parcel || null,
+        prims: obj.prims || obj.landImpact || null,
+        scriptTime: obj.scriptTime || null,
+        scripts: obj.scripts ?? null,
+        memory: obj.memory || null,
+        owner: obj.owner || null,
         coords: obj.position ? `<${Math.round(obj.position[0])}, ${Math.round(obj.position[1])}, ${Math.round(obj.position[2])}>` : null,
-      });
-    });
-
-    // Rich Second Life predefined items (both In Sim and On Avatar)
-    RADAR_OBJECTS.forEach(([name, dist, brg, meta, icon, locType, details]) => {
-      if (seen.has(name)) return;
-      seen.add(name);
-
-      const locationType = locType || (details?.attachedTo ? "on_avatar" : "in_sim");
-
-      result.push({
-        id: name,
-        name,
-        kind: "item",
-        locationType, // "in_sim" | "on_avatar"
-        distance: dist,
-        bearing: brg,
-        compass: getCompass(brg),
-        meta,
-        icon: icon || (locationType === "on_avatar" ? "layers" : "box"),
-        attachedTo: details?.attachedTo || null,
-        attachPoint: details?.attachPoint || null,
-        isHUD: details?.isHUD || false,
-        parcel: details?.parcel || null,
-        prims: details?.prims || 1,
-        scriptTime: details?.scriptTime || "0.05ms",
-        scripts: details?.scripts ?? 1,
-        memory: details?.memory || "16 KB",
-        owner: details?.owner || "Region Resident",
-        coords: details?.coords || null,
-        type: details?.type || (locationType === "on_avatar" ? "Attachment" : "Object"),
       });
     });
 
@@ -331,7 +279,7 @@ export default function Radar() {
   const rPix = (dm) => Math.min(88, 76 * Math.sqrt(Math.min(Math.max(dm, 0), 160) / 100));
 
   const scopeBlips = useMemo(() => {
-    return activeEntries.slice(0, 24).map((entry) => {
+    return activeEntries.filter((entry) => entry.distance != null && entry.bearing != null).slice(0, 24).map((entry) => {
       const dm = Number(entry.distance || 0);
       const rad = (Number(entry.bearing || 0) - 90) * (Math.PI / 180);
       const distPx = rPix(dm);
@@ -957,7 +905,7 @@ export default function Radar() {
                             {entry.attachedTo === "you" ? "Worn by you" : `Worn by ${entry.attachedTo}`}
                           </strong>
                           {entry.attachPoint ? ` · ${entry.attachPoint}` : ""}
-                          {entry.scripts ? ` · ${entry.scripts} scripts (${entry.memory || "32KB"})` : ""}
+                          {entry.scripts ? ` · ${entry.scripts} scripts${entry.memory ? ` (${entry.memory})` : ""}` : ""}
                         </span>
                       )}
 

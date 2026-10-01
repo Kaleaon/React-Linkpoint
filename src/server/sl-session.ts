@@ -18,6 +18,18 @@ const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = requi
   decodeJPEG2000: (buffer: Buffer) => Promise<any>;
 };
 
+const actions = require('../../electron/sl-actions.cjs') as {
+  attachmentInfo: (object: any) => { attachmentPoint: number; attachmentName: string | null; isHud: boolean };
+  buildLoginParams: (request: any) => any;
+  parseLoginName: (name: string) => { firstName: string; lastName: string };
+  loginFailure: (error: unknown) => Error;
+  teleport: (bot: any, params: any) => Promise<any>;
+  touchObject: (bot: any, params: any) => Promise<any>;
+  sit: (bot: any, params: any) => Promise<any>;
+  stand: (bot: any) => any;
+  getBalance: (bot: any) => Promise<any>;
+};
+
 // Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
 const _origConsoleError = console.error;
 console.error = function (...args: any[]) {
@@ -164,6 +176,7 @@ function serializeObject(event: any) {
     id: object.FullID?.toString() || String(event.localID),
     localId: event.localID,
     parentId: object.ParentID || 0,
+    ...actions.attachmentInfo(object),
     pcode: object.PCode,
     avatar: object.PCode === PCode.Avatar,
     position: vector(object.Position),
@@ -179,17 +192,13 @@ export async function createSLSession(params: {
   username: string;
   password: string;
   start?: string;
+  mfaToken?: string;
+  mfaHash?: string;
 }) {
-  const names = params.username.replace(/[._]/g, ' ').trim().split(/\s+/);
-  const firstName = names[0];
-  const lastName = names.length > 1 ? names[1] : 'Resident';
-
-  const loginParams = new LoginParameters();
-  loginParams.firstName = firstName;
-  loginParams.lastName = lastName;
-  loginParams.password = params.password;
-  loginParams.start = params.start || 'last';
-  loginParams.url = params.loginUrl || 'https://login.agni.lindenlab.com/cgi-bin/login.cgi';
+  // Name, start location and MFA fields are validated and normalized in one shared
+  // place (electron/sl-actions.cjs) so the web and desktop logins behave alike.
+  const { firstName, lastName } = actions.parseLoginName(params.username);
+  const loginParams = actions.buildLoginParams(params);
 
   const bot = new Bot(loginParams, BotOptionFlags.None);
   const sessionId = uuidv4();
@@ -466,7 +475,14 @@ export async function createSLSession(params: {
   );
 
   // Perform genuine login to Second Life XML-RPC service
-  const reply = await bot.login();
+  let reply: any;
+  try {
+    reply = await bot.login();
+  } catch (error) {
+    // Keep the grid's reason (wrong password, MFA required, already logged in...)
+    // so the interface can respond to it instead of showing a generic failure.
+    throw actions.loginFailure(error);
+  }
   try {
     await bot.connectToSim();
   } catch (simErr) {
@@ -513,11 +529,13 @@ export async function createSLSession(params: {
   return {
     sessionId,
     login: true,
+    // Returned after a successful multi-factor login so this device is not asked again.
+    mfa_hash: reply?.mfaHash || null,
     agent_id: agentId,
     first_name: firstName,
     last_name: lastName,
     sim_name: sessionData.simName || null,
-    circuit_code: region?.circuit?.circuitCode || 1001,
+    circuit_code: region?.circuit?.circuitCode || null,
     region_x: Number.isFinite(region?.xCoordinate) ? region.xCoordinate : null,
     region_y: Number.isFinite(region?.yCoordinate) ? region.yCoordinate : null,
     inventory_root: sessionData.inventoryRootId,
@@ -570,18 +588,30 @@ export async function sendSLGroupMessage(sessionId: string, groupId: string, mes
   }
 }
 
+function connectedBot(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+  return session.bot;
+}
+
+export const teleportSL = (sessionId: string, params: any) => actions.teleport(connectedBot(sessionId), params);
+export const touchSLObject = (sessionId: string, params: any) => actions.touchObject(connectedBot(sessionId), params);
+export const sitSL = (sessionId: string, params: any) => actions.sit(connectedBot(sessionId), params);
+export const standSL = (sessionId: string) => actions.stand(connectedBot(sessionId));
+export const getSLBalance = (sessionId: string) => actions.getBalance(connectedBot(sessionId));
+
 export function getSLDiagnostics(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session || !session.bot) {
     return {
       connected: false,
       state: 'DISCONNECTED',
-      latencyMs: 0,
-      packetLossPct: 0,
+      latencyMs: null,
+      packetLossPct: null,
       capabilities: 0,
-      circuitCode: 0,
+      circuitCode: null,
       simAddress: '',
-      simPort: 0,
+      simPort: null,
     };
   }
 
@@ -592,15 +622,15 @@ export function getSLDiagnostics(sessionId: string) {
   return {
     connected: true,
     state: 'CONNECTED',
-    latencyMs: typeof circuit?.ping === 'number' ? circuit.ping : 32,
-    packetLossPct: typeof circuit?.packetLoss === 'number' ? circuit.packetLoss : 0,
+    latencyMs: typeof circuit?.ping === 'number' ? circuit.ping : null,
+    packetLossPct: typeof circuit?.packetLoss === 'number' ? circuit.packetLoss : null,
     capabilities: Object.keys(currentRegion?.caps || currentRegion?.capabilities || {}).length,
-    circuitCode: circuit?.circuitCode || 1001,
+    circuitCode: circuit?.circuitCode || null,
     simAddress: currentRegion?.ip || circuit?.ip || '',
-    simPort: currentRegion?.port || circuit?.port || 0,
+    simPort: currentRegion?.port || circuit?.port || null,
     regionName: currentRegion?.regionName || currentRegion?.name || '',
-    fps: currentRegion?.fps || 45,
-    timeDilation: currentRegion?.timeDilation || 1.0,
+    fps: typeof currentRegion?.fps === 'number' ? currentRegion.fps : null,
+    timeDilation: typeof currentRegion?.timeDilation === 'number' ? currentRegion.timeDilation : null,
   };
 }
 
@@ -800,6 +830,7 @@ export function fetchSLSceneObjects(sessionId: string) {
         id: obj.FullID?.toString() || String(obj.ID || obj.localID),
         localId: obj.ID || obj.localID,
         parentId: obj.ParentID || 0,
+        ...actions.attachmentInfo(obj),
         pcode: obj.PCode,
         avatar: obj.PCode === PCode.Avatar,
         position: vector(obj.Position),

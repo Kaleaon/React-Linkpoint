@@ -45,9 +45,10 @@ export function TeleportScreen() {
   const [destination, setDestination] = useState("");
   const [status, setStatus] = useState("");
   const teleport = async () => {
-    const method = app.protocol.teleportTo || app.protocol.teleport;
-    if (typeof method !== "function") { setStatus("This grid connection has not exposed teleport capability."); return; }
-    try { await method.call(app.protocol, destination.trim()); setStatus("Teleport requested."); } catch (error) { setStatus(error instanceof Error ? error.message : "Teleport failed."); }
+    try {
+      const result = await app.protocol.teleportTo(destination.trim());
+      setStatus(result?.message ? `Grid: ${result.message}` : `Teleport to ${result.requested.region} requested.`);
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Teleport failed."); }
   };
   return <div className="tool-page"><h2>Teleport</h2><div className="inline-tool"><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="secondlife://Region/x/y/z" /><button onClick={() => void teleport()} disabled={!destination.trim()}>Go</button></div>{status ? <p className="tool-status">{status}</p> : null}</div>;
 }
@@ -55,4 +56,11 @@ export function TeleportScreen() {
 export function DiagnosticsScreen() {
   const capabilities = Object.keys(app.protocol.capabilities || {});
   return <div className="tool-page"><section className="runtime-card"><h2>Connection</h2><dl><dt>State</dt><dd>{app.protocol.connected ? "Connected" : "Disconnected"}</dd><dt>Agent</dt><dd>{app.protocol.agentId || "—"}</dd><dt>Session</dt><dd>{app.protocol.sessionId || "—"}</dd><dt>Capabilities</dt><dd>{capabilities.length}</dd></dl></section>{capabilities.length ? <section className="runtime-card"><h2>Capabilities</h2>{capabilities.sort().map((name) => <small key={name}>{name}</small>)}</section> : null}</div>;
+}
+
+// The animation overrider is a worn attachment with its own scripts. The grid
+// does not tell the viewer which attachments, scripts or animations are running,
+// so there is nothing real to list here yet.
+export function AOScreen() {
+  return <div className="tool-page"><Empty icon="person-standing">Animation overrider status is not available. The viewer does not receive worn-attachment or script information from the grid yet.</Empty></div>;
 }

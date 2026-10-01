@@ -1,5 +1,7 @@
 # Linkpoint Viewer Roadmap
 
+> The checkboxes below are the original phase plan and are out of date. For current status, gaps and blockers see [`PARITY_ROADMAP.md`](PARITY_ROADMAP.md).
+
 This document outlines the strategic phases for developing Linkpoint into a fully-featured, cross-platform Second Life and OpenSim viewer. The goal is to provide a "Lumiya-style" mobile-first experience, complete with a 3D worldview, extensive community features, and strict compliance with Linden Lab's Third-Party Viewer (TPV) policies.
 
 ## Phase 1: Foundation & TPV Compliance (Current Phase)

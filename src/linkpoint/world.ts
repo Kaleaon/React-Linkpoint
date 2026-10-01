@@ -8,6 +8,8 @@ import { Camera3D } from './camera-3d';
 import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
+import { estimatedSunHour, windlightEnvironment } from './windlight';
+import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 
 export class WorldViewer extends Utils.EventEmitter {
   /**
@@ -34,6 +36,9 @@ export class WorldViewer extends Utils.EventEmitter {
   public environment: any = null;
   public terrain: { size: number; heights: number[] } | null = null;
   public selectedObject: any = null;
+  /** The worn HUD shown over the view, if any. Its size is a fraction of the view height. */
+  public displayedHud: { id: string; size: number } | null = null;
+  private hudSignature = '';
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
   private decodedAssets = new Map<string, any>();
@@ -75,12 +80,16 @@ export class WorldViewer extends Utils.EventEmitter {
       this.environment = null;
       this.terrain = null;
       this.selectedObject = null;
+      this.displayedHud = null;
+      this.hudSignature = '';
       this.sceneObjects.clear();
       this.localObjectIds.clear();
       this.objects = [];
       this.emit('region_changed', null);
       this.emit('nearby_changed', []);
       this.emit('objects_changed', []);
+      this.emit('huds_changed', []);
+      this.emit('hud_display_changed', null);
       this.emit('selection_changed', null);
     });
     this.protocol.on('RegionHandshake', (data: any) => {
@@ -158,7 +167,7 @@ export class WorldViewer extends Utils.EventEmitter {
     }
     if (data.environment) {
       this.environment = data.environment;
-      this.scene3d?.setEnvironment(data.environment);
+      this.applyEnvironment();
       this.emit('environment_changed', data.environment);
     }
     if (data.terrain?.heights && Number(data.terrain.size) > 1) {
@@ -286,8 +295,9 @@ export class WorldViewer extends Utils.EventEmitter {
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
-      if (this.environment) this.scene3d.setEnvironment(this.environment);
+      this.applyEnvironment();
       if (this.terrain) this.scene3d.setTerrain(this.terrain.heights, this.terrain.size);
+      if (this.displayedHud) this.scene3d.setDisplayedHud(this.displayedHud.id, this.displayedHud.size);
       for (const [assetId, geometry] of this.decodedAssets) this.scene3d.addAssetMesh(assetId, geometry);
       for (const texture of this.decodedTextures.values()) this.applyTexture(texture);
       await this.loadScene();
@@ -325,10 +335,26 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
+  /** Interval between refreshes of the fallback sky, ms. The sun moves slowly (a four-hour day). */
+  private static readonly FALLBACK_SKY_REFRESH_MS = 30000;
+  private fallbackSkyAt = 0;
+
+  /** Use the simulator's environment when there is one, else the bundled Windlight day at the estimated hour. */
+  private applyEnvironment(now = Date.now()) {
+    if (!this.scene3d) return;
+    if (this.environment) {
+      this.scene3d.setEnvironment(this.environment);
+      return;
+    }
+    this.fallbackSkyAt = now;
+    this.scene3d.setEnvironment(windlightEnvironment(estimatedSunHour(now)));
+  }
+
   public startRendering() {
     if (this.animationId !== null) return;
     const render = (time: number) => {
       if (this.use3D && this.scene3d && this.camera3d) {
+        if (!this.environment && Date.now() - this.fallbackSkyAt > WorldViewer.FALLBACK_SKY_REFRESH_MS) this.applyEnvironment();
         this.camera3d.updateMatrices();
         this.scene3d.render();
       }
@@ -374,7 +400,24 @@ export class WorldViewer extends Utils.EventEmitter {
     if (this.camera3d) {
       this.camera3d.move(dy, dx, dz);
       this.updateLocationDisplay();
+      this.emit('camera_changed', this.getCameraState());
     }
+  }
+
+  /** Rotate the view by the given pitch/yaw deltas in degrees (positive yaw turns right). */
+  public rotateCamera(pitchDegrees: number, yawDegrees: number) {
+    if (!this.camera3d) return;
+    const toRadians = Math.PI / 180;
+    if (pitchDegrees) this.camera3d.rotate(this.camera3d.mode === 'orbit' ? -pitchDegrees * toRadians : pitchDegrees * toRadians, 0);
+    if (yawDegrees) this.camera3d.turn(yawDegrees * toRadians);
+    this.updateLocationDisplay();
+    this.emit('camera_changed', this.getCameraState());
+  }
+
+  /** Switch between the third-person orbit camera and first-person view. */
+  public toggleCameraMode() {
+    if (!this.camera3d) return;
+    this.setCameraPreset(this.camera3d.mode === 'orbit' ? 'first-person' : 'rear');
   }
 
   public setCameraPreset(preset: 'rear' | 'front' | 'first-person' | 'free') {
@@ -384,11 +427,15 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   public getCameraState() {
-    return this.camera3d ? { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode } : null;
+    if (!this.camera3d) return null;
+    const { heading, pitch } = this.camera3d.viewAngles();
+    return { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode, heading, pitch };
   }
 
   public pickObject(x: number, y: number) {
     if (!this.canvas || !this.scene3d) return null;
+    // A displayed HUD sits over the world, so a tap on it is a touch on the HUD, not a world selection.
+    if (this.touchHudAt(x, y)) return null;
     const bounds = this.canvas.getBoundingClientRect();
     const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
     const objectId = hit?.id.replace(/:(body|head|legs)$/, '') || null;
@@ -431,6 +478,7 @@ export class WorldViewer extends Utils.EventEmitter {
     // A root prim moving changes every child prim's world transform even when
     // the simulator quite correctly sends no update for those children.
     if (merged.localId) this.reapplyChildren(merged.localId);
+    this.syncHuds();
     if (emitChanged) {
       this.emit('objects_changed', this.objects);
     }
@@ -473,6 +521,8 @@ export class WorldViewer extends Utils.EventEmitter {
     const position = Array.isArray(object.position) ? object.position : [0, 0, 0];
     const rotation = Array.isArray(object.rotation) && object.rotation.length === 4 ? object.rotation : [0, 0, 0, 1];
     if (!object.parentId || visited.has(object.id)) return { position, rotation };
+    // A HUD root is placed relative to its HUD attachment point, not to the avatar's world position.
+    if (this.isHudRoot(object)) return { position, rotation };
     const parentId = this.localObjectIds.get(Number(object.parentId));
     const parent = parentId && this.sceneObjects.get(parentId);
     if (!parent) return { position, rotation };
@@ -485,9 +535,99 @@ export class WorldViewer extends Utils.EventEmitter {
     };
   }
 
+  // ---- worn HUDs ----------------------------------------------------------
+
+  /** A HUD root is an attachment on one of the HUD points (31-38) whose parent is the avatar. */
+  private isHudRoot(object: any) {
+    return !object.avatar && Number(object.parentId) > 0 && isHudPoint(Number(object.attachmentPoint));
+  }
+
+  /** The HUD root this object belongs to (itself, or the root of its link set), or null. */
+  private hudRootOf(object: any): any | null {
+    let current = object;
+    for (let depth = 0; depth < 16 && current; depth++) {
+      if (this.isHudRoot(current)) return current;
+      const parentId = this.localObjectIds.get(Number(current.parentId));
+      current = parentId ? this.sceneObjects.get(parentId) : null;
+    }
+    return null;
+  }
+
+  /** The worn HUDs the simulator has sent, each with all its linked prims. */
+  public getHuds(): HudInfo[] {
+    const roots = [...this.sceneObjects.values()].filter((object) => this.isHudRoot(object));
+    return roots.map((root) => ({
+      id: root.id,
+      name: root.name || '',
+      attachmentPoint: Number(root.attachmentPoint),
+      pointName: HUD_POINTS[Number(root.attachmentPoint)] || '',
+      memberIds: [...this.sceneObjects.values()].filter((object) => this.hudRootOf(object)?.id === root.id).map((object) => object.id),
+    }));
+  }
+
+  /** Show one HUD over the view (or hide it). Unknown ids are ignored. */
+  public setDisplayedHud(id: string | null, size: number = HUD_SIZE.initial) {
+    const known = id ? this.getHuds().some((hud) => hud.id === id) : true;
+    if (!known) return false;
+    this.displayedHud = id ? { id, size: Math.max(HUD_SIZE.min, Math.min(HUD_SIZE.max, size)) } : null;
+    this.scene3d?.setDisplayedHud(this.displayedHud ? this.displayedHud.id : null, this.displayedHud?.size);
+    this.emit('hud_display_changed', this.displayedHud ? { ...this.displayedHud } : null);
+    return true;
+  }
+
+  /** Make the displayed HUD larger or smaller. */
+  public zoomHud(direction: 1 | -1) {
+    if (!this.displayedHud) return;
+    this.setDisplayedHud(this.displayedHud.id, this.displayedHud.size + direction * HUD_SIZE.step);
+  }
+
+  /** Re-announce the HUD list when it changed, and drop the displayed HUD if it is gone. */
+  private syncHuds() {
+    const huds = this.getHuds();
+    const signature = huds.map((hud) => `${hud.id}:${hud.name}:${hud.memberIds.length}`).join('|');
+    if (this.displayedHud && !huds.some((hud) => hud.id === this.displayedHud!.id)) this.setDisplayedHud(null);
+    if (signature === this.hudSignature) return;
+    this.hudSignature = signature;
+    this.emit('huds_changed', huds);
+  }
+
+  /**
+   * Tap on the displayed HUD: send a touch to the object under the finger.
+   * Returns the touched prim, or null when the tap was not on the HUD.
+   * Which face or texture coordinate was hit is not resolved yet (picking uses
+   * bounding boxes), so scripts that read the touched face get the defaults.
+   */
+  public touchHudAt(x: number, y: number) {
+    if (!this.displayedHud || !this.canvas || !this.scene3d) return null;
+    const bounds = this.canvas.getBoundingClientRect();
+    const hit = this.scene3d.pickHud(x, y, bounds.width, bounds.height);
+    if (!hit) return null;
+    const object = this.sceneObjects.get(hit.id);
+    void this.touchObject(hit.id);
+    this.emit('hud_touched', { id: hit.id, name: object?.name || '' });
+    return { id: hit.id, name: object?.name || '' };
+  }
+
+  /** Touch an object by id through the connection; failures are reported, not hidden. */
+  public async touchObject(id: string) {
+    try {
+      await this.protocol.touchObject({ id });
+      return true;
+    } catch (error) {
+      this.emit('action_failed', { action: 'touch', message: error instanceof Error ? error.message : 'Touch failed' });
+      return false;
+    }
+  }
+
+  /** Touch the object selected in the world view. */
+  public async touchSelected() {
+    return this.selectedObject ? this.touchObject(this.selectedObject.id) : false;
+  }
+
   private applySceneObject(object: any) {
     if (!this.scene3d) return;
     const { position, rotation } = this.worldTransform(object);
+    const hudRoot = object.avatar ? null : this.hudRootOf(object);
     const scale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
     object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
     const config = {
@@ -500,6 +640,9 @@ export class WorldViewer extends Utils.EventEmitter {
       texture: object.decodedTexture,
       faces: object.decodedFaceTextures,
       reflectionProbe: object.reflectionProbe,
+      // HUD prims belong to the HUD pass, never the world.
+      hud: Boolean(hudRoot),
+      hudRoot: hudRoot ? hudRoot.id : null,
     };
     if (this.scene3d.objects.has(object.id)) this.scene3d.updateObject(object.id, config);
     else this.scene3d.addObject(object.id, config);
@@ -532,6 +675,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.selectedObject = null;
       this.emit('selection_changed', null);
     }
+    this.syncHuds();
     if (emitChanged) {
       this.emit('objects_changed', this.objects);
     }

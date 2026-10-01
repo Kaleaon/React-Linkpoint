@@ -8,6 +8,7 @@ import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
 import World3D from "../screens/World3D.jsx";
 import { navActive } from "../theme/look.js";
+import { formatHeading, formatLiveStats, useCameraState } from "./cameraReadout.js";
 import { app } from "../linkpoint/app";
 
 // Ported from the `isConsole` block (lines ~140-222 of the source template)
@@ -19,6 +20,10 @@ export default function ConsoleFrame() {
   const { state, actions } = useApp();
   const { V, t, C, ink, consoleScene } = useTheme();
   const tick = state.tick || 0;
+  void tick; // re-render each second so the live readouts below stay current
+  const loggedIn = app.auth.isLoggedIn();
+  const liveStats = loggedIn ? formatLiveStats({ latencyMs: app.protocol.getDiagnostics().latencyMs, nearbyCount: app.world.nearbyUsers.length }) : [];
+  const sessionNote = loggedIn ? "" : "DISCONNECTED";
   const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "REGION PENDING" : "DISCONNECTED");
   const simCoord = app.world.avatarPosition
     ? { x: Math.round(app.world.avatarPosition[0]), y: Math.round(app.world.avatarPosition[1]), z: Math.round(app.world.avatarPosition[2]) }
@@ -102,7 +107,7 @@ export default function ConsoleFrame() {
         ))}
       </div>
       <div style={cfTitle}>{cfTitleText}</div>
-      <div style={cfPlate}>{String(4471 + (tick % 29)) + "-" + String(tick % 97).padStart(2, "0")}</div>
+      <div style={cfPlate}>LINKPOINT</div>
       <div style={cfCurveFill} />
       <div style={cfCurveCut} />
 
@@ -196,8 +201,8 @@ export default function ConsoleFrame() {
             font: "500 " + (C.wide ? 11.5 : 9.5) + "px/1 " + t.font, letterSpacing: ".05em", overflow: "hidden", whiteSpace: "nowrap",
           }}
         >
-          <span>{state.cReason || "SIM " + (21.4 + (tick % 13) * 0.1).toFixed(1) + "ms · PKT " + ((tick % 7) * 0.1).toFixed(1) + "% · FPS " + (58 - (tick % 5))}</span>
-          <span>{"AGENTS " + (11 + (tick % 4))}</span>
+          <span>{state.cReason || liveStats.join(" · ")}</span>
+          <span>{state.cReason ? "" : sessionNote}</span>
         </span>
       </div>
 
@@ -268,7 +273,7 @@ function ConsoleScene() {
   const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "REGION PENDING" : "DISCONNECTED");
   const simCoord = app.world.avatarPosition
     ? { x: Math.round(app.world.avatarPosition[0]), y: Math.round(app.world.avatarPosition[1]), z: Math.round(app.world.avatarPosition[2]) }
-    : { x: 128, y: 128, z: 24 };
+    : null;
 
   const cfScene = {
     position: "absolute", left: C.rail + C.gap + "px", top: C.bar + C.gap + "px", right: C.gap + "px",
@@ -277,14 +282,17 @@ function ConsoleScene() {
   };
   // The console scene has one readout strip, so 3D View's CAM/GFX sub-views swap
   // what it reports rather than adding a second strip to the LCARS frame.
+  const camera = useCameraState();
+  const heading = formatHeading(camera);
+  const where = simCoord ? " · " + simCoord.x + "," + simCoord.y + "," + simCoord.z : "";
   const regionRead =
     state.screen === "3D View" && subView(state, "3D View") === "GFX"
       ? "GFX · DRAW " + state.prefs.draw.toUpperCase() + " · " + state.prefs.quality.toUpperCase() + " · " + state.prefs.fps.toUpperCase() +
         " · SHADOWS " + (state.toggles.shadows ? "ON" : "OFF") + " · " + (state.toggles.battery ? "SAVER" : "FULL")
-      : simName.toUpperCase() + " · " + simCoord.x + "," + simCoord.y + "," + simCoord.z + " · HDG " + String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0") + "° " + (state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL");
+      : simName.toUpperCase() + where + (heading ? " · " + heading : "");
 
   return (
-    <div onMouseDown={actions.sceneDown} onMouseMove={actions.sceneMove} onMouseUp={actions.sceneUp} onMouseLeave={actions.sceneUp} style={cfScene}>
+    <div style={cfScene}>
       <World3D desktopBackdrop />
       <div style={{ position: "absolute", left: (C.wide ? 28 : 16) + "px", top: "16px", display: "flex", alignItems: "center", height: "26px", padding: "0 12px", background: V.surf, color: V.ink2, font: "500 " + (C.wide ? 12 : 10) + "px/1 " + t.font, letterSpacing: ".08em", borderLeft: "6px solid " + V.sec2, zIndex: 10 }}>
         {regionRead}
@@ -307,7 +315,7 @@ function ConsoleScene() {
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px", cursor: "pointer", background: bg, color: ink(bg, [V.bg, V.onpri, V.ink]), opacity: 0.92, borderRadius: CPADR[i] || "0", font: "700 8px/1 " + t.dfont, letterSpacing: ".08em" }}
                 >
                   {p.icon ? <Icon name={p.icon} size={19} /> : null}
-                  {p.k === "cam" ? <span>{state.cCam === "ORBIT" ? "ORBIT" : "MOUSE"}</span> : null}
+                  {p.k === "cam" ? <span>{camera?.mode === "first-person" ? "MOUSE" : "ORBIT"}</span> : null}
                 </div>
               );
             })}

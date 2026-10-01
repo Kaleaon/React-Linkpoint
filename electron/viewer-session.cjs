@@ -6,6 +6,7 @@ const {
   AssetType,
 } = require('@caspertech/node-metaverse');
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
+const actions = require('./sl-actions.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -119,6 +120,7 @@ function serializeObject(event) {
     id: object.FullID?.toString() || String(event.localID),
     localId: event.localID,
     parentId: object.ParentID || 0,
+    ...actions.attachmentInfo(object),
     pcode: object.PCode,
     avatar: object.PCode === PCode.Avatar,
     position: vector(object.Position),
@@ -211,15 +213,9 @@ class ViewerSession {
     this.subscriptions.push(subject.subscribe((value) => this.send(type, serialize(value))));
   }
 
-  async connect({ loginUrl, username, password, start = 'last' }) {
+  async connect(request) {
     await this.close();
-    const names = username.replace(/[._]/g, ' ').trim().split(/\s+/);
-    const params = new LoginParameters();
-    params.firstName = names[0];
-    params.lastName = names[1] || 'Resident';
-    params.password = password;
-    params.start = start;
-    params.url = loginUrl;
+    const params = actions.buildLoginParams(request);
 
     // The full object store decodes ObjectUpdate, ObjectUpdateCompressed,
     // ObjectUpdateCached and terse updates from the simulator UDP circuit.
@@ -255,7 +251,12 @@ class ViewerSession {
     }));
     this.subscribe(events.onDisconnected, 'disconnected', (event) => ({ message: event.message || 'Disconnected' }));
 
-    const reply = await this.bot.login();
+    let reply;
+    try {
+      reply = await this.bot.login();
+    } catch (error) {
+      throw actions.loginFailure(error);
+    }
     await this.bot.connectToSim();
     const region = this.bot.currentRegion;
     const worldData = {
@@ -266,6 +267,7 @@ class ViewerSession {
     region.waitForTerrain().then(() => this.send('terrain', serializeTerrain(region))).catch(() => {});
     return {
       login: true,
+      mfa_hash: (reply && reply.mfaHash) || null,
       agent_id: this.bot.agent.agentID.toString(),
       session_id: region.circuit.sessionID.toString(),
       circuit_code: region.circuit.circuitCode,
@@ -289,6 +291,17 @@ class ViewerSession {
   async sendInstantMessage(recipientId, message) {
     if (!this.bot) throw new Error('Not connected to a simulator');
     await this.bot.clientCommands.comms.sendInstantMessage(recipientId, message);
+  }
+
+  teleport(params) { return actions.teleport(this.requireBot(), params); }
+  touchObject(params) { return actions.touchObject(this.requireBot(), params); }
+  sit(params) { return actions.sit(this.requireBot(), params); }
+  stand() { return actions.stand(this.requireBot()); }
+  getBalance() { return actions.getBalance(this.requireBot()); }
+
+  requireBot() {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    return this.bot;
   }
 
   async sendFriendRequest(recipientId, message = '') {

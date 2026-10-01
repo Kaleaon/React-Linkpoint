@@ -3,6 +3,21 @@
  */
 
 import { Utils } from './utils';
+import {
+  SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER, STARS_VERTEX_SHADER, STARS_FRAGMENT_SHADER,
+  WATER_VERTEX_SHADER, WATER_FRAGMENT_SHADER,
+} from './sky';
+
+/** Attribute slots shared by every program so a mesh's VAO is valid for any of them. */
+const ATTRIBUTE_SLOTS: Record<string, number> = { aPosition: 0, aNormal: 1, aTexCoord: 2, aTangent: 3 };
+
+export interface DrawOptions {
+  mode?: 'triangles' | 'points';
+  /** Defaults to true. Ignored (forced off) for blended alpha mode 2. */
+  depthWrite?: boolean;
+  blend?: boolean;
+  cullFace?: boolean;
+}
 
 export class Graphics3D extends Utils.EventEmitter {
   public canvas: HTMLCanvasElement;
@@ -10,6 +25,8 @@ export class Graphics3D extends Utils.EventEmitter {
   private programs: Map<string, any> = new Map();
   private meshes: Map<string, any> = new Map();
   private textures: Map<string, any> = new Map();
+  /** Whether each texture has any transparent pixels, so it can be drawn blended. */
+  private textureAlpha: Map<string, boolean> = new Map();
   private renderTargets: Map<string, { framebuffer: WebGLFramebuffer; depth: WebGLRenderbuffer; width: number; height: number }> = new Map();
   private clearColor: [number, number, number, number] = [0.53, 0.81, 0.92, 1];
   
@@ -122,7 +139,11 @@ export class Graphics3D extends Utils.EventEmitter {
         }
       `,
       fragment: `
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+        #else
         precision mediump float;
+        #endif
         
         varying vec3 vNormal;
         varying vec2 vTexCoord;
@@ -178,7 +199,8 @@ export class Graphics3D extends Utils.EventEmitter {
           float specPower = mix(128.0, 2.0, roughness);
           float specular = pow(max(dot(normal, halfDir), 0.0), specPower);
           vec3 f0 = mix(vec3(0.04), baseColor.rgb, metallic);
-          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * (ambient + diffuse);
+          // Lumiya clamps the combined light to 1 before it multiplies the surface colour.
+          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * min(ambient + diffuse, vec3(1.0));
           vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, transformedUV).rgb : vec3(1.0));
           vec3 result = uFullBright ? baseColor.rgb : diffusePbr + f0 * specular + emission;
           
@@ -186,6 +208,11 @@ export class Graphics3D extends Utils.EventEmitter {
         }
       `
     });
+
+    // Environment programs (see sky.ts).
+    this.createShaderProgram('sky', { vertex: SKY_VERTEX_SHADER, fragment: SKY_FRAGMENT_SHADER });
+    this.createShaderProgram('stars', { vertex: STARS_VERTEX_SHADER, fragment: STARS_FRAGMENT_SHADER });
+    this.createShaderProgram('water', { vertex: WATER_VERTEX_SHADER, fragment: WATER_FRAGMENT_SHADER });
   }
 
   /**
@@ -202,6 +229,10 @@ export class Graphics3D extends Utils.EventEmitter {
     const program = gl.createProgram()!;
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
+    // Pin attribute slots before linking. Otherwise each program may be given a
+    // different slot for the same name, and a mesh VAO captured against the
+    // 'basic' program would feed the wrong data to every other program.
+    for (const [name, slot] of Object.entries(ATTRIBUTE_SLOTS)) gl.bindAttribLocation(program, slot, name);
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
@@ -219,12 +250,19 @@ export class Graphics3D extends Utils.EventEmitter {
 
     const numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
     const uniforms: Record<string, WebGLUniformLocation | null> = {};
+    const arrayUniforms: Record<string, { type: number; size: number }> = {};
     for (let i = 0; i < numUniforms; i++) {
       const info = gl.getActiveUniform(program, i)!;
       uniforms[info.name] = gl.getUniformLocation(program, info.name);
+      // Arrays are reported as "name[0]"; expose them under the bare name too.
+      if (info.size > 1 && info.name.endsWith('[0]')) {
+        const bare = info.name.slice(0, -3);
+        uniforms[bare] = uniforms[info.name];
+        arrayUniforms[bare] = { type: info.type, size: info.size };
+      }
     }
 
-    this.programs.set(name, { program, attributes, uniforms });
+    this.programs.set(name, { program, attributes, uniforms, arrayUniforms });
     return program;
   }
 
@@ -265,12 +303,25 @@ export class Graphics3D extends Utils.EventEmitter {
     }
     const indexType = maxIndex > 65535 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
 
+    // Local-space bounds drive frustum culling and picking.
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i + 2 < vertices.length; i += 3) {
+      for (let axis = 0; axis < 3; axis++) {
+        const value = vertices[i + axis];
+        if (value < min[axis]) min[axis] = value;
+        if (value > max[axis]) max[axis] = value;
+      }
+    }
+    const bounds = vertices.length >= 3 && min.every(Number.isFinite) && max.every(Number.isFinite) ? { min, max } : null;
+
     const mesh: any = {
       vao: null,
       buffers: {},
       indexCount: indices.length,
       indexType,
-      vertexCount: vertices.length / 3
+      vertexCount: vertices.length / 3,
+      bounds
     };
 
     // Create VAO if supported
@@ -323,10 +374,15 @@ export class Graphics3D extends Utils.EventEmitter {
     return mesh;
   }
 
+  /** Local-space bounding box of a mesh, or null if unknown. */
+  getMeshBounds(name: string): { min: number[]; max: number[] } | null {
+    return this.meshes.get(name)?.bounds ?? null;
+  }
+
   /**
    * Draw mesh
    */
-  drawMesh(meshName: string, programName: string, uniforms: any) {
+  drawMesh(meshName: string, programName: string, uniforms: any, options: DrawOptions = {}) {
     const gl = this.gl!;
     const mesh = this.meshes.get(meshName);
     const programInfo = this.programs.get(programName);
@@ -356,22 +412,27 @@ export class Graphics3D extends Utils.EventEmitter {
       const sampler = programInfo.uniforms[uniformName];
       if (sampler) gl.uniform1i(sampler, unit);
     });
-    this.setUniforms(programInfo.uniforms, uniforms);
+    this.setUniforms(programInfo.uniforms, uniforms, programInfo.arrayUniforms);
 
-    if (uniforms.uAlphaMode === 2) {
+    const blend = uniforms.uAlphaMode === 2 || options.blend === true;
+    const noDepthWrite = uniforms.uAlphaMode === 2 || options.depthWrite === false;
+    const doubleSided = Boolean(uniforms.uDoubleSided) || options.cullFace === false;
+    const points = options.mode === 'points';
+    if (blend) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      gl.depthMask(false);
     }
-    if (uniforms.uDoubleSided) gl.disable(gl.CULL_FACE);
+    if (noDepthWrite) gl.depthMask(false);
+    if (doubleSided) gl.disable(gl.CULL_FACE);
 
     // Draw
-    gl.drawElements(gl.TRIANGLES, mesh.indexCount, mesh.indexType, 0);
-    if (uniforms.uAlphaMode === 2) { gl.depthMask(true); gl.disable(gl.BLEND); }
-    if (uniforms.uDoubleSided) gl.enable(gl.CULL_FACE);
+    gl.drawElements(points ? gl.POINTS : gl.TRIANGLES, mesh.indexCount, mesh.indexType, 0);
+    if (noDepthWrite) gl.depthMask(true);
+    if (blend) gl.disable(gl.BLEND);
+    if (doubleSided) gl.enable(gl.CULL_FACE);
 
     this.drawCalls++;
-    this.triangles += mesh.indexCount / 3;
+    if (!points) this.triangles += mesh.indexCount / 3;
   }
 
   createTexture(name: string, width: number, height: number, rgba: Uint8Array) {
@@ -390,7 +451,23 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
     if (canMipmap) gl.generateMipmap(gl.TEXTURE_2D);
     this.textures.set(name, texture);
+    let hasAlpha = false;
+    for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] < 250) { hasAlpha = true; break; } }
+    this.textureAlpha.set(name, hasAlpha);
     return name;
+  }
+
+  /** True when the named texture has transparent pixels. Unknown textures are opaque. */
+  textureHasAlpha(name: string | undefined | null): boolean {
+    return Boolean(name && this.textureAlpha.get(name));
+  }
+
+  /** Clear only the depth buffer, so a later pass (the HUD) draws over everything already rendered. */
+  clearDepth() {
+    const gl = this.gl;
+    if (!gl) return;
+    gl.depthMask(true);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
   }
 
   createRenderTarget(name: string, width = 256, height = 256) {
@@ -439,29 +516,20 @@ export class Graphics3D extends Utils.EventEmitter {
   private bindMeshAttributes(mesh: any, attributes: any) {
     const gl = this.gl!;
 
-    if (attributes.aPosition !== undefined && mesh.buffers.position) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.position);
-      gl.enableVertexAttribArray(attributes.aPosition);
-      gl.vertexAttribPointer(attributes.aPosition, 3, gl.FLOAT, false, 0, 0);
-    }
-
-    if (attributes.aNormal !== undefined && mesh.buffers.normal) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.normal);
-      gl.enableVertexAttribArray(attributes.aNormal);
-      gl.vertexAttribPointer(attributes.aNormal, 3, gl.FLOAT, false, 0, 0);
-    }
-
-    if (attributes.aTexCoord !== undefined && mesh.buffers.texCoord) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.texCoord);
-      gl.enableVertexAttribArray(attributes.aTexCoord);
-      gl.vertexAttribPointer(attributes.aTexCoord, 2, gl.FLOAT, false, 0, 0);
-    }
-
-    if (attributes.aTangent !== undefined && mesh.buffers.tangent) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.tangent);
-      gl.enableVertexAttribArray(attributes.aTangent);
-      gl.vertexAttribPointer(attributes.aTangent, 3, gl.FLOAT, false, 0, 0);
-    }
+    // Attributes the mesh does not supply must be switched off. A previous
+    // mesh's enabled array would otherwise be read with this mesh's draw count,
+    // which WebGL rejects (or renders as garbage) when the buffer is smaller.
+    const bind = (location: number | undefined, buffer: WebGLBuffer | undefined, size: number) => {
+      if (location === undefined || location < 0) return;
+      if (!buffer) { gl.disableVertexAttribArray(location); return; }
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.enableVertexAttribArray(location);
+      gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
+    };
+    bind(attributes.aPosition, mesh.buffers.position, 3);
+    bind(attributes.aNormal, mesh.buffers.normal, 3);
+    bind(attributes.aTexCoord, mesh.buffers.texCoord, 2);
+    bind(attributes.aTangent, mesh.buffers.tangent, 3);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.index);
   }
@@ -469,13 +537,26 @@ export class Graphics3D extends Utils.EventEmitter {
   /**
    * Set uniforms
    */
-  private setUniforms(uniformLocations: any, values: any) {
+  private setUniforms(uniformLocations: any, values: any, arrayUniforms: Record<string, { type: number; size: number }> = {}) {
     const gl = this.gl!;
 
     for (const [name, location] of Object.entries(uniformLocations)) {
       if (location === null || values[name] === undefined) continue;
 
       const value = values[name];
+
+      // Array uniforms are typed by the program, not guessed from the JS length
+      // (a float[4] would otherwise be uploaded as a vec4).
+      const array = arrayUniforms[name];
+      if (array) {
+        const flat = value as ArrayLike<number>;
+        const upload = array.type === gl.FLOAT ? gl.uniform1fv
+          : array.type === gl.FLOAT_VEC2 ? gl.uniform2fv
+          : array.type === gl.FLOAT_VEC3 ? gl.uniform3fv
+          : array.type === gl.FLOAT_VEC4 ? gl.uniform4fv : null;
+        if (upload && flat.length > 0) upload.call(gl, location as WebGLUniformLocation, flat as Float32List);
+        continue;
+      }
 
       if (value instanceof Float32Array || Array.isArray(value)) {
         if (value.length === 16) {
@@ -565,6 +646,7 @@ export class Graphics3D extends Utils.EventEmitter {
     this.programs.clear();
     this.textures.forEach(texture => gl.deleteTexture(texture));
     this.textures.clear();
+    this.textureAlpha.clear();
     this.renderTargets.forEach(target => {
       gl.deleteFramebuffer(target.framebuffer);
       gl.deleteRenderbuffer(target.depth);

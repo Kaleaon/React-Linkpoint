@@ -14,8 +14,14 @@ jobs:
       pull-requests: write
       contents: read
       checks: write
+    env:
+      JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
     steps:
-      - uses: thalesraymond/jules-pr-reviewer@v1
+      # Secrets are not exposed to PRs from forks, and the key may not be set;
+      # skip the review rather than failing the check in those cases.
+      - name: Jules review
+        if: ${{ env.JULES_API_KEY != '' }}
+        uses: thalesraymond/jules-pr-reviewer@v1
         with:
           jules_api_key: ${{ secrets.JULES_API_KEY }}
-          github_token: ${{ secrets.TOKEN_GITHUB }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

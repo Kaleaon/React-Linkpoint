@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
+import HudControls from "./HudControls.jsx";
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
@@ -46,13 +47,13 @@ export default function World3D({ desktopBackdrop = false }) {
     : { flex: 1, minHeight: 0, position: "relative", background: "#000" };
 
   return <section aria-label="3D world view" style={sceneStyle}>
-    <canvas ref={canvasRef} id={desktopBackdrop ? "world-canvas-backdrop" : "world-canvas"} aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
+    <canvas ref={canvasRef} id={desktopBackdrop ? "world-canvas-backdrop" : "world-canvas"} aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom. W A S D or arrow keys move the camera.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
     {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
       {dataStatus}<br />
       {objectCount} simulator objects
-      <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan<br />Wheel/pinch: zoom · WASD/QE: move</div>
+      <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan · Wheel/pinch: zoom<br />WASD / ↑↓: move · ←→: turn · E/Q: up/down · Shift: run</div>
       <div style={{ marginTop: 4, opacity: .9 }}>Tap an object to inspect it</div>
       <div style={{ marginTop: 4 }}>
         <button
@@ -72,6 +73,10 @@ export default function World3D({ desktopBackdrop = false }) {
       <strong style={{ display: "block", marginTop: 3 }}>{selection.name || selection.id || "Simulator object"}</strong>
       <span style={{ opacity: .7 }}>{selection.shape || (selection.avatar ? "Avatar" : "Object")} · {selection.distance?.toFixed?.(1) || "—"} m</span>
       <button type="button" onClick={() => app.world.focusSelectedObject()} style={{ ...button, width: "100%", minHeight: 32, marginTop: 8, background: V.pri, color: V.onpri, fontSize: 10 }}>FOCUS CAMERA</button>
+      {!selection.avatar && app.auth.isLoggedIn() ? <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+        <button type="button" onClick={() => void app.world.touchSelected()} style={{ ...button, flex: 1, minHeight: 32, fontSize: 10 }}>TOUCH</button>
+        <button type="button" onClick={() => void app.protocol.sit(selection.id).catch((error) => app.world.emit("action_failed", { action: "sit", message: error instanceof Error ? error.message : "Sit failed" }))} style={{ ...button, flex: 1, minHeight: 32, fontSize: 10 }}>SIT</button>
+      </div> : null}
     </aside>}
     {!desktopBackdrop && <div aria-label="Camera view" style={{ position: "absolute", right: 14, top: 14, display: "flex", gap: 4 }}>
       {[['rear','REAR'], ['front','FRONT'], ['first-person','MOUSELOOK'], ['free','FREE']].map(([value, label]) => <button key={value} type="button" aria-pressed={cameraPreset === value} onClick={() => { app.world.setCameraPreset(value); setCameraPreset(value); refresh(); }} style={{ ...button, minWidth: 0, padding: "0 8px", background: cameraPreset === value ? V.pri : V.surf, color: cameraPreset === value ? V.onpri : V.pri, fontSize: 9 }}>{label}</button>)}
@@ -81,6 +86,7 @@ export default function World3D({ desktopBackdrop = false }) {
       <button aria-label="Move left" onClick={() => move(0, -1)} style={button}>←</button><button aria-label="Move backward" onClick={() => move(-1, 0)} style={button}>↓</button><button aria-label="Move right" onClick={() => move(0, 1)} style={button}>→</button>
     </div>}
     {!desktopBackdrop && <div style={{ position: "absolute", right: 14, bottom: 14, display: "grid", gap: 5 }}><button aria-label="Move up" onClick={() => move(0, 0, 1)} style={button}>UP</button><button aria-label="Move down" onClick={() => move(0, 0, -1)} style={button}>DN</button></div>}
+    <HudControls />
   </section>;
 }
 

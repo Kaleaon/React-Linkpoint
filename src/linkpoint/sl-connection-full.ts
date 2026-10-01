@@ -2,6 +2,7 @@
  * Linkpoint PWA - Complete SL Connection Implementation
  */
 
+import { toLoginFailure } from './login-failure';
 import { Utils } from './utils';
 import { SLProtocol } from './sl-protocol-real';
 import { LLSD } from './llsd';
@@ -27,20 +28,20 @@ export class SLConnectionFull extends Utils.EventEmitter {
   private eventQueueFailures = 0;
   private removeNativeListener: (() => void) | null = null;
 
-  // Real-Time Second Life Telemetry & Diagnostics
+  // Real-Time Second Life Telemetry & Diagnostics. Every figure is unknown
+  // (null / empty) until the simulator or login reply supplies it; nothing here
+  // is a placeholder that could be mistaken for a measurement.
   private diagnostics = {
     connected: false,
-    latencyMs: 54,
-    packetLossPct: 0.0,
-    packetsIn: 184,
-    packetsOut: 62,
-    lastPacketTimestamp: Date.now(),
-    simName: 'Arapaima',
-    gridX: 1797,
-    gridY: 1197,
-    simAddress: '216.82.52.24',
-    simPort: 13000,
-    circuitCode: 1001,
+    latencyMs: null as number | null,
+    packetLossPct: null as number | null,
+    packetsIn: null as number | null,
+    packetsOut: null as number | null,
+    lastPacketTimestamp: null as number | null,
+    simName: '',
+    simAddress: '',
+    simPort: null as number | null,
+    circuitCode: null as number | null,
     agentId: '',
   };
 
@@ -51,6 +52,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
       connected: isConn,
       agentId: this.agentId || this.diagnostics.agentId || (typeof window !== 'undefined' && (window as any).app?.auth?.user?.id) || '',
       simName: this.authReply?.sim_name || (typeof window !== 'undefined' && (window as any).app?.world?.regionName) || this.diagnostics.simName,
+      // Prefer what the login reply actually told us over the last polled snapshot.
+      simAddress: this.simAddress || this.diagnostics.simAddress,
+      simPort: this.simPort || this.diagnostics.simPort,
+      circuitCode: this.circuitCode || this.diagnostics.circuitCode,
     };
   }
 
@@ -78,6 +83,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.removeNativeListener?.();
     this.removeNativeListener = null;
     this.connected = false;
+    this.balance = null;
     this.authReply = null;
     this.agentId = null;
     this.sessionId = null;
@@ -94,7 +100,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.eventQueueFailures = 0;
   }
 
-  async connect(gridId: string, username: string, password: string, startLocation: string = 'last') {
+  async connect(gridId: string, username: string, password: string, startLocation: string = 'last', mfa: { token?: string; hash?: string } = {}) {
     this.resetConnectionState();
     this.setState('AUTHENTICATING');
 
@@ -129,6 +135,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
           username,
           password,
           start: startLocation,
+          mfaToken: mfa.token,
+          mfaHash: mfa.hash,
         });
         this.authReply = loginResult;
         this.agentId = String(loginResult.agent_id);
@@ -183,15 +191,19 @@ export class SLConnectionFull extends Utils.EventEmitter {
         username,
         password,
         start: startLocation,
+        mfaToken: mfa.token,
+        mfaHash: mfa.hash,
       });
 
       this.authReply = loginResult;
       this.agentId = String(loginResult.agent_id);
       this.sessionId = String(loginResult.sessionId);
-      this.circuitCode = Number(loginResult.circuit_code || 1001);
+      // The bridge talks to the real simulator on our behalf, so the client does
+      // not know its address or circuit; diagnostics fill these in from the server.
+      this.circuitCode = Number(loginResult.circuit_code) || null;
       this.inventoryRoot = loginResult.inventory_root || null;
-      this.simAddress = '127.0.0.1';
-      this.simPort = 9000;
+      this.simAddress = null;
+      this.simPort = null;
       this.setState('CONNECTED');
       this.connected = true;
 
@@ -211,8 +223,9 @@ export class SLConnectionFull extends Utils.EventEmitter {
     } catch (error) {
       this.resetConnectionState();
       this.setState('IDLE');
-      this.emit('connection_failed', error);
-      throw error;
+      const failure = toLoginFailure(error);
+      this.emit('connection_failed', failure);
+      throw failure;
     }
   }
 
@@ -259,10 +272,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.authReply = loginResult;
       this.agentId = String(loginResult.agent_id);
       this.sessionId = String(loginResult.sessionId);
-      this.circuitCode = Number(loginResult.circuit_code || 1001);
+      // The bridge talks to the real simulator on our behalf, so the client does
+      // not know its address or circuit; diagnostics fill these in from the server.
+      this.circuitCode = Number(loginResult.circuit_code) || null;
       this.inventoryRoot = loginResult.inventory_root || null;
-      this.simAddress = '127.0.0.1';
-      this.simPort = 9000;
+      this.simAddress = null;
+      this.simPort = null;
       this.setState('CONNECTED');
       this.connected = true;
 
@@ -368,6 +383,54 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.emit('avatar_presence', body);
       this.emit('avatar-presence', body);
     }
+  }
+
+  // ---- viewer actions -----------------------------------------------------
+  // Both the desktop app and the web server run the same validated actions.
+  private requireConnected() {
+    if (!this.connected && !slBridge.connected) throw new Error('Not connected to a grid');
+  }
+
+  /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
+  async teleportTo(destination: string) {
+    this.requireConnected();
+    const result = window.linkpointDesktop?.teleport
+      ? await window.linkpointDesktop.teleport({ destination })
+      : await slBridge.teleport({ destination });
+    this.emit('teleport_requested', result);
+    return result;
+  }
+
+  /** Touch an object by id. Face and texture coordinates are sent only when known. */
+  async touchObject(target: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
+    this.requireConnected();
+    return window.linkpointDesktop?.touchObject ? window.linkpointDesktop.touchObject(target) : slBridge.touchObject(target);
+  }
+
+  async sit(id?: string) {
+    this.requireConnected();
+    return window.linkpointDesktop?.sit ? window.linkpointDesktop.sit({ id }) : slBridge.sit({ id });
+  }
+
+  async stand() {
+    this.requireConnected();
+    return window.linkpointDesktop?.stand ? window.linkpointDesktop.stand() : slBridge.stand();
+  }
+
+  /** L$ balance, or null when the grid has not answered. Never a guess. */
+  public balance: number | null = null;
+
+  async refreshBalance(): Promise<number | null> {
+    if (!this.connected && !slBridge.connected) { this.balance = null; return null; }
+    try {
+      const { balance } = window.linkpointDesktop?.getBalance ? await window.linkpointDesktop.getBalance() : await slBridge.getBalance();
+      this.balance = Number.isFinite(balance) ? balance : null;
+    } catch (error) {
+      console.warn('[SL Connection] balance unavailable:', error);
+      this.balance = null;
+    }
+    this.emit('balance_updated', this.balance);
+    return this.balance;
   }
 
   async sendChat(message: string, channel: number = 0, type: number = 1) {

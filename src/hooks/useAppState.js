@@ -80,10 +80,6 @@ export function useAppState() {
   const [cPad, setCPad] = useState(true);
   const [cHeld, setCHeld] = useState("");
   const [cRun, setCRun] = useState(false);
-  const [cCam, setCCam] = useState("ORBIT");
-  const [cHdg, setCHdg] = useState(214);
-  const [cPitch, setCPitch] = useState(0);
-  const [cDrag, setCDrag] = useState(false);
   const [cEdit, setCEdit] = useState(false);
   const [cFlash, setCFlash] = useState("");
   const [cReason, setCReason] = useState("");
@@ -107,35 +103,20 @@ export function useAppState() {
   const [addGridName, setAddGridName] = useState("");
   const [addGridHost, setAddGridHost] = useState("");
   const [searchFrom, setSearchFrom] = useState("Friends");
-  const [offlineRunning, setOfflineRunning] = useState(true);
-  const [offlineUser, setOfflineUser] = useState({ firstName: "Jane", lastName: "Doe" });
-  const [offlineAccountModal, setOfflineAccountModal] = useState(false);
-  const [offlineAccountFirstName, setOfflineAccountFirstName] = useState("Jane");
-  const [offlineAccountLastName, setOfflineAccountLastName] = useState("Doe");
-  const [offlineAccountPassword, setOfflineAccountPassword] = useState("");
-  const [oarFile] = useState("A1_Grid_Region_v2.oar");
-  const [oarRegionName] = useState("Welcome Island");
-  const [oarCoords] = useState("1000, 1000");
-  const [oarPrims] = useState(1420);
-  const [assetName, setAssetName] = useState("Grass Texture");
-  const [assetType, setAssetType] = useState("Texture");
-  const [localAssets, setLocalAssets] = useState([]);
-  const [offlineCacheSize, setOfflineCacheSize] = useState(1024);
-  const [consoleLevel, setConsoleLevel] = useState("ALL");
-  const [consoleQuery, setConsoleQuery] = useState("");
-  const [consoleAutoscroll, setConsoleAutoscroll] = useState(true);
-  const [consoleLogs, setConsoleLogs] = useState([
-    { ts: "16:30:33,123", level: "INFO", tag: "[LOGIN SERVICE]", msg: "User Jane Doe authenticated via XML-RPC." },
-    { ts: "16:30:35,456", level: "INFO", tag: "[SCENE]", msg: "Region Welcome Island loaded 1420 prims from OAR archive." },
-    { ts: "16:31:02,890", level: "WARN", tag: "[ASSET SERVICE]", msg: "Texture 89a2f1... fetch took > 1500ms." },
-    { ts: "16:32:10,012", level: "ERROR", tag: "[HYPERGRID]", msg: "Unable to resolve remote grid link test.osgrid.org:8002." },
-    { ts: "16:33:01,500", level: "INFO", tag: "[LOCAL GRID]", msg: "Grid listener active on 127.0.0.1:9000." }
-  ]);
   const [searchTab, setSearchTab] = useState("FRIENDS");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchState, setSearchState] = useState({});
   const [reconnecting, setReconnecting] = useState(false);
   const [toast, setToast] = useState("");
+
+  // ---- movement pad: held buttons move the real camera --------------------
+  useEffect(() => {
+    const step = { fwd: [0, 1, 0], bck: [0, -1, 0], lft: [-1, 0, 0], rgt: [1, 0, 0], up: [0, 0, 1], dn: [0, 0, -1] }[cHeld];
+    if (!step) return undefined;
+    const metersPerTick = cRun ? 1.4 : 0.55;
+    const timer = setInterval(() => app.world.moveCamera(step[0] * metersPerTick, step[1] * metersPerTick, step[2] * metersPerTick), 50);
+    return () => clearInterval(timer);
+  }, [cHeld, cRun]);
 
   // ---- tick clock (componentDidMount's setInterval) ---------------------
   useEffect(() => {
@@ -157,8 +138,6 @@ export function useAppState() {
   const clpRef = useRef(null); // console dock long-press-to-edit timeout
   const rlpRef = useRef(null); // radar row long-press timeout
   const lpFiredRef = useRef(false);
-  const lxRef = useRef(0);
-  const lyRef = useRef(0);
   const loginTimerRef = useRef(null);
   const searchTimerRef = useRef(null);
   const reconnectTimerRef = useRef(null);
@@ -457,49 +436,28 @@ export function useAppState() {
 
   const cHold = useCallback((k) => {
     if (k === "run") setCRun((r) => !r);
-    else if (k === "cam") setCCam((c) => (c === "ORBIT" ? "MOUSELOOK" : "ORBIT"));
+    else if (k === "cam") app.world.toggleCameraMode();
     else setCHeld(k);
   }, []);
 
+  // Dock buttons either open the matching screen or say plainly that the viewer
+  // cannot do that yet. Nothing here pretends to have performed an action or
+  // reports permissions (no-fly, not-your-land) the viewer has no way to know.
   const cPress = useCallback((k) => {
     const b = CBTN[k];
-    if (b.off) {
-      setCReason("DENIED — " + b.off);
-      return;
-    }
     if (k === "ao") {
-      if (navMode() === "floaters") {
-        flToggle("AO");
-      } else {
-        setScreen("AO");
-      }
+      if (navMode() === "floaters") flToggle("AO");
+      else setScreen("AO");
       return;
     }
-    if (b.tog) {
-      setCTog((s) => ({ ...s, [k]: !s[k] }));
+    if (b.nav) {
+      if (navMode() === "floaters") flFocus(b.nav);
+      else setScreen(b.nav);
       setCReason("");
-    } else setCReason(b.label + " — ACKNOWLEDGED");
-  }, [navMode, flToggle, setScreen]);
-
-  // ---- console scene drag (sceneDown/sceneMove/sceneUp) ------------------
-  const sceneDown = useCallback((e) => {
-    lxRef.current = e.clientX;
-    lyRef.current = e.clientY;
-    setCDrag(true);
-  }, []);
-  const sceneMove = useCallback(
-    (e) => {
-      if (!cDrag) return;
-      const dx = e.clientX - lxRef.current,
-        dy = e.clientY - lyRef.current;
-      lxRef.current = e.clientX;
-      lyRef.current = e.clientY;
-      setCHdg((h) => h + dx * 0.35);
-      setCPitch((p) => Math.max(-70, Math.min(70, p + dy * 0.5)));
-    },
-    [cDrag]
-  );
-  const sceneUp = useCallback(() => setCDrag((d) => (d ? false : d)), []);
+      return;
+    }
+    setCReason(b.label + " — NOT AVAILABLE IN THIS VIEWER YET");
+  }, [navMode, flToggle, flFocus, setScreen]);
 
   // ---- console dock hold-to-edit / radar long-press ----------------------
   const holdStart = useCallback(() => {
@@ -549,51 +507,6 @@ export function useAppState() {
     setInvOpen((st) => ({ ...st, [name]: !(st[name] !== false) }));
   }, []);
 
-    const toggleOfflineGrid = useCallback(() => {
-    setOfflineRunning((r) => {
-      const next = !r;
-      notify(next ? "Local OpenSim Grid STARTED (127.0.0.1:9000)" : "Local OpenSim Grid SHUTDOWN");
-      return next;
-    });
-  }, [notify]);
-
-  const saveOfflineAccount = useCallback(() => {
-    setOfflineUser({ firstName: offlineAccountFirstName || "Jane", lastName: offlineAccountLastName || "Resident" });
-    setOfflineAccountModal(false);
-    notify("Local Account Saved: " + (offlineAccountFirstName || "Jane") + " " + (offlineAccountLastName || "Resident"));
-  }, [offlineAccountFirstName, offlineAccountLastName, notify]);
-
-  const importOarBackup = useCallback(() => {
-    notify("Importing OAR backup " + oarFile + "...");
-  }, [oarFile, notify]);
-
-  const addLocalAsset = useCallback(() => {
-    const name = assetName || "New Asset";
-    const type = assetType || "Texture";
-    const newAst = { id: "ast-" + Date.now(), name, type, size: "1.4 MB", uuid: "a" + Math.random().toString(16).substr(2, 8) + "-4000-8000-100000000000" };
-    setLocalAssets((ast) => [newAst, ...ast]);
-    setAssetName("");
-    notify("Local Asset Created: " + name);
-  }, [assetName, assetType, notify]);
-
-  const clearOfflineCache = useCallback(() => {
-    setOfflineCacheSize(256);
-    notify("Offline Asset & Region Cache Cleared.");
-  }, [notify]);
-
-  const clearConsoleLogs = useCallback(() => {
-    setConsoleLogs([]);
-    notify("Grid Console Logs Cleared.");
-  }, [notify]);
-
-  const copyConsoleLogs = useCallback(() => {
-    notify("Console Logs copied to clipboard.");
-  }, [notify]);
-
-  const downloadConsoleLogs = useCallback(() => {
-    notify("Downloading opensim-grid-log.txt...");
-  }, [notify]);
-
   const setViewMode = useCallback((mode) => {
     setViewModeState(mode);
     try {
@@ -626,10 +539,10 @@ export function useAppState() {
     state: {
       layout, palette, customTheme, device, viewMode, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
       toggles, cond, hudOn, hudPos, hudPicker, target, targetPicker, navPeek,
-      cPad, cHeld, cRun, cCam, cHdg, cPitch, cDrag, cEdit, cFlash, cReason, cTog,
+      cPad, cHeld, cRun, cEdit, cFlash, cReason, cTog,
       rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu, tick,
       loginMode, loginGrid, loginBusy, loginError, customGrids, addGrid, addGridName, addGridHost,
-      searchFrom, searchTab, searchQuery, searchState, reconnecting, toast, offlineRunning, offlineUser, offlineAccountModal, offlineAccountFirstName, offlineAccountLastName, offlineAccountPassword, oarFile, oarRegionName, oarCoords, oarPrims, assetName, assetType, localAssets, offlineCacheSize, consoleLevel, consoleQuery, consoleAutoscroll, consoleLogs,
+      searchFrom, searchTab, searchQuery, searchState, reconnecting, toast,
       prefs, cacheCleared, camPreset,
     },
     actions: {
@@ -639,12 +552,12 @@ export function useAppState() {
       cycleLayout, cyclePalette, setCond, setMenu,
       flR, flDrag, flFocus, flToggle, flClose,
       hudDrag, toggleHud, setHudPicker, setTarget, setTargetPicker, setNavPeek,
-      cf, cTap, cHold, cPress, sceneDown, sceneMove, sceneUp,
+      cf, cTap, cHold, cPress,
       holdStart, holdEnd, endEdit, togglePad, toggleRun, flyUpDown, flyDnDown, flyRelease, addSlot, removeDockSlot,
       radarTap, radarHold, radarRelease, radarBlipPick,
       setRMode,
       setLoginMode, setLoginGrid, connectLogin, openSearch, setSearchTab, setSearchQuery, searchAdd, startIm, reconnect, notify,
-      setPref, clearCache, clearAllCache, setCamPreset, toggleOfflineGrid, setOfflineAccountModal, setOfflineAccountFirstName, setOfflineAccountLastName, setOfflineAccountPassword, saveOfflineAccount, importOarBackup, setAssetName, setAssetType, addLocalAsset, setOfflineCacheSize, clearOfflineCache, setConsoleLevel, setConsoleQuery, setConsoleAutoscroll, clearConsoleLogs, copyConsoleLogs, downloadConsoleLogs,
+      setPref, clearCache, clearAllCache, setCamPreset,
     },
     T, D, navMode,
   };

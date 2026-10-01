@@ -8,8 +8,10 @@ import { navActive } from "../theme/look.js";
 // Rail packs, or any pack on a split/tablet-width device).
 export default function RailNav() {
   const { state, actions } = useApp();
-  const { V, t, nav, immersive } = useTheme();
-  if (nav !== "rail" || immersive) return null;
+  const { V, t, nav } = useTheme();
+  // Navigation stays visible on the 3D View too. Hiding it left no way out of the
+  // scene on phones and tablets (the 3D screen has no header or back button).
+  if (nav !== "rail") return null;
 
   return (
     <div style={{ flex: "none", width: "104px", background: V.surf, borderRight: "1px solid " + V.outv, display: "flex", flexDirection: "column", gap: "5px", padding: "12px 8px" }}>

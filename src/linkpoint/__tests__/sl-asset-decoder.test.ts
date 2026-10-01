@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const sharp = require('sharp');
-const { decodeJPEG2000, decodeSculpt, normalizeLLMesh, normalizeGLTFMaterial } = require('../../../electron/sl-asset-decoder.cjs');
+const { computeNormals, decodeJPEG2000, decodeSculpt, normalizeLLMesh, normalizeGLTFMaterial } = require('../../../electron/sl-asset-decoder.cjs');
 
 describe('Second Life glTF PBR materials', () => {
   it('normalizes metallic-roughness effects and SL texture asset references', () => {
@@ -83,5 +83,48 @@ describe('simulator image asset decoding', () => {
     expect(geometry.normals).toHaveLength(geometry.vertices.length);
     expect(geometry.texCoords).toHaveLength(8 * 8 * 2);
     expect(geometry.indices.length).toBeGreaterThan(0);
+  });
+
+  it('computes real smooth normals for sculpts (not a constant +Z)', async () => {
+    const size = 32, pixels = Buffer.alloc(size * size * 3);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const u = (x / size) * Math.PI * 2, v = (y / (size - 1)) * Math.PI;
+      const o = (y * size + x) * 3;
+      pixels[o] = Math.round((0.5 + 0.5 * Math.cos(u) * Math.sin(v)) * 255);
+      pixels[o + 1] = Math.round((0.5 + 0.5 * Math.sin(u) * Math.sin(v)) * 255);
+      pixels[o + 2] = Math.round((0.5 + 0.5 * Math.cos(v)) * 255);
+    }
+    const source = await sharp(pixels, { raw: { width: size, height: size, channels: 3 } }).png().toBuffer();
+    const geometry = await decodeSculpt(source, 1);
+    const flipped = await decodeSculpt(source, 1 | 0x40);
+    const outward = (g: any) => {
+      let good = 0, total = 0;
+      for (let i = 0; i < g.vertices.length; i += 3) {
+        const len = Math.hypot(g.vertices[i], g.vertices[i + 1], g.vertices[i + 2]);
+        if (len < 1e-6 || Math.hypot(g.normals[i], g.normals[i + 1], g.normals[i + 2]) < 1e-6) continue;
+        total++;
+        if (g.vertices[i] * g.normals[i] + g.vertices[i + 1] * g.normals[i + 1] + g.vertices[i + 2] * g.normals[i + 2] > 0) good++;
+      }
+      return good / total;
+    };
+    // The invert flag must flip which side is the front, so the two results are opposites.
+    expect(outward(geometry) + outward(flipped)).toBeGreaterThan(0.95);
+    expect(Math.abs(outward(geometry) - outward(flipped))).toBeGreaterThan(0.9);
+    expect(new Set(geometry.normals.map((n: number) => n.toFixed(2))).size).toBeGreaterThan(10);
+  });
+
+  it('closes a torus sculpt around both axes', async () => {
+    const source = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+    const torus = await decodeSculpt(source, 2);
+    const plane = await decodeSculpt(source, 3);
+    expect(torus.indices.length).toBe(8 * 8 * 6);
+    expect(plane.indices.length).toBe(7 * 7 * 6);
+  });
+});
+
+describe('computeNormals', () => {
+  it('points counter-clockwise triangles along their right-hand normal and survives degenerate faces', () => {
+    expect(computeNormals([0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 1, 2])).toEqual([0, 0, 1, 0, 0, 1, 0, 0, 1]);
+    expect(computeNormals([0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2])).toEqual([0, 0, 1, 0, 0, 1, 0, 0, 1]);
   });
 });

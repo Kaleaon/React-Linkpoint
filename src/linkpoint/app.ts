@@ -2,6 +2,7 @@
  * Linkpoint PWA - Main Application
  */
 
+import { purgeFabricatedStorage } from './fabricated-data';
 import { SLConnectionFull } from './sl-connection-full';
 import { AuthManager } from './auth';
 import { WorldViewer } from './world';
@@ -25,6 +26,7 @@ import { GroupsManager } from './phase2/groups';
 import { FriendsExtended } from './phase2/friends-extended';
 
 export class LinkpointApp {
+  private balanceTimer: ReturnType<typeof setInterval> | null = null;
   private initialization: Promise<void> | null = null;
   public protocol: SLConnectionFull;
   public auth: AuthManager;
@@ -77,6 +79,8 @@ export class LinkpointApp {
   private async initialize() {
     console.log('🔗 Linkpoint PWA Starting...');
 
+    // Remove invented data left in storage by earlier builds before anything reads it.
+    purgeFabricatedStorage();
     this.preferences.init();
     this.auth.init();
     await this.world.init();
@@ -123,6 +127,20 @@ export class LinkpointApp {
     this.protocol.on('friend_remove', (data: any) => {
       const id = data?.id || data?.friendId;
       if (id) this.friends.removeFriend(String(id));
+    });
+
+    // The L$ balance is whatever the grid reports. It is requested after login and
+    // refreshed periodically; until then it is null and shown as unknown.
+    this.protocol.on('connected', () => {
+      void this.protocol.refreshBalance();
+      if (this.balanceTimer) clearInterval(this.balanceTimer);
+      this.balanceTimer = setInterval(() => { void this.protocol.refreshBalance(); }, 60000);
+    });
+    this.protocol.on('disconnected', () => {
+      if (this.balanceTimer) clearInterval(this.balanceTimer);
+      this.balanceTimer = null;
+      this.protocol.balance = null;
+      this.protocol.emit('balance_updated', null);
     });
 
     this.auth.on('login_success', async (user: any) => {

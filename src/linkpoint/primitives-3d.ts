@@ -67,9 +67,10 @@ export class Primitives3D {
   }
 
   /**
-   * Create sphere mesh
+   * Create sphere mesh. Second Life convention: the default fills the unit box
+   * (radius 0.5, so prim scale is the diameter) with the poles on the Z axis.
    */
-  static createSphere(radius: number = 1, segments: number = 32, rings: number = 16) {
+  static createSphere(radius: number = 0.5, segments: number = 32, rings: number = 16) {
     const vertices: number[] = [];
     const normals: number[] = [];
     const texCoords: number[] = [];
@@ -82,12 +83,9 @@ export class Primitives3D {
 
       for (let seg = 0; seg <= segments; seg++) {
         const phi = seg * 2 * Math.PI / segments;
-        const sinPhi = Math.sin(phi);
-        const cosPhi = Math.cos(phi);
-
-        const x = cosPhi * sinTheta;
-        const y = cosTheta;
-        const z = sinPhi * sinTheta;
+        const x = Math.cos(phi) * sinTheta;
+        const y = Math.sin(phi) * sinTheta;
+        const z = cosTheta;
 
         vertices.push(radius * x, radius * y, radius * z);
         normals.push(x, y, z);
@@ -150,59 +148,54 @@ export class Primitives3D {
   }
 
   /**
-   * Create cylinder mesh
+   * Create cylinder mesh. Second Life convention: the default fills the unit
+   * box (radius 0.5, height 1) with its axis on Z. Both ends are capped.
    */
-  static createCylinder(radiusTop: number = 1, radiusBottom: number = 1, height: number = 1, segments: number = 32) {
+  static createCylinder(radiusTop: number = 0.5, radiusBottom: number = 0.5, height: number = 1, segments: number = 32) {
     const vertices: number[] = [];
     const normals: number[] = [];
     const texCoords: number[] = [];
     const indices: number[] = [];
-
     const halfHeight = height / 2;
+    // Side normals tilt with the taper: slope of the wall relative to the axis.
+    const slope = height > 0 ? (radiusBottom - radiusTop) / height : 0;
+    const normalLength = Math.hypot(1, slope);
 
-    // Generate vertices
-    for (let y = 0; y <= 1; y++) {
-      const radius = y === 0 ? radiusBottom : radiusTop;
-      const posY = y * height - halfHeight;
-
+    for (let ring = 0; ring <= 1; ring++) {
+      const radius = ring === 0 ? radiusBottom : radiusTop;
+      const z = ring * height - halfHeight;
       for (let seg = 0; seg <= segments; seg++) {
         const theta = seg * 2 * Math.PI / segments;
-        const x = radius * Math.cos(theta);
-        const z = radius * Math.sin(theta);
-
-        vertices.push(x, posY, z);
-        normals.push(Math.cos(theta), 0, Math.sin(theta));
-        texCoords.push(seg / segments, y);
+        const cos = Math.cos(theta), sin = Math.sin(theta);
+        vertices.push(radius * cos, radius * sin, z);
+        normals.push(cos / normalLength, sin / normalLength, slope / normalLength);
+        texCoords.push(seg / segments, ring);
       }
     }
-
-    // Generate indices
-    for (let y = 0; y < 1; y++) {
-      for (let seg = 0; seg < segments; seg++) {
-        const first = y * (segments + 1) + seg;
-        const second = first + segments + 1;
-
-        indices.push(first, second, first + 1);
-        indices.push(second, second + 1, first + 1);
-      }
-    }
-
-    // Add caps
-    const baseCenter = vertices.length / 3;
-    vertices.push(0, -halfHeight, 0);
-    normals.push(0, -1, 0);
-    texCoords.push(0.5, 0.5);
-
-    for (let seg = 0; seg <= segments; seg++) {
-      const theta = seg * 2 * Math.PI / segments;
-      vertices.push(radiusBottom * Math.cos(theta), -halfHeight, radiusBottom * Math.sin(theta));
-      normals.push(0, -1, 0);
-      texCoords.push(0.5 + 0.5 * Math.cos(theta), 0.5 + 0.5 * Math.sin(theta));
-    }
-
     for (let seg = 0; seg < segments; seg++) {
-      indices.push(baseCenter, baseCenter + seg + 2, baseCenter + seg + 1);
+      const first = seg, second = first + segments + 1;
+      indices.push(first, first + 1, second);
+      indices.push(second, first + 1, second + 1);
     }
+
+    const addCap = (radius: number, z: number, nz: number) => {
+      const centre = vertices.length / 3;
+      vertices.push(0, 0, z);
+      normals.push(0, 0, nz);
+      texCoords.push(0.5, 0.5);
+      for (let seg = 0; seg <= segments; seg++) {
+        const theta = seg * 2 * Math.PI / segments;
+        vertices.push(radius * Math.cos(theta), radius * Math.sin(theta), z);
+        normals.push(0, 0, nz);
+        texCoords.push(0.5 + 0.5 * Math.cos(theta), 0.5 + 0.5 * Math.sin(theta));
+      }
+      for (let seg = 0; seg < segments; seg++) {
+        if (nz > 0) indices.push(centre, centre + seg + 1, centre + seg + 2);
+        else indices.push(centre, centre + seg + 2, centre + seg + 1);
+      }
+    };
+    addCap(radiusTop, halfHeight, 1);
+    addCap(radiusBottom, -halfHeight, -1);
 
     return { vertices, normals, texCoords, indices };
   }

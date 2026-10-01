@@ -3,6 +3,8 @@
  */
 
 import { Utils } from './utils';
+import { multiplyMat4 } from './frustum';
+import { invertMat4, rayFromNDC } from './ray-pick';
 
 export class Camera3D extends Utils.EventEmitter {
   public position: number[] = [128, 128, 25];
@@ -68,31 +70,53 @@ export class Camera3D extends Utils.EventEmitter {
   }
 
   /**
-   * Move camera
+   * Unit horizontal direction the camera is looking along. In orbit mode the
+   * rotation describes where the camera sits relative to its target, so the
+   * view direction is the opposite of the first-person heading.
+   */
+  private horizontalHeading(): [number, number] {
+    const yaw = this.rotation[1];
+    const sign = this.mode === 'orbit' ? -1 : 1;
+    return [sign * Math.sin(yaw), sign * Math.cos(yaw)];
+  }
+
+  /**
+   * Move camera. `forward` and `right` are relative to what is on screen:
+   * positive forward moves into the view, positive right moves to the right of
+   * it. Orbit mode moves the focus point along the ground (pitch is ignored so
+   * looking down does not sink the camera); first-person flies along the view.
    */
   move(forward: number, right: number, up: number) {
-    const [pitch, yaw] = this.rotation;
-    
-    // Calculate movement vectors
-    const forwardVec = [
-      Math.sin(yaw) * Math.cos(pitch),
-      Math.cos(yaw) * Math.cos(pitch),
-      Math.sin(pitch)
-    ];
-    
-    const rightVec = [
-      Math.sin(yaw - Math.PI / 2),
-      Math.cos(yaw - Math.PI / 2),
-      0
-    ];
-    
+    const pitch = this.rotation[0];
+    const [hx, hy] = this.horizontalHeading();
+    const climb = this.mode === 'orbit' ? 0 : Math.sin(pitch);
+    const reach = this.mode === 'orbit' ? 1 : Math.cos(pitch);
+
     const destination = this.mode === 'orbit' ? this.orbitTarget : this.position;
-    destination[0] += forwardVec[0] * forward + rightVec[0] * right;
-    destination[1] += forwardVec[1] * forward + rightVec[1] * right;
-    destination[2] += forwardVec[2] * forward + rightVec[2] * right + up;
-    
+    destination[0] += hx * reach * forward + hy * right;
+    destination[1] += hy * reach * forward - hx * right;
+    destination[2] += climb * forward + up;
+
     this.updateMatrices();
     this.emit('moved', this.position);
+  }
+
+  /**
+   * Where the camera is actually looking, as a compass heading (0 = north/+Y,
+   * clockwise) and a pitch in degrees (positive looks up). Orbit mode's rotation
+   * describes the camera's position around its target, so the view direction is
+   * derived rather than read straight from `rotation`.
+   */
+  viewAngles(): { heading: number; pitch: number } {
+    const [hx, hy] = this.horizontalHeading();
+    const heading = ((Math.atan2(hx, hy) * 180) / Math.PI + 360) % 360;
+    const pitch = ((this.mode === 'orbit' ? -this.rotation[0] : this.rotation[0]) * 180) / Math.PI;
+    return { heading, pitch };
+  }
+
+  /** Turn the view left/right on screen (positive = right), whichever mode is active. */
+  turn(amount: number) {
+    this.rotate(0, this.mode === 'orbit' ? -amount : amount);
   }
 
   /**
@@ -151,9 +175,9 @@ export class Camera3D extends Utils.EventEmitter {
 
   /** Pan parallel to the view plane, as Firestorm's Alt+Ctrl+Shift drag does. */
   pan(horizontal: number, vertical: number) {
-    const yaw = this.rotation[1];
-    const right = [Math.cos(yaw), -Math.sin(yaw), 0];
-    const delta = [right[0] * horizontal, right[1] * horizontal, vertical];
+    const [hx, hy] = this.horizontalHeading();
+    // Screen-right is the heading rotated a quarter turn clockwise.
+    const delta = [hy * horizontal, -hx * horizontal, vertical];
     const destination = this.mode === 'orbit' ? this.orbitTarget : this.position;
     for (let index = 0; index < 3; index++) destination[index] += delta[index];
     this.updateMatrices();
@@ -306,22 +330,12 @@ export class Camera3D extends Utils.EventEmitter {
   }
 
   /**
-   * Multiply two matrices
+   * Multiply two column-major matrices: returns `a * b`, so `P * V` is
+   * `mat4Multiply(P, V)`. (The previous row-major indexing silently returned
+   * `b * a` for WebGL-layout data.)
    */
   mat4Multiply(a: Float32Array, b: Float32Array): Float32Array {
-    const result = new Float32Array(16);
-    
-    for (let i = 0; i < 4; i++) {
-      for (let j = 0; j < 4; j++) {
-        result[i * 4 + j] = 
-          a[i * 4 + 0] * b[0 * 4 + j] +
-          a[i * 4 + 1] * b[1 * 4 + j] +
-          a[i * 4 + 2] * b[2 * 4 + j] +
-          a[i * 4 + 3] * b[3 * 4 + j];
-      }
-    }
-    
-    return result;
+    return multiplyMat4(a, b);
   }
 
   /**
@@ -345,24 +359,19 @@ export class Camera3D extends Utils.EventEmitter {
   }
 
   /**
-   * Screen to world ray
+   * Screen to world ray. Unprojects through the inverse view-projection matrix,
+   * so it honours aspect ratio, field of view, and both orbit and first-person
+   * modes. Direction has unit length and origin is the camera position.
    */
   screenToWorldRay(screenX: number, screenY: number, width: number, height: number) {
-    // Normalized device coordinates
+    const fallback = { origin: [...this.position], direction: [0, 1, 0] };
+    if (!(width > 0) || !(height > 0)) return fallback;
+    const inverse = invertMat4(multiplyMat4(this.projectionMatrix, this.viewMatrix));
+    if (!inverse) return fallback;
     const ndcX = (2.0 * screenX) / width - 1.0;
     const ndcY = 1.0 - (2.0 * screenY) / height;
-
-    // Ray in world space (simplified)
-    const [pitch, yaw] = this.rotation;
-    const direction = [
-      Math.sin(yaw + ndcX * this.fov * Math.PI / 360) * Math.cos(pitch + ndcY * this.fov * Math.PI / 360),
-      Math.cos(yaw + ndcX * this.fov * Math.PI / 360) * Math.cos(pitch + ndcY * this.fov * Math.PI / 360),
-      Math.sin(pitch + ndcY * this.fov * Math.PI / 360)
-    ];
-
-    return {
-      origin: [...this.position],
-      direction: this.vec3Normalize(direction)
-    };
+    const ray = rayFromNDC(inverse, ndcX, ndcY);
+    // Every perspective ray passes through the eye, so start there.
+    return ray ? { origin: [...this.position], direction: ray.direction } : fallback;
   }
 }

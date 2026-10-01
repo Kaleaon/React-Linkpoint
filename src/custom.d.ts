@@ -18,11 +18,16 @@ interface Window {
       text: string;
       headers: Record<string, string>;
     }>;
-    connectViewer(request: { loginUrl: string; username: string; password: string; start?: string }): Promise<Record<string, any>>;
+    connectViewer(request: { loginUrl: string; username: string; password: string; start?: string; mfaToken?: string; mfaHash?: string }): Promise<Record<string, any>>;
     sendChat(request: { message: string; channel?: number; type?: number }): Promise<void>;
     sendInstantMessage(request: { recipientId: string; message: string }): Promise<void>;
     sendFriendRequest(request: { recipientId: string; message?: string }): Promise<void>;
     fetchFriends(): Promise<any[]>;
+    teleport(request: { destination?: string; region?: string; x?: number; y?: number; z?: number }): Promise<{ requested: { region: string; x: number; y: number; z: number }; message: string }>;
+    touchObject(request: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }): Promise<{ touched: string | number }>;
+    sit(request: { id?: string }): Promise<{ sitting: string }>;
+    stand(): Promise<{ standing: boolean }>;
+    getBalance(): Promise<{ balance: number }>;
     disconnectViewer(): Promise<void>;
     onViewerEvent(listener: (event: { type: string; data: any }) => void): () => void;
   };
