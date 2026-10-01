@@ -1,5 +1,5 @@
 import { Camera3D } from './camera-3d';
-import { isMotionKey, isTypingTarget, resolveKeyMotion, TURN_RATE } from './keyboard-motion';
+import { isMotionKey, isTypingTarget, resolveKeyMotion, TURN_RATE, type KeyMotion } from './keyboard-motion';
 
 type PointerSample = { x: number; y: number };
 
@@ -17,7 +17,7 @@ export class CameraControls {
   private frame: number | null = null;
   private pointerStart = new Map<number, PointerSample>();
 
-  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined) {
+  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined, private avatarMotion: (motion: KeyMotion, run: boolean) => boolean = () => false) {
     canvas.style.touchAction = 'none';
     canvas.tabIndex = 0;
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -99,10 +99,11 @@ export class CameraControls {
       const seconds = Math.min((time - (this.lastFrame || time)) / 1000, .05);
       this.lastFrame = time;
       const motion = resolveKeyMotion(this.keys, this.shift);
+      const avatarMoved = this.avatarMotion(motion, this.shift);
       const step = seconds * this.camera.moveSpeed;
       let moved = false;
-      if (motion.turn) { this.camera.turn(motion.turn * TURN_RATE * seconds); moved = true; }
-      if (motion.forward || motion.right || motion.up) {
+      if (!avatarMoved && motion.turn) { this.camera.turn(motion.turn * TURN_RATE * seconds); moved = true; }
+      if (!avatarMoved && (motion.forward || motion.right || motion.up)) {
         this.camera.move(motion.forward * step, motion.right * step, motion.up * step);
         moved = true;
       }

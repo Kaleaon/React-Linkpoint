@@ -70,6 +70,7 @@ describe('desktop simulator object bridge', () => {
         materialOverride: null,
       }],
       reflectionProbe: null,
+      particles: null,
       color: [1, 1, 1, 1],
       shapeParams: {
         pathCurve: undefined, profileCurve: undefined,
@@ -171,6 +172,19 @@ describe('desktop simulator object bridge', () => {
     expect(result.faceTextures[0].materialId).toBe('material-id');
     expect(result.reflectionProbe).toMatchObject({ ambiance: .75, clipDistance: .1, box: true, dynamic: true, mirror: true });
   });
+
+  it('serializes scripted particle sources for the renderer', () => {
+    const result = serializeObject({ localID: 13, object: {
+      FullID: { toString: () => 'emitter' }, PCode: 9,
+      Particles: {
+        pattern: 2, maxAge: 10, burstRate: .2, burstRadius: 1, burstSpeedMin: 2, burstSpeedMax: 4, burstPartCount: 3,
+        acceleration: { x: 0, y: 0, z: -1 }, target: { toString: () => 'target' }, texture: { toString: () => 'particle-texture' },
+        dataFlags: 259, partMaxAge: 2, startColor: { getRed: () => 1, getGreen: () => .5, getBlue: () => 0, getAlpha: () => 1 },
+        endColor: { red: 0, green: 0, blue: 1, alpha: 0 }, startScaleX: .5, startScaleY: 1, endScaleX: 2, endScaleY: 3,
+      },
+    } });
+    expect(result.particles).toMatchObject({ pattern: 2, burstPartCount: 3, acceleration: [0, 0, -1], targetId: 'target', textureId: 'particle-texture', startColor: [1, .5, 0, 1], endScale: [2, 3] });
+  });
 });
 
 describe('desktop session script dialogs and lures', () => {
@@ -224,5 +238,86 @@ describe('desktop session script dialogs and lures', () => {
     await session.close();
     expect(session.pending.size).toBe(0);
     expect(sent).toHaveLength(1);
+  });
+});
+
+describe('desktop session texture downloads', () => {
+  const { AssetType } = require('@caspertech/node-metaverse');
+  const { ViewerSession } = require('../../../core/viewer-session.cjs');
+
+  it('uses the Second Life GetTexture capability instead of ViewerAsset', async () => {
+    const session = new ViewerSession(() => undefined);
+    const requestGet = vi.fn().mockResolvedValue({ body: Buffer.from('texture') });
+    const downloadAsset = vi.fn();
+    session.bot = {
+      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue('https://asset.example/get?token=one'), requestGet } },
+      clientCommands: { asset: { downloadAsset } },
+    };
+
+    await expect(session.downloadTexture('texture id')).resolves.toEqual(Buffer.from('texture'));
+    expect(requestGet).toHaveBeenCalledWith('https://asset.example/get?token=one&texture_id=texture%20id');
+    expect(downloadAsset).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the generic asset service when GetTexture is unavailable', async () => {
+    const session = new ViewerSession(() => undefined);
+    const downloaded = Buffer.from('fallback');
+    const downloadAsset = vi.fn().mockResolvedValue(downloaded);
+    session.bot = {
+      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue(undefined), requestGet: vi.fn() } },
+      clientCommands: { asset: { downloadAsset } },
+    };
+
+    await expect(session.downloadTexture('texture-id')).resolves.toBe(downloaded);
+    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture-id');
+  });
+
+  it('allows transiently failed assets to retry instead of leaving their proxy forever', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+    const sent: Array<[string, any]> = [];
+    const session = new ViewerSession((type: string, data: any) => sent.push([type, data]));
+    session.bot = { clientCommands: { asset: { downloadAsset: vi.fn() } } };
+    const download = vi.fn().mockRejectedValueOnce(new Error('capability still starting')).mockResolvedValue(Buffer.from('ok'));
+    const ready = vi.fn();
+    session.streamAsset('mesh:test', AssetType.Mesh, 'test', download, ready);
+    await session.assetRequests.get('mesh:test');
+    expect(session.assetRequests.has('mesh:test')).toBe(false);
+    expect(sent.at(-1)?.[0]).toBe('asset-error');
+    vi.advanceTimersByTime(5001);
+    session.streamAsset('mesh:test', AssetType.Mesh, 'test', download, ready);
+    await session.assetRequests.get('mesh:test');
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(ready).toHaveBeenCalledWith(Buffer.from('ok'));
+    vi.useRealTimers();
+  });
+});
+
+describe('desktop session avatar movement', () => {
+  const { ControlFlags } = require('@caspertech/node-metaverse');
+  const { ViewerSession } = require('../../../core/viewer-session.cjs');
+
+  it('sends SL agent controls and clears them when movement stops', () => {
+    const session = new ViewerSession(() => undefined);
+    const agent = { setControlFlag: vi.fn(), clearControlFlag: vi.fn(), sendAgentUpdate: vi.fn() };
+    session.bot = { agent };
+    expect(session.setMovement({ forward: 1, right: -1, run: true })).toEqual({ moving: true });
+    expect(agent.setControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_AT_POS);
+    expect(agent.setControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_LEFT_POS);
+    expect(agent.setControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_FAST_AT);
+    expect(agent.sendAgentUpdate).toHaveBeenCalledTimes(1);
+    agent.setControlFlag.mockClear();
+    expect(session.setMovement({})).toEqual({ moving: false });
+    expect(agent.setControlFlag).not.toHaveBeenCalled();
+    expect(agent.clearControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_AT_POS);
+    expect(agent.sendAgentUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('tolerates node-metaverse throwing while no current region exists', () => {
+    const session = new ViewerSession(() => undefined);
+    session.bot = Object.defineProperty({}, 'currentRegion', { get: () => { throw new Error('currentRegion is undefined'); } });
+    expect(session.currentRegion()).toBeNull();
+    expect(session.getSceneObjects()).toEqual([]);
+    expect(session.getDiagnostics()).toMatchObject({ connected: true, regionName: '' });
   });
 });
