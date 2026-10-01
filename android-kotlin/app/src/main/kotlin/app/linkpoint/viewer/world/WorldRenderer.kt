@@ -106,9 +106,12 @@ class WorldRenderer(
     fun start() { if (!started) { started = true; Choreographer.getInstance().postFrameCallback(this) } }
     fun stop() { started = false; Choreographer.getInstance().removeFrameCallback(this) }
 
-    override fun surfaceCreated(holder: SurfaceHolder) { swapChain = engine.createSwapChain(holder.surface) }
+    @Volatile private var destroyed = false
+
+    override fun surfaceCreated(holder: SurfaceHolder) { if (!destroyed) swapChain = engine.createSwapChain(holder.surface) }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        if (destroyed) return
         view.viewport = Viewport(0, 0, width, height)
         viewportHeight = height
         aspect = width.toDouble() / height.coerceAtLeast(1)
@@ -116,6 +119,7 @@ class WorldRenderer(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        if (destroyed) return
         swapChain?.let { engine.destroySwapChain(it) }
         swapChain = null
     }
@@ -398,7 +402,9 @@ class WorldRenderer(
     // ---- teardown ------------------------------------------------------------------------------
 
     fun destroy() {
+        if (destroyed) return
         stop()
+        engine.flushAndWait() // let in-flight frames finish before resources go away
         for (d in drawn.values) destroyDrawn(d)
         drawn.clear()
         for (f in primCache.values.flatten() + meshCache.values.flatten() + sculptCache.values.flatten()) f.destroy(engine)
@@ -411,6 +417,8 @@ class WorldRenderer(
         materials.destroy()
         engine.destroySkybox(skybox)
         swapChain?.let { engine.destroySwapChain(it) }
+        swapChain = null
+        destroyed = true
         engine.destroyView(view); engine.destroyScene(scene); engine.destroyRenderer(renderer)
         engine.destroyCameraComponent(cameraEntity); EntityManager.get().destroy(cameraEntity)
         engine.destroy()

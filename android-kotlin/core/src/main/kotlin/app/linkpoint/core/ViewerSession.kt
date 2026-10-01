@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.withLock
 
 /**
  * A live Second Life session: one UDP circuit, the capability event queue, and the state the UI
@@ -74,7 +75,7 @@ class ViewerSession(
     private var login: LoginResult? = null
     private lateinit var agentId: UUID
     private lateinit var sessionId: UUID
-    private var circuit: Circuit? = null
+    @Volatile private var circuit: Circuit? = null
     private var jobs = mutableListOf<Job>()
     private var circuitJobs = mutableListOf<Job>()
     private val names = HashMap<UUID, String>()
@@ -117,13 +118,20 @@ class ViewerSession(
         }
     }
 
+    private val switchLock = kotlinx.coroutines.sync.Mutex()
+
     /** Open a circuit to a simulator and complete the handshake. Used at login, teleport and region crossing. */
-    private suspend fun enterSimulator(ip: String, port: Int, seedCapability: String) {
+    private suspend fun enterSimulator(ip: String, port: Int, seedCapability: String) = switchLock.withLock {
         val code = login!!.circuitCode
-        val fresh = circuitFactory(scope, ip, port)
-        val done = CompletableDeferred<Unit>()
         val previous = circuit
         val previousJobs = circuitJobs
+        // Stop listening to the old simulator and forget its region *before* the new circuit starts: the new
+        // simulator begins streaming terrain and objects as soon as it accepts us, and those must not be wiped.
+        previousJobs.forEach { it.cancel() }
+        scene.clear(); heightmap.clear(); _nearby.value = emptyList()
+
+        val fresh = circuitFactory(scope, ip, port)
+        val done = CompletableDeferred<Unit>()
         movementDone = done
         circuitJobs = mutableListOf()
         circuit = fresh
@@ -136,15 +144,12 @@ class ViewerSession(
             withTimeout(30_000) { done.await() }
         } catch (e: TimeoutCancellationException) {
             fresh.close(); circuitJobs.forEach { it.cancel() }
-            circuit = previous; circuitJobs = previousJobs
+            // Go back to listening to the old simulator, if there was one.
+            circuit = previous
+            circuitJobs = if (previous != null) mutableListOf(scope.launch { previous.messages.collect { onMessage(it) } }) else mutableListOf()
             throw java.io.IOException("The simulator did not complete the handshake in 30 seconds")
         }
         previous?.close()
-        previousJobs.forEach { it.cancel() }
-        _nearby.value = emptyList()
-        scene.clear()
-        heightmap.clear()
-        _environment.value = RegionEnvironment.FALLBACK
         startCaps(seedCapability)
     }
 
