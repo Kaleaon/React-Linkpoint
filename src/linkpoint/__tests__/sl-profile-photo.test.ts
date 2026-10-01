@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { profileUsername, profilePhotoUrl, fetchProfilePhoto, MAX_BYTES } = require('../../../electron/sl-profile-photo.cjs');
+const { profileUsername, profilePhotoUrl, fetchProfilePhoto, MAX_BYTES } = require('../../../core/sl-profile-photo.cjs');
 
 const reply = (status: number, body: Uint8Array | string = '', type = 'image/png') => ({
   status, ok: status >= 200 && status < 300,

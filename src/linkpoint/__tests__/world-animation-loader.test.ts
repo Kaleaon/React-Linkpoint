@@ -4,7 +4,7 @@ import { WorldViewer } from '../world';
 import { Utils } from '../utils';
 
 const require = createRequire(import.meta.url);
-const { downloadAnimation } = require('../../../electron/sl-animations.cjs');
+const { downloadAnimation } = require('../../../core/sl-animations.cjs');
 
 class ProtocolStub extends Utils.EventEmitter {
   connected = true;

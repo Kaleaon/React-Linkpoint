@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { serializeAnimationMessage, subscribeAnimations, watchAnimations } = require('../../../electron/sl-animations.cjs');
+const { serializeAnimationMessage, subscribeAnimations, watchAnimations } = require('../../../core/sl-animations.cjs');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
-const { serializeObject } = require('../../../electron/viewer-session.cjs');
+const { serializeObject } = require('../../../core/viewer-session.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
 

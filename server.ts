@@ -10,7 +10,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import dgram from "dgram";
 import { createRequire } from "module";
 const requireCjs = createRequire(import.meta.url);
-const { fetchProfilePhoto } = requireCjs("./electron/sl-profile-photo.cjs") as {
+const { fetchProfilePhoto } = requireCjs("./core/sl-profile-photo.cjs") as {
   fetchProfilePhoto: (name: string, options?: { thumbnail?: boolean }) => Promise<{ base64: string; contentType: string } | null>;
 };
 import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy.ts";
@@ -138,7 +138,7 @@ export async function createApp() {
     }
   });
 
-  // Viewer actions. Each validates its own input (electron/sl-actions.cjs) and
+  // Viewer actions. Each validates its own input (core/sl-actions.cjs) and
   // reports only what the grid answered.
   const action = (run: (sessionId: string, body: any) => any) => async (req: any, res: any) => {
     try {

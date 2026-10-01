@@ -5,7 +5,7 @@ import { dayFraction, directionFrom, skyAt, skyState, waterAt } from '../eep';
 const require = createRequire(import.meta.url);
 const { LLSD } = require('@caspertech/node-metaverse/dist/lib/classes/llsd/LLSD');
 const { RegionEnvironment } = require('@caspertech/node-metaverse/dist/lib/classes/public/RegionEnvironment');
-const { serializeEnvironment } = require('../../../electron/viewer-session.cjs');
+const { serializeEnvironment } = require('../../../core/viewer-session.cjs');
 
 const sky = (name: string, sunlight: string, sunRotation: string) =>
   `{'type':'sky','name':'${name}','sunlight_color':[${sunlight}],'sun_rotation':[${sunRotation}],'moon_rotation':[r0,r0.7071,r0,r0.7071],` +

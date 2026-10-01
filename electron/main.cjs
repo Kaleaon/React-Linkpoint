@@ -1,9 +1,13 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net: electronNet } = require('electron');
 const dns = require('node:dns').promises;
 const net = require('node:net');
 const path = require('node:path');
-const { ViewerSession } = require('./viewer-session.cjs');
-const { fetchProfilePhoto } = require('./sl-profile-photo.cjs');
+const { ViewerSession } = require('../core/viewer-session.cjs');
+const { fetchProfilePhoto } = require('../core/sl-profile-photo.cjs');
+const { APP_SCHEME_REGISTRATION, APP_URL, registerAppProtocol } = require('./app-protocol.cjs');
+
+// The window loads the app over a privileged scheme (not file://) so it can fetch() its bundled assets.
+protocol.registerSchemesAsPrivileged([APP_SCHEME_REGISTRATION]);
 
 const LOGIN_HOSTS = new Set([
   'login.agni.lindenlab.com',
@@ -122,10 +126,11 @@ function createWindow() {
   });
   window.removeMenu();
   window.once('ready-to-show', () => window.show());
-  window.loadFile(path.join(__dirname, '../dist/index.html'));
+  window.loadURL(APP_URL);
 }
 
 app.whenReady().then(() => {
+  registerAppProtocol({ protocol, net: electronNet }, path.join(__dirname, '../dist'));
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

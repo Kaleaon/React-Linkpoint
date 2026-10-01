@@ -11,14 +11,14 @@ import { createRequire } from 'node:module';
 import { v4 as uuidv4 } from 'uuid';
 
 const require = createRequire(import.meta.url);
-const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('../../electron/sl-asset-decoder.cjs') as {
+const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('../../core/sl-asset-decoder.cjs') as {
   decodeLLMesh: (buffer: Buffer) => Promise<any>;
   decodeGLTFMaterial: (buffer: Buffer) => any;
   decodeSculpt: (buffer: Buffer, type?: number) => Promise<any>;
   decodeJPEG2000: (buffer: Buffer) => Promise<any>;
 };
 
-const actions = require('../../electron/sl-actions.cjs') as {
+const actions = require('../../core/sl-actions.cjs') as {
   attachmentInfo: (object: any) => { attachmentPoint: number; attachmentName: string | null; isHud: boolean };
   buildLoginParams: (request: any) => any;
   parseLoginName: (name: string) => { firstName: string; lastName: string };
@@ -30,14 +30,14 @@ const actions = require('../../electron/sl-actions.cjs') as {
   getBalance: (bot: any) => Promise<any>;
 };
 
-const { serializeTerrainMaterials } = require('../../electron/sl-terrain.cjs') as {
+const { serializeTerrainMaterials } = require('../../core/sl-terrain.cjs') as {
   serializeTerrainMaterials: (region: any) => { textureIds: Array<string | null> } | null;
 };
-const { watchAnimations, downloadAnimation } = require('../../electron/sl-animations.cjs') as {
+const { watchAnimations, downloadAnimation } = require('../../core/sl-animations.cjs') as {
   watchAnimations: (getRegion: () => any, send: (type: string, data: any) => void, intervalMs?: number) => { unsubscribe(): void };
   downloadAnimation: (bot: any, id: string) => Promise<string>;
 };
-const interactions = require('../../electron/sl-interactions.cjs') as {
+const interactions = require('../../core/sl-interactions.cjs') as {
   PendingInteractions: new () => { clear: () => void };
   subscribeInteractions: (events: any, pending: any, send: (type: string, data: any) => void) => Array<{ unsubscribe: () => void }>;
   respondScriptDialog: (bot: any, pending: any, params: any) => Promise<{ answered: boolean }>;
@@ -220,7 +220,7 @@ export async function createSLSession(params: {
   mfaHash?: string;
 }) {
   // Name, start location and MFA fields are validated and normalized in one shared
-  // place (electron/sl-actions.cjs) so the web and desktop logins behave alike.
+  // place (core/sl-actions.cjs) so the web and desktop logins behave alike.
   const { firstName, lastName } = actions.parseLoginName(params.username);
   const loginParams = actions.buildLoginParams(params);
 

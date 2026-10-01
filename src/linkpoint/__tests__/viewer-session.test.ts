@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../electron/viewer-session.cjs');
+const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../core/viewer-session.cjs');
 
 describe('desktop simulator object bridge', () => {
   it('serializes native friends for the renderer process', () => {
@@ -174,7 +174,7 @@ describe('desktop simulator object bridge', () => {
 
 describe('desktop session script dialogs and lures', () => {
   const { Bot } = require('@caspertech/node-metaverse');
-  const { ViewerSession } = require('../../../electron/viewer-session.cjs');
+  const { ViewerSession } = require('../../../core/viewer-session.cjs');
   const uuid = (value: string) => ({ toString: () => value });
 
   async function sessionAfterSubscribing() {

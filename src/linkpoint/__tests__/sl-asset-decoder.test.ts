@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const sharp = require('sharp');
-const { computeNormals, decodeJPEG2000, decodeSculpt, normalizeLLMesh, normalizeGLTFMaterial } = require('../../../electron/sl-asset-decoder.cjs');
+const { computeNormals, decodeJPEG2000, decodeSculpt, normalizeLLMesh, normalizeGLTFMaterial } = require('../../../core/sl-asset-decoder.cjs');
 
 describe('Second Life glTF PBR materials', () => {
   it('normalizes metallic-roughness effects and SL texture asset references', () => {

@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   TEXT_BOX_MARKER, MAX_REPLY_BYTES, serializeScriptDialog, serializeLure, PendingInteractions,
   subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction, serializeGroupNotice,
-} = require('../../../electron/sl-interactions.cjs');
+} = require('../../../core/sl-interactions.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
 const dialogEvent = (over: any = {}) => ({
