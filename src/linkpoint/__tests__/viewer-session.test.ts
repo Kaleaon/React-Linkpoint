@@ -70,6 +70,7 @@ describe('desktop simulator object bridge', () => {
         materialOverride: null,
       }],
       reflectionProbe: null,
+      particles: null,
       color: [1, 1, 1, 1],
       shapeParams: {
         pathCurve: undefined, profileCurve: undefined,
@@ -171,6 +172,19 @@ describe('desktop simulator object bridge', () => {
     expect(result.faceTextures[0].materialId).toBe('material-id');
     expect(result.reflectionProbe).toMatchObject({ ambiance: .75, clipDistance: .1, box: true, dynamic: true, mirror: true });
   });
+
+  it('serializes scripted particle sources for the renderer', () => {
+    const result = serializeObject({ localID: 13, object: {
+      FullID: { toString: () => 'emitter' }, PCode: 9,
+      Particles: {
+        pattern: 2, maxAge: 10, burstRate: .2, burstRadius: 1, burstSpeedMin: 2, burstSpeedMax: 4, burstPartCount: 3,
+        acceleration: { x: 0, y: 0, z: -1 }, target: { toString: () => 'target' }, texture: { toString: () => 'particle-texture' },
+        dataFlags: 259, partMaxAge: 2, startColor: { getRed: () => 1, getGreen: () => .5, getBlue: () => 0, getAlpha: () => 1 },
+        endColor: { red: 0, green: 0, blue: 1, alpha: 0 }, startScaleX: .5, startScaleY: 1, endScaleX: 2, endScaleY: 3,
+      },
+    } });
+    expect(result.particles).toMatchObject({ pattern: 2, burstPartCount: 3, acceleration: [0, 0, -1], targetId: 'target', textureId: 'particle-texture', startColor: [1, .5, 0, 1], endScale: [2, 3] });
+  });
 });
 
 describe('desktop session script dialogs and lures', () => {
@@ -256,6 +270,26 @@ describe('desktop session texture downloads', () => {
 
     await expect(session.downloadTexture('texture-id')).resolves.toBe(downloaded);
     expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture-id');
+  });
+
+  it('allows transiently failed assets to retry instead of leaving their proxy forever', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+    const sent: Array<[string, any]> = [];
+    const session = new ViewerSession((type: string, data: any) => sent.push([type, data]));
+    session.bot = { clientCommands: { asset: { downloadAsset: vi.fn() } } };
+    const download = vi.fn().mockRejectedValueOnce(new Error('capability still starting')).mockResolvedValue(Buffer.from('ok'));
+    const ready = vi.fn();
+    session.streamAsset('mesh:test', AssetType.Mesh, 'test', download, ready);
+    await session.assetRequests.get('mesh:test');
+    expect(session.assetRequests.has('mesh:test')).toBe(false);
+    expect(sent.at(-1)?.[0]).toBe('asset-error');
+    vi.advanceTimersByTime(5001);
+    session.streamAsset('mesh:test', AssetType.Mesh, 'test', download, ready);
+    await session.assetRequests.get('mesh:test');
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(ready).toHaveBeenCalledWith(Buffer.from('ok'));
+    vi.useRealTimers();
   });
 });
 

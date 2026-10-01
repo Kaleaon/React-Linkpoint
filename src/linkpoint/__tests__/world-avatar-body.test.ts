@@ -48,11 +48,14 @@ describe('avatar body in the world', () => {
     expect(scene.objects.has('av:legs')).toBe(false);
   });
 
-  it('falls back to placeholder shapes while the body meshes are unavailable', () => {
-    const { protocol, scene } = setup(false);
+  it('does not regress to block and cylinder placeholders while body meshes load', () => {
+    const { protocol, world, scene } = setup(false);
+    // Keep this test focused on the synchronous loading state rather than issuing real fetches.
+    (world as any).loadBody = () => new Promise(() => undefined);
     protocol.emit('scene:object-add', avatar);
     expect(bodyIds(scene)).toEqual([]);
-    expect(scene.objects.has('av:legs')).toBe(true);
+    expect(scene.objects.has('av:legs')).toBe(false);
+    expect(scene.objects.get('av').visible).toBe(false);
   });
 
   it('re-poses the body from running animations and removes every part with the avatar', async () => {
@@ -111,5 +114,14 @@ describe('avatar body in the world', () => {
     expect(scene.objects.get('av:body:upperBody').faces).toEqual([]);
     protocol.emit('scene:texture-ready', { assetId: 'late-bake', width: 1, height: 1, rgba: btoa('\u00ff\u00ff\u00ff\u00ff') });
     expect(scene.objects.get('av:body:upperBody').faces[0].texture).toBe('texture:late-bake');
+  });
+
+  it('keeps the last-known-good bake while a replacement is incomplete', () => {
+    const { protocol, world, scene } = setup(true);
+    (world as any).decodedTextures.set('good-bake', {});
+    protocol.emit('scene:object-add', { ...avatar, faceTextures: faces({ 9: 'good-bake' }) });
+    expect(scene.objects.get('av:body:upperBody').faces[0].texture).toBe('texture:good-bake');
+    protocol.emit('scene:object-update', { ...avatar, faceTextures: faces({ 9: 'replacement-not-loaded' }) });
+    expect(scene.objects.get('av:body:upperBody').faces[0].texture).toBe('texture:good-bake');
   });
 });

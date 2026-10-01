@@ -16,6 +16,7 @@ import { generateVolume, volumeKey, volumeParamsFrom, type VolumeFace } from './
 import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
 import { BODY_PARTS, bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, type BodyPartGeometry } from './avatar-body';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
+import { ParticleEngine } from './particles';
 
 export class WorldViewer extends Utils.EventEmitter {
   /**
@@ -51,6 +52,8 @@ export class WorldViewer extends Utils.EventEmitter {
   private decodedAssets = new Map<string, any>();
   private decodedTextures = new Map<string, any>();
   private decodedMaterials = new Map<string, any>();
+  private particles = new ParticleEngine();
+  private renderedParticles = new Set<string>();
 
   public getDataStatus() {
     if (!this.protocol.connected) return 'Disconnected';
@@ -91,6 +94,9 @@ export class WorldViewer extends Utils.EventEmitter {
       this.displayedHud = null;
       this.hudSignature = '';
       this.sceneObjects.clear();
+      this.particles.clear();
+      this.renderedParticles.clear();
+      this.avatarBakes.clear();
       this.localObjectIds.clear();
       this.objects = [];
       this.emit('region_changed', null);
@@ -258,6 +264,8 @@ export class WorldViewer extends Utils.EventEmitter {
   private bodyLoad: Promise<void> | null = null;
   private bodyMeshesReadyFor: unknown = null;
   private bodySkins = new Map<string, ReturnType<typeof bodyPartSkin>>();
+  /** Official-viewer style last-known-good baked texture per avatar/body layer. */
+  private avatarBakes = new Map<string, string>();
   /** Objects whose skin currently holds an animated pose (restored to rest when their animation ends). */
   private posedObjects = new Set<string>();
 
@@ -522,6 +530,7 @@ export class WorldViewer extends Utils.EventEmitter {
         this.camera3d.updateMatrices();
         this.updateAnimatedSkins();
         this.updateAnimatedAvatars();
+        this.updateParticles(time / 1000);
         this.scene3d.render();
       }
       this.animationId = requestAnimationFrame(render);
@@ -546,7 +555,6 @@ export class WorldViewer extends Utils.EventEmitter {
     this.resizeObserver = null;
     this.cameraControls?.destroy();
     this.cameraControls = null;
-    if (this.bodyRetryTimer) { clearTimeout(this.bodyRetryTimer); this.bodyRetryTimer = null; }
     if (this.lastMovement && this.protocol.connected) {
       this.lastMovement = '';
       void this.protocol.setMovement({ forward: 0, right: 0, up: 0, turn: 0, run: false }).catch(() => undefined);
@@ -555,6 +563,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.graphics3d = null;
     this.camera3d = null;
     this.scene3d = null;
+    this.renderedParticles.clear();
     this.canvas = null;
   }
 
@@ -681,6 +690,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const previous = this.sceneObjects.get(object.id);
     const merged = previous ? { ...previous, ...object } : object;
     this.sceneObjects.set(object.id, merged);
+    this.particles.setEmitter(object.id, merged.particles || null, performance.now() / 1000);
     if (object.localId) this.localObjectIds.set(object.localId, object.id);
     this.objects = Array.from(this.sceneObjects.values());
     this.applySceneObject(merged);
@@ -862,7 +872,30 @@ export class WorldViewer extends Utils.EventEmitter {
     if (object.avatar) this.applyAvatarParts(object.id, config, object);
   }
 
-  /** Load the base avatar meshes once; on failure avatars keep the placeholder shapes and the load is retried. */
+  /** Advance simulator particle sources and draw camera-facing, textured translucent sprites. */
+  private updateParticles(now: number) {
+    if (!this.scene3d || !this.camera3d) return;
+    const positions = new Map<string, number[]>();
+    for (const object of this.sceneObjects.values()) positions.set(object.id, this.worldTransform(object).position);
+    const frames = this.particles.update(now, positions);
+    const live = new Set<string>();
+    // A plane starts in XY. Match its normal to the view direction with the camera pitch/yaw.
+    const rotation = [Math.PI / 2 - this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
+    for (const particle of frames) {
+      const id = `particle:${particle.id}`;
+      live.add(id);
+      const texture = particle.textureId && this.decodedTextures.has(particle.textureId) ? `texture:${particle.textureId}` : undefined;
+      const config = {
+        mesh: 'particle-sprite', position: particle.position, rotation, scale: [particle.scale[0], particle.scale[1], 1],
+        color: particle.color, texture, faces: [{ texture, color: particle.color, fullBright: particle.emissive, pbr: { alphaMode: 'BLEND' } }],
+      };
+      if (this.scene3d.objects.has(id)) this.scene3d.updateObject(id, config); else this.scene3d.addObject(id, config);
+    }
+    for (const id of this.renderedParticles) if (!live.has(id)) this.scene3d.removeObject(id);
+    this.renderedParticles = live;
+  }
+
+  /** Load the base avatar meshes once; on failure avatars keep the placeholder shapes. */
   private loadBody(): Promise<void> {
     if (this.bodyParts) return Promise.resolve();
     this.bodyLoad ||= loadBodyParts()
@@ -928,8 +961,13 @@ export class WorldViewer extends Utils.EventEmitter {
   private bakedTexture(object: any, bake: string): string | null {
     const index = WorldViewer.BAKED_FACE[bake];
     const textureId: string | null | undefined = object?.faceTextures?.[index]?.textureId;
-    if (!textureId || WorldViewer.UNBAKED_TEXTURES.has(textureId) || !this.decodedTextures.has(textureId)) return null;
-    return `texture:${textureId}`;
+    const key = `${object?.id || ''}:${bake}`;
+    if (textureId && !WorldViewer.UNBAKED_TEXTURES.has(textureId) && this.decodedTextures.has(textureId)) {
+      this.avatarBakes.set(key, textureId);
+      return `texture:${textureId}`;
+    }
+    const previous = this.avatarBakes.get(key);
+    return previous && this.decodedTextures.has(previous) ? `texture:${previous}` : null;
   }
 
   private applyAvatarBody(id: string, config: any, object?: any) {
@@ -972,14 +1010,15 @@ export class WorldViewer extends Utils.EventEmitter {
   private applyAvatarParts(id: string, config: any, object?: any) {
     if (!this.scene3d) return;
     if (this.bodyParts && this.bodyMeshesReadyFor === this.scene3d) return this.applyAvatarBody(id, config, object);
-    const [x, y, z] = config.position;
-    const parts = [
-      [`${id}:body`, { ...config, mesh: 'cylinder', position: [x, y, z + .95], scale: [.42, .3, .85] }],
-      [`${id}:head`, { ...config, mesh: 'sphere', position: [x, y, z + 2.05], scale: [.38, .38, .42], color: [.82, .62, .48, 1] }],
-      [`${id}:legs`, { ...config, mesh: 'cylinder', position: [x, y, z + .15], scale: [.32, .25, .75], color: [.16, .24, .38, 1] }],
-    ] as const;
-    for (const [partId, part] of parts) this.scene3d.objects.has(partId) ? this.scene3d.updateObject(partId, part) : this.scene3d.addObject(partId, part);
+    // Do not regress avatars to block/cylinder stand-ins during renderer startup. Load the real
+    // skinned body lazily and replace the hidden simulator marker as soon as its meshes are ready.
     this.scene3d.updateObject(id, { visible: false });
+    const scene = this.scene3d;
+    void this.loadBody().then(() => {
+      if (this.scene3d !== scene || !this.bodyParts) return;
+      this.installBodyMeshes(scene);
+      for (const avatar of this.sceneObjects.values()) if (avatar.avatar) this.applySceneObject(avatar);
+    });
   }
 
   private removeSceneObject(object: any, emitChanged = true) {
@@ -990,6 +1029,8 @@ export class WorldViewer extends Utils.EventEmitter {
     this.sceneObjects.delete(id);
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
+    this.particles.removeEmitter(id);
+    for (const key of this.avatarBakes.keys()) if (key.startsWith(`${id}:`)) this.avatarBakes.delete(key);
     this.posedObjects.delete(id);
     this.scene3d?.removeObject(id);
     for (const suffix of [':body', ':head', ':legs', ...BODY_PARTS.map((p) => `:body:${p.instance}`)]) this.scene3d?.removeObject(`${id}${suffix}`);

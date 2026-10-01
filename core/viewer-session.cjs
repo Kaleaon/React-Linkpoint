@@ -38,6 +38,7 @@ class ViewerSession {
     this.bot = null;
     this.subscriptions = [];
     this.assetRequests = new Map();
+    this.assetFailures = new Map();
     this.decodedAssets = new Map();
     this.friendPresence = new Map();
     this.pending = new interactions.PendingInteractions();
@@ -71,12 +72,20 @@ class ViewerSession {
   /** Download, decode and stream one asset once; failures are reported to the client as `asset-error`. */
   streamAsset(key, kind, assetId, download, ready) {
     if (this.assetRequests.has(key)) return;
+    if (Date.now() - (this.assetFailures.get(key) || 0) < 5000) return;
     const request = (async () => {
       const buffer = download
         ? await download()
         : await this.bot.clientCommands.asset.downloadAsset(kind, assetId);
       await ready(buffer);
-    })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
+      this.assetFailures.delete(key);
+    })().catch((error) => {
+      // A failed promise must not poison this asset for the rest of the session. Object updates can
+      // retry it after a short backoff, which is important while region capabilities are settling.
+      this.assetRequests.delete(key);
+      this.assetFailures.set(key, Date.now());
+      this.send('asset-error', { assetId, message: error.message });
+    });
     this.assetRequests.set(key, request);
   }
 
@@ -123,7 +132,7 @@ class ViewerSession {
 
   loadObjectTexture(object) {
     const appearance = primAppearance(object);
-    const ids = new Set([appearance.textureId, ...appearance.faceTextures.map((face) => face.textureId)].filter(Boolean));
+    const ids = new Set([appearance.textureId, appearance.particles?.textureId, ...appearance.faceTextures.map((face) => face.textureId)].filter(Boolean));
     for (const assetId of ids) this.loadTexture(assetId);
   }
 
@@ -565,6 +574,7 @@ class ViewerSession {
       try { subscription.unsubscribe(); } catch { /* already gone */ }
     }
     this.assetRequests.clear();
+    this.assetFailures.clear();
     this.decodedAssets.clear();
     this.pending.clear();
     if (!this.bot) return;

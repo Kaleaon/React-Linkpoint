@@ -62,6 +62,15 @@ function primAppearance(object) {
   const sculptData = object.SculptData || object.extraParams?.sculptData;
   const renderMaterials = object.RenderMaterialData || object.extraParams?.renderMaterialData;
   const reflection = object.ReflectionProbeData || object.extraParams?.reflectionProbeData;
+  const ps = object.Particles;
+  const particleColor = (color, fallback) => color ? [color.getRed?.() ?? color.red, color.getGreen?.() ?? color.green, color.getBlue?.() ?? color.blue, color.getAlpha?.() ?? color.alpha].map((v, i) => finite(Number(v), fallback[i])) : fallback;
+  const particles = ps ? {
+    pattern: finite(ps.pattern), maxAge: finite(ps.maxAge), burstRate: finite(ps.burstRate, 0.1), burstRadius: finite(ps.burstRadius),
+    burstSpeedMin: finite(ps.burstSpeedMin), burstSpeedMax: finite(ps.burstSpeedMax), burstPartCount: finite(ps.burstPartCount),
+    acceleration: vector(ps.acceleration), targetId: ps.target?.toString?.() || null, textureId: ps.texture?.toString?.() || null,
+    dataFlags: finite(ps.dataFlags), partMaxAge: finite(ps.partMaxAge, 1), startColor: particleColor(ps.startColor, [1, 1, 1, 1]), endColor: particleColor(ps.endColor, [1, 1, 1, 0]),
+    startScale: [finite(ps.startScaleX, 1), finite(ps.startScaleY, 1)], endScale: [finite(ps.endScaleX, 1), finite(ps.endScaleY, 1)],
+  } : null;
   // The simulator sends meshes as sculpt parameters whose type is 5 (the mesh asset id sits where a
   // sculpt's texture id would); the separate mesh parameter is the same payload. A sculpt is type 1-4.
   const zero = (id) => !id || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(String(id));
@@ -108,6 +117,7 @@ function primAppearance(object) {
       ambiance: finite(reflection.ambiance), clipDistance: finite(reflection.clipDistance), flags: finite(reflection.flags),
       box: Boolean(reflection.flags & 1), dynamic: Boolean(reflection.flags & 2), mirror: Boolean(reflection.flags & 4),
     } : null,
+    particles,
     color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
     shapeParams: {
       pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,

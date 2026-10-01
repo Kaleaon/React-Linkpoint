@@ -111,6 +111,8 @@ export class Scene3D extends Utils.EventEmitter {
     // Plane
     const plane = Primitives3D.createPlane(10, 10, 10, 10);
     this.graphics.createMesh('plane', plane.vertices, plane.indices, plane.normals, plane.texCoords);
+    const particleSprite = Primitives3D.createPlane(1, 1);
+    this.graphics.createMesh('particle-sprite', particleSprite.vertices, particleSprite.indices, particleSprite.normals, particleSprite.texCoords);
     
     // Cylinder
     const cylinder = Primitives3D.createCylinder(0.5, 0.5, 1, 32);
