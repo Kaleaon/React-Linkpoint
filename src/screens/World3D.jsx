@@ -41,13 +41,13 @@ export default function World3D({ desktopBackdrop = false }) {
     : { flex: 1, minHeight: 0, position: "relative", background: "#000" };
 
   return <section aria-label="3D world view" style={sceneStyle}>
-    <canvas id="world-canvas" aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
+    <canvas id="world-canvas" aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom. W A S D or arrow keys move the camera.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
     {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
       {dataStatus}<br />
       {objectCount} simulator objects
-      <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan<br />Wheel/pinch: zoom · WASD/QE: move</div>
+      <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan · Wheel/pinch: zoom<br />WASD / ↑↓: move · ←→: turn · E/Q: up/down · Shift: run</div>
       <div style={{ marginTop: 4 }}>
         <button
           type="button"

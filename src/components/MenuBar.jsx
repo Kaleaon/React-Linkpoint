@@ -2,13 +2,15 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { FMENU, FLOATERS } from "../theme/constants.js";
 import { app } from "../linkpoint/app.ts";
+import { deskKind } from "../theme/deskStyle.js";
 
 // Ported from `fmBar`/`fmMenus` — the desktop-only File/Edit/View/World/
 // Build/Help bar with Firestorm-style interactive menu commands.
 export default function MenuBar() {
   const { state, actions } = useApp();
-  const { V, t, ink, isFloat, isSweepDesk } = useTheme();
+  const { V, t, ink, isFloat } = useTheme();
   if (!isFloat) return null;
+  const kind = deskKind(t);
 
   const handleMenuClick = async (menuLabel, itemLabel) => {
     actions.setMenu(null);
@@ -30,7 +32,7 @@ export default function MenuBar() {
   };
 
   return (
-    <div style={{ flex: "none", display: "flex", alignItems: "stretch", height: "28px", padding: "0 8px", background: V.surf, borderBottom: (isSweepDesk ? "2px solid " : "1px solid ") + (isSweepDesk ? V.pri : V.outv), position: "relative", zIndex: 80 }} onClick={() => state.menu && actions.setMenu(null)}>
+    <div style={{ flex: "none", display: "flex", alignItems: "stretch", height: "28px", padding: "0 8px", background: kind === "metro" ? V.bg : V.surf, borderBottom: kind === "sweep" ? "2px solid " + V.pri : kind === "metro" ? "none" : "1px solid " + V.outv, position: "relative", zIndex: 80 }} onClick={() => state.menu && actions.setMenu(null)}>
       {FMENU.map((mm) => {
         const open = state.menu === mm.label;
         const win = mm.items === "WINDOWS";
@@ -42,7 +44,7 @@ export default function MenuBar() {
                 e.stopPropagation();
                 actions.setMenu(state.menu === mm.label ? null : mm.label);
               }}
-              style={{ display: "flex", alignItems: "center", height: "100%", padding: "0 10px", cursor: "pointer", background: open ? V.pri : "transparent", color: open ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink, font: (isSweepDesk ? "700 11px/1 " + t.dfont : "500 11px/1 " + t.font), letterSpacing: (isSweepDesk ? ".12em" : ".04em"), borderRadius: isSweepDesk ? "999px" : V.rs, textTransform: isSweepDesk ? "uppercase" : "none" }}
+              style={{ display: "flex", alignItems: "center", height: "100%", padding: "0 10px", cursor: "pointer", background: open ? V.pri : "transparent", color: open ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink, font: kind === "sweep" ? "700 11px/1 " + t.dfont : kind === "metro" ? "300 13px/1 " + t.dfont : "500 11px/1 " + t.font, letterSpacing: kind === "sweep" ? ".12em" : kind === "metro" ? "0" : ".04em", borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, textTransform: kind === "sweep" ? "uppercase" : kind === "metro" ? "lowercase" : "none" }}
             >
               {mm.label}
             </div>
