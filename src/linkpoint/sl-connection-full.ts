@@ -510,10 +510,16 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async sendGroupMessage(groupId: string, message: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
+    if (window.linkpointDesktop?.sendGroupMessage) {
+      await window.linkpointDesktop.sendGroupMessage({ groupId, message });
+      return;
+    }
     if (slBridge.connected) {
       await slBridge.sendGroupMessage(groupId, message);
       return;
     }
+    // Never fall back to local chat: a group message must not be spoken in the region.
+    throw new Error('Group chat is unavailable on this connection');
   }
 
   async sendFriendRequest(recipientId: string, message?: string) {

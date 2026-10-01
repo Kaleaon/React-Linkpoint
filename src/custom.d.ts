@@ -21,6 +21,8 @@ interface Window {
     connectViewer(request: { loginUrl: string; username: string; password: string; start?: string; mfaToken?: string; mfaHash?: string }): Promise<Record<string, any>>;
     sendChat(request: { message: string; channel?: number; type?: number }): Promise<void>;
     sendInstantMessage(request: { recipientId: string; message: string }): Promise<void>;
+    sendGroupMessage(request: { groupId: string; message: string }): Promise<void>;
+    fetchGroups(): Promise<Array<{ id: string; name: string; title?: string; insignia?: string; acceptNotices?: boolean }>>;
     sendFriendRequest(request: { recipientId: string; message?: string }): Promise<void>;
     fetchFriends(): Promise<any[]>;
     teleport(request: { destination?: string; region?: string; x?: number; y?: number; z?: number }): Promise<{ requested: { region: string; x: number; y: number; z: number }; message: string }>;

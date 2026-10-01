@@ -239,11 +239,11 @@ export class ChatManager extends Utils.EventEmitter {
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
     try {
-      if (typeof this.protocol?.sendGroupMessage === 'function') {
-        await this.protocol.sendGroupMessage(groupId, message);
-      } else {
-        await this.protocol.sendChat(message, 0, 1);
+      // Group messages must never degrade to local chat (which would broadcast them to the region).
+      if (typeof this.protocol?.sendGroupMessage !== 'function') {
+        throw new Error('Group chat is unavailable on this connection');
       }
+      await this.protocol.sendGroupMessage(groupId, message);
 
       const messageData = {
         id: Utils.generateUUID(),

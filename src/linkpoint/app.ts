@@ -181,8 +181,9 @@ export class LinkpointApp {
   async loadGroups() {
     if (!this.auth.isLoggedIn()) return [];
     try {
-      if (slBridge.connected) {
-        const groups = await slBridge.fetchGroups();
+      const desktopGroups = typeof window !== 'undefined' ? window.linkpointDesktop?.fetchGroups : undefined;
+      if (desktopGroups || slBridge.connected) {
+        const groups = desktopGroups ? await window.linkpointDesktop!.fetchGroups() : await slBridge.fetchGroups();
         if (Array.isArray(groups) && groups.length > 0) {
           for (const g of groups) {
             this.groups.setGroupInfo(g.id, g);

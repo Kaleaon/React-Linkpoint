@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
+import { sideBorder } from "../theme/look.js";
 import Icon from "./Icon.jsx";
 import { deskKind, deskGeometry, elbowPath, sweepSegmentFills } from "../theme/deskStyle.js";
 
@@ -65,7 +66,7 @@ export default function DesktopChrome() {
   const formStyle = kind === "sweep"
     ? { border: "none", borderRadius: 999, background: V.surf, paddingLeft: 14 }
     : kind === "metro"
-      ? { border: "none", borderBottom: "2px solid " + V.pri, borderRadius: 0, background: V.surf }
+      ? { ...sideBorder("Bottom", "2px", V.pri), borderRadius: 0, background: V.surf }
       : null;
   const balanceStyle = {
     color: kind === "sweep" ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink,

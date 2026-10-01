@@ -82,6 +82,8 @@ ipcMain.handle('linkpoint:viewer-connect', async (event, request) => {
 });
 ipcMain.handle('linkpoint:viewer-chat', (event, request) => sessionFor(event).sendChat(request.message, request.channel, request.type));
 ipcMain.handle('linkpoint:viewer-im', (event, request) => sessionFor(event).sendInstantMessage(request.recipientId, request.message));
+ipcMain.handle('linkpoint:viewer-group-message', (event, request) => sessionFor(event).sendGroupMessage(request.groupId, request.message));
+ipcMain.handle('linkpoint:viewer-groups', (event) => sessionFor(event).getGroups());
 ipcMain.handle('linkpoint:viewer-friend-request', (event, request) => sessionFor(event).sendFriendRequest(request.recipientId, request.message));
 ipcMain.handle('linkpoint:viewer-friends', (event) => sessionFor(event).getFriends());
 ipcMain.handle('linkpoint:viewer-teleport', (event, request) => sessionFor(event).teleport(request));

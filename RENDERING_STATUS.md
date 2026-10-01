@@ -31,6 +31,8 @@ renderer**.
 
 - Keyframe animation core (`src/linkpoint/avatar-animation.ts`): parses Second Life `.anim` data, samples rotation/position keys, applies Lumiya's loop/ease-in/ease-out timing and blends running animations by priority. Checked by parsing all 118 animations bundled in Lumiya's APK, plus unit tests. It is **not yet connected to any rendered avatar**: there is no skeleton, skinning or avatar mesh in the renderer, so nothing visibly animates yet.
 
+- Avatar skeleton (`src/linkpoint/avatar-skeleton.ts`, bone data from `scripts/extract-lumiya-skeleton.py`): the full 159-bone Bento hierarchy with legacy joint aliases, posing from blended animations, rigged-mesh skin matrices and Bento-style joint position overrides (alternate inverse bind / pelvis offset). Unit-tested, **not yet used by the renderer**.
+
 ## Not implemented yet
 
 - Second Life prim shape/path/profile sculpting.

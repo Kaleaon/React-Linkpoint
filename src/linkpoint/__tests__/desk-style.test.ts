@@ -42,13 +42,14 @@ describe('desktop layout families', () => {
 
   it('styles floaters per family: Sweep caps, Metro flat/borderless, default bordered', () => {
     const args = { V, t: { dfont: 'x', font: 'x' }, act: true, ink };
-    expect(floaterStyle('sweep', args).frame.borderLeft).toContain('10px solid');
+    expect(floaterStyle('sweep', args).frame).toMatchObject({ borderLeftStyle: 'solid', borderLeftWidth: '10px', borderTopStyle: 'none' });
     const metro = floaterStyle('metro', args);
-    expect(metro.frame).toMatchObject({ border: 'none', borderRadius: 0, boxShadow: 'none' });
+    expect(metro.frame).toMatchObject({ borderLeftStyle: 'none', borderRightStyle: 'none', borderRadius: 0, boxShadow: 'none' });
+    expect(metro.frame).not.toHaveProperty('border');
     expect(metro.bar.textTransform).toBe('lowercase');
     expect(metro.bar.font).toContain('300');
     expect(floaterStyle('default', args).frame.border).toContain('1px solid');
-    expect(floaterStyle('metro', { ...args, act: false }).frame.borderTop).toContain('transparent');
+    expect((floaterStyle('metro', { ...args, act: false }).frame as Record<string, unknown>).borderTopColor).toBe('transparent');
   });
 
   it('styles dock chips per family', () => {

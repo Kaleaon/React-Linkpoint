@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { FLOATERS, CBTN } from "../theme/constants.js";
+import { sideBorder, fullBorder } from "../theme/look.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
@@ -97,7 +98,7 @@ export default function FloatersDesktop() {
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             style={{
-              position: "absolute", right: "16px", bottom: G.dock + 12 + "px", padding: "8px", background: V.surf, ...(kind === "sweep" ? { border: "none", borderLeft: "10px solid " + V.pri, borderRadius: "26px 18px 18px 18px", boxShadow: "none" } : kind === "metro" ? { border: "none", borderTop: "3px solid " + V.pri, borderRadius: 0, boxShadow: "none" } : { border: "1px solid " + V.outv, borderRadius: V.rp, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }), display: "flex", flexDirection: "column", gap: "6px", zIndex: 20
+              position: "absolute", right: "16px", bottom: G.dock + 12 + "px", padding: "8px", background: V.surf, ...(kind === "sweep" ? { ...sideBorder("Left", "10px", V.pri), borderRadius: "26px 18px 18px 18px", boxShadow: "none" } : kind === "metro" ? { ...sideBorder("Top", "3px", V.pri), borderRadius: 0, boxShadow: "none" } : { ...fullBorder("1px", V.outv), borderRadius: V.rp, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }), display: "flex", flexDirection: "column", gap: "6px", zIndex: 20
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", borderBottom: "1px solid " + V.outv, paddingBottom: "4px" }}>

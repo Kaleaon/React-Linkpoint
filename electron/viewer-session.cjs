@@ -315,6 +315,26 @@ class ViewerSession {
     await this.bot.clientCommands.friends.sendFriendRequest(recipientId, message);
   }
 
+  async sendGroupMessage(groupId, message) {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    if (!groupId || !String(message || '').trim()) throw new Error('Group and message are required');
+    // Starts the group chat session on first use, then sends within it.
+    await this.bot.clientCommands.comms.sendGroupMessage(groupId, message);
+  }
+
+  async getGroups() {
+    if (!this.bot) throw new Error('Not connected to a simulator');
+    const agent = this.bot.clientCommands.agent;
+    const raw = await agent.getAvatarGroups(this.bot.agent.agentID);
+    return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).map((group) => ({
+      id: group.GroupID?.toString?.() || String(group.GroupID),
+      name: group.GroupName || 'Group',
+      title: group.GroupTitle || '',
+      insignia: group.GroupInsigniaID?.toString?.() || '',
+      acceptNotices: Boolean(group.AcceptNotices),
+    }));
+  }
+
   getFriends() {
     if (!this.bot) throw new Error('Not connected to a simulator');
     return (this.bot.agent?.buddyList || []).map((buddy) => {

@@ -70,6 +70,28 @@ export default function Chat() {
   }, []);
   const imThreads = useMemo(() => app.chat.getIMThreads(), [messages]);
 
+  // Groups for the group picker: known group records plus any group that has already spoken to us.
+  const [knownGroups, setKnownGroups] = useState(() => app.groups.getGroups());
+  useEffect(() => {
+    if (activeTab !== "GROUP") return undefined;
+    let cancelled = false;
+    Promise.resolve(app.loadGroups())
+      .then((list) => { if (!cancelled) setKnownGroups(Array.isArray(list) ? list : app.groups.getGroups()); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTab, connected]);
+  const groupOptions = useMemo(() => {
+    const byId = new Map(knownGroups.filter((g) => g?.id).map((g) => [g.id, { id: g.id, name: g.name || "Group" }]));
+    for (const m of messages) {
+      if (m.type === "group" && m.groupId && !byId.has(m.groupId)) byId.set(m.groupId, { id: m.groupId, name: m.groupName || "Group" });
+    }
+    return Array.from(byId.values());
+  }, [knownGroups, messages]);
+  const [selectedGroup, setSelectedGroup] = useState("");
+  useEffect(() => {
+    if (!selectedGroup && groupOptions.length === 1) setSelectedGroup(groupOptions[0].id);
+  }, [groupOptions, selectedGroup]);
+
   // Filter messages based on activeTab
   const visibleMessages = useMemo(() => {
     const myId = app.auth.user?.id;
@@ -150,6 +172,10 @@ export default function Chat() {
         }
 
         await app.chat.sendInstantMessage(targetId, text, targetName);
+      } else if (activeTab === "GROUP") {
+        const group = groupOptions.find((g) => g.id === selectedGroup);
+        if (!group) throw new Error("Select a group above before sending a group message.");
+        await app.chat.sendGroupMessage(group.id, text, group.name);
       } else {
         await app.chat.sendMessage(text, 0, 1);
       }
@@ -274,6 +300,41 @@ export default function Chat() {
               {savedNotice && <span style={{ fontSize: "10px", color: V.pri, fontWeight: 600 }}>SAVED!</span>}
             </div>
           </form>
+        )}
+
+        {/* Group Selector (When GROUP tab is active) */}
+        {activeTab === "GROUP" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: V.ink2, flexShrink: 0 }}>GROUP:</span>
+            {groupOptions.length === 0 && (
+              <span style={{ fontSize: "10px", color: V.ink2 }}>No groups available on this connection.</span>
+            )}
+            {groupOptions.map((g) => {
+              const isSelected = selectedGroup === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => setSelectedGroup(g.id)}
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: "10px",
+                    borderRadius: V.rs,
+                    borderWidth: 1,
+                    borderStyle: "solid",
+                    borderColor: isSelected ? V.pri : V.outv,
+                    background: isSelected ? V.pri : V.bg,
+                    color: isSelected ? V.onpri : V.ink,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  {g.name}
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {/* Instant Messenger Contact Selector (When IM tab is active) */}
@@ -407,7 +468,7 @@ export default function Chat() {
         {error && <div role="alert" style={{ color: V.err, marginBottom: 7, fontSize: "12px" }}>{error}</div>}
         <div style={{ display: "flex", gap: 8 }}>
           <label htmlFor="chat-input" className="sr-only">
-            {activeTab === "IM" ? `Instant message ${selectedContact || "resident"}` : "Message local chat"}
+            {activeTab === "IM" ? `Instant message ${selectedContact || "resident"}` : activeTab === "GROUP" ? "Message group chat" : "Message local chat"}
           </label>
           <input
             id="chat-input"
@@ -420,7 +481,7 @@ export default function Chat() {
                 : activeTab === "IM"
                 ? (selectedContact ? `Instant Message to ${selectedContact}…` : "Select a friend above or enter message…")
                 : activeTab === "GROUP"
-                ? "Send to group…"
+                ? (selectedGroup ? "Send to group…" : "Select a group above…")
                 : "Say to nearby region…"
             }
             autoComplete="off"
@@ -439,7 +500,7 @@ export default function Chat() {
           <button
             type="submit"
             disabled={!connected || !draft.trim() || sending}
-            aria-label={activeTab === "IM" ? "Send Instant Message" : "Send local chat"}
+            aria-label={activeTab === "IM" ? "Send Instant Message" : activeTab === "GROUP" ? "Send group message" : "Send local chat"}
             style={{ width: 48, border: 0, borderRadius: V.rs, background: V.pri, color: V.onpri, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
           >
             <Icon name="send" size={19} />
