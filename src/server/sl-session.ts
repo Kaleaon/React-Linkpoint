@@ -30,6 +30,9 @@ const actions = require('../../electron/sl-actions.cjs') as {
   getBalance: (bot: any) => Promise<any>;
 };
 
+const { subscribeAnimations } = require('../../electron/sl-animations.cjs') as {
+  subscribeAnimations: (region: any, send: (type: string, data: any) => void) => { unsubscribe(): void } | null;
+};
 const interactions = require('../../electron/sl-interactions.cjs') as {
   PendingInteractions: new () => { clear: () => void };
   subscribeInteractions: (events: any, pending: any, send: (type: string, data: any) => void) => Array<{ unsubscribe: () => void }>;
@@ -161,6 +164,8 @@ function primAppearance(object: any) {
     // retain all their shape parameters while using a cube fallback for now.
     shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
     assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
+    // Animated mesh (Animesh): the ExtendedMesh extra parameter's ANIMATED_MESH_ENABLED flag.
+    animatedMesh: Boolean(meshData && ((object.extraParams?.extendedMeshData?.flags ?? 0) & 1)),
     assetId: asset?.toString?.() || null,
     textureId,
     faceTextures,
@@ -504,6 +509,8 @@ export async function createSLSession(params: {
   }
 
   const region = bot.currentRegion;
+  const animationSubscription = subscribeAnimations(region, broadcastEvent);
+  if (animationSubscription) sessionData.subscriptions.push(animationSubscription);
   let agentId = '';
   try {
     if (typeof bot.agentID === 'function') {

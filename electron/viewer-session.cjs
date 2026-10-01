@@ -8,6 +8,7 @@ const {
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
 const actions = require('./sl-actions.cjs');
 const interactions = require('./sl-interactions.cjs');
+const { subscribeAnimations } = require('./sl-animations.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -96,6 +97,8 @@ function primAppearance(object) {
   return {
     shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
     assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
+    // Animated mesh (Animesh): the ExtendedMesh extra parameter's ANIMATED_MESH_ENABLED flag.
+    animatedMesh: Boolean(meshData && ((object.extraParams?.extendedMeshData?.flags ?? 0) & 1)),
     assetId: asset?.toString?.() || null,
     textureId,
     faceTextures,
@@ -262,6 +265,8 @@ class ViewerSession {
     }
     await this.bot.connectToSim();
     const region = this.bot.currentRegion;
+    const animations = subscribeAnimations(region, (type, data) => this.send(type, data));
+    if (animations) this.subscriptions.push(animations);
     const worldData = {
       region: { name: region.regionName || null, x: region.xCoordinate, y: region.yCoordinate },
       environment: serializeEnvironment(region.environment),

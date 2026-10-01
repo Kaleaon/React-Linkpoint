@@ -169,6 +169,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('object-update', (data: any) => this.emit('scene:object-update', data));
       slBridge.on('object-remove', (data: any) => this.emit('scene:object-remove', data));
       slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
+      slBridge.on('animations', (data: any) => this.emit('scene:animations', data));
       slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
       slBridge.on('material-ready', (data: any) => this.emit('scene:material-ready', data));
       slBridge.on('world-data', (data: any) => this.emit('scene:world-data', data));

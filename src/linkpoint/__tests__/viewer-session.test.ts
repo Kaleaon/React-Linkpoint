@@ -55,6 +55,7 @@ describe('desktop simulator object bridge', () => {
       name: 'Decoded prim',
       shape: 'cube',
       assetKind: null,
+      animatedMesh: false,
       assetId: null,
       textureId: null,
       faceTextures: [{

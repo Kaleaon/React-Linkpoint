@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { WorldViewer } from '../world';
 import { Utils } from '../utils';
+import { AvatarAnimator } from '../avatar-animator';
+import type { KeyframeAnimation } from '../avatar-animation';
 
 class ProtocolStub extends Utils.EventEmitter {
   connected = true;
@@ -27,7 +29,7 @@ function setup() {
   const scene = sceneStub();
   (world as any).scene3d = scene;
   protocol.emit('scene:object-add', { id: 'avatar', localId: 1, avatar: true, position: [10, 20, 30], rotation: [0, 0, 0, 1], scale: [0.5, 0.5, 0.5] });
-  return { protocol, scene };
+  return { protocol, scene, world };
 }
 
 describe('rigged mesh in the world', () => {
@@ -71,5 +73,59 @@ describe('rigged mesh in the world', () => {
     const before = scene.objects.get('rig').skin[11];
     protocol.emit('scene:asset-ready', { assetId: 'mesh-3', geometry: geometry(1) });
     expect(scene.objects.get('rig').skin[11]).toBeCloseTo(before + 1, 3);
+  });
+});
+
+describe('animated rigged mesh in the world', () => {
+  const turnTorso: KeyframeAnimation = {
+    priority: 4, length: 2, expression: '', inPoint: 0, outPoint: 2, loop: true, easeIn: 0, easeOut: 0.5, handPose: 0,
+    // 90 degrees about Z
+    joints: [{ name: 'mTorso', priority: 4, rotations: [{ time: 0, value: [0, 0, Math.SQRT1_2, Math.SQRT1_2] }], positions: [] }],
+  };
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('re-poses a worn rigged mesh from its avatar\'s animations, then restores rest when they end', async () => {
+    const { protocol, scene, world } = setup();
+    let t = 0;
+    (world as any).animator = new AvatarAnimator(async () => turnTorso, () => t);
+    protocol.emit('scene:object-add', { id: 'rig', localId: 2, parentId: 1, assetId: 'mesh-9', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
+    protocol.emit('scene:asset-ready', {
+      assetId: 'mesh-9',
+      geometry: { parts: [{ vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }], skin: { jointNames: ['mTorso'], bindShapeMatrix: identity, inverseBindMatrices: [identity] } },
+    });
+    const rest = Array.from(scene.objects.get('rig').skin.slice(0, 12)) as number[];
+    // rest: identity rotation, torso 0.084 above the pelvis (1.067)
+    expect(rest[0]).toBeCloseTo(1, 4);
+
+    protocol.emit('scene:animations', { kind: 'avatar', id: 'avatar', animations: [{ id: 'turn', seq: 1 }] });
+    await flush();
+    t = 1;
+    (world as any).updateAnimatedSkins();
+    const posed = Array.from(scene.objects.get('rig').skin.slice(0, 12)) as number[];
+    expect(posed[0]).toBeCloseTo(0, 3);   // x axis now maps to +Y: row0 = (0, -1, 0, ..)
+    expect(posed[1]).toBeCloseTo(-1, 3);
+    expect(posed[4]).toBeCloseTo(1, 3);
+
+    protocol.emit('scene:animations', { kind: 'avatar', id: 'avatar', animations: [] });
+    t = 5; // well past the 0.5 s ease-out
+    (world as any).updateAnimatedSkins();
+    expect(Array.from(scene.objects.get('rig').skin.slice(0, 12))).toEqual(rest);
+  });
+
+  it('treats an animated object as its own subject', async () => {
+    const { protocol, scene, world } = setup();
+    let t = 0;
+    (world as any).animator = new AvatarAnimator(async () => turnTorso, () => t);
+    protocol.emit('scene:object-add', { id: 'animesh', localId: 5, assetId: 'mesh-8', position: [4, 5, 6], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
+    protocol.emit('scene:asset-ready', {
+      assetId: 'mesh-8',
+      geometry: { parts: [{ vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }], skin: { jointNames: ['mTorso'], bindShapeMatrix: identity, inverseBindMatrices: [identity] } },
+    });
+    protocol.emit('scene:animations', { kind: 'object', id: 'animesh', animations: [{ id: 'turn', seq: 1 }] });
+    await flush();
+    t = 1;
+    (world as any).updateAnimatedSkins();
+    expect(scene.objects.get('animesh').skin[1]).toBeCloseTo(-1, 3);
+    expect(scene.objects.get('animesh').position).toEqual([4, 5, 6]);
   });
 });

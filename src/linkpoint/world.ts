@@ -10,7 +10,9 @@ import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
+import type { JointPose } from './avatar-animation';
 import { packJointRows } from './skinning';
+import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 
 export class WorldViewer extends Utils.EventEmitter {
@@ -146,6 +148,9 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:object-update', (object: any) => this.upsertSceneObject(object));
     this.protocol.on('scene:object-remove', (object: any) => this.removeSceneObject(object));
     this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
+    this.protocol.on('scene:animations', (data: any) => {
+      if (data?.id && Array.isArray(data.animations)) this.animator.setAnimations(String(data.id), data.animations);
+    });
     this.protocol.on('scene:texture-ready', (asset: any) => this.applyTexture(asset));
     this.protocol.on('scene:material-ready', (asset: any) => this.applyMaterial(asset));
     this.protocol.on('scene:world-data', (data: any) => this.applyWorldData(data));
@@ -181,25 +186,54 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private skeleton: AvatarSkeleton | null = null;
   private restSkinRows = new Map<string, Float32Array | null>();
+  private animator = new AvatarAnimator(bundledAnimationLoader());
+  /** Objects whose skin currently holds an animated pose (restored to rest when their animation ends). */
+  private posedObjects = new Set<string>();
 
   /**
-   * Joint matrices for a rigged mesh asset in the skeleton's rest pose, including the joint
-   * position overrides (Bento / alternate bind) the mesh asks for. Null for unrigged meshes.
+   * Joint matrices for a rigged mesh asset, including the joint position overrides (Bento /
+   * alternate bind) the mesh asks for. Without a pose this is the rest pose and is cached.
+   * Null for unrigged meshes.
    */
-  private skinRowsFor(assetId: string): Float32Array | null {
-    if (this.restSkinRows.has(assetId)) return this.restSkinRows.get(assetId)!;
+  private skinRowsFor(assetId: string, pose?: Map<string, JointPose>): Float32Array | null {
+    if (!pose && this.restSkinRows.has(assetId)) return this.restSkinRows.get(assetId)!;
     const skin = this.decodedAssets.get(assetId)?.skin as (MeshSkin & { pelvisOffset?: number | number[] | null }) | null | undefined;
     let rows: Float32Array | null = null;
     if (skin?.jointNames?.length) {
       this.skeleton ||= new AvatarSkeleton();
       const offset = typeof skin.pelvisOffset === 'number' ? skin.pelvisOffset : 0;
       const overrides = jointPositionOverrides(this.skeleton, skin);
-      const world = this.skeleton.worldMatrices(new Map(), overrides, [0, 0, overrides.size ? offset : 0]);
+      const world = this.skeleton.worldMatrices(pose, overrides, [0, 0, overrides.size ? offset : 0]);
       const maxJoints = (this.scene3d as any)?.graphics?.maxJoints || 110;
       rows = packJointRows(skinMatrices(this.skeleton, { ...skin, pelvisOffset: undefined }, world), maxJoints);
     }
-    this.restSkinRows.set(assetId, rows);
+    if (!pose) this.restSkinRows.set(assetId, rows);
     return rows;
+  }
+
+  /** The avatar a rigged attachment is worn by, or the object itself (an animated object is its own subject). */
+  private animationSubject(object: any): string {
+    let current = object;
+    for (let depth = 0; depth < 16 && current; depth++) {
+      if (current.avatar) return current.id;
+      const parentId = this.localObjectIds.get(Number(current.parentId));
+      current = parentId ? this.sceneObjects.get(parentId) : null;
+    }
+    return object.id;
+  }
+
+  /** Re-pose every rigged mesh whose avatar / animated object is running animations. Called once per frame. */
+  private updateAnimatedSkins() {
+    if (!this.scene3d) return;
+    for (const object of this.sceneObjects.values()) {
+      if (object.avatar || !object.assetId || !this.decodedAssets.get(object.assetId)?.skin) continue;
+      const subject = this.animationSubject(object);
+      const animating = this.animator.isAnimating(subject);
+      if (!animating && !this.posedObjects.has(object.id)) continue;
+      const rows = animating ? this.skinRowsFor(object.assetId, this.animator.pose(subject)) : this.skinRowsFor(object.assetId);
+      if (animating) this.posedObjects.add(object.id); else this.posedObjects.delete(object.id);
+      if (rows) this.scene3d.updateObject(object.id, { skin: rows });
+    }
   }
 
   /** Rigged meshes move with their avatar (not with the attachment offset the simulator reports). */
@@ -409,6 +443,7 @@ export class WorldViewer extends Utils.EventEmitter {
       if (this.use3D && this.scene3d && this.camera3d) {
         if (!this.environment && Date.now() - this.fallbackSkyAt > WorldViewer.FALLBACK_SKY_REFRESH_MS) this.applyEnvironment();
         this.camera3d.updateMatrices();
+        this.updateAnimatedSkins();
         this.scene3d.render();
       }
       this.animationId = requestAnimationFrame(render);
@@ -724,6 +759,8 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!id) return;
     this.sceneObjects.delete(id);
     this.localObjectIds.delete(object.localId);
+    this.animator.remove(id);
+    this.posedObjects.delete(id);
     this.scene3d?.removeObject(id);
     for (const suffix of [':body', ':head', ':legs']) this.scene3d?.removeObject(`${id}${suffix}`);
     this.objects = Array.from(this.sceneObjects.values());
