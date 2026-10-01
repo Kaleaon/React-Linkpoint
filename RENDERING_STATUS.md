@@ -17,6 +17,12 @@ renderer**.
   at high available LOD, and streamed to WebGL with positions, normals, UVs,
   and triangle indices. JPEG2000 textures are decoded to RGBA, including sculpt
   maps which are converted to indexed scene geometry.
+- Windlight-style sky dome with haze and optional stars, animated water at the
+  region water level, and an underwater tint (see `LUMIYA_RENDERING_ANALYSIS.md`).
+  Sky and water are driven by the simulator environment when present and by
+  neutral defaults otherwise; they have not been compared against a live region.
+- Frustum culling against per-mesh bounds (skipped when bounds are unknown), and
+  oriented-bounding-box picking via `Scene3D.pick` (not yet wired to the UI).
 - Parent-relative linkset transforms are resolved into world space and child
   prims follow root motion even when only the root receives a terse update.
 
@@ -24,12 +30,12 @@ renderer**.
 
 - Second Life prim shape/path/profile sculpting.
 - Per-face materials, alpha modes, normal/specular maps, and PBR rendering.
-- Terrain heightmaps, water, sky/environment settings, and parcel overlays.
+- Terrain texturing (terrain is a flat colour), simulator-supplied water height, sun direction, below-water lighting, and parcel overlays.
 - Avatar skeletons, appearance baking, rigged mesh, attachments, animations,
   particles, flexible prims, and lighting beyond the renderer's default light.
 - Complete SL path/profile prim tessellation (cuts, hollow, twist and taper are
   preserved in scene data but currently render with a closest-shape fallback).
-- Object picking, touch, sit, edit, and build interactions in the 3D canvas.
+- Touch, sit, edit, and build interactions in the 3D canvas (picking exists but is not wired up).
 
 The World screen reports whether it has a native live scene stream or only
 login/region metadata. It must not describe metadata-only browser sessions as a

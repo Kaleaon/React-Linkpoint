@@ -3,6 +3,8 @@
  */
 
 import { Utils } from './utils';
+import { multiplyMat4 } from './frustum';
+import { invertMat4, rayFromNDC } from './ray-pick';
 
 export class Camera3D extends Utils.EventEmitter {
   public position: number[] = [128, 128, 25];
@@ -296,22 +298,12 @@ export class Camera3D extends Utils.EventEmitter {
   }
 
   /**
-   * Multiply two matrices
+   * Multiply two column-major matrices: returns `a * b`, so `P * V` is
+   * `mat4Multiply(P, V)`. (The previous row-major indexing silently returned
+   * `b * a` for WebGL-layout data.)
    */
   mat4Multiply(a: Float32Array, b: Float32Array): Float32Array {
-    const result = new Float32Array(16);
-    
-    for (let i = 0; i < 4; i++) {
-      for (let j = 0; j < 4; j++) {
-        result[i * 4 + j] = 
-          a[i * 4 + 0] * b[0 * 4 + j] +
-          a[i * 4 + 1] * b[1 * 4 + j] +
-          a[i * 4 + 2] * b[2 * 4 + j] +
-          a[i * 4 + 3] * b[3 * 4 + j];
-      }
-    }
-    
-    return result;
+    return multiplyMat4(a, b);
   }
 
   /**
@@ -335,24 +327,19 @@ export class Camera3D extends Utils.EventEmitter {
   }
 
   /**
-   * Screen to world ray
+   * Screen to world ray. Unprojects through the inverse view-projection matrix,
+   * so it honours aspect ratio, field of view, and both orbit and first-person
+   * modes. Direction has unit length and origin is the camera position.
    */
   screenToWorldRay(screenX: number, screenY: number, width: number, height: number) {
-    // Normalized device coordinates
+    const fallback = { origin: [...this.position], direction: [0, 1, 0] };
+    if (!(width > 0) || !(height > 0)) return fallback;
+    const inverse = invertMat4(multiplyMat4(this.projectionMatrix, this.viewMatrix));
+    if (!inverse) return fallback;
     const ndcX = (2.0 * screenX) / width - 1.0;
     const ndcY = 1.0 - (2.0 * screenY) / height;
-
-    // Ray in world space (simplified)
-    const [pitch, yaw] = this.rotation;
-    const direction = [
-      Math.sin(yaw + ndcX * this.fov * Math.PI / 360) * Math.cos(pitch + ndcY * this.fov * Math.PI / 360),
-      Math.cos(yaw + ndcX * this.fov * Math.PI / 360) * Math.cos(pitch + ndcY * this.fov * Math.PI / 360),
-      Math.sin(pitch + ndcY * this.fov * Math.PI / 360)
-    ];
-
-    return {
-      origin: [...this.position],
-      direction: this.vec3Normalize(direction)
-    };
+    const ray = rayFromNDC(inverse, ndcX, ndcY);
+    // Every perspective ray passes through the eye, so start there.
+    return ray ? { origin: [...this.position], direction: ray.direction } : fallback;
   }
 }

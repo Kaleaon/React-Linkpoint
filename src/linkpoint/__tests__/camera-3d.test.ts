@@ -34,4 +34,20 @@ describe('Camera3D viewer controls', () => {
     expect(camera.orbitTarget).toEqual([12, 10, 7]);
     expect(camera.orbitDistance).toBe(10);
   });
+
+  it('computes the view-projection matrix as projection * view (column-major)', () => {
+    const camera = new Camera3D();
+    camera.setOrbitTarget(10, 10, 10);
+    camera.updateMatrices();
+    const apply = (m: Float32Array, v: number[]) => [0, 1, 2, 3].map((r) => m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3]);
+    const point = [12, 10, 10, 1];
+
+    const expected = apply(camera.getProjectionMatrix(), apply(camera.getViewMatrix(), point));
+    const actual = apply(camera.getViewProjectionMatrix(), point);
+    actual.forEach((value, index) => expect(value).toBeCloseTo(expected[index], 3));
+    // The orbit target projects to the centre of the screen.
+    const centre = apply(camera.getViewProjectionMatrix(), [10, 10, 10, 1]);
+    expect(centre[0] / centre[3]).toBeCloseTo(0, 4);
+    expect(centre[1] / centre[3]).toBeCloseTo(0, 4);
+  });
 });

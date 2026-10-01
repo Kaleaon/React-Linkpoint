@@ -6,6 +6,13 @@ import { Utils } from './utils';
 import { Graphics3D } from './graphics-3d';
 import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
+import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Frustum } from './frustum';
+import { intersectRayOrientedBox } from './ray-pick';
+import {
+  WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater,
+  createSkyDome, createStarField, createWaterPlane,
+  type SkyUniforms, type WaterUniforms,
+} from './sky';
 
 export class Scene3D extends Utils.EventEmitter {
   public graphics: Graphics3D;
@@ -22,6 +29,20 @@ export class Scene3D extends Utils.EventEmitter {
   public environment: any = null;
   private terrainLoaded = false;
 
+  // Sky, water and culling. Sky/water resources are created in init().
+  public showSky = true;
+  public showWater = true;
+  public cullingEnabled = true;
+  public waterHeight = DEFAULT_WATER_HEIGHT;
+  public underWater = false;
+  /** Objects drawn / skipped by frustum culling in the most recent frame. */
+  public frameStats = { drawn: 0, culled: 0 };
+  private environmentMeshesReady = false;
+  private skyUniforms: SkyUniforms = computeSkyUniforms(null);
+  private waterUniforms: WaterUniforms = computeWaterUniforms(null);
+  private skyClearColor: number[] = [0.53, 0.81, 0.92, 1];
+  private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+
   constructor(graphics: Graphics3D, camera: Camera3D) {
     super();
     this.graphics = graphics;
@@ -34,6 +55,7 @@ export class Scene3D extends Utils.EventEmitter {
   async init() {
     // Create default primitives
     this.createDefaultPrimitives();
+    this.createEnvironmentMeshes();
     
     // Create grid
     if (this.showGrid) {
@@ -81,6 +103,17 @@ export class Scene3D extends Utils.EventEmitter {
     // assets get an unmistakable non-cube proxy rather than silently vanishing.
     const assetProxy = Primitives3D.createTorus(0.28, 0.22, 16, 8);
     this.graphics.createMesh('asset-proxy', assetProxy.vertices, assetProxy.indices, assetProxy.normals, assetProxy.texCoords);
+  }
+
+  /** Sky dome, star field and water plane (shaders live in sky.ts). */
+  createEnvironmentMeshes() {
+    const dome = createSkyDome(2);
+    this.graphics.createMesh('sky-dome', dome.vertices, dome.indices);
+    const stars = createStarField(500);
+    this.graphics.createMesh('sky-stars', stars.vertices, stars.indices);
+    const water = createWaterPlane();
+    this.graphics.createMesh('water-plane', water.vertices, water.indices);
+    this.environmentMeshesReady = true;
   }
 
   /**
@@ -136,8 +169,19 @@ export class Scene3D extends Utils.EventEmitter {
     const sky = environment?.sky || environment?.currentSky || {};
     const color = sky.blueHorizon || sky.sunlightColor || [0.53, 0.81, 0.92];
     const normalized = color.slice(0, 3).map((value: number) => Math.max(0, Math.min(1, Number(value) || 0)));
-    this.graphics.setClearColor([...normalized, 1]);
+    this.skyClearColor = [...normalized, 1];
+    this.graphics.setClearColor(this.skyClearColor);
     if (this.lights[0] && sky.sunlightColor) this.lights[0].color = sky.sunlightColor.slice(0, 3);
+    this.skyUniforms = computeSkyUniforms(sky);
+    this.waterUniforms = computeWaterUniforms(environment?.water, this.waterHeight);
+  }
+
+  /** Region water level in metres (RegionHandshake WaterHeight). */
+  setWaterHeight(height: number) {
+    if (!Number.isFinite(height)) return false;
+    this.waterHeight = height;
+    this.waterUniforms = { ...this.waterUniforms, height };
+    return true;
   }
 
   /**
@@ -210,27 +254,152 @@ export class Scene3D extends Utils.EventEmitter {
     this.renderMirrors();
     // Clear
     this.graphics.clear();
-    
+
     // Get matrices
     const viewMatrix = this.camera.getViewMatrix();
     const projectionMatrix = this.camera.getProjectionMatrix();
-    
+    const frustum = this.cullingEnabled ? extractFrustum(multiplyMat4(projectionMatrix, viewMatrix)) : null;
+
+    // Below the surface the sky is not visible; show the water tint instead.
+    const waterActive = this.showWater && this.terrainLoaded && this.environmentMeshesReady;
+    const underWater = waterActive && isUnderWater(this.camera.position[2], this.waterHeight);
+    if (underWater !== this.underWater) {
+      this.underWater = underWater;
+      const tint = this.waterUniforms.color.map((value) => value * 0.6);
+      this.graphics.setClearColor(underWater ? [...tint, 1] : this.skyClearColor);
+      this.graphics.clear();
+    }
+
     // Render grid first
     if (this.showGrid || this.terrainLoaded) {
       this.renderGrid(viewMatrix, projectionMatrix);
     }
-    
+
     // Opaque geometry writes depth first. Alpha-blended faces are rendered
     // back-to-front afterwards so trees, windows and hair do not disappear as
     // insertion order changes while simulator updates stream in.
-    const visible = [...this.objects.values()].filter(object => object.visible);
+    let culled = 0;
+    const visible = [...this.objects.values()].filter(object => {
+      if (!object.visible) return false;
+      if (this.isCulled(object, frustum)) { culled++; return false; }
+      return true;
+    });
+    this.frameStats = { drawn: visible.length, culled };
     const transparent = (object: any) => object.faces?.some((face: any) => {
       const mode = face?.pbr?.alphaMode;
       return mode === 'BLEND' || mode === 2 || Number(face?.color?.[3] ?? object.color?.[3] ?? 1) < 1;
     });
     const distanceSquared = (object: any) => object.position.reduce((sum: number, value: number, index: number) => sum + (value - this.camera.position[index]) ** 2, 0);
     visible.filter(object => !transparent(object)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
+
+    // The sky is drawn after opaque geometry at the far plane, so it only
+    // shades pixels nothing else covered instead of overdrawing the screen.
+    if (this.showSky && this.environmentMeshesReady && !underWater) this.renderSky(viewMatrix, projectionMatrix);
+    if (waterActive && !underWater) this.renderWater(viewMatrix, projectionMatrix);
+
     visible.filter(transparent).sort((a, b) => distanceSquared(b) - distanceSquared(a)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
+  }
+
+  /** Windlight-style gradient dome plus optional stars, pinned to the far plane. */
+  private renderSky(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
+    const skyView = new Float32Array(viewMatrix);
+    skyView[12] = 0; skyView[13] = 0; skyView[14] = 0;
+    const sky = this.skyUniforms;
+    this.graphics.drawMesh('sky-dome', 'sky', {
+      uSkyViewMatrix: skyView,
+      uProjectionMatrix: projectionMatrix,
+      uSkyColor: new Float32Array(sky.skyColor),
+      uHazeHorizon: sky.hazeHorizon,
+      uHazeColor: new Float32Array(sky.hazeColor),
+    }, { depthWrite: false, cullFace: false });
+    if (sky.starBrightness > 0) {
+      this.graphics.drawMesh('sky-stars', 'stars', {
+        uSkyViewMatrix: skyView,
+        uProjectionMatrix: projectionMatrix,
+        uStarColor: new Float32Array([1, 1, 1, sky.starBrightness]),
+      }, { mode: 'points', depthWrite: false, blend: true, cullFace: false });
+    }
+  }
+
+  /** Animated four-wave water surface at the region water level. */
+  private renderWater(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
+    const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
+    this.graphics.drawMesh('water-plane', 'water', {
+      uViewMatrix: viewMatrix,
+      uProjectionMatrix: projectionMatrix,
+      uWaterHeight: this.waterHeight,
+      uCameraPos: new Float32Array(this.camera.position),
+      uWaterColor: new Float32Array(this.waterUniforms.color),
+      uLightDir: new Float32Array(light.position),
+      uLightColor: new Float32Array(light.color),
+      // Wrap so float precision does not degrade the phase over long sessions.
+      uTime: this.now() % 1000,
+      uPixelAngle: this.pixelAngle(),
+      uNormalScale: WATER_NORMAL_SCALE,
+      uFrequency: new Float32Array(WATER_WAVES.frequency),
+      uPhase: new Float32Array(WATER_WAVES.phase),
+      uAmplitude: new Float32Array(WATER_WAVES.amplitude),
+      uDirection: new Float32Array(WATER_WAVES.direction),
+    }, { depthWrite: false, blend: true, cullFace: false });
+  }
+
+  /** Approximate angle subtended by one screen pixel, used to filter sub-pixel water ripples. */
+  private pixelAngle() {
+    const height = (this.graphics as any).canvas?.height || 720;
+    const fov = Number(this.camera.fov) || 60;
+    return (2 * Math.tan((fov * Math.PI) / 360)) / height;
+  }
+
+  /** Meshes drawn for an object, falling back to its single mesh. */
+  private objectDraws(object: any) {
+    return object.meshes?.length ? object.meshes : [{ mesh: object.mesh, materialIndex: 0 }];
+  }
+
+  /** Union of the local-space bounds of every mesh the object draws, or null if any is unknown. */
+  private objectLocalBounds(object: any): { min: number[]; max: number[] } | null {
+    if (typeof this.graphics.getMeshBounds !== 'function') return null;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (const draw of this.objectDraws(object)) {
+      const bounds = this.graphics.getMeshBounds(draw.mesh);
+      if (!bounds) return null;
+      for (let axis = 0; axis < 3; axis++) {
+        min[axis] = Math.min(min[axis], bounds.min[axis]);
+        max[axis] = Math.max(max[axis], bounds.max[axis]);
+      }
+    }
+    return min.every(Number.isFinite) ? { min, max } : null;
+  }
+
+  /** True when the object's world bounds are entirely outside the frustum. Unknown bounds are never culled. */
+  private isCulled(object: any, frustum: Frustum | null) {
+    if (!frustum) return false;
+    const local = this.objectLocalBounds(object);
+    if (!local) return false;
+    const model = this.calculateModelMatrix(object.position, object.rotation, object.scale);
+    const world = transformAABB(model, local.min, local.max);
+    return testAABB(frustum, world.min, world.max) === OUTSIDE;
+  }
+
+  /**
+   * Find the nearest visible object under a screen point using each object's
+   * oriented bounding box. Terrain and water are not pickable yet. Distance is
+   * in world metres from the camera.
+   */
+  pick(screenX: number, screenY: number, width: number, height: number) {
+    if (typeof this.camera.screenToWorldRay !== 'function') return null;
+    const ray = this.camera.screenToWorldRay(screenX, screenY, width, height);
+    let best: { id: string; distance: number; point: number[] } | null = null;
+    for (const object of this.objects.values()) {
+      if (!object.visible) continue;
+      const local = this.objectLocalBounds(object);
+      if (!local) continue;
+      const model = this.calculateModelMatrix(object.position, object.rotation, object.scale);
+      const distance = intersectRayOrientedBox(ray, model, local.min, local.max);
+      if (distance === null || (best && distance >= best.distance)) continue;
+      best = { id: object.id, distance, point: ray.origin.map((value: number, axis: number) => value + ray.direction[axis] * distance) };
+    }
+    return best;
   }
 
   private renderMirrors() {
@@ -250,8 +419,9 @@ export class Scene3D extends Utils.EventEmitter {
       const focus = reflect(this.camera.mode === 'orbit' ? this.camera.orbitTarget : this.camera.target);
       const view = this.camera.mat4LookAt(eye, focus, [0, 0, 1]);
       if (this.showGrid) this.renderGrid(view, this.camera.getProjectionMatrix());
+      const mirrorFrustum = this.cullingEnabled ? extractFrustum(multiplyMat4(this.camera.getProjectionMatrix(), view)) : null;
       for (const object of this.objects.values()) {
-        if (object.visible && object !== mirror && !object.reflectionProbe?.mirror) this.renderObject(object, view, this.camera.getProjectionMatrix());
+        if (object.visible && object !== mirror && !object.reflectionProbe?.mirror && !this.isCulled(object, mirrorFrustum)) this.renderObject(object, view, this.camera.getProjectionMatrix());
       }
       this.graphics.endRenderTarget();
       mirror.mirrorTexture = targetName;
