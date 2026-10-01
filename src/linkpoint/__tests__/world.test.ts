@@ -111,4 +111,90 @@ describe('WorldViewer data status', () => {
     request.mockRestore();
     cancel.mockRestore();
   });
+
+  it('receives avatar_presence updates and accurately maps coordinates, distances, and bearings', () => {
+    const protocol = new ProtocolStub() as any;
+    protocol.connected = true;
+    protocol.agentId = 'self-agent-id';
+    const world = new WorldViewer(protocol);
+    const nearbyListener = vi.fn();
+    world.on('nearby_changed', nearbyListener);
+
+    // 1. Self position update via avatar_presence
+    protocol.emit('avatar_presence', {
+      id: 'self-agent-id',
+      coordinates: [100, 100, 20],
+      presence: 'online',
+    });
+    expect(world.avatarPosition).toEqual([100, 100, 20]);
+
+    // 2. Nearby resident enters with array coordinates
+    protocol.emit('avatar_presence', {
+      id: 'resident-alpha',
+      name: 'Alpha Resident',
+      coordinates: [100, 110, 20], // 10m North
+      presence: 'entered',
+    });
+
+    expect(world.nearbyUsers).toHaveLength(1);
+    expect(world.nearbyUsers[0]).toMatchObject({
+      id: 'resident-alpha',
+      name: 'Alpha Resident',
+      position: [100, 110, 20],
+      distance: 10,
+      bearing: 0, // Due North
+    });
+    expect(nearbyListener).toHaveBeenCalledTimes(1);
+
+    // 3. Nearby resident moves East with object coordinates { x, y, z }
+    protocol.emit('avatar_presence', {
+      id: 'resident-beta',
+      name: 'Beta Resident',
+      coordinates: { x: 110, y: 100, z: 20 }, // 10m East
+      presence: 'online',
+    });
+
+    expect(world.nearbyUsers).toHaveLength(2);
+    const beta = world.nearbyUsers.find(u => u.id === 'resident-beta');
+    expect(beta).toMatchObject({
+      id: 'resident-beta',
+      name: 'Beta Resident',
+      position: [110, 100, 20],
+      distance: 10,
+      bearing: 90, // Due East
+    });
+
+    // 4. Resident departures (left: true)
+    protocol.emit('avatar_presence', {
+      id: 'resident-alpha',
+      left: true,
+      presence: 'left',
+    });
+    expect(world.nearbyUsers).toHaveLength(1);
+    expect(world.nearbyUsers[0].id).toBe('resident-beta');
+  });
+
+  it('handles batch avatar_presence updates and string coordinates', () => {
+    const protocol = new ProtocolStub() as any;
+    protocol.connected = true;
+    protocol.agentId = 'my-avatar';
+    const world = new WorldViewer(protocol);
+
+    // Batch update in AgentData format
+    protocol.emit('avatar_presence', {
+      AgentData: [
+        { AgentID: 'my-avatar', Position: [0, 0, 0] },
+        { AgentID: 'gamma-avatar', Name: 'Gamma Resident', Position: '<30, 40, 0>' },
+      ],
+    });
+
+    expect(world.avatarPosition).toEqual([0, 0, 0]);
+    expect(world.nearbyUsers).toHaveLength(1);
+    expect(world.nearbyUsers[0]).toMatchObject({
+      id: 'gamma-avatar',
+      name: 'Gamma Resident',
+      position: [30, 40, 0],
+      distance: 50, // 3-4-5 triangle: hypot(30, 40) = 50
+    });
+  });
 });

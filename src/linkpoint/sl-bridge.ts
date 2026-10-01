@@ -133,6 +133,25 @@ export class SLBridge extends Utils.EventEmitter {
     }
   }
 
+  async sendGroupMessage(groupId: string, message: string) {
+    if (!this.sessionId) throw new Error('Not connected to Second Life');
+
+    const response = await fetch('/api/sl/group-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: this.sessionId,
+        groupId,
+        message,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Failed to send group message' }));
+      throw new Error(err.error || err.message || 'Group message send failed');
+    }
+  }
+
   async fetchFriends() {
     if (!this.sessionId) return [];
 
@@ -142,6 +161,17 @@ export class SLBridge extends Utils.EventEmitter {
     }
 
     return await response.json();
+  }
+
+  async fetchDiagnostics() {
+    if (!this.sessionId) return null;
+    try {
+      const response = await fetch(`/api/sl/diagnostics?sessionId=${encodeURIComponent(this.sessionId)}`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
   }
 
   async fetchGroups() {

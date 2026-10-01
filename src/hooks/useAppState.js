@@ -17,6 +17,14 @@ export function useAppState() {
     const shared = decodeSharedTheme(new URLSearchParams(window.location.search).get("theme") || "");
     return shared || readSavedTheme() || themeFromPalette(PALETTES.ink);
   });
+  const [viewMode, setViewModeState] = useState(() => {
+    try {
+      return localStorage.getItem("linkpoint_view_mode") || "auto";
+    } catch {
+      return "auto";
+    }
+  });
+
   const deviceForViewport = useCallback(() => {
     const width = window.innerWidth;
     if (width >= 1280) return "desk";
@@ -24,7 +32,21 @@ export function useAppState() {
     if (width >= 600) return "fold";
     return width >= 400 ? "and" : "ios";
   }, []);
-  const [device, setDevice] = useState(deviceForViewport);
+
+  const resolveDevice = useCallback((mode) => {
+    if (mode === "desktop") return "desk";
+    if (mode === "mobile") return "and";
+    return deviceForViewport();
+  }, [deviceForViewport]);
+
+  const [device, setDevice] = useState(() => resolveDevice(viewMode));
+
+  useEffect(() => {
+    if (viewMode !== "auto") return;
+    const onResize = () => setDevice(deviceForViewport());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [viewMode, deviceForViewport]);
   const [screen, setScreen] = useState("Login");
   const [dialog, setDialog] = useState(null);
   const [dense, setDense] = useState(false);
@@ -70,7 +92,7 @@ export function useAppState() {
   const [rOpen, setROpen] = useState(null);
   const [rMenu, setRMenu] = useState(null);
   const [cDock, setCDock] = useState(["fly", "sit", "snap", "mini", "inv", "home", "ao", "sun"]);
-  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true, Settings: true });
+  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true, Settings: true, AO: false });
   const [flMin, setFlMin] = useState({});
   const [flRect, setFlRect] = useState({});
   const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat", "Settings"]);
@@ -297,6 +319,9 @@ export function useAppState() {
   }, []);
   // Start (or resume) an IM thread with a resident picked from Friends/Nearby.
   const startIm = useCallback((name) => {
+    if (name) {
+      app.chat.openSession(name);
+    }
     setTabs((s) => ({ ...s, Chat: "IM" }));
     setChip(name);
     setScreen("Chat");
@@ -442,11 +467,19 @@ export function useAppState() {
       setCReason("DENIED — " + b.off);
       return;
     }
+    if (k === "ao") {
+      if (navMode() === "floaters") {
+        flToggle("AO");
+      } else {
+        setScreen("AO");
+      }
+      return;
+    }
     if (b.tog) {
       setCTog((s) => ({ ...s, [k]: !s[k] }));
       setCReason("");
     } else setCReason(b.label + " — ACKNOWLEDGED");
-  }, []);
+  }, [navMode, flToggle, setScreen]);
 
   // ---- console scene drag (sceneDown/sceneMove/sceneUp) ------------------
   const sceneDown = useCallback((e) => {
@@ -561,6 +594,21 @@ export function useAppState() {
     notify("Downloading opensim-grid-log.txt...");
   }, [notify]);
 
+  const setViewMode = useCallback((mode) => {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem("linkpoint_view_mode", mode);
+    } catch {}
+    const newDev = resolveDevice(mode);
+    setDevice(newDev);
+    notify(mode === "desktop" ? "Switched to Desktop Mode (Firestorm Multi-Window)" : mode === "mobile" ? "Switched to Mobile Mode (Lumiya Touch)" : "Switched to Auto-Responsive Mode");
+  }, [resolveDevice, notify]);
+
+  const toggleViewMode = useCallback(() => {
+    const next = device === "desk" ? "mobile" : "desktop";
+    setViewMode(next);
+  }, [device, setViewMode]);
+
   const screenPick = useCallback(
     (id) => {
       if (app.auth.isLoggedIn() && navMode() === "floaters" && FLOATERS.some((f) => f.id === id)) {
@@ -576,7 +624,7 @@ export function useAppState() {
 
   return {
     state: {
-      layout, palette, customTheme, device, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
+      layout, palette, customTheme, device, viewMode, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
       toggles, cond, hudOn, hudPos, hudPicker, target, targetPicker, navPeek,
       cPad, cHeld, cRun, cCam, cHdg, cPitch, cDrag, cEdit, cFlash, cReason, cTog,
       rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu, tick,
@@ -585,7 +633,7 @@ export function useAppState() {
       prefs, cacheCleared, camPreset,
     },
     actions: {
-      setLayout, setPalette: selectPalette, setThemeColor, renameTheme, saveTheme, resetTheme, importTheme, downloadTheme, shareTheme, setDevice, setScreen: screenPick, setDialog, setDense,
+      setLayout, setPalette: selectPalette, setThemeColor, renameTheme, saveTheme, resetTheme, importTheme, downloadTheme, shareTheme, setDevice, setViewMode, toggleViewMode, setScreen: screenPick, setDialog, setDense,
       allGrids, openAddGrid, cancelAddGrid, saveCustomGrid, setAddGridName, setAddGridHost,
       setTab, setChip, setTileOk, toggleInvFolder, dismiss, toggleSetting, pin,
       cycleLayout, cyclePalette, setCond, setMenu,
