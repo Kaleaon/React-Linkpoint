@@ -9,7 +9,7 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
-import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
+import { AvatarSkeleton, hasJointOverrides, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
 import { parseAnimation, type JointPose } from './avatar-animation';
 import { packJointRows } from './skinning';
 import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
@@ -226,7 +226,8 @@ export class WorldViewer extends Utils.EventEmitter {
       this.skeleton ||= new AvatarSkeleton();
       const offset = typeof skin.pelvisOffset === 'number' ? skin.pelvisOffset : 0;
       const overrides = jointPositionOverrides(this.skeleton, skin);
-      const world = this.skeleton.worldMatrices(pose, overrides, [0, 0, overrides.size ? offset : 0]);
+      // The pelvis offset only applies together with a valid set of joint overrides (as in the viewer).
+      const world = this.skeleton.worldMatrices(pose, overrides, [0, 0, hasJointOverrides(skin) ? offset : 0]);
       const maxJoints = (this.scene3d as any)?.graphics?.maxJoints || 110;
       rows = packJointRows(skinMatrices(this.skeleton, { ...skin, pelvisOffset: undefined }, world), maxJoints);
     }

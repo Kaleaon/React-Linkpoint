@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AvatarSkeleton, compose, identity, jointPositionOverrides, multiply, skinMatrices, skinPoint } from '../avatar-skeleton';
+import { AvatarSkeleton, compose, hasJointOverrides, identity, jointPositionOverrides, multiply, skinMatrices, skinPoint } from '../avatar-skeleton';
 import type { JointPose } from '../avatar-animation';
 
 const skeleton = new AvatarSkeleton();
@@ -87,9 +87,28 @@ describe('avatar skeleton', () => {
     expect(moved[0][14]).toBeCloseTo(rest[0][14] + 0.2, 4);
   });
 
-  it('ignores unknown joints and zero overrides', () => {
-    const skin = { jointNames: ['nope', 'mHead'], bindShapeMatrix: null, inverseBindMatrices: [], alternateInverseBindMatrices: [identity() as unknown as number[], [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]] };
-    expect(jointPositionOverrides(skeleton, skin).size).toBe(0);
+  it('follows the viewer\'s override rules: counts must match, defaults and unknown joints are ignored', () => {
+    const at = (pos: number[]) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, pos[0], pos[1], pos[2], 1];
+    const headRest = skeleton.bones[skeleton.indexOf('mHead')].rest;
+    // a position equal to the joint default is not an override (within 0.1 mm)
+    const same = { jointNames: ['mHead'], bindShapeMatrix: null, inverseBindMatrices: [], alternateInverseBindMatrices: [at([headRest[0] + 0.00005, headRest[1], headRest[2]])] };
+    expect(jointPositionOverrides(skeleton, same).size).toBe(0);
+    // a further move is
+    const moved = { ...same, alternateInverseBindMatrices: [at([headRest[0], headRest[1], headRest[2] + 0.01])] };
+    expect(jointPositionOverrides(skeleton, moved).get('mHead')).toEqual([headRest[0], headRest[1], headRest[2] + 0.01]);
+    // unknown joint names are ignored
+    expect(jointPositionOverrides(skeleton, { ...moved, jointNames: ['nope'] }).size).toBe(0);
+    // mismatched counts disable all overrides
+    expect(jointPositionOverrides(skeleton, { ...moved, jointNames: ['mHead', 'mNeck'] }).size).toBe(0);
+    expect(hasJointOverrides({ ...moved, jointNames: ['mHead', 'mNeck'] })).toBe(false);
+    expect(hasJointOverrides(moved)).toBe(true);
+  });
+
+  it('skins joints it does not know as mPelvis, like the viewer', () => {
+    const world = skeleton.worldMatrices();
+    const unknown = skinMatrices(skeleton, { jointNames: ['nope'], bindShapeMatrix: null, inverseBindMatrices: [identity()] }, world)[0];
+    const pelvis = skinMatrices(skeleton, { jointNames: ['mPelvis'], bindShapeMatrix: null, inverseBindMatrices: [identity()] }, world)[0];
+    expect(Array.from(unknown)).toEqual(Array.from(pelvis));
   });
 
   it('leaves vertices alone when no joint influences them', () => {
