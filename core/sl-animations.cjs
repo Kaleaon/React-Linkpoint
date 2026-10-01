@@ -65,8 +65,22 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 async function downloadAnimation(bot, id) {
   if (!bot) throw new Error('Not connected to a simulator');
   if (!UUID_PATTERN.test(String(id || ''))) throw new Error('Invalid animation id');
-  const { AssetType } = require('@caspertech/node-metaverse');
-  const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Animation, id);
+  const { AssetType, UUID } = require('@caspertech/node-metaverse');
+  const asset = bot.clientCommands.asset;
+  let buffer;
+  try {
+    buffer = await asset.downloadAsset(AssetType.Animation, id);
+  } catch (viewerAssetError) {
+    // Agni can reject otherwise readable animations at ViewerAsset with HTTP 403. The original
+    // simulator TransferRequest path remains valid, so retry there before declaring the pose lost.
+    if (typeof asset.transfer !== 'function') throw viewerAssetError;
+    const { TransferChannelType } = require('@caspertech/node-metaverse/dist/lib/enums/TransferChannelType');
+    const { TransferSourceType } = require('@caspertech/node-metaverse/dist/lib/enums/TransferSourceTypes');
+    const params = Buffer.alloc(20);
+    new UUID(id).writeToBuffer(params, 0);
+    params.writeInt32LE(AssetType.Animation, 16);
+    buffer = await asset.transfer(TransferChannelType.Asset, TransferSourceType.Asset, false, params);
+  }
   if (!buffer || buffer.length === 0) throw new Error('Animation asset is empty');
   if (buffer.length > MAX_ANIMATION_BYTES) throw new Error('Animation asset is too large');
   return Buffer.from(buffer).toString('base64');

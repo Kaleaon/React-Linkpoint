@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { serializeAnimationMessage, subscribeAnimations, watchAnimations } = require('../../../core/sl-animations.cjs');
+const { serializeAnimationMessage, subscribeAnimations, watchAnimations, downloadAnimation } = require('../../../core/sl-animations.cjs');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const { serializeObject } = require('../../../core/viewer-session.cjs');
 
@@ -68,5 +68,20 @@ describe('animated mesh flag', () => {
     expect(serializeObject({ localID: 1, object: object(0) }).animatedMesh).toBe(false);
     expect(serializeObject({ localID: 1, object: object(undefined) }).animatedMesh).toBe(false);
     expect(serializeObject({ localID: 1, object: object(1, false) }).animatedMesh).toBe(false);
+  });
+});
+
+describe('animation asset downloads', () => {
+  it('falls back to the simulator transfer service when ViewerAsset returns 403', async () => {
+    const bytes = Buffer.from([1, 2, 3]);
+    const transfer = vi.fn().mockResolvedValue(bytes);
+    const bot = { clientCommands: { asset: {
+      downloadAsset: vi.fn().mockRejectedValue(new Error('Response code 403 (Forbidden)')),
+      transfer,
+    } } };
+    const id = '835965c6-7f2f-bda2-5deb-2478737f91bf';
+    await expect(downloadAnimation(bot, id)).resolves.toBe(bytes.toString('base64'));
+    expect(transfer).toHaveBeenCalledTimes(1);
+    expect(transfer.mock.calls[0][3].subarray(0, 16)).toHaveLength(16);
   });
 });

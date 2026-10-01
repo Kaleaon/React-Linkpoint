@@ -258,3 +258,32 @@ describe('desktop session texture downloads', () => {
     expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture-id');
   });
 });
+
+describe('desktop session avatar movement', () => {
+  const { ControlFlags } = require('@caspertech/node-metaverse');
+  const { ViewerSession } = require('../../../core/viewer-session.cjs');
+
+  it('sends SL agent controls and clears them when movement stops', () => {
+    const session = new ViewerSession(() => undefined);
+    const agent = { setControlFlag: vi.fn(), clearControlFlag: vi.fn(), sendAgentUpdate: vi.fn() };
+    session.bot = { agent };
+    expect(session.setMovement({ forward: 1, right: -1, run: true })).toEqual({ moving: true });
+    expect(agent.setControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_AT_POS);
+    expect(agent.setControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_LEFT_POS);
+    expect(agent.setControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_FAST_AT);
+    expect(agent.sendAgentUpdate).toHaveBeenCalledTimes(1);
+    agent.setControlFlag.mockClear();
+    expect(session.setMovement({})).toEqual({ moving: false });
+    expect(agent.setControlFlag).not.toHaveBeenCalled();
+    expect(agent.clearControlFlag).toHaveBeenCalledWith(ControlFlags.AGENT_CONTROL_AT_POS);
+    expect(agent.sendAgentUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('tolerates node-metaverse throwing while no current region exists', () => {
+    const session = new ViewerSession(() => undefined);
+    session.bot = Object.defineProperty({}, 'currentRegion', { get: () => { throw new Error('currentRegion is undefined'); } });
+    expect(session.currentRegion()).toBeNull();
+    expect(session.getSceneObjects()).toEqual([]);
+    expect(session.getDiagnostics()).toMatchObject({ connected: true, regionName: '' });
+  });
+});

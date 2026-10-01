@@ -31,6 +31,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public scene3d: Scene3D | null = null;
   private animationId: number | null = null;
   private cameraControls: CameraControls | null = null;
+  private lastMovement = '';
   private resizeAttached = false;
   private readonly handleResize = () => this.resizeCanvas();
   public use3D: boolean = true;
@@ -139,16 +140,12 @@ export class WorldViewer extends Utils.EventEmitter {
     });
     this.protocol.on('scene:object-add', (object: any) => {
       this.upsertSceneObject(object);
-      if (object.avatar) {
-        const myName = this.protocol.authReply?.first_name;
-        if ((object.id === this.protocol.agentId || (myName && object.name?.includes(myName))) && this.camera3d && Array.isArray(object.position)) {
-          this.avatarPosition = object.position;
-          this.camera3d.setOrbitTarget(object.position[0], object.position[1], object.position[2]);
-          this.camera3d.setPosition(object.position[0], object.position[1] - 8, object.position[2] + 4);
-        }
-      }
+      this.followAvatar(object);
     });
-    this.protocol.on('scene:object-update', (object: any) => this.upsertSceneObject(object));
+    this.protocol.on('scene:object-update', (object: any) => {
+      this.upsertSceneObject(object);
+      this.followAvatar(object);
+    });
     this.protocol.on('scene:object-remove', (object: any) => this.removeSceneObject(object));
     this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
     this.protocol.on('scene:animations', (data: any) => {
@@ -447,7 +444,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.cameraControls = new CameraControls(canvas, this.camera3d, () => {
         this.updateLocationDisplay();
         this.emit('camera_changed', this.getCameraState());
-      }, (x, y) => this.pickObject(x, y));
+      }, (x, y) => this.pickObject(x, y), (motion, run) => this.controlAvatar(motion, run));
 
       const scene = new Scene3D(graphics, this.camera3d);
       this.scene3d = scene;
@@ -465,6 +462,7 @@ export class WorldViewer extends Utils.EventEmitter {
       await this.loadScene();
       if (stale()) return;
       for (const object of this.sceneObjects.values()) this.applySceneObject(object);
+      for (const object of this.sceneObjects.values()) if (this.followAvatar(object)) break;
 
       this.startRendering();
       this.updateLocationDisplay();
@@ -548,6 +546,10 @@ export class WorldViewer extends Utils.EventEmitter {
     this.resizeObserver = null;
     this.cameraControls?.destroy();
     this.cameraControls = null;
+    if (this.lastMovement && this.protocol.connected) {
+      this.lastMovement = '';
+      void this.protocol.setMovement({ forward: 0, right: 0, up: 0, turn: 0, run: false }).catch(() => undefined);
+    }
     this.graphics3d?.destroy();
     this.graphics3d = null;
     this.camera3d = null;
@@ -566,11 +568,48 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   public moveCamera(dx: number, dy: number, dz: number) {
+    if (this.camera3d?.preset !== 'free' && this.protocol.connected) {
+      void this.pulseAvatar({ forward: dy, right: dx, up: dz });
+      return;
+    }
     if (this.camera3d) {
       this.camera3d.move(dy, dx, dz);
       this.updateLocationDisplay();
       this.emit('camera_changed', this.getCameraState());
     }
+  }
+
+  /** Keep third-person views centred behind the logged-in avatar as simulator updates arrive. */
+  private followAvatar(object: any) {
+    if (!object?.avatar || !Array.isArray(object.position)) return false;
+    const myName = this.protocol.authReply?.first_name;
+    if (object.id !== this.protocol.agentId && !(myName && object.name?.includes(myName))) return false;
+    this.avatarPosition = object.position;
+    if (!this.camera3d || this.camera3d.preset === 'free') return true;
+    this.camera3d.setOrbitTarget(object.position[0], object.position[1], object.position[2] + 1.2);
+    if (this.camera3d.preset === 'rear' && Array.isArray(object.rotation)) {
+      const [x = 0, y = 0, z = 0, w = 1] = object.rotation;
+      const heading = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+      this.camera3d.setRotation(-0.28, -Math.PI / 2 - heading, 0);
+    }
+    return true;
+  }
+
+  private controlAvatar(motion: { forward: number; right: number; up: number; turn: number }, run: boolean) {
+    if (this.camera3d?.preset === 'free' || !this.protocol.connected) return false;
+    const signature = `${motion.forward}:${motion.right}:${motion.up}:${motion.turn}:${run}`;
+    if (signature !== this.lastMovement) {
+      this.lastMovement = signature;
+      void this.protocol.setMovement({ ...motion, run }).catch((error: unknown) => {
+        console.warn('[WorldViewer] avatar movement unavailable:', error);
+      });
+    }
+    return true;
+  }
+
+  private async pulseAvatar(motion: { forward: number; right: number; up: number }) {
+    await this.protocol.setMovement({ ...motion, turn: 0, run: false });
+    window.setTimeout(() => void this.protocol.setMovement({ forward: 0, right: 0, up: 0, turn: 0, run: false }), 180);
   }
 
   /** Rotate the view by the given pitch/yaw deltas in degrees (positive yaw turns right). */
@@ -798,7 +837,9 @@ export class WorldViewer extends Utils.EventEmitter {
     const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId) : null;
     const { position, rotation } = skin ? this.riggedTransform(object) : this.worldTransform(object);
     const hudRoot = object.avatar ? null : this.hudRootOf(object);
-    const scale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
+    // SL rigged vertices are authored in avatar space. Applying the attachment prim's scale again
+    // stretches the skeleton and is the usual cause of exploded/deformed worn mesh.
+    const scale = skin ? [1, 1, 1] : Array.isArray(object.scale) ? object.scale : [1, 1, 1];
     object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
     const config = {
       mesh: object.avatar ? 'sphere' : ['cube', 'cylinder', 'sphere', 'prism', 'torus', 'asset-proxy'].includes(object.shape) ? object.shape : 'cube',
