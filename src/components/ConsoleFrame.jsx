@@ -218,9 +218,11 @@ export default function ConsoleFrame() {
         </>
       ) : null}
 
-      <div style={shellStyle}>
-        <ScreenBody />
-      </div>
+      {!consoleScene && (
+        <div style={shellStyle}>
+          <ScreenBody />
+        </div>
+      )}
     </div>
   );
 }
