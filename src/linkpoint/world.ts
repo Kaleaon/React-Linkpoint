@@ -264,6 +264,8 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   private resizeObserver: any = null;
+  /** Bumped whenever the renderer is destroyed, so an in-flight init() can tell it has been superseded. */
+  private renderToken = 0;
 
   async init(targetCanvas?: HTMLCanvasElement | null) {
     this.use3D = true;
@@ -271,16 +273,24 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!canvas) return;
     if (this.graphics3d && this.canvas === canvas) {
       this.resizeCanvas();
+      const reuseToken = this.renderToken;
       await this.loadScene();
-      this.startRendering();
+      if (reuseToken === this.renderToken) this.startRendering();
       return;
     }
     this.destroyRenderer();
     this.canvas = canvas;
+    // The view can go away (or be replaced) while this async setup is awaiting.
+    // destroyRenderer() bumps the token, and every await below re-checks it so a
+    // stale init stops instead of touching state that now belongs to someone else.
+    const token = this.renderToken;
+    const stale = () => token !== this.renderToken;
 
     try {
-      this.graphics3d = new Graphics3D(this.canvas);
-      await this.graphics3d.init();
+      const graphics = new Graphics3D(canvas);
+      this.graphics3d = graphics;
+      await graphics.init();
+      if (stale()) return;
 
       this.camera3d = new Camera3D();
       this.camera3d.setPosition(128, 138, 35);
@@ -288,19 +298,22 @@ export class WorldViewer extends Utils.EventEmitter {
       this.camera3d.setMode('orbit');
       this.camera3d.setOrbitTarget(128, 128, 25);
       this.camera3d.setPreset('rear');
-      this.cameraControls = new CameraControls(this.canvas, this.camera3d, () => {
+      this.cameraControls = new CameraControls(canvas, this.camera3d, () => {
         this.updateLocationDisplay();
         this.emit('camera_changed', this.getCameraState());
       }, (x, y) => this.pickObject(x, y));
 
-      this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
-      await this.scene3d.init();
+      const scene = new Scene3D(graphics, this.camera3d);
+      this.scene3d = scene;
+      await scene.init();
+      if (stale()) return;
       this.applyEnvironment();
-      if (this.terrain) this.scene3d.setTerrain(this.terrain.heights, this.terrain.size);
-      if (this.displayedHud) this.scene3d.setDisplayedHud(this.displayedHud.id, this.displayedHud.size);
-      for (const [assetId, geometry] of this.decodedAssets) this.scene3d.addAssetMesh(assetId, geometry);
+      if (this.terrain) scene.setTerrain(this.terrain.heights, this.terrain.size);
+      if (this.displayedHud) scene.setDisplayedHud(this.displayedHud.id, this.displayedHud.size);
+      for (const [assetId, geometry] of this.decodedAssets) scene.addAssetMesh(assetId, geometry);
       for (const texture of this.decodedTextures.values()) this.applyTexture(texture);
       await this.loadScene();
+      if (stale()) return;
       for (const object of this.sceneObjects.values()) this.applySceneObject(object);
 
       this.startRendering();
@@ -308,12 +321,15 @@ export class WorldViewer extends Utils.EventEmitter {
 
       window.addEventListener('resize', this.handleResize);
       this.resizeAttached = true;
-      if (typeof ResizeObserver !== 'undefined' && this.canvas.parentElement) {
+      if (typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
         this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
-        this.resizeObserver.observe(this.canvas.parentElement);
+        this.resizeObserver.observe(canvas.parentElement);
       }
       this.resizeCanvas();
     } catch (error) {
+      // A failure after the view was torn down or replaced is not this renderer's problem,
+      // and destroying here would tear down whatever replaced it.
+      if (stale()) return;
       console.error('3D initialization failed:', error);
       this.use3D = false;
       this.destroyRenderer();
@@ -372,6 +388,7 @@ export class WorldViewer extends Utils.EventEmitter {
     if (forCanvas && this.canvas && this.canvas !== forCanvas) {
       return;
     }
+    this.renderToken++;
     this.stopRendering();
     if (this.resizeAttached) window.removeEventListener('resize', this.handleResize);
     this.resizeAttached = false;
