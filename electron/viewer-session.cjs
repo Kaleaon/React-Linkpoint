@@ -7,6 +7,7 @@ const {
 } = require('@caspertech/node-metaverse');
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
 const actions = require('./sl-actions.cjs');
+const interactions = require('./sl-interactions.cjs');
 
 function finite(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
@@ -147,6 +148,7 @@ class ViewerSession {
     this.bot = null;
     this.subscriptions = [];
     this.assetRequests = new Map();
+    this.pending = new interactions.PendingInteractions();
   }
 
   loadObjectAsset(object) {
@@ -249,6 +251,7 @@ class ViewerSession {
     this.subscribe(events.onFriendRemoved, 'friend-remove', (event) => ({
       id: event.friend?.getKey?.()?.toString?.(),
     }));
+    this.subscriptions.push(...interactions.subscribeInteractions(events, this.pending, (type, data) => this.send(type, data)));
     this.subscribe(events.onDisconnected, 'disconnected', (event) => ({ message: event.message || 'Disconnected' }));
 
     let reply;
@@ -294,6 +297,9 @@ class ViewerSession {
   }
 
   teleport(params) { return actions.teleport(this.requireBot(), params); }
+  respondScriptDialog(params) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params || {}); }
+  acceptLure(params) { return interactions.acceptLure(this.requireBot(), this.pending, params || {}); }
+  dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }
   touchObject(params) { return actions.touchObject(this.requireBot(), params); }
   sit(params) { return actions.sit(this.requireBot(), params); }
   stand() { return actions.stand(this.requireBot()); }
@@ -325,6 +331,7 @@ class ViewerSession {
     const bot = this.bot;
     this.bot = null;
     this.assetRequests.clear();
+    this.pending.clear();
     try { await bot.close(); } catch { /* circuit may already be closed */ }
   }
 }

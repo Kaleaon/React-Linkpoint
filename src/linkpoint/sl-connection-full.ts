@@ -116,6 +116,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
         this.removeNativeListener = window.linkpointDesktop.onViewerEvent(({ type, data }) => {
           if (type === 'chat') this.emit('ChatFromSimulator', data);
           else if (type === 'im') this.emit('ChatFromSimulator', { ...data, chatType: 'im' });
+          else if (type === 'script-dialog') this.emit('script_dialog', data);
+          else if (type === 'lure') this.emit('lure', data);
           else if (type === 'friend-status') this.emit('friend_status', data);
           else if (type === 'friend-request') this.emit('friend_request', data);
           else if (type === 'friend-remove') this.emit('friend_remove', data);
@@ -159,6 +161,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('group-notice', (data: any) => this.emit('group_notice', data));
       slBridge.on('friend-status', (data: any) => this.emit('friend_status', data));
       slBridge.on('friend-request', (data: any) => this.emit('friend_request', data));
+      slBridge.on('script-dialog', (data: any) => this.emit('script_dialog', data));
+      slBridge.on('lure', (data: any) => this.emit('lure', data));
       slBridge.on('friend-response', (data: any) => this.emit('friend_response', data));
       slBridge.on('friend-remove', (data: any) => this.emit('friend_remove', data));
       slBridge.on('object-add', (data: any) => this.emit('scene:object-add', data));
@@ -240,6 +244,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on('group-notice', (data: any) => this.emit('group_notice', data));
       slBridge.on('friend-status', (data: any) => this.emit('friend_status', data));
       slBridge.on('friend-request', (data: any) => this.emit('friend_request', data));
+      slBridge.on('script-dialog', (data: any) => this.emit('script_dialog', data));
+      slBridge.on('lure', (data: any) => this.emit('lure', data));
       slBridge.on('friend-response', (data: any) => this.emit('friend_response', data));
       slBridge.on('friend-remove', (data: any) => this.emit('friend_remove', data));
       slBridge.on('object-add', (data: any) => this.emit('scene:object-add', data));
@@ -399,6 +405,30 @@ export class SLConnectionFull extends Utils.EventEmitter {
       : await slBridge.teleport({ destination });
     this.emit('teleport_requested', result);
     return result;
+  }
+
+  /** A resident's public profile picture (base64), or null when they have none. */
+  async fetchProfilePhoto(name: string, full = false) {
+    this.requireConnected();
+    return window.linkpointDesktop?.fetchProfilePhoto ? window.linkpointDesktop.fetchProfilePhoto({ name, full }) : slBridge.fetchProfilePhoto(name, full);
+  }
+
+  /** Answer a script dialog: pass a button index, or `text` for a text box. */
+  async respondScriptDialog(request: { id: string; buttonIndex?: number; text?: string }) {
+    this.requireConnected();
+    return window.linkpointDesktop?.respondScriptDialog ? window.linkpointDesktop.respondScriptDialog(request) : slBridge.respondScriptDialog(request);
+  }
+
+  /** Accept a teleport lure. Resolves when the grid reports the teleport result. */
+  async acceptLure(id: string) {
+    this.requireConnected();
+    return window.linkpointDesktop?.acceptLure ? window.linkpointDesktop.acceptLure({ id }) : slBridge.acceptLure({ id });
+  }
+
+  /** Forget an interaction on the server. Nothing is sent to the grid. */
+  async dismissInteraction(id: string) {
+    this.requireConnected();
+    return window.linkpointDesktop?.dismissInteraction ? window.linkpointDesktop.dismissInteraction({ id }) : slBridge.dismissInteraction({ id });
   }
 
   /** Touch an object by id. Face and texture coordinates are sent only when known. */

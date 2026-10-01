@@ -30,6 +30,14 @@ const actions = require('../../electron/sl-actions.cjs') as {
   getBalance: (bot: any) => Promise<any>;
 };
 
+const interactions = require('../../electron/sl-interactions.cjs') as {
+  PendingInteractions: new () => { clear: () => void };
+  subscribeInteractions: (events: any, pending: any, send: (type: string, data: any) => void) => Array<{ unsubscribe: () => void }>;
+  respondScriptDialog: (bot: any, pending: any, params: any) => Promise<{ answered: boolean }>;
+  acceptLure: (bot: any, pending: any, params: any) => Promise<{ accepted: boolean; message: string }>;
+  dismissInteraction: (pending: any, params: any) => { dismissed: boolean };
+};
+
 // Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
 const _origConsoleError = console.error;
 console.error = function (...args: any[]) {
@@ -59,6 +67,8 @@ export interface SLSessionData {
   assetRequests: Map<string, Promise<void>>;
   decodedAssets: Map<string, any>;
   friendPresence: Map<string, boolean>;
+  /** Script dialogs and lures awaiting an answer, keyed by the ids sent to the client. */
+  pending: any;
 }
 
 const sessions = new Map<string, SLSessionData>();
@@ -216,6 +226,7 @@ export async function createSLSession(params: {
     assetRequests: new Map(),
     decodedAssets: new Map(),
     friendPresence: new Map(),
+    pending: new interactions.PendingInteractions(),
   };
 
   const broadcastEvent = (type: string, data: any) => {
@@ -378,6 +389,9 @@ export async function createSLSession(params: {
     })
   );
 
+  // Script dialogs (llDialog, llTextBox), teleport lures and group notices
+  sessionData.subscriptions.push(...interactions.subscribeInteractions(events, sessionData.pending, broadcastEvent));
+
   // Real Second Life Instant Messages
   sessionData.subscriptions.push(
     events.onInstantMessage.subscribe((event: any) => {
@@ -470,20 +484,6 @@ export async function createSLSession(params: {
       const friendId = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString();
       broadcastEvent('friend-remove', {
         id: friendId,
-      });
-    })
-  );
-
-  // Real Second Life Group Notices
-  sessionData.subscriptions.push(
-    events.onGroupNotice.subscribe((event: any) => {
-      broadcastEvent('group-notice', {
-        groupId: event.groupID?.toString(),
-        fromId: event.from?.toString(),
-        fromName: event.fromName || 'Resident',
-        subject: event.subject || 'Group Notice',
-        message: event.message || '',
-        timestamp: Date.now(),
       });
     })
   );
@@ -611,6 +611,14 @@ function connectedBot(sessionId: string) {
 export const teleportSL = (sessionId: string, params: any) => actions.teleport(connectedBot(sessionId), params);
 export const touchSLObject = (sessionId: string, params: any) => actions.touchObject(connectedBot(sessionId), params);
 export const sitSL = (sessionId: string, params: any) => actions.sit(connectedBot(sessionId), params);
+const sessionPending = (sessionId: string) => {
+  const session = sessions.get(sessionId);
+  if (!session) throw new Error('Not connected to Second Life');
+  return session.pending;
+};
+export const respondSLScriptDialog = (sessionId: string, params: any) => interactions.respondScriptDialog(connectedBot(sessionId), sessionPending(sessionId), params);
+export const acceptSLLure = (sessionId: string, params: any) => interactions.acceptLure(connectedBot(sessionId), sessionPending(sessionId), params);
+export const dismissSLInteraction = (sessionId: string, params: any) => interactions.dismissInteraction(sessionPending(sessionId), params);
 export const standSL = (sessionId: string) => actions.stand(connectedBot(sessionId));
 export const getSLBalance = (sessionId: string) => actions.getBalance(connectedBot(sessionId));
 
@@ -868,6 +876,7 @@ export function closeSLSession(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session) return;
 
+  session.pending.clear();
   for (const sub of session.subscriptions) {
     try {
       sub.unsubscribe();

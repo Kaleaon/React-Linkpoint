@@ -99,6 +99,8 @@ export class Graphics3D extends Utils.EventEmitter {
 
     // Create default shaders
     await this.createDefaultShaders();
+    // The view can be torn down while this awaits; destroy() releases the context.
+    if (this.gl !== gl) throw new Error('Graphics3D was destroyed while initializing');
 
     // Always bind deterministic fallback textures. Without these, a material
     // whose asset is still streaming can accidentally sample the texture left

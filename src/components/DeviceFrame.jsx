@@ -6,6 +6,7 @@ import Shell from "./Shell.jsx";
 import ConsoleFrame from "./ConsoleFrame.jsx";
 import FloatersDesktop from "./FloatersDesktop.jsx";
 import SystemDialog from "./SystemDialog.jsx";
+import InteractionDialog from "./InteractionDialog.jsx";
 import Toast from "./Toast.jsx";
 import BottomTabs from "./BottomTabs.jsx";
 import TileNav from "./TileNav.jsx";
@@ -36,6 +37,7 @@ export default function DeviceFrame() {
             <Shell />
           )}
           <SystemDialog />
+          <InteractionDialog />
           <Toast />
         </div>
         <BottomTabs />

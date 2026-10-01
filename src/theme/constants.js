@@ -79,7 +79,7 @@ export const CSUB = {
   "3D View":     [["CAM", "· 01"], ["GFX", "· 02"]],
   Chat:          [["LOCAL", "· 01"], ["IM", "· 02"], ["GROUP", "· 03"]],
   Friends:       [["ALL", "· 01"], ["ONLINE", "· 02"], ["CONTACTS", "· 03"]],
-  Contacts:      [["ALL", "· 01"], ["SL RESIDENTS", "· 02"], ["ADD FROM SL", "· 03"]],
+  Contacts:      [["SAVED", "· 01"], ["ADD FROM SL", "· 02"]],
   Calendar:      [["NOTICES", "· 01"], ["GOOGLE CALENDAR", "· 02"]],
   Radar:         [["AVATAR", "· 01"], ["OBJECT", "· 02"]],
   Map:           [["WORLD", "· 01"], ["MINI", "· 02"]],

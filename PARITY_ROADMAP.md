@@ -34,11 +34,12 @@ Asset policy for this project: text assets from Lumiya may be imported; binary a
 | Login, grid choice, `next_url` redirects | `slproto/auth`, login activity | Login with MFA token and saved MFA hash, structured failure reasons, login channel `Linkpoint Viewer` | **Done** |
 | Viewer identity (TPV rule) | n/a | Channel patched into node-metaverse by `scripts/patch-metaverse.cjs` at install time | **Done**, but fragile (see Infrastructure) |
 | Local chat, IM, group IM | `slproto/chat` | Handled on both backends (IM subscription present) | **Partial**: only text paths verified |
-| Script dialogs and text-box dialogs | `SLChatScriptDialog`, `SLChatTextBoxDialog` | No subscription to node-metaverse's `onScriptDialog` in either backend session code, no UI | **Not started** |
-| Teleport lures and requests | `SLChatLureEvent` family | No `onLure` subscription found | **Not started** |
+| Script dialogs and text-box dialogs | `SLChatScriptDialog`, `SLChatTextBoxDialog` | Both backends subscribe, keep the original events behind ids, and answer them (button or typed text); sheet UI with queueing, retry on failure and Escape to ignore. Shared code in `electron/sl-interactions.cjs`, manager in `src/linkpoint/interactions.ts` | **Done** (stub-tested; not seen on a live grid) |
+| Teleport lures | `SLChatLureEvent` | Offers are shown with sender, message and position; accepting teleports through the library. Dismissing is local only: the library has no call to decline, so the sender is not told. Lure *requests* (someone asking to be teleported to you) are not handled | **Partial** |
 | Inventory offers, group invites, group notices | `SLChatInventoryItemOffered*`, `SLChatGroupInvitationEvent` | No `onInventoryOffered`, `onGroupInvite`, `onGroupNotice` subscription found; friend requests are handled | **Partial** |
 | Teleport (by name/coordinates), sit, stand, touch, L$ balance | `SLAgentCircuit`, `SLFinancialInfo` | Shared actions layer (`electron/sl-actions.cjs`) on web and Electron, with input validation | **Done** (stub-tested) |
 | Inventory | `slproto/inventory` | In-memory tree and operations | **Partial**: folder responses merge rather than replace atomically, as `LUMIYA_FEATURE_AUDIT.md` notes |
+| Contacts and group-notice calendar | n/a (Linkpoint feature) | Device-local address book with photos and Telegram/Discord/web links; group notices kept and turned into `.ics` files; optional Google Contacts/Calendar behind a Settings toggle. See `CONTACTS_AND_CALENDAR.md` | **Done** (not tried against live Google) |
 | Mute list | `modules/mutelist` (fetched from and synced to the grid) | In-memory mute sets in `phase2/chat-extended.ts`; not synced with the grid's mute list, and whether every chat/IM path consults them was not verified | **Partial** |
 | People/group/place search | `modules/search` | Session resident index only; no server-side search | **Partial** |
 | Economy transactions, pay object | `modules/finance` | Balance only; no history, no pay | **Partial** |
@@ -102,7 +103,8 @@ recvim, tploc/tplm/tplure, sit/unsit/sittp, getstatus/getoutfit/getattach, redir
 ### Events node-metaverse already provides
 
 These have a library event but no subscription or UI in this repo, so they are TypeScript wiring
-work, not protocol work: `ScriptDialogEvent`, `LureEvent`, `InventoryOfferedEvent`,
+work, not protocol work (`ScriptDialogEvent` and `LureEvent` are now done, and are the pattern to
+copy): `InventoryOfferedEvent`,
 `GroupInviteEvent`, `GroupNoticeEvent`, `TeleportEvent`, `BalanceUpdatedEvent` (balance is
 currently polled), `ParcelPropertiesEvent` on the Electron backend. Each needs a serializer in
 both backends (they are duplicated; see Infrastructure), a bridge event, a store, and a screen.
@@ -180,7 +182,7 @@ Remaining, none of it in our code:
 ## Suggested order
 
 1. Live smoke test against a real account or OpenSim (finds what the stubs hide).
-2. Wire the existing node-metaverse events (script dialogs, lures, offers, invites, notices).
+2. Wire the remaining node-metaverse events (inventory offers, group invites, group notices, teleport results). Script dialogs and lures are done and are the template.
 3. RLV parser and controller with enforcement, because it is a policy requirement once RLV
    scripts are encountered.
 4. Real sun phase for Windlight.

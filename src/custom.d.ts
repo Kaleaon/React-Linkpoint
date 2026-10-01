@@ -24,6 +24,10 @@ interface Window {
     sendFriendRequest(request: { recipientId: string; message?: string }): Promise<void>;
     fetchFriends(): Promise<any[]>;
     teleport(request: { destination?: string; region?: string; x?: number; y?: number; z?: number }): Promise<{ requested: { region: string; x: number; y: number; z: number }; message: string }>;
+    respondScriptDialog(request: { id: string; buttonIndex?: number; text?: string }): Promise<{ answered: boolean }>;
+    acceptLure(request: { id: string }): Promise<{ accepted: boolean; message: string }>;
+    dismissInteraction(request: { id: string }): Promise<{ dismissed: boolean }>;
+    fetchProfilePhoto(request: { name: string; full?: boolean }): Promise<{ photoBytes: string | null; contentType?: string }>;
     touchObject(request: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }): Promise<{ touched: string | number }>;
     sit(request: { id?: string }): Promise<{ sitting: string }>;
     stand(): Promise<{ standing: boolean }>;

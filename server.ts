@@ -8,12 +8,18 @@ import cors from "cors";
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import dgram from "dgram";
+import { createRequire } from "module";
+const requireCjs = createRequire(import.meta.url);
+const { fetchProfilePhoto } = requireCjs("./electron/sl-profile-photo.cjs") as {
+  fetchProfilePhoto: (name: string, options?: { thumbnail?: boolean }) => Promise<{ base64: string; contentType: string } | null>;
+};
 import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy.ts";
 import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/proxy-permit.ts";
 import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
 import {
   createSLSession,
   teleportSL, touchSLObject, sitSL, standSL, getSLBalance,
+  respondSLScriptDialog, acceptSLLure, dismissSLInteraction,
   getSLSession,
   getSLDiagnostics,
   sendSLChat,
@@ -143,6 +149,9 @@ export async function createApp() {
     }
   };
   app.post("/api/sl/teleport", action((id, body) => teleportSL(id, body)));
+  app.post("/api/sl/dialog/respond", action((id, body) => respondSLScriptDialog(id, body)));
+  app.post("/api/sl/lure/accept", action((id, body) => acceptSLLure(id, body)));
+  app.post("/api/sl/interaction/dismiss", action((id, body) => dismissSLInteraction(id, body)));
   app.post("/api/sl/touch", action((id, body) => touchSLObject(id, body)));
   app.post("/api/sl/sit", action((id, body) => sitSL(id, body)));
   app.post("/api/sl/stand", action((id) => standSL(id)));
@@ -223,37 +232,14 @@ export async function createApp() {
     }
   });
 
-  // Avatar profile photo fetch for Google Contacts & Resident Profiles
+  // A resident's public web profile picture, for contact photos. Needs a live session so it is not an open proxy.
   app.get("/api/sl/avatar/photo", async (req, res) => {
     try {
-      const avatarId = req.query.avatarId as string;
-      const name = (req.query.name as string) || "";
-      const username = name.trim().toLowerCase().replace(/\s+/g, ".");
-      const candidateUrls: string[] = [];
-
-      if (username) {
-        candidateUrls.push(`https://my-secondlife-origins.s3.amazonaws.com/users/${encodeURIComponent(username)}/thumb_avatar.jpg`);
-        candidateUrls.push(`https://my-secondlife-origins.s3.amazonaws.com/users/${encodeURIComponent(username)}/avatar.jpg`);
-      }
-      if (avatarId && avatarId !== "00000000-0000-0000-0000-000000000000") {
-        candidateUrls.push(`https://api.secondlife.com/users/${avatarId}/avatar_image.jpg`);
-      }
-
-      for (const url of candidateUrls) {
-        try {
-          const resp = await axios.get(url, { responseType: "arraybuffer", timeout: 3500 });
-          if (resp.status === 200 && resp.data && resp.data.length > 200) {
-            const base64 = Buffer.from(resp.data).toString("base64");
-            return res.json({ photoBytes: base64, contentType: resp.headers["content-type"] || "image/jpeg" });
-          }
-        } catch {
-          // Continue to next candidate
-        }
-      }
-
-      res.json({ photoBytes: null });
+      if (!getSLSession(String(req.query.sessionId || ""))) return res.status(401).json({ error: "Not connected to Second Life" });
+      const photo = await fetchProfilePhoto(String(req.query.name || ""), { thumbnail: req.query.size !== "full" });
+      res.json(photo ? { photoBytes: photo.base64, contentType: photo.contentType } : { photoBytes: null });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(400).json({ error: err.message });
     }
   });
 
