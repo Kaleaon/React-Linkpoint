@@ -29,6 +29,8 @@ renderer**.
   selection and a camera-focus action inspired by Lumiya's recovered
   `CollisionBox`, `GLRayTrace`, and `WorldViewRenderer.pickObject` flow.
 
+- Keyframe animation core (`src/linkpoint/avatar-animation.ts`): parses Second Life `.anim` data, samples rotation/position keys, applies Lumiya's loop/ease-in/ease-out timing and blends running animations by priority. Checked by parsing all 118 animations bundled in Lumiya's APK, plus unit tests. It is **not yet connected to any rendered avatar**: there is no skeleton, skinning or avatar mesh in the renderer, so nothing visibly animates yet.
+
 ## Not implemented yet
 
 - Second Life prim shape/path/profile sculpting.
