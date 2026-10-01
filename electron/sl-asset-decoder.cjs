@@ -37,6 +37,24 @@ function decodeWeights(weights, vertexCount) {
   return { joints, jointWeights };
 }
 
+/** Area-weighted smooth vertex normals for an indexed triangle list (counter-clockwise front faces). */
+function computeNormals(vertices, indices) {
+  const normals = new Array(vertices.length).fill(0);
+  for (let i = 0; i + 2 < indices.length; i += 3) {
+    const [a, b, c] = [indices[i] * 3, indices[i + 1] * 3, indices[i + 2] * 3];
+    const e1 = [vertices[b] - vertices[a], vertices[b + 1] - vertices[a + 1], vertices[b + 2] - vertices[a + 2]];
+    const e2 = [vertices[c] - vertices[a], vertices[c + 1] - vertices[a + 1], vertices[c + 2] - vertices[a + 2]];
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    for (const o of [a, b, c]) { normals[o] += n[0]; normals[o + 1] += n[1]; normals[o + 2] += n[2]; }
+  }
+  for (let o = 0; o < normals.length; o += 3) {
+    const length = Math.hypot(normals[o], normals[o + 1], normals[o + 2]);
+    if (length > 1e-12) { normals[o] /= length; normals[o + 1] /= length; normals[o + 2] /= length; }
+    else { normals[o] = 0; normals[o + 1] = 0; normals[o + 2] = 1; }
+  }
+  return normals;
+}
+
 function decodeSubmesh(submesh, materialIndex) {
   if (submesh.noGeometry || !submesh.position?.length || !submesh.triangleList?.length) return null;
   const vertexCount = submesh.position.length;
@@ -51,6 +69,10 @@ function decodeSubmesh(submesh, materialIndex) {
   const indices = submesh.triangleList.map(Number);
   if (indices.some((index) => !Number.isInteger(index) || index < 0 || index >= vertexCount)) {
     throw new Error(`LLMesh material ${materialIndex} contains an invalid vertex index`);
+  }
+  if (!submesh.normal?.length) {
+    const computed = computeNormals(vertices, indices);
+    for (let i = 0; i < computed.length; i++) normals[i] = computed[i];
   }
   return { materialIndex, vertices, normals, texCoords, indices, ...decodeWeights(submesh.weights, vertexCount) };
 }
@@ -153,20 +175,30 @@ async function decodeSculpt(buffer, sculptType = 1) {
   const size = Math.max(8, Math.min(64, Math.min(decoded.width, decoded.height)));
   const { data, info } = await sharp(decoded.data, { raw: { width: decoded.width, height: decoded.height, channels: decoded.channels } })
     .resize(size, size, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-  const vertices = [], normals = [], texCoords = [], indices = [];
+  const vertices = [], texCoords = [], indices = [];
   const baseType = sculptType & 0x3f, mirror = Boolean(sculptType & 0x80), invert = Boolean(sculptType & 0x40);
   for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
     const sourceX = mirror ? info.width - 1 - x : x;
     const p = (y * info.width + sourceX) * info.channels;
     vertices.push(data[p] / 255 - 0.5, data[p + 1] / 255 - 0.5, data[p + 2] / 255 - 0.5);
-    normals.push(0, 0, invert ? -1 : 1);
     texCoords.push(x / (info.width - 1), y / (info.height - 1));
   }
-  const wrapsX = baseType !== 3;
-  for (let y = 0; y < info.height - 1; y++) for (let x = 0; x < info.width - (wrapsX ? 0 : 1); x++) {
-    const nx = (x + 1) % info.width, a = y * info.width + x, b = y * info.width + nx;
-    const c = (y + 1) * info.width + x, d = (y + 1) * info.width + nx;
+  // Sphere (1), torus (2) and cylinder (4) sculpts close around U; only a torus also closes around V; a plane (3) is open.
+  const wrapsX = baseType !== 3, wrapsY = baseType === 2;
+  const rows = wrapsY ? info.height : info.height - 1;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < info.width - (wrapsX ? 0 : 1); x++) {
+    const nx = (x + 1) % info.width, ny = (y + 1) % info.height;
+    const a = y * info.width + x, b = y * info.width + nx;
+    const c = ny * info.width + x, d = ny * info.width + nx;
     if (invert) indices.push(a, c, b, b, c, d); else indices.push(a, b, c, b, d, c);
+  }
+  // Seams share positions but not vertices, so average normals across the wrap.
+  const normals = computeNormals(vertices, indices);
+  if (wrapsX) for (let y = 0; y < info.height; y++) {
+    const first = y * info.width * 3, last = (y * info.width + info.width - 1) * 3;
+    if (Math.hypot(vertices[first] - vertices[last], vertices[first + 1] - vertices[last + 1], vertices[first + 2] - vertices[last + 2]) < 1e-9) {
+      for (let k = 0; k < 3; k++) { const m = normals[first + k] + normals[last + k]; normals[first + k] = m; normals[last + k] = m; }
+    }
   }
   return { vertices, normals, texCoords, indices };
 }
@@ -176,4 +208,4 @@ async function decodeJPEG2000(buffer) {
   return { width: decoded.width, height: decoded.height, rgba: decoded.data.toString('base64') };
 }
 
-module.exports = { decodeLLMesh, normalizeLLMesh, decodeGLTFMaterial, normalizeGLTFMaterial, decodeSculpt, decodeJPEG2000 };
+module.exports = { computeNormals, decodeLLMesh, normalizeLLMesh, decodeGLTFMaterial, normalizeGLTFMaterial, decodeSculpt, decodeJPEG2000 };

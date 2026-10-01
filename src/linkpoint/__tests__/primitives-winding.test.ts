@@ -21,8 +21,8 @@ function outwardFraction(mesh: { vertices: number[]; normals: number[]; indices:
 describe('primitive meshes face outward (counter-clockwise front faces, as the renderer culls back faces)', () => {
   const meshes: Array<[string, () => { vertices: number[]; indices: number[] }]> = [
     ['cube', () => Primitives3D.createCube(1)],
-    ['sphere', () => Primitives3D.createSphere(1, 32, 16)],
-    ['cylinder', () => Primitives3D.createCylinder(1, 1, 2, 32)],
+    ['sphere', () => Primitives3D.createSphere(0.5, 32, 16)],
+    ['cylinder', () => Primitives3D.createCylinder(0.5, 0.5, 1, 32)],
     ['prism', () => Primitives3D.createPrism()],
     ['torus', () => Primitives3D.createTorus()],
   ];
@@ -31,4 +31,42 @@ describe('primitive meshes face outward (counter-clockwise front faces, as the r
       expect(outwardFraction(make())).toBeGreaterThan(0.99);
     });
   }
+});
+
+describe('primitive meshes use Second Life conventions (unit box, Z axis)', () => {
+  const bounds = (vertices: number[]) => {
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < vertices.length; i += 3) for (let k = 0; k < 3; k++) {
+      min[k] = Math.min(min[k], vertices[i + k]);
+      max[k] = Math.max(max[k], vertices[i + k]);
+    }
+    return { min, max };
+  };
+
+  it.each([
+    ['cube', Primitives3D.createCube(1)],
+    ['sphere', Primitives3D.createSphere(0.5, 32, 16)],
+    ['cylinder', Primitives3D.createCylinder(0.5, 0.5, 1, 32)],
+  ])('%s fills the unit box', (_name, mesh) => {
+    const { min, max } = bounds(mesh.vertices);
+    for (let k = 0; k < 3; k++) {
+      expect(min[k]).toBeCloseTo(-0.5, 5);
+      expect(max[k]).toBeCloseTo(0.5, 5);
+    }
+  });
+
+  it('cylinder has a cap at each end facing along +Z / -Z', () => {
+    const mesh = Primitives3D.createCylinder(0.5, 0.5, 1, 16);
+    const capNormals = new Set<string>();
+    for (let i = 0; i < mesh.normals.length; i += 3) {
+      if (mesh.normals[i] === 0 && mesh.normals[i + 1] === 0 && Math.abs(mesh.normals[i + 2]) === 1) capNormals.add(`${mesh.normals[i + 2]}@${mesh.vertices[i + 2]}`);
+    }
+    expect([...capNormals].sort()).toEqual(['-1@-0.5', '1@0.5']);
+  });
+
+  it('keeps all normals unit length', () => {
+    for (const mesh of [Primitives3D.createSphere(0.5, 16, 8), Primitives3D.createCylinder(0.25, 0.5, 1, 16)]) {
+      for (let i = 0; i < mesh.normals.length; i += 3) expect(Math.hypot(mesh.normals[i], mesh.normals[i + 1], mesh.normals[i + 2])).toBeCloseTo(1, 5);
+    }
+  });
 });

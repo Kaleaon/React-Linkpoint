@@ -237,3 +237,37 @@ describe('Scene3D.pick', () => {
     expect(scene.pick(400, 300, 800, 600)!.distance).toBeCloseTo(17, 3);
   });
 });
+
+describe('Scene3D lighting from the environment', () => {
+  const objectCall = (graphics: ReturnType<typeof makeScene>['graphics']) => graphics.drawMesh.mock.calls.find((call) => call[1] === 'basic')![2];
+
+  it('uses the sky ambient term and sun direction for objects', () => {
+    const { scene, graphics } = makeScene();
+    scene.addLight({ position: [0, 0, 1], color: [1, 1, 1] });
+    scene.addObject('prim', { mesh: 'cube', position: [0, 20, 50] });
+    scene.setEnvironment({ currentSky: { ambient: [0.6, 0.5, 0.4, 1], sunlightColor: [0.9, 0.8, 0.7, 1], sunDirection: [0, 0, 1] } });
+    scene.render();
+    const call = objectCall(graphics);
+    expect(Array.from(call.uAmbientColor)).toEqual([0.6, 0.5, 0.4].map(Math.fround));
+    expect(Array.from(call.uLightPos)).toEqual([0, 0, 10000]);
+    expect(Array.from(call.uLightColor)).toEqual([0.9, 0.8, 0.7].map(Math.fround));
+  });
+
+  it('keeps a modest default ambient and clamps out-of-range values', () => {
+    const { scene, graphics } = makeScene();
+    scene.addObject('prim', { mesh: 'cube', position: [0, 20, 50] });
+    scene.render();
+    expect(Array.from(objectCall(graphics).uAmbientColor)).toEqual([0.2, 0.2, 0.2].map(Math.fround));
+    graphics.drawMesh.mockClear();
+    scene.setEnvironment({ currentSky: { ambient: [3, -1, 0.5] } });
+    scene.render();
+    expect(Array.from(objectCall(graphics).uAmbientColor)).toEqual([1, 0, 0.5]);
+  });
+
+  it('ignores a non-finite sun direction', () => {
+    const { scene } = makeScene();
+    scene.addLight({ position: [1, 2, 3] });
+    scene.setEnvironment({ currentSky: { sunDirection: [NaN, 0, 1] } });
+    expect(scene.lights[0].position).toEqual([1, 2, 3]);
+  });
+});

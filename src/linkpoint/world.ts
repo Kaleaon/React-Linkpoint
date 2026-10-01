@@ -8,6 +8,7 @@ import { Camera3D } from './camera-3d';
 import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
+import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 
 export class WorldViewer extends Utils.EventEmitter {
@@ -166,7 +167,7 @@ export class WorldViewer extends Utils.EventEmitter {
     }
     if (data.environment) {
       this.environment = data.environment;
-      this.scene3d?.setEnvironment(data.environment);
+      this.applyEnvironment();
       this.emit('environment_changed', data.environment);
     }
     if (data.terrain?.heights && Number(data.terrain.size) > 1) {
@@ -294,7 +295,7 @@ export class WorldViewer extends Utils.EventEmitter {
 
       this.scene3d = new Scene3D(this.graphics3d, this.camera3d);
       await this.scene3d.init();
-      if (this.environment) this.scene3d.setEnvironment(this.environment);
+      this.applyEnvironment();
       if (this.terrain) this.scene3d.setTerrain(this.terrain.heights, this.terrain.size);
       if (this.displayedHud) this.scene3d.setDisplayedHud(this.displayedHud.id, this.displayedHud.size);
       for (const [assetId, geometry] of this.decodedAssets) this.scene3d.addAssetMesh(assetId, geometry);
@@ -334,10 +335,26 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
+  /** Interval between refreshes of the fallback sky, ms. The sun moves slowly (a four-hour day). */
+  private static readonly FALLBACK_SKY_REFRESH_MS = 30000;
+  private fallbackSkyAt = 0;
+
+  /** Use the simulator's environment when there is one, else the bundled Windlight day at the estimated hour. */
+  private applyEnvironment(now = Date.now()) {
+    if (!this.scene3d) return;
+    if (this.environment) {
+      this.scene3d.setEnvironment(this.environment);
+      return;
+    }
+    this.fallbackSkyAt = now;
+    this.scene3d.setEnvironment(windlightEnvironment(estimatedSunHour(now)));
+  }
+
   public startRendering() {
     if (this.animationId !== null) return;
     const render = (time: number) => {
       if (this.use3D && this.scene3d && this.camera3d) {
+        if (!this.environment && Date.now() - this.fallbackSkyAt > WorldViewer.FALLBACK_SKY_REFRESH_MS) this.applyEnvironment();
         this.camera3d.updateMatrices();
         this.scene3d.render();
       }

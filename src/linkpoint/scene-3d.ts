@@ -10,12 +10,15 @@ import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Fr
 import { intersectRayOrientedBox } from './ray-pick';
 import { fitHud, hudExtents, hudProjection, HUD_SIZE, type HudFit } from './hud';
 import {
-  WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater,
+  WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater, readVec3,
   createSkyDome, createStarField, createWaterPlane,
   type SkyUniforms, type WaterUniforms,
 } from './sky';
 
 const UNIT_CUBE_BOUNDS = { min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] };
+
+/** Distance of the sun light from the origin, in metres; far enough to behave as a directional light. */
+const SUN_DISTANCE = 10000;
 
 export class Scene3D extends Utils.EventEmitter {
   public graphics: Graphics3D;
@@ -47,6 +50,8 @@ export class Scene3D extends Utils.EventEmitter {
   private skyUniforms: SkyUniforms = computeSkyUniforms(null);
   private waterUniforms: WaterUniforms = computeWaterUniforms(null);
   private skyClearColor: number[] = [0.53, 0.81, 0.92, 1];
+  /** Ambient light on objects: from the environment's ambient term when there is one. */
+  private ambientColor: number[] = [0.2, 0.2, 0.2];
   private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 
   constructor(graphics: Graphics3D, camera: Camera3D) {
@@ -88,7 +93,7 @@ export class Scene3D extends Utils.EventEmitter {
     this.graphics.createMesh('cube', cube.vertices, cube.indices, cube.normals, cube.texCoords);
     
     // Sphere
-    const sphere = Primitives3D.createSphere(1, 32, 16);
+    const sphere = Primitives3D.createSphere(0.5, 32, 16);
     this.graphics.createMesh('sphere', sphere.vertices, sphere.indices, sphere.normals, sphere.texCoords);
     
     // Plane
@@ -96,7 +101,7 @@ export class Scene3D extends Utils.EventEmitter {
     this.graphics.createMesh('plane', plane.vertices, plane.indices, plane.normals, plane.texCoords);
     
     // Cylinder
-    const cylinder = Primitives3D.createCylinder(1, 1, 2, 32);
+    const cylinder = Primitives3D.createCylinder(0.5, 0.5, 1, 32);
     this.graphics.createMesh('cylinder', cylinder.vertices, cylinder.indices, cylinder.normals, cylinder.texCoords);
 
     const prism = Primitives3D.createPrism();
@@ -178,7 +183,14 @@ export class Scene3D extends Utils.EventEmitter {
     this.skyClearColor = [...normalized, 1];
     this.graphics.setClearColor(this.skyClearColor);
     if (this.lights[0] && sky.sunlightColor) this.lights[0].color = sky.sunlightColor.slice(0, 3);
+    // Windlight frames carry the sun direction; the light is a point light placed far away so it acts as directional.
+    const sun = sky.sunDirection;
+    if (this.lights[0] && Array.isArray(sun) && sun.length === 3 && sun.every((v: unknown) => Number.isFinite(v))) {
+      this.lights[0].position = sun.map((v: number) => v * SUN_DISTANCE);
+    }
     this.skyUniforms = computeSkyUniforms(sky);
+    const ambient = readVec3(sky.ambient ?? sky.ambientColor ?? sky.ambient_color, [0.2, 0.2, 0.2]);
+    this.ambientColor = ambient.map((v) => Math.max(0, Math.min(1, v)));
     this.waterUniforms = computeWaterUniforms(environment?.water, this.waterHeight);
   }
 
@@ -545,7 +557,7 @@ export class Scene3D extends Utils.EventEmitter {
       uNormalMatrix: normalMatrix,
       uLightPos: new Float32Array(light.position),
       uLightColor: new Float32Array(light.color),
-      uAmbientColor: new Float32Array([0.3, 0.3, 0.3]),
+      uAmbientColor: new Float32Array(this.ambientColor),
       uColor: new Float32Array([0.5, 0.5, 0.5, 0.3]),
       uUseTexture: false,
       // Uniform values persist between WebGL draws. Reset every shader option
@@ -592,7 +604,7 @@ export class Scene3D extends Utils.EventEmitter {
         uNormalMatrix: normalMatrix,
         uLightPos: new Float32Array(light.position),
         uLightColor: new Float32Array(light.color),
-        uAmbientColor: new Float32Array([0.2, 0.2, 0.2]),
+        uAmbientColor: new Float32Array(this.ambientColor),
         uColor: new Float32Array(face?.color || object.color),
         uUseTexture: Boolean(object.mirrorTexture || face?.texture || object.texture),
         uTextureName: object.mirrorTexture || face?.texture || object.texture,
