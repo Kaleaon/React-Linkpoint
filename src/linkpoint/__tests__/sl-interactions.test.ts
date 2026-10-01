@@ -40,6 +40,16 @@ describe('serializing interactions', () => {
     expect(wire).toMatchObject({ objectName: '', ownerName: '', message: '', channel: 0, buttons: [], textBox: false });
   });
 
+  it('treats null, empty and non-numeric values as missing rather than as 0', () => {
+    const lure = serializeLure(lureEvent({ gridX: null, gridY: '', ...{} }));
+    expect(lure.gridX).toBeNull();
+    expect(lure.gridY).toBeNull();
+    expect(serializeLure(lureEvent({ gridX: true, gridY: {} })).gridX).toBeNull();
+    expect(serializeLure(lureEvent({ gridX: '1000', gridY: 0 }))).toMatchObject({ gridX: 1000, gridY: 0 });
+    expect(serializeScriptDialog(dialogEvent({ ChatChannel: null })).channel).toBe(0);
+    expect(serializeScriptDialog(dialogEvent({ ChatChannel: '-5' })).channel).toBe(-5);
+  });
+
   it('describes a lure with a plain position array', () => {
     expect(serializeLure(lureEvent())).toEqual({
       fromId: '22222222-2222-2222-2222-222222222222', fromName: 'Sam Resident', message: 'Come visit',

@@ -22,7 +22,11 @@ const MAX_REPLY_BYTES = 255;
 const MAX_PENDING = 50;
 
 const idString = (value) => (value && typeof value.toString === 'function' ? value.toString() : null);
-const finiteOr = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
+/** A finite number from a number or numeric string; anything else (null, '', booleans, objects) is treated as missing. */
+const finiteOr = (value, fallback) => {
+  const usable = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '');
+  return usable && Number.isFinite(Number(value)) ? Number(value) : fallback;
+};
 
 function vectorArray(value) {
   if (!value) return null;
