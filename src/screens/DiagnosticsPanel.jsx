@@ -3,13 +3,14 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import { app } from "../linkpoint/app";
 import Icon from "../components/Icon.jsx";
+import { UNKNOWN, show, positiveOrNull, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState } from "./diagnosticsView.js";
 
 export default function DiagnosticsPanel() {
   const { V, t } = useTheme();
   const { state, actions } = useApp();
 
   const [diag, setDiag] = useState(() => app.protocol.getDiagnostics());
-  const [latencyHistory, setLatencyHistory] = useState([diag.latencyMs || 48]);
+  const [latencyHistory, setLatencyHistory] = useState(() => pushLatency([], diag.latencyMs));
   const [pinging, setPinging] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -20,10 +21,7 @@ export default function DiagnosticsPanel() {
     const updateDiag = (newDiag) => {
       if (!newDiag) return;
       setDiag(newDiag);
-      setLatencyHistory((prev) => {
-        const next = [...prev, newDiag.latencyMs || 48];
-        return next.length > 24 ? next.slice(-24) : next;
-      });
+      setLatencyHistory((prev) => pushLatency(prev, newDiag.latencyMs));
     };
 
     app.protocol.on("diagnostics_updated", updateDiag);
@@ -46,8 +44,11 @@ export default function DiagnosticsPanel() {
     setPinging(true);
     try {
       const res = await app.protocol.fetchDiagnostics();
-      setDiag(res);
-      actions.notify(`Ping complete: ${res.latencyMs}ms latency`);
+      if (res) {
+        setDiag(res);
+        setLatencyHistory((prev) => pushLatency(prev, res.latencyMs));
+      }
+      actions.notify(describePing(res));
     } catch {
       actions.notify("Ping probe error");
     } finally {
@@ -56,17 +57,21 @@ export default function DiagnosticsPanel() {
   };
 
   const isConnected = diag.connected || app.auth.isLoggedIn();
-  const latency = diag.latencyMs || 0;
-  const latencyTone = latency < 90 ? V.ok : latency < 200 ? "#eab308" : V.err;
-  const latencyLabel = latency < 90 ? "EXCELLENT" : latency < 200 ? "NORMAL" : "DEGRADED";
+  const toneColor = (tone) => (tone === "ok" ? V.ok : tone === "warn" ? "#eab308" : tone === "err" ? V.err : V.ink2);
+  const latency = latencyBand(diag.latencyMs);
+  const latencyTone = toneColor(latency.tone);
+  const loss = lossBand(diag.packetLossPct);
+  const lossTone = toneColor(loss.tone);
 
-  const packetLoss = diag.packetLossPct || 0;
-  const lossTone = packetLoss === 0 ? V.ok : packetLoss < 1.5 ? "#eab308" : V.err;
+  const lastTs = diag.lastPacketTimestamp;
+  const ageMs = packetAgeMs(lastTs, now);
+  const ageSec = ageMs === null ? UNKNOWN : (ageMs / 1000).toFixed(1);
+  const ageTone = ageMs === null ? V.ink2 : ageMs < 3000 ? V.ok : ageMs < 8000 ? "#eab308" : V.err;
 
-  const lastTs = diag.lastPacketTimestamp || 0;
-  const ageMs = lastTs > 0 ? Math.max(0, now - lastTs) : 0;
-  const ageSec = (ageMs / 1000).toFixed(1);
-  const ageTone = ageMs < 3000 ? V.ok : ageMs < 8000 ? "#eab308" : V.err;
+  const region = app.world?.region;
+  const gridCoords = Number.isFinite(region?.x) && Number.isFinite(region?.y) ? `${region.x}, ${region.y}` : UNKNOWN;
+  const capabilityCount = Object.keys(app.protocol?.capabilities || {}).length;
+  const queue = eventQueueState(isConnected, app.protocol?.eventQueueRunning);
 
   const cardStyle = {
     background: V.surf,
@@ -78,9 +83,13 @@ export default function DiagnosticsPanel() {
   };
 
   // Sparkline calculation
-  const maxL = Math.max(...latencyHistory, 120);
-  const minL = Math.min(...latencyHistory, 20);
-  const hRange = maxL - minL || 1;
+  const range = latencyRange(latencyHistory);
+  const minL = range ? range.min : 0;
+  const maxL = range ? range.max : 0;
+  // Scale bars against a floor so one sample does not fill the whole graph.
+  const barMax = Math.max(maxL, 120);
+  const barMin = Math.min(minL, 20);
+  const hRange = barMax - barMin || 1;
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px", display: "grid", gap: 16, maxWidth: 720, margin: "0 auto", width: "100%" }}>
@@ -135,7 +144,7 @@ export default function DiagnosticsPanel() {
             </span>
           </div>
           <div style={{ fontSize: 11, color: V.ink2 }}>
-            Grid: <strong>AGNI (Production)</strong> · {diag.simName || "Arapaima"}
+            Grid: <strong>{show(app.auth.user?.grid)}</strong> · {show(diag.simName)}
           </div>
         </div>
 
@@ -143,11 +152,11 @@ export default function DiagnosticsPanel() {
         <div style={cardStyle}>
           <div style={{ fontSize: 11, fontWeight: 700, color: V.ink2, letterSpacing: ".1em", display: "flex", justifyContent: "space-between" }}>
             <span>SIM LATENCY</span>
-            <span style={{ color: latencyTone }}>{latencyLabel}</span>
+            <span style={{ color: latencyTone }}>{latency.label}</span>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ fontSize: 28, fontWeight: 800, color: latencyTone, fontFamily: t.dfont }}>
-              {latency}
+              {latency.text}
             </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: V.ink2 }}>MS</span>
           </div>
@@ -163,12 +172,12 @@ export default function DiagnosticsPanel() {
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ fontSize: 28, fontWeight: 800, color: lossTone, fontFamily: t.dfont }}>
-              {packetLoss.toFixed(1)}
+              {loss.text}
             </span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: V.ink2 }}>%</span>
+            {loss.text !== UNKNOWN && <span style={{ fontSize: 14, fontWeight: 700, color: V.ink2 }}>%</span>}
           </div>
           <div style={{ fontSize: 11, color: V.ink2 }}>
-            UDP retransmission rate: {packetLoss === 0 ? "Zero lost" : "Minor jitter"}
+            {loss.note}
           </div>
         </div>
 
@@ -179,12 +188,12 @@ export default function DiagnosticsPanel() {
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ fontSize: 28, fontWeight: 800, color: ageTone, fontFamily: t.dfont }}>
-              {lastTs > 0 ? ageSec : "—"}
+              {ageSec}
             </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: V.ink2 }}>SEC AGO</span>
           </div>
           <div style={{ fontSize: 11, color: V.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {lastTs > 0 ? new Date(lastTs).toLocaleTimeString() : "Awaiting simulator traffic"}
+            {ageMs === null ? "No simulator packets recorded" : new Date(lastTs).toLocaleTimeString()}
           </div>
         </div>
       </div>
@@ -196,12 +205,13 @@ export default function DiagnosticsPanel() {
             ROUND-TRIP LATENCY HISTORY (RECENT PINGS)
           </div>
           <div style={{ fontSize: 11, color: V.ink2 }}>
-            Min: {minL}ms · Max: {maxL}ms
+            {range ? `Min: ${Math.round(minL)} ms · Max: ${Math.round(maxL)} ms` : "No samples yet"}
           </div>
         </div>
         <div style={{ height: 64, display: "flex", alignItems: "flex-end", gap: 4, background: V.bg, padding: "8px 12px", borderRadius: V.rs, border: `1px solid ${V.outv}` }}>
+          {latencyHistory.length === 0 && <span style={{ alignSelf: "center", fontSize: 11, color: V.ink2 }}>Waiting for the simulator to report a round-trip time.</span>}
           {latencyHistory.map((val, idx) => {
-            const hPct = Math.round(((val - minL) / hRange) * 80 + 10);
+            const hPct = Math.round(((val - barMin) / hRange) * 80 + 10);
             const tone = val < 90 ? V.ok : val < 200 ? "#eab308" : V.err;
             return (
               <div
@@ -230,36 +240,36 @@ export default function DiagnosticsPanel() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, fontSize: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Simulator Name</span>
-            <strong>{diag.simName || "Arapaima"}</strong>
+            <strong>{show(diag.simName)}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Grid Coordinates</span>
-            <strong>{diag.gridX || 1797}, {diag.gridY || 1197}</strong>
+            <strong>{gridCoords}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Simulator IP</span>
-            <strong>{diag.simAddress || "216.82.52.24"}</strong>
+            <strong>{show(diag.simAddress)}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Simulator UDP Port</span>
-            <strong>{diag.simPort || 13000}</strong>
+            <strong>{show(positiveOrNull(diag.simPort))}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Circuit Code</span>
-            <strong>{diag.circuitCode || 1001}</strong>
+            <strong>{show(positiveOrNull(diag.circuitCode))}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Packets RX (In)</span>
-            <strong style={{ color: V.ok }}>{diag.packetsIn || 0}</strong>
+            <strong style={{ color: V.ok }}>{show(diag.packetsIn)}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Packets TX (Out)</span>
-            <strong style={{ color: V.pri }}>{diag.packetsOut || 0}</strong>
+            <strong style={{ color: V.pri }}>{show(diag.packetsOut)}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
             <span style={{ color: V.ink2 }}>Agent ID</span>
             <strong style={{ fontSize: 10, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {diag.agentId || app.auth.user?.id || "f496d6bf-8235-4ebf-bd56-4f7f0464a27a"}
+              {show(diag.agentId || app.auth.user?.id)}
             </strong>
           </div>
         </div>
@@ -273,18 +283,18 @@ export default function DiagnosticsPanel() {
         <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ color: V.ink2 }}>Event Queue State</span>
-            <span style={{ padding: "2px 8px", borderRadius: V.rs, background: "rgba(34, 197, 94, 0.15)", color: V.ok, fontWeight: 700, fontSize: 11 }}>
-              ACTIVE · HTTP 200 OK
+            <span style={{ padding: "2px 8px", borderRadius: V.rs, background: V.surf2, color: toneColor(queue.tone), fontWeight: 700, fontSize: 11 }}>
+              {queue.text}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ color: V.ink2 }}>Active Capabilities</span>
-            <span>{Object.keys(app.protocol?.capabilities || {}).length || 14} loaded</span>
+            <span>{isConnected ? `${capabilityCount} loaded` : UNKNOWN}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ color: V.ink2 }}>Seed Capability</span>
             <span style={{ fontSize: 10, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", color: V.ink2 }}>
-              {app.protocol?.seedCapability || "https://sim.agni.lindenlab.com/cap/seed"}
+              {show(app.protocol?.seedCapability)}
             </span>
           </div>
         </div>

@@ -27,21 +27,20 @@ export class SLConnectionFull extends Utils.EventEmitter {
   private eventQueueFailures = 0;
   private removeNativeListener: (() => void) | null = null;
 
-  // Real-Time Second Life Telemetry & Diagnostics
+  // Real-Time Second Life Telemetry & Diagnostics. Every figure is unknown
+  // (null / empty) until the simulator or login reply supplies it; nothing here
+  // is a placeholder that could be mistaken for a measurement.
   private diagnostics = {
     connected: false,
-    // Unknown until the simulator reports a ping; never a made-up figure.
     latencyMs: null as number | null,
-    packetLossPct: 0.0,
-    packetsIn: 184,
-    packetsOut: 62,
-    lastPacketTimestamp: Date.now(),
-    simName: 'Arapaima',
-    gridX: 1797,
-    gridY: 1197,
-    simAddress: '216.82.52.24',
-    simPort: 13000,
-    circuitCode: 1001,
+    packetLossPct: null as number | null,
+    packetsIn: null as number | null,
+    packetsOut: null as number | null,
+    lastPacketTimestamp: null as number | null,
+    simName: '',
+    simAddress: '',
+    simPort: null as number | null,
+    circuitCode: null as number | null,
     agentId: '',
   };
 
@@ -52,6 +51,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
       connected: isConn,
       agentId: this.agentId || this.diagnostics.agentId || (typeof window !== 'undefined' && (window as any).app?.auth?.user?.id) || '',
       simName: this.authReply?.sim_name || (typeof window !== 'undefined' && (window as any).app?.world?.regionName) || this.diagnostics.simName,
+      // Prefer what the login reply actually told us over the last polled snapshot.
+      simAddress: this.simAddress || this.diagnostics.simAddress,
+      simPort: this.simPort || this.diagnostics.simPort,
+      circuitCode: this.circuitCode || this.diagnostics.circuitCode,
     };
   }
 
@@ -189,10 +192,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.authReply = loginResult;
       this.agentId = String(loginResult.agent_id);
       this.sessionId = String(loginResult.sessionId);
-      this.circuitCode = Number(loginResult.circuit_code || 1001);
+      // The bridge talks to the real simulator on our behalf, so the client does
+      // not know its address or circuit; diagnostics fill these in from the server.
+      this.circuitCode = Number(loginResult.circuit_code) || null;
       this.inventoryRoot = loginResult.inventory_root || null;
-      this.simAddress = '127.0.0.1';
-      this.simPort = 9000;
+      this.simAddress = null;
+      this.simPort = null;
       this.setState('CONNECTED');
       this.connected = true;
 
@@ -260,10 +265,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
       this.authReply = loginResult;
       this.agentId = String(loginResult.agent_id);
       this.sessionId = String(loginResult.sessionId);
-      this.circuitCode = Number(loginResult.circuit_code || 1001);
+      // The bridge talks to the real simulator on our behalf, so the client does
+      // not know its address or circuit; diagnostics fill these in from the server.
+      this.circuitCode = Number(loginResult.circuit_code) || null;
       this.inventoryRoot = loginResult.inventory_root || null;
-      this.simAddress = '127.0.0.1';
-      this.simPort = 9000;
+      this.simAddress = null;
+      this.simPort = null;
       this.setState('CONNECTED');
       this.connected = true;
 

@@ -517,7 +517,7 @@ export async function createSLSession(params: {
     first_name: firstName,
     last_name: lastName,
     sim_name: sessionData.simName || null,
-    circuit_code: region?.circuit?.circuitCode || 1001,
+    circuit_code: region?.circuit?.circuitCode || null,
     region_x: Number.isFinite(region?.xCoordinate) ? region.xCoordinate : null,
     region_y: Number.isFinite(region?.yCoordinate) ? region.yCoordinate : null,
     inventory_root: sessionData.inventoryRootId,
@@ -577,11 +577,11 @@ export function getSLDiagnostics(sessionId: string) {
       connected: false,
       state: 'DISCONNECTED',
       latencyMs: null,
-      packetLossPct: 0,
+      packetLossPct: null,
       capabilities: 0,
-      circuitCode: 0,
+      circuitCode: null,
       simAddress: '',
-      simPort: 0,
+      simPort: null,
     };
   }
 
@@ -593,14 +593,14 @@ export function getSLDiagnostics(sessionId: string) {
     connected: true,
     state: 'CONNECTED',
     latencyMs: typeof circuit?.ping === 'number' ? circuit.ping : null,
-    packetLossPct: typeof circuit?.packetLoss === 'number' ? circuit.packetLoss : 0,
+    packetLossPct: typeof circuit?.packetLoss === 'number' ? circuit.packetLoss : null,
     capabilities: Object.keys(currentRegion?.caps || currentRegion?.capabilities || {}).length,
-    circuitCode: circuit?.circuitCode || 1001,
+    circuitCode: circuit?.circuitCode || null,
     simAddress: currentRegion?.ip || circuit?.ip || '',
-    simPort: currentRegion?.port || circuit?.port || 0,
+    simPort: currentRegion?.port || circuit?.port || null,
     regionName: currentRegion?.regionName || currentRegion?.name || '',
-    fps: currentRegion?.fps || 45,
-    timeDilation: currentRegion?.timeDilation || 1.0,
+    fps: typeof currentRegion?.fps === 'number' ? currentRegion.fps : null,
+    timeDilation: typeof currentRegion?.timeDilation === 'number' ? currentRegion.timeDilation : null,
   };
 }
 
