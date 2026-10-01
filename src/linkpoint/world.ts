@@ -903,8 +903,26 @@ export class WorldViewer extends Utils.EventEmitter {
       .catch((error) => {
         console.warn('[WorldViewer] avatar body meshes unavailable, using placeholder avatars:', error);
         this.bodyLoad = null;
+        this.scheduleBodyRetry();
       });
     return this.bodyLoad;
+  }
+
+  private bodyRetries = 0;
+  private bodyRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** A transient fetch failure must not leave blocks and spheres for the whole session: retry, then swap in the real bodies. */
+  private scheduleBodyRetry() {
+    if (this.bodyRetryTimer || this.bodyRetries >= 4) return;
+    this.bodyRetries++;
+    this.bodyRetryTimer = setTimeout(async () => {
+      this.bodyRetryTimer = null;
+      await this.loadBody();
+      const scene = this.scene3d;
+      if (!scene || !this.bodyParts) return;
+      this.installBodyMeshes(scene);
+      for (const object of this.sceneObjects.values()) if (object.avatar) this.applySceneObject(object);
+    }, 3000 * this.bodyRetries);
   }
 
   private installBodyMeshes(scene: Scene3D) {
