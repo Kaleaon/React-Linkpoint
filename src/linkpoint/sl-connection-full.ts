@@ -26,7 +26,6 @@ export class SLConnectionFull extends Utils.EventEmitter {
   private lastEventId: number | null = null;
   private eventQueueTimer: ReturnType<typeof setTimeout> | null = null;
   private eventQueueFailures = 0;
-  private removeNativeListener: (() => void) | null = null;
 
   // Real-Time Second Life Telemetry & Diagnostics. Every figure is unknown
   // (null / empty) until the simulator or login reply supplies it; nothing here
@@ -80,8 +79,6 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   private resetConnectionState() {
-    this.removeNativeListener?.();
-    this.removeNativeListener = null;
     this.connected = false;
     this.balance = null;
     this.authReply = null;
@@ -100,6 +97,62 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.eventQueueFailures = 0;
   }
 
+  /** Route every viewer-session event to the interface. The one mapping for desktop, web and mobile. */
+  private attachBridge() {
+    slBridge.removeAllListeners();
+    const forward = (from: string, to: string, wrap: (data: any) => any = (data) => data) => slBridge.on(from, (data: any) => this.emit(to, wrap(data)));
+    forward('chat', 'ChatFromSimulator');
+    forward('im', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'im' }));
+    forward('group-chat', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'group', type: 'group' }));
+    forward('group-notice', 'group_notice');
+    forward('friend-status', 'friend_status');
+    forward('friend-request', 'friend_request');
+    forward('friend-response', 'friend_response');
+    forward('friend-remove', 'friend_remove');
+    forward('script-dialog', 'script_dialog');
+    forward('lure', 'lure');
+    forward('parcel-properties', 'ParcelProperties', (data) => ({ parcelData: data }));
+    forward('coarse-avatar', 'CoarseAvatarUpdate');
+    for (const name of ['avatar_presence', 'avatar-presence']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('avatar_presence', data);
+        this.emit('avatar-presence', data);
+      });
+    }
+    // Everything else the session announces is scene data: objects, assets, textures, terrain, environment...
+    for (const type of ['object-add', 'object-update', 'object-remove', 'asset-ready', 'asset-error', 'animations', 'texture-ready', 'material-ready', 'world-data', 'environment', 'terrain']) {
+      forward(type, `scene:${type}`);
+    }
+    slBridge.on('disconnected', (data: any) => {
+      this.connected = false;
+      this.setState('IDLE');
+      this.emit('disconnected', data);
+    });
+  }
+
+  private async finishLogin(loginResult: any) {
+    this.authReply = loginResult;
+    this.agentId = String(loginResult.agent_id);
+    // The session runs the circuit for us, so the interface learns only what the login reply says.
+    this.sessionId = String(loginResult.sessionId ?? loginResult.session_id);
+    this.circuitCode = Number(loginResult.circuit_code) || null;
+    this.inventoryRoot = loginResult.inventory_root || null;
+    this.simAddress = null;
+    this.simPort = null;
+    this.setState('CONNECTED');
+    this.connected = true;
+
+    try {
+      const friendsList = await slBridge.fetchFriends();
+      if (Array.isArray(friendsList) && friendsList.length > 0) this.emit('friends_loaded', friendsList);
+    } catch (fErr) {
+      console.warn('[SL Connection] fetchFriends warning:', fErr);
+    }
+
+    this.emit('connected', loginResult);
+    return loginResult;
+  }
+
   async connect(gridId: string, username: string, password: string, startLocation: string = 'last', mfa: { token?: string; hash?: string } = {}) {
     this.resetConnectionState();
     this.setState('AUTHENTICATING');
@@ -108,123 +161,11 @@ export class SLConnectionFull extends Utils.EventEmitter {
       if (gridId === 'gemini' || gridId === 'offline' || gridId === 'local') {
         throw new Error('Synthetic grid sessions have been removed; select a live Second Life or OpenSim endpoint');
       }
-
-      if (window.linkpointDesktop?.connectViewer) {
-        const loginUrl = SLProtocol.getLoginUrl(gridId);
-        if (!loginUrl) throw new Error('Invalid or insecure grid selected');
-        await window.linkpointDesktop.allowLoginEndpoint(loginUrl);
-        this.removeNativeListener = window.linkpointDesktop.onViewerEvent(({ type, data }) => {
-          if (type === 'chat') this.emit('ChatFromSimulator', data);
-          else if (type === 'im') this.emit('ChatFromSimulator', { ...data, chatType: 'im' });
-          else if (type === 'script-dialog') this.emit('script_dialog', data);
-          else if (type === 'lure') this.emit('lure', data);
-          else if (type === 'friend-status') this.emit('friend_status', data);
-          else if (type === 'friend-request') this.emit('friend_request', data);
-          else if (type === 'friend-remove') this.emit('friend_remove', data);
-          else if (type === 'avatar_presence' || type === 'avatar-presence' || type === 'AvatarPresence') {
-            this.emit('avatar_presence', data);
-            this.emit('avatar-presence', data);
-          }
-          else if (type === 'disconnected') {
-            this.connected = false;
-            this.emit('disconnected', data);
-          } else {
-            this.emit(`scene:${type}`, data);
-          }
-        });
-        const loginResult = await window.linkpointDesktop.connectViewer({
-          loginUrl,
-          username,
-          password,
-          start: startLocation,
-          mfaToken: mfa.token,
-          mfaHash: mfa.hash,
-        });
-        this.authReply = loginResult;
-        this.agentId = String(loginResult.agent_id);
-        this.sessionId = String(loginResult.session_id);
-        this.circuitCode = Number(loginResult.circuit_code);
-        this.setState('CONNECTED');
-        this.connected = true;
-        this.emit('connected', loginResult);
-        return loginResult;
-      }
-
-      // Authentic Second Life connection via node-metaverse session bridge
       const loginUrl = SLProtocol.getLoginUrl(gridId) || gridId;
-      this.setState('AUTHENTICATING');
-
-      slBridge.removeAllListeners();
-      slBridge.on('chat', (data: any) => this.emit('ChatFromSimulator', data));
-      slBridge.on('im', (data: any) => this.emit('ChatFromSimulator', { ...data, chatType: 'im' }));
-      slBridge.on('group-chat', (data: any) => this.emit('ChatFromSimulator', { ...data, chatType: 'group', type: 'group' }));
-      slBridge.on('group-notice', (data: any) => this.emit('group_notice', data));
-      slBridge.on('friend-status', (data: any) => this.emit('friend_status', data));
-      slBridge.on('friend-request', (data: any) => this.emit('friend_request', data));
-      slBridge.on('script-dialog', (data: any) => this.emit('script_dialog', data));
-      slBridge.on('lure', (data: any) => this.emit('lure', data));
-      slBridge.on('friend-response', (data: any) => this.emit('friend_response', data));
-      slBridge.on('friend-remove', (data: any) => this.emit('friend_remove', data));
-      slBridge.on('object-add', (data: any) => this.emit('scene:object-add', data));
-      slBridge.on('object-update', (data: any) => this.emit('scene:object-update', data));
-      slBridge.on('object-remove', (data: any) => this.emit('scene:object-remove', data));
-      slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
-      slBridge.on('animations', (data: any) => this.emit('scene:animations', data));
-      slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
-      slBridge.on('material-ready', (data: any) => this.emit('scene:material-ready', data));
-      slBridge.on('world-data', (data: any) => this.emit('scene:world-data', data));
-      slBridge.on('environment', (data: any) => this.emit('scene:environment', data));
-      slBridge.on('terrain', (data: any) => this.emit('scene:terrain', data));
-      slBridge.on('parcel-properties', (data: any) => this.emit('ParcelProperties', { parcelData: data }));
-      slBridge.on('coarse-avatar', (data: any) => this.emit('CoarseAvatarUpdate', data));
-      slBridge.on('avatar_presence', (data: any) => {
-        this.emit('avatar_presence', data);
-        this.emit('avatar-presence', data);
-      });
-      slBridge.on('avatar-presence', (data: any) => {
-        this.emit('avatar_presence', data);
-        this.emit('avatar-presence', data);
-      });
-      slBridge.on('disconnected', (data: any) => {
-        this.connected = false;
-        this.setState('IDLE');
-        this.emit('disconnected', data);
-      });
-
-      const loginResult = await slBridge.connect({
-        loginUrl,
-        username,
-        password,
-        start: startLocation,
-        mfaToken: mfa.token,
-        mfaHash: mfa.hash,
-      });
-
-      this.authReply = loginResult;
-      this.agentId = String(loginResult.agent_id);
-      this.sessionId = String(loginResult.sessionId);
-      // The bridge talks to the real simulator on our behalf, so the client does
-      // not know its address or circuit; diagnostics fill these in from the server.
-      this.circuitCode = Number(loginResult.circuit_code) || null;
-      this.inventoryRoot = loginResult.inventory_root || null;
-      this.simAddress = null;
-      this.simPort = null;
-      this.setState('CONNECTED');
-      this.connected = true;
-
-      // Load initial real friends from Second Life
-      try {
-        const friendsList = await slBridge.fetchFriends();
-        if (Array.isArray(friendsList) && friendsList.length > 0) {
-          this.emit('friends_loaded', friendsList);
-        }
-      } catch (fErr) {
-        console.warn('[SL Connection] fetchFriends warning:', fErr);
-      }
-
-      this.emit('connected', loginResult);
-      return loginResult;
-
+      if (!loginUrl) throw new Error('Invalid or insecure grid selected');
+      this.attachBridge();
+      const loginResult = await slBridge.connect({ loginUrl, username, password, start: startLocation, mfaToken: mfa.token, mfaHash: mfa.hash });
+      return await this.finishLogin(loginResult);
     } catch (error) {
       this.resetConnectionState();
       this.setState('IDLE');
@@ -234,72 +175,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
     }
   }
 
+  /** Log in with credentials held by the web server. */
   async autoLogin(startLocation: string = 'last') {
     try {
       this.setState('AUTHENTICATING');
-
-      slBridge.removeAllListeners();
-      slBridge.on('chat', (data: any) => this.emit('ChatFromSimulator', data));
-      slBridge.on('im', (data: any) => this.emit('ChatFromSimulator', { ...data, chatType: 'im' }));
-      slBridge.on('group-chat', (data: any) => this.emit('ChatFromSimulator', { ...data, chatType: 'group', type: 'group' }));
-      slBridge.on('group-notice', (data: any) => this.emit('group_notice', data));
-      slBridge.on('friend-status', (data: any) => this.emit('friend_status', data));
-      slBridge.on('friend-request', (data: any) => this.emit('friend_request', data));
-      slBridge.on('script-dialog', (data: any) => this.emit('script_dialog', data));
-      slBridge.on('lure', (data: any) => this.emit('lure', data));
-      slBridge.on('friend-response', (data: any) => this.emit('friend_response', data));
-      slBridge.on('friend-remove', (data: any) => this.emit('friend_remove', data));
-      slBridge.on('object-add', (data: any) => this.emit('scene:object-add', data));
-      slBridge.on('object-update', (data: any) => this.emit('scene:object-update', data));
-      slBridge.on('object-remove', (data: any) => this.emit('scene:object-remove', data));
-      slBridge.on('asset-ready', (data: any) => this.emit('scene:asset-ready', data));
-      slBridge.on('texture-ready', (data: any) => this.emit('scene:texture-ready', data));
-      slBridge.on('material-ready', (data: any) => this.emit('scene:material-ready', data));
-      slBridge.on('world-data', (data: any) => this.emit('scene:world-data', data));
-      slBridge.on('environment', (data: any) => this.emit('scene:environment', data));
-      slBridge.on('terrain', (data: any) => this.emit('scene:terrain', data));
-      slBridge.on('parcel-properties', (data: any) => this.emit('ParcelProperties', { parcelData: data }));
-      slBridge.on('coarse-avatar', (data: any) => this.emit('CoarseAvatarUpdate', data));
-      slBridge.on('avatar_presence', (data: any) => {
-        this.emit('avatar_presence', data);
-        this.emit('avatar-presence', data);
-      });
-      slBridge.on('avatar-presence', (data: any) => {
-        this.emit('avatar_presence', data);
-        this.emit('avatar-presence', data);
-      });
-      slBridge.on('disconnected', (data: any) => {
-        this.connected = false;
-        this.setState('IDLE');
-        this.emit('disconnected', data);
-      });
-
-      const loginResult = await slBridge.autoLogin(startLocation);
-
-      this.authReply = loginResult;
-      this.agentId = String(loginResult.agent_id);
-      this.sessionId = String(loginResult.sessionId);
-      // The bridge talks to the real simulator on our behalf, so the client does
-      // not know its address or circuit; diagnostics fill these in from the server.
-      this.circuitCode = Number(loginResult.circuit_code) || null;
-      this.inventoryRoot = loginResult.inventory_root || null;
-      this.simAddress = null;
-      this.simPort = null;
-      this.setState('CONNECTED');
-      this.connected = true;
-
-      // Load initial real friends from Second Life
-      try {
-        const friendsList = await slBridge.fetchFriends();
-        if (Array.isArray(friendsList) && friendsList.length > 0) {
-          this.emit('friends_loaded', friendsList);
-        }
-      } catch (fErr) {
-        console.warn('[SL Connection] fetchFriends warning:', fErr);
-      }
-
-      this.emit('connected', loginResult);
-      return loginResult;
+      this.attachBridge();
+      return await this.finishLogin(await slBridge.autoLogin(startLocation));
     } catch (error) {
       this.resetConnectionState();
       this.setState('IDLE');
@@ -401,9 +282,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
   async teleportTo(destination: string) {
     this.requireConnected();
-    const result = window.linkpointDesktop?.teleport
-      ? await window.linkpointDesktop.teleport({ destination })
-      : await slBridge.teleport({ destination });
+    const result = await slBridge.teleport({ destination });
     this.emit('teleport_requested', result);
     return result;
   }
@@ -411,41 +290,41 @@ export class SLConnectionFull extends Utils.EventEmitter {
   /** A resident's public profile picture (base64), or null when they have none. */
   async fetchProfilePhoto(name: string, full = false) {
     this.requireConnected();
-    return window.linkpointDesktop?.fetchProfilePhoto ? window.linkpointDesktop.fetchProfilePhoto({ name, full }) : slBridge.fetchProfilePhoto(name, full);
+    return slBridge.fetchProfilePhoto(name, full);
   }
 
   /** Answer a script dialog: pass a button index, or `text` for a text box. */
   async respondScriptDialog(request: { id: string; buttonIndex?: number; text?: string }) {
     this.requireConnected();
-    return window.linkpointDesktop?.respondScriptDialog ? window.linkpointDesktop.respondScriptDialog(request) : slBridge.respondScriptDialog(request);
+    return slBridge.respondScriptDialog(request);
   }
 
   /** Accept a teleport lure. Resolves when the grid reports the teleport result. */
   async acceptLure(id: string) {
     this.requireConnected();
-    return window.linkpointDesktop?.acceptLure ? window.linkpointDesktop.acceptLure({ id }) : slBridge.acceptLure({ id });
+    return slBridge.acceptLure({ id });
   }
 
   /** Forget an interaction on the server. Nothing is sent to the grid. */
   async dismissInteraction(id: string) {
     this.requireConnected();
-    return window.linkpointDesktop?.dismissInteraction ? window.linkpointDesktop.dismissInteraction({ id }) : slBridge.dismissInteraction({ id });
+    return slBridge.dismissInteraction({ id });
   }
 
   /** Touch an object by id. Face and texture coordinates are sent only when known. */
   async touchObject(target: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
     this.requireConnected();
-    return window.linkpointDesktop?.touchObject ? window.linkpointDesktop.touchObject(target) : slBridge.touchObject(target);
+    return slBridge.touchObject(target);
   }
 
   async sit(id?: string) {
     this.requireConnected();
-    return window.linkpointDesktop?.sit ? window.linkpointDesktop.sit({ id }) : slBridge.sit({ id });
+    return slBridge.sit({ id });
   }
 
   async stand() {
     this.requireConnected();
-    return window.linkpointDesktop?.stand ? window.linkpointDesktop.stand() : slBridge.stand();
+    return slBridge.stand();
   }
 
   /** L$ balance, or null when the grid has not answered. Never a guess. */
@@ -454,7 +333,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   async refreshBalance(): Promise<number | null> {
     if (!this.connected && !slBridge.connected) { this.balance = null; return null; }
     try {
-      const { balance } = window.linkpointDesktop?.getBalance ? await window.linkpointDesktop.getBalance() : await slBridge.getBalance();
+      const { balance } = await slBridge.getBalance();
       this.balance = Number.isFinite(balance) ? balance : null;
     } catch (error) {
       console.warn('[SL Connection] balance unavailable:', error);
@@ -466,94 +345,38 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async sendChat(message: string, channel: number = 0, type: number = 1) {
     if (!this.connected) throw new Error('Not connected to a grid');
-    if (window.linkpointDesktop?.sendChat) {
-      await window.linkpointDesktop.sendChat({ message, channel, type });
-      return;
-    }
-    if (slBridge.connected) {
-      await slBridge.sendChat(message, channel, type);
-      return;
-    }
-    if (!this.capabilities.ChatSessionRequest) throw new Error('This grid did not provide a chat capability');
-
-    try {
-      await corsHandler.makeRequest(this.capabilities.ChatSessionRequest, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/llsd+xml' },
-        body: LLSD.buildXML({ message, channel, type })
-      });
-    } catch (error) {
-      console.error('Failed to send chat:', error);
-      throw error;
-    }
+    await slBridge.sendChat(message, channel, type);
   }
 
   async sendInstantMessage(recipientId: string, message: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
-    if (window.linkpointDesktop?.sendInstantMessage) {
-      await window.linkpointDesktop.sendInstantMessage({ recipientId, message });
-      return;
-    }
-    if (slBridge.connected) {
-      await slBridge.sendInstantMessage(recipientId, message);
-      return;
-    }
-    if (this.capabilities.ChatSessionRequest) {
-      await corsHandler.makeRequest(this.capabilities.ChatSessionRequest, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/llsd+xml' },
-        body: LLSD.buildXML({ message, to: recipientId, type: 4 })
-      });
-      return;
-    }
-    await this.sendChat(message, 0, 4);
+    await slBridge.sendInstantMessage(recipientId, message);
   }
 
   /** Download an animation asset (custom/uploaded animations) as raw bytes. */
   async fetchAnimation(id: string): Promise<Uint8Array> {
     if (!this.connected) throw new Error('Not connected to a grid');
-    let reply: { data: string } | null = null;
-    if (window.linkpointDesktop?.fetchAnimation) reply = await window.linkpointDesktop.fetchAnimation({ id });
-    else if (slBridge.connected) reply = await slBridge.fetchAnimation(id);
+    const reply = await slBridge.fetchAnimation(id);
     if (!reply?.data) throw new Error('Animation downloads are unavailable on this connection');
     const binary = atob(reply.data);
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
+  // A group message is never spoken in the region: it goes to the group's chat session or fails.
   async sendGroupMessage(groupId: string, message: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
-    if (window.linkpointDesktop?.sendGroupMessage) {
-      await window.linkpointDesktop.sendGroupMessage({ groupId, message });
-      return;
-    }
-    if (slBridge.connected) {
-      await slBridge.sendGroupMessage(groupId, message);
-      return;
-    }
-    // Never fall back to local chat: a group message must not be spoken in the region.
-    throw new Error('Group chat is unavailable on this connection');
+    await slBridge.sendGroupMessage(groupId, message);
   }
 
   async sendFriendRequest(recipientId: string, message?: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
-    if (window.linkpointDesktop?.sendFriendRequest) {
-      await window.linkpointDesktop.sendFriendRequest({ recipientId, message });
-      return;
-    }
-    if (slBridge.connected) {
-      await slBridge.sendFriendRequest(recipientId, message);
-      return;
-    }
-    throw new Error('Friend requests are unavailable on this connection');
+    await slBridge.sendFriendRequest(recipientId, message);
   }
 
   async fetchFriends() {
     if (!this.connected) return [];
-    if (window.linkpointDesktop?.fetchFriends) return window.linkpointDesktop.fetchFriends();
-    if (slBridge.connected) return slBridge.fetchFriends();
-    return [];
+    return slBridge.fetchFriends();
   }
-
 
   getCapability(name: string) {
     return this.capabilities[name];
@@ -567,10 +390,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.eventQueueRunning = false;
     if (this.eventQueueTimer) clearTimeout(this.eventQueueTimer);
     this.eventQueueTimer = null;
-    this.removeNativeListener?.();
-    this.removeNativeListener = null;
-    if (slBridge.connected) slBridge.disconnect();
-    if (window.linkpointDesktop?.disconnectViewer) await window.linkpointDesktop.disconnectViewer();
+    slBridge.disconnect();
     this.connected = false;
     this.setState('IDLE');
     this.emit('disconnected');

@@ -3,6 +3,7 @@ const dns = require('node:dns').promises;
 const net = require('node:net');
 const path = require('node:path');
 const { ViewerSession } = require('../core/viewer-session.cjs');
+const { callViewer } = require('../core/viewer-api.cjs');
 const { fetchProfilePhoto } = require('../core/sl-profile-photo.cjs');
 const { APP_SCHEME_REGISTRATION, APP_URL, registerAppProtocol } = require('./app-protocol.cjs');
 
@@ -82,28 +83,17 @@ function sessionFor(event) {
 
 ipcMain.handle('linkpoint:viewer-connect', async (event, request) => {
   const target = await assertSafeTarget(request.loginUrl);
-  return sessionFor(event).connect({ ...request, loginUrl: target.toString() });
+  const result = await sessionFor(event).connect({ ...request, loginUrl: target.toString() });
+  // The desktop host streams scene data over IPC, so the renderer needs no HTTP scene snapshot.
+  return { ...result, native_scene: true };
 });
-ipcMain.handle('linkpoint:viewer-chat', (event, request) => sessionFor(event).sendChat(request.message, request.channel, request.type));
-ipcMain.handle('linkpoint:viewer-im', (event, request) => sessionFor(event).sendInstantMessage(request.recipientId, request.message));
-ipcMain.handle('linkpoint:viewer-group-message', (event, request) => sessionFor(event).sendGroupMessage(request.groupId, request.message));
-ipcMain.handle('linkpoint:viewer-animation', (event, request) => sessionFor(event).fetchAnimation(request.id));
-ipcMain.handle('linkpoint:viewer-groups', (event) => sessionFor(event).getGroups());
-ipcMain.handle('linkpoint:viewer-friend-request', (event, request) => sessionFor(event).sendFriendRequest(request.recipientId, request.message));
-ipcMain.handle('linkpoint:viewer-friends', (event) => sessionFor(event).getFriends());
-ipcMain.handle('linkpoint:viewer-teleport', (event, request) => sessionFor(event).teleport(request));
-ipcMain.handle('linkpoint:viewer-respond-dialog', (event, request) => sessionFor(event).respondScriptDialog(request));
-ipcMain.handle('linkpoint:viewer-accept-lure', (event, request) => sessionFor(event).acceptLure(request));
-ipcMain.handle('linkpoint:viewer-dismiss-interaction', (event, request) => sessionFor(event).dismissInteraction(request));
+// Every other session operation goes through the shared method table.
+ipcMain.handle('linkpoint:viewer-call', (event, method, params) => callViewer(sessionFor(event), method, params));
 ipcMain.handle('linkpoint:viewer-profile-photo', async (event, request) => {
   sessionFor(event).requireBot(); // only while connected, like the web endpoint
   const photo = await fetchProfilePhoto(String((request && request.name) || ''), { thumbnail: !(request && request.full) });
   return photo ? { photoBytes: photo.base64, contentType: photo.contentType } : { photoBytes: null };
 });
-ipcMain.handle('linkpoint:viewer-touch', (event, request) => sessionFor(event).touchObject(request));
-ipcMain.handle('linkpoint:viewer-sit', (event, request) => sessionFor(event).sit(request || {}));
-ipcMain.handle('linkpoint:viewer-stand', (event) => sessionFor(event).stand());
-ipcMain.handle('linkpoint:viewer-balance', (event) => sessionFor(event).getBalance());
 ipcMain.handle('linkpoint:viewer-disconnect', async (event) => {
   const session = viewerSessions.get(event.sender.id);
   viewerSessions.delete(event.sender.id);

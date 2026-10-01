@@ -34,10 +34,10 @@ Asset policy for this project: text assets from Lumiya may be imported; binary a
 | Login, grid choice, `next_url` redirects | `slproto/auth`, login activity | Login with MFA token and saved MFA hash, structured failure reasons, login channel `Linkpoint Viewer` | **Done** |
 | Viewer identity (TPV rule) | n/a | Channel patched into node-metaverse by `scripts/patch-metaverse.cjs` at install time | **Done**, but fragile (see Infrastructure) |
 | Local chat, IM, group IM | `slproto/chat` | Handled on both backends (IM subscription present) | **Partial**: only text paths verified |
-| Script dialogs and text-box dialogs | `SLChatScriptDialog`, `SLChatTextBoxDialog` | Both backends subscribe, keep the original events behind ids, and answer them (button or typed text); sheet UI with queueing, retry on failure and Escape to ignore. Shared code in `electron/sl-interactions.cjs`, manager in `src/linkpoint/interactions.ts` | **Done** (stub-tested; not seen on a live grid) |
+| Script dialogs and text-box dialogs | `SLChatScriptDialog`, `SLChatTextBoxDialog` | Both backends subscribe, keep the original events behind ids, and answer them (button or typed text); sheet UI with queueing, retry on failure and Escape to ignore. Shared code in `core/sl-interactions.cjs`, manager in `src/linkpoint/interactions.ts` | **Done** (stub-tested; not seen on a live grid) |
 | Teleport lures | `SLChatLureEvent` | Offers are shown with sender, message and position; accepting teleports through the library. Dismissing is local only: the library has no call to decline, so the sender is not told. Lure *requests* (someone asking to be teleported to you) are not handled | **Partial** |
 | Inventory offers, group invites, group notices | `SLChatInventoryItemOffered*`, `SLChatGroupInvitationEvent` | No `onInventoryOffered`, `onGroupInvite`, `onGroupNotice` subscription found; friend requests are handled | **Partial** |
-| Teleport (by name/coordinates), sit, stand, touch, L$ balance | `SLAgentCircuit`, `SLFinancialInfo` | Shared actions layer (`electron/sl-actions.cjs`) on web and Electron, with input validation | **Done** (stub-tested) |
+| Teleport (by name/coordinates), sit, stand, touch, L$ balance | `SLAgentCircuit`, `SLFinancialInfo` | Shared actions layer (`core/sl-actions.cjs`) on web and Electron, with input validation | **Done** (stub-tested) |
 | Inventory | `slproto/inventory` | In-memory tree and operations | **Partial**: folder responses merge rather than replace atomically, as `LUMIYA_FEATURE_AUDIT.md` notes |
 | Contacts and group-notice calendar | n/a (Linkpoint feature) | Device-local address book with photos and Telegram/Discord/web links; group notices kept and turned into `.ics` files; optional Google Contacts/Calendar behind a Settings toggle. See `CONTACTS_AND_CALENDAR.md` | **Done** (not tried against live Google) |
 | Mute list | `modules/mutelist` (fetched from and synced to the grid) | In-memory mute sets in `phase2/chat-extended.ts`; not synced with the grid's mute list, and whether every chat/IM path consults them was not verified | **Partial** |
@@ -140,10 +140,14 @@ or Kotlin as needed" was weighed per item above; none of the finished work neede
 
 ## Infrastructure
 
-- **Duplicated backends.** `server.ts` + `src/server/sl-session.ts` (web) and
-  `electron/viewer-session.cjs` (desktop) implement the same serializers and handlers.
-  Shared pieces live in `electron/sl-actions.cjs` and `electron/sl-asset-decoder.cjs`. Moving
-  serializers there too would remove a class of drift bugs.
+- **One codebase for every platform.** All viewer behaviour (login, events, serializers, asset
+  streaming, chat, friends, groups, inventory, teleport) lives in `core/viewer-session.cjs`.
+  `core/viewer-api.cjs` is the single allow-list of calls on it. Hosts are thin: Electron
+  (`electron/main.cjs`) exposes one `linkpoint:viewer-call` IPC channel, and the web server
+  (`server.ts`, `src/server/sl-session.ts`) exposes one `/api/sl/call` route plus SSE for events.
+  The Capacitor mobile shell loads the same web build and talks to the web server. On the client,
+  `src/linkpoint/sl-bridge.ts` is the only transport, and `sl-connection-full.ts` has one event
+  mapping. A new viewer feature is added once in `core/` and listed in `viewer-api.cjs`.
 - **Install-time patch.** The login identity and a friends fix are applied to node-metaverse's
   compiled output by `scripts/patch-metaverse.cjs`. A node-metaverse upgrade can silently break
   it; the `sl-login` test checks the installed library, which is the safeguard. Prefer an

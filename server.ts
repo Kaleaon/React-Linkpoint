@@ -16,24 +16,7 @@ const { fetchProfilePhoto } = requireCjs("./core/sl-profile-photo.cjs") as {
 import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy.ts";
 import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/proxy-permit.ts";
 import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
-import {
-  createSLSession,
-  teleportSL, touchSLObject, sitSL, standSL, getSLBalance,
-  respondSLScriptDialog, acceptSLLure, dismissSLInteraction,
-  getSLSession,
-  getSLDiagnostics,
-  sendSLChat,
-  sendSLInstantMessage,
-  sendSLGroupMessage,
-  sendSLFriendRequest,
-  fetchSLFriends,
-  fetchSLGroups,
-  fetchSLAnimation,
-  fetchSLInventory,
-  fetchSLSceneObjects,
-  fetchSLSceneAssets,
-  closeSLSession,
-} from "./src/server/sl-session.ts";
+import { createSLSession, getSLSession, callSLSession, closeSLSession } from "./src/server/sl-session.ts";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -138,111 +121,15 @@ export async function createApp() {
     }
   });
 
-  // Viewer actions. Each validates its own input (core/sl-actions.cjs) and
-  // reports only what the grid answered.
-  const action = (run: (sessionId: string, body: any) => any) => async (req: any, res: any) => {
+  // Every viewer operation (chat, teleport, friends, inventory...) is one allow-listed call on the
+  // shared session in core/, the same table the desktop app reaches over IPC.
+  app.post("/api/sl/call", async (req, res) => {
     try {
-      const sessionId = String((req.method === "GET" ? req.query.sessionId : req.body?.sessionId) || "");
+      const { sessionId, method, params } = req.body || {};
       if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
-      res.json(await run(sessionId, req.body || {}));
+      res.json((await callSLSession(String(sessionId), String(method || ""), params)) ?? { ok: true });
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
-    }
-  };
-  app.post("/api/sl/teleport", action((id, body) => teleportSL(id, body)));
-  app.post("/api/sl/dialog/respond", action((id, body) => respondSLScriptDialog(id, body)));
-  app.post("/api/sl/lure/accept", action((id, body) => acceptSLLure(id, body)));
-  app.post("/api/sl/interaction/dismiss", action((id, body) => dismissSLInteraction(id, body)));
-  app.post("/api/sl/touch", action((id, body) => touchSLObject(id, body)));
-  app.post("/api/sl/sit", action((id, body) => sitSL(id, body)));
-  app.post("/api/sl/stand", action((id) => standSL(id)));
-  app.get("/api/sl/balance", action((id) => getSLBalance(id)));
-
-  app.post("/api/sl/im", async (req, res) => {
-    try {
-      const { sessionId, to, message } = req.body || {};
-      if (!sessionId || !to || !message) {
-        return res.status(400).json({ error: "Missing sessionId, to, or message" });
-      }
-      await sendSLInstantMessage(sessionId, to, message);
-      res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.post("/api/sl/group-message", async (req, res) => {
-    try {
-      const { sessionId, groupId, message } = req.body || {};
-      if (!sessionId || !groupId || !message) {
-        return res.status(400).json({ error: "Missing sessionId, groupId, or message" });
-      }
-      await sendSLGroupMessage(sessionId, groupId, message);
-      res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.get("/api/sl/diagnostics", (req, res) => {
-    try {
-      const sessionId = (req.query.sessionId as string) || "";
-      const diag = getSLDiagnostics(sessionId);
-      res.json(diag);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.get("/api/sl/friends", async (req, res) => {
-    try {
-      const sessionId = req.query.sessionId as string;
-      if (!sessionId) {
-        return res.status(400).json({ error: "Missing sessionId" });
-      }
-      const friends = await fetchSLFriends(sessionId);
-      res.json(friends);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.get("/api/sl/animation", async (req, res) => {
-    try {
-      const sessionId = req.query.sessionId as string;
-      const id = req.query.id as string;
-      if (!sessionId || !id) {
-        return res.status(400).json({ error: "Missing sessionId or id" });
-      }
-      res.json(await fetchSLAnimation(sessionId, id));
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.get("/api/sl/groups", async (req, res) => {
-    try {
-      const sessionId = req.query.sessionId as string;
-      if (!sessionId) {
-        return res.status(400).json({ error: "Missing sessionId" });
-      }
-      const groups = await fetchSLGroups(sessionId);
-      res.json(groups);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.post("/api/sl/friend-request", async (req, res) => {
-    try {
-      const { sessionId, to, message } = req.body || {};
-      if (!sessionId || !to) {
-        return res.status(400).json({ error: "Missing sessionId or to" });
-      }
-      await sendSLFriendRequest(sessionId, to, message || "Would you like to be friends?");
-      res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(err?.message === "Not connected to Second Life" ? 401 : 400).json({ error: err.message });
     }
   });
 
@@ -272,51 +159,19 @@ export async function createApp() {
     session.eventClients.push(res);
     res.write(`data: ${JSON.stringify({ type: "connected", data: { sim: session.simName } })}\n\n`);
 
-    // Stream initial 3D simulator objects to newly connected client
+    // Catch a late-joining client up with everything announced before it connected.
     try {
-      const initialObjects = fetchSLSceneObjects(sessionId);
-      for (const obj of initialObjects) {
-        res.write(`data: ${JSON.stringify({ type: "object-add", data: obj })}\n\n`);
-      }
-      for (const asset of fetchSLSceneAssets(sessionId)) {
-        const payload = asset.type ? asset : { type: "asset-ready", data: asset };
-        res.write(`data: ${JSON.stringify(payload)}\n\n`);
-      }
-    } catch (objErr) {
-      console.warn('[SL Events] Error streaming initial objects:', objErr);
+      const { objects, assets } = session.viewer.getSceneSnapshot();
+      for (const object of objects) res.write(`data: ${JSON.stringify({ type: "object-add", data: object })}\n\n`);
+      for (const asset of assets) res.write(`data: ${JSON.stringify(asset)}\n\n`);
+    } catch (error) {
+      console.warn('[SL Events] Error streaming initial scene:', error);
     }
 
     req.on("close", () => {
       const index = session.eventClients.indexOf(res);
       if (index !== -1) session.eventClients.splice(index, 1);
     });
-  });
-
-  app.get("/api/sl/scene", (req, res) => {
-    try {
-      const sessionId = req.query.sessionId as string;
-      if (!sessionId) {
-        return res.status(400).json({ error: "Missing sessionId" });
-      }
-      const objects = fetchSLSceneObjects(sessionId);
-      res.json(objects);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.get("/api/sl/inventory", async (req, res) => {
-    try {
-      const sessionId = req.query.sessionId as string;
-      const folderId = req.query.folderId as string | undefined;
-      if (!sessionId) {
-        return res.status(400).json({ error: "Missing sessionId" });
-      }
-      const data = await fetchSLInventory(sessionId, folderId);
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
   });
 
   app.post("/api/sl/disconnect", (req, res) => {
