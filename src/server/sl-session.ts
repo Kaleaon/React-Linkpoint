@@ -474,6 +474,20 @@ export async function createSLSession(params: {
     })
   );
 
+  // Real Second Life Group Notices
+  sessionData.subscriptions.push(
+    events.onGroupNotice.subscribe((event: any) => {
+      broadcastEvent('group-notice', {
+        groupId: event.groupID?.toString(),
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Resident',
+        subject: event.subject || 'Group Notice',
+        message: event.message || '',
+        timestamp: Date.now(),
+      });
+    })
+  );
+
   // Perform genuine login to Second Life XML-RPC service
   let reply: any;
   try {

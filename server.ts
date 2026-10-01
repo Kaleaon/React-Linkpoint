@@ -223,6 +223,40 @@ export async function createApp() {
     }
   });
 
+  // Avatar profile photo fetch for Google Contacts & Resident Profiles
+  app.get("/api/sl/avatar/photo", async (req, res) => {
+    try {
+      const avatarId = req.query.avatarId as string;
+      const name = (req.query.name as string) || "";
+      const username = name.trim().toLowerCase().replace(/\s+/g, ".");
+      const candidateUrls: string[] = [];
+
+      if (username) {
+        candidateUrls.push(`https://my-secondlife-origins.s3.amazonaws.com/users/${encodeURIComponent(username)}/thumb_avatar.jpg`);
+        candidateUrls.push(`https://my-secondlife-origins.s3.amazonaws.com/users/${encodeURIComponent(username)}/avatar.jpg`);
+      }
+      if (avatarId && avatarId !== "00000000-0000-0000-0000-000000000000") {
+        candidateUrls.push(`https://api.secondlife.com/users/${avatarId}/avatar_image.jpg`);
+      }
+
+      for (const url of candidateUrls) {
+        try {
+          const resp = await axios.get(url, { responseType: "arraybuffer", timeout: 3500 });
+          if (resp.status === 200 && resp.data && resp.data.length > 200) {
+            const base64 = Buffer.from(resp.data).toString("base64");
+            return res.json({ photoBytes: base64, contentType: resp.headers["content-type"] || "image/jpeg" });
+          }
+        } catch {
+          // Continue to next candidate
+        }
+      }
+
+      res.json({ photoBytes: null });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/sl/events", (req, res) => {
     const sessionId = req.query.sessionId as string;
     const session = getSLSession(sessionId);

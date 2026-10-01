@@ -39,12 +39,14 @@ function runtimeSubtitle(screen, fallback) {
   const runtime = {
     Chat: connected ? `> ${app.auth.getUserDisplayName()} · ${region?.name || "waiting for region"}` : "> disconnected",
     Friends: `> ${app.friends.getFriends().filter((friend) => friend.onlineStatus === "online").length} online / ${app.friends.getFriends().length} loaded from grid`,
+    Contacts: "> Google Contacts & Second Life sync",
     Radar: `> ${app.world.nearbyUsers.length} avatars · ${app.world.objects.length} simulator objects`,
     Map: region ? `> ${region.name || "current region"}${Number.isFinite(region.x) ? ` <${region.x}, ${region.y}>` : ""}` : "> waiting for region handshake",
     Inventory: `> ${inventoryCount} items · ${folderCount} folders${connected ? ` · ${app.auth.getUserDisplayName()}` : ""}`,
     Profile: connected ? `> ${app.auth.getUserDisplayName()} · grid resident` : "> disconnected",
     Groups: `> ${app.groups.getGroups().length} groups loaded from grid`,
-    Notices: `> ${app.notifications.items.length} notifications received this session`,
+    Notices: `> ${app.notifications.items.length} notices received this session`,
+    Calendar: "> Google Calendar & group notices sync",
     Parcel: region?.parcel ? `> ${region.parcel.Name || region.parcel.name || "current parcel"}` : "> waiting for parcel properties",
     Transactions: "> transaction records returned by the grid",
     Diagnostics: `> ${app.protocol.state.toLowerCase()} · ${Object.keys(app.protocol.capabilities || {}).length} capabilities`,
@@ -60,8 +62,21 @@ function StackHead({ title, subtitle, scr }) {
   const headerIcons =
     scr === "Friends"
       ? [
+          { icon: "contact", label: "GOOGLE CONTACTS", pick: () => actions.setScreen("Contacts") },
           { icon: "user-plus", label: "ADD FRIEND", pick: () => actions.openSearch("Friends", "SEARCH") },
           { icon: "search", label: "SEARCH", pick: () => actions.openSearch("Friends", "SEARCH") },
+        ]
+      : scr === "Contacts"
+      ? [
+          { icon: "users", label: "VIEW SL FRIENDS", pick: () => actions.setScreen("Friends") },
+        ]
+      : scr === "Notices"
+      ? [
+          { icon: "calendar", label: "GOOGLE CALENDAR", pick: () => actions.setScreen("Calendar") },
+        ]
+      : scr === "Calendar"
+      ? [
+          { icon: "bell", label: "VIEW NOTICES", pick: () => actions.setScreen("Notices") },
         ]
       : scr === "Diagnostics"
       ? [{ icon: "refresh-cw", label: "REFRESH STATUS", pick: () => actions.notify(`${app.protocol.connected ? "Connected" : "Disconnected"} · ${Object.keys(app.protocol.capabilities || {}).length} capabilities`) }]

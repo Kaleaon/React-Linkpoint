@@ -23,6 +23,18 @@ export class NotificationsManager extends Utils.EventEmitter {
 
   init() {
     this.protocol.on('notification', (data: NotificationData) => this.handleNotification(data));
+    this.protocol.on('group_notice', (data: any) => {
+      this.handleNotification({
+        id: data.id || `notice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        kind: 'notice',
+        title: data.subject || 'Group Notice',
+        subject: data.subject || 'Group Notice',
+        message: data.message || '',
+        from: data.fromName || data.from || 'Resident',
+        groupId: data.groupId,
+        timestamp: data.timestamp || Date.now(),
+      });
+    });
   }
 
   handleNotification(data: NotificationData) {

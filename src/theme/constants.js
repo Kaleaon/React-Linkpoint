@@ -28,6 +28,8 @@ export const FLOATERS = [
   { id:"Cache",       title:"Cache",         icon:"hard-drive",     x:360,  y:120, w:460, h:420 },
   { id:"Diagnostics", title:"Statistics",    icon:"activity",       x:1056, y:462, w:346, h:196 },
   { id:"Search",      title:"Search",        icon:"search",         x:390,  y:70,  w:520, h:440 },
+  { id:"Contacts",    title:"Contacts",      icon:"contact",        x:360,  y:90,  w:500, h:460 },
+  { id:"Calendar",    title:"Calendar",      icon:"calendar",       x:420,  y:90,  w:500, h:470 },
 ];
 export const FMENU = [
   { label:"File",  items:[["Upload Image…","⌘U"],["Take Snapshot","⌘`"],["Save Texture As…",""],["Quit","⌘Q"]] },
@@ -38,7 +40,7 @@ export const FMENU = [
   { label:"Help",  items:[["Second Life Help","F1"],["Report Abuse…",""],["Report Bug…",""],["About Linkpoint",""]] },
 ];
 
-export const SCREENS = ["Chat","Friends","Radar","Map","3D View","Inventory","Profile","Groups","Notices","Teleport","Outfits","Objects","Parcel","Transactions","Mute List","Settings","Cache","Diagnostics","Login","Search"];
+export const SCREENS = ["Chat","Friends","Radar","Map","3D View","Inventory","Profile","Groups","Notices","Teleport","Outfits","Objects","Parcel","Transactions","Mute List","Settings","Cache","Diagnostics","Login","Search","Contacts","Calendar"];
 // Grid picker for Login: Second Life's own two (Agni/Aditi) plus a few
 // well-known OpenSim grids, so the login screen isn't LL-only.
 export const GRIDS = [
@@ -76,13 +78,15 @@ export const CBTN = {
 export const CSUB = {
   "3D View":     [["CAM", "· 01"], ["GFX", "· 02"]],
   Chat:          [["LOCAL", "· 01"], ["IM", "· 02"], ["GROUP", "· 03"]],
-  Friends:       [["ALL", "· 01"], ["ONLINE", "· 02"]],
+  Friends:       [["ALL", "· 01"], ["ONLINE", "· 02"], ["CONTACTS", "· 03"]],
+  Contacts:      [["ALL", "· 01"], ["SL RESIDENTS", "· 02"], ["ADD FROM SL", "· 03"]],
+  Calendar:      [["NOTICES", "· 01"], ["GOOGLE CALENDAR", "· 02"]],
   Radar:         [["AVATAR", "· 01"], ["OBJECT", "· 02"]],
   Map:           [["WORLD", "· 01"], ["MINI", "· 02"]],
   Inventory:     [["ALL", "· 01"], ["RECENT", "· 02"], ["WORN", "· 03"]],
   Profile:       [["2ND LIFE", "· 01"], ["PICKS", "· 02"]],
   Groups:        [["GROUPS", "· 01"], ["ROLES", "· 02"]],
-  Notices:       [["IM", "· 01"], ["SYSTEM", "· 02"]],
+  Notices:       [["NOTICES", "· 01"], ["CALENDAR", "· 02"]],
   Teleport:      [["LANDMARK", "· 01"], ["HISTORY", "· 02"]],
   Settings:      [["PREFS", "· 01"], ["CACHE", "· 02"]],
   Cache:         [["PREFS", "· 01"], ["CACHE", "· 02"]],
