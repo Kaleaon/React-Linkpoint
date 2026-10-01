@@ -346,6 +346,7 @@ class ViewerSession {
     const seen = new Map();
     for (const block of reply?.regions || []) {
       if (!block?.name || !Number.isFinite(block.x) || !Number.isFinite(block.y)) continue;
+      if (seen.has(`${block.x},${block.y}`)) continue; // a block can be repeated across reply packets
       seen.set(`${block.x},${block.y}`, {
         x: block.x, y: block.y, name: block.name,
         access: finite(block.accessFlags), waterHeight: finite(block.waterHeight), regionFlags: finite(block.regionFlags),

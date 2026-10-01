@@ -56,6 +56,7 @@ describe('desktop simulator object bridge', () => {
       shape: 'cube',
       assetKind: null,
       animatedMesh: false,
+      sculptType: null,
       assetId: null,
       textureId: null,
       faceTextures: [{
