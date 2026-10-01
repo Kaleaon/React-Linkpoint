@@ -13,6 +13,8 @@
  * World space is Z-up, like Second Life.
  */
 
+import { ATMOSPHERE_GLSL } from './atmosphere';
+
 export type Vec3 = [number, number, number];
 
 export interface SkyUniforms {
@@ -219,15 +221,34 @@ export const SKY_VERTEX_SHADER = `
 `;
 
 export const SKY_FRAGMENT_SHADER = `
+  #ifdef GL_FRAGMENT_PRECISION_HIGH
+  precision highp float;
+  #else
   precision mediump float;
-  uniform vec3 uSkyColor;
-  uniform float uHazeHorizon;
-  uniform vec3 uHazeColor;
+  #endif
   varying vec3 vDirection;
+  uniform vec3 uSunDir;
+  uniform vec3 uMoonDir;
+  uniform float uSunRadius;      // angular radius, radians
+  uniform float uMoonRadius;
+  uniform float uMoonBrightness;
+  uniform float uMoonUp;
+  ${ATMOSPHERE_GLSL}
   void main() {
-    float elevation = normalize(vDirection).z;
-    float haze = clamp((uHazeHorizon - elevation) * 2.0, 0.0, 1.0);
-    gl_FragColor = vec4(uSkyColor + uHazeColor * haze, 1.0);
+    vec3 dir = normalize(vDirection);
+    vec3 color = atmosphereColor(dir);
+    // sun disc with a soft edge and a tight bright core, dimmed as it sinks into the haze
+    float sd = dot(dir, uSunDir);
+    float sunDisc = smoothstep(cos(uSunRadius * 1.25), cos(uSunRadius), sd);
+    float sunBloom = pow(max(sd, 0.0), 900.0) * 0.6;
+    float sunVisible = uSunUp * smoothstep(-0.02, 0.06, uSunDir.z);
+    vec3 sunColor = uSunlight * 8.0;
+    color += sunColor * (sunDisc + sunBloom) * sunVisible;
+    // moon disc
+    float md = dot(dir, uMoonDir);
+    float moonDisc = smoothstep(cos(uMoonRadius * 1.15), cos(uMoonRadius), md);
+    color += vec3(0.82, 0.88, 1.0) * moonDisc * uMoonBrightness * 3.0 * uMoonUp * smoothstep(-0.02, 0.06, uMoonDir.z);
+    gl_FragColor = vec4(toneMapSky(color), 1.0);
   }
 `;
 
@@ -269,9 +290,13 @@ export const WATER_FRAGMENT_SHADER = `
   precision mediump float;
   #endif
   uniform vec3 uCameraPos;
-  uniform vec3 uWaterColor;
+  uniform vec3 uFogColor;      // refracted (under-surface) colour from the water settings
+  uniform float uFogDensity;
+  uniform float uFresnelScale;
+  uniform float uFresnelOffset;
   uniform vec3 uLightDir;      // direction towards the light
-  uniform vec3 uLightColor;
+  uniform vec3 uLightColor;    // surface light colour (sun or moon)
+  uniform vec3 uSurfaceAmbient;
   uniform float uTime;
   uniform float uPixelAngle;   // approx. radians covered by one screen pixel
   uniform float uNormalScale;  // scales wave slope into a usable normal tilt
@@ -280,6 +305,7 @@ export const WATER_FRAGMENT_SHADER = `
   uniform float uAmplitude[4];
   uniform vec2 uDirection[4];
   varying vec3 vWorld;
+  ${ATMOSPHERE_GLSL}
   void main() {
     vec3 toCamera = uCameraPos - vWorld;
     float distanceToCamera = length(toCamera);
@@ -289,23 +315,28 @@ export const WATER_FRAGMENT_SHADER = `
     // each wave fades out once it drops below that limit.
     float footprint = distanceToCamera * uPixelAngle / max(viewDir.z, 0.1);
     vec2 slope = vec2(0.0);
-    float height = 0.0;
     for (int i = 0; i < 4; i++) {
       float weight = clamp(1.0 - footprint * uFrequency[i] / 3.14159, 0.0, 1.0);
       float arg = dot(uDirection[i], vWorld.xy) * uFrequency[i] + uTime * uPhase[i];
       slope += uDirection[i] * uAmplitude[i] * uFrequency[i] * cos(arg) * weight;
-      height += uAmplitude[i] * sin(arg) * weight;
     }
     vec3 normal = normalize(vec3(-slope * uNormalScale, 1.0));
-    vec3 light = normalize(uLightDir);
-    float diffuse = max(dot(normal, light), 0.0);
-    vec3 reflected = reflect(-light, normal);
-    float specular = pow(max(dot(reflected, viewDir), 0.0), 48.0);
-    vec3 color = uWaterColor * (0.55 + 0.45 * diffuse) * (1.0 + height * 0.15);
-    color += uLightColor * specular * 0.8;
-    // More opaque at grazing angles so the horizon reads as a solid surface.
-    float facing = clamp(viewDir.z, 0.0, 1.0);
-    float alpha = mix(0.95, 0.6, facing);
-    gl_FragColor = vec4(color, alpha);
+    // Fresnel from the water settings: more reflective at grazing angles.
+    float cosV = max(dot(normal, viewDir), 0.0);
+    float f1 = clamp(uFresnelOffset - uFresnelScale * cosV, 0.0, 1.0);
+    float reflectance = clamp(f1 * f1 * 4.0, 0.0, 1.0);
+    // reflect the actual sky (the same atmosphere the dome shows)
+    vec3 reflectDir = reflect(-viewDir, normal);
+    reflectDir.z = abs(reflectDir.z);
+    vec3 skyReflection = toneMapSky(atmosphereColor(reflectDir));
+    // refracted colour: the water's fog tint, lit by what reaches the surface
+    vec3 refracted = pow(clamp(uFogColor * (uSurfaceAmbient + uLightColor * 0.6) * 1.6, 0.0, 1.0), vec3(1.0 / 2.2));
+    // sun / moon glint
+    float glint = pow(max(dot(reflect(-normalize(uLightDir), normal), viewDir), 0.0), 220.0);
+    vec3 color = mix(refracted, skyReflection, reflectance) + uLightColor * glint * 3.0;
+    // opacity from the fog density along the view path; reflections stay opaque
+    float facing = max(viewDir.z, 0.12);
+    float opacity = clamp(1.0 - exp(-uFogDensity * 0.6 / facing), 0.45, 0.97);
+    gl_FragColor = vec4(color, max(opacity, reflectance));
   }
 `;

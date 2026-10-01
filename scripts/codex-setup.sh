@@ -58,26 +58,20 @@ BUN=(npm exec --yes --package="bun@${BUN_VERSION}" -- bun)
 # Electron is not exercised by the browser/unit-test checks. Avoid downloading
 # its large runtime binary while still installing the package APIs and types.
 export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-"${BUN[@]}" install --frozen-lockfile --ignore-scripts
+if ! "${BUN[@]}" install --frozen-lockfile --ignore-scripts; then
+  # Bun downloads GitHub dependencies (xmlrpc, via @caspertech/node-metaverse)
+  # from the api.github.com tarball endpoint, which restricted proxies and
+  # sandboxes often block even when git over HTTPS works. npm clones them with
+  # git instead, so fall back to it rather than leaving no node_modules.
+  echo "bun install failed; retrying with npm (clones GitHub dependencies via git)." >&2
+  rm -rf node_modules
+  npm install --ignore-scripts --no-audit --no-fund --no-package-lock --legacy-peer-deps
+fi
 
-# package.json normally applies this compatibility patch through postinstall.
-# Inline it here so this standalone bootstrap does not invoke that helper.
-node <<'NODE'
-const fs = require('node:fs');
-const path = require('node:path');
-const packetPath = path.join(
-  process.cwd(),
-  'node_modules/@caspertech/node-metaverse/dist/lib/classes/Packet.js',
-);
-if (fs.existsSync(packetPath)) {
-  const target = "console.error('WARNING: Finished reading ' + (0, MessageClasses_1.nameFromID)(messageID) + ' but we\\'re not at the end of the packet (' + pos + ' < ' + buf.length + ', seq ' + this.sequenceNumber + ')');";
-  const replacement = '// Second Life simulator packets frequently contain extra padding or newer unparsed fields; ignore gracefully';
-  const content = fs.readFileSync(packetPath, 'utf8');
-  if (content.includes(target)) {
-    fs.writeFileSync(packetPath, content.replace(target, replacement), 'utf8');
-  }
-}
-NODE
+# package.json normally applies these compatibility patches through postinstall,
+# which --ignore-scripts skipped. Apply all of them (Packet.js, friend online
+# status, viewer identity); the test suite asserts the identity patch.
+node scripts/patch-metaverse.cjs
 
 if [[ ! -e .env.local ]]; then
   cp .env.example .env.local

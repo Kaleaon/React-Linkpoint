@@ -1,6 +1,6 @@
 'use strict';
 // Viewer actions shared by the web server (src/server/sl-session.ts) and the
-// desktop app (electron/viewer-session.cjs), so the two backends cannot drift.
+// desktop app (core/viewer-session.cjs), so the two backends cannot drift.
 //
 // Every function takes the connected bot and validated, plain-data arguments,
 // and returns plain data. Inputs are checked here, because they arrive from the

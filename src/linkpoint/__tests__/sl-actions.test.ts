@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const actions = require('../../../electron/sl-actions.cjs');
+const actions = require('../../../core/sl-actions.cjs');
 
 class Vector3 { constructor(public v: number[]) {} }
 class UUID { constructor(public s: string) {} toString() { return this.s; } }

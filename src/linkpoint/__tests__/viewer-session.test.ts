@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../electron/viewer-session.cjs');
+const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../core/viewer-session.cjs');
 
 describe('desktop simulator object bridge', () => {
   it('serializes native friends for the renderer process', () => {
@@ -55,6 +55,8 @@ describe('desktop simulator object bridge', () => {
       name: 'Decoded prim',
       shape: 'cube',
       assetKind: null,
+      animatedMesh: false,
+      sculptType: null,
       assetId: null,
       textureId: null,
       faceTextures: [{
@@ -73,6 +75,11 @@ describe('desktop simulator object bridge', () => {
         pathCurve: undefined, profileCurve: undefined,
         pathBegin: undefined, pathEnd: undefined,
         pathScaleX: undefined, pathScaleY: undefined,
+        pathShearX: undefined, pathShearY: undefined,
+        pathTwist: undefined, pathTwistBegin: undefined,
+        pathRadiusOffset: undefined,
+        pathTaperX: undefined, pathTaperY: undefined,
+        pathRevolutions: undefined, pathSkew: undefined,
         profileBegin: undefined, profileEnd: undefined,
         profileHollow: undefined,
       },
@@ -96,6 +103,21 @@ describe('desktop simulator object bridge', () => {
     expect(result.shape).toBe('sphere');
     expect(result.color).toEqual([0.1, 0.2, 0.3, 0.4]);
     expect(result.shapeParams).toMatchObject({ pathCurve: 0x20, profileCurve: 0x05 });
+  });
+
+  it('passes every shape parameter the renderer needs to build SL prim geometry', () => {
+    const result = serializeObject({
+      localID: 11,
+      object: {
+        FullID: { toString: () => 'twisted' }, PCode: 9, PathCurve: 0x10, ProfileCurve: 0x01,
+        PathShearX: 0.1, PathShearY: -0.2, PathTwist: 0.5, PathTwistBegin: -0.25, PathRadiusOffset: 0.3,
+        PathTaperX: 0.4, PathTaperY: -0.4, PathRevolutions: 2.5, PathSkew: 0.2,
+      },
+    });
+    expect(result.shapeParams).toMatchObject({
+      pathShearX: 0.1, pathShearY: -0.2, pathTwist: 0.5, pathTwistBegin: -0.25, pathRadiusOffset: 0.3,
+      pathTaperX: 0.4, pathTaperY: -0.4, pathRevolutions: 2.5, pathSkew: 0.2,
+    });
   });
 
   it('keeps uploaded mesh identity and gives it a visible renderer proxy', () => {
@@ -153,7 +175,7 @@ describe('desktop simulator object bridge', () => {
 
 describe('desktop session script dialogs and lures', () => {
   const { Bot } = require('@caspertech/node-metaverse');
-  const { ViewerSession } = require('../../../electron/viewer-session.cjs');
+  const { ViewerSession } = require('../../../core/viewer-session.cjs');
   const uuid = (value: string) => ({ toString: () => value });
 
   async function sessionAfterSubscribing() {

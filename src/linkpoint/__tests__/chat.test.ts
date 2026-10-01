@@ -52,6 +52,30 @@ describe('ChatManager', () => {
     ]);
   });
 
+  it('sends group messages through the group channel and records the group', async () => {
+    const sendGroupMessage = vi.fn().mockResolvedValue(undefined);
+    const sendChat = vi.fn();
+    const manager = new ChatManager(
+      { sendGroupMessage, sendChat },
+      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+    );
+
+    await manager.sendGroupMessage('group-id', 'hello group', 'Builders');
+
+    expect(sendGroupMessage).toHaveBeenCalledWith('group-id', 'hello group');
+    expect(sendChat).not.toHaveBeenCalled();
+    expect(manager.messages[0]).toMatchObject({ type: 'group', groupId: 'group-id', groupName: 'Builders', text: 'hello group' });
+  });
+
+  it('never speaks a group message in local chat when group chat is unavailable', async () => {
+    const sendChat = vi.fn().mockResolvedValue(undefined);
+    const manager = new ChatManager({ sendChat }, { isLoggedIn: () => true });
+
+    await expect(manager.sendGroupMessage('group-id', 'secret')).rejects.toThrow('Group chat is unavailable');
+    expect(sendChat).not.toHaveBeenCalled();
+    expect(manager.messages).toHaveLength(0);
+  });
+
   it('allows users to configure away status and set custom away message', () => {
     const manager = new ChatManager({}, { isLoggedIn: () => true });
     expect(manager.isAutoReplyEnabled()).toBe(false);

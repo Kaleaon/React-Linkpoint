@@ -49,7 +49,7 @@ export default function ChipRow() {
     display: "flex",
     alignItems: "center",
     gap: "6px",
-    border: "1px solid " + V.outv,
+    borderWidth: "1px", borderStyle: "solid", borderColor: V.outv,
     borderRadius: V.rs,
     background: V.surf,
     cursor: "pointer",

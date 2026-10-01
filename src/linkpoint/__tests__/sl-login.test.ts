@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const require = createRequire(import.meta.url);
-const actions = require('../../../electron/sl-actions.cjs');
+const actions = require('../../../core/sl-actions.cjs');
 const patcher = require('../../../scripts/patch-metaverse.cjs');
 
 class LoginParameters { firstName = ''; lastName = ''; password = ''; start = ''; url = ''; token?: string; mfa_hash?: string; }

@@ -56,7 +56,7 @@ export default function InteractionDialog() {
   const isLure = current.kind === "lure";
   const isTextBox = !isLure && current.textBox;
 
-  const button = { flex: "1 1 40%", minHeight: 46, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: "transparent", font: `700 11px/1 ${t.font}`, letterSpacing: ".1em", color: V.ink, textAlign: "center", padding: "0 8px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.55 : 1 };
+  const button = { flex: "1 1 40%", minHeight: 46, display: "flex", alignItems: "center", justifyContent: "center", borderWidth: 1, borderStyle: "solid", borderColor: V.outv, borderRadius: V.rs, background: "transparent", font: `700 11px/1 ${t.font}`, letterSpacing: ".1em", color: V.ink, textAlign: "center", padding: "0 8px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.55 : 1 };
   const primary = { ...button, background: V.pri, color: V.onpri, borderColor: V.pri };
   const dim = { ...button, color: V.ink2 };
 

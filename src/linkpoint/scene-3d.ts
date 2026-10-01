@@ -8,6 +8,9 @@ import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
 import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Frustum } from './frustum';
 import { intersectRayOrientedBox } from './ray-pick';
+import { HEAVENLY_BODY_RADIUS, atmosphereColor, atmosphereUniforms } from './atmosphere';
+import { DEFAULT_SKY, DEFAULT_WATER, dayFraction, normalizeSky, normalizeWater, skyAt, skyState, waterAt, type SkySettings, type SkyState, type WaterSettings } from './eep';
+import { DETAIL_TILE_METRES, FALLBACK_LAYER_COLORS, TERRAIN_LAYERS, compositionTexture, terrainComposition, type TerrainParams } from './terrain';
 import { fitHud, hudExtents, hudProjection, HUD_SIZE, type HudFit } from './hud';
 import {
   WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater, readVec3,
@@ -34,6 +37,10 @@ export class Scene3D extends Utils.EventEmitter {
   public gridDivisions: number = 16;
   public environment: any = null;
   private terrainLoaded = false;
+  private terrainHeights: number[] | null = null;
+  private terrainSize = 0;
+  private terrainMaterials: (TerrainParams & { textureNames: string[] }) | null = null;
+  private terrainCompositionReady = false;
 
   // Sky, water and culling. Sky/water resources are created in init().
   public showSky = true;
@@ -50,6 +57,11 @@ export class Scene3D extends Utils.EventEmitter {
   private skyUniforms: SkyUniforms = computeSkyUniforms(null);
   private waterUniforms: WaterUniforms = computeWaterUniforms(null);
   private skyClearColor: number[] = [0.53, 0.81, 0.92, 1];
+  /** Sky, water and light values for the current time of day (EEP day cycle, or the fallback sky frame). */
+  public atmosphere: { sky: SkySettings; state: SkyState; water: WaterSettings } = { sky: DEFAULT_SKY, state: skyState(DEFAULT_SKY), water: DEFAULT_WATER };
+  private atmosphereBucket = -1;
+  /** Wall-clock seconds, used to find the point in the region's day. Replaceable for tests. */
+  public wallClock = () => Date.now() / 1000;
   /** Ambient light on objects: from the environment's ambient term when there is one. */
   private ambientColor: number[] = [0.2, 0.2, 0.2];
   private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
@@ -139,9 +151,25 @@ export class Scene3D extends Utils.EventEmitter {
     const parts = geometry.parts?.length ? geometry.parts : [geometry];
     return parts.map((part, index) => {
       const name = `asset:${assetId}:${index}`;
-      this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords);
+      const skin = Array.isArray(part.joints) && Array.isArray(part.jointWeights) ? { joints: part.joints, weights: part.jointWeights } : undefined;
+      this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords, undefined, skin);
       return { mesh: name, materialIndex: Number(part.materialIndex ?? index) };
     });
+  }
+
+  /** Register the faces of a generated prim volume; returns one draw per face (material index = texture-entry face). */
+  addVolumeMeshes(key: string, faces: Array<{ faceIndex: number; vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }>) {
+    return faces.map((face) => {
+      const name = `volume:${key}:${face.faceIndex}`;
+      this.graphics.createMesh(name, face.vertices, face.indices, face.normals, face.texCoords);
+      return { mesh: name, materialIndex: face.faceIndex };
+    });
+  }
+
+  /** Register a skinned mesh (joint indices + weights per vertex) under `name`. */
+  addSkinnedMesh(name: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }, skin: { joints: number[]; weights: number[] }) {
+    this.graphics.createMesh(name, geometry.vertices, geometry.indices, geometry.normals, geometry.texCoords, undefined, skin);
+    return name;
   }
 
   addAssetTexture(assetId: string, width: number, height: number, rgba: Uint8Array) {
@@ -172,26 +200,91 @@ export class Scene3D extends Utils.EventEmitter {
     }
     this.graphics.createMesh('terrain', vertices, indices, normals, texCoords);
     this.terrainLoaded = true;
+    this.terrainHeights = Array.from(heights, Number);
+    this.terrainSize = size;
+    this.buildTerrainComposition();
     return true;
+  }
+
+  /**
+   * Texture the terrain like the official viewer: four detail textures blended by height + noise,
+   * measured against per-corner start heights and ranges (SW, SE, NW, NE). `textureNames` are the
+   * graphics texture names of the four layers; any not loaded yet show a fallback colour.
+   */
+  setTerrainMaterials(materials: TerrainParams & { textureNames: string[] }) {
+    if (!materials || materials.startHeights?.length < 4 || materials.heightRanges?.length < 4) return false;
+    this.terrainMaterials = materials;
+    this.buildTerrainComposition();
+    return true;
+  }
+
+  private buildTerrainComposition() {
+    this.terrainCompositionReady = false;
+    const materials = this.terrainMaterials;
+    if (!materials || !this.terrainHeights || !this.terrainSize) return;
+    const values = terrainComposition(this.terrainHeights, this.terrainSize, materials);
+    this.graphics.createTexture('terrain:composition', this.terrainSize, this.terrainSize, compositionTexture(values, this.terrainSize));
+    this.terrainCompositionReady = true;
+  }
+
+  /** True when the terrain is drawn with height-blended detail textures. */
+  get terrainTextured() {
+    return this.terrainLoaded && this.terrainCompositionReady;
   }
 
   setEnvironment(environment: any) {
     this.environment = environment || null;
     const sky = environment?.sky || environment?.currentSky || {};
-    const color = sky.blueHorizon || sky.sunlightColor || [0.53, 0.81, 0.92];
-    const normalized = color.slice(0, 3).map((value: number) => Math.max(0, Math.min(1, Number(value) || 0)));
-    this.skyClearColor = [...normalized, 1];
-    this.graphics.setClearColor(this.skyClearColor);
-    if (this.lights[0] && sky.sunlightColor) this.lights[0].color = sky.sunlightColor.slice(0, 3);
-    // Windlight frames carry the sun direction; the light is a point light placed far away so it acts as directional.
-    const sun = sky.sunDirection;
-    if (this.lights[0] && Array.isArray(sun) && sun.length === 3 && sun.every((v: unknown) => Number.isFinite(v))) {
-      this.lights[0].position = sun.map((v: number) => v * SUN_DISTANCE);
-    }
     this.skyUniforms = computeSkyUniforms(sky);
-    const ambient = readVec3(sky.ambient ?? sky.ambientColor ?? sky.ambient_color, [0.2, 0.2, 0.2]);
+    this.atmosphereBucket = -1;
+    this.updateAtmosphere();
+  }
+
+  /**
+   * Recompute sky, water and lighting for the current time of day. With a region day cycle the
+   * sun, moon and colours follow the clock (as the official viewer does); otherwise the single
+   * sky frame the environment carries is used. Cheap enough to call every frame: it only works
+   * when the two-second time bucket changes.
+   */
+  private updateAtmosphere() {
+    const environment = this.environment;
+    const bucket = Math.floor(this.wallClock() / 2);
+    if (bucket === this.atmosphereBucket) return;
+    this.atmosphereBucket = bucket;
+
+    let sky: SkySettings, water: WaterSettings, state: SkyState;
+    const cycle = environment?.dayCycle;
+    const hasCycle = cycle && (cycle.tracks?.length || Object.keys(cycle.frames || {}).length);
+    if (hasCycle) {
+      const fraction = dayFraction(this.wallClock(), Number(environment.dayLength), Number(environment.dayOffset) || 0);
+      sky = skyAt(cycle, fraction);
+      water = waterAt(cycle, fraction);
+      state = skyState(sky);
+    } else {
+      const frame = environment?.sky || environment?.currentSky;
+      sky = frame ? normalizeSky(frame) : DEFAULT_SKY;
+      water = normalizeWater(environment?.water);
+      const sun = Array.isArray(frame?.sunDirection) ? (frame.sunDirection.slice(0, 3).map(Number) as [number, number, number]) : undefined;
+      state = skyState(sky, sun ? { sun, moon: sun.map((v: number) => -v) as [number, number, number] } : {});
+    }
+    this.atmosphere = { sky, state, water };
+
+    // Light on objects: sunlight (or moonlight) after atmospheric attenuation, plus ambient.
+    const light = this.lights[0];
+    const direction = state.lightDirection;
+    const diffuse = state.sunUp ? state.sunDiffuse : state.moonDiffuse;
+    const ambient = state.sunUp ? state.sunAmbient.map((v) => Math.pow(Math.max(0, v), 0.9) * 0.57) : state.moonAmbient;
+    if (light) {
+      light.position = direction.map((v) => v * SUN_DISTANCE);
+      light.color = diffuse.map((v) => Math.max(0, Math.min(1, v)));
+    }
     this.ambientColor = ambient.map((v) => Math.max(0, Math.min(1, v)));
-    this.waterUniforms = computeWaterUniforms(environment?.water, this.waterHeight);
+
+    // Clear colour: the sky near the zenith, tone mapped (the dome covers it, but it shows through gaps).
+    const zenith = atmosphereColor(sky, state, [0, 0, 1]).map((v) => Math.pow(1 - Math.exp(-v * 1.2), 1 / 2.2));
+    this.skyClearColor = [...zenith, 1];
+    if (!this.underWater) this.graphics.setClearColor(this.skyClearColor);
+    this.waterUniforms = computeWaterUniforms({ waterFogColor: water.fogColor }, this.waterHeight);
   }
 
   /** Region water level in metres (RegionHandshake WaterHeight). */
@@ -227,6 +320,8 @@ export class Scene3D extends Utils.EventEmitter {
       // HUD prims are kept out of the world and drawn only by the HUD pass.
       hud: Boolean(config.hud),
       hudRoot: config.hudRoot ?? null,
+      // Packed joint matrices (see skinning.ts packJointRows) for rigged meshes.
+      skin: config.skin || null,
     };
     
     this.objects.set(id, object);
@@ -277,6 +372,7 @@ export class Scene3D extends Utils.EventEmitter {
    * Render scene
    */
   render() {
+    this.updateAtmosphere();
     this.renderMirrors();
     // Clear
     this.graphics.clear();
@@ -413,23 +509,29 @@ export class Scene3D extends Utils.EventEmitter {
     return best;
   }
 
-  /** Windlight-style gradient dome plus optional stars, pinned to the far plane. */
+  /** Atmospheric sky dome (sun, moon, haze glow) plus optional stars, pinned to the far plane. */
   private renderSky(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
     const skyView = new Float32Array(viewMatrix);
     skyView[12] = 0; skyView[13] = 0; skyView[14] = 0;
-    const sky = this.skyUniforms;
+    const { sky, state } = this.atmosphere;
     this.graphics.drawMesh('sky-dome', 'sky', {
       uSkyViewMatrix: skyView,
       uProjectionMatrix: projectionMatrix,
-      uSkyColor: new Float32Array(sky.skyColor),
-      uHazeHorizon: sky.hazeHorizon,
-      uHazeColor: new Float32Array(sky.hazeColor),
+      ...atmosphereUniforms(sky, state),
+      uSunDir: new Float32Array(state.sunDirection),
+      uMoonDir: new Float32Array(state.moonDirection),
+      uSunRadius: HEAVENLY_BODY_RADIUS * Math.max(0.2, Math.min(sky.sunScale, 4)),
+      uMoonRadius: HEAVENLY_BODY_RADIUS * Math.max(0.2, Math.min(sky.moonScale, 4)),
+      uMoonBrightness: Math.max(0, sky.moonBrightness),
+      uMoonUp: state.moonUp ? 1 : 0,
     }, { depthWrite: false, cullFace: false });
-    if (sky.starBrightness > 0) {
+    // EEP star brightness is 0..250 (0 by day); the fallback frames carry 0..1.
+    const stars = this.environment?.dayCycle ? Math.max(0, Math.min(1, sky.starBrightness / 250)) : this.skyUniforms.starBrightness;
+    if (stars > 0) {
       this.graphics.drawMesh('sky-stars', 'stars', {
         uSkyViewMatrix: skyView,
         uProjectionMatrix: projectionMatrix,
-        uStarColor: new Float32Array([1, 1, 1, sky.starBrightness]),
+        uStarColor: new Float32Array([1, 1, 1, stars]),
       }, { mode: 'points', depthWrite: false, blend: true, cullFace: false });
     }
   }
@@ -442,9 +544,14 @@ export class Scene3D extends Utils.EventEmitter {
       uProjectionMatrix: projectionMatrix,
       uWaterHeight: this.waterHeight,
       uCameraPos: new Float32Array(this.camera.position),
-      uWaterColor: new Float32Array(this.waterUniforms.color),
-      uLightDir: new Float32Array(light.position),
+      ...atmosphereUniforms(this.atmosphere.sky, this.atmosphere.state),
+      uFogColor: new Float32Array(this.atmosphere.water.fogColor),
+      uFogDensity: this.atmosphere.water.fogDensity,
+      uFresnelScale: this.atmosphere.water.fresnelScale,
+      uFresnelOffset: this.atmosphere.water.fresnelOffset,
+      uLightDir: new Float32Array(this.atmosphere.state.lightDirection),
       uLightColor: new Float32Array(light.color),
+      uSurfaceAmbient: new Float32Array(this.ambientColor),
       // Wrap so float precision does not degrade the phase over long sessions.
       uTime: this.now() % 1000,
       uPixelAngle: this.pixelAngle(),
@@ -471,6 +578,8 @@ export class Scene3D extends Utils.EventEmitter {
   /** Union of the local-space bounds of every mesh the object draws, or null if any is unknown. */
   private objectLocalBounds(object: any): { min: number[]; max: number[] } | null {
     if (typeof this.graphics.getMeshBounds !== 'function') return null;
+    // A posed rig can extend beyond its bind-pose bounds, so never cull or box-pick it by them.
+    if (object.skin) return null;
     const min = [Infinity, Infinity, Infinity];
     const max = [-Infinity, -Infinity, -Infinity];
     for (const draw of this.objectDraws(object)) {
@@ -550,6 +659,23 @@ export class Scene3D extends Utils.EventEmitter {
     
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
     
+    if (this.terrainTextured && this.terrainMaterials) {
+      const names = this.terrainMaterials.textureNames;
+      const use = [0, 1, 2, 3].map((i) => (this.graphics.hasTexture(names[i]) ? 1 : 0));
+      const detail: Record<string, any> = {};
+      for (let i = 0; i < TERRAIN_LAYERS; i++) {
+        detail[`uDetail${i}Name`] = names[i];
+        detail[`uFallback${i}`] = new Float32Array(FALLBACK_LAYER_COLORS[i]);
+      }
+      this.graphics.drawMesh('terrain', 'terrain', {
+        uModelMatrix: modelMatrix, uViewMatrix: viewMatrix, uProjectionMatrix: projectionMatrix, uNormalMatrix: normalMatrix,
+        uLightPos: new Float32Array(light.position), uLightColor: new Float32Array(light.color), uAmbientColor: new Float32Array(this.ambientColor),
+        uCompositionName: 'terrain:composition', uDetailUse: new Float32Array(use),
+        uTileScale: this.terrainSize > 1 ? 256 / DETAIL_TILE_METRES : 16,
+        ...detail,
+      });
+      return;
+    }
     this.graphics.drawMesh(this.terrainLoaded ? 'terrain' : 'grid', 'basic', {
       uModelMatrix: modelMatrix,
       uViewMatrix: viewMatrix,
@@ -583,10 +709,12 @@ export class Scene3D extends Utils.EventEmitter {
    * Render object
    */
   renderObject(object: any, viewMatrix: Float32Array, projectionMatrix: Float32Array, options: { model?: Float32Array; fullBright?: boolean } = {}) {
+    const skinned = Boolean(object.skin) && typeof this.graphics.isSkinnedMesh === 'function';
+    // Rigged meshes are authored in avatar space: the viewer ignores the object's prim scale for them.
     const modelMatrix = options.model || this.calculateModelMatrix(
       object.position,
       object.rotation,
-      object.scale
+      skinned ? [1, 1, 1] : object.scale
     );
     
     const normalMatrix = this.mat3FromMat4(modelMatrix);
@@ -597,7 +725,9 @@ export class Scene3D extends Utils.EventEmitter {
       const face = object.faces?.[draw.materialIndex];
       const pbr = face?.pbr || {};
       const alphaMode = this.faceBlendMode(object, face);
-      this.graphics.drawMesh(draw.mesh, object.material, {
+      const drawSkinned = skinned && this.graphics.isSkinnedMesh(draw.mesh);
+      this.graphics.drawMesh(draw.mesh, drawSkinned ? 'skinned' : object.material, {
+        ...(drawSkinned ? { uJointRows: object.skin } : null),
         uModelMatrix: modelMatrix,
         uViewMatrix: viewMatrix,
         uProjectionMatrix: projectionMatrix,

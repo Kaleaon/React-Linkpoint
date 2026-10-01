@@ -4,19 +4,9 @@ contextBridge.exposeInMainWorld('linkpointDesktop', {
   allowLoginEndpoint: (url) => ipcRenderer.invoke('linkpoint:allow-login', url),
   request: (request) => ipcRenderer.invoke('linkpoint:request', request),
   connectViewer: (request) => ipcRenderer.invoke('linkpoint:viewer-connect', request),
-  sendChat: (request) => ipcRenderer.invoke('linkpoint:viewer-chat', request),
-  sendInstantMessage: (request) => ipcRenderer.invoke('linkpoint:viewer-im', request),
-  sendFriendRequest: (request) => ipcRenderer.invoke('linkpoint:viewer-friend-request', request),
-  fetchFriends: () => ipcRenderer.invoke('linkpoint:viewer-friends'),
-  teleport: (request) => ipcRenderer.invoke('linkpoint:viewer-teleport', request),
-  respondScriptDialog: (request) => ipcRenderer.invoke('linkpoint:viewer-respond-dialog', request),
-  acceptLure: (request) => ipcRenderer.invoke('linkpoint:viewer-accept-lure', request),
-  dismissInteraction: (request) => ipcRenderer.invoke('linkpoint:viewer-dismiss-interaction', request),
+  /** Any session operation by name; the allow-list lives in core/viewer-api.cjs. */
+  call: (method, params) => ipcRenderer.invoke('linkpoint:viewer-call', method, params),
   fetchProfilePhoto: (request) => ipcRenderer.invoke('linkpoint:viewer-profile-photo', request),
-  touchObject: (request) => ipcRenderer.invoke('linkpoint:viewer-touch', request),
-  sit: (request) => ipcRenderer.invoke('linkpoint:viewer-sit', request),
-  stand: () => ipcRenderer.invoke('linkpoint:viewer-stand'),
-  getBalance: () => ipcRenderer.invoke('linkpoint:viewer-balance'),
   disconnectViewer: () => ipcRenderer.invoke('linkpoint:viewer-disconnect'),
   onViewerEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);

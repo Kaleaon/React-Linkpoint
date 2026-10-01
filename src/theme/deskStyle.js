@@ -1,3 +1,4 @@
+import { sideBorder } from "./look.js";
 // Desktop (floater) chrome styles per layout family.
 //
 //  sweep   LCARS-rule console: a swept elbow frames the screen, the rail
@@ -48,7 +49,7 @@ export function floaterStyle(kind, { V, t, act, ink }) {
   const onPri = ink(V.pri, [V.bg, V.onpri, V.ink]);
   if (kind === "sweep") {
     return {
-      frame: { border: "none", borderLeft: "10px solid " + (act ? V.pri : V.sec2), borderRadius: "26px 22px 14px 14px", boxShadow: "none" },
+      frame: { ...sideBorder("Left", "10px", act ? V.pri : V.sec2), borderRadius: "26px 22px 14px 14px", boxShadow: "none" },
       bar: { background: act ? V.pri : V.surf2, color: act ? onPri : V.ink2, font: "700 11px/1 " + t.dfont, letterSpacing: ".16em", textTransform: "uppercase", padding: "0 6px 0 4px", borderRadius: "0 22px 0 0" },
       control: { border: "none", borderRadius: "999px", background: act ? V.bg : V.surf, color: act ? V.pri : V.ink2 },
       grip: act ? V.pri : V.sec2,
@@ -57,7 +58,7 @@ export function floaterStyle(kind, { V, t, act, ink }) {
   }
   if (kind === "metro") {
     return {
-      frame: { border: "none", borderTop: "3px solid " + (act ? V.pri : "transparent"), borderRadius: 0, boxShadow: "none" },
+      frame: { ...sideBorder("Top", "3px", act ? V.pri : "transparent"), borderRadius: 0, boxShadow: "none" },
       bar: { background: V.surf, color: act ? V.ink : V.ink2, font: "300 21px/1 " + t.dfont, letterSpacing: "0", textTransform: "lowercase", padding: "0 6px 0 12px" },
       control: { border: "none", borderRadius: 0, background: "transparent", color: act ? V.ink : V.ink2 },
       grip: "transparent",

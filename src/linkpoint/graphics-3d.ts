@@ -3,13 +3,15 @@
  */
 
 import { Utils } from './utils';
+import { clampJointIndices, maxSkinJoints, skinnedVertexShader } from './skinning';
+import { TERRAIN_FRAGMENT_SHADER, TERRAIN_VERTEX_SHADER } from './terrain';
 import {
   SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER, STARS_VERTEX_SHADER, STARS_FRAGMENT_SHADER,
   WATER_VERTEX_SHADER, WATER_FRAGMENT_SHADER,
 } from './sky';
 
 /** Attribute slots shared by every program so a mesh's VAO is valid for any of them. */
-const ATTRIBUTE_SLOTS: Record<string, number> = { aPosition: 0, aNormal: 1, aTexCoord: 2, aTangent: 3 };
+const ATTRIBUTE_SLOTS: Record<string, number> = { aPosition: 0, aNormal: 1, aTexCoord: 2, aTangent: 3, aJoints: 4, aWeights: 5 };
 
 export interface DrawOptions {
   mode?: 'triangles' | 'points';
@@ -19,10 +21,84 @@ export interface DrawOptions {
   cullFace?: boolean;
 }
 
+const BASIC_FRAGMENT_SHADER = `
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+        #else
+        precision mediump float;
+        #endif
+        
+        varying vec3 vNormal;
+        varying vec2 vTexCoord;
+        varying vec3 vPosition;
+        
+        uniform vec3 uLightPos;
+        uniform vec3 uLightColor;
+        uniform vec3 uAmbientColor;
+        uniform vec4 uColor;
+        uniform sampler2D uTexture;
+        uniform bool uUseTexture;
+        uniform vec4 uTexTransform;
+        uniform float uTexRotation;
+        uniform bool uFullBright;
+        uniform vec3 uCameraPos;
+        uniform float uMetallic;
+        uniform float uRoughness;
+        uniform vec3 uEmissive;
+        uniform sampler2D uMetallicRoughnessTexture;
+        uniform sampler2D uNormalTexture;
+        uniform sampler2D uEmissiveTexture;
+        uniform bool uUseMetallicRoughnessTexture;
+        uniform bool uUseNormalTexture;
+        uniform bool uUseEmissiveTexture;
+        uniform float uAlphaCutoff;
+        uniform int uAlphaMode;
+        
+        void main() {
+          vec3 normal = normalize(vNormal);
+          if (uUseNormalTexture) normal = normalize(normal + (texture2D(uNormalTexture, vTexCoord).xyz * 2.0 - 1.0));
+          vec3 lightDir = normalize(uLightPos - vPosition);
+          
+          // Ambient
+          vec3 ambient = uAmbientColor;
+          
+          // Diffuse
+          float diff = max(dot(normal, lightDir), 0.0);
+          vec3 diffuse = diff * uLightColor;
+          
+          // Final color
+          vec2 centered = vTexCoord - vec2(0.5);
+          float texSin = sin(uTexRotation);
+          float texCos = cos(uTexRotation);
+          vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
+          vec2 transformedUV = rotated * uTexTransform.xy + uTexTransform.zw;
+          vec4 baseColor = uUseTexture ? texture2D(uTexture, transformedUV) * uColor : uColor;
+          if (uAlphaMode == 1 && baseColor.a < uAlphaCutoff) discard;
+          vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, transformedUV).rgb : vec3(1.0);
+          float metallic = clamp(uMetallic * orm.b, 0.0, 1.0);
+          float roughness = clamp(uRoughness * orm.g, 0.04, 1.0);
+          vec3 viewDir = normalize(uCameraPos - vPosition);
+          vec3 halfDir = normalize(lightDir + viewDir);
+          float specPower = mix(128.0, 2.0, roughness);
+          float specular = pow(max(dot(normal, halfDir), 0.0), specPower);
+          vec3 f0 = mix(vec3(0.04), baseColor.rgb, metallic);
+          // The combined light is clamped to 1 (as the viewer does), then gamma-encoded: the viewer
+          // lights in linear space and converts to sRGB at the end, which for sRGB surface colours
+          // is the same as scaling them by light^(1/2.2).
+          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * pow(min(ambient + diffuse, vec3(1.0)), vec3(1.0 / 2.2));
+          vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, transformedUV).rgb : vec3(1.0));
+          vec3 result = uFullBright ? baseColor.rgb : diffusePbr + f0 * specular + emission;
+          
+          gl_FragColor = vec4(result, baseColor.a);
+        }
+`;
+
 export class Graphics3D extends Utils.EventEmitter {
   public canvas: HTMLCanvasElement;
   public gl: WebGLRenderingContext | WebGL2RenderingContext | null = null;
   private programs: Map<string, any> = new Map();
+  /** Joint matrices the skinned program can hold (limited by the GPU's vertex uniform vectors). */
+  maxJoints = 0;
   private meshes: Map<string, any> = new Map();
   private textures: Map<string, any> = new Map();
   /** Whether each texture has any transparent pixels, so it can be drawn blended. */
@@ -140,76 +216,13 @@ export class Graphics3D extends Utils.EventEmitter {
           gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
         }
       `,
-      fragment: `
-        #ifdef GL_FRAGMENT_PRECISION_HIGH
-        precision highp float;
-        #else
-        precision mediump float;
-        #endif
-        
-        varying vec3 vNormal;
-        varying vec2 vTexCoord;
-        varying vec3 vPosition;
-        
-        uniform vec3 uLightPos;
-        uniform vec3 uLightColor;
-        uniform vec3 uAmbientColor;
-        uniform vec4 uColor;
-        uniform sampler2D uTexture;
-        uniform bool uUseTexture;
-        uniform vec4 uTexTransform;
-        uniform float uTexRotation;
-        uniform bool uFullBright;
-        uniform vec3 uCameraPos;
-        uniform float uMetallic;
-        uniform float uRoughness;
-        uniform vec3 uEmissive;
-        uniform sampler2D uMetallicRoughnessTexture;
-        uniform sampler2D uNormalTexture;
-        uniform sampler2D uEmissiveTexture;
-        uniform bool uUseMetallicRoughnessTexture;
-        uniform bool uUseNormalTexture;
-        uniform bool uUseEmissiveTexture;
-        uniform float uAlphaCutoff;
-        uniform int uAlphaMode;
-        
-        void main() {
-          vec3 normal = normalize(vNormal);
-          if (uUseNormalTexture) normal = normalize(normal + (texture2D(uNormalTexture, vTexCoord).xyz * 2.0 - 1.0));
-          vec3 lightDir = normalize(uLightPos - vPosition);
-          
-          // Ambient
-          vec3 ambient = uAmbientColor;
-          
-          // Diffuse
-          float diff = max(dot(normal, lightDir), 0.0);
-          vec3 diffuse = diff * uLightColor;
-          
-          // Final color
-          vec2 centered = vTexCoord - vec2(0.5);
-          float texSin = sin(uTexRotation);
-          float texCos = cos(uTexRotation);
-          vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
-          vec2 transformedUV = rotated * uTexTransform.xy + uTexTransform.zw;
-          vec4 baseColor = uUseTexture ? texture2D(uTexture, transformedUV) * uColor : uColor;
-          if (uAlphaMode == 1 && baseColor.a < uAlphaCutoff) discard;
-          vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, transformedUV).rgb : vec3(1.0);
-          float metallic = clamp(uMetallic * orm.b, 0.0, 1.0);
-          float roughness = clamp(uRoughness * orm.g, 0.04, 1.0);
-          vec3 viewDir = normalize(uCameraPos - vPosition);
-          vec3 halfDir = normalize(lightDir + viewDir);
-          float specPower = mix(128.0, 2.0, roughness);
-          float specular = pow(max(dot(normal, halfDir), 0.0), specPower);
-          vec3 f0 = mix(vec3(0.04), baseColor.rgb, metallic);
-          // Lumiya clamps the combined light to 1 before it multiplies the surface colour.
-          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * min(ambient + diffuse, vec3(1.0));
-          vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, transformedUV).rgb : vec3(1.0));
-          vec3 result = uFullBright ? baseColor.rgb : diffusePbr + f0 * specular + emission;
-          
-          gl_FragColor = vec4(result, baseColor.a);
-        }
-      `
+      fragment: BASIC_FRAGMENT_SHADER
     });
+
+    // Skinned (rigged mesh / avatar) variant: same lighting, joint-driven vertices.
+    this.maxJoints = maxSkinJoints(Number(this.gl!.getParameter(this.gl!.MAX_VERTEX_UNIFORM_VECTORS)) || 128);
+    this.createShaderProgram('skinned', { vertex: skinnedVertexShader(this.maxJoints), fragment: BASIC_FRAGMENT_SHADER });
+    this.createShaderProgram('terrain', { vertex: TERRAIN_VERTEX_SHADER, fragment: TERRAIN_FRAGMENT_SHADER });
 
     // Environment programs (see sky.ts).
     this.createShaderProgram('sky', { vertex: SKY_VERTEX_SHADER, fragment: SKY_FRAGMENT_SHADER });
@@ -289,7 +302,7 @@ export class Graphics3D extends Utils.EventEmitter {
   /**
    * Create mesh
    */
-  createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[]) {
+  createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[], skin?: { joints: number[]; weights: number[] }) {
     const gl = this.gl!;
     const previous = this.meshes.get(name);
     if (previous) this.deleteMesh(previous);
@@ -358,6 +371,17 @@ export class Graphics3D extends Utils.EventEmitter {
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tangents), gl.STATIC_DRAW);
     }
 
+    // Skin influences: four joint indices and weights per vertex
+    if (skin && skin.joints.length === (vertices.length / 3) * 4 && skin.weights.length === skin.joints.length) {
+      mesh.buffers.joints = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.joints);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(clampJointIndices(skin.joints, Math.max(this.maxJoints, 1))), gl.STATIC_DRAW);
+      mesh.buffers.weights = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.weights);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(skin.weights), gl.STATIC_DRAW);
+      mesh.skinned = true;
+    }
+
     // Index buffer
     mesh.buffers.index = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.index);
@@ -367,13 +391,19 @@ export class Graphics3D extends Utils.EventEmitter {
       // OES VAOs capture attribute and element-buffer bindings. Previously the
       // VAO was created but never populated, so WebGL 1 implementations with
       // OES_vertex_array_object drew empty meshes.
-      const basicProgram = this.programs.get('basic');
-      if (basicProgram) this.bindMeshAttributes(mesh, basicProgram.attributes);
+      // Slots are pinned identically in every program, so record against the fixed
+      // slot map: this also captures joint/weight attributes that 'basic' never declares.
+      this.bindMeshAttributes(mesh, ATTRIBUTE_SLOTS);
       this.extensions.vao.bindVertexArrayOES(null);
     }
 
     this.meshes.set(name, mesh);
     return mesh;
+  }
+
+  /** True when the mesh carries joint indices and weights. */
+  isSkinnedMesh(name: string): boolean {
+    return Boolean(this.meshes.get(name)?.skinned);
   }
 
   /** Local-space bounding box of a mesh, or null if unknown. */
@@ -401,19 +431,25 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Set uniforms
+    // Sampler uniforms the program declares, bound to consecutive texture units.
     const bindings = [
       ['uTextureName', 'uTexture'], ['uMetallicRoughnessTextureName', 'uMetallicRoughnessTexture'],
       ['uNormalTextureName', 'uNormalTexture'], ['uEmissiveTextureName', 'uEmissiveTexture'],
+      ['uCompositionName', 'uComposition'], ['uDetail0Name', 'uDetail0'], ['uDetail1Name', 'uDetail1'],
+      ['uDetail2Name', 'uDetail2'], ['uDetail3Name', 'uDetail3'],
     ];
-    bindings.forEach(([valueName, uniformName], unit) => {
+    let unit = 0;
+    for (const [valueName, uniformName] of bindings) {
+      const sampler = programInfo.uniforms[uniformName];
+      if (!sampler) continue;
       const fallback = uniformName === 'uNormalTexture' ? '__normal' : '__white';
       const texture = this.textures.get(uniforms[valueName]) || this.textures.get(fallback);
-      if (!texture) return;
+      if (!texture) continue;
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
-      const sampler = programInfo.uniforms[uniformName];
-      if (sampler) gl.uniform1i(sampler, unit);
-    });
+      gl.uniform1i(sampler, unit);
+      unit++;
+    }
     this.setUniforms(programInfo.uniforms, uniforms, programInfo.arrayUniforms);
 
     const blend = uniforms.uAlphaMode === 2 || options.blend === true;
@@ -457,6 +493,10 @@ export class Graphics3D extends Utils.EventEmitter {
     for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] < 250) { hasAlpha = true; break; } }
     this.textureAlpha.set(name, hasAlpha);
     return name;
+  }
+
+  hasTexture(name: string | undefined | null): boolean {
+    return Boolean(name && this.textures.has(name));
   }
 
   /** True when the named texture has transparent pixels. Unknown textures are opaque. */
@@ -532,6 +572,8 @@ export class Graphics3D extends Utils.EventEmitter {
     bind(attributes.aNormal, mesh.buffers.normal, 3);
     bind(attributes.aTexCoord, mesh.buffers.texCoord, 2);
     bind(attributes.aTangent, mesh.buffers.tangent, 3);
+    bind(attributes.aJoints, mesh.buffers.joints, 4);
+    bind(attributes.aWeights, mesh.buffers.weights, 4);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.index);
   }

@@ -53,7 +53,12 @@ describe('Scene3D rendering state', () => {
     const { scene, graphics } = makeScene();
     scene.setEnvironment({ sky: { blueHorizon: [0.2, 0.4, 0.6] } });
 
-    expect(graphics.setClearColor).toHaveBeenCalledWith([0.2, 0.4, 0.6, 1]);
+    // the clear colour is the tone-mapped zenith of the atmosphere: a valid, bluish colour
+    const [color] = graphics.setClearColor.mock.calls.at(-1)!;
+    expect(color).toHaveLength(4);
+    expect(color.slice(0, 3).every((v: number) => v >= 0 && v <= 1)).toBe(true);
+    expect(color[2]).toBeGreaterThan(color[0]);
+    expect(color[3]).toBe(1);
   });
 
   it('draws opaque objects first and blended objects back-to-front', () => {

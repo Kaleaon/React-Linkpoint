@@ -23,6 +23,7 @@ function makeScene(options: { camera?: Partial<Camera3D>; bounds?: boolean } = {
   camera.updateMatrices();
   const scene = new Scene3D(graphics as any, camera);
   scene.showGrid = false;
+  scene.wallClock = () => 1_000_000; // fixed: the sky refreshes as time passes, tests must not
   return { scene, graphics, camera };
 }
 
@@ -124,7 +125,12 @@ describe('Scene3D sky and water', () => {
 
     const call = graphics.drawMesh.mock.calls.find((c) => c[1] === 'sky')!;
     expect(Array.from(call[2].uSkyViewMatrix.slice(12, 15))).toEqual([0, 0, 0]);
-    expect(Array.from(call[2].uSkyColor).map((v: number) => +v.toFixed(3))).toEqual([0.4, 0.4, 0.4]);
+    // the atmosphere inputs come straight from the sky settings
+    expect(Array.from(call[2].uBlueHorizon).map((v: number) => +v.toFixed(3))).toEqual([0.2, 0.2, 0.2]);
+    expect(Array.from(call[2].uBlueDensity)).toEqual([1, 1, 1]);
+    expect(Array.from(call[2].uSunlight).map((v: number) => +v.toFixed(3))).toEqual([0.1, 0.1, 0.1]);
+    expect(call[2].uSunDir).toHaveLength(3);
+    expect(call[2].uSunRadius).toBeGreaterThan(0);
     expect(call[3]).toMatchObject({ depthWrite: false });
   });
 
@@ -184,7 +190,10 @@ describe('Scene3D sky and water', () => {
     camera.updateMatrices();
     scene.render();
     expect(scene.underWater).toBe(false);
-    expect(graphics.setClearColor).toHaveBeenLastCalledWith([0.2, 0.4, 0.6, 1]);
+    // surfacing restores the sky colour: a bluish zenith, not the water tint
+    const restored = graphics.setClearColor.mock.calls.at(-1)![0];
+    expect(restored).toEqual((scene as any).skyClearColor);
+    expect(restored[2]).toBeGreaterThan(restored[0]);
     expect(programs(graphics)).toContain('sky');
   });
 
@@ -241,33 +250,77 @@ describe('Scene3D.pick', () => {
 describe('Scene3D lighting from the environment', () => {
   const objectCall = (graphics: ReturnType<typeof makeScene>['graphics']) => graphics.drawMesh.mock.calls.find((call) => call[1] === 'basic')![2];
 
-  it('uses the sky ambient term and sun direction for objects', () => {
+  it('lights objects with the attenuated sunlight, the sun direction and the sky ambient', () => {
     const { scene, graphics } = makeScene();
     scene.addLight({ position: [0, 0, 1], color: [1, 1, 1] });
     scene.addObject('prim', { mesh: 'cube', position: [0, 20, 50] });
-    scene.setEnvironment({ currentSky: { ambient: [0.6, 0.5, 0.4, 1], sunlightColor: [0.9, 0.8, 0.7, 1], sunDirection: [0, 0, 1] } });
+    const frame = { ambient: [0.6, 0.5, 0.4, 1], sunlightColor: [0.9, 0.8, 0.7, 1], sunDirection: [0, 0, 1] };
+    scene.setEnvironment({ currentSky: frame });
     scene.render();
     const call = objectCall(graphics);
-    expect(Array.from(call.uAmbientColor)).toEqual([0.6, 0.5, 0.4].map(Math.fround));
     expect(Array.from(call.uLightPos)).toEqual([0, 0, 10000]);
-    expect(Array.from(call.uLightColor)).toEqual([0.9, 0.8, 0.7].map(Math.fround));
+    // sunlight loses blue most going through the atmosphere, and never gains light
+    const [r, g, b] = Array.from(call.uLightColor) as number[];
+    expect(r).toBeLessThanOrEqual(0.9); expect(g).toBeLessThanOrEqual(0.8); expect(b).toBeLessThanOrEqual(0.7);
+    expect(b / r).toBeLessThan(0.7 / 0.9);
+    // ambient follows the viewer: raised under cloud, then pow(0.9) * 0.57
+    const expected = [0.6, 0.5, 0.4].map((a) => Math.pow(a + (1 - a) * 0.2699 * 0.5, 0.9) * 0.57);
+    Array.from(call.uAmbientColor).forEach((v, i) => expect(v as number).toBeCloseTo(expected[i], 4));
   });
 
-  it('keeps a modest default ambient and clamps out-of-range values', () => {
+  it('uses the viewer default sky when there is no environment, and clamps out-of-range ambient', () => {
     const { scene, graphics } = makeScene();
     scene.addObject('prim', { mesh: 'cube', position: [0, 20, 50] });
     scene.render();
-    expect(Array.from(objectCall(graphics).uAmbientColor)).toEqual([0.2, 0.2, 0.2].map(Math.fround));
+    const ambient = Array.from(objectCall(graphics).uAmbientColor) as number[];
+    expect(ambient[0]).toBeGreaterThan(0.1);
+    expect(ambient[0]).toBeLessThan(0.4);
     graphics.drawMesh.mockClear();
     scene.setEnvironment({ currentSky: { ambient: [3, -1, 0.5] } });
     scene.render();
-    expect(Array.from(objectCall(graphics).uAmbientColor)).toEqual([1, 0, 0.5]);
+    const clamped = Array.from(objectCall(graphics).uAmbientColor) as number[];
+    expect(clamped[0]).toBe(1);
+    expect(clamped[1]).toBe(0);
+    expect(clamped[2]).toBeGreaterThan(0);
+    expect(clamped.every(Number.isFinite)).toBe(true);
   });
 
-  it('ignores a non-finite sun direction', () => {
+  it('derives the sun from the sky\'s own rotation when a frame\'s direction is unusable', () => {
     const { scene } = makeScene();
     scene.addLight({ position: [1, 2, 3] });
     scene.setEnvironment({ currentSky: { sunDirection: [NaN, 0, 1] } });
-    expect(scene.lights[0].position).toEqual([1, 2, 3]);
+    const p = scene.lights[0].position as number[];
+    expect(p.every(Number.isFinite)).toBe(true);
+    expect(Math.hypot(...p)).toBeCloseTo(10000, 3);
+  });
+
+  it('follows the region day cycle: the sun sits where the cycle puts it at the current time', () => {
+    const { scene } = makeScene();
+    scene.addLight({ position: [0, 0, 1] });
+    const noon = { sunRotation: [0, -Math.SQRT1_2, 0, Math.SQRT1_2], sunlightColor: [1, 1, 1] };
+    const midnight = { sunRotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2], sunlightColor: [1, 1, 1] };
+    const environment = {
+      dayLength: 14400, dayOffset: 0,
+      dayCycle: { frames: { noon, midnight }, tracks: [[], [{ keyKeyframe: 0, keyName: 'noon' }, { keyKeyframe: 0.5, keyName: 'midnight' }]] },
+    };
+    scene.wallClock = () => 0; // start of the cycle: noon, sun overhead
+    scene.setEnvironment(environment);
+    expect(scene.atmosphere.state.sunUp).toBe(true);
+    expect(scene.lights[0].position[2]).toBeCloseTo(10000, 0);
+    scene.wallClock = () => 7200; // half way through the day: the keyframe with the sun below the horizon
+    scene.render();
+    expect(scene.atmosphere.state.sunUp).toBe(false);
+    expect(scene.atmosphere.state.moonUp).toBe(false);
+  });
+
+  it('does not recompute the sky until the clock moves on', () => {
+    const { scene } = makeScene();
+    scene.setEnvironment({ currentSky: { sunlightColor: [0.5, 0.5, 0.5] } });
+    const first = scene.atmosphere;
+    scene.render();
+    expect(scene.atmosphere).toBe(first);
+    scene.wallClock = () => 1_000_010;
+    scene.render();
+    expect(scene.atmosphere).not.toBe(first);
   });
 });

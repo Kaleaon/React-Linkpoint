@@ -18,8 +18,28 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Packages the Electron main process requires at runtime.
-const MAIN_PROCESS_DEPS = ['@caspertech/node-metaverse'];
+// Packages the main process requires at runtime, found by scanning the Electron entry and the shared
+// core it loads (every bare `require('pkg')`), so adding a dependency to either cannot be forgotten here.
+function mainProcessDeps(rootDir) {
+  const deps = new Set();
+  for (const dir of ['electron', 'core']) {
+    const directory = path.join(rootDir, dir);
+    if (!fs.existsSync(directory)) continue;
+    for (const file of fs.readdirSync(directory)) {
+      if (!file.endsWith('.cjs')) continue;
+      const source = fs.readFileSync(path.join(directory, file), 'utf8');
+      for (const match of source.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+        const request = match[1];
+        if (request.startsWith('.') || request.startsWith('node:') || request === 'electron') continue;
+        const segments = request.split('/');
+        deps.add(request.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]);
+      }
+    }
+  }
+  // Node built-ins required without the node: prefix
+  for (const builtin of require('node:module').builtinModules) deps.delete(builtin);
+  return [...deps].sort();
+}
 
 // node-metaverse declares vitest as a runtime dependency upstream rather than a
 // dev one. The main process never loads it, and pulling it in drags vite,
@@ -40,7 +60,7 @@ function resolvePackageDir(name, fromDir, rootDir) {
 
 function dependencyClosure(rootDir) {
   const found = new Set();
-  const stack = MAIN_PROCESS_DEPS.map((name) => [name, rootDir]);
+  const stack = mainProcessDeps(rootDir).map((name) => [name, rootDir]);
 
   while (stack.length) {
     const [name, fromDir] = stack.pop();
@@ -54,7 +74,8 @@ function dependencyClosure(rootDir) {
     found.add(relative);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
-    for (const dep of Object.keys(manifest.dependencies || {})) stack.push([dep, dir]);
+    // Optional dependencies matter: sharp ships its native binary as a platform-specific optional package.
+    for (const dep of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })) stack.push([dep, dir]);
   }
 
   return found;
@@ -116,6 +137,7 @@ module.exports = {
   files: [
     'dist/**/*',
     'electron/**/*',
+    'core/**/*',
     'package.json',
     ...unusedTopLevelPackages(rootDir).map((name) => `!node_modules/${name}/**/*`),
   ],
