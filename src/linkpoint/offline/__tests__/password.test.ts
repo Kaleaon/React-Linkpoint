@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { LocalGridManager, LOCAL_GRID_STORAGE_KEYS } from '../LocalGridManager';
 import { GridConsole } from '../GridConsole';
 import {
@@ -6,6 +6,7 @@ import {
   verifyPassword,
   isPasswordRecord,
   PBKDF2_ITERATIONS,
+  PBKDF2_FALLBACK_ITERATIONS,
   KEY_BITS
 } from '../password';
 
@@ -147,5 +148,23 @@ describe('offline account password hashing', () => {
 
     manager.toggleGridState(true);
     await expect(manager.getServer().authenticate('Barbara', 'Liskov', 'substitution')).resolves.toBe(true);
+  });
+
+  describe('without WebCrypto (plain-http hosting)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('hashes with the pure-JS fallback at the lower iteration count and the record verifies natively', async () => {
+      const real = globalThis.crypto;
+      vi.stubGlobal('crypto', { getRandomValues: real.getRandomValues.bind(real) });
+      const record = await hashPassword('plain http pw');
+      expect(record.iterations).toBe(PBKDF2_FALLBACK_ITERATIONS);
+      await expect(verifyPassword('plain http pw', record)).resolves.toBe(true);
+      await expect(verifyPassword('wrong', record)).resolves.toBe(false);
+      vi.unstubAllGlobals();
+      // The same record must verify through native WebCrypto: both compute standard PBKDF2-SHA256.
+      await expect(verifyPassword('plain http pw', record)).resolves.toBe(true);
+    }, 60_000);
   });
 });

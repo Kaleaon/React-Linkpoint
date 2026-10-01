@@ -45,7 +45,7 @@ jobs:
       is_release: ${{ steps.meta.outputs.is_release }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve package version
         id: meta
@@ -74,10 +74,10 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
@@ -102,7 +102,7 @@ jobs:
           (cd dist && zip -qry "../artifacts/Linkpoint-${VERSION}-web.zip" .)
 
       - name: Upload web package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linkpoint-web
           path: artifacts/*
@@ -126,10 +126,10 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
@@ -138,7 +138,7 @@ jobs:
           bun-version-file: package.json
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -184,7 +184,7 @@ jobs:
           cp "$aab" "artifacts/Linkpoint-${VERSION}-android.aab"
 
       - name: Upload Android packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linkpoint-android
           path: artifacts/*
@@ -201,10 +201,10 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
@@ -220,7 +220,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: Cache CocoaPods
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ios/Pods
           key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile', 'package-lock.json') }}
@@ -254,7 +254,7 @@ jobs:
           cp "$RUNNER_TEMP/ipa/payload.ipa" "artifacts/Linkpoint-${VERSION}-ios-unsigned.ipa"
 
       - name: Upload iOS package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linkpoint-ios
           path: artifacts/*
@@ -290,10 +290,10 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
@@ -317,7 +317,7 @@ jobs:
           ls -lh artifacts
 
       - name: Upload desktop packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linkpoint-desktop-${{ matrix.label }}
           path: artifacts/*
@@ -333,7 +333,7 @@ jobs:
       contents: write
     steps:
       - name: Download all packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: downloads
 
@@ -345,7 +345,7 @@ jobs:
           ls -lh release
 
       - name: Attach packages to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release/*
           generate_release_notes: true
