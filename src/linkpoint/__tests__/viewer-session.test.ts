@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../electron/viewer-session.cjs');
@@ -148,5 +148,59 @@ describe('desktop simulator object bridge', () => {
 
     expect(result.faceTextures[0].materialId).toBe('material-id');
     expect(result.reflectionProbe).toMatchObject({ ambiance: .75, clipDistance: .1, box: true, dynamic: true, mirror: true });
+  });
+});
+
+describe('desktop session script dialogs and lures', () => {
+  const { Bot } = require('@caspertech/node-metaverse');
+  const { ViewerSession } = require('../../../electron/viewer-session.cjs');
+  const uuid = (value: string) => ({ toString: () => value });
+
+  async function sessionAfterSubscribing() {
+    const sent: Array<[string, any]> = [];
+    const session = new ViewerSession((type: string, data: any) => sent.push([type, data]));
+    const login = vi.spyOn(Bot.prototype, 'login').mockRejectedValue(new Error('stop after subscribing'));
+    await expect(session.connect({ loginUrl: 'https://login.example/cgi-bin/login.cgi', username: 'Test Resident', password: 'secret' })).rejects.toThrow();
+    login.mockRestore();
+    return { session, sent };
+  }
+
+  it('forwards simulator script dialogs and lures to the renderer with answerable ids', async () => {
+    const { session, sent } = await sessionAfterSubscribing();
+    const events = session.bot.clientEvents;
+    events.onScriptDialog.next({ ObjectID: uuid('obj'), FirstName: 'Pat', LastName: 'R', ObjectName: 'Door', Message: 'Open?', ChatChannel: 7, ImageID: uuid('img'), Buttons: ['Yes', 'No'], Owners: [] });
+    events.onLure.next({ from: uuid('f'), fromName: 'Sam', lureMessage: 'Come', regionID: uuid('r'), position: { x: 1, y: 2, z: 3 }, gridX: 5, gridY: 6, lureID: uuid('lid') });
+
+    expect(sent.map(([type]) => type)).toEqual(['script-dialog', 'lure']);
+    expect(sent[0][1]).toMatchObject({ objectName: 'Door', ownerName: 'Pat R', buttons: ['Yes', 'No'], channel: 7, textBox: false });
+    expect(sent[1][1]).toMatchObject({ fromName: 'Sam', position: [1, 2, 3], gridX: 5 });
+    expect(() => structuredClone(sent[0][1])).not.toThrow();
+    expect(session.pending.size).toBe(2);
+  });
+
+  it('answers a dialog and accepts a lure through the library, then forgets them', async () => {
+    const { session, sent } = await sessionAfterSubscribing();
+    const respondToScriptDialog = vi.fn().mockResolvedValue(undefined);
+    const acceptTeleport = vi.fn().mockResolvedValue({ message: 'ok' });
+    vi.spyOn(session.bot, 'clientCommands', 'get').mockReturnValue({ comms: { respondToScriptDialog }, teleport: { acceptTeleport } });
+    const events = session.bot.clientEvents;
+    events.onScriptDialog.next({ ObjectID: uuid('obj'), FirstName: '', LastName: '', ObjectName: 'Door', Message: '', ChatChannel: 7, ImageID: uuid('img'), Buttons: ['Yes', 'No'], Owners: [] });
+    events.onLure.next({ from: uuid('f'), fromName: 'Sam', lureMessage: '', regionID: uuid('r'), position: { x: 1, y: 2, z: 3 }, gridX: 5, gridY: 6, lureID: uuid('lid') });
+
+    await expect(session.respondScriptDialog({ id: sent[0][1].id, buttonIndex: 1 })).resolves.toEqual({ answered: true });
+    expect(respondToScriptDialog.mock.calls[0][1]).toBe(1);
+    await expect(session.acceptLure({ id: sent[1][1].id })).resolves.toMatchObject({ accepted: true });
+    expect(acceptTeleport).toHaveBeenCalledTimes(1);
+    expect(session.pending.size).toBe(0);
+    await expect(session.respondScriptDialog({ id: sent[0][1].id, buttonIndex: 0 })).rejects.toThrow(/no longer pending/);
+  });
+
+  it('drops pending requests when the session closes', async () => {
+    const { session, sent } = await sessionAfterSubscribing();
+    session.bot.clientEvents.onLure.next({ from: uuid('f'), fromName: 'Sam', lureMessage: '', regionID: uuid('r'), position: { x: 1, y: 2, z: 3 }, gridX: 5, gridY: 6, lureID: uuid('lid') });
+    expect(session.pending.size).toBe(1);
+    await session.close();
+    expect(session.pending.size).toBe(0);
+    expect(sent).toHaveLength(1);
   });
 });

@@ -14,6 +14,7 @@ import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
 import {
   createSLSession,
   teleportSL, touchSLObject, sitSL, standSL, getSLBalance,
+  respondSLScriptDialog, acceptSLLure, dismissSLInteraction,
   getSLSession,
   getSLDiagnostics,
   sendSLChat,
@@ -143,6 +144,9 @@ export async function createApp() {
     }
   };
   app.post("/api/sl/teleport", action((id, body) => teleportSL(id, body)));
+  app.post("/api/sl/dialog/respond", action((id, body) => respondSLScriptDialog(id, body)));
+  app.post("/api/sl/lure/accept", action((id, body) => acceptSLLure(id, body)));
+  app.post("/api/sl/interaction/dismiss", action((id, body) => dismissSLInteraction(id, body)));
   app.post("/api/sl/touch", action((id, body) => touchSLObject(id, body)));
   app.post("/api/sl/sit", action((id, body) => sitSL(id, body)));
   app.post("/api/sl/stand", action((id) => standSL(id)));
