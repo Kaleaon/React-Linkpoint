@@ -9,6 +9,8 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
+import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
+import { packJointRows } from './skinning';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 
 export class WorldViewer extends Utils.EventEmitter {
@@ -177,9 +179,44 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
+  private skeleton: AvatarSkeleton | null = null;
+  private restSkinRows = new Map<string, Float32Array | null>();
+
+  /**
+   * Joint matrices for a rigged mesh asset in the skeleton's rest pose, including the joint
+   * position overrides (Bento / alternate bind) the mesh asks for. Null for unrigged meshes.
+   */
+  private skinRowsFor(assetId: string): Float32Array | null {
+    if (this.restSkinRows.has(assetId)) return this.restSkinRows.get(assetId)!;
+    const skin = this.decodedAssets.get(assetId)?.skin as (MeshSkin & { pelvisOffset?: number | number[] | null }) | null | undefined;
+    let rows: Float32Array | null = null;
+    if (skin?.jointNames?.length) {
+      this.skeleton ||= new AvatarSkeleton();
+      const offset = typeof skin.pelvisOffset === 'number' ? skin.pelvisOffset : 0;
+      const overrides = jointPositionOverrides(this.skeleton, skin);
+      const world = this.skeleton.worldMatrices(new Map(), overrides, [0, 0, overrides.size ? offset : 0]);
+      const maxJoints = (this.scene3d as any)?.graphics?.maxJoints || 110;
+      rows = packJointRows(skinMatrices(this.skeleton, { ...skin, pelvisOffset: undefined }, world), maxJoints);
+    }
+    this.restSkinRows.set(assetId, rows);
+    return rows;
+  }
+
+  /** Rigged meshes move with their avatar (not with the attachment offset the simulator reports). */
+  private riggedTransform(object: any): { position: number[]; rotation: number[] } {
+    let current = object;
+    for (let depth = 0; depth < 16 && current; depth++) {
+      if (current.avatar) return this.worldTransform(current);
+      const parentId = this.localObjectIds.get(Number(current.parentId));
+      current = parentId ? this.sceneObjects.get(parentId) : null;
+    }
+    return this.worldTransform(object);
+  }
+
   private applyAsset(asset: any) {
     if (!asset?.assetId || !asset.geometry) return;
     this.decodedAssets.set(asset.assetId, asset.geometry);
+    this.restSkinRows.delete(asset.assetId);
     const meshes = this.scene3d?.addAssetMesh(asset.assetId, asset.geometry);
     for (const object of this.sceneObjects.values()) {
       if (object.assetId !== asset.assetId) continue;
@@ -643,7 +680,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applySceneObject(object: any) {
     if (!this.scene3d) return;
-    const { position, rotation } = this.worldTransform(object);
+    const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId) : null;
+    const { position, rotation } = skin ? this.riggedTransform(object) : this.worldTransform(object);
     const hudRoot = object.avatar ? null : this.hudRootOf(object);
     const scale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
     object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
@@ -657,6 +695,7 @@ export class WorldViewer extends Utils.EventEmitter {
       texture: object.decodedTexture,
       faces: object.decodedFaceTextures,
       reflectionProbe: object.reflectionProbe,
+      skin,
       // HUD prims belong to the HUD pass, never the world.
       hud: Boolean(hudRoot),
       hudRoot: hudRoot ? hudRoot.id : null,

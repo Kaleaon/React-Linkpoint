@@ -91,7 +91,9 @@ function normalizeLLMesh(mesh) {
     bindShapeMatrix: matrixValues(mesh.skin.bindShapeMatrix),
     inverseBindMatrices: (mesh.skin.inverseBindMatrix || []).map(matrixValues),
     alternateInverseBindMatrices: (mesh.skin.altInverseBindMatrix || []).map(matrixValues),
-    pelvisOffset: matrixValues(mesh.skin.pelvisOffset),
+    // SL stores the pelvis offset as a single height; older shapes were matrices.
+    pelvisOffset: typeof mesh.skin.pelvisOffset === 'number' ? mesh.skin.pelvisOffset : matrixValues(mesh.skin.pelvisOffset),
+    lockScaleIfJointPosition: Boolean(mesh.skin.lockScaleIfJointPosition),
   } : null;
   const physics = mesh.physicsConvex ? {
     hullList: [...(mesh.physicsConvex.hullList || [])],
