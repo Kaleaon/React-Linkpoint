@@ -226,3 +226,35 @@ describe('desktop session script dialogs and lures', () => {
     expect(sent).toHaveLength(1);
   });
 });
+
+describe('desktop session texture downloads', () => {
+  const { AssetType } = require('@caspertech/node-metaverse');
+  const { ViewerSession } = require('../../../core/viewer-session.cjs');
+
+  it('uses the Second Life GetTexture capability instead of ViewerAsset', async () => {
+    const session = new ViewerSession(() => undefined);
+    const requestGet = vi.fn().mockResolvedValue({ body: Buffer.from('texture') });
+    const downloadAsset = vi.fn();
+    session.bot = {
+      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue('https://asset.example/get?token=one'), requestGet } },
+      clientCommands: { asset: { downloadAsset } },
+    };
+
+    await expect(session.downloadTexture('texture id')).resolves.toEqual(Buffer.from('texture'));
+    expect(requestGet).toHaveBeenCalledWith('https://asset.example/get?token=one&texture_id=texture%20id');
+    expect(downloadAsset).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the generic asset service when GetTexture is unavailable', async () => {
+    const session = new ViewerSession(() => undefined);
+    const downloaded = Buffer.from('fallback');
+    const downloadAsset = vi.fn().mockResolvedValue(downloaded);
+    session.bot = {
+      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue(undefined), requestGet: vi.fn() } },
+      clientCommands: { asset: { downloadAsset } },
+    };
+
+    await expect(session.downloadTexture('texture-id')).resolves.toBe(downloaded);
+    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture-id');
+  });
+});

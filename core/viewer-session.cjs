@@ -66,15 +66,39 @@ class ViewerSession {
   streamAsset(key, kind, assetId, download, ready) {
     if (this.assetRequests.has(key)) return;
     const request = (async () => {
-      const buffer = await this.bot.clientCommands.asset.downloadAsset(kind, assetId);
+      const buffer = download
+        ? await download()
+        : await this.bot.clientCommands.asset.downloadAsset(kind, assetId);
       await ready(buffer);
     })().catch((error) => this.send('asset-error', { assetId, message: error.message }));
     this.assetRequests.set(key, request);
   }
 
+  /**
+   * Second Life exposes textures through GetTexture. node-metaverse's generic asset downloader uses
+   * ViewerAsset instead, which is present on Agni but does not reliably serve texture assets. Prefer
+   * the texture capability and retain ViewerAsset as a fallback for OpenSim and older regions.
+   */
+  async downloadTexture(assetId) {
+    const caps = this.bot?.currentRegion?.caps;
+    if (caps?.getCapability && caps?.requestGet) {
+      try {
+        const capability = await caps.getCapability('GetTexture');
+        if (capability) {
+          const separator = String(capability).includes('?') ? '&' : '?';
+          const response = await caps.requestGet(`${capability}${separator}texture_id=${encodeURIComponent(assetId)}`);
+          if (response?.body) return response.body;
+        }
+      } catch (error) {
+        console.warn(`[SL Session] GetTexture failed for ${assetId}; falling back to ViewerAsset:`, error.message);
+      }
+    }
+    return this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+  }
+
   loadTexture(assetId) {
     if (!assetId) return;
-    this.streamAsset(`texture:${assetId}`, AssetType.Texture, assetId, null, async (buffer) => {
+    this.streamAsset(`texture:${assetId}`, AssetType.Texture, assetId, () => this.downloadTexture(assetId), async (buffer) => {
       this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
     });
   }
