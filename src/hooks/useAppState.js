@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
-import { CACHE_ROWS } from "../data/content.js";
 import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
 import { app } from "../linkpoint/app";
 
@@ -241,15 +240,10 @@ export function useAppState() {
     setLoginError(null);
     try {
       const gridToUse = gridKey || loginGrid;
-      if (gridToUse === "offline") {
-        await app.auth.login("offline", user?.trim() || "Ruth Resident", pass || "offline", remember, startLoc);
-      } else if (gridToUse === "gemini") {
-        await app.auth.login("gemini", user?.trim() || "Ruth Resident", pass || "gemini", remember, startLoc);
-      } else {
-        const gridObj = allGrids().find((g) => g.key === gridToUse);
-        const endpoint = gridObj?.key.startsWith("custom-") ? gridObj.host : (gridObj?.key || "agni");
-        await app.auth.login(endpoint, user?.trim() || "", pass, remember, startLoc);
-      }
+      const gridObj = allGrids().find((g) => g.key === gridToUse);
+      if (!gridObj || ["offline", "gemini"].includes(gridObj.key)) throw new Error("Select a live grid endpoint.");
+      const endpoint = gridObj.key.startsWith("custom-") ? gridObj.host : gridObj.key;
+      await app.auth.login(endpoint, user?.trim() || "", pass, remember, startLoc);
       setScreen("Chat");
       notify("Connected as " + app.auth.getUserDisplayName());
     } catch (err) {
@@ -317,7 +311,7 @@ export function useAppState() {
     [notify]
   );
   const clearAllCache = useCallback(() => {
-    setCacheCleared(Object.fromEntries(CACHE_ROWS.map((r) => [r.key, true])));
+    setCacheCleared({});
     notify("All caches cleared \u2014 assets refetch on demand");
   }, [notify]);
 

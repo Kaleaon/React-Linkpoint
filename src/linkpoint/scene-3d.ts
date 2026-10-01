@@ -153,6 +153,8 @@ export class Scene3D extends Utils.EventEmitter {
       scale: config.scale || [1, 1, 1],
       color: config.color || [1, 1, 1, 1],
       material: config.material || 'basic',
+      texture: config.texture,
+      faces: config.faces || [],
       reflectionProbe: config.reflectionProbe || null,
       visible: config.visible !== false
     };
@@ -218,12 +220,17 @@ export class Scene3D extends Utils.EventEmitter {
       this.renderGrid(viewMatrix, projectionMatrix);
     }
     
-    // Render all objects
-    this.objects.forEach(object => {
-      if (object.visible) {
-        this.renderObject(object, viewMatrix, projectionMatrix);
-      }
+    // Opaque geometry writes depth first. Alpha-blended faces are rendered
+    // back-to-front afterwards so trees, windows and hair do not disappear as
+    // insertion order changes while simulator updates stream in.
+    const visible = [...this.objects.values()].filter(object => object.visible);
+    const transparent = (object: any) => object.faces?.some((face: any) => {
+      const mode = face?.pbr?.alphaMode;
+      return mode === 'BLEND' || mode === 2 || Number(face?.color?.[3] ?? object.color?.[3] ?? 1) < 1;
     });
+    const distanceSquared = (object: any) => object.position.reduce((sum: number, value: number, index: number) => sum + (value - this.camera.position[index]) ** 2, 0);
+    visible.filter(object => !transparent(object)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
+    visible.filter(transparent).sort((a, b) => distanceSquared(b) - distanceSquared(a)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
   }
 
   private renderMirrors() {

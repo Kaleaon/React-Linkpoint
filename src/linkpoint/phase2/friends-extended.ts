@@ -15,6 +15,7 @@ export class FriendsExtended extends Utils.EventEmitter {
   private friendRequests: Map<string, any> = new Map();
   private friendGroups: Map<string, any> = new Map();
   private onlineStatusListeners: Set<Function> = new Set();
+  private authoritativePresence: Set<string> = new Set();
 
   constructor(private protocol?: any) {
     super();
@@ -122,8 +123,10 @@ export class FriendsExtended extends Utils.EventEmitter {
     const currentIds = new Set<string>();
     for (const friend of friends || []) {
       if (!friend?.id) continue;
-      currentIds.add(this.normalizeId(String(friend.id)));
-      this.addFriend(String(friend.id), friend);
+      const id = this.normalizeId(String(friend.id));
+      currentIds.add(id);
+      const liveStatus = this.authoritativePresence.has(id) ? this.friends.get(id)?.onlineStatus : undefined;
+      this.addFriend(id, liveStatus ? { ...friend, onlineStatus: liveStatus } : friend);
     }
     for (const id of [...this.friends.keys()]) {
       if (!currentIds.has(id)) this.removeFriend(id);
@@ -135,6 +138,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     const friend = this.friends.get(normalizedId);
     if (!friend) return false;
     this.friends.delete(normalizedId);
+    this.authoritativePresence.delete(normalizedId);
     for (const group of this.friendGroups.values()) {
       group.members = group.members.filter((id: string) => this.normalizeId(id) !== normalizedId);
     }
@@ -158,6 +162,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     
     const normalizedId = this.normalizeId(friendId);
     const normalizedStatus = this.normalizeStatus(status);
+    this.authoritativePresence.add(normalizedId);
     let friend = this.friends.get(normalizedId);
     // Presence packets can arrive before the initial buddy-list request has
     // completed. Keep that authoritative event instead of silently dropping it.

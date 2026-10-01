@@ -17,12 +17,10 @@ import { app } from "../linkpoint/app";
 export default function ConsoleFrame() {
   const { state, actions } = useApp();
   const { V, t, C, ink, consoleScene } = useTheme();
-  const tick = state.tick || 0;
-
-  const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "Second Life" : "Offline");
+  const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "REGION PENDING" : "DISCONNECTED");
   const simCoord = app.world.avatarPosition
     ? { x: Math.round(app.world.avatarPosition[0]), y: Math.round(app.world.avatarPosition[1]), z: Math.round(app.world.avatarPosition[2]) }
-    : { x: Number(app.world.region?.x) || 128, y: Number(app.world.region?.y) || 128, z: 25 };
+    : null;
 
   const cfBar = { position: "absolute", left: 0, top: 0, right: 0, height: C.bar + "px", background: V.pri, borderRadius: Math.round(C.bar * 0.66) + "px 0 0 0" };
   const cfBarEnd = { position: "absolute", right: 0, top: 0, width: (C.wide ? 104 : 66) + "px", height: C.bar + "px", background: V.sec2 };
@@ -52,14 +50,14 @@ export default function ConsoleFrame() {
     // instead of the generic grid-link stats every other screen shows here.
     const items = consoleScene
       ? [
-          { label: "LOC", value: simCoord.x + "," + simCoord.y },
-          { label: "HEIGHT", value: simCoord.z + "M" },
+          { label: "LOC", value: simCoord ? simCoord.x + "," + simCoord.y : "—" },
+          { label: "HEIGHT", value: simCoord ? simCoord.z + "M" : "—" },
           { label: "REGION", value: simName.toUpperCase() },
         ]
       : [
-          { label: "PING", value: (24 + (tick % 19)) + "MS" },
-          { label: "SPEED", value: (1.1 + (tick % 8) * 0.15).toFixed(1) + "MB/S" },
-          { label: "LAG", value: ((tick % 6) * 0.08).toFixed(2) + "S" },
+          { label: "LINK", value: app.protocol.connected ? "CONNECTED" : "DISCONNECTED" },
+          { label: "OBJECTS", value: String(app.world.objects.length) },
+          { label: "CAPS", value: String(Object.keys(app.protocol.capabilities || {}).length) },
         ];
     const last = items.length - 1;
     return items.map((n, i) => {

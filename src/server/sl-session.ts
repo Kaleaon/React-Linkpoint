@@ -565,7 +565,7 @@ export async function fetchSLFriends(sessionId: string) {
           results.push({
             id: friendId,
             name: res.getName?.() || `${res.getFirstName?.()} ${res.getLastName?.()}`.trim() || 'Resident',
-            onlineStatus: 'offline',
+            onlineStatus: session.friendPresence.get(friendId.toLowerCase()) ? 'online' : 'offline',
             rightsGiven: Boolean(buddyInfo?.buddyRightsGiven),
             rightsHas: Boolean(buddyInfo?.buddyRightsHas),
             rightsGivenMask: Number(buddyInfo?.buddyRightsGiven) || 0,
@@ -581,7 +581,7 @@ export async function fetchSLFriends(sessionId: string) {
             results.push({
               id: friendId,
               name: `Resident (${friendId.slice(0, 8)})`,
-              onlineStatus: 'offline',
+              onlineStatus: session.friendPresence.get(friendId.toLowerCase()) ? 'online' : 'offline',
               rightsGiven: Boolean(buddyInfo?.buddyRightsGiven),
               rightsHas: Boolean(buddyInfo?.buddyRightsHas),
               rightsGivenMask: Number(buddyInfo?.buddyRightsGiven) || 0,

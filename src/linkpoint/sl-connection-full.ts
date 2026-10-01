@@ -57,52 +57,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
     try {
       if (gridId === 'gemini' || gridId === 'offline' || gridId === 'local') {
-        const nameParts = (username || 'Ruth Resident').replace(/[._]/g, ' ').trim().split(/\s+/);
-        const firstName = nameParts[0] || 'Ruth';
-        const lastName = nameParts.length > 1 ? nameParts[1] : 'Resident';
-        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-        const sessionId = Utils.generateUUID();
-        const loginResult: any = {
-          login: 'true',
-          session_id: sessionId,
-          secure_session_id: Utils.generateUUID(),
-          agent_id: Utils.generateUUID(),
-          first_name: firstName,
-          last_name: lastName,
-          circuit_code: '1001',
-          sim_ip: '127.0.0.1',
-          sim_port: '9000',
-          seed_capability: `${origin}/api/caps/${sessionId}/`,
-          'inventory-root': [{ folder_id: Utils.generateUUID() }],
-          message: gridId === 'gemini'
-            ? 'Connected via Gemini AI Grid Proxy (gemini-3.8-flash)'
-            : 'Connected to Offline Grid',
-        };
-        this.authReply = loginResult;
-        this.agentId = loginResult.agent_id;
-        this.sessionId = loginResult.session_id;
-        this.circuitCode = parseInt(loginResult.circuit_code);
-        this.simAddress = loginResult.sim_ip;
-        this.simPort = parseInt(loginResult.sim_port);
-        this.seedCapability = loginResult.seed_capability;
-        this.inventoryRoot = loginResult['inventory-root'][0].folder_id;
-
-        if (this.seedCapability) {
-          try {
-            await this.fetchCapabilities();
-          } catch (capsErr) {
-            console.warn('[Connection] Capability initialization completed with defaults:', capsErr);
-          }
-        }
-
-        if (this.capabilities?.EventQueueGet) {
-          this.startEventQueue();
-        }
-
-        this.setState('CONNECTED');
-        this.connected = true;
-        this.emit('connected', loginResult);
-        return loginResult;
+        throw new Error('Synthetic grid sessions have been removed; select a live Second Life or OpenSim endpoint');
       }
 
       if (window.linkpointDesktop?.connectViewer) {

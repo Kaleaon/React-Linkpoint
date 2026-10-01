@@ -63,9 +63,9 @@ describe('runtime UI manager snapshots', () => {
       expect.objectContaining({ id: 'abc-123', name: 'Early Resident', onlineStatus: 'online' }),
     ]);
 
-    friends.addFriend('ABC-123', { onlineStatus: 'false' });
+    friends.replaceFriends([{ id: 'ABC-123', name: 'Early Resident', onlineStatus: 'false' }]);
     expect(friends.getFriends()).toEqual([
-      expect.objectContaining({ id: 'abc-123', onlineStatus: 'offline' }),
+      expect.objectContaining({ id: 'abc-123', onlineStatus: 'online' }),
     ]);
     expect(updated).toHaveBeenCalled();
   });
