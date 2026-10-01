@@ -222,9 +222,18 @@ describe('Scene3D.pick', () => {
     expect(scene.pick(5, 5, 800, 600)).toBeNull();
   });
 
-  it('skips objects with unknown bounds instead of throwing', () => {
+  it('falls back to the unit cube a prim is scaled from when mesh bounds are unknown', () => {
     const { scene } = makeScene({ bounds: false });
     scene.addObject('x', { mesh: 'cube', position: [0, 20, 50] });
-    expect(scene.pick(400, 300, 800, 600)).toBeNull();
+    scene.addObject('hidden', { mesh: 'cube', position: [0, 10, 50], visible: false });
+    expect(scene.pick(400, 300, 800, 600)).toMatchObject({ id: 'x' });
+    expect(scene.pick(400, 300, 800, 600)!.distance).toBeCloseTo(19.5, 3);
+  });
+
+  it('uses real mesh bounds rather than assuming a unit cube', () => {
+    const { scene, graphics } = makeScene();
+    graphics.getMeshBounds.mockReturnValue({ min: [-0.5, -3, -0.5], max: [0.5, 3, 0.5] });
+    scene.addObject('long', { mesh: 'cube', position: [0, 20, 50] });
+    expect(scene.pick(400, 300, 800, 600)!.distance).toBeCloseTo(17, 3);
   });
 });

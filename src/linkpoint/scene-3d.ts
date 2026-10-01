@@ -14,6 +14,8 @@ import {
   type SkyUniforms, type WaterUniforms,
 } from './sky';
 
+const UNIT_CUBE_BOUNDS = { min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] };
+
 export class Scene3D extends Utils.EventEmitter {
   public graphics: Graphics3D;
   public camera: Camera3D;
@@ -392,8 +394,8 @@ export class Scene3D extends Utils.EventEmitter {
     let best: { id: string; distance: number; point: number[] } | null = null;
     for (const object of this.objects.values()) {
       if (!object.visible) continue;
-      const local = this.objectLocalBounds(object);
-      if (!local) continue;
+      // Meshes without known bounds are treated as the unit cube prims are scaled from.
+      const local = this.objectLocalBounds(object) || UNIT_CUBE_BOUNDS;
       const model = this.calculateModelMatrix(object.position, object.rotation, object.scale);
       const distance = intersectRayOrientedBox(ray, model, local.min, local.max);
       if (distance === null || (best && distance >= best.distance)) continue;

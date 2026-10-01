@@ -76,8 +76,10 @@ Findings that were checked this way:
 - **Post-process:** the Redux `fxaa.fsh` adds ACES tone mapping, sharpening and
   vignette on top of the original FXAA. That is a Redux modification, not original
   Lumiya, so it needs its own decision.
-- **Picking UI.** `Scene3D.pick` exists, but nothing in `World3D.jsx` calls it yet,
-  and terrain and water are not pickable.
+- **Per-face picking.** Click-to-select is wired up (`CameraControls` tap →
+  `WorldViewer.pickObject` → selection panel), but hits use each object's oriented
+  bounding box, not triangles, so there are no face or UV results. Terrain and water
+  are not pickable.
 - **Water height from the simulator.** `Scene3D.setWaterHeight` exists, but the
   session layer does not forward the RegionHandshake water height yet, so 20 m is used.
 - **Sun direction.** The light position is still a fixed vector. I did not work out

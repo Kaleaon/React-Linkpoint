@@ -25,6 +25,9 @@ renderer**.
   oriented-bounding-box picking via `Scene3D.pick` (not yet wired to the UI).
 - Parent-relative linkset transforms are resolved into world space and child
   prims follow root motion even when only the root receives a terse update.
+- Tap/click object picking uses transformed collision volumes, with nearest-hit
+  selection and a camera-focus action inspired by Lumiya's recovered
+  `CollisionBox`, `GLRayTrace`, and `WorldViewRenderer.pickObject` flow.
 
 ## Not implemented yet
 
@@ -35,7 +38,9 @@ renderer**.
   particles, flexible prims, and lighting beyond the renderer's default light.
 - Complete SL path/profile prim tessellation (cuts, hollow, twist and taper are
   preserved in scene data but currently render with a closest-shape fallback).
-- Touch, sit, edit, and build interactions in the 3D canvas (picking exists but is not wired up).
+- Touch, sit, edit, and build interactions in the 3D canvas. Picking uses each
+  object's oriented bounding box; per-face triangle and UV hits remain to be
+  implemented.
 
 The World screen reports whether it has a native live scene stream or only
 login/region metadata. It must not describe metadata-only browser sessions as a
