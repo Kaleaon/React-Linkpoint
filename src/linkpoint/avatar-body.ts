@@ -92,12 +92,15 @@ export function bodyPartRows(skeleton: AvatarSkeleton, skin: MeshSkin, world: Ma
 export async function loadBodyParts(baseUrl = `${assetBase()}avatar/`, fetcher: typeof fetch = (input, init) => fetch(input, init)): Promise<Map<string, BodyPartGeometry>> {
   const metaResponse = await fetcher(`${baseUrl}meshes.json`);
   if (!metaResponse.ok) throw new Error(`Avatar mesh index unavailable (HTTP ${metaResponse.status})`);
-  const meta = (await metaResponse.json()) as Record<string, BodyPartMeta>;
+  let meta: Record<string, BodyPartMeta>;
+  try { meta = (await metaResponse.json()) as Record<string, BodyPartMeta>; }
+  catch { throw new Error(`Avatar mesh index at ${baseUrl}meshes.json is not JSON (is public/avatar deployed?)`); }
   const parts = new Map<string, BodyPartGeometry>();
   await Promise.all(Object.keys(meta).map(async (part) => {
     const response = await fetcher(`${baseUrl}${part}.bin`);
     if (!response.ok) throw new Error(`Avatar mesh ${part} unavailable (HTTP ${response.status})`);
-    parts.set(part, parseBodyPart(await response.arrayBuffer(), meta[part]));
+    try { parts.set(part, parseBodyPart(await response.arrayBuffer(), meta[part])); }
+    catch (error) { throw new Error(`Avatar mesh ${baseUrl}${part}.bin is invalid: ${(error as Error).message}`); }
   }));
   return parts;
 }
