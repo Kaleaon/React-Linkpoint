@@ -29,7 +29,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: npm
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -39,7 +42,7 @@ jobs:
           cache: gradle
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Assemble debug APK
         run: npm run android:build -- --no-daemon
