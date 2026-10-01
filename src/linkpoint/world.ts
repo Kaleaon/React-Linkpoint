@@ -140,6 +140,10 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:world-data', (data: any) => this.applyWorldData(data));
     this.protocol.on('scene:environment', (data: any) => this.applyWorldData({ environment: data }));
     this.protocol.on('scene:terrain', (data: any) => this.applyWorldData({ terrain: data }));
+    this.protocol.on('avatar_presence', (data: any) => this.handleAvatarPresence(data));
+    this.protocol.on('avatar-presence', (data: any) => this.handleAvatarPresence(data));
+    slBridge.on('avatar_presence', (data: any) => this.handleAvatarPresence(data));
+    slBridge.on('avatar-presence', (data: any) => this.handleAvatarPresence(data));
   }
 
   private applyWorldData(data: any) {
@@ -246,7 +250,10 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
+  private resizeObserver: any = null;
+
   async init() {
+    this.use3D = true;
     const canvas = document.getElementById('world-canvas') as HTMLCanvasElement;
     if (!canvas) return;
     if (this.graphics3d && this.canvas === canvas) {
@@ -284,14 +291,20 @@ export class WorldViewer extends Utils.EventEmitter {
 
       this.startRendering();
       this.updateLocationDisplay();
+
+      window.addEventListener('resize', this.handleResize);
+      this.resizeAttached = true;
+      if (typeof ResizeObserver !== 'undefined' && this.canvas.parentElement) {
+        this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
+        this.resizeObserver.observe(this.canvas.parentElement);
+      }
+      this.resizeCanvas();
     } catch (error) {
       console.error('3D initialization failed:', error);
       this.use3D = false;
+      this.destroyRenderer();
+      throw error;
     }
-
-    window.addEventListener('resize', this.handleResize);
-    this.resizeAttached = true;
-    this.resizeCanvas();
   }
 
   private resizeCanvas() {
@@ -329,6 +342,8 @@ export class WorldViewer extends Utils.EventEmitter {
     this.stopRendering();
     if (this.resizeAttached) window.removeEventListener('resize', this.handleResize);
     this.resizeAttached = false;
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.cameraControls?.destroy();
     this.cameraControls = null;
     this.graphics3d?.destroy();
@@ -537,5 +552,191 @@ export class WorldViewer extends Utils.EventEmitter {
     }
     this.nearbyUsers = next;
     this.emit('nearby_changed', next.map(user => ({ ...user })));
+  }
+
+  public parseCoordinates(item: any): [number, number, number] | null {
+    if (!item) return null;
+    const raw =
+      item.coordinates ??
+      item.Coordinates ??
+      item.position ??
+      item.Position ??
+      item.pos ??
+      item.Pos ??
+      item.coarsePosition ??
+      item.location ??
+      item.Location;
+    if (!raw) return null;
+    if (Array.isArray(raw)) {
+      const x = Number(raw[0]);
+      const y = Number(raw[1]);
+      const z = Number(raw[2] ?? 0);
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        return [x, y, Number.isFinite(z) ? z : 0];
+      }
+      return null;
+    }
+    if (typeof raw === 'object') {
+      const x = Number(raw.x ?? raw.X);
+      const y = Number(raw.y ?? raw.Y);
+      const z = Number(raw.z ?? raw.Z ?? 0);
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        return [x, y, Number.isFinite(z) ? z : 0];
+      }
+      return null;
+    }
+    if (typeof raw === 'string') {
+      const parts = raw.replace(/[<>[\]()]/g, '').split(',').map((s) => Number(s.trim()));
+      if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+        return [parts[0], parts[1], Number.isFinite(parts[2]) ? parts[2] : 0];
+      }
+    }
+    return null;
+  }
+
+  public handleAvatarPresence(data: any) {
+    if (!data) return;
+    const body = data.body ?? data.data ?? data;
+    const items = Array.isArray(body)
+      ? body
+      : Array.isArray(body.AgentData)
+      ? body.AgentData
+      : Array.isArray(body.agents)
+      ? body.agents
+      : Array.isArray(body.avatars)
+      ? body.avatars
+      : [body];
+
+    let changed = false;
+
+    for (const item of items) {
+      if (!item) continue;
+      const rawId = item.id || item.agentId || item.AgentID || item.agent_id || item.avatar_id || item.avatarId || item.uuid || '';
+      const id = String(typeof rawId === 'object' && rawId?.toString ? rawId.toString() : rawId).trim();
+      if (!id || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(id)) continue;
+
+      const isLeft = Boolean(
+        item.left === true ||
+        item.Left === true ||
+        item.presence === 'left' ||
+        item.presence === 'departed' ||
+        item.presence === 'offline' ||
+        item.online === false ||
+        item.Online === false
+      );
+
+      if (isLeft) {
+        if (id === this.protocol.agentId) {
+          this.avatarPosition = null;
+        } else {
+          const prevCount = this.nearbyUsers.length;
+          this.nearbyUsers = this.nearbyUsers.filter((u) => u.id !== id);
+          if (this.nearbyUsers.length !== prevCount) {
+            changed = true;
+          }
+          this.removeSceneObject({ id });
+        }
+        continue;
+      }
+
+      const position = this.parseCoordinates(item);
+      const firstName = item.firstName || item.FirstName || '';
+      const lastName = item.lastName || item.LastName || '';
+      const fullName = [firstName, lastName].filter(Boolean).join(' ');
+      const name = item.name || item.Name || fullName || item.username;
+
+      if (id === this.protocol.agentId) {
+        if (position) {
+          this.avatarPosition = position;
+          if (this.camera3d) {
+            this.camera3d.setOrbitTarget(position[0], position[1], position[2]);
+          }
+          // Recalculate distance and bearing for all nearby users
+          this.nearbyUsers = this.nearbyUsers.map((u) => {
+            if (u.position) {
+              const distance = Math.hypot(
+                u.position[0] - position[0],
+                u.position[1] - position[1],
+                u.position[2] - position[2]
+              );
+              const dx = u.position[0] - position[0];
+              const dy = u.position[1] - position[1];
+              let bearing = Math.atan2(dx, dy) * (180 / Math.PI);
+              if (bearing < 0) bearing += 360;
+              const roundedBearing = Math.round(bearing);
+              if (u.distance !== distance || u.bearing !== roundedBearing) {
+                changed = true;
+                return { ...u, distance, bearing: roundedBearing };
+              }
+            }
+            return u;
+          });
+        }
+        continue;
+      }
+
+      // Another avatar in region
+      let distance: number | null = null;
+      let bearing: number | null = null;
+      if (position && this.avatarPosition) {
+        distance = Math.hypot(
+          position[0] - this.avatarPosition[0],
+          position[1] - this.avatarPosition[1],
+          position[2] - this.avatarPosition[2]
+        );
+        const dx = position[0] - this.avatarPosition[0];
+        const dy = position[1] - this.avatarPosition[1];
+        let brg = Math.atan2(dx, dy) * (180 / Math.PI);
+        if (brg < 0) brg += 360;
+        bearing = Math.round(brg);
+      }
+
+      const existingIndex = this.nearbyUsers.findIndex((u) => u.id === id);
+      const existing = existingIndex >= 0 ? this.nearbyUsers[existingIndex] : null;
+
+      const nextUser = {
+        ...(existing || {}),
+        ...item,
+        id,
+        name: name || existing?.name || `Resident ${id.slice(0, 8)}`,
+        position: position ?? existing?.position ?? null,
+        distance: distance ?? existing?.distance ?? null,
+        bearing: bearing ?? existing?.bearing ?? null,
+        online: true,
+        presence: item.presence || 'online',
+      };
+
+      if (existingIndex >= 0) {
+        if (
+          existing.position?.[0] !== nextUser.position?.[0] ||
+          existing.position?.[1] !== nextUser.position?.[1] ||
+          existing.position?.[2] !== nextUser.position?.[2] ||
+          existing.distance !== nextUser.distance ||
+          existing.bearing !== nextUser.bearing ||
+          existing.name !== nextUser.name
+        ) {
+          this.nearbyUsers = this.nearbyUsers.map((u, idx) => (idx === existingIndex ? nextUser : u));
+          changed = true;
+        }
+      } else {
+        this.nearbyUsers = [...this.nearbyUsers, nextUser];
+        changed = true;
+      }
+
+      // If position is known, upsert into 3D scene so avatars appear in the 3D world view!
+      if (position) {
+        this.upsertSceneObject({
+          id,
+          position,
+          avatar: true,
+          name: nextUser.name,
+          shape: 'sphere',
+        });
+      }
+    }
+
+    if (changed) {
+      this.emit('nearby_changed', this.nearbyUsers.map((user) => ({ ...user })));
+    }
   }
 }

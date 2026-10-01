@@ -19,8 +19,10 @@ import {
 import {
   createSLSession,
   getSLSession,
+  getSLDiagnostics,
   sendSLChat,
   sendSLInstantMessage,
+  sendSLGroupMessage,
   sendSLFriendRequest,
   fetchSLFriends,
   fetchSLGroups,
@@ -147,6 +149,29 @@ export async function createApp() {
       }
       await sendSLInstantMessage(sessionId, to, message);
       res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/sl/group-message", async (req, res) => {
+    try {
+      const { sessionId, groupId, message } = req.body || {};
+      if (!sessionId || !groupId || !message) {
+        return res.status(400).json({ error: "Missing sessionId, groupId, or message" });
+      }
+      await sendSLGroupMessage(sessionId, groupId, message);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/sl/diagnostics", (req, res) => {
+    try {
+      const sessionId = (req.query.sessionId as string) || "";
+      const diag = getSLDiagnostics(sessionId);
+      res.json(diag);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

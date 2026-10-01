@@ -135,16 +135,53 @@ export class EventQueueManager {
     while (this.eventBuffer.length > 0) {
       const event = this.eventBuffer.shift();
       const eventName = event?.message;
-      
-      if (eventName && this.handlers.has(eventName)) {
-        const handlers = this.handlers.get(eventName)!;
-        handlers.forEach(handler => {
-          try {
-            handler(event);
-          } catch (error) {
-            console.error(`[EventQueue] Handler error for ${eventName}:`, error);
+      const eventBody = event?.body ?? event?.data ?? event;
+
+      // Forward to protocol emitter so world viewer and protocol listeners receive it
+      if (eventName && this.protocol && typeof this.protocol.emit === 'function') {
+        this.protocol.emit(eventName, eventBody);
+        if (eventName.includes('_')) {
+          this.protocol.emit(eventName.replace(/_/g, '-'), eventBody);
+        } else if (eventName.includes('-')) {
+          this.protocol.emit(eventName.replace(/-/g, '_'), eventBody);
+        }
+        const lower = String(eventName).toLowerCase().replace(/[-_]/g, '');
+        if (lower === 'avatarpresence') {
+          this.protocol.emit('avatar_presence', eventBody);
+          this.protocol.emit('avatar-presence', eventBody);
+          // If eventBody contains multiple agents in AgentData or array, also forward each agent
+          const items = Array.isArray(eventBody)
+            ? eventBody
+            : Array.isArray(eventBody?.AgentData)
+            ? eventBody.AgentData
+            : Array.isArray(eventBody?.agents)
+            ? eventBody.agents
+            : null;
+          if (items && items.length > 0) {
+            items.forEach((agent: any) => {
+              this.protocol.emit('avatar_presence', agent);
+            });
           }
-        });
+        }
+      }
+      
+      if (eventName) {
+        const lowerNorm = String(eventName).toLowerCase().replace(/[-_]/g, '');
+        const handledSet = new Set<Function>();
+        for (const [registeredName, handlers] of this.handlers.entries()) {
+          const regNorm = String(registeredName).toLowerCase().replace(/[-_]/g, '');
+          if (regNorm === lowerNorm || registeredName === eventName) {
+            handlers.forEach(handler => {
+              if (handledSet.has(handler)) return;
+              handledSet.add(handler);
+              try {
+                handler(event);
+              } catch (error) {
+                console.error(`[EventQueue] Handler error for ${registeredName}:`, error);
+              }
+            });
+          }
+        }
       }
     }
   }

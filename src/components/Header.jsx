@@ -6,6 +6,7 @@ import { HEAD } from "../data/content.js";
 import { SCREENS } from "../theme/constants.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
+import ViewModeSwitcher from "./ViewModeSwitcher.jsx";
 
 // Ported from the five header <sc-if> blocks (hasHeader/isSweepHead/
 // isPivotHead/isRuleHead/isPressHead) plus the shared title/subtitle lookup.
@@ -53,9 +54,9 @@ function runtimeSubtitle(screen, fallback) {
 
 function StackHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
-  const { actions } = useApp();
+  const { state, actions } = useApp();
   const showLink = scr === "Chat";
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
   const headerIcons =
     scr === "Friends"
       ? [
@@ -66,7 +67,7 @@ function StackHead({ title, subtitle, scr }) {
       ? [{ icon: "refresh-cw", label: "REFRESH STATUS", pick: () => actions.notify(`${app.protocol.connected ? "Connected" : "Disconnected"} · ${Object.keys(app.protocol.capabilities || {}).length} capabilities`) }]
       : null;
   return (
-    <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px 8px" }}>
+    <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px 8px" }}>
       {isSettingsOrSub && (
         <button
           type="button"
@@ -75,8 +76,8 @@ function StackHead({ title, subtitle, scr }) {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            height: "32px",
-            padding: "0 10px",
+            height: "30px",
+            padding: "0 9px",
             border: "1px solid " + V.outv,
             borderRadius: V.rs,
             background: V.surf,
@@ -95,10 +96,12 @@ function StackHead({ title, subtitle, scr }) {
         <div style={{ font: "700 21px/1.05 " + t.dfont, letterSpacing: V.tls, color: V.pri }}>{title}</div>
         <div style={{ font: "400 11px/1.4 " + t.font, color: V.ink2, marginTop: "4px" }}>{subtitle}</div>
       </div>
+      {/* Universal Mode Switcher */}
+      <ViewModeSwitcher />
       {showLink ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", height: "28px", padding: "0 10px", border: "1px solid " + V.ok, borderRadius: V.rs, background: V.surf }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", height: "26px", padding: "0 8px", border: "1px solid " + V.ok, borderRadius: V.rs, background: V.surf }}>
           <span style={{ width: "6px", height: "6px", borderRadius: "3px", background: V.ok }} />
-          <span style={{ font: "600 10px/1 " + t.font, letterSpacing: ".2em", color: V.ok }}>LINK</span>
+          <span style={{ font: "600 9.5px/1 " + t.font, letterSpacing: ".2em", color: V.ok }}>LINK</span>
         </div>
       ) : null}
       {headerIcons
@@ -115,9 +118,9 @@ function StackHead({ title, subtitle, scr }) {
               role="button"
               aria-label={hi.label}
               tabIndex={0}
-              style={{ width: "44px", height: "44px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, display: "flex", alignItems: "center", justifyContent: "center", color: V.pri, cursor: "pointer" }}
+              style={{ width: "36px", height: "36px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, display: "flex", alignItems: "center", justifyContent: "center", color: V.pri, cursor: "pointer" }}
             >
-              <Icon name={hi.icon} size={18} />
+              <Icon name={hi.icon} size={16} />
             </div>
           ))
         : null}
@@ -128,7 +131,7 @@ function StackHead({ title, subtitle, scr }) {
 function SweepHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
   return (
     <>
       <div style={{ flex: "none", display: "flex", alignItems: "flex-end", gap: "4px", padding: "10px 12px 6px 4px" }}>
@@ -159,7 +162,8 @@ function SweepHead({ title, subtitle, scr }) {
         <span style={{ width: "26px", height: "14px", background: V.sec2, borderRadius: "7px 0 0 7px", flex: "none" }} />
         <span style={{ flex: 1, height: "8px", background: V.surf2 }} />
         <span style={{ font: "600 20px/1 " + t.dfont, letterSpacing: ".12em", color: V.pri, flex: "none" }}>{title}</span>
-        <span style={{ width: "38px", height: "14px", background: V.pri, borderRadius: "0 7px 7px 0", flex: "none" }} />
+        <span style={{ width: "38px", height: "14px", background: V.pri, borderRadius: "0 7px 7px 0", flex: "none", marginRight: 8 }} />
+        <ViewModeSwitcher compact={true} />
       </div>
       <div style={{ flex: "none", padding: "0 12px 8px", font: "400 11px/1.4 " + t.font, letterSpacing: ".06em", color: V.ink2 }}>{subtitle}</div>
     </>
@@ -170,35 +174,38 @@ function PivotHead({ title, subtitle, scr }) {
   const { t, V } = useTheme();
   const { actions } = useApp();
   const nextScr = SCREENS[(SCREENS.indexOf(scr) + 1) % SCREENS.length];
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
   return (
     <>
-      <div style={{ flex: "none", padding: "14px 0 2px 16px", display: "flex", alignItems: "baseline", gap: "22px", overflow: "hidden" }}>
-        {isSettingsOrSub && (
-          <button
-            type="button"
-            onClick={() => actions.setScreen(app.auth.isLoggedIn() ? "Chat" : "Login")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              height: "28px",
-              padding: "0 8px",
-              border: "1px solid " + V.outv,
-              borderRadius: V.rs,
-              background: V.surf,
-              color: V.pri,
-              font: "700 10px/1 " + t.font,
-              letterSpacing: ".1em",
-              cursor: "pointer",
-            }}
-          >
-            <Icon name="arrow-left" size={12} />
-            {app.auth.isLoggedIn() ? "CHAT" : "LOGIN"}
-          </button>
-        )}
-        <span style={{ flex: "none", font: "300 40px/1 " + t.dfont, color: V.ink }}>{String(title || "").toLowerCase()}</span>
-        <span style={{ flex: "none", font: "300 40px/1 " + t.dfont, color: V.ink2, opacity: 0.4 }}>{nextScr.toLowerCase()}</span>
+      <div style={{ flex: "none", padding: "14px 16px 2px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "18px" }}>
+          {isSettingsOrSub && (
+            <button
+              type="button"
+              onClick={() => actions.setScreen(app.auth.isLoggedIn() ? "Chat" : "Login")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                height: "28px",
+                padding: "0 8px",
+                border: "1px solid " + V.outv,
+                borderRadius: V.rs,
+                background: V.surf,
+                color: V.pri,
+                font: "700 10px/1 " + t.font,
+                letterSpacing: ".1em",
+                cursor: "pointer",
+              }}
+            >
+              <Icon name="arrow-left" size={12} />
+              {app.auth.isLoggedIn() ? "CHAT" : "LOGIN"}
+            </button>
+          )}
+          <span style={{ flex: "none", font: "300 36px/1 " + t.dfont, color: V.ink }}>{String(title || "").toLowerCase()}</span>
+          <span style={{ flex: "none", font: "300 36px/1 " + t.dfont, color: V.ink2, opacity: 0.4 }}>{nextScr.toLowerCase()}</span>
+        </div>
+        <ViewModeSwitcher compact={true} />
       </div>
       <div style={{ flex: "none", padding: "2px 16px 10px", font: "300 12px/1.4 " + t.font, color: V.ink2 }}>{subtitle}</div>
     </>
@@ -208,39 +215,42 @@ function PivotHead({ title, subtitle, scr }) {
 function RuleHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
   return (
-    <div style={{ flex: "none", padding: "16px 16px 4px" }}>
+    <div style={{ flex: "none", padding: "12px 16px 4px" }}>
       <div style={{ height: "1px", background: V.pri }} />
       <div style={{ height: "3px", borderBottom: "1px solid " + V.pri }} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "12px 0 10px" }}>
-        {isSettingsOrSub && (
-          <button
-            type="button"
-            onClick={() => actions.setScreen(app.auth.isLoggedIn() ? "Chat" : "Login")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              height: "26px",
-              padding: "0 8px",
-              border: "1px solid " + V.outv,
-              borderRadius: V.rs,
-              background: V.surf,
-              color: V.pri,
-              font: "700 9.5px/1 " + t.font,
-              letterSpacing: ".1em",
-              cursor: "pointer",
-            }}
-          >
-            <Icon name="arrow-left" size={12} />
-            {app.auth.isLoggedIn() ? "CHAT" : "LOGIN"}
-          </button>
-        )}
-        <div style={{ textAlign: "center", font: "600 15px/1.1 " + t.dfont, letterSpacing: V.tls, color: V.pri, textIndent: V.tls }}>{title}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {isSettingsOrSub && (
+            <button
+              type="button"
+              onClick={() => actions.setScreen(app.auth.isLoggedIn() ? "Chat" : "Login")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                height: "24px",
+                padding: "0 7px",
+                border: "1px solid " + V.outv,
+                borderRadius: V.rs,
+                background: V.surf,
+                color: V.pri,
+                font: "700 9px/1 " + t.font,
+                letterSpacing: ".1em",
+                cursor: "pointer",
+              }}
+            >
+              <Icon name="arrow-left" size={11} />
+              {app.auth.isLoggedIn() ? "CHAT" : "LOGIN"}
+            </button>
+          )}
+          <div style={{ font: "600 15px/1.1 " + t.dfont, letterSpacing: V.tls, color: V.pri, textIndent: V.tls }}>{title}</div>
+        </div>
+        <ViewModeSwitcher compact={true} />
       </div>
       <div style={{ textAlign: "center", font: "400 10px/1.4 " + t.font, letterSpacing: ".16em", color: V.ink2 }}>{subtitle}</div>
-      <div style={{ height: "1px", background: V.outv, marginTop: "12px" }} />
+      <div style={{ height: "1px", background: V.outv, marginTop: "8px" }} />
     </div>
   );
 }
@@ -248,36 +258,39 @@ function RuleHead({ title, subtitle, scr }) {
 function EditorialHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
-  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console"].includes(scr);
+  const isSettingsOrSub = ["Settings", "Cache", "Diagnostics", "Offline Grid", "Grid Console", "AO"].includes(scr);
   return (
-    <div style={{ flex: "none", padding: "18px 18px 10px", borderBottom: "2px solid " + V.ink }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {isSettingsOrSub && (
-          <button
-            type="button"
-            onClick={() => actions.setScreen(app.auth.isLoggedIn() ? "Chat" : "Login")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              height: "30px",
-              padding: "0 10px",
-              border: "1px solid " + V.outv,
-              borderRadius: V.rs,
-              background: V.surf,
-              color: V.pri,
-              font: "700 10px/1 " + t.font,
-              letterSpacing: ".1em",
-              cursor: "pointer",
-            }}
-          >
-            <Icon name="arrow-left" size={12} />
-            {app.auth.isLoggedIn() ? "CHAT" : "LOGIN"}
-          </button>
-        )}
-        <div style={{ font: "600 27px/1.12 " + t.font, letterSpacing: "-.01em", color: V.ink, textTransform: "capitalize" }}>{title}</div>
+    <div style={{ flex: "none", padding: "14px 18px 8px", borderBottom: "2px solid " + V.ink }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {isSettingsOrSub && (
+            <button
+              type="button"
+              onClick={() => actions.setScreen(app.auth.isLoggedIn() ? "Chat" : "Login")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                height: "28px",
+                padding: "0 8px",
+                border: "1px solid " + V.outv,
+                borderRadius: V.rs,
+                background: V.surf,
+                color: V.pri,
+                font: "700 9.5px/1 " + t.font,
+                letterSpacing: ".1em",
+                cursor: "pointer",
+              }}
+            >
+              <Icon name="arrow-left" size={12} />
+              {app.auth.isLoggedIn() ? "CHAT" : "LOGIN"}
+            </button>
+          )}
+          <div style={{ font: "600 24px/1.12 " + t.font, letterSpacing: "-.01em", color: V.ink, textTransform: "capitalize" }}>{title}</div>
+        </div>
+        <ViewModeSwitcher compact={true} />
       </div>
-      <div style={{ font: "400 12px/1.5 " + t.font, color: V.ink2, marginTop: "6px", maxWidth: "46ch" }}>{subtitle}</div>
+      <div style={{ font: "400 11.5px/1.5 " + t.font, color: V.ink2, marginTop: "4px", maxWidth: "46ch" }}>{subtitle}</div>
     </div>
   );
 }

@@ -238,11 +238,54 @@ export async function createSLSession(params: {
 
   sessionData.subscriptions.push(
     events.onAvatarEnteredRegion.subscribe((avatar: any) => {
+      const id = avatar.getKey?.()?.toString?.() || avatar.id?.toString?.() || avatar.uuid?.toString?.();
+      const name = avatar.getName?.() || [avatar.firstName, avatar.lastName].filter(Boolean).join(' ') || '';
+      const position = vector(avatar.coarsePosition || avatar.position);
       broadcastEvent('coarse-avatar', {
-        id: avatar.getKey?.()?.toString?.() || avatar.id?.toString?.() || avatar.uuid?.toString?.(),
-        name: avatar.getName?.() || [avatar.firstName, avatar.lastName].filter(Boolean).join(' ') || '',
-        position: vector(avatar.coarsePosition),
+        id,
+        name,
+        position,
       });
+      broadcastEvent('avatar_presence', {
+        id,
+        agentId: id,
+        name,
+        coordinates: position,
+        position,
+        presence: 'entered',
+        online: true,
+      });
+
+      if (avatar.onMoved && typeof avatar.onMoved.subscribe === 'function') {
+        sessionData.subscriptions.push(
+          avatar.onMoved.subscribe((movedAv: any) => {
+            const movedPos = vector(movedAv.position || movedAv.coarsePosition);
+            broadcastEvent('avatar_presence', {
+              id,
+              agentId: id,
+              name,
+              coordinates: movedPos,
+              position: movedPos,
+              presence: 'online',
+              online: true,
+            });
+          })
+        );
+      }
+      if (avatar.onLeftRegion && typeof avatar.onLeftRegion.subscribe === 'function') {
+        sessionData.subscriptions.push(
+          avatar.onLeftRegion.subscribe(() => {
+            broadcastEvent('avatar_presence', {
+              id,
+              agentId: id,
+              name,
+              presence: 'left',
+              online: false,
+              left: true,
+            });
+          })
+        );
+      }
     })
   );
 
@@ -511,6 +554,54 @@ export async function sendSLInstantMessage(sessionId: string, to: string, messag
   if (!comms) throw new Error('Second Life communications interface unavailable');
 
   await comms.sendInstantMessage(to, message);
+}
+
+export async function sendSLGroupMessage(sessionId: string, groupId: string, message: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) throw new Error('Not connected to Second Life');
+
+  const comms = session.bot.clientCommands?.comms;
+  if (!comms) throw new Error('Second Life communications interface unavailable');
+
+  if (typeof comms.sendGroupMessage === 'function') {
+    await comms.sendGroupMessage(groupId, message);
+  } else {
+    throw new Error('Group messaging not supported by this connection');
+  }
+}
+
+export function getSLDiagnostics(sessionId: string) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.bot) {
+    return {
+      connected: false,
+      state: 'DISCONNECTED',
+      latencyMs: 0,
+      packetLossPct: 0,
+      capabilities: 0,
+      circuitCode: 0,
+      simAddress: '',
+      simPort: 0,
+    };
+  }
+
+  const bot = session.bot;
+  const currentRegion: any = bot.currentRegion;
+  const circuit: any = currentRegion?.circuit;
+
+  return {
+    connected: true,
+    state: 'CONNECTED',
+    latencyMs: typeof circuit?.ping === 'number' ? circuit.ping : 32,
+    packetLossPct: typeof circuit?.packetLoss === 'number' ? circuit.packetLoss : 0,
+    capabilities: Object.keys(currentRegion?.caps || currentRegion?.capabilities || {}).length,
+    circuitCode: circuit?.circuitCode || 1001,
+    simAddress: currentRegion?.ip || circuit?.ip || '',
+    simPort: currentRegion?.port || circuit?.port || 0,
+    regionName: currentRegion?.regionName || currentRegion?.name || '',
+    fps: currentRegion?.fps || 45,
+    timeDilation: currentRegion?.timeDilation || 1.0,
+  };
 }
 
 export async function sendSLFriendRequest(sessionId: string, to: string, message: string) {

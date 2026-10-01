@@ -6,6 +6,7 @@ import { PALETTES } from "../theme/palettes.js";
 import { CBTN, CSUB, CPAD, CPADR, subView, setSub } from "../theme/constants.js";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
+import World3D from "../screens/World3D.jsx";
 import { navActive } from "../theme/look.js";
 import { app } from "../linkpoint/app";
 
@@ -17,6 +18,7 @@ import { app } from "../linkpoint/app";
 export default function ConsoleFrame() {
   const { state, actions } = useApp();
   const { V, t, C, ink, consoleScene } = useTheme();
+  const tick = state.tick || 0;
   const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "REGION PENDING" : "DISCONNECTED");
   const simCoord = app.world.avatarPosition
     ? { x: Math.round(app.world.avatarPosition[0]), y: Math.round(app.world.avatarPosition[1]), z: Math.round(app.world.avatarPosition[2]) }
@@ -261,29 +263,28 @@ function ConsoleScene() {
   const { state, actions } = useApp();
   const { V, t, C, ink } = useTheme();
 
+  const simName = app.protocol.authReply?.sim_name || app.world.region?.name || (app.auth.isLoggedIn() ? "REGION PENDING" : "DISCONNECTED");
+  const simCoord = app.world.avatarPosition
+    ? { x: Math.round(app.world.avatarPosition[0]), y: Math.round(app.world.avatarPosition[1]), z: Math.round(app.world.avatarPosition[2]) }
+    : { x: 128, y: 128, z: 24 };
+
   const cfScene = {
     position: "absolute", left: C.rail + C.gap + "px", top: C.bar + C.gap + "px", right: C.gap + "px",
     bottom: C.foot + C.dock + C.gap * 3 + "px", borderRadius: C.rad + "px 0 0 0", overflow: "hidden", cursor: "grab",
-    background: "linear-gradient(180deg," + V.sky1 + " 0%," + V.sky2 + " 46%," + V.gnd + " 46%," + V.gnd2 + " 100%)",
+    background: "#000",
   };
-  const cfParallax = { position: "absolute", inset: 0, transform: "translate(" + (-state.cHdg * 0.9).toFixed(1) + "px," + (state.cPitch * 0.8).toFixed(1) + "px)", transition: state.cDrag ? "none" : "transform .35s ease-out" };
   // The console scene has one readout strip, so 3D View's CAM/GFX sub-views swap
   // what it reports rather than adding a second strip to the LCARS frame.
   const regionRead =
     state.screen === "3D View" && subView(state, "3D View") === "GFX"
       ? "GFX · DRAW " + state.prefs.draw.toUpperCase() + " · " + state.prefs.quality.toUpperCase() + " · " + state.prefs.fps.toUpperCase() +
         " · SHADOWS " + (state.toggles.shadows ? "ON" : "OFF") + " · " + (state.toggles.battery ? "SAVER" : "FULL")
-      : SIM_NAME.toUpperCase() + " · " + SIM_COORD.x + "," + SIM_COORD.y + "," + SIM_COORD.z + " · HDG " + String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0") + "° " + (state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL");
+      : simName.toUpperCase() + " · " + simCoord.x + "," + simCoord.y + "," + simCoord.z + " · HDG " + String(Math.round(((state.cHdg % 360) + 360) % 360)).padStart(3, "0") + "° " + (state.cPitch > 2 ? "DN" : state.cPitch < -2 ? "UP" : "LVL");
 
   return (
     <div onMouseDown={actions.sceneDown} onMouseMove={actions.sceneMove} onMouseUp={actions.sceneUp} onMouseLeave={actions.sceneUp} style={cfScene}>
-      <div style={cfParallax}>
-        <div style={{ position: "absolute", left: "-14%", bottom: "34%", width: "128%", height: "96px", background: V.surf, clipPath: "polygon(0 100%,14% 38%,31% 62%,52% 12%,74% 54%,100% 30%,100% 100%)" }} />
-        <div style={{ position: "absolute", left: "-6%", bottom: "37%", width: "112%", height: "70px", background: V.gnd2, opacity: 0.9, clipPath: "polygon(0 100%,18% 44%,44% 70%,68% 22%,100% 58%,100% 100%)" }} />
-      </div>
-      <div style={{ position: "absolute", left: "50%", top: "55%", width: "14px", height: "34px", marginLeft: "-7px", background: V.pri, borderRadius: "7px" }} />
-      <div style={{ position: "absolute", left: "50%", top: "55%", width: "62px", height: "10px", margin: "26px 0 0 -31px", background: "rgba(0,0,0,.36)", borderRadius: "50%" }} />
-      <div style={{ position: "absolute", left: (C.wide ? 28 : 16) + "px", top: "16px", display: "flex", alignItems: "center", height: "26px", padding: "0 12px", background: V.surf, color: V.ink2, font: "500 " + (C.wide ? 12 : 10) + "px/1 " + t.font, letterSpacing: ".08em", borderLeft: "6px solid " + V.sec2 }}>
+      <World3D desktopBackdrop />
+      <div style={{ position: "absolute", left: (C.wide ? 28 : 16) + "px", top: "16px", display: "flex", alignItems: "center", height: "26px", padding: "0 12px", background: V.surf, color: V.ink2, font: "500 " + (C.wide ? 12 : 10) + "px/1 " + t.font, letterSpacing: ".08em", borderLeft: "6px solid " + V.sec2, zIndex: 10 }}>
         {regionRead}
       </div>
 

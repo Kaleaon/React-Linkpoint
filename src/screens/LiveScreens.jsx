@@ -3,6 +3,7 @@ import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
+import Radar from "./Radar.jsx";
 
 function Empty({ icon, children }) {
   return <div className="honest-empty"><Icon name={icon} size={30} /><p>{children}</p></div>;
@@ -206,15 +207,7 @@ export function FriendsScreen() {
 }
 
 export function RadarScreen() {
-  const [objects, setObjects] = useState(() => [...app.world.objects]);
-  const [nearby, setNearby] = useState(() => [...app.world.nearbyUsers]);
-  useEffect(() => { const refresh = (items) => setObjects([...items]); app.world.on("objects_changed", refresh); return () => app.world.off("objects_changed", refresh); }, []);
-  useEffect(() => { const refresh = (items) => setNearby([...items]); app.world.on("nearby_changed", refresh); return () => app.world.off("nearby_changed", refresh); }, []);
-  const rows = [
-    ...nearby.map((user) => ({ ...user, name: user.name || user.id, meta: user.distance != null ? `${user.distance.toFixed(1)} m` : "Nearby avatar", icon: "user" })),
-    ...objects.map((object) => ({ ...object, name: object.name || object.id, meta: object.distance != null ? `${object.distance} m` : "Simulator object" })),
-  ];
-  return rows.length ? <Rows rows={rows} icon="box" /> : <Empty icon="radar">No nearby simulator objects or avatars have been received.</Empty>;
+  return <Radar />;
 }
 
 export function MapScreen() {
@@ -240,11 +233,83 @@ export function NoticesScreen() {
 }
 
 export function MuteListScreen() {
+  const { state } = useApp();
+  const sub = state.tabs?.["Mute List"] || "AVATARS";
   const [entry, setEntry] = useState("");
   const [revision, setRevision] = useState(0);
-  const muted = useMemo(() => app.chatExtended.getMutedUsers?.() || [], [revision]);
-  const add = () => { if (entry.trim()) { app.chatExtended.muteUser(entry.trim()); setEntry(""); setRevision((n) => n + 1); } };
-  return <div className="tool-screen"><div className="inline-tool"><input value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Avatar UUID" /><button onClick={add}>Mute</button></div>{muted.length ? <Rows rows={muted.map((id) => ({ id, name: id }))} icon="volume-x" /> : <Empty icon="volume-x">No avatars are muted.</Empty>}</div>;
+
+  const isObjects = sub === "OBJECTS";
+  const mutedUsers = useMemo(() => app.chatExtended.getMutedUsers?.() || [], [revision]);
+  const mutedObjects = useMemo(() => app.chatExtended.getMutedObjects?.() || [], [revision]);
+  const activeList = isObjects ? mutedObjects : mutedUsers;
+
+  const add = () => {
+    if (!entry.trim()) return;
+    if (isObjects) {
+      app.chatExtended.muteObject(entry.trim());
+    } else {
+      app.chatExtended.muteUser(entry.trim());
+    }
+    setEntry("");
+    setRevision((n) => n + 1);
+  };
+
+  const remove = (nameOrId) => {
+    if (isObjects) {
+      app.chatExtended.unmuteObject(nameOrId);
+    } else {
+      app.chatExtended.unmuteUser(nameOrId);
+    }
+    setRevision((n) => n + 1);
+  };
+
+  return (
+    <div className="tool-screen">
+      <div className="inline-tool">
+        <input
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          placeholder={isObjects ? "Object or HUD name (e.g. av)" : "Avatar UUID or Name"}
+        />
+        <button onClick={add}>Mute {isObjects ? "Object" : "Avatar"}</button>
+      </div>
+      {activeList.length ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+          {activeList.map((id) => (
+            <div
+              key={id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 12px",
+                background: "rgba(255,255,255,0.04)",
+                borderRadius: 4,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{id}</span>
+              <button
+                type="button"
+                onClick={() => remove(id)}
+                style={{
+                  padding: "3px 8px",
+                  fontSize: 11,
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                }}
+              >
+                Unmute
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Empty icon="volume-x">No {isObjects ? "objects or HUDs" : "avatars"} are muted.</Empty>
+      )}
+    </div>
+  );
 }
 
 export function GenericInventoryScreen({ kind }) {

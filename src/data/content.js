@@ -23,6 +23,10 @@ export const NAV_ALL = [
 
 export const TABS_NAV_IDS = ["Chat", "Friends", "Radar", "Map", "3D View", "Settings"];
 
+export const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+export const RADAR_AVATARS = [];
+export const RADAR_OBJECTS = [];
+
 export const HEAD = (layoutName, paletteName) => {
   const connected = app.auth.isLoggedIn();
   const resident = connected ? app.auth.getUserDisplayName() : "disconnected";

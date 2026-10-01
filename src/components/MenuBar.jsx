@@ -2,6 +2,8 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { FMENU, FLOATERS } from "../theme/constants.js";
 import { app } from "../linkpoint/app.ts";
+import Icon from "./Icon.jsx";
+import ViewModeSwitcher from "./ViewModeSwitcher.jsx";
 
 // Ported from `fmBar`/`fmMenus` — the desktop-only File/Edit/View/World/
 // Build/Help bar with Firestorm-style interactive menu commands.
@@ -12,13 +14,30 @@ export default function MenuBar() {
 
   const handleMenuClick = async (menuLabel, itemLabel) => {
     actions.setMenu(null);
-    if (itemLabel === "Teleport Home") {
+    if (itemLabel === "World Map") {
+      actions.flFocus("Map");
+      actions.setScreen("Map");
+    } else if (itemLabel === "Animation Overrider…" || itemLabel === "Animation Overrider") {
+      actions.flFocus("AO");
+      actions.setScreen("AO");
+    } else if (itemLabel === "Cache Storage…") {
+      actions.flFocus("Cache");
+      actions.setScreen("Cache");
+    } else if (itemLabel === "Network Diagnostics…") {
+      actions.flFocus("Diagnostics");
+      actions.setScreen("Diagnostics");
+    } else if (itemLabel === "Teleport Home") {
       actions.setScreen("Map");
       actions.notify("Teleporting Home...");
     } else if (itemLabel === "Preferences…") {
       actions.flFocus("Settings");
+      actions.setScreen("Settings");
     } else if (itemLabel === "Appearance…") {
       actions.setScreen("Outfits");
+    } else if (itemLabel === "Switch to Mobile Mode") {
+      actions.setViewMode("mobile");
+    } else if (itemLabel === "Switch to Desktop Mode") {
+      actions.setViewMode("desktop");
     } else if (itemLabel === "About Linkpoint") {
       actions.notify("Linkpoint Viewer v2.0 (Firestorm Edition)");
     } else if (itemLabel === "Quit") {
@@ -71,8 +90,25 @@ export default function MenuBar() {
           </div>
         );
       })}
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "16px", font: "500 10.5px/1 " + t.font, color: V.ink2, letterSpacing: ".06em" }}>
-        {app.auth.isLoggedIn() ? `${app.auth.getUserDisplayName()}   ·   ${app.protocol.authReply?.sim_name || app.world.region?.name || "Second Life"}   ·   Connected` : "Disconnected"}
+      {/* Second Life Viewer Status Indicators & Mobile Mode Switcher */}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px", font: "500 10.5px/1 " + t.font, color: V.ink2, letterSpacing: ".06em" }}>
+        {app.auth.isLoggedIn() ? (
+          <>
+            <span style={{ color: V.ok, fontWeight: 700 }}>L$ 0</span>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span style={{ color: V.pri, fontWeight: 600 }}>
+              {app.protocol.authReply?.sim_name || app.world.region?.name || "Arapaima"}
+            </span>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span>{app.protocol.getDiagnostics().latencyMs || 48} ms</span>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span>{new Date().toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit" })} SLT</span>
+          </>
+        ) : (
+          <span>Offline</span>
+        )}
+
+        <ViewModeSwitcher />
       </div>
     </div>
   );
