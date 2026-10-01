@@ -114,6 +114,15 @@ export class SLBridge extends Utils.EventEmitter {
   teleport(params: { destination?: string; region?: string; x?: number; y?: number; z?: number }) {
     return this.action<{ requested: { region: string; x: number; y: number; z: number }; message: string }>('/api/sl/teleport', 'POST', params);
   }
+  /** A resident's public profile picture as base64, or null when they have none. */
+  async fetchProfilePhoto(name: string, full = false): Promise<{ photoBytes: string | null; contentType?: string }> {
+    if (!this.sessionId) throw new Error('Not connected to Second Life');
+    const query = `sessionId=${encodeURIComponent(this.sessionId)}&name=${encodeURIComponent(name)}${full ? '&size=full' : ''}`;
+    const response = await fetch(`/api/sl/avatar/photo?${query}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status})`);
+    return data;
+  }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.action<{ answered: boolean }>('/api/sl/dialog/respond', 'POST', params);
   }

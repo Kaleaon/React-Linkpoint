@@ -27,6 +27,7 @@ interface Window {
     respondScriptDialog(request: { id: string; buttonIndex?: number; text?: string }): Promise<{ answered: boolean }>;
     acceptLure(request: { id: string }): Promise<{ accepted: boolean; message: string }>;
     dismissInteraction(request: { id: string }): Promise<{ dismissed: boolean }>;
+    fetchProfilePhoto(request: { name: string; full?: boolean }): Promise<{ photoBytes: string | null; contentType?: string }>;
     touchObject(request: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }): Promise<{ touched: string | number }>;
     sit(request: { id?: string }): Promise<{ sitting: string }>;
     stand(): Promise<{ standing: boolean }>;

@@ -62,6 +62,17 @@ function serializeLure(event) {
   };
 }
 
+/** Describe a GroupNoticeEvent. Notices need no answer, so nothing is kept for them. */
+function serializeGroupNotice(event) {
+  return {
+    groupId: idString(event.groupID),
+    fromId: idString(event.from),
+    fromName: String(event.fromName || 'Resident'),
+    subject: String(event.subject || 'Group Notice'),
+    message: String(event.message || ''),
+  };
+}
+
 /**
  * Original events awaiting an answer, keyed by an opaque id. Bounded, and
  * cleared when the session closes.
@@ -168,6 +179,11 @@ function subscribeInteractions(events, pending, send) {
   };
   watch(events.onScriptDialog, 'script-dialog', serializeScriptDialog);
   watch(events.onLure, 'lure', serializeLure);
+  if (events.onGroupNotice && typeof events.onGroupNotice.subscribe === 'function') {
+    subscriptions.push(events.onGroupNotice.subscribe((event) => {
+      send('group-notice', { id: randomUUID(), timestamp: Date.now(), ...serializeGroupNotice(event) });
+    }));
+  }
   return subscriptions;
 }
 
@@ -177,6 +193,7 @@ module.exports = {
   MAX_PENDING,
   serializeScriptDialog,
   serializeLure,
+  serializeGroupNotice,
   PendingInteractions,
   subscribeInteractions,
   respondScriptDialog,

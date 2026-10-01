@@ -389,7 +389,7 @@ export async function createSLSession(params: {
     })
   );
 
-  // Script dialogs (llDialog, llTextBox) and teleport lures
+  // Script dialogs (llDialog, llTextBox), teleport lures and group notices
   sessionData.subscriptions.push(...interactions.subscribeInteractions(events, sessionData.pending, broadcastEvent));
 
   // Real Second Life Instant Messages
@@ -484,20 +484,6 @@ export async function createSLSession(params: {
       const friendId = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString();
       broadcastEvent('friend-remove', {
         id: friendId,
-      });
-    })
-  );
-
-  // Real Second Life Group Notices
-  sessionData.subscriptions.push(
-    events.onGroupNotice.subscribe((event: any) => {
-      broadcastEvent('group-notice', {
-        groupId: event.groupID?.toString(),
-        fromId: event.from?.toString(),
-        fromName: event.fromName || 'Resident',
-        subject: event.subject || 'Group Notice',
-        message: event.message || '',
-        timestamp: Date.now(),
       });
     })
   );

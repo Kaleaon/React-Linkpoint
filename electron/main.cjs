@@ -3,6 +3,7 @@ const dns = require('node:dns').promises;
 const net = require('node:net');
 const path = require('node:path');
 const { ViewerSession } = require('./viewer-session.cjs');
+const { fetchProfilePhoto } = require('./sl-profile-photo.cjs');
 
 const LOGIN_HOSTS = new Set([
   'login.agni.lindenlab.com',
@@ -87,6 +88,11 @@ ipcMain.handle('linkpoint:viewer-teleport', (event, request) => sessionFor(event
 ipcMain.handle('linkpoint:viewer-respond-dialog', (event, request) => sessionFor(event).respondScriptDialog(request));
 ipcMain.handle('linkpoint:viewer-accept-lure', (event, request) => sessionFor(event).acceptLure(request));
 ipcMain.handle('linkpoint:viewer-dismiss-interaction', (event, request) => sessionFor(event).dismissInteraction(request));
+ipcMain.handle('linkpoint:viewer-profile-photo', async (event, request) => {
+  sessionFor(event).requireBot(); // only while connected, like the web endpoint
+  const photo = await fetchProfilePhoto(String((request && request.name) || ''), { thumbnail: !(request && request.full) });
+  return photo ? { photoBytes: photo.base64, contentType: photo.contentType } : { photoBytes: null };
+});
 ipcMain.handle('linkpoint:viewer-touch', (event, request) => sessionFor(event).touchObject(request));
 ipcMain.handle('linkpoint:viewer-sit', (event, request) => sessionFor(event).sit(request || {}));
 ipcMain.handle('linkpoint:viewer-stand', (event) => sessionFor(event).stand());

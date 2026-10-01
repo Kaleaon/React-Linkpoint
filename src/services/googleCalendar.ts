@@ -1,244 +1,92 @@
-import { getGoogleAccessToken } from "./googleAuth";
+/**
+ * Add Second Life group notices to Google Calendar (optional, user-initiated).
+ *
+ * Events are tagged with the notice id in a private extended property, so adding
+ * the same notice twice finds the first event instead of creating a duplicate,
+ * and the app can list just the events it made.
+ */
 
-export interface GoogleCalendarEvent {
-  id: string;
-  summary: string;
-  description?: string;
-  location?: string;
-  htmlLink?: string;
-  start?: {
-    dateTime?: string;
-    date?: string;
-    timeZone?: string;
-  };
-  end?: {
-    dateTime?: string;
-    date?: string;
-    timeZone?: string;
-  };
-  created?: string;
-  updated?: string;
-  isSLNotice?: boolean;
-}
+import { googleFetch } from "./googleApi";
 
-export interface GroupNoticeItem {
+const EVENTS = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const EVENT_ID = /^[A-Za-z0-9_-]{1,1024}$/;
+
+export interface NoticeForCalendar {
   id: string;
-  groupId?: string;
-  groupName?: string;
   subject: string;
   message: string;
-  from?: string;
-  timestamp?: number;
-  hasAttachment?: boolean;
-  calendarEventId?: string;
+  from: string;
+  groupName: string;
 }
 
-/**
- * Fetch upcoming events from Google Calendar
- */
-export const fetchGoogleCalendarEvents = async (
-  calendarId: string = "primary",
-  maxResults: number = 30
-): Promise<GoogleCalendarEvent[]> => {
-  const token = await getGoogleAccessToken();
-  if (!token) throw new Error("Not signed in to Google.");
+export interface CalendarEventInfo {
+  id: string;
+  summary: string;
+  htmlLink: string | null;
+  start: string | null;
+  end: string | null;
+}
 
-  const now = new Date().toISOString();
-  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-    calendarId
-  )}/events?singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(
-    now
-  )}&maxResults=${maxResults}`;
+function toInfo(item: any): CalendarEventInfo {
+  return {
+    id: String(item.id),
+    summary: String(item.summary || "Untitled event"),
+    htmlLink: typeof item.htmlLink === "string" && /^https:\/\/(?:www\.)?google\.com\/calendar\//i.test(item.htmlLink) ? item.htmlLink : null,
+    start: item.start?.dateTime || item.start?.date || null,
+    end: item.end?.dateTime || item.end?.date || null,
+  };
+}
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Google Calendar API error (${res.status}): ${errorText}`);
-  }
-
-  const data = await res.json();
-  const items = data.items || [];
-
-  return items.map((item: any) => ({
-    id: item.id,
-    summary: item.summary || "Untitled Event",
-    description: item.description || "",
-    location: item.location || "",
-    htmlLink: item.htmlLink,
-    start: item.start,
-    end: item.end,
-    created: item.created,
-    updated: item.updated,
-    isSLNotice: Boolean(
-      item.summary?.includes("[SL") ||
-      item.description?.includes("Group Notice") ||
-      item.description?.includes("Second Life")
-    ),
-  }));
-};
-
-/**
- * Parse date & time candidates from a notice message or subject
- */
-export function parseNoticeDateSuggestion(text: string, baseTimestamp: number = Date.now()): {
+export interface AddOptions {
   start: Date;
   end: Date;
-  extractedTitle: string;
-} {
-  const start = new Date(baseTimestamp);
-  // Default to the next full hour + 1 hour
-  start.setMinutes(0, 0, 0);
-  start.setHours(start.getHours() + 1);
+  /** IANA zone the notice's time was read in; Google uses it for display and daylight saving. */
+  timeZone: string;
+  summary?: string;
+  location?: string;
+}
 
-  // Check for time patterns like "7pm", "7:30 pm", "19:00", "2 pm slt"
-  const timeMatch = text.match(/(\b\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(slt|pdt|pst)?\b/i);
-  if (timeMatch) {
-    let hours = parseInt(timeMatch[1], 10);
-    const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-    const ampm = timeMatch[3]?.toLowerCase();
-
-    if (ampm === "pm" && hours < 12) hours += 12;
-    if (ampm === "am" && hours === 12) hours = 0;
-
-    if (hours >= 0 && hours < 24) {
-      start.setHours(hours, minutes, 0, 0);
-      // If time has already passed today, assume tomorrow
-      if (start.getTime() < Date.now()) {
-        start.setDate(start.getDate() + 1);
-      }
-    }
-  }
-
-  // End date is 1 hour after start
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
-
+export function buildEventBody(notice: NoticeForCalendar, options: AddOptions): Record<string, unknown> {
+  if (!Number.isFinite(options.start.getTime()) || !Number.isFinite(options.end.getTime())) throw new Error("Choose a valid start and end time.");
+  if (options.end.getTime() <= options.start.getTime()) throw new Error("The event must end after it starts.");
+  const description = [
+    `Group: ${notice.groupName || "Second Life group"}`,
+    notice.from ? `Sent by: ${notice.from}` : null,
+    "",
+    notice.message,
+  ].filter((line) => line !== null).join("\n");
   return {
-    start,
-    end,
-    extractedTitle: text.slice(0, 80).replace(/[\r\n]+/g, " ").trim(),
+    summary: (options.summary || notice.subject || "Group notice").slice(0, 300),
+    description,
+    location: options.location ?? `Second Life${notice.groupName ? ` (${notice.groupName})` : ""}`,
+    start: { dateTime: options.start.toISOString(), timeZone: options.timeZone },
+    end: { dateTime: options.end.toISOString(), timeZone: options.timeZone },
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 30 }, { method: "popup", minutes: 10 }] },
+    extendedProperties: { private: { linkpointNotice: "1", linkpointNoticeId: notice.id } },
   };
 }
 
-/**
- * Add a Second Life group notice to Google Calendar
- */
-export const addNoticeToGoogleCalendar = async (
-  notice: GroupNoticeItem,
-  options: {
-    startDateTime?: string;
-    endDateTime?: string;
-    summary?: string;
-    location?: string;
-    timeZone?: string;
-  } = {}
-): Promise<GoogleCalendarEvent> => {
-  const token = await getGoogleAccessToken();
-  if (!token) throw new Error("Please sign in with Google first.");
+/** Add a notice to the primary calendar, or return the event already made for it. */
+export async function addNoticeToCalendar(notice: NoticeForCalendar, options: AddOptions): Promise<{ event: CalendarEventInfo; existing: boolean }> {
+  const body = buildEventBody(notice, options); // validate before touching the network
 
-  const suggested = parseNoticeDateSuggestion(
-    `${notice.subject}\n${notice.message}`,
-    notice.timestamp || Date.now()
-  );
+  const lookup = `${EVENTS}?privateExtendedProperty=${encodeURIComponent(`linkpointNoticeId=${notice.id}`)}&maxResults=1`;
+  const found = (await (await googleFetch("calendar", lookup)).json()).items?.[0];
+  if (found && EVENT_ID.test(String(found.id))) return { event: toInfo(found), existing: true };
 
-  const startIso = options.startDateTime || suggested.start.toISOString();
-  const endIso = options.endDateTime || suggested.end.toISOString();
-  const timeZone = options.timeZone || "America/Los_Angeles"; // Second Life Standard Time (SLT)
+  const created = await (await googleFetch("calendar", EVENTS, { method: "POST", body: JSON.stringify(body) })).json();
+  if (!EVENT_ID.test(String(created?.id))) throw new Error("Google returned an unexpected event id.");
+  return { event: toInfo(created), existing: false };
+}
 
-  const summary = options.summary || `[SL Notice] ${notice.subject || "Group Notice"}`;
-  const description = [
-    `Group: ${notice.groupName || "Second Life Group"}`,
-    notice.from ? `Sent by: ${notice.from}` : null,
-    `Notice Subject: ${notice.subject}`,
-    notice.groupId ? `Group ID: ${notice.groupId}` : null,
-    notice.id ? `Notice ID: ${notice.id}` : null,
-    "",
-    "--- Notice Text ---",
-    notice.message,
-  ]
-    .filter((line) => line !== null)
-    .join("\n");
+/** Upcoming events this app created, soonest first. */
+export async function fetchLinkpointEvents(maxResults = 30): Promise<CalendarEventInfo[]> {
+  const url = `${EVENTS}?singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(new Date().toISOString())}&privateExtendedProperty=${encodeURIComponent("linkpointNotice=1")}&maxResults=${Math.max(1, Math.min(100, maxResults))}`;
+  const data = await (await googleFetch("calendar", url)).json();
+  return (data.items || []).filter((item: any) => EVENT_ID.test(String(item.id))).map(toInfo);
+}
 
-  const eventPayload = {
-    summary,
-    description,
-    location: options.location || `Second Life (${notice.groupName || "In-World"})`,
-    start: {
-      dateTime: startIso,
-      timeZone,
-    },
-    end: {
-      dateTime: endIso,
-      timeZone,
-    },
-    reminders: {
-      useDefault: false,
-      overrides: [
-        { method: "popup", minutes: 30 },
-        { method: "popup", minutes: 10 },
-      ],
-    },
-  };
-
-  const url = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(eventPayload),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Failed to create calendar event (${res.status}): ${errorText}`);
-  }
-
-  const created = await res.json();
-  return {
-    id: created.id,
-    summary: created.summary,
-    description: created.description,
-    location: created.location,
-    htmlLink: created.htmlLink,
-    start: created.start,
-    end: created.end,
-    isSLNotice: true,
-  };
-};
-
-/**
- * Delete an event from Google Calendar
- */
-export const deleteCalendarEvent = async (
-  eventId: string,
-  calendarId: string = "primary"
-): Promise<boolean> => {
-  const token = await getGoogleAccessToken();
-  if (!token) throw new Error("Not signed in to Google.");
-
-  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-    calendarId
-  )}/events/${encodeURIComponent(eventId)}`;
-
-  const res = await fetch(url, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Failed to delete calendar event: ${errText}`);
-  }
-
-  return true;
-};
+export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  if (!EVENT_ID.test(eventId)) throw new Error("That is not a calendar event id.");
+  await googleFetch("calendar", `${EVENTS}/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+}

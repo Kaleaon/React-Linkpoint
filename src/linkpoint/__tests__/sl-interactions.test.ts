@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const {
   TEXT_BOX_MARKER, MAX_REPLY_BYTES, serializeScriptDialog, serializeLure, PendingInteractions,
-  subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction,
+  subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction, serializeGroupNotice,
 } = require('../../../electron/sl-interactions.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
@@ -99,6 +99,24 @@ describe('subscribeInteractions', () => {
     expect(typeof data.id).toBe('string');
     expect(pending.get('script-dialog', data.id)).toBe(event);
     expect(send.mock.calls[1][0]).toBe('lure');
+  });
+
+  it('forwards group notices with an id and a timestamp, without keeping anything to answer', () => {
+    let handler: (e: any) => void = () => undefined;
+    const pending = new PendingInteractions();
+    const send = vi.fn();
+    subscribeInteractions({ onGroupNotice: { subscribe: (fn: any) => { handler = fn; return { unsubscribe: vi.fn() }; } } }, pending, send);
+    handler({ groupID: uuid('g'), from: uuid('f'), fromName: 'Officer', subject: 'Meeting at 7pm', message: 'Bring friends' });
+    const [type, data] = send.mock.calls[0];
+    expect(type).toBe('group-notice');
+    expect(data).toMatchObject({ groupId: 'g', fromId: 'f', fromName: 'Officer', subject: 'Meeting at 7pm', message: 'Bring friends' });
+    expect(typeof data.id).toBe('string');
+    expect(Number.isFinite(data.timestamp)).toBe(true);
+    expect(pending.size).toBe(0);
+  });
+
+  it('fills in defaults for a sparse group notice', () => {
+    expect(serializeGroupNotice({})).toEqual({ groupId: null, fromId: null, fromName: 'Resident', subject: 'Group Notice', message: '' });
   });
 
   it('copes with a library that lacks the subjects', () => {

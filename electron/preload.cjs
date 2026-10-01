@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('linkpointDesktop', {
   respondScriptDialog: (request) => ipcRenderer.invoke('linkpoint:viewer-respond-dialog', request),
   acceptLure: (request) => ipcRenderer.invoke('linkpoint:viewer-accept-lure', request),
   dismissInteraction: (request) => ipcRenderer.invoke('linkpoint:viewer-dismiss-interaction', request),
+  fetchProfilePhoto: (request) => ipcRenderer.invoke('linkpoint:viewer-profile-photo', request),
   touchObject: (request) => ipcRenderer.invoke('linkpoint:viewer-touch', request),
   sit: (request) => ipcRenderer.invoke('linkpoint:viewer-sit', request),
   stand: () => ipcRenderer.invoke('linkpoint:viewer-stand'),

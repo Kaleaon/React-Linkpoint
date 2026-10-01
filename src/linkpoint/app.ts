@@ -11,6 +11,8 @@ import { InventoryManager } from './inventory';
 import { PreferencesManager } from './preferences';
 import { NotificationsManager } from './notifications';
 import { InteractionsManager } from './interactions';
+import { ContactsStore } from './contacts';
+import { NoticeStore } from './notices';
 import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 
@@ -37,6 +39,8 @@ export class LinkpointApp {
   public preferences: PreferencesManager;
   public notifications: NotificationsManager;
   public interactions: InteractionsManager;
+  public contacts: ContactsStore;
+  public notices: NoticeStore;
 
   // Phase 2 Managers
   public eventQueue: EventQueueManager;
@@ -59,6 +63,8 @@ export class LinkpointApp {
     this.inventory = new InventoryManager(this.protocol, this.auth);
     this.notifications = new NotificationsManager(this.protocol);
     this.interactions = new InteractionsManager(this.protocol);
+    this.contacts = new ContactsStore();
+    this.notices = new NoticeStore(this.protocol);
 
     // Initialize Phase 2 Managers
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
@@ -88,6 +94,7 @@ export class LinkpointApp {
     this.auth.init();
     // Wired before anything that can fail or wait: a script dialog must never be dropped for want of a listener.
     this.interactions.init();
+    this.notices.init();
     await this.world.init();
     this.chat.init();
     await this.inventory.init();

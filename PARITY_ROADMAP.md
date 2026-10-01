@@ -39,6 +39,7 @@ Asset policy for this project: text assets from Lumiya may be imported; binary a
 | Inventory offers, group invites, group notices | `SLChatInventoryItemOffered*`, `SLChatGroupInvitationEvent` | No `onInventoryOffered`, `onGroupInvite`, `onGroupNotice` subscription found; friend requests are handled | **Partial** |
 | Teleport (by name/coordinates), sit, stand, touch, L$ balance | `SLAgentCircuit`, `SLFinancialInfo` | Shared actions layer (`electron/sl-actions.cjs`) on web and Electron, with input validation | **Done** (stub-tested) |
 | Inventory | `slproto/inventory` | In-memory tree and operations | **Partial**: folder responses merge rather than replace atomically, as `LUMIYA_FEATURE_AUDIT.md` notes |
+| Contacts and group-notice calendar | n/a (Linkpoint feature) | Device-local address book with photos and Telegram/Discord/web links; group notices kept and turned into `.ics` files; optional Google Contacts/Calendar behind a Settings toggle. See `CONTACTS_AND_CALENDAR.md` | **Done** (not tried against live Google) |
 | Mute list | `modules/mutelist` (fetched from and synced to the grid) | In-memory mute sets in `phase2/chat-extended.ts`; not synced with the grid's mute list, and whether every chat/IM path consults them was not verified | **Partial** |
 | People/group/place search | `modules/search` | Session resident index only; no server-side search | **Partial** |
 | Economy transactions, pay object | `modules/finance` | Balance only; no history, no pay | **Partial** |

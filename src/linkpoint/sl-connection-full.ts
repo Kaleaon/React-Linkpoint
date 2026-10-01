@@ -407,6 +407,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return result;
   }
 
+  /** A resident's public profile picture (base64), or null when they have none. */
+  async fetchProfilePhoto(name: string, full = false) {
+    this.requireConnected();
+    return window.linkpointDesktop?.fetchProfilePhoto ? window.linkpointDesktop.fetchProfilePhoto({ name, full }) : slBridge.fetchProfilePhoto(name, full);
+  }
+
   /** Answer a script dialog: pass a button index, or `text` for a text box. */
   async respondScriptDialog(request: { id: string; buttonIndex?: number; text?: string }) {
     this.requireConnected();

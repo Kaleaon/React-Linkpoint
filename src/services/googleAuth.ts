@@ -1,99 +1,65 @@
+/**
+ * Optional Google sign-in for Contacts and Calendar.
+ *
+ * Off unless the user turns it on in Settings, and loaded only then (this file
+ * pulls in Firebase, so it is imported dynamically through `./google`). Each
+ * feature asks Google for only the access it needs, when the user first uses it,
+ * rather than one broad request up front:
+ *   - contacts: create and read contacts (people API)
+ *   - calendar: create and read events (calendar API)
+ * Access tokens are kept in memory only and are gone when the page closes.
+ */
+
 import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getAuth,
-  signInWithPopup,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  signOut,
-  User,
-} from "firebase/auth";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, type User } from "firebase/auth";
 import firebaseConfig from "../../firebase-applet-config.json";
 
-export const GOOGLE_WORKSPACE_SCOPES = [
-  // Contacts
-  "https://www.googleapis.com/auth/contacts",
-  "https://www.googleapis.com/auth/contacts.other.readonly",
-  "https://www.googleapis.com/auth/contacts.readonly",
-  "https://www.googleapis.com/auth/directory.readonly",
-  "https://www.googleapis.com/auth/user.addresses.read",
-  "https://www.googleapis.com/auth/user.birthday.read",
-  "https://www.googleapis.com/auth/user.emails.read",
-  "https://www.googleapis.com/auth/user.gender.read",
-  "https://www.googleapis.com/auth/user.organization.read",
-  "https://www.googleapis.com/auth/user.phonenumbers.read",
+export type GoogleFeature = "contacts" | "calendar";
 
-  // Calendar
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/calendar.acls",
-  "https://www.googleapis.com/auth/calendar.acls.readonly",
-  "https://www.googleapis.com/auth/calendar.app.created",
-  "https://www.googleapis.com/auth/calendar.calendarlist",
-  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-  "https://www.googleapis.com/auth/calendar.calendars",
-  "https://www.googleapis.com/auth/calendar.calendars.readonly",
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://www.googleapis.com/auth/calendar.events.freebusy",
-  "https://www.googleapis.com/auth/calendar.events.owned",
-  "https://www.googleapis.com/auth/calendar.events.owned.readonly",
-  "https://www.googleapis.com/auth/calendar.events.public.readonly",
-  "https://www.googleapis.com/auth/calendar.events.readonly",
-  "https://www.googleapis.com/auth/calendar.freebusy",
-  "https://www.googleapis.com/auth/calendar.readonly",
-  "https://www.googleapis.com/auth/calendar.settings.readonly",
-];
+export const GOOGLE_SCOPES: Record<GoogleFeature, string> = {
+  contacts: "https://www.googleapis.com/auth/contacts",
+  calendar: "https://www.googleapis.com/auth/calendar.events",
+};
 
-// Single Firebase App instance
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-const provider = new GoogleAuthProvider();
-for (const scope of GOOGLE_WORKSPACE_SCOPES) {
-  provider.addScope(scope);
+const tokens: Partial<Record<GoogleFeature, string>> = {};
+
+export interface GoogleAccount {
+  email: string;
+  name: string;
 }
 
-// In-memory access token cache (mandatory: no localStorage)
-let cachedAccessToken: string | null = null;
-let isSigningIn = false;
+export function getGoogleAccount(): GoogleAccount | null {
+  const user = auth.currentUser;
+  return user ? { email: user.email || "", name: user.displayName || user.email || "Google account" } : null;
+}
 
-export const getGoogleAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
-};
+/** The in-memory access token for a feature, or null if the user has not signed in for it this session. */
+export function getGoogleToken(feature: GoogleFeature): string | null {
+  return tokens[feature] || null;
+}
 
-export const initGoogleAuth = (
-  onSuccess?: (user: User, token: string) => void,
-  onFailure?: () => void
-) => {
-  return onAuthStateChanged(auth, async (user: User | null) => {
-    if (user && cachedAccessToken) {
-      if (onSuccess) onSuccess(user, cachedAccessToken);
-    } else if (user && !cachedAccessToken && !isSigningIn) {
-      if (onFailure) onFailure();
-    } else if (!user) {
-      cachedAccessToken = null;
-      if (onFailure) onFailure();
-    }
-  });
-};
+/** Forget a feature's token, for example after Google reports it expired. */
+export function dropGoogleToken(feature: GoogleFeature) {
+  delete tokens[feature];
+}
 
-export const signInWithGoogle = async (): Promise<{ user: User; accessToken: string }> => {
-  try {
-    isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error("Failed to obtain OAuth access token from Google.");
-    }
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (err: any) {
-    console.error("[Google Workspace Auth] Sign-in error:", err);
-    throw err;
-  } finally {
-    isSigningIn = false;
-  }
-};
+/** Ask the user to sign in and grant access for one feature. Must be called from a user action (it opens a popup). */
+export async function signInWithGoogle(feature: GoogleFeature): Promise<GoogleAccount> {
+  const provider = new GoogleAuthProvider();
+  provider.addScope(GOOGLE_SCOPES[feature]);
+  const result = await signInWithPopup(auth, provider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  if (!credential?.accessToken) throw new Error("Google did not grant access. Try again.");
+  tokens[feature] = credential.accessToken;
+  const user: User = result.user;
+  return { email: user.email || "", name: user.displayName || user.email || "Google account" };
+}
 
-export const signOutGoogle = async (): Promise<void> => {
+export async function signOutGoogle(): Promise<void> {
+  delete tokens.contacts;
+  delete tokens.calendar;
   await signOut(auth);
-  cachedAccessToken = null;
-};
+}
