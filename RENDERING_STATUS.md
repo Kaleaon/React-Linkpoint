@@ -17,10 +17,14 @@ renderer**.
   at high available LOD, and streamed to WebGL with positions, normals, UVs,
   and triangle indices. JPEG2000 textures are decoded to RGBA, including sculpt
   maps which are converted to indexed scene geometry.
-- Windlight-style sky dome with haze and optional stars, animated water at the
-  region water level, and an underwater tint (see `LUMIYA_RENDERING_ANALYSIS.md`).
-  Sky and water are driven by the simulator environment when present and by
-  neutral defaults otherwise; they have not been compared against a live region.
+- **Sky, light and water from the region environment (EEP)**, following the official viewer (checked against its shader and settings source):
+  - `eep.ts` samples the region's day cycle by time of day (day length and offset from the simulator, keyframes interpolated with wrap-around, sun/moon rotations slerped), derives sun and moon directions, and computes light the way `LLSettingsSky::calculateLightSettings` does (sunlight attenuated by altitude, ambient raised under cloud).
+  - `atmosphere.ts` ports the viewer's sky scattering shader (blue/haze density and horizon, glow around the sun, sun and moon discs); the same function is reflected in the water. Cloud textures, rainbows and halos are not drawn.
+  - Objects are lit by that sun/moon and ambient (gamma-correct lighting); the sky refreshes every two seconds.
+  - Water uses the water settings' Fresnel, fog colour and density, blends a reflection of the sky, and has a sun glint. Waves are procedural (the EEP normal-map texture is not downloaded yet).
+  - Without a day cycle the single sky frame is used, then Lumiya's Windlight presets as before.
+- **Terrain** is textured like the viewer: four detail textures blended by height plus noise against per-corner start heights and ranges from the region handshake (fallback colours until the textures load). The region's water height is used.
+- **Prims** use real Second Life geometry (`sl-volume.ts`, a port of the viewer's profile/path generator): all profile shapes, cut, hollow and hole shapes, twist, taper, shear, skew, radius offset and revolutions, with faces in texture-entry order. Meshes use their LLMesh data; sculpts use their sculpt maps.
 - Frustum culling against per-mesh bounds (skipped when bounds are unknown), and
   oriented-bounding-box picking via `Scene3D.pick` (not yet wired to the UI).
 - Parent-relative linkset transforms are resolved into world space and child
@@ -37,23 +41,19 @@ renderer**.
   - `avatar-animator.ts` tracks the simulator's AvatarAnimation / ObjectAnimation messages per avatar and animated object (a changed sequence id restarts an animation; removed ones ease out). Rigged mesh attachments and Animesh (ExtendedMesh `ANIMATED_MESH_ENABLED`) are re-posed every frame.
 
 ## Avatar and mesh limitations (known)
-- Avatar skin, hair and eyes are flat colours: baked textures (from the avatar's texture entry) are not downloaded or applied yet, so clothing and skin textures do not show.
+- Avatars wear their baked head, upper, lower, eyes and hair textures once those download; until then (or with a placeholder bake) they are flat colours. Layered clothing is whatever the simulator baked.
 - Shape sliders (morph targets) and body-size deformation are not applied; every avatar has the default shape. Skirt and facial expression bones are not driven.
-- Only animations bundled in `public/anims` play. Animations stored as simulator assets (custom/uploaded) are not downloaded yet.
-- The animation subscription is made at login; it is not renewed when moving to a different region's circuit.
+- Animations: bundled ones play from `public/anims`; others are downloaded from the simulator's asset service and parsed. The animation listener follows the agent between regions.
 - Static assets are fetched from `BASE_URL`; the packaged desktop build loads from `file://`, where these fetches have not been tested.
 - Skinned objects are never frustum-culled and are picked by their bind-pose box.
+- Nothing here has been checked against a live simulator.
 
 ## Not implemented yet
 
-- Second Life prim shape/path/profile sculpting.
 - Per-face materials, alpha modes, normal/specular maps, and PBR rendering.
-- Terrain texturing (terrain is a flat colour), simulator-supplied water height, sun direction, below-water lighting, and parcel overlays.
-- Avatar appearance baking (skin/clothing textures), shape sliders, attachment point
-  placement of non-rigged attachments, downloaded (non-bundled) animations,
-  particles, flexible prims, and lighting beyond the renderer's default light.
-- Complete SL path/profile prim tessellation (cuts, hollow, twist and taper are
-  preserved in scene data but currently render with a closest-shape fallback).
+- Below-water lighting, cloud layers, the EEP water normal-map texture, altitude sky tracks, and parcel overlays.
+- Avatar shape sliders, attachment point placement of non-rigged attachments,
+  particles, flexible prims, shadows and reflection probes.
 - Touch, sit, edit, and build interactions in the 3D canvas. Picking uses each
   object's oriented bounding box; per-face triangle and UV hits remain to be
   implemented.

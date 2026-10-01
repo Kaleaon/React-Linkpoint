@@ -189,7 +189,7 @@ export const TERRAIN_FRAGMENT_SHADER = `
     vec3 normal = normalize(vNormal);
     vec3 lightDir = normalize(uLightPos - vPosition);
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 light = min(uAmbientColor + diff * uLightColor, vec3(1.0));
+    vec3 light = pow(min(uAmbientColor + diff * uLightColor, vec3(1.0)), vec3(1.0 / 2.2));
     gl_FragColor = vec4(albedo * light, 1.0);
   }
 `;

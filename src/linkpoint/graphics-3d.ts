@@ -82,8 +82,10 @@ const BASIC_FRAGMENT_SHADER = `
           float specPower = mix(128.0, 2.0, roughness);
           float specular = pow(max(dot(normal, halfDir), 0.0), specPower);
           vec3 f0 = mix(vec3(0.04), baseColor.rgb, metallic);
-          // Lumiya clamps the combined light to 1 before it multiplies the surface colour.
-          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * min(ambient + diffuse, vec3(1.0));
+          // The combined light is clamped to 1 (as the viewer does), then gamma-encoded: the viewer
+          // lights in linear space and converts to sRGB at the end, which for sRGB surface colours
+          // is the same as scaling them by light^(1/2.2).
+          vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * pow(min(ambient + diffuse, vec3(1.0)), vec3(1.0 / 2.2));
           vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, transformedUV).rgb : vec3(1.0));
           vec3 result = uFullBright ? baseColor.rgb : diffusePbr + f0 * specular + emission;
           
