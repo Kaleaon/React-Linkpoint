@@ -121,3 +121,16 @@ and flags, so both clients share them. The runtime (`filament-android`) must be 
 
 Cleartext HTTP is allowed (`usesCleartextTraffic`) because OpenSim grids commonly log in over plain
 HTTP; Second Life's own grids use HTTPS.
+
+## Testing against a real OpenSim
+
+`tools/opensim/setup.sh` documents how to run OpenSim 0.9.3.0 (standalone, .NET 8, `libgdiplus`) locally. The script was
+assembled from steps done by hand and has **not** itself been run end to end from a clean directory.
+`OpenSimLiveTest` (skipped unless `OPENSIM_LOGIN_URL` is set) then drives the core client against it.
+
+Verified against a real OpenSim 0.9.3.0 in this session: XML-RPC login, UDP circuit + region handshake, real LayerData terrain
+decode, capability seed (EventQueueGet, GetTexture, GetMesh/GetMesh2, ViewerAsset, FetchInventoryDescendents2, ExtEnvironment…),
+local chat send, and logout. The test region was empty (only the avatar), so real-grid prim/mesh/texture/particle streaming is
+**still unverified**. OpenSim has no Second Life MFA, so the MFA path is only tested against a fake login server
+(`LoginTest`), modelled on Lumiya-Redux's `MfaLoginTest` and the official viewer's `lllogininstance`.
+The MFA hash is stored encrypted with an Android Keystore AES-GCM key (`SecretStore`), keyed per grid and normalised account.

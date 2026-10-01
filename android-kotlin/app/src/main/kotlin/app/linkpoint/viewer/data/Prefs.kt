@@ -1,5 +1,6 @@
 package app.linkpoint.viewer.data
 
+import app.linkpoint.core.login.AccountKey
 import android.content.Context
 import app.linkpoint.core.tools.Contact
 import app.linkpoint.core.tools.Contacts
@@ -29,8 +30,9 @@ class Prefs(context: Context) {
     val deviceId: String
         get() = sp.getString("device", null) ?: UUID.randomUUID().toString().also { sp.edit().putString("device", it).apply() }
 
-    fun mfaHash(grid: String, name: String): String = sp.getString("mfa:$grid:${name.lowercase()}", "") ?: ""
-    fun saveMfaHash(grid: String, name: String, hash: String) = sp.edit().putString("mfa:$grid:${name.lowercase()}", hash).apply()
+    private val secrets = SecretStore(sp)
+    fun mfaHash(grid: String, name: String): String = secrets.get("mfa:" + AccountKey.of(grid, name))
+    fun saveMfaHash(grid: String, name: String, hash: String) = secrets.put("mfa:" + AccountKey.of(grid, name), hash)
 
     fun loadContacts(): List<Contact> = Contacts.decode(sp.getString("contacts", null))
     fun saveContacts(list: List<Contact>) = sp.edit().putString("contacts", Contacts.encode(list)).apply()
