@@ -13,6 +13,18 @@ that folder responses must be committed atomically and stale children removed;
 Linkpoint's in-memory inventory currently merges responses and tracks that
 replacement behavior as a follow-up rather than deleting data on partial fetches.
 
+## 3D picking recovery note
+
+The 2026-10-01 viewer review compared Lumiya Redux's recovered Java/Kotlin
+`GLRayTrace`, `CollisionBox`, `DrawableObject`, and `WorldViewRenderer` against
+the corresponding baksmali output under `recovered/smali`. Both representations
+agree on a two-stage picking flow: transform a screen ray, reject objects using
+a shared unit collision cube, then choose the closest depth (with detailed
+geometry supplying face and UV data when available). Linkpoint now implements
+that collision-volume broad phase, nearest-hit selection, and camera focus.
+Per-triangle face/UV picking remains a follow-up because decoded mesh CPU buffers
+are not retained after WebGL upload.
+
 ## Primary navigation parity
 
 | Lumiya surface | Linkpoint counterpart | Runtime source |

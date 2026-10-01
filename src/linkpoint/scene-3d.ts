@@ -6,6 +6,7 @@ import { Utils } from './utils';
 import { Graphics3D } from './graphics-3d';
 import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
+import { pickObjects, screenRay } from './picking-3d';
 
 export class Scene3D extends Utils.EventEmitter {
   public graphics: Graphics3D;
@@ -184,6 +185,12 @@ export class Scene3D extends Utils.EventEmitter {
       Object.assign(object, updates);
       this.emit('object_updated', object);
     }
+  }
+
+  /** Pick the closest visible object's transformed collision volume. */
+  pick(x: number, y: number, width: number, height: number) {
+    const ray = screenRay(this.camera, x, y, width, height);
+    return pickObjects(ray.origin, ray.direction, this.objects.values());
   }
 
   /**

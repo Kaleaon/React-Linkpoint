@@ -9,6 +9,7 @@ export default function World3D({ desktopBackdrop = false }) {
   const [position, setPosition] = useState([0, 0, 0]);
   const [objectCount, setObjectCount] = useState(app.world.objects.length);
   const [cameraPreset, setCameraPreset] = useState("rear");
+  const [selection, setSelection] = useState(app.world.selectedObject);
 
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
@@ -17,8 +18,10 @@ export default function World3D({ desktopBackdrop = false }) {
     const updateCamera = (camera) => { if (active && camera) { setPosition(camera.position.map(Math.round)); setCameraPreset(camera.preset); } };
     app.world.on("objects_changed", updateObjects);
     app.world.on("camera_changed", updateCamera);
+    const updateSelection = (object) => { if (active) setSelection(object); };
+    app.world.on("selection_changed", updateSelection);
     app.world.init().then(() => { if (active) { setReady(!!app.world.graphics3d); refresh(); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "WebGL initialization failed"); });
-    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.destroyRenderer(); };
+    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.off("selection_changed", updateSelection); app.world.destroyRenderer(); };
   }, []);
 
   const move = (forward, right, up = 0) => { app.world.moveCamera(right, forward, up); refresh(); };
@@ -48,6 +51,7 @@ export default function World3D({ desktopBackdrop = false }) {
       {dataStatus}<br />
       {objectCount} simulator objects
       <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan<br />Wheel/pinch: zoom · WASD/QE: move</div>
+      <div style={{ marginTop: 4, opacity: .9 }}>Tap an object to inspect it</div>
       <div style={{ marginTop: 4 }}>
         <button
           type="button"
@@ -61,6 +65,12 @@ export default function World3D({ desktopBackdrop = false }) {
       {!ready && !error ? <><br />Starting renderer…</> : null}
       {error ? <><br /><span style={{ color: V.err }}>{error}</span></> : null}
     </output>}
+    {!desktopBackdrop && selection && <aside aria-label="Selected object" style={{ position: "absolute", right: 14, top: 66, width: 210, padding: 10, color: V.ink, background: V.surf, border: `1px solid ${V.pri}`, borderRadius: V.rs, boxShadow: "0 8px 24px #0008", font: `400 11px/1.4 ${t.font}` }}>
+      <div style={{ color: V.pri, fontWeight: 800, letterSpacing: ".08em", fontSize: 9 }}>SELECTED</div>
+      <strong style={{ display: "block", marginTop: 3 }}>{selection.name || selection.id || "Simulator object"}</strong>
+      <span style={{ opacity: .7 }}>{selection.shape || (selection.avatar ? "Avatar" : "Object")} · {selection.distance?.toFixed?.(1) || "—"} m</span>
+      <button type="button" onClick={() => app.world.focusSelectedObject()} style={{ ...button, width: "100%", minHeight: 32, marginTop: 8, background: V.pri, color: V.onpri, fontSize: 10 }}>FOCUS CAMERA</button>
+    </aside>}
     {!desktopBackdrop && <div aria-label="Camera view" style={{ position: "absolute", right: 14, top: 14, display: "flex", gap: 4 }}>
       {[['rear','REAR'], ['front','FRONT'], ['first-person','MOUSELOOK'], ['free','FREE']].map(([value, label]) => <button key={value} type="button" aria-pressed={cameraPreset === value} onClick={() => { app.world.setCameraPreset(value); setCameraPreset(value); refresh(); }} style={{ ...button, minWidth: 0, padding: "0 8px", background: cameraPreset === value ? V.pri : V.surf, color: cameraPreset === value ? V.onpri : V.pri, fontSize: 9 }}>{label}</button>)}
     </div>}
