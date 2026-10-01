@@ -30,7 +30,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
   // Real-Time Second Life Telemetry & Diagnostics
   private diagnostics = {
     connected: false,
-    latencyMs: 54,
+    // Unknown until the simulator reports a ping; never a made-up figure.
+    latencyMs: null as number | null,
     packetLossPct: 0.0,
     packetsIn: 184,
     packetsOut: 62,

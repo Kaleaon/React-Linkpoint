@@ -576,7 +576,7 @@ export function getSLDiagnostics(sessionId: string) {
     return {
       connected: false,
       state: 'DISCONNECTED',
-      latencyMs: 0,
+      latencyMs: null,
       packetLossPct: 0,
       capabilities: 0,
       circuitCode: 0,
@@ -592,7 +592,7 @@ export function getSLDiagnostics(sessionId: string) {
   return {
     connected: true,
     state: 'CONNECTED',
-    latencyMs: typeof circuit?.ping === 'number' ? circuit.ping : 32,
+    latencyMs: typeof circuit?.ping === 'number' ? circuit.ping : null,
     packetLossPct: typeof circuit?.packetLoss === 'number' ? circuit.packetLoss : 0,
     capabilities: Object.keys(currentRegion?.caps || currentRegion?.capabilities || {}).length,
     circuitCode: circuit?.circuitCode || 1001,
