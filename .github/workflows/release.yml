@@ -88,7 +88,7 @@ jobs:
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -147,7 +147,7 @@ jobs:
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -215,7 +215,7 @@ jobs:
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
-        run: bun install
+        run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
@@ -302,7 +302,7 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build desktop packages
         run: npm run build:desktop -- ${{ matrix.target }} --publish never --config.extraMetadata.version="$VERSION"

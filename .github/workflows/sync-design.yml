@@ -27,7 +27,7 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Sync design from linkpoint-design
         run: npm run sync-design
