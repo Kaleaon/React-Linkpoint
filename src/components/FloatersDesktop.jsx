@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
-import { LAYOUTS } from "../theme/layouts.js";
-import { PALETTES } from "../theme/palettes.js";
 import { FLOATERS, FBAR, CBTN } from "../theme/constants.js";
-import { buildCards } from "../data/content.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";
@@ -43,8 +40,7 @@ export default function FloatersDesktop() {
     };
   }, []);
 
-  const cardsByScreen = buildCards({ state, actions, layoutName: LAYOUTS[state.layout].name, paletteName: PALETTES[state.palette].name });
-  const fBody = buildFBody(state, cardsByScreen);
+  const fBody = buildFBody(state);
 
   const flScene = {
     position: "absolute", inset: 0, overflow: "hidden", cursor: state.cDrag ? "grabbing" : "grab",
@@ -304,7 +300,7 @@ export default function FloatersDesktop() {
 
 // Ported from `FBODY` — unfocused floaters keep ticking with real data, not
 // placeholders.
-function buildFBody(state, cardsByScreen) {
+function buildFBody(state) {
   const friends = app.friends?.getFriends?.() || [];
   const groups = app.groups?.getGroups?.() || [];
   const invFolders = Array.from(app.inventory?.folders?.values() || []);
@@ -341,7 +337,11 @@ function buildFBody(state, cardsByScreen) {
     Groups: groups.map((g) => ({ a: g.name, b: g.title || "Member" })),
     Notices: (app.notifications?.items || []).map((item) => ({ a: item.title || item.message, b: item.type || "" })),
     Teleport: [],
-    Settings: (cardsByScreen.Settings || []).map((c) => ({ a: c.title, b: c.right || "" })),
+    Settings: [
+      { a: "Connection", b: app.protocol.connected ? "connected" : "disconnected" },
+      { a: "Resident", b: app.auth.user?.fullName || "not connected" },
+      { a: "Region", b: app.world?.region?.name || "not supplied" },
+    ],
     Diagnostics: [
       { a: "Connection", b: app.protocol.connected ? "connected" : "disconnected" },
       { a: "Capabilities", b: String(Object.keys(app.protocol.capabilities || {}).length) },

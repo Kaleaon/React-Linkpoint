@@ -1,14 +1,9 @@
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
-import { LAYOUTS } from "../theme/layouts.js";
-import { PALETTES } from "../theme/palettes.js";
-import { buildCards } from "../data/content.js";
-import { subView, inSub } from "../theme/constants.js";
 import Header from "./Header.jsx";
 import SegmentedTabs from "./SegmentedTabs.jsx";
 import ChipRow from "./ChipRow.jsx";
 import StateBlock from "./StateBlock.jsx";
-import CardList from "./CardList.jsx";
 import SplitDetail from "./SplitDetail.jsx";
 import Chat from "../screens/Chat.jsx";
 import Radar from "../screens/Radar.jsx";
@@ -19,10 +14,10 @@ import Profile from "../screens/Profile.jsx";
 import Login from "../screens/Login.jsx";
 import OfflineGrid from "../screens/OfflineGrid.jsx";
 import GridConsole from "../screens/GridConsole.jsx";
+import CacheScreen from "../screens/CacheScreen.jsx";
+import Settings from "../screens/Settings.jsx";
 import { FriendsScreen, GroupsScreen, NoticesScreen, MuteListScreen, GenericInventoryScreen, SearchScreen } from "../screens/LiveScreens.jsx";
 import { AccountsScreen, DiagnosticsScreen, GridsScreen, MediaScreen, NotecardsScreen, ParcelScreen, TeleportScreen, TransactionsScreen } from "../screens/LumiyaTools.jsx";
-
-const CARD_SCREENS = ["Settings", "Cache"];
 
 // Ported from the big content column inside `shellStyle` (headers -> segTabs
 // -> chips -> the 13 screens' bodies), plus the split-view detail pane that
@@ -30,10 +25,6 @@ const CARD_SCREENS = ["Settings", "Cache"];
 export default function ScreenBody() {
   const { state, actions } = useApp();
   const { norm, scr } = useTheme();
-
-  const cardsByScreen = buildCards({ state, actions, layoutName: LAYOUTS[state.layout].name, paletteName: PALETTES[state.palette].name });
-  const isCardScreen = CARD_SCREENS.includes(scr);
-  const curSub = subView(state, scr);
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", position: "relative" }}>
@@ -54,6 +45,8 @@ export default function ScreenBody() {
         {norm && scr === "Profile" && <Profile />}
         {norm && scr === "Offline Grid" && <OfflineGrid />}
         {norm && scr === "Grid Console" && <GridConsole />}
+        {norm && scr === "Cache" && <CacheScreen />}
+        {norm && scr === "Settings" && <Settings />}
         {norm && scr === "Friends" && <FriendsScreen />}
         {norm && scr === "Groups" && <GroupsScreen />}
         {norm && scr === "Notices" && <NoticesScreen />}
@@ -68,7 +61,6 @@ export default function ScreenBody() {
         {norm && scr === "Parcel" && <ParcelScreen />}
         {norm && scr === "Transactions" && <TransactionsScreen />}
         {norm && scr === "Diagnostics" && <DiagnosticsScreen />}
-        {norm && isCardScreen && <CardList cards={(cardsByScreen[scr] || []).filter((c) => inSub(c, curSub))} />}
         {scr === "Login" && <Login />}
         {scr === "Search" && <SearchScreen />}
         {!norm && <StateBlock />}

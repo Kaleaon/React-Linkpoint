@@ -46,6 +46,7 @@ export interface SLSessionData {
   lastActive: number;
   assetRequests: Map<string, Promise<void>>;
   decodedAssets: Map<string, any>;
+  friendPresence: Map<string, boolean>;
 }
 
 const sessions = new Map<string, SLSessionData>();
@@ -205,6 +206,7 @@ export async function createSLSession(params: {
     lastActive: Date.now(),
     assetRequests: new Map(),
     decodedAssets: new Map(),
+    friendPresence: new Map(),
   };
 
   const broadcastEvent = (type: string, data: any) => {
@@ -381,6 +383,7 @@ export async function createSLSession(params: {
     events.onFriendOnline.subscribe((event: any) => {
       const friendId = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString() || event.friend?.uuid?.toString();
       const friendName = (event.friend as any)?.name || event.friend?.getName?.() || 'Resident';
+      if (friendId) sessionData.friendPresence.set(friendId.toLowerCase(), Boolean(event.online));
       broadcastEvent('friend-status', {
         id: friendId,
         name: friendName,
@@ -527,7 +530,7 @@ export async function fetchSLFriends(sessionId: string) {
   const bot = session.bot;
   const buddyList = bot.agent?.buddyList || [];
   const friendCommands = bot.clientCommands?.friends;
-  const results: Array<{ id: string; name: string; onlineStatus: string; rightsGiven: boolean; rightsHas: boolean }> = [];
+  const results: Array<{ id: string; name: string; onlineStatus: string; rightsGiven: boolean; rightsHas: boolean; rightsGivenMask: number; rightsHasMask: number }> = [];
 
   const unresolvedIds: any[] = [];
   for (const b of buddyList) {
@@ -537,9 +540,11 @@ export async function fetchSLFriends(sessionId: string) {
       results.push({
         id: friendId,
         name: existing.getName?.() || (existing as any).name || 'Friend',
-        onlineStatus: existing.online ? 'online' : 'offline',
+        onlineStatus: (session.friendPresence.get(friendId.toLowerCase()) ?? Boolean(existing.online)) ? 'online' : 'offline',
         rightsGiven: Boolean(b.buddyRightsGiven),
         rightsHas: Boolean(b.buddyRightsHas),
+        rightsGivenMask: Number(b.buddyRightsGiven) || 0,
+        rightsHasMask: Number(b.buddyRightsHas) || 0,
       });
     } else {
       unresolvedIds.push(b.buddyID);
@@ -560,9 +565,11 @@ export async function fetchSLFriends(sessionId: string) {
           results.push({
             id: friendId,
             name: res.getName?.() || `${res.getFirstName?.()} ${res.getLastName?.()}`.trim() || 'Resident',
-            onlineStatus: 'offline',
+            onlineStatus: session.friendPresence.get(friendId.toLowerCase()) ? 'online' : 'offline',
             rightsGiven: Boolean(buddyInfo?.buddyRightsGiven),
             rightsHas: Boolean(buddyInfo?.buddyRightsHas),
+            rightsGivenMask: Number(buddyInfo?.buddyRightsGiven) || 0,
+            rightsHasMask: Number(buddyInfo?.buddyRightsHas) || 0,
           });
         }
       } catch (nameErr) {
@@ -574,9 +581,11 @@ export async function fetchSLFriends(sessionId: string) {
             results.push({
               id: friendId,
               name: `Resident (${friendId.slice(0, 8)})`,
-              onlineStatus: 'offline',
+              onlineStatus: session.friendPresence.get(friendId.toLowerCase()) ? 'online' : 'offline',
               rightsGiven: Boolean(buddyInfo?.buddyRightsGiven),
               rightsHas: Boolean(buddyInfo?.buddyRightsHas),
+              rightsGivenMask: Number(buddyInfo?.buddyRightsGiven) || 0,
+              rightsHasMask: Number(buddyInfo?.buddyRightsHas) || 0,
             });
           }
         }

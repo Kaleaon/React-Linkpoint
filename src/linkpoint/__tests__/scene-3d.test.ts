@@ -55,4 +55,16 @@ describe('Scene3D rendering state', () => {
 
     expect(graphics.setClearColor).toHaveBeenCalledWith([0.2, 0.4, 0.6, 1]);
   });
+
+  it('draws opaque objects first and blended objects back-to-front', () => {
+    const { scene, graphics } = makeScene();
+    scene.showGrid = false;
+    scene.addObject('near-glass', { mesh: 'cube', position: [11, 20, 30], faces: [{ pbr: { alphaMode: 'BLEND' } }] });
+    scene.addObject('solid', { mesh: 'cube', position: [12, 20, 30] });
+    scene.addObject('far-glass', { mesh: 'cube', position: [20, 20, 30], faces: [{ pbr: { alphaMode: 'BLEND' } }] });
+
+    scene.render();
+
+    expect(graphics.drawMesh.mock.calls.map((call) => call[2].uModelMatrix[12])).toEqual([12, 20, 11]);
+  });
 });

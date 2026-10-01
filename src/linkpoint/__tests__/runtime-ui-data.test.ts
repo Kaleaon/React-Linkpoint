@@ -53,6 +53,23 @@ describe('runtime UI manager snapshots', () => {
     expect(sendFriendRequest).toHaveBeenCalledWith('three', 'Hello');
   });
 
+  it('normalizes live presence values and retains status events received before the buddy snapshot', () => {
+    const friends = new FriendsExtended();
+    const updated = vi.fn();
+    friends.on('friend_updated', updated);
+
+    friends.updateFriendStatus('{ABC-123}', 'online', { name: 'Early Resident' });
+    expect(friends.getFriends()).toEqual([
+      expect.objectContaining({ id: 'abc-123', name: 'Early Resident', onlineStatus: 'online' }),
+    ]);
+
+    friends.replaceFriends([{ id: 'ABC-123', name: 'Early Resident', onlineStatus: 'false' }]);
+    expect(friends.getFriends()).toEqual([
+      expect.objectContaining({ id: 'abc-123', onlineStatus: 'online' }),
+    ]);
+    expect(updated).toHaveBeenCalled();
+  });
+
   it('retains and clears live notifications', () => {
     const notifications = new NotificationsManager(new ProtocolStub() as any);
     notifications.handleNotification({ title: 'Grid notice', message: 'Live payload' });

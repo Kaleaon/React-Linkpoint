@@ -295,10 +295,13 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!this.canvas) return;
     const parent = this.canvas.parentElement;
     if (parent) {
-      this.canvas.width = parent.clientWidth;
-      this.canvas.height = parent.clientHeight;
-      if (this.graphics3d) this.graphics3d.resize(this.canvas.width, this.canvas.height);
-      if (this.camera3d && this.canvas.height > 0) this.camera3d.setAspect(this.canvas.width / this.canvas.height);
+      const cssWidth = Math.max(1, parent.clientWidth);
+      const cssHeight = Math.max(1, parent.clientHeight);
+      const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+      const renderWidth = Math.round(cssWidth * pixelRatio);
+      const renderHeight = Math.round(cssHeight * pixelRatio);
+      if (this.graphics3d) this.graphics3d.resize(renderWidth, renderHeight);
+      if (this.camera3d) this.camera3d.setAspect(cssWidth / cssHeight);
     }
   }
 

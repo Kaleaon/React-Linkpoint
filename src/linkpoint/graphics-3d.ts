@@ -83,6 +83,12 @@ export class Graphics3D extends Utils.EventEmitter {
     // Create default shaders
     await this.createDefaultShaders();
 
+    // Always bind deterministic fallback textures. Without these, a material
+    // whose asset is still streaming can accidentally sample the texture left
+    // behind by the previous draw call.
+    this.createTexture('__white', 1, 1, new Uint8Array([255, 255, 255, 255]));
+    this.createTexture('__normal', 1, 1, new Uint8Array([128, 128, 255, 255]));
+
     this.emit('initialized');
     return true;
   }
@@ -245,6 +251,8 @@ export class Graphics3D extends Utils.EventEmitter {
    */
   createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[]) {
     const gl = this.gl!;
+    const previous = this.meshes.get(name);
+    if (previous) this.deleteMesh(previous);
     let maxIndex = 0;
     for (const index of indices) {
       if (!Number.isInteger(index) || index < 0 || index >= vertices.length / 3) {
@@ -340,7 +348,8 @@ export class Graphics3D extends Utils.EventEmitter {
       ['uNormalTextureName', 'uNormalTexture'], ['uEmissiveTextureName', 'uEmissiveTexture'],
     ];
     bindings.forEach(([valueName, uniformName], unit) => {
-      const texture = uniforms[valueName] && this.textures.get(uniforms[valueName]);
+      const fallback = uniformName === 'uNormalTexture' ? '__normal' : '__white';
+      const texture = this.textures.get(uniforms[valueName]) || this.textures.get(fallback);
       if (!texture) return;
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -516,6 +525,7 @@ export class Graphics3D extends Utils.EventEmitter {
    * Resize viewport
    */
   resize(width: number, height: number) {
+    if (this.canvas.width === width && this.canvas.height === height) return;
     this.canvas.width = width;
     this.canvas.height = height;
     if (this.gl) {
@@ -544,14 +554,7 @@ export class Graphics3D extends Utils.EventEmitter {
     if (!gl) return;
 
     // Delete all meshes
-    this.meshes.forEach(mesh => {
-      Object.values(mesh.buffers).forEach((buffer: any) => {
-        gl.deleteBuffer(buffer);
-      });
-      if (mesh.vao && this.extensions.vao) {
-        this.extensions.vao.deleteVertexArrayOES(mesh.vao);
-      }
-    });
+    this.meshes.forEach(mesh => this.deleteMesh(mesh));
 
     // Delete all programs
     this.programs.forEach(({ program }) => {
@@ -568,5 +571,12 @@ export class Graphics3D extends Utils.EventEmitter {
     });
     this.renderTargets.clear();
     this.gl = null;
+  }
+
+  private deleteMesh(mesh: any) {
+    const gl = this.gl;
+    if (!gl) return;
+    Object.values(mesh.buffers || {}).forEach((buffer: any) => gl.deleteBuffer(buffer));
+    if (mesh.vao && this.extensions.vao) this.extensions.vao.deleteVertexArrayOES(mesh.vao);
   }
 }
