@@ -18,6 +18,7 @@ enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.
     PEOPLE("People", Icons.Filled.People),
     RADAR("Radar", Icons.Filled.Radar),
     MAP("Map", Icons.Filled.Map),
+    WORLD("World", Icons.Filled.ViewInAr),
     MORE("More", Icons.Filled.MoreHoriz),
 }
 
@@ -83,6 +84,7 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
                 Tab.PEOPLE -> FriendsScreen(host)
                 Tab.RADAR -> RadarScreen(host)
                 Tab.MAP -> MapScreen(host)
+                Tab.WORLD -> WorldScreen(host)
                 Tab.MORE -> MoreScreen(host)
             }
         }

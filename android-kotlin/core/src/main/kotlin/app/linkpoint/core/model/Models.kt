@@ -29,6 +29,8 @@ data class RegionInfo(
     val access: Int?,
     val handle: Long,
     val position: FloatArray?,
+    /** Region water level in metres, from the region handshake. */
+    val waterHeight: Float? = null,
 ) {
     /** Region grid coordinates (region index, not metres) from the region handle. */
     val gridX: Int get() = ((handle ushr 32) / 256).toInt()

@@ -56,14 +56,23 @@ object Messages {
         return Outgoing(Msg.AgentThrottle, agentData(agentId, sessionId).u32(code.toLong() and 0xFFFFFFFFL).u32(0).bin1(t).toByteArray(), true)
     }
 
+    /** Wrap an angle to [-pi, pi] so the quaternion's implied w (cos of half the angle) is never negative. */
+    fun wrapAngle(a: Float): Float {
+        val twoPi = (2.0 * Math.PI).toFloat()
+        var x = a % twoPi
+        if (x > Math.PI) x -= twoPi else if (x < -Math.PI) x += twoPi
+        return x
+    }
+
     val DEFAULT_THROTTLE = listOf(150_000f, 170_000f, 34_000f, 34_000f, 446_000f, 446_000f, 220_000f)
 
     /** An idle AgentUpdate: standing still, camera at the origin looking along +X. Keeps the agent alive in the region. */
-    fun agentUpdate(agentId: UUID, sessionId: UUID, farMeters: Float = 64f, controlFlags: Long = 0): Outgoing {
+    fun agentUpdate(agentId: UUID, sessionId: UUID, cameraX: Float = 0f, cameraY: Float = 0f, cameraZ: Float = 0f, farMeters: Float = 128f, controlFlags: Long = 0, bodyYaw: Float = 0f): Outgoing {
         val w = agentData(agentId, sessionId)
-            .quat(0f, 0f, 0f).quat(0f, 0f, 0f)   // body and head rotation
+            .quat(0f, 0f, kotlin.math.sin(wrapAngle(bodyYaw) / 2f)) // body rotation about Z; w is implied and positive in [-pi, pi]
+            .quat(0f, 0f, 0f)                    // head rotation
             .u8(0)                                // state
-            .vec3(0f, 0f, 0f)                     // camera centre
+            .vec3(cameraX, cameraY, cameraZ)      // camera centre: the simulator sends objects near here
             .vec3(1f, 0f, 0f).vec3(0f, 1f, 0f).vec3(0f, 0f, 1f)
             .f32(farMeters).u32(controlFlags).u8(0)
         return Outgoing(Msg.AgentUpdate, w.toByteArray(), false)
@@ -86,6 +95,14 @@ object Messages {
 
     /** The id of a one-to-one IM session: the two agent ids combined with XOR. */
     fun imSessionId(a: UUID, b: UUID) = UUID(a.mostSignificantBits xor b.mostSignificantBits, a.leastSignificantBits xor b.leastSignificantBits)
+
+    /** Ask for objects the simulator announced by id only (cache miss type 0 = full update). */
+    fun requestMultipleObjects(agentId: UUID, sessionId: UUID, localIds: List<Long>): Outgoing {
+        require(localIds.size in 1..255)
+        val w = agentData(agentId, sessionId).u8(localIds.size)
+        localIds.forEach { w.u8(0).u32(it) }
+        return Outgoing(Msg.RequestMultipleObjects, w.toByteArray(), true)
+    }
 
     fun uuidNameRequest(ids: List<UUID>): Outgoing {
         require(ids.size in 1..255) { "1..255 ids per request" }

@@ -8,6 +8,7 @@ class LinkpointApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.google.android.filament.Filament.init() // load the native renderer library
         host = ViewerHost(this)
     }
 }

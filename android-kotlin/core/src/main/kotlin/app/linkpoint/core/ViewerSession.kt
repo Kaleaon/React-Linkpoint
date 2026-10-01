@@ -3,6 +3,8 @@ package app.linkpoint.core
 import app.linkpoint.core.login.LoginResult
 import app.linkpoint.core.model.*
 import app.linkpoint.core.net.*
+import app.linkpoint.core.scene.ObjectDecoder
+import app.linkpoint.core.scene.SceneStore
 import java.net.InetSocketAddress
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
@@ -45,6 +47,9 @@ class ViewerSession(
     private val _capabilities = MutableStateFlow<Map<String, String>>(emptyMap())
     val capabilities: StateFlow<Map<String, String>> = _capabilities
 
+    /** Objects of the current region, kept up to date from the simulator's object messages. */
+    val scene = SceneStore()
+
     private var login: LoginResult? = null
     private lateinit var agentId: UUID
     private lateinit var sessionId: UUID
@@ -65,6 +70,7 @@ class ViewerSession(
     suspend fun connect(result: LoginResult) {
         check(_state.value == ConnectionState.DISCONNECTED) { "Already connected" }
         _state.value = ConnectionState.CONNECTING
+        _chat.value = emptyList(); _region.value = null; _balance.value = null; scene.clear()
         try {
             login = result
             agentId = UUID.fromString(result.agentId)
@@ -110,6 +116,7 @@ class ViewerSession(
         previous?.close()
         previousJobs.forEach { it.cancel() }
         _nearby.value = emptyList()
+        scene.clear()
         startCaps(seedCapability)
     }
 
@@ -156,6 +163,11 @@ class ViewerSession(
 
     private fun onMessage(rx: Received) {
         _raw.tryEmit(rx)
+        if (rx.id in ObjectDecoder.MESSAGE_IDS) {
+            // Objects announced by id only (we keep no cache) must be requested in full.
+            for (chunk in scene.process(rx).chunked(255)) circuit?.send(Messages.requestMultipleObjects(agentId, sessionId, chunk))
+            return
+        }
         when (val m = Messages.parse(rx.id, rx.body)) {
             is Incoming.ChatFromSimulator -> if (m.message.isNotBlank()) addChat(
                 ChatEntry(nextId(), if (m.sourceType == 2) ChatKind.OBJECT_IM else ChatKind.LOCAL, m.sourceId, m.fromName, m.message, m.chatType, null, false, clock()),
@@ -164,12 +176,12 @@ class ViewerSession(
             is Incoming.RegionHandshake -> {
                 circuit?.send(Messages.regionHandshakeReply(agentId, sessionId))
                 circuit?.send(Messages.agentThrottle(agentId, sessionId, login!!.circuitCode))
-                _region.update { RegionInfo(m.regionName, m.simAccess, it?.handle ?: 0, it?.position) }
+                _region.update { RegionInfo(m.regionName, m.simAccess, it?.handle ?: 0, it?.position, m.waterHeight) }
             }
             is Incoming.AgentMovementComplete -> {
-                _region.update { RegionInfo(it?.name, it?.access, m.regionHandle, m.position) }
+                _region.update { RegionInfo(it?.name, it?.access, m.regionHandle, m.position, it?.waterHeight) }
                 movementDone?.complete(Unit)
-                circuit?.send(Messages.agentUpdate(agentId, sessionId))
+                sendAgentUpdate()
             }
             is Incoming.OnlineStatus -> _friends.update { list ->
                 list.map { f -> if (f.id in m.ids) f.copy(online = m.online) else f }
@@ -283,10 +295,34 @@ class ViewerSession(
         _state.value = ConnectionState.DISCONNECTED
     }
 
+    @Volatile private var controlFlags = 0L
+    @Volatile private var bodyYaw = 0f
+
+    /**
+     * Walk the avatar. [forward] and [strafe] are -1, 0 or 1 (strafe positive = left), [up] is 1 to
+     * rise or -1 to descend when flying, and [yaw] is the heading in radians (0 faces +X, east).
+     */
+    fun setMovement(forward: Int, strafe: Int, up: Int = 0, yaw: Float = bodyYaw, fly: Boolean = false) {
+        var f = 0L
+        if (forward > 0) f = f or AgentControl.AT_POS else if (forward < 0) f = f or AgentControl.AT_NEG
+        if (strafe > 0) f = f or AgentControl.LEFT_POS else if (strafe < 0) f = f or AgentControl.LEFT_NEG
+        if (up > 0) f = f or AgentControl.UP_POS else if (up < 0) f = f or AgentControl.UP_NEG
+        if (fly) f = f or AgentControl.FLY
+        controlFlags = f
+        bodyYaw = yaw
+        if (_state.value == ConnectionState.CONNECTED) sendAgentUpdate()
+    }
+
+    /** Keep the camera at our avatar so the simulator streams the objects around us. */
+    private fun sendAgentUpdate() {
+        val p = _region.value?.position
+        circuit?.send(Messages.agentUpdate(agentId, sessionId, p?.get(0) ?: 128f, p?.get(1) ?: 128f, p?.get(2) ?: 30f, controlFlags = controlFlags, bodyYaw = bodyYaw))
+    }
+
     private suspend fun agentUpdateLoop() {
         while (currentCoroutineContext().isActive) {
-            circuit?.send(Messages.agentUpdate(agentId, sessionId))
-            delay(1_000)
+            sendAgentUpdate()
+            delay(if (controlFlags != 0L) 100 else 1_000)
         }
     }
 

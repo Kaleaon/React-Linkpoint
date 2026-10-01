@@ -1,0 +1,23 @@
+// Particle billboards: per-vertex colour (RGBA) times an optional texture. Vertex positions are
+// already in world space, so the entity uses an identity transform.
+material {
+    name : particle_add,
+    shadingModel : unlit,
+    blending : add,
+    culling : none,
+    depthWrite : false,
+    parameters : [
+        { type : float,  name : uUseTexture },
+        { type : sampler2d, name : uTexture }
+    ],
+    requires : [ color, uv0 ]
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec4 tex = texture(materialParams_uTexture, getUV0());
+        vec4 base = materialParams.uUseTexture > 0.5 ? tex : vec4(1.0);
+        material.baseColor = base * getColor();
+    }
+}

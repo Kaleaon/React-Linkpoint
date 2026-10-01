@@ -25,6 +25,12 @@ object Msg {
 
     val PacketAck = fixed(0xFB)
     val StartPingCheck = high(1)
+    val ObjectUpdate = high(12)
+    val ObjectUpdateCompressed = high(13)
+    val ObjectUpdateCached = high(14)
+    val ImprovedTerseObjectUpdate = high(15)
+    val KillObject = high(16)
+    val RequestMultipleObjects = medium(3)
     val CompletePingCheck = high(2)
     val AgentUpdate = high(4)
     val CoarseLocationUpdate = medium(6)
@@ -238,4 +244,15 @@ class WireReader(bytes: ByteArray) {
         while (end > 0 && b[end - 1].toInt() == 0) end--
         return String(b, 0, end, Charsets.UTF_8)
     }
+}
+
+/** Bits of AgentUpdate.ControlFlags. */
+object AgentControl {
+    const val AT_POS = 0x1L
+    const val AT_NEG = 0x2L
+    const val LEFT_POS = 0x4L
+    const val LEFT_NEG = 0x8L
+    const val UP_POS = 0x10L
+    const val UP_NEG = 0x20L
+    const val FLY = 0x2000L
 }

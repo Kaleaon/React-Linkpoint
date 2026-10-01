@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.filament.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     debugImplementation(libs.compose.ui.tooling)

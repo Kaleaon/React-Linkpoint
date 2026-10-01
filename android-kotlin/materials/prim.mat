@@ -1,0 +1,43 @@
+// Second Life prim and mesh faces. Unlit shading with the viewer's own lighting model: ambient plus
+// one directional term, clamped to 1 and gamma-corrected, multiplied into the face colour (the
+// same model the web renderer uses for objects). The face colour and optional texture come from
+// the object's TextureEntry.
+material {
+    name : prim,
+    shadingModel : unlit,
+    blending : opaque,
+    variables : [
+        worldNrm
+    ],
+    parameters : [
+        { type : float4, name : uColor },
+        { type : float3, name : uLightDir },
+        { type : float3, name : uLightColor },
+        { type : float3, name : uAmbientColor },
+        { type : float,  name : uGlow },
+        { type : float,  name : uUseTexture },
+        { type : float,  name : uFullbright },
+        { type : sampler2d, name : uTexture }
+    ],
+    requires : [ uv0, tangents ]
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        material.worldNrm = vec4(normalize(material.worldNormal), 0.0);
+    }
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec4 tex = texture(materialParams_uTexture, getUV0());
+        vec4 base = materialParams.uUseTexture > 0.5 ? tex : vec4(1.0);
+        vec4 c = base * materialParams.uColor;
+        vec3 n = normalize(variable_worldNrm.xyz);
+        float diff = max(dot(n, normalize(materialParams.uLightDir)), 0.0);
+        vec3 light = pow(min(materialParams.uAmbientColor + diff * materialParams.uLightColor, vec3(1.0)), vec3(1.0 / 2.2));
+        light = mix(light, vec3(1.0), materialParams.uFullbright);
+        material.baseColor = vec4(c.rgb * light + c.rgb * materialParams.uGlow, c.a);
+    }
+}
