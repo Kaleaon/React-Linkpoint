@@ -62,7 +62,13 @@ function primAppearance(object) {
   const sculptData = object.SculptData || object.extraParams?.sculptData;
   const renderMaterials = object.RenderMaterialData || object.extraParams?.renderMaterialData;
   const reflection = object.ReflectionProbeData || object.extraParams?.reflectionProbeData;
-  const asset = meshData?.meshData || sculptData?.texture;
+  // The simulator sends meshes as sculpt parameters whose type is 5 (the mesh asset id sits where a
+  // sculpt's texture id would); the separate mesh parameter is the same payload. A sculpt is type 1-4.
+  const zero = (id) => !id || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(String(id));
+  const sculptKind = finite(sculptData?.type) & 0x07;
+  const meshAsset = !zero(meshData?.meshData) ? meshData.meshData : (sculptData && sculptKind === 5 && !zero(sculptData.texture) ? sculptData.texture : null);
+  const sculptAsset = !meshAsset && sculptData && sculptKind >= 1 && sculptKind <= 4 && !zero(sculptData.texture) ? sculptData.texture : null;
+  const asset = meshAsset || sculptAsset;
   const rawTextureId = object.TextureEntry?.defaultTexture?.textureID?.toString?.() || null;
   const textureId = rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
   const component = (method, property, fallback) => {
@@ -91,9 +97,10 @@ function primAppearance(object) {
   });
   return {
     shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
-    assetKind: meshData ? 'mesh' : sculptData ? 'sculpt' : null,
+    assetKind: meshAsset ? 'mesh' : sculptAsset ? 'sculpt' : null,
+    sculptType: sculptAsset ? finite(sculptData.type) : null,
     // Animated mesh (Animesh): the ExtendedMesh extra parameter's ANIMATED_MESH_ENABLED flag.
-    animatedMesh: Boolean(meshData && ((object.extraParams?.extendedMeshData?.flags ?? 0) & 1)),
+    animatedMesh: Boolean(meshAsset && ((object.extraParams?.extendedMeshData?.flags ?? 0) & 1)),
     assetId: asset?.toString?.() || null,
     textureId,
     faceTextures,

@@ -86,7 +86,7 @@ class ViewerSession {
     this.streamAsset(appearance.assetId, kind, appearance.assetId, null, async (buffer) => {
       const geometry = appearance.assetKind === 'mesh'
         ? await decodeLLMesh(buffer)
-        : await decodeSculpt(buffer, (object.SculptData || object.extraParams?.sculptData)?.type);
+        : await decodeSculpt(buffer, appearance.sculptType);
       this.send('asset-ready', { assetId: appearance.assetId, assetKind: appearance.assetKind, geometry });
     });
   }
@@ -331,6 +331,29 @@ class ViewerSession {
   respondScriptDialog(params = {}) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params); }
   acceptLure(params = {}) { return interactions.acceptLure(this.requireBot(), this.pending, params); }
   dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }
+
+  /**
+   * Region names, ratings and map image ids for a block of the grid, as the official map asks for
+   * them (MapBlockRequest). Regions that do not exist are simply absent from the answer.
+   */
+  async getMapBlocks({ minX, minY, maxX, maxY } = {}) {
+    const bot = this.requireBot();
+    const clamp = (value) => Math.max(0, Math.min(65535, Math.floor(Number(value))));
+    const [x0, y0, x1, y1] = [minX, minY, maxX, maxY].map(clamp);
+    if (![x0, y0, x1, y1].every(Number.isFinite) || x1 < x0 || y1 < y0) throw new Error('Invalid map range');
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 400) throw new Error('Map range too large');
+    const reply = await bot.clientCommands.grid.getRegionMapInfoRange(x0, y0, x1, y1);
+    const seen = new Map();
+    for (const block of reply?.regions || []) {
+      if (!block?.name || !Number.isFinite(block.x) || !Number.isFinite(block.y)) continue;
+      seen.set(`${block.x},${block.y}`, {
+        x: block.x, y: block.y, name: block.name,
+        access: finite(block.accessFlags), waterHeight: finite(block.waterHeight), regionFlags: finite(block.regionFlags),
+        mapImage: block.mapImage?.toString?.() || null,
+      });
+    }
+    return [...seen.values()];
+  }
 
   async fetchAnimation({ id }) {
     return { id, data: await downloadAnimation(this.requireBot(), id) };

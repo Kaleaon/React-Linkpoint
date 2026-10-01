@@ -172,37 +172,73 @@ async function decodePixels(buffer) {
   }
 }
 
+/** Vertices per side of the sculpt grid; the viewer's highest detail level is 32 x 32. */
+const SCULPT_GRID = 32;
+
+/**
+ * Geometry from a sculpt map, following the official viewer (LLVolume::sculptGenerateMapVertices):
+ * each texel's R, G, B is a point's X, Y, Z in -0.5..0.5, rows run from the bottom of the image
+ * upward (the viewer keeps decoded images bottom-up) and columns run around the shape.
+ * Types: 1 sphere, 2 torus, 3 plane, 4 cylinder. 0x40 inverts the shape (faces point inward) and
+ * 0x80 mirrors it across X. The viewer reverses the sampling direction for exactly one of the two
+ * flags, so a mirror alone stays outward facing and the winding below never changes.
+ */
 async function decodeSculpt(buffer, sculptType = 1) {
   const decoded = await decodePixels(buffer);
-  const size = Math.max(8, Math.min(64, Math.min(decoded.width, decoded.height)));
-  const { data, info } = await sharp(decoded.data, { raw: { width: decoded.width, height: decoded.height, channels: decoded.channels } })
-    .resize(size, size, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const baseType = sculptType & 0x07, mirror = Boolean(sculptType & 0x80), invert = Boolean(sculptType & 0x40);
+  const reverse = invert ? !mirror : mirror;
+  const width = decoded.width, height = decoded.height, channels = decoded.channels;
+  const columns = Math.max(2, Math.min(SCULPT_GRID, width)), rows = Math.max(2, Math.min(SCULPT_GRID, height));
   const vertices = [], texCoords = [], indices = [];
-  const baseType = sculptType & 0x3f, mirror = Boolean(sculptType & 0x80), invert = Boolean(sculptType & 0x40);
-  for (let y = 0; y < info.height; y++) for (let x = 0; x < info.width; x++) {
-    const sourceX = mirror ? info.width - 1 - x : x;
-    const p = (y * info.width + sourceX) * info.channels;
-    vertices.push(data[p] / 255 - 0.5, data[p + 1] / 255 - 0.5, data[p + 2] / 255 - 0.5);
-    texCoords.push(x / (info.width - 1), y / (info.height - 1));
+  for (let y = 0; y < rows; y++) {
+    const imageRow = height - 1 - Math.round((y * (height - 1)) / (rows - 1));
+    for (let x = 0; x < columns; x++) {
+      const column = Math.round(((reverse ? columns - 1 - x : x) * (width - 1)) / (columns - 1));
+      const p = (imageRow * width + column) * channels;
+      vertices.push((mirror ? -1 : 1) * (decoded.data[p] / 255 - 0.5), decoded.data[p + 1] / 255 - 0.5, decoded.data[p + 2] / 255 - 0.5);
+      texCoords.push(x / (columns - 1), y / (rows - 1));
+    }
   }
   // Sphere (1), torus (2) and cylinder (4) sculpts close around U; only a torus also closes around V; a plane (3) is open.
   const wrapsX = baseType !== 3, wrapsY = baseType === 2;
-  const rows = wrapsY ? info.height : info.height - 1;
-  for (let y = 0; y < rows; y++) for (let x = 0; x < info.width - (wrapsX ? 0 : 1); x++) {
-    const nx = (x + 1) % info.width, ny = (y + 1) % info.height;
-    const a = y * info.width + x, b = y * info.width + nx;
-    const c = ny * info.width + x, d = ny * info.width + nx;
-    if (invert) indices.push(a, c, b, b, c, d); else indices.push(a, b, c, b, d, c);
+  // The last column repeats the first when the map closes (e.g. 0 and 360 degrees), so only add faces between distinct columns.
+  const seamX = wrapsX && samePosition(vertices, 0, columns - 1, columns, rows);
+  const quadColumns = seamX ? columns - 1 : (wrapsX ? columns : columns - 1);
+  const quadRows = wrapsY ? rows : rows - 1;
+  for (let y = 0; y < quadRows; y++) for (let x = 0; x < quadColumns; x++) {
+    const nx = (x + 1) % columns, ny = (y + 1) % rows;
+    const a = y * columns + x, b = y * columns + nx, c = ny * columns + x, d = ny * columns + nx;
+    indices.push(a, b, c, b, d, c);
   }
-  // Seams share positions but not vertices, so average normals across the wrap.
   const normals = computeNormals(vertices, indices);
-  if (wrapsX) for (let y = 0; y < info.height; y++) {
-    const first = y * info.width * 3, last = (y * info.width + info.width - 1) * 3;
-    if (Math.hypot(vertices[first] - vertices[last], vertices[first + 1] - vertices[last + 1], vertices[first + 2] - vertices[last + 2]) < 1e-9) {
-      for (let k = 0; k < 3; k++) { const m = normals[first + k] + normals[last + k]; normals[first + k] = m; normals[last + k] = m; }
-    }
+  const average = (list) => {
+    const sum = [0, 0, 0];
+    for (const v of list) for (let k = 0; k < 3; k++) sum[k] += normals[v * 3 + k];
+    const length = Math.hypot(...sum);
+    if (length < 1e-9) return;
+    for (const v of list) for (let k = 0; k < 3; k++) normals[v * 3 + k] = sum[k] / length;
+  };
+  // Seams and poles share positions but not vertices, so average normals across them.
+  if (seamX) for (let y = 0; y < rows; y++) average([y * columns, y * columns + columns - 1]);
+  if (wrapsY) for (let x = 0; x < columns; x++) average([x, (rows - 1) * columns + x]);
+  if (baseType === 1) for (const row of [0, rows - 1]) {
+    // A sphere's top and bottom rows collapse to one point each.
+    const first = row * columns, spread = Math.max(...[0, 1, 2].map((k) => {
+      let low = Infinity, high = -Infinity;
+      for (let x = 0; x < columns; x++) { const v = vertices[(first + x) * 3 + k]; low = Math.min(low, v); high = Math.max(high, v); }
+      return high - low;
+    }));
+    if (spread < 0.02) average(Array.from({ length: columns }, (_, x) => first + x));
   }
   return { vertices, normals, texCoords, indices };
+}
+
+function samePosition(vertices, firstColumn, lastColumn, columns, rows) {
+  for (let y = 0; y < rows; y++) {
+    const a = (y * columns + firstColumn) * 3, b = (y * columns + lastColumn) * 3;
+    if (Math.hypot(vertices[a] - vertices[b], vertices[a + 1] - vertices[b + 1], vertices[a + 2] - vertices[b + 2]) > 0.02) return false;
+  }
+  return true;
 }
 
 async function decodeJPEG2000(buffer) {
