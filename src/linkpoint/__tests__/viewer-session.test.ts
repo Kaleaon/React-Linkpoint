@@ -74,6 +74,11 @@ describe('desktop simulator object bridge', () => {
         pathCurve: undefined, profileCurve: undefined,
         pathBegin: undefined, pathEnd: undefined,
         pathScaleX: undefined, pathScaleY: undefined,
+        pathShearX: undefined, pathShearY: undefined,
+        pathTwist: undefined, pathTwistBegin: undefined,
+        pathRadiusOffset: undefined,
+        pathTaperX: undefined, pathTaperY: undefined,
+        pathRevolutions: undefined, pathSkew: undefined,
         profileBegin: undefined, profileEnd: undefined,
         profileHollow: undefined,
       },
@@ -97,6 +102,21 @@ describe('desktop simulator object bridge', () => {
     expect(result.shape).toBe('sphere');
     expect(result.color).toEqual([0.1, 0.2, 0.3, 0.4]);
     expect(result.shapeParams).toMatchObject({ pathCurve: 0x20, profileCurve: 0x05 });
+  });
+
+  it('passes every shape parameter the renderer needs to build SL prim geometry', () => {
+    const result = serializeObject({
+      localID: 11,
+      object: {
+        FullID: { toString: () => 'twisted' }, PCode: 9, PathCurve: 0x10, ProfileCurve: 0x01,
+        PathShearX: 0.1, PathShearY: -0.2, PathTwist: 0.5, PathTwistBegin: -0.25, PathRadiusOffset: 0.3,
+        PathTaperX: 0.4, PathTaperY: -0.4, PathRevolutions: 2.5, PathSkew: 0.2,
+      },
+    });
+    expect(result.shapeParams).toMatchObject({
+      pathShearX: 0.1, pathShearY: -0.2, pathTwist: 0.5, pathTwistBegin: -0.25, pathRadiusOffset: 0.3,
+      pathTaperX: 0.4, pathTaperY: -0.4, pathRevolutions: 2.5, pathSkew: 0.2,
+    });
   });
 
   it('keeps uploaded mesh identity and gives it a visible renderer proxy', () => {

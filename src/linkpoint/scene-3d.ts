@@ -145,6 +145,15 @@ export class Scene3D extends Utils.EventEmitter {
     });
   }
 
+  /** Register the faces of a generated prim volume; returns one draw per face (material index = texture-entry face). */
+  addVolumeMeshes(key: string, faces: Array<{ faceIndex: number; vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }>) {
+    return faces.map((face) => {
+      const name = `volume:${key}:${face.faceIndex}`;
+      this.graphics.createMesh(name, face.vertices, face.indices, face.normals, face.texCoords);
+      return { mesh: name, materialIndex: face.faceIndex };
+    });
+  }
+
   /** Register a skinned mesh (joint indices + weights per vertex) under `name`. */
   addSkinnedMesh(name: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }, skin: { joints: number[]; weights: number[] }) {
     this.graphics.createMesh(name, geometry.vertices, geometry.indices, geometry.normals, geometry.texCoords, undefined, skin);

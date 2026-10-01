@@ -12,6 +12,7 @@ import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { AvatarSkeleton, hasJointOverrides, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
 import { parseAnimation, type JointPose } from './avatar-animation';
 import { packJointRows } from './skinning';
+import { generateVolume, volumeKey, volumeParamsFrom, type VolumeFace } from './sl-volume';
 import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
 import { BODY_PARTS, bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, type BodyPartGeometry } from './avatar-body';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
@@ -183,6 +184,35 @@ export class WorldViewer extends Utils.EventEmitter {
       this.scene3d?.setTerrain(this.terrain.heights, this.terrain.size);
       this.emit('terrain_changed', this.terrain);
     }
+  }
+
+  /** Generated prim geometry by shape key, and which scene it has been uploaded to. */
+  private volumeFaces = new Map<string, VolumeFace[]>();
+  private volumeDraws = new Map<string, Array<{ mesh: string; materialIndex: number }>>();
+  private volumeScene: unknown = null;
+
+  /**
+   * Real Second Life prim geometry (profile swept along a path, with cut, hollow, twist, taper,
+   * shear, skew...) for an ordinary prim, one mesh per texture-entry face. Null for meshes, sculpts
+   * and shapes the generator cannot build (those keep the closest basic shape).
+   */
+  private volumeMeshesFor(object: any): Array<{ mesh: string; materialIndex: number }> | null {
+    if (!this.scene3d || object.avatar || object.assetId || object.assetKind) return null;
+    const params = volumeParamsFrom(object.shapeParams);
+    if (!params) return null;
+    const key = volumeKey(params);
+    if (this.volumeScene !== this.scene3d) { this.volumeDraws.clear(); this.volumeScene = this.scene3d; }
+    let draws = this.volumeDraws.get(key);
+    if (draws) return draws;
+    let faces = this.volumeFaces.get(key);
+    if (!faces) {
+      try { faces = generateVolume(params); } catch (error) { console.warn('[WorldViewer] prim geometry failed:', error); faces = []; }
+      this.volumeFaces.set(key, faces);
+    }
+    if (!faces.length || typeof (this.scene3d as any).addVolumeMeshes !== 'function') return null;
+    draws = (this.scene3d as any).addVolumeMeshes(key, faces) as Array<{ mesh: string; materialIndex: number }>;
+    this.volumeDraws.set(key, draws);
+    return draws;
   }
 
   private skeleton: AvatarSkeleton | null = null;
@@ -750,7 +780,7 @@ export class WorldViewer extends Utils.EventEmitter {
     object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
     const config = {
       mesh: object.avatar ? 'sphere' : ['cube', 'cylinder', 'sphere', 'prism', 'torus', 'asset-proxy'].includes(object.shape) ? object.shape : 'cube',
-      meshes: object.decodedMeshes,
+      meshes: object.decodedMeshes || this.volumeMeshesFor(object),
       position,
       rotation: this.quaternionToEuler(rotation),
       scale,
