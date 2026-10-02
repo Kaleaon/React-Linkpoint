@@ -72,7 +72,8 @@ class OpenSim:
     def send(self, line): self.proc.stdin.write(line + "\n"); self.proc.stdin.flush()
 
     # Answers to the console's interactive prompts, matched against the end of the log.
-    PROMPTS = [(r"New estate name \[.*\]: $", "Test Estate"), (r"Estate owner first name \[.*\]: $", "Test"),
+    PROMPTS = [(r"existing estate \(yes/no\)\? \[.*\]: $", "yes"), (r"[Nn]ame of estate to join.*: $", "Test Estate"),
+               (r"New estate name \[.*\]: $", "Test Estate"), (r"Estate owner first name \[.*\]: $", "Test"),
                (r"Estate owner last name \[.*\]: $", "Owner"), (r"Password: $", "ownerpass"), (r"Email: $", "owner@example.com"),
                (r"User ID \(.*\) ?\[.*\]: $", ""), (r"User ID \[.*\]: $", ""), (r"Model name \[.*\]: $", ""), (r"Estate name to join \[.*\]: $", "Test Estate")]
 
