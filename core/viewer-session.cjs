@@ -5,6 +5,10 @@
 // expose its methods through the shared method table in ./viewer-api.cjs. Nothing in here knows
 // which host it runs under, so desktop, web and mobile (which talks to the web server) cannot drift.
 const crypto = require('node:crypto');
+// Lifecycle scripts can be disabled by package managers and deployment hosts. Apply the
+// node-metaverse compatibility/identity patches before its module is loaded so a skipped
+// postinstall cannot leave the viewer unable to log in (or identifying as the library itself).
+require('../scripts/patch-metaverse.cjs').applyPatches({ strict: true });
 const {
   Bot,
   BotOptionFlags,

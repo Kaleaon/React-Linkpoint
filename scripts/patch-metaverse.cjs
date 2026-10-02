@@ -27,7 +27,8 @@ function patchLoginIdentity(content, channel, version) {
   return content.replace(channelLiteral, `channel: ${JSON.stringify(channel)}`).replace(versionLine, `const version = ${JSON.stringify(version)};`);
 }
 
-function applyPatches() {
+function applyPatches(options = {}) {
+  const { strict = require.main === module } = options;
 
   const packetPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/classes/Packet.js');
   if (fs.existsSync(packetPath)) {
@@ -79,8 +80,9 @@ function applyPatches() {
     const original = fs.readFileSync(loginPath, 'utf8');
     const patched = patchLoginIdentity(original, channel, version);
     if (patched === null) {
-      console.error('[patch-metaverse] LoginHandler.js has an unexpected shape; the login would not identify as ' + channel + '.');
-      process.exitCode = 1;
+      const message = '[patch-metaverse] LoginHandler.js has an unexpected shape; the login would not identify as ' + channel + '.';
+      if (strict) throw new Error(message);
+      console.error(message);
     } else if (patched !== original) {
       fs.writeFileSync(loginPath, patched, 'utf8');
       console.log('[patch-metaverse] Login now identifies as ' + channel + ' ' + version + '.');
