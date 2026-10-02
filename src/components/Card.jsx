@@ -44,13 +44,15 @@ export default function Card({ c }) {
               minWidth: "20px",
               height: "20px",
               padding: "0 6px",
-              borderRadius: "10px",
+              borderRadius: LK.card === "flat" ? "0px" : V.rs === "999px" ? "10px" : "4px",
               background: V.bdg,
               color: V.onbdg,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              font: "700 10px/1 " + t.font,
+              font: "700 10px/1 " + (LK.card === "cap" || LK.card === "flat" ? t.dfont : t.font),
+              letterSpacing: LK.card === "cap" ? ".08em" : "0em",
+              textTransform: LK.card === "cap" || LK.card === "flat" ? "uppercase" : "none",
             }}
           >
             {c.badge}

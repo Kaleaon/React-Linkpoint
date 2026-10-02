@@ -45,7 +45,7 @@ jobs:
       is_release: ${{ steps.meta.outputs.is_release }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
 
       - name: Resolve package version
         id: meta
@@ -74,14 +74,14 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
 
@@ -102,7 +102,7 @@ jobs:
           (cd dist && zip -qry "../artifacts/Linkpoint-${VERSION}-web.zip" .)
 
       - name: Upload web package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linkpoint-web
           path: artifacts/*
@@ -126,19 +126,19 @@ jobs:
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
         with:
           distribution: temurin
           java-version: '21'
@@ -182,9 +182,12 @@ jobs:
           aab="$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)"
           cp "$apk" "artifacts/Linkpoint-${VERSION}-android.apk"
           cp "$aab" "artifacts/Linkpoint-${VERSION}-android.aab"
+          cd artifacts
+          sha256sum *.apk *.aab > checksums.sha256
+          cat checksums.sha256
 
       - name: Upload Android packages
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: linkpoint-android
           path: artifacts/*
@@ -201,14 +204,14 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
 
@@ -220,7 +223,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: Cache CocoaPods
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
         with:
           path: ios/Pods
           key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile', 'package-lock.json') }}
@@ -254,7 +257,7 @@ jobs:
           cp "$RUNNER_TEMP/ipa/payload.ipa" "artifacts/Linkpoint-${VERSION}-ios-unsigned.ipa"
 
       - name: Upload iOS package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linkpoint-ios
           path: artifacts/*
@@ -290,14 +293,14 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
 
@@ -317,7 +320,7 @@ jobs:
           ls -lh artifacts
 
       - name: Upload desktop packages
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: linkpoint-desktop-${{ matrix.label }}
           path: artifacts/*
@@ -331,9 +334,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Download all packages
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           path: downloads
 
@@ -342,11 +347,21 @@ jobs:
           set -euo pipefail
           mkdir -p release
           find downloads -type f -exec cp {} release/ \;
-          ls -lh release
+          cd release
+          sha256sum *.apk *.aab > checksums.sha256 || true
+          ls -lh
+
+      - name: Attest build provenance (SLSA Level 3)
+        uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # v2.2.0
+        with:
+          subject-path: |
+            release/*.apk
+            release/*.aab
 
       - name: Attach packages to the release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
           files: release/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+

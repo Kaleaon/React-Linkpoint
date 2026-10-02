@@ -38,6 +38,7 @@ object Msg {
     val UseCircuitCode = low(3)
     val TeleportLocationRequest = low(63)
     val TeleportLocal = low(64)
+    val StartLure = low(70)
     val TeleportLureRequest = low(71)
     val AvatarPropertiesRequest = low(169)
     val AvatarPropertiesReply = low(171)

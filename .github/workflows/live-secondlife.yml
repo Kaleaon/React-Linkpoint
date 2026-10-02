@@ -1,0 +1,31 @@
+name: Live Second Life login test
+
+# Manual only: this uses the SL account stored in the repository secrets USERNAME and PASSWORD, so it must never run
+# for pull requests (forks could otherwise read the secrets). The repository is public, so the job log is public too:
+# the test prints only counts and pass/fail, never names, places or inventory, and it sends no chat or teleports.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secondlife:
+    name: Log in to Second Life, stream the region, log out
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: android-kotlin
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Live Second Life test
+        env:
+          SL_USERNAME: ${{ secrets.USERNAME }}
+          SL_PASSWORD: ${{ secrets.PASSWORD }}
+        run: ./gradlew :core:test --tests '*SecondLifeLiveTest*' --rerun-tasks -i --no-daemon

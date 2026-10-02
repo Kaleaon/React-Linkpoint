@@ -1476,7 +1476,7 @@ button:focus-visible,[role="button"]:focus-visible,input:focus-visible,select:fo
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
           <i data-lucide="{{ dialog.icon }}" style="width:18px;height:18px;color:var(--pri,#6CFF9A)"></i>
           <span style="flex:1;font:600 12px/1 var(--font,'JetBrains Mono');letter-spacing:.2em;color:var(--pri,#6CFF9A)">{{ dialog.kind }}</span>
-          <span onClick="{{ closeDialog }}" style="font:400 11px/1 var(--font,'JetBrains Mono');color:var(--ink2,#A7C8BC);cursor:pointer">CLOSE</span>
+          <span onClick="{{ closeDialog }}" role="button" tabindex="0" onKeyDown="{{ closeDialogKeyDown }}" style="font:400 11px/1 var(--font,'JetBrains Mono');color:var(--ink2,#A7C8BC);cursor:pointer">CLOSE</span>
         </div>
         <div style="font:600 15px/1.35 var(--font,'JetBrains Mono');color:var(--ink,#D7F5E6)">{{ dialog.title }}</div>
         <div style="font:400 12.5px/1.65 var(--font,'JetBrains Mono');color:var(--ink2,#A7C8BC);margin-top:8px">{{ dialog.body }}</div>
@@ -1485,7 +1485,7 @@ button:focus-visible,[role="button"]:focus-visible,input:focus-visible,select:fo
         </sc-if>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
           <sc-for list="{{ dialog.buttons }}" as="db" hint-placeholder-count="3">
-            <div onClick="{{ db.pick }}" style="{{ db.style }}">{{ db.label }}</div>
+            <div onClick="{{ db.pick }}" role="button" tabindex="0" onKeyDown="{{ db.pickKeyDown }}" style="{{ db.style }}">{{ db.label }}</div>
           </sc-for>
         </div>
       </div>
@@ -1641,7 +1641,10 @@ const mkPal = (name, c, note, light) => ({ name, note, light: !!light, c });
 const PALETTES = {
   ink: mkPal("Ink Terminal", { bg:"#0A1112", surf:"#101A1C", surf2:"#1B2A2D", ink:"#D7F5E6", ink2:"#A7C8BC", pri:"#6CFF9A", onpri:"#0A1112", priC:"#1F6640", onpriC:"#D7F5E6", sec:"#3E4E5E", onsec:"#D7F5E6", sec2:"#8AD0B0", bdg:"#8AD0B0", onbdg:"#0A1112", info:"#8AD0B0", outv:"#365047", ok:"#6CFF9A", err:"#CF6679", warn:"#FFC98A", sky1:"#1c4a5c", sky2:"#12333a", gnd:"#10241d", gnd2:"#0a1112" }, "ink-terminal-modern, phosphor green on near-black"),
   lcars: mkPal("LCARS Amber", { bg:"#120C1C", surf:"#1C132A", surf2:"#3D1F5C", ink:"#F3E9FF", ink2:"#D0B3E6", pri:"#F2A65A", onpri:"#120C1C", priC:"#CC7A2B", onpriC:"#120C1C", sec:"#A485F7", onsec:"#120C1C", sec2:"#C5678D", bdg:"#A485F7", onbdg:"#120C1C", info:"#C5678D", outv:"#4D2F5C", ok:"#F2A65A", err:"#CF6679", warn:"#FFC46B", sky1:"#3D1F5C", sky2:"#241338", gnd:"#1C132A", gnd2:"#120C1C" }, "lcars, amber + violet + mauve on aubergine"),
+  lcars_blue: mkPal("LCARS Okuda Blue", { bg:"#0C0814", surf:"#161024", surf2:"#281E3D", ink:"#F0E6FF", ink2:"#C5B5E6", pri:"#5599FF", onpri:"#0C0814", priC:"#3366CC", onpriC:"#F0E6FF", sec:"#CC99FF", onsec:"#0C0814", sec2:"#FF9900", bdg:"#5599FF", onbdg:"#0C0814", info:"#CC99FF", outv:"#3D305C", ok:"#5599FF", err:"#FF4444", warn:"#FF9900", sky1:"#24305C", sky2:"#121838", gnd:"#181228", gnd2:"#0C0814" }, "lcars, Okuda ice blue + pale purple + gold on dark aubergine"),
   metro: mkPal("Metro Cyan", { bg:"#001A33", surf:"#002448", surf2:"#3D4854", ink:"#F0F8FF", ink2:"#B8CAD6", pri:"#00AEEF", onpri:"#001A33", priC:"#0070ca", onpriC:"#F0F8FF", sec:"#2D89EF", onsec:"#001A33", sec2:"#00AEEF", bdg:"#2D89EF", onbdg:"#001A33", info:"#00AEEF", outv:"#4D5A66", ok:"#00AEEF", err:"#CF6679", warn:"#FFC300", sky1:"#0a3a63", sky2:"#04263f", gnd:"#062033", gnd2:"#001a33" }, "windows-phone-metro, flat cyan on deep blue"),
+  metro_zune: mkPal("Metro Zune Orange", { bg:"#181818", surf:"#242424", surf2:"#333333", ink:"#FFFFFF", ink2:"#CCCCCC", pri:"#D83B01", onpri:"#FFFFFF", priC:"#A02B00", onpriC:"#FFFFFF", sec:"#F0A30A", onsec:"#181818", sec2:"#E35900", bdg:"#D83B01", onbdg:"#FFFFFF", info:"#F0A30A", outv:"#444444", ok:"#D83B01", err:"#CF6679", warn:"#F0A30A", sky1:"#3a1a10", sky2:"#24120b", gnd:"#201510", gnd2:"#181818" }, "windows-phone-metro, Zune orange & mango on dark slate"),
+  metro_magenta: mkPal("Metro Magenta", { bg:"#000000", surf:"#141414", surf2:"#282828", ink:"#FFFFFF", ink2:"#B3B3B3", pri:"#E0115F", onpri:"#FFFFFF", priC:"#A00040", onpriC:"#FFFFFF", sec:"#D80073", onsec:"#FFFFFF", sec2:"#E0115F", bdg:"#E0115F", onbdg:"#FFFFFF", info:"#E0115F", outv:"#404040", ok:"#E0115F", err:"#FF3366", warn:"#F0A30A", sky1:"#3a081a", sky2:"#1f040e", gnd:"#1a050d", gnd2:"#000000" }, "windows-phone-metro, Windows Phone magenta on pitch black"),
   aero: mkPal("Frutiger Aero", { bg:"#EAF7FF", surf:"#F7FCFF", surf2:"#DDF1FF", ink:"#173A52", ink2:"#34566E", pri:"#39B6F0", onpri:"#173A52", priC:"#A9E6FF", onpriC:"#173A52", sec:"#79D87E", onsec:"#173A52", sec2:"#0A6FA0", bdg:"#0A6FA0", onbdg:"#EAF7FF", info:"#0A6FA0", outv:"#A9C7DA", ok:"#0A6FA0", err:"#BA1A1A", warn:"#8A5A00", sky1:"#BEEBFF", sky2:"#DAF0FF", gnd:"#79D87E", gnd2:"#3f8f57" }, "frutiger-aero, sky and nature, light-first", true),
   navy: mkPal("Navy Gold", { bg:"#0A1630", surf:"#1A2645", surf2:"#2A3655", ink:"#E8E3D8", ink2:"#C9C4B9", pri:"#D4AF37", onpri:"#0A1630", priC:"#715f33", onpriC:"#E8E3D8", sec:"#4A90E2", onsec:"#0A1630", sec2:"#9C8970", bdg:"#4A90E2", onbdg:"#0A1630", info:"#4A90E2", outv:"#44483E", ok:"#D4AF37", err:"#CF6679", warn:"#E0B84C", sky1:"#16305c", sky2:"#0e1f3f", gnd:"#141f38", gnd2:"#0a1630" }, "navy-gold, metallic gold on navy"),
   paper: mkPal("Paper & Ink", { bg:"#F0F0EB", surf:"#FAF9F6", surf2:"#EBEAE4", ink:"#2C2C2C", ink2:"#454545", pri:"#2C2C2C", onpri:"#F0F0EB", priC:"#EBEAE4", onpriC:"#2C2C2C", sec:"#595959", onsec:"#F0F0EB", sec2:"#6B6B6B", bdg:"#2C2C2C", onbdg:"#F0F0EB", info:"#454545", outv:"#C9C9C9", ok:"#2C6B3F", err:"#BA1A1A", warn:"#8A5A00", sky1:"#d9d9d2", sky2:"#eceae3", gnd:"#cfcec6", gnd2:"#bfbeb6" }, "paper-ink, hueless, maximum legibility", true),
@@ -1667,8 +1670,8 @@ const PALETTES = {
 
 // Colour packs grouped by family — 24 packs is too many for a flat column.
 const FAMILIES = [
-  { name: "TERMINAL & NEON", keys: ["ink", "noir", "metro", "aurora", "slatec"] },
-  { name: "CONSOLE & AMBER", keys: ["lcars", "amber", "royalb", "forest", "crimson"] },
+  { name: "TERMINAL & NEON", keys: ["ink", "noir", "metro", "metro_zune", "metro_magenta", "aurora", "slatec"] },
+  { name: "CONSOLE & AMBER", keys: ["lcars", "lcars_blue", "amber", "royalb", "forest", "crimson"] },
   { name: "METAL & JEWEL",   keys: ["navy", "deco", "emerald", "royals", "deep", "charcoal", "slateg", "rose", "burgundy"] },
   { name: "DAYLIGHT",        keys: ["aero", "paper", "nouveau", "calm", "solarpunk"] },
 ];
@@ -2796,6 +2799,7 @@ class Component extends DCLogic {
     const dbBase = { flex: "1 1 40%", minHeight: "46px", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + V.outv, borderRadius: V.rs, font: "700 11px/1 " + t.font, letterSpacing: ".14em", color: V.ink, textAlign: "center", padding: "0 8px", cursor: "pointer" };
     const dialog = dlg ? { ...dlg, buttons: dlg.buttons.map(b => ({ label: b.label,
       pick: () => { this.set("dialog", null); this.notify(dlg.title.split(" ").slice(0, 4).join(" ") + " — " + b.label); },
+      pickKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.set("dialog", null); this.notify(dlg.title.split(" ").slice(0, 4).join(" ") + " — " + b.label); } },
       style: M(dbBase, b.primary ? { background: V.pri, color: V.onpri, borderColor: V.pri } : b.dim ? { color: V.ink2 } : null) })) } : null;
 
     const detail = {
@@ -3401,6 +3405,7 @@ openTargetPickerKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.pr
       dialogList: Object.keys(DIALOGS).map(n => ({ name: n, pick: () => this.set("dialog", n) })),
       setCompact: () => this.set("dense", true), setComfortable: () => this.set("dense", false),
       closeDialog: () => this.set("dialog", null),
+      closeDialogKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.set("dialog", null); } },
       // The world view gets the whole frame: nav collapses to a floating button so
       // the scene is never boxed in by a rail or a tab bar.
       navItems, sweepNav,

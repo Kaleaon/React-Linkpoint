@@ -1,7 +1,7 @@
 import { Camera3D } from './camera-3d';
 import { isMotionKey, isTypingTarget, resolveKeyMotion, TURN_RATE, type KeyMotion } from './keyboard-motion';
 
-type PointerSample = { x: number; y: number };
+type PointerSample = { x: number; y: number; time: number };
 
 /**
  * Pointer, touch, wheel and keyboard controls modelled after Firestorm.
@@ -16,6 +16,8 @@ export class CameraControls {
   private lastFrame = 0;
   private frame: number | null = null;
   private pointerStart = new Map<number, PointerSample>();
+  private velocityThreshold = 0.05; // px/ms
+  private displacementThreshold = 3; // px
 
   constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined, private avatarMotion: (motion: KeyMotion, run: boolean) => boolean = () => false) {
     canvas.style.touchAction = 'none';
@@ -32,20 +34,46 @@ export class CameraControls {
     document.addEventListener('visibilitychange', this.onBlur);
   }
 
+  public setVelocityThreshold(threshold: number) { this.velocityThreshold = Math.max(0, threshold); }
+  public getVelocityThreshold() { return this.velocityThreshold; }
+  public setDisplacementThreshold(threshold: number) { this.displacementThreshold = Math.max(0, threshold); }
+  public getDisplacementThreshold() { return this.displacementThreshold; }
+
   private preventMenu = (event: Event) => event.preventDefault();
+  private sampleTime(event: PointerEvent) {
+    if ((event as any).timeStampOverride !== undefined) return (event as any).timeStampOverride;
+    return event.timeStamp && event.timeStamp > 0
+      ? event.timeStamp
+      : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  }
   private onPointerDown = (event: PointerEvent) => {
     this.canvas.focus({ preventScroll: true });
     this.canvas.setPointerCapture?.(event.pointerId);
-    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    this.pointerStart.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const time = this.sampleTime(event);
+    const sample = { x: event.clientX, y: event.clientY, time };
+    this.pointers.set(event.pointerId, sample);
+    this.pointerStart.set(event.pointerId, sample);
     this.pinchDistance = this.distance();
   };
   private onPointerMove = (event: PointerEvent) => {
     const previous = this.pointers.get(event.pointerId);
     if (!previous) return;
+    const time = this.sampleTime(event);
+    const dt = Math.max(time - previous.time, 0.001);
     const dx = event.clientX - previous.x;
     const dy = event.clientY - previous.y;
-    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const stepDistance = Math.hypot(dx, dy);
+    const velocity = stepDistance / dt;
+
+    const start = this.pointerStart.get(event.pointerId);
+    const totalDisplacement = start ? Math.hypot(event.clientX - start.x, event.clientY - start.y) : stepDistance;
+
+    // Filter touch/pointer drag gestures using velocity and displacement thresholds
+    if (velocity < this.velocityThreshold && totalDisplacement < this.displacementThreshold) {
+      return;
+    }
+
+    this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, time });
     if (this.pointers.size > 1) {
       const distance = this.distance();
       if (this.pinchDistance) this.camera.zoom((distance - this.pinchDistance) / 240);

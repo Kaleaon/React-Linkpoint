@@ -14,6 +14,8 @@ class SceneStore {
     val size: Int get() = objects.size
     fun get(localId: Long): SimObject? = objects[localId]
     fun snapshot(): List<SimObject> = objects.values.toList()
+    /** The object with this full id (e.g. our own avatar), without copying the whole scene. */
+    fun findByFullId(id: java.util.UUID): SimObject? = objects.values.firstOrNull { it.fullId == id }
 
     fun clear() { objects.clear(); version++ }
 

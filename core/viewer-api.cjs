@@ -10,6 +10,7 @@ const METHODS = new Set([
   'respondScriptDialog', 'acceptLure', 'dismissInteraction',
   'fetchAnimation', 'getMapBlocks', 'getFriends', 'getGroups', 'getInventory', 'getDiagnostics',
   'getSceneObjects', 'getSceneSnapshot',
+  'voiceProvision', 'voiceSignal', 'voiceLogout',
 ]);
 
 async function callViewer(session, method, params) {

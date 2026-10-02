@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import Icon from "../components/Icon.jsx";
+import AccessibleChatLog from "../components/AccessibleChatLog.jsx";
 import { app } from "../linkpoint/app";
 
 export default function Chat() {
@@ -114,11 +115,6 @@ export default function Chat() {
     });
   }, [messages, activeTab, selectedContact]);
 
-  const formatted = useMemo(() => visibleMessages.map((message) => ({
-    ...message,
-    time: new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-  })), [visibleMessages]);
-
   const handleToggleAutoReply = () => {
     const next = !autoReplyEnabled;
     app.chat.setAutoReplyEnabled(next);
@@ -190,7 +186,7 @@ export default function Chat() {
   };
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: V.bg }}>
+    <div className="chat-container" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--chat-bg-scrim, " + V.bg + ")", color: "var(--chat-text, " + V.ink + ")" }}>
       {/* Auto-Reply / Away Message Controls Header */}
       <div style={{ padding: "8px 12px", background: V.surf, borderBottom: `1px solid ${V.outv}`, display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -412,56 +408,21 @@ export default function Chat() {
       </div>
 
       {/* Messages Transcript */}
-      <section
-        aria-label={`${activeTab} chat transcript`}
-        aria-live="polite"
-        style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}
-      >
-        {!formatted.length && (
-          <div style={{ color: V.ink2, margin: "auto", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <Icon name={activeTab === "IM" ? "message-circle" : "message-square"} size={26} />
-            <div>
-              {connected
-                ? activeTab === "IM"
-                  ? (selectedContact ? `No Instant Messages yet with ${selectedContact}.` : "No Instant Messages yet. Pick a resident above to start an IM.")
-                  : activeTab === "GROUP"
-                  ? "No group chat received."
-                  : "Listening to live Second Life region chat…"
-                : "Connect to a grid to chat."}
-            </div>
-          </div>
-        )}
-        {formatted.map((m) => {
-          const isMe = m.senderId === app.auth.user?.id;
-          return (
-            <article
-              key={m.id}
-              style={{
-                alignSelf: isMe ? "flex-end" : "flex-start",
-                maxWidth: "88%",
-                padding: "8px 10px",
-                border: `1px solid ${m.isAutoReply ? "#eab308" : V.outv}`,
-                borderRadius: V.rp,
-                background: m.isAutoReply ? "rgba(234, 179, 8, 0.08)" : V.surf,
-              }}
-            >
-              <header style={{ color: m.isAutoReply ? "#eab308" : V.pri, font: `600 10px/1.3 ${t.font}`, display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <span>
-                  [{m.time}] {m.sender}
-                  {m.recipientName && isMe ? ` → ${m.recipientName}` : ""}
-                </span>
-                <span style={{ opacity: 0.8, fontSize: 9 }}>
-                  {m.isAutoReply ? "AUTO-REPLY" : m.type === "im" ? "IM" : m.type === "group" ? "GROUP" : "LOCAL"}
-                </span>
-              </header>
-              <div style={{ color: V.ink, font: `400 13px/1.45 ${t.font}`, whiteSpace: "pre-wrap", overflowWrap: "anywhere", marginTop: 2 }}>
-                {m.text}
-              </div>
-            </article>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </section>
+      <AccessibleChatLog
+        messages={visibleMessages}
+        variant="embedded"
+        activeTab={activeTab}
+        ariaLabel={`${activeTab} chat transcript`}
+        emptyStateMessage={
+          connected
+            ? activeTab === "IM"
+              ? (selectedContact ? `No Instant Messages yet with ${selectedContact}.` : "No Instant Messages yet. Pick a resident above to start an IM.")
+              : activeTab === "GROUP"
+              ? "No group chat received."
+              : "Listening to live Second Life region chat…"
+            : "Connect to a grid to chat."
+        }
+      />
 
       {/* Chat Send Input Form */}
       <form onSubmit={send} style={{ padding: 12, borderTop: `1px solid ${V.outv}`, background: V.surf }}>
