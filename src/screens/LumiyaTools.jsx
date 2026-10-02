@@ -23,7 +23,7 @@ export function GridsScreen() {
 export function MediaScreen() {
   const [url, setUrl] = useState("");
   const [active, setActive] = useState("");
-  return <div className="tool-page"><h2>Streaming media</h2><div className="inline-tool"><input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="HTTPS audio stream URL" /><button onClick={() => setActive(url.trim())} disabled={!/^https:\/\//i.test(url.trim())}>Play</button></div>{active ? <audio className="media-player" src={active} controls autoPlay onError={() => setActive("")} /> : <Empty icon="radio">Enter an HTTPS stream supplied by the current parcel or broadcaster.</Empty>}</div>;
+  return <div className="tool-page"><h2>Streaming media</h2><div className="inline-tool"><input type="url" aria-label="HTTPS audio stream URL" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="HTTPS audio stream URL" /><button onClick={() => setActive(url.trim())} disabled={!/^https:\/\//i.test(url.trim())}>Play</button></div>{active ? <audio className="media-player" src={active} controls autoPlay onError={() => setActive("")} /> : <Empty icon="radio">Enter an HTTPS stream supplied by the current parcel or broadcaster.</Empty>}</div>;
 }
 
 export function NotecardsScreen() {
@@ -68,7 +68,7 @@ export function TeleportScreen() {
       setStatus(result?.message ? `Grid: ${result.message}` : `Teleport to ${result.requested.region} requested.`);
     } catch (error) { setStatus(error instanceof Error ? error.message : "Teleport failed."); }
   };
-  return <div className="tool-page"><h2>Teleport</h2><div className="inline-tool"><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="secondlife://Region/x/y/z" /><button onClick={() => void teleport()} disabled={!destination.trim()}>Go</button></div>{status ? <p className="tool-status">{status}</p> : null}</div>;
+  return <div className="tool-page"><h2>Teleport</h2><div className="inline-tool"><input aria-label="Teleport destination URI" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="secondlife://Region/x/y/z" /><button onClick={() => void teleport()} disabled={!destination.trim()}>Go</button></div>{status ? <p className="tool-status">{status}</p> : null}</div>;
 }
 
 export function DiagnosticsScreen() {

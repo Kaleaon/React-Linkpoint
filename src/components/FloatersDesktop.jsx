@@ -103,7 +103,27 @@ export default function FloatersDesktop() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", borderBottom: "1px solid " + V.outv, paddingBottom: "4px" }}>
               <span style={{ font: "600 9px/1 " + t.dfont, color: V.ink2, letterSpacing: ".08em" }}>CAMERA CONTROLS</span>
-              <span onClick={() => setShowCamHud(false)} style={{ cursor: "pointer", color: V.ink2, fontSize: "12px", lineHeight: 1 }}>&times;</span>
+              <button
+                type="button"
+                onClick={() => setShowCamHud(false)}
+                aria-label="Close Camera Controls"
+                style={{
+                  cursor: "pointer",
+                  color: V.ink2,
+                  fontSize: "12px",
+                  lineHeight: 1,
+                  minWidth: "24px",
+                  minHeight: "24px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                }}
+              >
+                &times;
+              </button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 24px)", gap: "3px", justifyContent: "center" }}>
               <button type="button" onClick={() => app.world.rotateCamera(8, 0)} style={{ height: "24px", background: V.surf2, border: "1px solid " + V.outv, color: V.ink, borderRadius: btnRadius, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Orbit Up">
@@ -235,10 +255,10 @@ export default function FloatersDesktop() {
               value={quickMsg}
               onChange={(e) => setQuickMsg(e.target.value)}
               placeholder="Nearby Chat..."
-              className="chat-input-field"
+              className="chat-input-field search-input"
               style={{
                 width: "100%", height: "26px", padding: "0 8px", background: "var(--chat-bg-scrim, " + V.bg + ")", color: "var(--chat-text, " + V.ink + ")",
-                border: "1px solid " + V.outv, borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, font: "400 11px/1 " + t.font, outline: "none"
+                border: "1px solid " + V.outv, borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, font: "400 11px/1 " + t.font
               }}
             />
           </div>

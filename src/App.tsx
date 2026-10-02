@@ -1,6 +1,9 @@
 import { useEffect } from "react";
-import { AppProvider } from "./context/AppContext.jsx";
+import { AppProvider, useApp } from "./context/AppContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
+import { ErrorRecoveryProvider } from "./context/ErrorRecoveryContext.tsx";
+import { ErrorRecoveryBanner } from "./components/ErrorRecoveryBanner.tsx";
+import { ErrorRecoveryModal } from "./components/ErrorRecoveryModal.tsx";
 import DeviceFrame from "./components/DeviceFrame.jsx";
 import LiveRegionAnnouncerComponent from "./components/LiveRegionAnnouncerComponent.jsx";
 import { app } from "./linkpoint/app";
@@ -9,6 +12,8 @@ import ErrorBoundary from "./components/ErrorBoundary.jsx";
 let startup: Promise<void> | null = null;
 
 function Viewer() {
+  const { actions } = useApp();
+
   useEffect(() => {
     startup ||= app.init();
     void startup;
@@ -16,8 +21,10 @@ function Viewer() {
 
   return (
     <>
+      <ErrorRecoveryBanner />
       <LiveRegionAnnouncerComponent />
       <DeviceFrame />
+      <ErrorRecoveryModal onNavigateFallback={(route) => actions.setScreen(route)} />
     </>
   );
 }
@@ -25,12 +32,15 @@ function Viewer() {
 export default function App() {
   return (
     <ErrorBoundary label="Linkpoint">
-      <AppProvider>
-        <ThemeProvider>
-          <Viewer />
-        </ThemeProvider>
-      </AppProvider>
+      <ErrorRecoveryProvider>
+        <AppProvider>
+          <ThemeProvider>
+            <Viewer />
+          </ThemeProvider>
+        </AppProvider>
+      </ErrorRecoveryProvider>
     </ErrorBoundary>
   );
 }
+
 

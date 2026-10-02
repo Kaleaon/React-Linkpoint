@@ -61,7 +61,7 @@ export default function Settings() {
         <dt>Resident</dt><dd>{user?.fullName || "—"}</dd>
         <dt>Grid</dt><dd>{user?.grid || "—"}</dd>
         <dt>Region</dt><dd>{region?.name || app.protocol.authReply?.sim_name || "Not supplied"}</dd>
-        <dt>Agent ID</dt><dd>{app.protocol.agentId || "Not supplied"}</dd>
+        <dt>Account ID</dt><dd>{app.protocol.agentId || "Not supplied"}</dd>
       </dl>
       {app.auth.isLoggedIn() ? <button type="button" disabled={disconnecting} onClick={() => void disconnect()}>{disconnecting ? "Disconnecting…" : "Disconnect"}</button> : null}
     </section>
@@ -82,18 +82,18 @@ export default function Settings() {
     <section className="runtime-card">
       <Icon name="settings" size={22} />
       <h2>Viewer preferences</h2>
-      <label>Draw distance
-        <select value={state.prefs.draw} onChange={(event) => actions.setPref("draw", event.target.value)}>
+      <label htmlFor="settings-draw-distance-select">Draw distance
+        <select id="settings-draw-distance-select" value={state.prefs.draw} onChange={(event) => actions.setPref("draw", event.target.value)}>
           {["64 m", "96 m", "128 m", "192 m", "256 m"].map((value) => <option key={value}>{value}</option>)}
         </select>
       </label>
-      <label>Graphics quality
-        <select value={state.prefs.quality} onChange={(event) => actions.setPref("quality", event.target.value)}>
+      <label htmlFor="settings-graphics-quality-select">Graphics quality
+        <select id="settings-graphics-quality-select" value={state.prefs.quality} onChange={(event) => actions.setPref("quality", event.target.value)}>
           {["Low", "Balanced", "High", "Ultra"].map((value) => <option key={value}>{value}</option>)}
         </select>
       </label>
-      <label>Bandwidth limit
-        <select value={state.prefs.bandwidth} onChange={(event) => actions.setPref("bandwidth", event.target.value)}>
+      <label htmlFor="settings-bandwidth-limit-select">Bandwidth limit
+        <select id="settings-bandwidth-limit-select" value={state.prefs.bandwidth} onChange={(event) => actions.setPref("bandwidth", event.target.value)}>
           {["500 kbps", "1 500 kbps", "3 000 kbps", "Unlimited"].map((value) => <option key={value}>{value}</option>)}
         </select>
       </label>
@@ -101,8 +101,8 @@ export default function Settings() {
     <section className="runtime-card" aria-labelledby="sound-voice-heading">
       <Icon name="volume-2" size={22} />
       <h2 id="sound-voice-heading">Sound &amp; voice</h2>
-      <label>Master volume
-        <select value={state.prefs.volume} onChange={(event) => setVolume(event.target.value)}>
+      <label htmlFor="settings-master-volume-select">Master volume
+        <select id="settings-master-volume-select" value={state.prefs.volume} onChange={(event) => setVolume(event.target.value)}>
           {["Muted", "25%", "50%", "70%", "100%"].map((value) => <option key={value}>{value}</option>)}
         </select>
       </label>

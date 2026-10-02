@@ -132,7 +132,7 @@ export default function DiagnosticsPanel() {
         <div>
           <h2 style={{ margin: 0, color: V.pri, font: `700 18px/1.2 ${t.dfont}`, letterSpacing: ".08em", display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="activity" size={22} />
-            SECOND LIFE CONNECTION DIAGNOSTICS
+            NETWORK HEALTH DIAGNOSTICS
           </h2>
           <div style={{ fontSize: 12, color: V.ink2, marginTop: 4 }}>
             Real-time telemetry and world connection status.

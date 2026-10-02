@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { FMENU, FLOATERS } from "../theme/constants.js";
@@ -8,11 +8,27 @@ import Icon from "./Icon.jsx";
 import ViewModeSwitcher from "./ViewModeSwitcher.jsx";
 import { formatLatency, liveRegionName, formatSlt } from "./menuStatus.js";
 
-// Ported from `fmBar`/`fmMenus` — the desktop-only File/Edit/View/World/
-// Build/Help bar with Firestorm-style interactive menu commands.
+/**
+ * MenuBar component provides an accessible desktop menu bar with dropdowns.
+ *
+ * Complies with WCAG 2.2 Level A standards:
+ * - WCAG 2.2 SC 2.1.1 Keyboard (https://www.w3.org/TR/WCAG22/#keyboard)
+ * - WCAG 2.2 SC 4.1.2 Name, Role, Value (https://www.w3.org/TR/WCAG22/#name-role-value)
+ * - WCAG 2.2 SC 1.3.1 Info and Relationships (https://www.w3.org/TR/WCAG22/#info-and-relationships)
+ * - WCAG 2.2 SC 2.4.7 Focus Visible (https://www.w3.org/TR/WCAG22/#focus-visible)
+ *
+ * Applicable W3C Techniques:
+ * - ARIA6: Using aria-label to provide labels for objects (https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA6)
+ * - ARIA11: Using ARIA landmarks to identify regions of a page (https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA11)
+ * - ARIA17: Using grouping roles to identify related controls (https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA17)
+ * - G202: Ensuring keyboard control for all functionality (https://www.w3.org/WAI/WCAG22/Techniques/general/G202)
+ */
 export default function MenuBar() {
   const { state, actions } = useApp();
   const { V, t, ink, isFloat } = useTheme();
+  const topMenuRefs = useRef([]);
+  const dropdownRefs = useRef({});
+
   if (!isFloat) return null;
   const kind = deskKind(t);
 
@@ -53,28 +69,64 @@ export default function MenuBar() {
   };
 
   return (
-    <div style={{ flex: "none", display: "flex", alignItems: "stretch", height: "28px", padding: "0 8px", background: kind === "metro" ? V.bg : V.surf, borderBottom: kind === "sweep" ? "2px solid " + V.pri : kind === "metro" ? "none" : "1px solid " + V.outv, position: "relative", zIndex: 80 }} onClick={() => state.menu && actions.setMenu(null)}>
-      {FMENU.map((mm) => {
-        const open = state.menu === mm.label;
-        const win = mm.items === "WINDOWS";
-        const items = win ? FLOATERS.map((f) => [f.title, state.flOpen[f.id] && !state.flMin[f.id] ? "✓" : ""]) : mm.items;
-        return (
-          <div key={mm.label} style={{ position: "relative" }}>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                actions.setMenu(state.menu === mm.label ? null : mm.label);
-              }}
-              style={{ display: "flex", alignItems: "center", height: "100%", padding: "0 10px", cursor: "pointer", background: open ? V.pri : "transparent", color: open ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink, font: kind === "sweep" ? "700 11px/1 " + t.dfont : kind === "metro" ? "300 13px/1 " + t.dfont : "500 11px/1 " + t.font, letterSpacing: kind === "sweep" ? ".12em" : kind === "metro" ? "0" : ".04em", borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, textTransform: kind === "sweep" ? "uppercase" : kind === "metro" ? "lowercase" : "none" }}
-            >
-              {mm.label}
-            </div>
-            {open ? (
-              <div style={{ position: "absolute", left: 0, top: "28px", minWidth: "216px", background: V.surf, border: "1px solid " + V.pri, boxShadow: "0 14px 34px rgba(0,0,0,.55)", padding: "3px 0", zIndex: 90, borderRadius: V.rp, overflow: "hidden" }}>
-                {items.map((it, i) => (
-                  <div
-                    key={i}
-                    onClick={(e) => {
+    <nav
+      aria-label="Application Menu"
+      style={{ flex: "none", display: "flex", alignItems: "stretch", height: "28px", padding: "0 8px", background: kind === "metro" ? V.bg : V.surf, borderBottom: kind === "sweep" ? "2px solid " + V.pri : kind === "metro" ? "none" : "1px solid " + V.outv, position: "relative", zIndex: 80 }}
+      onClick={() => state.menu && actions.setMenu(null)}
+    >
+      <div role="menubar" style={{ display: "flex", alignItems: "stretch", height: "100%" }}>
+        {FMENU.map((mm, menuIdx) => {
+          const open = state.menu === mm.label;
+          const win = mm.items === "WINDOWS";
+          const items = win ? FLOATERS.map((f) => [f.title, state.flOpen[f.id] && !state.flMin[f.id] ? "✓" : ""]) : mm.items;
+
+          const handleTopKeyDown = (e) => {
+            if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+              e.preventDefault();
+              if (!open) actions.setMenu(mm.label);
+              setTimeout(() => {
+                dropdownRefs.current[`${menuIdx}-0`]?.focus();
+              }, 0);
+            } else if (e.key === "ArrowRight") {
+              e.preventDefault();
+              const nextIdx = (menuIdx + 1) % FMENU.length;
+              if (open) actions.setMenu(FMENU[nextIdx].label);
+              topMenuRefs.current[nextIdx]?.focus();
+            } else if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              const prevIdx = (menuIdx - 1 + FMENU.length) % FMENU.length;
+              if (open) actions.setMenu(FMENU[prevIdx].label);
+              topMenuRefs.current[prevIdx]?.focus();
+            } else if (e.key === "Escape") {
+              if (open) {
+                e.preventDefault();
+                actions.setMenu(null);
+              }
+            }
+          };
+
+          return (
+            <div key={mm.label} style={{ position: "relative" }}>
+              <div
+                ref={(el) => (topMenuRefs.current[menuIdx] = el)}
+                role="menuitem"
+                tabIndex={0}
+                aria-haspopup="true"
+                aria-expanded={open}
+                aria-label={mm.label}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.setMenu(state.menu === mm.label ? null : mm.label);
+                }}
+                onKeyDown={handleTopKeyDown}
+                style={{ display: "flex", alignItems: "center", height: "100%", padding: "0 10px", cursor: "pointer", background: open ? V.pri : "transparent", color: open ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink, font: kind === "sweep" ? "700 11px/1 " + t.dfont : kind === "metro" ? "300 13px/1 " + t.dfont : "500 11px/1 " + t.font, letterSpacing: kind === "sweep" ? ".12em" : kind === "metro" ? "0" : ".04em", borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, textTransform: kind === "sweep" ? "uppercase" : kind === "metro" ? "lowercase" : "none" }}
+              >
+                {mm.label}
+              </div>
+              {open ? (
+                <div role="menu" aria-label={mm.label} style={{ position: "absolute", left: 0, top: "28px", minWidth: "216px", background: V.surf, border: "1px solid " + V.pri, boxShadow: "0 14px 34px rgba(0,0,0,.55)", padding: "3px 0", zIndex: 90, borderRadius: V.rp, overflow: "hidden" }}>
+                  {items.map((it, i) => {
+                    const handleDropdownItemClick = (e) => {
                       e.stopPropagation();
                       if (win) {
                         const f = FLOATERS.find((x) => x.title === it[0]);
@@ -82,27 +134,73 @@ export default function MenuBar() {
                       } else {
                         void handleMenuClick(mm.label, it[0]);
                       }
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", minHeight: "26px", padding: "0 12px", cursor: "pointer", font: "400 11.5px/1 " + t.font, color: V.ink }}
-                  >
-                    <span style={{ flex: 1, font: "inherit" }}>{it[0]}</span>
-                    <span style={{ flex: "none", font: "400 10px/1 " + t.font, color: V.ink2, letterSpacing: ".06em" }}>{it[1]}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+                    };
+
+                    const handleDropdownKeyDown = (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleDropdownItemClick(e);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        actions.setMenu(null);
+                        topMenuRefs.current[menuIdx]?.focus();
+                      } else if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        const nextItemIdx = (i + 1) % items.length;
+                        dropdownRefs.current[`${menuIdx}-${nextItemIdx}`]?.focus();
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        const prevItemIdx = (i - 1 + items.length) % items.length;
+                        dropdownRefs.current[`${menuIdx}-${prevItemIdx}`]?.focus();
+                      } else if (e.key === "ArrowRight") {
+                        e.preventDefault();
+                        const nextMenuIdx = (menuIdx + 1) % FMENU.length;
+                        actions.setMenu(FMENU[nextMenuIdx].label);
+                        setTimeout(() => {
+                          dropdownRefs.current[`${nextMenuIdx}-0`]?.focus();
+                        }, 0);
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        const prevMenuIdx = (menuIdx - 1 + FMENU.length) % FMENU.length;
+                        actions.setMenu(FMENU[prevMenuIdx].label);
+                        setTimeout(() => {
+                          dropdownRefs.current[`${prevMenuIdx}-0`]?.focus();
+                        }, 0);
+                      }
+                    };
+
+                    return (
+                      <div
+                        key={i}
+                        ref={(el) => (dropdownRefs.current[`${menuIdx}-${i}`] = el)}
+                        role="menuitem"
+                        tabIndex={0}
+                        aria-label={it[0]}
+                        onClick={handleDropdownItemClick}
+                        onKeyDown={handleDropdownKeyDown}
+                        style={{ display: "flex", alignItems: "center", gap: "10px", minHeight: "26px", padding: "0 12px", cursor: "pointer", font: "400 11.5px/1 " + t.font, color: V.ink }}
+                      >
+                        <span style={{ flex: 1, font: "inherit" }}>{it[0]}</span>
+                        <span style={{ flex: "none", font: "400 10px/1 " + t.font, color: V.ink2, letterSpacing: ".06em" }}>{it[1]}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
       {/* Second Life Viewer Status Indicators & Mobile Mode Switcher */}
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px", font: "500 10.5px/1 " + t.font, color: V.ink2, letterSpacing: ".06em" }}>
         <MenuStatus V={V} />
 
         <ViewModeSwitcher />
       </div>
-    </div>
+    </nav>
   );
 }
+
 
 // Live status: region, measured latency and Second Life Time. Anything the
 // session cannot supply is left out. Latency only appears once the simulator

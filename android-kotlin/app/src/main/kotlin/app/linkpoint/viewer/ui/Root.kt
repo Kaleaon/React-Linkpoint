@@ -60,18 +60,21 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(region?.name ?: if (state == ConnectionState.CONNECTED) "—" else "Connecting…", style = MaterialTheme.typography.titleMedium)
-                        Text(session.selfName ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                actions = {
-                    Text(balance?.let { "L$ $it" } ?: "L$ —", Modifier.padding(end = 4.dp), style = MaterialTheme.typography.labelLarge)
-                    IconButton(onClick = host::logout) { Icon(Icons.Filled.Logout, contentDescription = "Log out") }
-                },
-            )
+            Column {
+                ErrorRecoveryBanner(host)
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(region?.name ?: if (state == ConnectionState.CONNECTED) "—" else "Connecting…", style = MaterialTheme.typography.titleMedium)
+                            Text(session.selfName ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    actions = {
+                        Text(balance?.let { "L$ $it" } ?: "L$ —", Modifier.padding(end = 4.dp), style = MaterialTheme.typography.labelLarge)
+                        IconButton(onClick = host::logout) { Icon(Icons.Filled.Logout, contentDescription = "Log out") }
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
@@ -92,6 +95,7 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
                 Tab.MORE -> MoreScreen(host)
             }
             }
+            ErrorRecoveryModal(host, onNavigateFallback = { tab = it })
         }
     }
 }

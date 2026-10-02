@@ -53,15 +53,15 @@ describe('diagnostics display rules', () => {
   });
 
   it('describes a ping probe honestly', () => {
-    expect(describePing(null)).toMatch(/no latency/i);
-    expect(describePing({ latencyMs: null })).toMatch(/no latency/i);
-    expect(describePing({ latencyMs: 61.6 })).toBe('Ping complete: 62 ms latency');
+    expect(describePing(null)).toMatch(/no measurement/i);
+    expect(describePing({ latencyMs: null })).toMatch(/no measurement/i);
+    expect(describePing({ latencyMs: 61.6 })).toBe('Response check complete: 62 ms response time');
   });
 
   it('reports the event queue from its real state', () => {
-    expect(eventQueueState(false, true)).toMatchObject({ text: 'NOT CONNECTED' });
-    expect(eventQueueState(true, true)).toMatchObject({ text: 'RUNNING', tone: 'ok' });
-    expect(eventQueueState(true, false)).toMatchObject({ text: 'STOPPED', tone: 'err' });
+    expect(eventQueueState(false, true)).toMatchObject({ text: 'Not connected' });
+    expect(eventQueueState(true, true)).toMatchObject({ text: 'Active', tone: 'ok' });
+    expect(eventQueueState(true, false)).toMatchObject({ text: 'Inactive', tone: 'err' });
   });
 
   it('formats dual-mode summaries and technical details', () => {
@@ -107,7 +107,7 @@ describe('diagnostics display rules', () => {
     expect(tech.circuitCode).toBe('9999');
     expect(tech.seedCapability).toBe('https://sim.example.com/cap/123');
     expect(tech.agentUuid).toBe('00000000-0000-0000-0000-000000000001');
-    expect(tech.eventQueueState).toBe('RUNNING');
+    expect(tech.eventQueueState).toBe('Active');
   });
 });
 
@@ -130,4 +130,36 @@ describe('no fabricated telemetry remains in the source', () => {
       for (const file of sources) expect(read(file), file).not.toMatch(pattern);
     });
   }
+});
+
+describe('plain language UI refactoring', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
+
+  it('contains no internal class names in DiagnosticsPanel copy', () => {
+    const diagCopy = read('screens/DiagnosticsPanel.jsx');
+    expect(diagCopy).not.toContain('SLConnectionFull');
+    expect(diagCopy).toContain('NETWORK HEALTH DIAGNOSTICS');
+  });
+
+  it('uses formatted KPI title properties in DiagnosticsPanel', () => {
+    const diagCopy = read('screens/DiagnosticsPanel.jsx');
+    expect(diagCopy).toContain('connStatus.title');
+    expect(diagCopy).toContain('latency.title');
+    expect(diagCopy).toContain('loss.title');
+    expect(diagCopy).toContain('lastUpdate.title');
+  });
+
+  it('contains dual-mode telemetry drawer and summary labels in DiagnosticsPanel', () => {
+    const diagCopy = read('screens/DiagnosticsPanel.jsx');
+    expect(diagCopy).toContain('Information Received');
+    expect(diagCopy).toContain('Information Sent');
+    expect(diagCopy).toContain('Show Advanced Technical Details');
+    expect(diagCopy).toContain('ADVANCED TECHNICAL PROTOCOL DETAILS');
+  });
+
+  it('uses Account ID instead of Agent ID in Settings', () => {
+    const settingsCopy = read('screens/Settings.jsx');
+    expect(settingsCopy).toContain('<dt>Account ID</dt>');
+    expect(settingsCopy).not.toContain('<dt>Agent ID</dt>');
+  });
 });
