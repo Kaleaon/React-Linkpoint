@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { AppProvider } from "./context/AppContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
 import DeviceFrame from "./components/DeviceFrame.jsx";
+import LiveRegionAnnouncerComponent from "./components/LiveRegionAnnouncerComponent.jsx";
 import { app } from "./linkpoint/app";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
@@ -13,7 +14,12 @@ function Viewer() {
     void startup;
   }, []);
 
-  return <DeviceFrame />;
+  return (
+    <>
+      <LiveRegionAnnouncerComponent />
+      <DeviceFrame />
+    </>
+  );
 }
 
 export default function App() {
@@ -27,3 +33,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
