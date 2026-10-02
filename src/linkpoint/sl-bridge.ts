@@ -141,6 +141,15 @@ export class SLBridge extends Utils.EventEmitter {
     return this.call<{ moving: boolean }>('setMovement', params);
   }
   getBalance() { return this.call<{ balance: number }>('getBalance'); }
+  payObject(params: { targetId?: string; id?: string; objectId?: string; amount: number; description?: string; targetName?: string }) {
+    return this.call<{ paid: boolean; targetId: string; amount: number; description: string; transaction?: any }>('payObject', params);
+  }
+  payAvatar(params: { targetId?: string; id?: string; avatarId?: string; amount: number; description?: string; targetName?: string }) {
+    return this.call<{ paid: boolean; targetId: string; amount: number; description: string; transaction?: any }>('payAvatar', params);
+  }
+  getTransactionHistory() {
+    return this.call<{ balance: number; transactions: any[] }>('getTransactionHistory');
+  }
 
   async sendChat(message: string, channel = 0, type = 1) { await this.call('sendChat', { message, channel, type }); }
   async sendInstantMessage(recipientId: string, message: string) { await this.call('sendInstantMessage', { recipientId, message }); }

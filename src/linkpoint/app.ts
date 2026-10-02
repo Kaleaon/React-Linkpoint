@@ -17,6 +17,7 @@ import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
+import { economyManager, EconomyManager } from './economy-manager';
 
 // Phase 2 Modules
 import { EventQueueManager } from './phase2/event-queue';
@@ -45,6 +46,7 @@ export class LinkpointApp {
   public notices: NoticeStore;
   public audio: AudioManager;
   public voice: VoiceManager;
+  public economy: EconomyManager;
 
   // Phase 2 Managers
   public eventQueue: EventQueueManager;
@@ -71,6 +73,7 @@ export class LinkpointApp {
     this.notices = new NoticeStore(this.protocol);
     this.audio = new AudioManager(this.protocol);
     this.voice = new VoiceManager();
+    this.economy = economyManager;
 
     // Initialize Phase 2 Managers
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
@@ -164,6 +167,7 @@ export class LinkpointApp {
 
     this.auth.on('login_success', async (user: any) => {
       console.log('User logged in:', user);
+      await this.economy.init(user?.agent_id);
       await this.inventory.load();
       await this.loadFriends();
       await this.loadGroups();

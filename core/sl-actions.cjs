@@ -240,8 +240,53 @@ function describeLoginError(error) {
   };
 }
 
+async function payObject(bot, params = {}, lib) {
+  const { UUID } = loadLibrary(lib);
+  const targetId = params.targetId || params.id || params.objectId;
+  if (!targetId) throw new Error('A target object is required');
+  const amount = Math.floor(finite(params.amount, 'amount'));
+  if (amount <= 0) throw new Error('Payment amount must be greater than 0');
+  const description = String(params.description || params.targetName || 'Object payment');
+
+  const grid = commands(bot).grid;
+  if (typeof grid.payObject === 'function') {
+    const targetUUID = new UUID(requireUuid(targetId, 'target object id'));
+    const object = bot.currentRegion?.objects?.getObjectByUUID?.(targetUUID);
+    if (object) {
+      await grid.payObject(object, amount);
+    } else {
+      await grid.pay(targetUUID, amount, description, 5001);
+    }
+  } else {
+    throw new Error('Payment not supported by this connection');
+  }
+  return { paid: true, targetId: String(targetId), amount, description };
+}
+
+async function payAvatar(bot, params = {}, lib) {
+  const { UUID } = loadLibrary(lib);
+  const targetId = requireUuid(params.targetId || params.id || params.avatarId, 'target avatar id');
+  const amount = Math.floor(finite(params.amount, 'amount'));
+  if (amount <= 0) throw new Error('Payment amount must be greater than 0');
+  const description = String(params.description || params.targetName || 'Resident gift/tip');
+
+  const grid = commands(bot).grid;
+  if (typeof grid.payAvatar === 'function') {
+    await grid.payAvatar(new UUID(targetId), amount, description);
+  } else {
+    throw new Error('Payment not supported by this connection');
+  }
+  return { paid: true, targetId, amount, description };
+}
+
+async function getTransactionHistory(bot, params) {
+  const balance = await getBalance(bot);
+  return { balance: balance.balance, transactions: [] };
+}
+
 module.exports = {
   parseLoginName, normalizeStart, buildLoginParams, describeLoginError, loginFailure, LOGIN_FAILURE_PREFIX, LOGIN_REASONS,
   ATTACHMENT_NAMES, isHudPoint, attachmentIdFromState, attachmentInfo,
   parseDestination, teleport, touchObject, sit, stand, getBalance, requireUuid,
+  payObject, payAvatar, getTransactionHistory,
 };
