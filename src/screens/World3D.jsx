@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
 import ViewportCanvas from "../components/ViewportCanvas";
 import HudControls from "./HudControls.jsx";
 import TouchTarget from "../components/TouchTarget.tsx";
 import MobileOverlayControls from "../components/MobileOverlayControls.tsx";
+import AccessibleChatLog from "../components/AccessibleChatLog.jsx";
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
@@ -16,6 +17,21 @@ export default function World3D({ desktopBackdrop = false }) {
   const [cameraPreset, setCameraPreset] = useState("rear");
   const [selection, setSelection] = useState(app.world.selectedObject);
   const [interactionMode, setInteractionModeState] = useState(() => app.world.getInteractionMode());
+  const [chatMessages, setChatMessages] = useState(() => app.chat.messages);
+
+  useEffect(() => {
+    const updateChat = () => setChatMessages([...app.chat.messages]);
+    app.chat.on("message_received", updateChat);
+    app.chat.on("message_sent", updateChat);
+    return () => {
+      app.chat.off("message_received", updateChat);
+      app.chat.off("message_sent", updateChat);
+    };
+  }, []);
+
+  const spatialMessages = useMemo(() => {
+    return chatMessages.filter((m) => m.type !== "im" && m.type !== "group").slice(-10);
+  }, [chatMessages]);
 
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
@@ -167,6 +183,29 @@ export default function World3D({ desktopBackdrop = false }) {
         onMove={move}
         onRefreshScene={handleRefreshScene}
       />
+    )}
+    {!desktopBackdrop && (
+      <div
+        style={{
+          position: "absolute",
+          left: 14,
+          bottom: 160,
+          width: 320,
+          maxWidth: "calc(100% - 28px)",
+          maxHeight: 180,
+          zIndex: 25,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <AccessibleChatLog
+          messages={spatialMessages}
+          variant="overlay"
+          ariaLabel="Spatial chat overlay log"
+          emptyStateMessage="No recent spatial chat."
+          maxHeight={160}
+        />
+      </div>
     )}
     <HudControls />
   </section>;
