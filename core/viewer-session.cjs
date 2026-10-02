@@ -21,6 +21,7 @@ const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = requi
 const actions = require('./sl-actions.cjs');
 const interactions = require('./sl-interactions.cjs');
 const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
+const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
   finite, vector, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend,
@@ -45,6 +46,8 @@ class ViewerSession {
     this.assetFailures = new Map();
     this.decodedAssets = new Map();
     this.friendPresence = new Map();
+    this.soundRequests = new Set();
+    this.objectSounds = new Map();
     this.pending = new interactions.PendingInteractions();
     /** Filled in by connect(): who is logged in and where. */
     this.identity = { agentId: '', firstName: '', lastName: '', simName: '', inventoryRootId: '' };
@@ -122,6 +125,18 @@ class ViewerSession {
     });
   }
 
+  loadSound(assetId) {
+    if (!assetId || this.soundRequests.has(assetId)) return;
+    this.soundRequests.add(assetId);
+    downloadSound(this.bot, assetId, (buffer) => {
+      // Second Life sound assets are Ogg Vorbis. Browsers decode these directly through Web Audio.
+      this.send('sound-asset', { assetId, contentType: 'audio/ogg', data: buffer.toString('base64') });
+    }, (error) => {
+      this.soundRequests.delete(assetId);
+      this.send('asset-error', { assetId, message: error.message });
+    });
+  }
+
   loadObjectAsset(object) {
     const appearance = primAppearance(object);
     if (!appearance.assetId) return;
@@ -162,6 +177,17 @@ class ViewerSession {
     this.loadObjectAsset(event.object);
     this.loadObjectTexture(event.object);
     this.loadObjectMaterials(event.object);
+    const soundId = event.object?.Sound?.toString?.();
+    const objectId = event.object?.FullID?.toString?.() || String(event.localID);
+    const liveSound = soundId && soundId !== '00000000-0000-0000-0000-000000000000' ? soundId : '';
+    const signature = `${liveSound}:${Number(event.object?.SoundGain) || 0}:${Number(event.object?.SoundFlags) || 0}`;
+    if (this.objectSounds.get(objectId) !== signature) {
+      this.objectSounds.set(objectId, signature);
+      this.send('sound-event', liveSound ? { action: 'attached', soundId: liveSound, objectId,
+        position: vector(event.object?.Position), gain: Number(event.object?.SoundGain) || 0,
+        flags: Number(event.object?.SoundFlags) || 0 } : { action: 'stop', objectId });
+      if (liveSound) this.loadSound(liveSound);
+    }
   }
 
   subscribe(subject, type, serialize = (value) => value) {
@@ -296,6 +322,7 @@ class ViewerSession {
     const region = this.currentRegion();
     const animations = watchAnimations(() => this.currentRegion(), (type, data) => this.send(type, data));
     if (animations) this.subscriptions.push(animations);
+    this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
 
     let inventoryRootId = '';
     try { inventoryRootId = this.bot.clientCommands?.inventory?.getInventoryRoot()?.folderID?.toString() || ''; } catch { /* fetched on demand */ }
@@ -427,6 +454,34 @@ class ViewerSession {
 
   async fetchAnimation({ id }) {
     return { id, data: await downloadAnimation(this.requireBot(), id) };
+  }
+
+  async voiceProvision({ sdp, parcelLocalId } = {}) {
+    if (!sdp) throw new Error('A WebRTC offer is required');
+    const caps = this.currentRegion()?.caps;
+    const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
+    if (!url) throw new Error('Voice is not available in this region');
+    return caps.capsPerformXMLPost(url, { jsep: { type: 'offer', sdp }, channel_type: 'local',
+      voice_server_type: 'webrtc', ...(Number.isInteger(parcelLocalId) ? { parcel_local_id: parcelLocalId } : {}) });
+  }
+
+  async voiceSignal({ viewerSession, candidates, completed } = {}) {
+    if (!viewerSession) throw new Error('Voice session is required');
+    const caps = this.currentRegion()?.caps;
+    const url = await caps?.getCapability?.('VoiceSignalingRequest');
+    if (!url) throw new Error('Voice signaling is not available in this region');
+    const body = { viewer_session: viewerSession, voice_server_type: 'webrtc' };
+    if (Array.isArray(candidates) && candidates.length) body.candidates = candidates;
+    if (completed) body.candidate = { completed: true };
+    return caps.capsPerformXMLPost(url, body);
+  }
+
+  async voiceLogout({ viewerSession } = {}) {
+    if (!viewerSession) return { loggedOut: true };
+    const caps = this.currentRegion()?.caps;
+    const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
+    if (url) await caps.capsPerformXMLPost(url, { logout: true, viewer_session: viewerSession, voice_server_type: 'webrtc' });
+    return { loggedOut: true };
   }
 
   // ---- friends, groups, inventory -----------------------------------------------------------------

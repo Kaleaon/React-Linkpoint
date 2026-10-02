@@ -15,6 +15,8 @@ import { ContactsStore } from './contacts';
 import { NoticeStore } from './notices';
 import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
+import { AudioManager } from './audio';
+import { VoiceManager } from './voice';
 
 // Phase 2 Modules
 import { EventQueueManager } from './phase2/event-queue';
@@ -41,6 +43,8 @@ export class LinkpointApp {
   public interactions: InteractionsManager;
   public contacts: ContactsStore;
   public notices: NoticeStore;
+  public audio: AudioManager;
+  public voice: VoiceManager;
 
   // Phase 2 Managers
   public eventQueue: EventQueueManager;
@@ -65,6 +69,8 @@ export class LinkpointApp {
     this.interactions = new InteractionsManager(this.protocol);
     this.contacts = new ContactsStore();
     this.notices = new NoticeStore(this.protocol);
+    this.audio = new AudioManager(this.protocol);
+    this.voice = new VoiceManager();
 
     // Initialize Phase 2 Managers
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
@@ -99,6 +105,7 @@ export class LinkpointApp {
     this.chat.init();
     await this.inventory.init();
     this.notifications.init();
+    this.audio.init();
 
     this.setupEventListeners();
 
@@ -171,6 +178,7 @@ export class LinkpointApp {
     });
 
     this.auth.on('logout', () => {
+      void this.voice.disconnect();
       console.log('User logged out');
       this.eventQueue.stopPolling();
       this.chat.clearHistory();
