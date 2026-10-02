@@ -122,11 +122,18 @@ and flags, so both clients share them. The runtime (`filament-android`) must be 
 Cleartext HTTP is allowed (`usesCleartextTraffic`) because OpenSim grids commonly log in over plain
 HTTP; Second Life's own grids use HTTPS.
 
-## Testing against a real OpenSim
+## Testing against a real OpenSim (automated)
 
-`tools/opensim/setup.sh` documents how to run OpenSim 0.9.3.0 (standalone, .NET 8, `libgdiplus`) locally. The script was
-assembled from steps done by hand and has **not** itself been run end to end from a clean directory.
-`OpenSimLiveTest` (skipped unless `OPENSIM_LOGIN_URL` is set) then drives the core client against it.
+    python3 tools/opensim/live.py          # generated OAR: login, terrain, prims, mesh, sculpt, textures, particles
+    python3 tools/opensim/live.py --big    # also downloads (cached, 770 MB) and loads a real-world OAR and runs the big-content test
+    python3 tools/opensim/live.py --oar X  # load your own OAR (.oar/.tgz) and run the big-content test on it
+    python3 tools/opensim/live.py --keep   # leave OpenSim running on login port 9002 afterwards
+
+The script downloads OpenSim 0.9.3.0, configures a standalone grid, answers the first-run prompts, creates the account
+"Linky Tester" / "testpass1", builds a test OAR (`./gradlew :mockgrid:runOar`), loads it, runs `OpenSimLiveTest` through Gradle and
+stops OpenSim; the exit code is the test result. It needs python3, a JDK, the .NET 8 runtime and libgdiplus
+(`apt-get install -y dotnet-sdk-8.0 libgdiplus`). The plain run was verified from a clean working directory (PASS).
+`OpenSimLiveTest` is skipped by an ordinary `./gradlew :core:test` unless `OPENSIM_LOGIN_URL` is set.
 
 Verified against a real OpenSim 0.9.3.0 in this session: XML-RPC login, UDP circuit + region handshake, real LayerData terrain
 decode, capability seed (EventQueueGet, GetTexture, GetMesh/GetMesh2, ViewerAsset, FetchInventoryDescendents2, ExtEnvironment…),
