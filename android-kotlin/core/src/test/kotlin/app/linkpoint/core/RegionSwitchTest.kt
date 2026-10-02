@@ -347,6 +347,12 @@ class RegionSwitchTest {
             away.inject(Outgoing(Msg.TeleportFailed, WireWriter().uuid(away.agent).str1("Problems connecting to destination").u8(0).toByteArray(), true))
             delay(400)
             assertTrue("a stale failure must not be shown as an error: $notices", notices.none { it is ViewerNotice.Error })
+            // Once the new attempt has started, a failure IS the retry failing and must be reported.
+            away.inject(Outgoing(Msg.TeleportStart, WireWriter().u32(0).toByteArray(), true))
+            away.inject(Outgoing(Msg.TeleportFailed, WireWriter().uuid(away.agent).str1("Region is full").u8(0).toByteArray(), true))
+            val genuine = eventually { notices.filterIsInstance<ViewerNotice.Error>().firstOrNull() }
+            assertTrue(genuine.text, genuine.text.contains("Region is full"))
+            notices.clear()
 
             caps.queue("away").add(simEvent("TeleportFinish", "Info", home, caps.seed("home")))
             eventually { s.region.value?.takeIf { it.name == "Home" } }

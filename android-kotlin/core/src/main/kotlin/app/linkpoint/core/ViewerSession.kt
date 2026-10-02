@@ -29,8 +29,8 @@ import kotlinx.coroutines.sync.withLock
  */
 private const val ARRIVAL_GRACE_MS = 2_500L
 
-/** A TeleportFailed this soon after we re-sent a teleport request belongs to the attempt that request replaced. */
-private const val STALE_FAILURE_WINDOW_MS = 5_000L
+/** How long after a re-request a TeleportFailed (before the next TeleportStart) is taken to belong to the replaced attempt. */
+private const val STALE_FAILURE_WINDOW_MS = 45_000L
 
 /** How long to wait for a teleport destination to accept us when the teleport can still be re-requested. */
 private const val TELEPORT_ARRIVAL_TIMEOUT_MS = 12_000L
@@ -153,6 +153,8 @@ class ViewerSession(
     @Volatile private var lastTeleportRequest: Outgoing? = null
     @Volatile private var teleportRetriesLeft = 0
     @Volatile private var retriedAt = -STALE_FAILURE_WINDOW_MS
+    /** After a re-request: true until OpenSim announces the new attempt (TeleportStart); a failure before that is the old one. */
+    @Volatile private var awaitingRetryStart = false
     private fun sendTeleportRequest(msg: Outgoing) {
         lastTeleportRequest = msg; teleportRetriesLeft = 1
         teleportAskedAt = clock()
@@ -295,7 +297,7 @@ class ViewerSession(
                         _notices.tryEmit(ViewerNotice.Teleport("The teleport did not complete; trying again…"))
                         delay(1_000)
                         teleportAskedAt = clock()
-                        retriedAt = clock()
+                        retriedAt = clock(); awaitingRetryStart = true
                         circuit?.send(retry)
                     } else {
                         lastTeleportRequest = null
@@ -373,11 +375,12 @@ class ViewerSession(
             }
             is Incoming.CoarseLocations -> { coarse = m; applyCoarse(m) }
             is Incoming.MoneyBalance -> if (m.success) _balance.value = m.balance
-            is Incoming.TeleportStart -> _notices.tryEmit(ViewerNotice.Teleport("Teleport started"))
+            is Incoming.TeleportStart -> { awaitingRetryStart = false; _notices.tryEmit(ViewerNotice.Teleport("Teleport started")) }
             is Incoming.TeleportProgress -> _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
-            is Incoming.TeleportFailed -> if (clock() - retriedAt < STALE_FAILURE_WINDOW_MS) {
-                // OpenSim reports the abandoned first attempt as failed just as it starts the one we re-requested.
-                retriedAt = 0
+            is Incoming.TeleportFailed -> if (awaitingRetryStart && clock() - retriedAt < STALE_FAILURE_WINDOW_MS) {
+                // OpenSim reports the abandoned first attempt as failed before it starts the one we re-requested
+                // (it handles the new request only once the old transfer has timed out).
+                awaitingRetryStart = false
                 _notices.tryEmit(ViewerNotice.Teleport("Continuing with the new teleport request"))
             } else { teleportAskedAt = 0; lastTeleportRequest = null; _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}")) }
             is Incoming.TeleportLocal -> {

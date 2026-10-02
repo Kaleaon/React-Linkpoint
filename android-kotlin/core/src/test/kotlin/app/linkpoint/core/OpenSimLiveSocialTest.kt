@@ -93,7 +93,6 @@ class OpenSimLiveSocialTest {
         a.s.offerTeleport(b.s.selfId!!, "come to the home region")
         val lure = eventually(what = "lure arriving at B") { b.s.offers.value.filterIsInstance<PendingOffer.Lure>().firstOrNull() }
         assertEquals(a.name, lure.fromName)
-        delay(System.getenv("OPENSIM_RETURN_PAUSE_MS")?.toLongOrNull() ?: 10_000L) // see OpenSimLiveSessionTest.RETURN_PAUSE_MS
         b.s.acceptOffer(lure)
         eventually(60_000, "B teleported to A in $home") { b.s.region.value?.takeIf { it.name == home } }
         eventually(what = "A sees B again") { a.s.nearby.value.firstOrNull { it.id == b.s.selfId } }
