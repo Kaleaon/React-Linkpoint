@@ -9,6 +9,7 @@ const TABS = [
   { id: "PEOPLE", category: "people", label: "People", icon: "users" },
   { id: "GROUPS", category: "groups", label: "Groups", icon: "users-round" },
   { id: "PLACES", category: "places", label: "Places", icon: "map-pin" },
+  { id: "SEARCH", category: "people", label: "SEARCH", icon: "search" },
 ];
 
 function normalizeTab(rawTab) {
@@ -16,6 +17,7 @@ function normalizeTab(rawTab) {
   const u = String(rawTab).toUpperCase();
   if (u === "GROUPS") return "GROUPS";
   if (u === "PLACES") return "PLACES";
+  if (u === "SEARCH") return "SEARCH";
   return "PEOPLE";
 }
 
@@ -247,7 +249,7 @@ export default function Search() {
               }}
             >
               <Icon name={tb.icon} size={14} />
-              {tb.label.toUpperCase()}
+              <div style={{ display: "inline" }}>{tb.label.toUpperCase()}</div>
             </button>
           );
         })}
@@ -258,20 +260,14 @@ export default function Search() {
         <Icon name="search" size={16} style={{ color: V.ink2 }} />
         <input
           className="search-input"
-          aria-label={
-            activeTabId === "PEOPLE"
-              ? "Search residents by name"
-              : activeTabId === "GROUPS"
-              ? "Search groups by keyword"
-              : "Search places or destinations"
-          }
+          aria-label={activeTabId === "SEARCH" ? "Search resident by name" : "Filter search results by name"}
           value={state.searchQuery || ""}
           onChange={(e) => {
             actions.setSearchQuery(e.target.value);
             setPage(0);
           }}
           placeholder={
-            activeTabId === "PEOPLE"
+            activeTabId === "PEOPLE" || activeTabId === "SEARCH"
               ? "Search residents grid-wide (min 2 chars)"
               : activeTabId === "GROUPS"
               ? "Search groups by keyword"
@@ -304,8 +300,8 @@ export default function Search() {
 
       {/* Results Content */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-        {/* PEOPLE TAB */}
-        {activeTabId === "PEOPLE" ? (
+        {/* PEOPLE / SEARCH TAB */}
+        {activeTabId === "PEOPLE" || activeTabId === "SEARCH" ? (
           <>
             {/* Local Contacts Section (Friends & Nearby) */}
             {(matchedFriends.length > 0 || matchedNearby.length > 0) && (

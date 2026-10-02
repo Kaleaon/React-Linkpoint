@@ -83,12 +83,11 @@ ARM device) and run it directly. The `.zip` is also installation-free after it
 is extracted. Linux users can run the `.AppImage` directly after making it
 executable; macOS users can extract the `.zip` and open the app bundle.
 
-### Design canvas (development only)
+### Design system & common reference frame
 
-The layout / colour-pack / device / screen pickers around a device bezel are a
-development aid for reviewing the design, not part of the app. A deployed build
-always renders the application itself, sized to the real viewport. To open the
-canvas, run the dev server and add `?design`:
+This application implements the universal **[Linkpoint Design](https://github.com/Kaleaon/linkpoint-design)** reference frame (`docs/DESIGN_LANGUAGE.md`). Design tokens, 24 Ktheme palette packs, layout packs (Tabs, Rail, Sweep Console/LCARS, Metro Tiles, Aero Glass, Floaters Desktop), and component definitions are synchronized from `linkpoint-design` via `npm run sync-design`.
+
+To review the interactive design canvas during local development, run the dev server and add `?design`:
 
 ```bash
 npm run dev

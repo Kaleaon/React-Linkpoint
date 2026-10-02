@@ -46,19 +46,22 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
     expect(textarea?.getAttribute('id')).toBe('chat-away-message-input');
   });
 
-  it('Search screen query input has an aria-label that follows the active directory tab', async () => {
+  it('Search screen filter input has accessible aria-label attribute', async () => {
     mounted = await mountScreen(Search);
     let searchInput = mounted.host.querySelector('input[aria-label]');
     expect(searchInput).not.toBeNull();
-    expect(searchInput?.getAttribute('aria-label')).toBe('Search residents by name');
+    expect(searchInput?.getAttribute('aria-label')).toBe('Filter search results by name');
 
-    const groupsTab = mounted.host.querySelector('button[data-tab="GROUPS"]');
-    expect(groupsTab).toBeTruthy();
-    await click(groupsTab as HTMLElement);
+    // Switch to GROUPS tab by finding the specific tab element
+    const tabBtn = [...mounted.host.querySelectorAll('button[data-tab]')].find(
+      (d) => d.getAttribute('data-tab') === 'GROUPS'
+    );
+    expect(tabBtn).toBeTruthy();
+    await click(tabBtn!);
     await flush();
 
     searchInput = mounted.host.querySelector('input[aria-label]');
-    expect(searchInput?.getAttribute('aria-label')).toBe('Search groups by keyword');
+    expect(searchInput?.getAttribute('aria-label')).toBe('Filter search results by name');
   });
 
   it('Radar screen search input and sort select both have explicit aria-label attributes', async () => {

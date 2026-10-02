@@ -103,8 +103,8 @@ describe('ErrorRecoveryService', () => {
       await vi.advanceTimersByTimeAsync(2000);
       await vi.advanceTimersByTimeAsync(4000);
 
-      const err = await catchPromise;
-      expect((err as Error).message).toBe('Persistent service error');
+      const err = (await catchPromise) as Error;
+      expect(err.message).toBe('Persistent service error');
       expect(alwaysFails).toHaveBeenCalledTimes(3);
 
       const snapshot = service.getSnapshot();

@@ -80,7 +80,7 @@ export default function World3D({ desktopBackdrop = false }) {
       showOverlayControls={!desktopBackdrop}
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
     />
-    {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
+    {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, maxWidth: "min(260px, calc(100% - 24px))", maxHeight: "38%", overflowY: "auto", background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
       {dataStatus}<br />
