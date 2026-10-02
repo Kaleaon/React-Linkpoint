@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { app } from "../linkpoint/app.ts";
 import { GRIDS } from "../theme/constants.js";
 import Icon from "../components/Icon.jsx";
 import AssetContainer from "../components/AssetContainer.jsx";
+import PayDialog from "../components/PayDialog.jsx";
 
 function Empty({ icon, children }) {
   return <div className="honest-empty"><Icon name={icon} size={30} /><p>{children}</p></div>;
@@ -23,7 +24,7 @@ export function GridsScreen() {
 export function MediaScreen() {
   const [url, setUrl] = useState("");
   const [active, setActive] = useState("");
-  return <div className="tool-page"><h2>Streaming media</h2><div className="inline-tool"><input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="HTTPS audio stream URL" /><button onClick={() => setActive(url.trim())} disabled={!/^https:\/\//i.test(url.trim())}>Play</button></div>{active ? <audio className="media-player" src={active} controls autoPlay onError={() => setActive("")} /> : <Empty icon="radio">Enter an HTTPS stream supplied by the current parcel or broadcaster.</Empty>}</div>;
+  return <div className="tool-page"><h2>Streaming media</h2><div className="inline-tool"><input type="url" aria-label="HTTPS audio stream URL" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="HTTPS audio stream URL" /><button onClick={() => setActive(url.trim())} disabled={!/^https:\/\//i.test(url.trim())}>Play</button></div>{active ? <audio className="media-player" src={active} controls autoPlay onError={() => setActive("")} /> : <Empty icon="radio">Enter an HTTPS stream supplied by the current parcel or broadcaster.</Empty>}</div>;
 }
 
 export function NotecardsScreen() {
@@ -55,8 +56,153 @@ export function ParcelScreen() {
 }
 
 export function TransactionsScreen() {
-  const transactions = app.auth.user?.transactions || [];
-  return transactions.length ? <div className="tool-page">{transactions.map((entry) => <section className="runtime-card" key={entry.id}><strong>{entry.description || entry.id}</strong><small>{entry.amount}</small></section>)}</div> : <Empty icon="banknote">No transaction history has been returned by the grid.</Empty>;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [payModalOpen, setPayModalOpen] = useState(false);
+  const [payTarget, setPayTarget] = useState({ id: "", name: "Resident", type: "avatar" });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    void app.economy.init();
+    void app.economy.fetchHistory();
+
+    const updateHandler = () => setRefreshTrigger((prev) => prev + 1);
+    app.economy.on("transactions_updated", updateHandler);
+    app.economy.on("transaction_added", updateHandler);
+    app.economy.on("balance_updated", updateHandler);
+
+    return () => {
+      app.economy.off("transactions_updated", updateHandler);
+      app.economy.off("transaction_added", updateHandler);
+      app.economy.off("balance_updated", updateHandler);
+    };
+  }, []);
+
+  const transactions = useMemo(() => app.economy.getTransactions(searchQuery), [searchQuery, refreshTrigger]);
+  const stats = useMemo(() => app.economy.getStats(), [refreshTrigger]);
+
+  const openPayDialog = (targetId = "", targetName = "Resident", targetType = "avatar") => {
+    setPayTarget({ id: targetId, name: targetName, type: targetType });
+    setPayModalOpen(true);
+  };
+
+  return (
+    <div className="tool-page">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <h2 style={{ margin: 0 }}>Transaction Ledger (30-Day Cache)</h2>
+        <button
+          onClick={() => openPayDialog("", "Nearby Target", "avatar")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 14px",
+            backgroundColor: "#0284c7",
+            color: "#ffffff",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "600",
+            fontSize: "13px",
+            cursor: "pointer",
+          }}
+        >
+          <Icon name="banknote" size={16} />
+          <span>Pay / Tip</span>
+        </button>
+      </div>
+
+      {/* Summary Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginBottom: "16px" }}>
+        <section className="runtime-card" style={{ margin: 0, padding: "12px" }}>
+          <small style={{ color: "#94a3b8" }}>Current Balance</small>
+          <strong style={{ fontSize: "18px", color: "#38bdf8", display: "block", marginTop: "4px" }}>
+            L$ {stats.balance === null ? "—" : stats.balance.toLocaleString()}
+          </strong>
+        </section>
+        <section className="runtime-card" style={{ margin: 0, padding: "12px" }}>
+          <small style={{ color: "#94a3b8" }}>Spent (30 days)</small>
+          <strong style={{ fontSize: "18px", color: "#f43f5e", display: "block", marginTop: "4px" }}>
+            L$ {stats.totalSpent30Days.toLocaleString()}
+          </strong>
+        </section>
+        <section className="runtime-card" style={{ margin: 0, padding: "12px" }}>
+          <small style={{ color: "#94a3b8" }}>Received (30 days)</small>
+          <strong style={{ fontSize: "18px", color: "#34d399", display: "block", marginTop: "4px" }}>
+            L$ {stats.totalReceived30Days.toLocaleString()}
+          </strong>
+        </section>
+        <section className="runtime-card" style={{ margin: 0, padding: "12px" }}>
+          <small style={{ color: "#94a3b8" }}>Total Records</small>
+          <strong style={{ fontSize: "18px", color: "#e2e8f0", display: "block", marginTop: "4px" }}>
+            {stats.totalTransactions}
+          </strong>
+        </section>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ marginBottom: "16px" }}>
+        <input
+          type="text"
+          placeholder="Filter transactions by description, resident, object, or ID..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px 14px",
+            borderRadius: "6px",
+            border: "1px solid #334155",
+            backgroundColor: "#0f172a",
+            color: "#f8fafc",
+            fontSize: "14px",
+            boxSizing: "border-box",
+            outline: "none",
+          }}
+        />
+      </div>
+
+      {/* Transaction List */}
+      {transactions.length ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {transactions.map((entry) => {
+            const isNegative = entry.type === "payment" || entry.amount < 0;
+            return (
+              <section className="runtime-card" key={entry.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Icon name={entry.targetType === "object" ? "box" : "contact"} size={16} style={{ color: "#94a3b8" }} />
+                    <strong style={{ fontSize: "14px" }}>{entry.description || entry.id}</strong>
+                    {entry.status === "failed" && (
+                      <span style={{ fontSize: "11px", backgroundColor: "rgba(244, 63, 94, 0.2)", color: "#f43f5e", padding: "2px 6px", borderRadius: "4px" }}>Failed</span>
+                    )}
+                  </div>
+                  <small style={{ color: "#94a3b8", display: "block", marginTop: "4px", fontSize: "12px" }}>
+                    {entry.targetName ? `Target: ${entry.targetName} • ` : ""}{new Date(entry.timestamp).toLocaleString()}
+                  </small>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontWeight: "700", fontSize: "16px", color: isNegative ? "#f43f5e" : "#34d399" }}>
+                    {isNegative ? `- L$ ${Math.abs(entry.amount)}` : `+ L$ ${entry.amount}`}
+                  </span>
+                  <small style={{ display: "block", color: "#64748b", fontSize: "11px" }}>{entry.type}</small>
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <Empty icon="banknote">
+          {searchQuery ? "No transaction records match your search filter." : "No transactions stored in local 30-day ledger."}
+        </Empty>
+      )}
+
+      {/* Pay Dialog Modal */}
+      <PayDialog
+        isOpen={payModalOpen}
+        onClose={() => setPayModalOpen(false)}
+        target={payTarget}
+        onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+      />
+    </div>
+  );
 }
 
 export function TeleportScreen() {
@@ -68,7 +214,7 @@ export function TeleportScreen() {
       setStatus(result?.message ? `Grid: ${result.message}` : `Teleport to ${result.requested.region} requested.`);
     } catch (error) { setStatus(error instanceof Error ? error.message : "Teleport failed."); }
   };
-  return <div className="tool-page"><h2>Teleport</h2><div className="inline-tool"><input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="secondlife://Region/x/y/z" /><button onClick={() => void teleport()} disabled={!destination.trim()}>Go</button></div>{status ? <p className="tool-status">{status}</p> : null}</div>;
+  return <div className="tool-page"><h2>Teleport</h2><div className="inline-tool"><input aria-label="Teleport destination URI" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="secondlife://Region/x/y/z" /><button onClick={() => void teleport()} disabled={!destination.trim()}>Go</button></div>{status ? <p className="tool-status">{status}</p> : null}</div>;
 }
 
 export function DiagnosticsScreen() {

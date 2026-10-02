@@ -55,6 +55,7 @@ class ViewerSession {
     this.friendPresence = new Map();
     this.soundRequests = new Set();
     this.objectSounds = new Map();
+    this.transactions = [];
     this.pending = new interactions.PendingInteractions();
     /** Filled in by connect(): who is logged in and where. */
     this.identity = { agentId: '', firstName: '', lastName: '', simName: '', inventoryRootId: '' };
@@ -270,6 +271,23 @@ class ViewerSession {
 
     // Script dialogs (llDialog, llTextBox), teleport lures and group notices
     this.subscriptions.push(...interactions.subscribeInteractions(events, this.pending, (type, data) => this.send(type, data)));
+    if (events?.onBalanceUpdated) {
+      this.subscriptions.push(events.onBalanceUpdated.subscribe((event) => {
+        const record = {
+          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          balance: event.balance,
+          amount: event.transaction?.amount ?? 0,
+          description: event.transaction?.description || 'Balance updated',
+          from: event.transaction?.from?.toString?.() || '',
+          to: event.transaction?.to?.toString?.() || '',
+          type: event.transaction?.type || 'balance',
+          status: event.transaction?.success !== false ? 'success' : 'failed',
+          timestamp: Date.now(),
+        };
+        this.transactions.unshift(record);
+        this.send('balance_updated', { balance: event.balance, transaction: record });
+      }));
+    }
     this.subscribe(events.onDisconnected, 'disconnected', (event) => ({ message: event.message || 'Disconnected from Second Life' }));
   }
 
@@ -431,6 +449,48 @@ class ViewerSession {
     return { moving: Boolean(params.forward || params.right || params.up || params.turn) };
   }
   getBalance() { return actions.getBalance(this.requireBot()); }
+  async payObject(params = {}) {
+    const res = await actions.payObject(this.requireBot(), params);
+    const record = {
+      id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      amount: res.amount,
+      description: res.description,
+      targetId: res.targetId,
+      targetType: 'object',
+      type: 'payment',
+      status: 'success',
+      timestamp: Date.now(),
+    };
+    this.transactions.unshift(record);
+    this.send('transaction-recorded', record);
+    return { ...res, transaction: record };
+  }
+  async payAvatar(params = {}) {
+    const res = await actions.payAvatar(this.requireBot(), params);
+    const record = {
+      id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      amount: res.amount,
+      description: res.description,
+      targetId: res.targetId,
+      targetType: 'avatar',
+      type: 'tip',
+      status: 'success',
+      timestamp: Date.now(),
+    };
+    this.transactions.unshift(record);
+    this.send('transaction-recorded', record);
+    return { ...res, transaction: record };
+  }
+  async getTransactionHistory(params = {}) {
+    let balance = 0;
+    try {
+      const b = await this.getBalance();
+      balance = b.balance;
+    } catch {
+      // Ignore if offline/mock
+    }
+    return { balance, transactions: this.transactions };
+  }
   respondScriptDialog(params = {}) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params); }
   acceptLure(params = {}) { return interactions.acceptLure(this.requireBot(), this.pending, params); }
   dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }

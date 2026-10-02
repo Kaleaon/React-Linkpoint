@@ -258,6 +258,7 @@ export default function Search() {
         <Icon name="search" size={16} style={{ color: V.ink2 }} />
         <input
           className="search-input"
+          aria-label="Filter search results by name"
           value={state.searchQuery || ""}
           onChange={(e) => {
             actions.setSearchQuery(e.target.value);

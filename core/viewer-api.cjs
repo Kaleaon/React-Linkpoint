@@ -7,6 +7,7 @@
 const METHODS = new Set([
   'sendChat', 'sendInstantMessage', 'sendGroupMessage', 'sendFriendRequest',
   'teleport', 'touchObject', 'sit', 'stand', 'setMovement', 'getBalance',
+  'payObject', 'payAvatar', 'getTransactionHistory',
   'respondScriptDialog', 'acceptLure', 'dismissInteraction',
   'fetchAnimation', 'getMapBlocks', 'getFriends', 'getGroups', 'getInventory', 'getDiagnostics',
   'getSceneObjects', 'getSceneSnapshot',

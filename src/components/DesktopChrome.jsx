@@ -100,7 +100,7 @@ export default function DesktopChrome() {
           <button type="submit" aria-label="Go to location" title="Go to location" style={{ ...iconButton, width: 25, height: 24, border: 0, background: "transparent" }}><Icon name="corner-down-left" size={13} /></button>
         </form>
 
-        <button type="button" className="desktop-balance" onClick={() => actions.notify("Opening transaction history") } style={balanceStyle}>
+        <button type="button" className="desktop-balance" onClick={() => { actions.flFocus("Transactions"); actions.notify("Opening transaction history"); }} style={balanceStyle}>
           <span style={{ color: kind === "sweep" ? "inherit" : V.ok }}>L$</span> {balance === null ? "—" : balance.toLocaleString()}
         </button>
         <button type="button" aria-label="Search" title="Search" style={iconButton} onClick={() => actions.openSearch(state.screen, "ALL")}><Icon name="search" size={14} /></button>

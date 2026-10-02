@@ -241,8 +241,9 @@ export default function Chat() {
         {/* Collapsible Away Message Configuration */}
         {showAwaySettings && (
           <form onSubmit={handleSaveAwayMessage} style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 6, padding: "8px", background: V.bg, borderRadius: V.rs, border: `1px solid ${V.outv}` }}>
-            <label style={{ fontSize: "11px", fontWeight: 600, color: V.ink }}>Custom 'Away' Message for incoming IMs:</label>
+            <label htmlFor="chat-away-message-input" style={{ fontSize: "11px", fontWeight: 600, color: V.ink }}>Custom 'Away' Message for incoming IMs:</label>
             <textarea
+              id="chat-away-message-input"
               value={awayMessage}
               onChange={(e) => setAwayMessage(e.target.value)}
               rows={2}
