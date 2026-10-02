@@ -22,10 +22,11 @@ export interface CacheStats {
 }
 
 const DB_NAME = 'linkpoint_sl_cache_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_INVENTORY = 'inventory';
 const STORE_TEXTURES = 'textures';
 const STORE_META = 'metadata';
+const STORE_TRANSACTIONS = 'transactions';
 
 class LocalCacheManager extends Utils.EventEmitter {
   public locationType: CacheLocationType = 'internal';
@@ -68,6 +69,11 @@ class LocalCacheManager extends Utils.EventEmitter {
           }
           if (!db.objectStoreNames.contains(STORE_META)) {
             db.createObjectStore(STORE_META, { keyPath: 'key' });
+          }
+          if (!db.objectStoreNames.contains(STORE_TRANSACTIONS)) {
+            const txStore = db.createObjectStore(STORE_TRANSACTIONS, { keyPath: 'id' });
+            txStore.createIndex('agentId', 'agentId', { unique: false });
+            txStore.createIndex('timestamp', 'timestamp', { unique: false });
           }
         };
         req.onsuccess = (e: any) => {
@@ -370,6 +376,111 @@ class LocalCacheManager extends Utils.EventEmitter {
   }
 
   /**
+   * Save transaction to local cache (IndexedDB and memory cache).
+   */
+  public async saveTransaction(agentId: string, transaction: any): Promise<void> {
+    const record = {
+      id: transaction.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      agentId,
+      timestamp: Number(transaction.timestamp) || Date.now(),
+      amount: Number(transaction.amount) || 0,
+      description: String(transaction.description || ''),
+      targetId: transaction.targetId || transaction.target || '',
+      targetName: transaction.targetName || '',
+      targetType: transaction.targetType || 'avatar',
+      type: transaction.type || 'payment',
+      status: transaction.status || 'success',
+      ...transaction,
+    };
+
+    // Keep in memory
+    const existing = this.memoryCache.get(`txs_${agentId}`) || [];
+    const updated = [record, ...existing.filter((t: any) => t.id !== record.id)];
+    this.memoryCache.set(`txs_${agentId}`, updated);
+
+    // Save to IndexedDB
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
+        tx.objectStore(STORE_TRANSACTIONS).put(record);
+      }
+    } catch {
+      // IDB fallback
+    }
+
+    this.emit('cache_updated', { type: 'transactions', agentId, transaction: record });
+  }
+
+  /**
+   * Get cached transactions for an agent within 30 days.
+   */
+  public async getTransactions(agentId: string): Promise<any[]> {
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+    // Check memory cache first
+    const mem = this.memoryCache.get(`txs_${agentId}`);
+    if (Array.isArray(mem) && mem.length > 0) {
+      return mem.filter((t: any) => t && t.timestamp >= cutoff);
+    }
+
+    // Load from IndexedDB
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        const items: any[] = await new Promise((resolve) => {
+          const tx = db.transaction([STORE_TRANSACTIONS], 'readonly');
+          const store = tx.objectStore(STORE_TRANSACTIONS);
+          const index = store.index('agentId');
+          const req = index.getAll(agentId);
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        });
+
+        const valid = items
+          .filter((t: any) => t && t.timestamp >= cutoff)
+          .sort((a, b) => b.timestamp - a.timestamp);
+
+        this.memoryCache.set(`txs_${agentId}`, valid);
+        return valid;
+      }
+    } catch {
+      // IDB fallback
+    }
+
+    return [];
+  }
+
+  /**
+   * Prune transaction records older than specified days (default 30 days).
+   */
+  public async pruneOldTransactions(agentId: string, days = 30): Promise<void> {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
+        const store = tx.objectStore(STORE_TRANSACTIONS);
+        const index = store.index('agentId');
+        const req = index.getAllKeys(agentId);
+        req.onsuccess = () => {
+          const keys = req.result || [];
+          for (const key of keys) {
+            const getReq = store.get(key);
+            getReq.onsuccess = () => {
+              if (getReq.result && getReq.result.timestamp < cutoff) {
+                store.delete(key);
+              }
+            };
+          }
+        };
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  /**
    * Clear all cache data from the active location.
    */
   public async clearCache(agentId?: string): Promise<void> {
@@ -390,10 +501,11 @@ class LocalCacheManager extends Utils.EventEmitter {
     try {
       const db = await this.initIDB();
       if (db) {
-        const tx = db.transaction([STORE_INVENTORY, STORE_TEXTURES, STORE_META], 'readwrite');
+        const tx = db.transaction([STORE_INVENTORY, STORE_TEXTURES, STORE_META, STORE_TRANSACTIONS], 'readwrite');
         tx.objectStore(STORE_INVENTORY).clear();
         tx.objectStore(STORE_TEXTURES).clear();
         tx.objectStore(STORE_META).clear();
+        tx.objectStore(STORE_TRANSACTIONS).clear();
       }
     } catch {
       // Ignore
