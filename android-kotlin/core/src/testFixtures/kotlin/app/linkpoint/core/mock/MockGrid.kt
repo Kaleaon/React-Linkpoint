@@ -48,6 +48,7 @@ class MockGrid(
     val friendshipDeclined = java.util.concurrent.CopyOnWriteArrayList<UUID>()
     val textureRequests = java.util.concurrent.CopyOnWriteArrayList<String>()
     val meshRequests = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val soundRequests = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     companion object {
         val TEX_CHECKER = UUID.fromString("c0c0c0c0-0000-4000-8000-000000000001")
@@ -55,6 +56,8 @@ class MockGrid(
         val TEX_SCULPT = UUID.fromString("c0c0c0c0-0000-4000-8000-000000000003")
         val TERRAIN_DETAIL = listOf(4, 5, 6, 7).map { UUID.fromString("c0c0c0c0-0000-4000-8000-00000000000$it") }
         val MESH_PYRAMID = UUID.fromString("d0d0d0d0-0000-4000-8000-000000000001")
+        /** A half-second 440 Hz tone (Ogg Vorbis): the sound the mock region's speaker loops and its trigger plays once. */
+        val SOUND_TONE = UUID.fromString("e0e0e0e0-0000-4000-8000-000000000001")
         const val WATER = 20f
         val INV_ROOT: UUID = UUID.fromString("e0e0e0e0-0000-4000-8000-000000000000")
         val INV_TEXTURES: UUID = UUID.fromString("e0e0e0e0-0000-4000-8000-000000000001")
@@ -83,7 +86,7 @@ class MockGrid(
         http.createContext("/login") { ex -> reply(ex, 200, "text/xml", loginResponse().toByteArray()) }
         http.createContext("/seed") { ex ->
             val base = "http://$advertisedHost:${http.address.port}"
-            val caps = mapOf("EventQueueGet" to "$base/eq", "GetTexture" to "$base/tex", "GetMesh2" to "$base/mesh", "FetchInventoryDescendents2" to "$base/inv", "ExtEnvironment" to "$base/env")
+            val caps = mapOf("EventQueueGet" to "$base/eq", "GetTexture" to "$base/tex", "GetMesh2" to "$base/mesh", "FetchInventoryDescendents2" to "$base/inv", "ExtEnvironment" to "$base/env", "ViewerAsset" to "$base/asset")
             reply(ex, 200, "application/llsd+xml", Llsd.toXml(caps).toByteArray())
         }
         val eqPolls = java.util.concurrent.atomic.AtomicInteger()
@@ -100,7 +103,9 @@ class MockGrid(
                     mapOf("message" to "ParcelProperties", "body" to mapOf(
                         "ParcelData" to listOf(mapOf(
                             "LocalID" to 3, "Name" to "Mock Parcel", "Desc" to "A parcel for testing", "Area" to 4096, "OwnerID" to agent,
-                            "MaxPrims" to 468, "TotalPrims" to 15, "MusicURL" to "http://music.example/stream", "MediaURL" to ""))))
+                            "MaxPrims" to 468, "TotalPrims" to 15, "MusicURL" to "http://music.example/stream",
+                            "MediaURL" to "http://media.example/demo.mp4", "MediaID" to TEX_CHECKER, "MediaAutoScale" to true)),
+                        "MediaData" to listOf(mapOf("MediaDesc" to "Mock demo reel", "MediaType" to "video/mp4", "MediaWidth" to 320, "MediaHeight" to 240, "MediaLoop" to true)))),
                 )
                 reply(ex, 200, "application/llsd+xml", Llsd.toXml(mapOf("id" to 1, "events" to events)).toByteArray())
             } else {
@@ -145,6 +150,11 @@ class MockGrid(
             textureRequests += id
             val file = runCatching { TEXTURE_FILES[UUID.fromString(id)] }.getOrNull()
             if (file == null) reply(ex, 404, "text/plain", ByteArray(0)) else reply(ex, 200, "image/x-j2c", resource(file))
+        }
+        http.createContext("/asset") { ex ->
+            val id = ex.requestURI.query?.substringAfter("sound_id=", "")?.substringBefore('&').orEmpty()
+            if (id.isNotEmpty()) soundRequests += id
+            if (id == SOUND_TONE.toString()) reply(ex, 200, "application/ogg", resource("tone.ogg")) else reply(ex, 404, "text/plain", ByteArray(0))
         }
         http.createContext("/mesh") { ex ->
             val id = ex.requestURI.query?.substringAfter("mesh_id=")?.substringBefore('&').orEmpty()
@@ -314,6 +324,7 @@ class MockGrid(
             ObjectSpec(10, parent = 9, position = Vec3(0f, 0f, 1.6f), scale = Vec3(1f, 1f, 1f), params = PrimParams(profileCurve = 2), textureEntry = Wire.textureEntry(FaceSpec(color = floatArrayOf(0.9f, 0.3f, 0.3f, 0.6f)))),
             ObjectSpec(11, position = at(128f, 128f, 0.05f), scale = Vec3(40f, 40f, 0.1f), textureEntry = Wire.textureEntry(FaceSpec(color = floatArrayOf(0.45f, 0.5f, 0.45f, 1f), fullbright = false))),
             ObjectSpec(ORBITER, position = at(136f, 128f, 2.5f), scale = Vec3(1f, 1f, 1f), params = PrimParams(pathCurve = 0x20, profileCurve = 5), textureEntry = Wire.textureEntry(FaceSpec(color = floatArrayOf(1f, 0.9f, 0.2f, 1f), glow = 0.3f, fullbright = true))),
+            ObjectSpec(50, position = at(118f, 128f, 1f), scale = Vec3(1f, 1f, 1f), sound = app.linkpoint.core.scene.ObjectSound(SOUND_TONE, 0.8f, app.linkpoint.core.scene.SoundFlags.LOOP, 0f), textureEntry = Wire.textureEntry(FaceSpec(color = floatArrayOf(0.9f, 0.8f, 0.2f, 1f)))),
             ObjectSpec(30, position = at(128f, 140f, 3f), scale = Vec3(2f, 2f, 2f), text = "Mock sign", textureEntry = Wire.textureEntry(FaceSpec(color = floatArrayOf(0.95f, 0.95f, 0.95f, 1f)))),
             ObjectSpec(40, fullId = agent, pcode = PCode.AVATAR, position = at(122f, 122f, 1f), rotation = Quat.aroundZ(0.6f), scale = Vec3(0.45f, 0.6f, 1.9f)),
             ObjectSpec(41, fullId = OTHER_AVATAR, pcode = PCode.AVATAR, position = at(130f, 118f, 1f), scale = Vec3(0.45f, 0.6f, 1.9f)),
@@ -329,6 +340,8 @@ class MockGrid(
         // Nearby avatars as the simulator's coarse locations. As in real OpenSim, AgentData is parallel to Location and
         // includes "you" (our own slot is index 0); captured from a live OpenSim 0.9.3 packet.
         send(Msg.CoarseLocationUpdate, WireWriter().u8(2).u8(122).u8(122).u8(7).u8(130).u8(118).u8(7).u16(0).u16(-1 and 0xFFFF).u8(2).uuid(agent).uuid(OTHER_AVATAR).toByteArray())
+        // A one-shot at the region centre: a chime from the speaker.
+        send(Msg.SoundTrigger, WireWriter().uuid(SOUND_TONE).uuid(agent).uuid(UUID(9, 9)).uuid(UUID(0, 0)).u64(0).vec3(128f, 128f, gz + 1f).f32(1f).toByteArray())
         send(Msg.ChatFromSimulator, WireWriter().str1("Mock Bot").uuid(UUID(1, 1)).uuid(UUID(1, 1)).u8(1).u8(1).u8(1).vec3(0f, 0f, 0f).str2("Welcome to $regionName (ground $gz m)").toByteArray())
         scenarioDone = true
     }

@@ -364,8 +364,11 @@ class ViewerSession(
         val url = d["MediaURL"]?.toString().orEmpty()
         val id = (d["MediaID"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
         if (url.isBlank() && id == null) return null
-        return ParcelMedia(url, id, bool("MediaAutoScale"), str("MediaType"), str("MediaDesc"), int("MediaWidth"), int("MediaHeight"), bool("MediaLoop"))
+        return ParcelMedia(url, id, bool("MediaAutoScale"), mediaType(str("MediaType")), str("MediaDesc"), int("MediaWidth"), int("MediaHeight"), bool("MediaLoop"))
     }
+
+    /** Grids send "none/none" for "no type given"; that is the absence of a type, not a type. */
+    private fun mediaType(raw: String) = raw.takeUnless { it.equals("none/none", ignoreCase = true) }.orEmpty()
 
     private fun applyMediaCommand(c: Incoming.ParcelMediaCommand) {
         _mediaPlayback.update { cur ->
@@ -448,7 +451,7 @@ class ViewerSession(
             is Incoming.PreloadSound -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Preload(m.entries.map { it.third }.distinct()))
             is Incoming.ParcelMediaUpdate -> {
                 val id = m.mediaId.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
-                _parcelMedia.value = if (m.url.isBlank() && id == null) null else ParcelMedia(m.url, id, m.autoScale, m.type, m.description, m.width, m.height, m.loop)
+                _parcelMedia.value = if (m.url.isBlank() && id == null) null else ParcelMedia(m.url, id, m.autoScale, mediaType(m.type), m.description, m.width, m.height, m.loop)
             }
             is Incoming.ParcelMediaCommand -> applyMediaCommand(m)
             is Incoming.Unhandled -> Unit
@@ -633,6 +636,8 @@ class ViewerSession(
 
     @Volatile private var controlFlags = 0L
     @Volatile private var bodyYaw = 0f
+    /** The way the avatar faces, in radians (0 faces east); the audio listener faces the same way. */
+    val bodyYawRadians: Float get() = bodyYaw
 
     /**
      * Walk the avatar. [forward] and [strafe] are -1, 0 or 1 (strafe positive = left), [up] is 1 to

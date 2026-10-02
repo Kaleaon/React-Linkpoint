@@ -17,6 +17,8 @@ import java.util.zip.GZIPOutputStream
 private fun id(n: Int) = UUID.fromString("a0a0a0a0-0000-4000-8000-%012d".format(n))
 private val TEX_CHECKER = id(1); private val TEX_PLASMA = id(2); private val TEX_SCULPT = id(3)
 private val MESH_PYRAMID = id(10)
+private val SOUND_TONE = id(20)
+private val PARCEL_ID = UUID.fromString("a1a1a1a1-0000-4000-8000-000000000001")
 private val OWNER = UUID.fromString("61f927f7-4cab-4d62-9bd3-37d7d6968dd8") // overwritten by --merge's default owner handling when absent
 
 private class Tar {
@@ -38,6 +40,8 @@ private class Prim(
     val profileCurve: Int = 1, val pathCurve: Int = 16, val hollow: Int = 0, val twist: Int = 0, val taper: Int = 0,
     val faces: ByteArray? = null, val sculpt: Pair<UUID, Int>? = null, val text: String = "", val particles: ByteArray? = null,
     val children: List<Prim> = emptyList(),
+    /** (sound, gain, flags, radius): what the prim plays; flags 1 = loop. */
+    val sound: Triple<UUID, Float, Pair<Int, Float>>? = null,
 )
 
 private fun b64(b: ByteArray) = Base64.getEncoder().encodeToString(b)
@@ -80,6 +84,7 @@ private fun part(p: Prim, rootPos: Triple<Float, Float, Float>, isRoot: Boolean,
         append("<BaseMask>2147483647</BaseMask><OwnerMask>2147483647</OwnerMask><GroupMask>0</GroupMask><EveryoneMask>0</EveryoneMask><NextOwnerMask>2147483647</NextOwnerMask>")
         append("<Flags>None</Flags><CollisionSound>${guid(UUID(0, 0))}</CollisionSound><CollisionSoundVolume>0</CollisionSoundVolume>")
         p.particles?.let { append("<ParticleSystem>${b64(it)}</ParticleSystem>") }
+        p.sound?.let { (snd, gain, fr) -> append("<SoundID>${guid(snd)}</SoundID><SoundGain>$gain</SoundGain><SoundFlags>${fr.first}</SoundFlags><SoundRadius>${fr.second}</SoundRadius>") }
         append("</SceneObjectPart>")
     }
 }
@@ -93,6 +98,20 @@ private fun group(p: Prim): String {
         }
         append("</SceneObjectGroup>")
     }
+}
+
+private fun landData(): String {
+    val bitmap = b64(ByteArray(512) { 0xFF.toByte() }) // 64 x 64 four-metre cells, all ours
+    // Unlike object files, parcel files hold plain UUID text, "true"/"false" booleans and a named status.
+    fun u(x: UUID) = x.toString()
+    return "<?xml version=\"1.0\" encoding=\"utf-8\"?><LandData>" +
+        "<Area>65536</Area><AuctionID>0</AuctionID><AuthBuyerID>${u(UUID(0, 0))}</AuthBuyerID><Category>-1</Category><ClaimDate>1700000000</ClaimDate><ClaimPrice>0</ClaimPrice>" +
+        "<GlobalID>${u(PARCEL_ID)}</GlobalID><GroupID>${u(UUID(0, 0))}</GroupID><IsGroupOwned>false</IsGroupOwned><Bitmap>$bitmap</Bitmap>" +
+        "<Description>Parcel with test media</Description><Flags>0</Flags><LandingType>0</LandingType><Name>Linkpoint media parcel</Name><Status>0</Status><LocalID>1</LocalID>" +
+        "<MediaAutoScale>1</MediaAutoScale><MediaID>${u(TEX_CHECKER)}</MediaID><MediaURL>http://media.test/linkpoint-clip.mp4</MediaURL><MusicURL>http://radio.test/linkpoint-stream.mp3</MusicURL>" +
+        "<MediaDesc>Linkpoint test media</MediaDesc><MediaType>video/mp4</MediaType><MediaW>320</MediaW><MediaH>240</MediaH><MediaLoop>true</MediaLoop>" +
+        "<OwnerID>${u(OWNER)}</OwnerID><PassHours>0</PassHours><PassPrice>0</PassPrice><SalePrice>0</SalePrice><SnapshotID>${u(UUID(0, 0))}</SnapshotID>" +
+        "<UserLocation>&lt;128, 128, 25&gt;</UserLocation><UserLookAt>&lt;1, 0, 0&gt;</UserLookAt><Dwell>0</Dwell><OtherCleanTime>0</OtherCleanTime></LandData>"
 }
 
 fun main(args: Array<String>) {
@@ -112,6 +131,9 @@ fun main(args: Array<String>) {
         Prim("Sculpt sphere", cx + 10, cy - 4, z, 3f, 3f, 3f, profileCurve = 0, sculpt = TEX_SCULPT to 1, faces = plasma),
         Prim("LLMesh pyramid", cx + 10, cy + 8, z, 3f, 3f, 3f, profileCurve = 0, sculpt = MESH_PYRAMID to 5, faces = checker),
         Prim("Rigged limb mesh", cx + 10, cy - 8, z, 1f, 1f, 3f, profileCurve = 0, sculpt = Wire.RIGGED_LIMB_ID to 5, faces = checker),
+        // A looping speaker (audible within a 30 m cube) and a quiet chime that can only be heard from close by (3 m cube).
+        Prim("Speaker", cx - 6, cy, z, 1f, 1f, 1f, faces = glow, sound = Triple(SOUND_TONE, 0.8f, 1 to 30f)),
+        Prim("Chime", cx - 6, cy + 20, z, 0.5f, 0.5f, 0.5f, faces = glow, sound = Triple(SOUND_TONE, 1f, 1 to 3f)),
         Prim("Linkset root", cx + 14, cy, z, 2f, 2f, 1f, faces = checker, children = listOf(
             Prim("Linkset child A", 0f, 0f, 1.5f, 1f, 1f, 2f, profileCurve = 0, faces = plasma),
             Prim("Linkset child B", 1.5f, 0f, 0f, 1f, 1f, 1f, profileCurve = 5, pathCurve = 32, faces = glow))),
@@ -130,6 +152,9 @@ fun main(args: Array<String>) {
     tar.add("assets/${TEX_SCULPT}_texture.jp2", res("sculpt_sphere.j2k"))
     tar.add("assets/${MESH_PYRAMID}_mesh.llmesh", Wire.pyramidMesh())
     tar.add("assets/${Wire.RIGGED_LIMB_ID}_mesh.llmesh", Wire.riggedLimbMesh()) // skinned mesh: joints, bind matrices, weights
+    tar.add("assets/${SOUND_TONE}_sound.ogg", res("tone.ogg"))
+    // One parcel over the whole region with music and media settings, so parcel properties carry them.
+    tar.add("landdata/$PARCEL_ID.xml", landData().toByteArray())
     out.outputStream().use { f -> GZIPOutputStream(f).use { it.write(tar.finish()) } }
     println("wrote ${out.absolutePath} (${out.length()} bytes, ${prims.size} objects)")
 }

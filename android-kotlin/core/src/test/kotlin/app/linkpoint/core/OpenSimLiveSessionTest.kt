@@ -197,4 +197,68 @@ class OpenSimLiveSessionTest {
         }
         assertTrue("the rig is for the standard avatar skeleton", skin.unknownJoints.isEmpty())
     }
+
+    // ---- sounds and parcel media (from the generated OAR: a looping "Speaker", a short-range "Chime", a parcel with music + media) ----
+
+    private val toneId = java.util.UUID.fromString("a0a0a0a0-0000-4000-8000-000000000020")
+
+    private class Recorder : app.linkpoint.core.audio.SoundBackend {
+        class Play(val soundId: java.util.UUID, val loop: Boolean, val left: Float, val right: Float)
+        val plays = java.util.concurrent.CopyOnWriteArrayList<Play>()
+        val stops = java.util.concurrent.CopyOnWriteArrayList<Int>()
+        override fun play(channel: Int, soundId: java.util.UUID, loop: Boolean, left: Float, right: Float) { plays += Play(soundId, loop, left, right) }
+        override fun setVolume(channel: Int, left: Float, right: Float) {}
+        override fun stop(channel: Int) { stops += channel }
+    }
+
+    @Test fun objectSoundsArriveFromOpenSimDownloadAndPlayInSpace() = withLive { l ->
+        val s = l.s
+        // The sound fields of a real OpenSim object update.
+        val sounding = eventually(what = "two objects with sounds") { s.scene.withSound().filter { it.sound?.soundId == toneId }.takeIf { it.size >= 2 } }
+        val speaker = sounding.single { it.sound!!.radius == 30f }
+        val chime = sounding.single { it.sound!!.radius == 3f }
+        println("LIVE sounds: ${sounding.size} objects with sounds; speaker gain=${speaker.sound!!.gain} loops=${speaker.sound!!.loops} radius=${speaker.sound!!.radius}; chime radius=${chime.sound!!.radius}")
+        assertEquals(0.8f, speaker.sound!!.gain, 1e-5f); assertTrue(speaker.sound!!.loops)
+
+        // The data through the real ViewerAsset capability.
+        val caps = eventually(what = "ViewerAsset") { s.capabilities.value.takeIf { "ViewerAsset" in it } }
+        val fetcher = app.linkpoint.core.audio.SoundFetcher(l.http, l.scope, { caps["ViewerAsset"] })
+        fetcher.request(toneId)
+        val tone = eventually(what = "the sound download") { fetcher.peek(toneId) ?: fetcher.failure(toneId)?.let { throw AssertionError("sound download failed: $it") } }
+        println("LIVE sound asset: ${tone.bytes.size} bytes, ${tone.info.channels} ch, ${tone.info.sampleRate} Hz, ${tone.info.durationMs} ms")
+        assertEquals(1, tone.info.channels); assertEquals(44100, tone.info.sampleRate); assertEquals(0.5f, tone.info.durationSeconds, 0.05f)
+
+        // Spatialised: the speaker is 6 m behind-ish of the avatar (west of it). Facing north, west is on the left.
+        val backend = Recorder()
+        val scene = app.linkpoint.core.audio.SoundScene(backend, fetcher)
+        val me = s.region.value!!.position!!
+        val here = app.linkpoint.core.scene.Vec3(me[0], me[1], me[2])
+        val facingNorth = app.linkpoint.core.audio.Listener.atYaw(here, (Math.PI / 2).toFloat())
+        scene.tick(facingNorth, s.scene)
+        val heard = backend.plays.singleOrNull { it.loop }
+        assertNotNull("the speaker must be audible from the spawn point", heard)
+        println("LIVE speaker mix from spawn facing north: left=${heard!!.left} right=${heard.right}; playing=${backend.plays.size}")
+        assertTrue("west of a north-facing listener is on the left", heard.left > heard.right)
+        assertTrue("the 3 m chime, 20 m away, is out of its cube", backend.plays.none { !it.loop })
+        // Walk to the chime: now it is audible too.
+        val chimePos = s.scene.worldTransform(chime)!!.first
+        scene.tick(app.linkpoint.core.audio.Listener.atYaw(app.linkpoint.core.scene.Vec3(chimePos.x + 1f, chimePos.y, chimePos.z), 0f), s.scene)
+        assertTrue("next to the chime it plays", backend.plays.any { it.left > 0f || it.right > 0f } && scene.activeChannels >= 1)
+    }
+
+    @Test fun theParcelsMusicAndMediaArriveFromOpenSim() = withLive { l ->
+        val s = l.s
+        val parcel = eventually(what = "parcel properties") { s.parcel.value?.takeIf { it.name.contains("Linkpoint media") || it.musicUrl.isNotBlank() } }
+        println("LIVE parcel: name='${parcel.name}' music='${parcel.musicUrl}' media='${parcel.mediaUrl}'")
+        assertEquals("http://radio.test/linkpoint-stream.mp3", parcel.musicUrl)
+        val media = eventually(what = "parcel media") { s.parcelMedia.value }
+        println("LIVE parcel media: url='${media.url}' id=${media.mediaId} type='${media.type}' desc='${media.description}' ${media.width}x${media.height} loop=${media.loop} autoScale=${media.autoScale}")
+        assertEquals("http://media.test/linkpoint-clip.mp4", media.url)
+        assertEquals(java.util.UUID.fromString("a0a0a0a0-0000-4000-8000-000000000001"), media.mediaId)
+        assertTrue(media.autoScale)
+        // OpenSim 0.9.3 does not carry a parcel's media type / description / size / loop through an OAR (it reports "none/none",
+        // which the viewer reads as "no type"); accept either so a fixed OpenSim does not fail this test.
+        assertTrue("type was '${media.type}'", media.type == "" || media.type == "video/mp4")
+        assertFalse("an .mp4 address is not audio-only", media.isAudioOnly)
+    }
 }

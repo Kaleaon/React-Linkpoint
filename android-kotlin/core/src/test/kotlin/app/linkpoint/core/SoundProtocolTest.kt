@@ -202,6 +202,20 @@ class SoundProtocolTest {
         }
     }
 
+    @Test fun noneSlashNoneMeansNoTypeInBothPaths() = runBlocking {
+        FakeSim().use { sim ->
+            val caps = EventCaps(); val sc = scope(); val s = ViewerSession(caps.http(), sc)
+            s.connect(login(sim, "http://caps.test/seed"))
+            caps.queue += parcelEvent(mapOf("MediaURL" to "http://example.test/s.mp3", "MediaID" to UUID(0, 0)), mapOf("MediaType" to "none/none", "MediaDesc" to "", "MediaWidth" to 0, "MediaHeight" to 0, "MediaLoop" to false))
+            assertEquals("", eventually { s.parcelMedia.value }.type)
+            sim.inject(Outgoing(Msg.ParcelMediaUpdate, WireWriter().str1("http://example.test/t.mp3").uuid(UUID(0, 0)).u8(0).str1("none/none").str1("").s32(0).s32(0).u8(0).toByteArray(), true))
+            assertEquals("http://example.test/t.mp3", eventually { s.parcelMedia.value?.takeIf { it.url.endsWith("t.mp3") } }.url)
+            assertEquals("", s.parcelMedia.value!!.type)
+            assertTrue("with no type the address decides: .mp3 is audio", s.parcelMedia.value!!.isAudioOnly)
+            s.logout(); sc.cancel()
+        }
+    }
+
     @Test fun aMediaTextureWithoutAnAddressStillCountsAsMedia() = runBlocking {
         FakeSim().use { sim ->
             val caps = EventCaps(); val sc = scope(); val s = ViewerSession(caps.http(), sc)
