@@ -87,6 +87,16 @@ class TextureFetcher(
         return if (d.isCompleted) d.getCompleted().exceptionOrNull() else null
     }
 
+    /**
+     * Drop the decoded pixels of a finished texture once they have been uploaded elsewhere (the GPU), so they do not
+     * pile up on the heap. Failures are kept so a bad texture is not requested again; a released texture is fetched
+     * again only if it is requested again.
+     */
+    fun release(id: UUID) {
+        val d = cache[id] ?: return
+        if (d.isCompleted && d.getCompleted().isSuccess) cache.remove(id, d)
+    }
+
     val pending: Int get() = cache.values.count { !it.isCompleted }
 
     /** Start the download if it has not started. Returns false while no capability is known yet. */

@@ -147,3 +147,27 @@ the LLMesh downloaded through GetMesh2 and decoded; the sculpt map downloaded an
 Limits: the generated mesh has a single LOD and no skinning, the textures are tiny, and nothing here shows how it *looks*
 (the Filament view has not run on a device). A real-world OAR (multi-LOD meshes, large JPEG 2000 textures, many objects) has not been tried:
 the usual download sites were unreachable from the build sandbox. Load any OAR you have the rights to the same way and rerun the test.
+
+### Real-world content test (Outworldz "Furniture Vault" OAR)
+
+Loaded `OAR-Furniture_Vault(1X1).tgz` (770 MB, from outworldz.com's free OAR list; not committed here) into OpenSim 0.9.3.0 and ran
+`OpenSimLiveTest.realWorldContentSummary` (`OPENSIM_BIG=1`, `OPENSIM_ASSET_IDS=<ids held by the archive>`, see the test header).
+Measured on this sandbox (no GPU involved):
+
+| | result |
+|---|---|
+| objects streamed | 15,139 (3,823 roots + 11,316 linked children) in ~60 s, none dropped |
+| kinds | 1,714 plain prims, 13,334 mesh, 91 sculpts, 35 particle emitters, 32 with floating text |
+| prim geometry | all 1,714 built, 211k triangles, ~260 ms total |
+| meshes | 1,118 / 1,118 archive-held meshes decoded, 6.37M triangles (3rd-party multi-LOD meshes) |
+| textures | 399 / 400 sampled decoded (342 at 512x512 after reduction); 1 was a 0-byte file inside the OAR |
+| sculpt maps | 5 / 5 |
+
+What it found and fixed: one mesh in the archive is truncated (header promises a high LOD past the end of the file). The decoder
+now falls back to the next level that is intact instead of failing the object (unit test added). The run also ran the test JVM out of
+memory because decoded textures were cached forever; the app now releases the CPU copy once a texture is on the GPU.
+
+Not covered: most of the archive's mesh/texture references (11,097 mesh ids, 17,844 texture ids) point to assets the OAR does not
+contain, so those 404 by design and were not exercised. Skinned/rigged meshes and animations were not looked at.
+GPU memory is still unbounded (no eviction of uploaded textures/meshes) and the renderer's object cap (1,500 objects within 192 m) is
+the only brake; neither has been measured on a device, and the Filament view still has not been run on any device or emulator.

@@ -19,17 +19,22 @@ object LlMesh {
         val header = LlsdBinary.parse(asset)
         val map = header.value.asLlsdMap() ?: throw IllegalArgumentException("Mesh header is not a map")
         val order = if (preferred != null) listOf(preferred) + LODS else LODS
+        // A level whose block is cut off or corrupt (seen in real archives) is skipped in favour of the next one.
+        var failure: Exception? = null
         for (lod in order) {
             val entry = map[lod].asLlsdMap() ?: continue
             val offset = (entry["offset"] as? Number)?.toInt() ?: continue
             val size = (entry["size"] as? Number)?.toInt() ?: continue
             if (size <= 0) continue
             val from = header.end + offset
-            require(offset >= 0 && from + size <= asset.size) { "Mesh block is outside the asset" }
-            val block = LlsdBinary.parse(inflate(asset, from, size))
-            val faces = faces(block.value.asLlsdList() ?: throw IllegalArgumentException("Mesh block is not an array"))
-            return Decoded(lod, faces, map["skin"].asLlsdMap()?.let { (it["size"] as? Number)?.toInt() ?: 0 } ?.let { it > 0 } ?: false)
+            if (offset < 0 || from + size > asset.size) { failure = failure ?: IllegalArgumentException("Mesh block is outside the asset"); continue }
+            try {
+                val block = LlsdBinary.parse(inflate(asset, from, size))
+                val faces = faces(block.value.asLlsdList() ?: throw IllegalArgumentException("Mesh block is not an array"))
+                return Decoded(lod, faces, map["skin"].asLlsdMap()?.let { (it["size"] as? Number)?.toInt() ?: 0 } ?.let { it > 0 } ?: false)
+            } catch (e: Exception) { failure = failure ?: e }
         }
+        failure?.let { throw it }
         throw IllegalArgumentException("Mesh has no geometry")
     }
 

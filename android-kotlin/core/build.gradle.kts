@@ -22,4 +22,4 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 }
 
-tasks.test { useJUnit() }
+tasks.test { useJUnit(); maxHeapSize = "4g" }

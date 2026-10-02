@@ -64,6 +64,22 @@ class MeshAndSceneTest {
         assertEquals(1f, f.uvs[2], 1e-4f)
     }
 
+    @Test fun truncatedHighLodFallsBackToALowerOne() {
+        // As seen in a real archive: the header promises a high LOD that the file does not contain.
+        val sub = B().arr(1).map(3)
+            .key("Position").bin(u16s(0, 0, 0, 65535, 0, 0, 0, 65535, 0)).key("TriangleList").bin(u16s(0, 1, 2))
+            .key("PositionDomain").map(2).key("Min").arr(3).real(-0.5).real(-0.5).real(-0.5).endArr().key("Max").arr(3).real(0.5).real(0.5).real(0.5).endArr()
+            .endMap().endMap().endArr().bytes()
+        val block = deflate(sub)
+        val header = B().map(2).key("high_lod").map(2).key("offset").int(block.size).key("size").int(5000).endMap()
+            .key("low_lod").map(2).key("offset").int(0).key("size").int(block.size).endMap().endMap().bytes()
+        val d = LlMesh.decode(header + block)
+        assertEquals("low_lod", d.lod); assertEquals(1, d.faces.size)
+        // With nothing usable at all it still fails with a normal exception.
+        val none = B().map(1).key("high_lod").map(2).key("offset").int(0).key("size").int(5000).endMap().endMap().bytes()
+        assertThrows(IllegalArgumentException::class.java) { LlMesh.decode(none) }
+    }
+
     @Test fun meshWithSentinelHeaderDecodes() {
         val raw = meshAsset()
         val withSentinel = "<? LLSD/Binary ?>\n".toByteArray() + raw

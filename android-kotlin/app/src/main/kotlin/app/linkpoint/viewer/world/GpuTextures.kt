@@ -25,7 +25,7 @@ class GpuTextures(private val engine: Engine, private val fetcher: TextureFetche
         val data = fetcher.peek(id) ?: return null
         if (uploadsThisFrame >= MAX_UPLOADS_PER_FRAME) return null
         uploadsThisFrame++
-        return upload(data).also { textures[id] = it }
+        return upload(data).also { textures[id] = it; fetcher.release(id) }
     }
 
     fun failed(id: UUID): Boolean = fetcher.failure(id) != null

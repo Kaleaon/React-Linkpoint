@@ -82,6 +82,9 @@ class MockGridTest {
             for (id in MockGrid.TERRAIN_DETAIL) textures.request(id)
             val checker = eventually(what = "checker texture") { textures.peek(MockGrid.TEX_CHECKER) }
             assertEquals(128, checker.width); assertEquals(8, checker.levels.size) // 128 .. 1
+            // Once uploaded, the CPU copy can be released; asking again fetches it again.
+            textures.release(MockGrid.TEX_CHECKER); assertNull(textures.peek(MockGrid.TEX_CHECKER))
+            textures.request(MockGrid.TEX_CHECKER); eventually(what = "re-fetch after release") { textures.peek(MockGrid.TEX_CHECKER) }
             eventually(what = "terrain textures") { if (MockGrid.TERRAIN_DETAIL.all { textures.peek(it) != null }) true else null }
 
             val meshes = MeshFetcher(http, scope, { caps["GetMesh2"] })
