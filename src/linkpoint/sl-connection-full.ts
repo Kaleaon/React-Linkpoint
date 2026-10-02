@@ -120,7 +120,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       });
     }
     // Everything else the session announces is scene data: objects, assets, textures, terrain, environment...
-    for (const type of ['object-add', 'object-update', 'object-remove', 'asset-ready', 'asset-error', 'animations', 'texture-ready', 'material-ready', 'world-data', 'environment', 'terrain']) {
+    for (const type of ['object-add', 'object-update', 'object-remove', 'asset-ready', 'asset-error', 'animations', 'texture-ready', 'material-ready', 'sound-event', 'sound-asset', 'world-data', 'environment', 'terrain']) {
       forward(type, `scene:${type}`);
     }
     slBridge.on('disconnected', (data: any) => {

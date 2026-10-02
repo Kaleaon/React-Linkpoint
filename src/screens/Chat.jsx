@@ -191,7 +191,7 @@ export default function Chat() {
   };
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: V.bg }}>
+    <div className="chat-container" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--chat-bg-scrim, " + V.bg + ")", color: "var(--chat-text, " + V.ink + ")" }}>
       {/* Auto-Reply / Away Message Controls Header */}
       <div style={{ padding: "8px 12px", background: V.surf, borderBottom: `1px solid ${V.outv}`, display: "flex", flexDirection: "column", gap: 6 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
