@@ -413,6 +413,35 @@ class LocalCacheManager extends Utils.EventEmitter {
   }
 
   /**
+   * Forget every cached transaction for an agent, in memory and in IndexedDB.
+   */
+  public async clearTransactions(agentId: string): Promise<void> {
+    this.memoryCache.delete(`txs_${agentId}`);
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        await new Promise<void>((resolve) => {
+          const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
+          const request = tx.objectStore(STORE_TRANSACTIONS).index('agentId').openKeyCursor(IDBKeyRange.only(agentId));
+          request.onsuccess = () => {
+            const cursor = request.result;
+            if (cursor) {
+              tx.objectStore(STORE_TRANSACTIONS).delete(cursor.primaryKey);
+              cursor.continue();
+            }
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+          tx.onabort = () => resolve();
+        });
+      }
+    } catch {
+      // IndexedDB unavailable: the in-memory copy is already gone.
+    }
+    this.emit('cache_updated', { type: 'transactions', agentId, cleared: true });
+  }
+
+  /**
    * Get cached transactions for an agent within 30 days.
    */
   public async getTransactions(agentId: string): Promise<any[]> {
