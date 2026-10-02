@@ -1,0 +1,17 @@
+// A single translucent colour, for the water plane and other simple surfaces.
+material {
+    name : flat,
+    shadingModel : unlit,
+    blending : transparent,
+    culling : none,
+    parameters : [
+        { type : float4, name : uColor }
+    ]
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        material.baseColor = materialParams.uColor;
+    }
+}

@@ -1,0 +1,5 @@
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
+-keep,includedescriptorclasses class app.linkpoint.core.**$$serializer { *; }
+-keepclassmembers class app.linkpoint.core.** { *** Companion; }
+-keepclasseswithmembers class app.linkpoint.core.** { kotlinx.serialization.KSerializer serializer(...); }
