@@ -16,7 +16,7 @@ const { fetchProfilePhoto } = requireCjs("./core/sl-profile-photo.cjs") as {
 import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy.ts";
 import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/proxy-permit.ts";
 import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
-import { createSLSession, getSLSession, callSLSession, closeSLSession } from "./src/server/sl-session.ts";
+import { createSLSession, getSLSession, callSLSession, closeSLSession, closeAllSLSessions } from "./src/server/sl-session.ts";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -446,6 +446,18 @@ async function startServer() {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`[Server] Running on http://localhost:${PORT}`);
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Server] ${signal} received, logging avatars out...`);
+    const force = setTimeout(() => process.exit(0), 8000);
+    force.unref();
+    void closeAllSLSessions().finally(() => process.exit(0));
+  };
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 startServer().catch((err) => {

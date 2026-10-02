@@ -690,7 +690,19 @@ class ViewerSession {
     }
   }
 
+  /** Directory search, with a grid that never answers reported as such rather than as a raw packet timeout. */
   async searchDir(params = {}) {
+    try {
+      return await this.runDirectorySearch(params);
+    } catch (error) {
+      if (/^Timeout waiting for message/.test(error?.message || '')) {
+        throw new Error('This grid did not answer the search. It may not run a search service.');
+      }
+      throw error;
+    }
+  }
+
+  async runDirectorySearch(params = {}) {
     const category = String(params.category || 'people').toLowerCase();
     const query = String(params.query || '').trim();
     const start = Number(params.start) || 0;

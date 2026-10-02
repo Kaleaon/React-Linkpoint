@@ -14,6 +14,8 @@ export class ChatManager extends Utils.EventEmitter {
   public protocol: any;
   public auth: any;
   public messages: any[] = [];
+  /** Our own outgoing local chat awaiting the simulator's echo, so it is logged once. */
+  private pendingEchoes: { text: string; until: number }[] = [];
   public maxMessages: number = 1000;
   public autoReplyEnabled: boolean = false;
   public awayMessage: string = 'I am currently away. Your message has been received and I will reply as soon as possible.';
@@ -177,6 +179,8 @@ export class ChatManager extends Utils.EventEmitter {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
+    const echo = type === 4 ? null : { text: message, until: Date.now() + 15000 };
+    if (echo) this.pendingEchoes.push(echo);
     try {
       await this.protocol.sendChat(message, channel, type);
       
@@ -194,6 +198,7 @@ export class ChatManager extends Utils.EventEmitter {
       this.addMessage(messageData);
       this.emit('message_sent', messageData);
     } catch (error) {
+      if (echo) this.pendingEchoes = this.pendingEchoes.filter((e) => e !== echo);
       console.error('Error sending message:', error);
       throw error;
     }
@@ -354,6 +359,18 @@ export class ChatManager extends Utils.EventEmitter {
       senderName.includes('HUD') ||
       senderName === 'av'
     );
+
+    // The simulator echoes our own local chat back, possibly before sendMessage has returned.
+    const myId = this.auth?.user?.id;
+    if (!isIM && !isGroup && myId && senderId === myId) {
+      const now = Date.now();
+      this.pendingEchoes = this.pendingEchoes.filter((e) => e.until > now);
+      const at = this.pendingEchoes.findIndex((e) => e.text === msgText);
+      if (at !== -1) {
+        this.pendingEchoes.splice(at, 1);
+        return;
+      }
+    }
 
     const messageData = {
       id: data.id || Utils.generateUUID(),
