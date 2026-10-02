@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { UNKNOWN, show, positiveOrNull, realLatency, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState } from '../../screens/diagnosticsView.js';
+import { UNKNOWN, show, positiveOrNull, realLatency, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState, formatConnectionStatus, formatLatencySummary, formatLossSummary, formatLastUpdate, formatTechnicalDetails } from '../../screens/diagnosticsView.js';
 
 describe('diagnostics display rules', () => {
   it('shows unknown values as a dash, never a placeholder', () => {
@@ -63,6 +63,52 @@ describe('diagnostics display rules', () => {
     expect(eventQueueState(true, true)).toMatchObject({ text: 'Active', tone: 'ok' });
     expect(eventQueueState(true, false)).toMatchObject({ text: 'Inactive', tone: 'err' });
   });
+
+  it('formats dual-mode summaries and technical details', () => {
+    // formatConnectionStatus
+    const offlineStatus = formatConnectionStatus(false, 'Agni', 'Ahern');
+    expect(offlineStatus.statusText).toBe('OFFLINE');
+    expect(offlineStatus.summary).toContain('Not connected');
+
+    const onlineStatus = formatConnectionStatus(true, 'Agni', 'Ahern');
+    expect(onlineStatus.statusText).toBe('CONNECTED');
+    expect(onlineStatus.summary).toContain('Connected to Agni (Ahern)');
+
+    // formatLatencySummary
+    const latencyNoData = formatLatencySummary(null);
+    expect(latencyNoData.title).toBe('WORLD RESPONSE TIME');
+    expect(latencyNoData.value).toBe(UNKNOWN);
+
+    const latencyOk = formatLatencySummary(45);
+    expect(latencyOk.value).toBe('45');
+    expect(latencyOk.friendlyLabel).toBe('Excellent Response');
+
+    // formatLossSummary
+    const lossOk = formatLossSummary(0);
+    expect(lossOk.title).toBe('CONNECTION STABILITY');
+    expect(lossOk.value).toBe('0.0');
+
+    // formatLastUpdate
+    const lastUpdateNull = formatLastUpdate(null, Date.now());
+    expect(lastUpdateNull.title).toBe('LAST WORLD UPDATE');
+    expect(lastUpdateNull.value).toBe(UNKNOWN);
+
+    const lastUpdateRecent = formatLastUpdate(1000, 3000);
+    expect(lastUpdateRecent.value).toBe('2.0');
+
+    // formatTechnicalDetails
+    const tech = formatTechnicalDetails(
+      { simPort: 13000, circuitCode: 9999, agentId: '00000000-0000-0000-0000-000000000001', connected: true },
+      { seedCapability: 'https://sim.example.com/cap/123', eventQueueRunning: true },
+      { id: '00000000-0000-0000-0000-000000000001' }
+    );
+    expect(tech.protocolClass).toBe('SLConnectionFull');
+    expect(tech.udpPort).toBe('13000');
+    expect(tech.circuitCode).toBe('9999');
+    expect(tech.seedCapability).toBe('https://sim.example.com/cap/123');
+    expect(tech.agentUuid).toBe('00000000-0000-0000-0000-000000000001');
+    expect(tech.eventQueueState).toBe('Active');
+  });
 });
 
 describe('no fabricated telemetry remains in the source', () => {
@@ -95,21 +141,20 @@ describe('plain language UI refactoring', () => {
     expect(diagCopy).toContain('NETWORK HEALTH DIAGNOSTICS');
   });
 
-  it('contains plain language KPI labels in DiagnosticsPanel', () => {
+  it('uses formatted KPI title properties in DiagnosticsPanel', () => {
     const diagCopy = read('screens/DiagnosticsPanel.jsx');
-    expect(diagCopy).toContain('Connection Status');
-    expect(diagCopy).toContain('World Response Time');
-    expect(diagCopy).toContain('Connection Stability');
-    expect(diagCopy).toContain('Last World Update');
+    expect(diagCopy).toContain('connStatus.title');
+    expect(diagCopy).toContain('latency.title');
+    expect(diagCopy).toContain('loss.title');
+    expect(diagCopy).toContain('lastUpdate.title');
   });
 
-  it('contains plain language telemetry detail labels in DiagnosticsPanel', () => {
+  it('contains dual-mode telemetry drawer and summary labels in DiagnosticsPanel', () => {
     const diagCopy = read('screens/DiagnosticsPanel.jsx');
-    expect(diagCopy).toContain('Network Port');
-    expect(diagCopy).toContain('Security Session Key');
-    expect(diagCopy).toContain('Account ID');
-    expect(diagCopy).toContain('Secure Features Key');
-    expect(diagCopy).toContain('Event Listener Status');
+    expect(diagCopy).toContain('Information Received');
+    expect(diagCopy).toContain('Information Sent');
+    expect(diagCopy).toContain('Show Advanced Technical Details');
+    expect(diagCopy).toContain('ADVANCED TECHNICAL PROTOCOL DETAILS');
   });
 
   it('uses Account ID instead of Agent ID in Settings', () => {

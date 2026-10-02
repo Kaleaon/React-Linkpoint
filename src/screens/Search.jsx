@@ -258,7 +258,7 @@ export default function Search() {
         <Icon name="search" size={16} style={{ color: V.ink2 }} />
         <input
           className="search-input"
-          aria-label={activeTabId === "PEOPLE" ? "Search residents" : activeTabId === "GROUPS" ? "Search groups" : "Search places"}
+          aria-label="Filter search results by name"
           value={state.searchQuery || ""}
           onChange={(e) => {
             actions.setSearchQuery(e.target.value);
@@ -274,9 +274,9 @@ export default function Search() {
           style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", font: "400 13px/1 " + t.font, color: V.ink }}
         />
         {state.searchQuery ? (
-          <button type="button" aria-label="Clear search" onClick={() => actions.setSearchQuery("")} style={{ cursor: "pointer", color: V.ink2, display: "flex", alignItems: "center", background: "none", border: 0, padding: 0 }}>
+          <div onClick={() => actions.setSearchQuery("")} style={{ cursor: "pointer", color: V.ink2, display: "flex", alignItems: "center" }}>
             <Icon name="x" size={16} />
-          </button>
+          </div>
         ) : null}
       </div>
 

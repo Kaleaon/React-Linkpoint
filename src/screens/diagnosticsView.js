@@ -56,3 +56,100 @@ export function eventQueueState(connected, running) {
   if (!connected) return { text: "Not connected", tone: "none" };
   return running ? { text: "Active", tone: "ok" } : { text: "Inactive", tone: "err" };
 }
+
+/** Dual-mode connection status formatting. */
+export function formatConnectionStatus(isConnected, gridName, simName) {
+  const grid = show(gridName);
+  const sim = show(simName);
+  return {
+    title: "CONNECTION STATUS",
+    statusText: isConnected ? "CONNECTED" : "OFFLINE",
+    summary: isConnected ? `Connected to ${grid} (${sim})` : "Not connected to world",
+    raw: { isConnected, grid, simName: sim },
+  };
+}
+
+/** Dual-mode response time / latency formatting. */
+export function formatLatencySummary(ms) {
+  const band = latencyBand(ms);
+  const friendlyLabel =
+    band.tone === "ok"
+      ? "Excellent Response"
+      : band.tone === "warn"
+      ? "Normal Response"
+      : band.tone === "err"
+      ? "Degraded Response"
+      : "No Signal";
+  return {
+    title: "WORLD RESPONSE TIME",
+    value: band.text,
+    unit: "MS",
+    label: band.label,
+    friendlyLabel,
+    tone: band.tone,
+    note: "Time taken to communicate with the world",
+  };
+}
+
+/** Dual-mode packet loss / stability formatting. */
+export function formatLossSummary(pct) {
+  const band = lossBand(pct);
+  const friendlyLabel =
+    band.tone === "ok"
+      ? "Stable Connection"
+      : band.tone === "warn"
+      ? "Minor Lost Packets"
+      : band.tone === "err"
+      ? "Unstable Connection"
+      : "No Loss Data";
+  return {
+    title: "CONNECTION STABILITY",
+    value: band.text,
+    unit: band.text !== UNKNOWN ? "%" : "",
+    label: friendlyLabel,
+    tone: band.tone,
+    note: band.note,
+  };
+}
+
+/** Dual-mode packet age / activity formatting. */
+export function formatLastUpdate(lastTs, now) {
+  const ageMs = packetAgeMs(lastTs, now);
+  if (ageMs === null) {
+    return {
+      title: "LAST WORLD UPDATE",
+      value: UNKNOWN,
+      unit: "",
+      friendlyLabel: "No Activity",
+      tone: "none",
+      note: "No recent activity recorded",
+    };
+  }
+  const ageSec = (ageMs / 1000).toFixed(1);
+  const tone = ageMs < 3000 ? "ok" : ageMs < 8000 ? "warn" : "err";
+  const friendlyLabel = ageMs < 3000 ? "Recent Update" : ageMs < 8000 ? "Delayed Update" : "Stale Update";
+  return {
+    title: "LAST WORLD UPDATE",
+    value: ageSec,
+    unit: "SEC AGO",
+    friendlyLabel,
+    tone,
+    note: `Updated ${new Date(lastTs).toLocaleTimeString()}`,
+  };
+}
+
+/** Dual-mode raw technical parameters formatting for expandable technical view. */
+export function formatTechnicalDetails(diag = {}, protocol = {}, authUser = {}) {
+  const isConnected = Boolean(diag?.connected || authUser?.id);
+  const eqState = eventQueueState(isConnected, protocol?.eventQueueRunning);
+  return {
+    protocolClass: "SLConnectionFull",
+    udpPort: show(positiveOrNull(diag?.simPort)),
+    circuitCode: show(positiveOrNull(diag?.circuitCode)),
+    seedCapability: show(protocol?.seedCapability),
+    agentUuid: show(diag?.agentId || authUser?.id),
+    eventQueueState: eqState.text,
+    eventQueueTone: eqState.tone,
+  };
+}
+
