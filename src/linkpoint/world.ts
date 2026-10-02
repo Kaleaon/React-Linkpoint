@@ -1318,6 +1318,10 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
+  public getNearbyUsers() {
+    return this.nearbyUsers.map((user) => ({ ...user }));
+  }
+
   public handleAgentMovement(data: any) {
     if (!data) return;
     const raw = data?.Data?.Position ?? data?.Position ?? data?.position ?? data;
