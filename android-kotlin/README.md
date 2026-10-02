@@ -71,7 +71,7 @@ adb shell am start -n app.linkpoint.viewer/.MainActivity \
   API, but it has been exercised only in an emulator without GPU acceleration** (see the release
   notes in the pull request for what was observed). It has not been run on a physical device, and
   frame rate on real hardware is unknown.
-* The viewer core has been run against a **real OpenSim 0.9.3** (`tools/opensim/live.py`, 18 live tests; see below),
+* The viewer core has been run against a **real OpenSim 0.9.3** (`tools/opensim/live.py`, 19 live tests, 18 of which ran and passed; see below),
   which found and fixed real bugs the fake grid could not (radar ids, region crossing, teleport races, dropped
   handshake replies, local-teleport position). **Nothing has been run against Second Life** yet.
 * The app **compiles and the debug APK builds** (Android SDK 35), but the sound and media playback code
@@ -148,7 +148,7 @@ JDK, curl, the .NET 8 runtime and libgdiplus (`apt-get update && apt-get install
 skipped by an ordinary `./gradlew :core:test` unless `OPENSIM_LOGIN_URL` is set. CI: `.github/workflows/opensim-live.yml` runs all of
 this nightly, on demand, and on pull requests that touch `core`, `mockgrid` or `tools/opensim`.
 
-What the 18 live tests (last run: all pass, one big-content test skipped without `--big`) cover on a real OpenSim:
+What the live tests cover on a real OpenSim (19 exist; the last run passed 18 and skipped the big-content one, which needs `--big`):
 
 | Area | Tests |
 | --- | --- |
