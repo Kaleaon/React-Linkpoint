@@ -178,7 +178,6 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
           display: 'block',
           cursor: 'grab',
           touchAction: 'none',
-          outline: 'none',
         }}
       >
         <p>

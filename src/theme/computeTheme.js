@@ -2,6 +2,7 @@ import { LAYOUTS } from "./layouts.js";
 import { PALETTES } from "./palettes.js";
 import { DEVICES, STATES } from "./constants.js";
 import { pickInk } from "./color.js";
+import { ensureMinContrast } from "./contrast.ts";
 
 // Ported from the top of renderVals(): resolves the active layout+palette into
 // the token set `V`, the device, the console geometry, and the handful of
@@ -23,7 +24,21 @@ export function computeTheme(state, cf) {
   else nav = t.nav === "TILES" ? "tiles" : t.nav === "RAIL" && d.w > 700 ? "rail" : "tabs";
 
   const V = t.v;
+
+  // Dynamic token contrast enforcement (WCAG 2.2 Criterion 1.4.3 & 1.4.11)
+  const bgSurface = V.bg || "#000000";
+  const surfSurface = V.surf || bgSurface;
+  const targetTokens = ["ink2", "sec", "sec2", "ok", "err", "warn", "info"];
+  for (const tok of targetTokens) {
+    if (V[tok]) {
+      let adj = ensureMinContrast(V[tok], bgSurface, 4.5);
+      adj = ensureMinContrast(adj, surfSurface, 4.5);
+      V[tok] = adj;
+    }
+  }
+
   const pad = state.dense ? "8px" : V.pad;
+
   const C = cf();
   const isConsole = nav === "sweep";
   const consoleScene = isConsole && state.screen === "3D View" && state.cond === "normal";
