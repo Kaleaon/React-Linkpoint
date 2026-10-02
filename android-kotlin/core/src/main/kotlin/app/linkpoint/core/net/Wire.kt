@@ -41,6 +41,7 @@ object Msg {
     val CompletePingCheck = high(2)
     val AgentUpdate = high(4)
     val CoarseLocationUpdate = medium(6)
+    val CrossedRegion = medium(7)
     val UseCircuitCode = low(3)
     val TeleportLocationRequest = low(63)
     val TeleportLocal = low(64)
@@ -267,5 +268,7 @@ object AgentControl {
     const val LEFT_NEG = 0x8L
     const val UP_POS = 0x10L
     const val UP_NEG = 0x20L
+    const val FAST_AT = 0x400L
     const val FLY = 0x2000L
+    const val ALWAYS_RUN = 0x80000L
 }

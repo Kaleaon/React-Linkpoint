@@ -346,8 +346,12 @@ class ViewerSession(
                 }
             }
             "CrossedRegion" -> {
-                val rd = (e.body["RegionData"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return
-                val ip = (rd["SimIP"] as? ByteArray)?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: return
+                val rd = (e.body["RegionData"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: (e.body["RegionData"] as? Map<*, *>) ?: return
+                val ip = when (val raw = rd["SimIP"]) {
+                    is ByteArray -> raw.joinToString(".") { (it.toInt() and 0xFF).toString() }
+                    is String -> raw
+                    else -> return
+                }
                 val port = (rd["SimPort"] as? Number)?.toInt() ?: return
                 try { enterSimulator(ip, port, rd["SeedCapability"]?.toString() ?: "") } catch (ex: Exception) {
                     _notices.tryEmit(ViewerNotice.Error("Crossing into the next region failed: ${ex.message}"))
@@ -433,7 +437,15 @@ class ViewerSession(
                 // Same region, new spot: our position (which is also the camera we report) must follow.
                 teleportAskedAt = 0; lastTeleportRequest = null
                 _region.update { it?.copy(position = m.position) }
+                sendAgentUpdate()
                 _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
+            }
+            is Incoming.CrossedRegion -> {
+                scope.launch {
+                    try { enterSimulator(m.ip, m.port, m.seedCap) } catch (ex: Exception) {
+                        _notices.tryEmit(ViewerNotice.Error("Crossing into the next region failed: ${ex.message}"))
+                    }
+                }
             }
             is Incoming.MapBlocks -> mapReply?.complete(m.blocks)
             is Incoming.KickUser -> {
