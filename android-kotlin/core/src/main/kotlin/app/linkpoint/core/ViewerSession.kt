@@ -32,6 +32,9 @@ class ViewerSession(
     private val scope: CoroutineScope,
     private val circuitFactory: (CoroutineScope, String, Int) -> Circuit = { s, h, p -> Circuit.to(s, h, p) },
     private val clock: () -> Long = System::currentTimeMillis,
+    private val handshakeTimeoutMs: Long = 30_000,
+    private val silenceTimeoutMs: Long = 60_000,
+    private val watchdogIntervalMs: Long = 5_000,
 ) {
     private val ids = AtomicLong(1)
     private val _state = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -136,18 +139,19 @@ class ViewerSession(
         circuitJobs = mutableListOf()
         circuit = fresh
         fresh.start()
-        circuitJobs += scope.launch { fresh.messages.collect { onMessage(it) } }
-        circuitJobs += scope.launch { fresh.lost.collect { if (it == Msg.UseCircuitCode) _notices.tryEmit(ViewerNotice.Error("The simulator did not answer the circuit request")) } }
+        // UNDISPATCHED: the flows do not replay, so we must be subscribed before the first packet can arrive.
+        circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.messages.collect { onMessage(it) } }
+        circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.lost.collect { if (it == Msg.UseCircuitCode) _notices.tryEmit(ViewerNotice.Error("The simulator did not answer the circuit request")) } }
         fresh.send(Messages.useCircuitCode(code, sessionId, agentId))
         fresh.send(Messages.completeAgentMovement(agentId, sessionId, code))
         try {
-            withTimeout(30_000) { done.await() }
+            withTimeout(handshakeTimeoutMs) { done.await() }
         } catch (e: TimeoutCancellationException) {
             fresh.close(); circuitJobs.forEach { it.cancel() }
             // Go back to listening to the old simulator, if there was one.
             circuit = previous
-            circuitJobs = if (previous != null) mutableListOf(scope.launch { previous.messages.collect { onMessage(it) } }) else mutableListOf()
-            throw java.io.IOException("The simulator did not complete the handshake in 30 seconds")
+            circuitJobs = if (previous != null) mutableListOf(scope.launch(start = CoroutineStart.UNDISPATCHED) { previous.messages.collect { onMessage(it) } }) else mutableListOf()
+            throw java.io.IOException("The simulator did not complete the handshake in ${handshakeTimeoutMs / 1000.0} seconds".replace(".0 ", " "))
         }
         previous?.close()
         startCaps(seedCapability)
@@ -455,9 +459,9 @@ class ViewerSession(
 
     private suspend fun watchdog() {
         while (currentCoroutineContext().isActive) {
-            delay(5_000)
+            delay(watchdogIntervalMs)
             val c = circuit ?: continue
-            if (_state.value == ConnectionState.CONNECTED && clock() - c.lastReceivedAt > 60_000) {
+            if (_state.value == ConnectionState.CONNECTED && clock() - c.lastReceivedAt > silenceTimeoutMs) {
                 _notices.tryEmit(ViewerNotice.Disconnected("The simulator stopped responding"))
                 teardown()
                 return

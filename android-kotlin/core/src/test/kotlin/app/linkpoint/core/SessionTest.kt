@@ -21,6 +21,8 @@ class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val g
     /** Lure ids from TeleportLureRequest, and landmark ids from TeleportLandmarkRequest (all-zero means "home"). */
     val lureRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
     val landmarkRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
+    /** Raw bodies of AgentUpdate messages. */
+    val agentUpdates = java.util.concurrent.CopyOnWriteArrayList<ByteArray>()
     val teleportRequests = java.util.concurrent.CopyOnWriteArrayList<Long>()
     /** Regions this sim answers map-name lookups with: name, grid x, grid y. */
     val knownRegions = java.util.concurrent.CopyOnWriteArrayList<Triple<String, Int, Int>>()
@@ -51,6 +53,7 @@ class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val g
                     val r = WireReader(p.body); r.uuid(); r.uuid(); chatSeen += r.str2()
                 }
                 Msg.TeleportLocationRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); teleportRequests += r.u64() }
+                Msg.AgentUpdate -> agentUpdates += p.body
                 Msg.TeleportLureRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); lureRequests += r.uuid() }
                 Msg.TeleportLandmarkRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); landmarkRequests += r.uuid() }
                 Msg.MapNameRequest -> {
