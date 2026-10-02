@@ -112,7 +112,7 @@ export default function ConsoleFrame() {
       <div style={cfCurveCut} />
 
       <div style={cfRailCol}>
-        <div style={cfArm}>Linkpoint</div>
+        <div style={cfArm}>LCARS 4701</div>
         {consoleNav.map((n, i) => (
           <div key={i} onClick={n.pick} role="button" tabIndex={0} aria-label={n.label} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); n.pick(); } }} style={n.style}>
             {n.code ? <span style={n.codeStyle}>{n.code}</span> : null}
