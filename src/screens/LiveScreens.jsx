@@ -357,6 +357,7 @@ export function MuteListScreen() {
     <div className="tool-screen">
       <div className="inline-tool">
         <input
+          aria-label="Avatar UUID or name to mute"
           value={entry}
           onChange={(e) => setEntry(e.target.value)}
           placeholder={isObjects ? "Object or HUD name (e.g. av)" : "Avatar UUID or Name"}

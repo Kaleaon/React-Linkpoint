@@ -531,6 +531,7 @@ export default function Radar() {
         <div className="search-container" style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", background: V.surf, border: "1px solid " + V.outv, borderRadius: V.rs, padding: "0 8px", height: "28px" }}>
           <Icon name="search" size={13} style={{ color: V.ink2 }} />
           <input
+            aria-label={activeMode === "person" ? "Filter residents by name or status" : "Filter radar items by name, parcel, or avatar"}
             type="text"
             className="search-input"
             value={searchQuery}
@@ -557,6 +558,7 @@ export default function Radar() {
 
         {/* Sort selector */}
         <select
+          aria-label="Sort radar entities"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           style={{
