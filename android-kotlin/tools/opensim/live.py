@@ -71,15 +71,17 @@ class OpenSim:
 
     def wait(self, pattern, timeout=300, what=None):
         """Wait for a regex in new log output, answering known prompts as they appear."""
-        end = time.time() + timeout; rx = re.compile(pattern); answered = -1
+        end = time.time() + timeout; rx = re.compile(pattern)
         while time.time() < end:
             if self.proc.poll() is not None: sys.exit(f"OpenSim exited early (code {self.proc.returncode}); see {self.logfile}\n" + self.text()[-1500:])
             t = self.text()[self.pos:]
             m = rx.search(t)
             if m: self.pos += m.end(); return
             for p, ans in self.PROMPTS:
-                if re.search(p, t[-200:]) and len(t) != answered:
-                    answered = len(t); self.send(ans); time.sleep(0.5); break
+                if re.search(p, t[-200:]):
+                    self.send(ans); time.sleep(1.0)
+                    self.pos = len(self.text())  # consume the answered prompt so it cannot be answered twice
+                    break
             time.sleep(0.3)
         sys.exit(f"timed out waiting for {what or pattern}; see {self.logfile}\n" + self.text()[-1500:])
 
