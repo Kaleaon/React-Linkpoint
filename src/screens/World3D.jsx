@@ -12,6 +12,7 @@ export default function World3D({ desktopBackdrop = false }) {
   const [objectCount, setObjectCount] = useState(app.world.objects.length);
   const [cameraPreset, setCameraPreset] = useState("rear");
   const [selection, setSelection] = useState(app.world.selectedObject);
+  const [interactionMode, setInteractionModeState] = useState(() => app.world.getInteractionMode());
 
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
@@ -23,8 +24,10 @@ export default function World3D({ desktopBackdrop = false }) {
     app.world.on("camera_changed", updateCamera);
     const updateSelection = (object) => { if (active) setSelection(object); };
     app.world.on("selection_changed", updateSelection);
+    const updateInteractionMode = (mode) => { if (active) setInteractionModeState(mode); };
+    app.world.on("interaction_mode_changed", updateInteractionMode);
     app.world.init(canvas).then(() => { if (active) { setReady(!!app.world.graphics3d); refresh(); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "WebGL initialization failed"); });
-    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.off("selection_changed", updateSelection); app.world.destroyRenderer(canvas); };
+    return () => { active = false; app.world.off("objects_changed", updateObjects); app.world.off("camera_changed", updateCamera); app.world.off("selection_changed", updateSelection); app.world.off("interaction_mode_changed", updateInteractionMode); app.world.destroyRenderer(canvas); };
   }, []);
 
   const move = (forward, right, up = 0) => { app.world.moveCamera(right, forward, up); refresh(); };
@@ -52,9 +55,12 @@ export default function World3D({ desktopBackdrop = false }) {
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
       {dataStatus}<br />
-      {objectCount} simulator objects
+      {objectCount} simulator objects<br />
+      <span style={{ fontWeight: 700, color: interactionMode === "navigate" ? V.pri : V.ink }}>
+        MODE: {interactionMode.toUpperCase()} ({interactionMode === "navigate" ? "Raycast Disabled" : "Raycast Active"})
+      </span>
       <div style={{ marginTop: 6, opacity: .75 }}>Drag: orbit · Shift-drag: pan · Wheel/pinch: zoom<br />WASD / ↑↓: move · ←→: turn · E/Q: up/down · Shift: run</div>
-      <div style={{ marginTop: 4, opacity: .9 }}>Tap an object to inspect it</div>
+      <div style={{ marginTop: 4, opacity: .9 }}>{interactionMode === "navigate" ? "Switch to INTERACT mode to tap objects" : "Tap an object to inspect it"}</div>
       <div style={{ marginTop: 4 }}>
         <button
           type="button"
@@ -68,6 +74,65 @@ export default function World3D({ desktopBackdrop = false }) {
       {!ready && !error ? <><br />Starting renderer…</> : null}
       {error ? <><br /><span style={{ color: V.err }}>{error}</span></> : null}
     </output>}
+    {!desktopBackdrop && (
+      <div
+        aria-label="Viewport interaction mode"
+        data-testid="interaction-mode-selector"
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          top: 14,
+          display: "flex",
+          gap: 4,
+          background: V.surf,
+          border: `1px solid ${V.outv}`,
+          borderRadius: V.rs,
+          padding: 3,
+          backdropFilter: "blur(4px)",
+          zIndex: 10
+        }}
+      >
+        <button
+          type="button"
+          aria-pressed={interactionMode === "navigate"}
+          aria-label="Navigate Mode"
+          onClick={() => app.world.setInteractionMode("navigate")}
+          style={{
+            ...button,
+            minWidth: 0,
+            padding: "4px 12px",
+            background: interactionMode === "navigate" ? V.pri : "transparent",
+            color: interactionMode === "navigate" ? V.onpri : V.ink,
+            fontSize: 10,
+            fontWeight: 700,
+            borderRadius: V.rs,
+            border: 0
+          }}
+        >
+          NAVIGATE
+        </button>
+        <button
+          type="button"
+          aria-pressed={interactionMode === "interact"}
+          aria-label="Interact Mode"
+          onClick={() => app.world.setInteractionMode("interact")}
+          style={{
+            ...button,
+            minWidth: 0,
+            padding: "4px 12px",
+            background: interactionMode === "interact" ? V.pri : "transparent",
+            color: interactionMode === "interact" ? V.onpri : V.ink,
+            fontSize: 10,
+            fontWeight: 700,
+            borderRadius: V.rs,
+            border: 0
+          }}
+        >
+          INTERACT
+        </button>
+      </div>
+    )}
     {!desktopBackdrop && selection && <aside aria-label="Selected object" style={{ position: "absolute", right: 14, top: 66, width: 210, padding: 10, color: V.ink, background: V.surf, border: `1px solid ${V.pri}`, borderRadius: V.rs, boxShadow: "0 8px 24px #0008", font: `400 11px/1.4 ${t.font}` }}>
       <div style={{ color: V.pri, fontWeight: 800, letterSpacing: ".08em", fontSize: 9 }}>SELECTED</div>
       <strong style={{ display: "block", marginTop: 3 }}>{selection.name || selection.id || "Simulator object"}</strong>
