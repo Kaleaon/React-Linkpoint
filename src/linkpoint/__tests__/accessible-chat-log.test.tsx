@@ -54,6 +54,7 @@ describe('AccessibleChatLog', () => {
     expect(logContainer).not.toBeNull();
     expect(logContainer?.getAttribute('aria-live')).toBe('polite');
     expect(logContainer?.getAttribute('aria-label')).toBe('Spatial chat overlay log');
+    expect(logContainer?.getAttribute('tabindex')).toBe('0');
     expect(host.textContent).toContain('Arapaima Resident');
     expect(host.textContent).toContain('Hello spatial world');
   });

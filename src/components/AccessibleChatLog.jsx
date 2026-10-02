@@ -53,7 +53,7 @@ export default function AccessibleChatLog({
     if (!isFrozen && messagesEndRef.current?.scrollIntoView) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [formattedMessages, isFrozen]);
+  }, [formattedMessages.length, isFrozen]);
 
   // Detect manual user scroll to auto-freeze scroll when reading history
   const handleScroll = () => {
@@ -157,7 +157,7 @@ export default function AccessibleChatLog({
         aria-live="polite"
         aria-atomic="false"
         aria-label={defaultLabel}
-        tabIndex={-1}
+        tabIndex={0}
         onScroll={handleScroll}
         style={{
           flex: 1,
