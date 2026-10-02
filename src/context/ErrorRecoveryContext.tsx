@@ -7,17 +7,19 @@ import {
   TelemetryEntry,
 } from '../linkpoint/errorRecovery';
 
+interface RetryOptions<T> {
+  action: () => Promise<T>;
+  category?: string;
+  code?: string;
+  description?: string;
+  maxRetries?: number;
+  onSuccess?: (result: T) => void;
+  onFailure?: (error: Error) => void;
+}
+
 interface ErrorRecoveryContextValue extends ErrorRecoverySnapshot {
   service: ErrorRecoveryService;
-  enqueueRetry: <T>(options: {
-    action: () => Promise<T>;
-    category?: string;
-    code?: string;
-    description?: string;
-    maxRetries?: number;
-    onSuccess?: (result: T) => void;
-    onFailure?: (error: Error) => void;
-  }) => Promise<T>;
+  enqueueRetry: <T>(options: RetryOptions<T>) => Promise<T>;
   logTelemetry: (category: string, code: string, message: string, details?: Record<string, any>) => TelemetryEntry;
   clearError: () => void;
   processRetryQueue: () => Promise<void>;
@@ -41,7 +43,7 @@ export const ErrorRecoveryProvider: React.FC<{ children: React.ReactNode; custom
   }, [service]);
 
   const enqueueRetry = useCallback(
-    <T,>(options: Parameters<ErrorRecoveryContextValue['enqueueRetry']>[0]) => {
+    <T,>(options: RetryOptions<T>) => {
       return service.enqueueRetry<T>(options);
     },
     [service]

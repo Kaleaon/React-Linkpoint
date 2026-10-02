@@ -8,7 +8,7 @@ import { MediaScreen, TeleportScreen } from '../../screens/LumiyaTools.jsx';
 import { MuteListScreen } from '../../screens/LiveScreens.jsx';
 import Settings from '../../screens/Settings.jsx';
 import { app } from '../app';
-import { click, flush, mountScreen, unmount, type Mounted } from './ui-helpers';
+import { click, flush, mountScreen, typeInto, unmount, type Mounted } from './ui-helpers';
 
 let mounted: Mounted | null = null;
 
@@ -46,22 +46,23 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
     expect(textarea?.getAttribute('id')).toBe('chat-away-message-input');
   });
 
-  it('Search screen filter input has dynamic aria-label attribute', async () => {
+  it('Search screen input is named for the active tab and the clear control is a real button', async () => {
     mounted = await mountScreen(Search);
-    let searchInput = mounted.host.querySelector('input[aria-label]');
+    let searchInput = mounted.host.querySelector('input.search-input');
     expect(searchInput).not.toBeNull();
-    expect(searchInput?.getAttribute('aria-label')).toBe('Filter search results by name');
+    expect(searchInput?.getAttribute('aria-label')).toBe('Search residents');
 
-    // Switch to SEARCH tab by finding the specific SEARCH tab element
-    const searchTabBtn = [...mounted.host.querySelectorAll('div')].find(
-      (d) => d.textContent?.trim() === 'SEARCH'
-    );
-    expect(searchTabBtn).toBeTruthy();
-    await click(searchTabBtn!);
+    const tab = (label: string) => [...mounted!.host.querySelectorAll('button')].find((b) => (b.textContent || '').trim().toLowerCase() === label);
+    await click(tab('groups'));
     await flush();
+    expect(mounted.host.querySelector('input.search-input')?.getAttribute('aria-label')).toBe('Search groups');
+    await click(tab('places'));
+    await flush();
+    expect(mounted.host.querySelector('input.search-input')?.getAttribute('aria-label')).toBe('Search places');
 
-    searchInput = mounted.host.querySelector('input[aria-label]');
-    expect(searchInput?.getAttribute('aria-label')).toBe('Search resident by name');
+    await typeInto(mounted.host.querySelector('input.search-input') as HTMLInputElement, 'club');
+    const clear = mounted.host.querySelector('button[aria-label="Clear search"]');
+    expect(clear).not.toBeNull();
   });
 
   it('Radar screen search input and sort select both have explicit aria-label attributes', async () => {
