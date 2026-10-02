@@ -528,10 +528,11 @@ export default function Radar() {
           borderBottom: "1px solid " + V.outv,
         }}
       >
-        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", background: V.surf, border: "1px solid " + V.outv, borderRadius: V.rs, padding: "0 8px", height: "28px" }}>
+        <div className="search-container" style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", background: V.surf, border: "1px solid " + V.outv, borderRadius: V.rs, padding: "0 8px", height: "28px" }}>
           <Icon name="search" size={13} style={{ color: V.ink2 }} />
           <input
             type="text"
+            className="search-input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={activeMode === "person" ? "Filter residents by name, status..." : "Filter items by name, parcel, avatar..."}
@@ -539,7 +540,6 @@ export default function Radar() {
               flex: 1,
               background: "transparent",
               border: "none",
-              outline: "none",
               color: V.ink,
               fontSize: "11px",
               fontFamily: t.font,

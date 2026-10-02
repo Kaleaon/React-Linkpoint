@@ -170,7 +170,6 @@ export default function AccessibleChatLog({
           gap: 6,
           background: containerBg,
           backdropFilter: isOverlay ? "blur(8px)" : "none",
-          outline: "none",
         }}
       >
         {!formattedMessages.length && (

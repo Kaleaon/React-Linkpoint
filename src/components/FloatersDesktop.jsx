@@ -255,10 +255,10 @@ export default function FloatersDesktop() {
               value={quickMsg}
               onChange={(e) => setQuickMsg(e.target.value)}
               placeholder="Nearby Chat..."
-              className="chat-input-field"
+              className="chat-input-field search-input"
               style={{
                 width: "100%", height: "26px", padding: "0 8px", background: "var(--chat-bg-scrim, " + V.bg + ")", color: "var(--chat-text, " + V.ink + ")",
-                border: "1px solid " + V.outv, borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, font: "400 11px/1 " + t.font, outline: "none"
+                border: "1px solid " + V.outv, borderRadius: kind === "sweep" ? "999px" : kind === "metro" ? 0 : V.rs, font: "400 11px/1 " + t.font
               }}
             />
           </div>
