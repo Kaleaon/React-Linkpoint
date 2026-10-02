@@ -16,3 +16,9 @@ dependencies {
 }
 
 application { mainClass.set("MockGridMainKt") }
+
+tasks.register<JavaExec>("runOar") {
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("OarBuilderMainKt")
+}

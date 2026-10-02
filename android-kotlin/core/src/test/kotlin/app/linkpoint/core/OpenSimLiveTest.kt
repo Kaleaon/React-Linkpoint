@@ -5,6 +5,8 @@ import app.linkpoint.core.login.LoginClient
 import app.linkpoint.core.login.LoginRequest
 import app.linkpoint.core.model.ConnectionState
 import app.linkpoint.core.net.UrlConnectionHttp
+import app.linkpoint.core.image.TextureFetcher
+import app.linkpoint.core.scene.*
 import kotlinx.coroutines.*
 import org.junit.Assume.assumeTrue
 import org.junit.Assert.*
@@ -43,5 +45,46 @@ class OpenSimLiveTest {
         s.logout()
         assertEquals(ConnectionState.DISCONNECTED, s.state.value)
         scope.cancel()
+    }
+
+    /** Needs content in the region, e.g. the OAR from `./gradlew :mockgrid:runOar` or any downloaded one. */
+    @Test fun streamsAndDecodesRegionContent() = runBlocking {
+        val url = System.getenv("OPENSIM_LOGIN_URL"); assumeTrue("OPENSIM_LOGIN_URL not set", !url.isNullOrBlank())
+        val http = UrlConnectionHttp()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val result = LoginClient.login(http, LoginRequest(Grid("opensim-local", "Local OpenSim", url!!), System.getenv("OPENSIM_USER") ?: "Linky Tester", System.getenv("OPENSIM_PASSWORD") ?: "testpass1", deviceId = "live-test"))
+        val s = ViewerSession(http, scope)
+        s.connect(result)
+        val caps = eventually(what = "capabilities") { s.capabilities.value.takeIf { "GetTexture" in it } }
+        delay(8000)
+        val objs = s.scene.snapshot().filter { !it.isAvatar }
+        println("LIVE scene: ${objs.size} objects")
+        val failures = ArrayList<String>()
+        val texIds = LinkedHashSet<java.util.UUID>()
+        for (o in objs) {
+            val kind = o.sculpt?.kind
+            val te = o.textures
+            te?.let { t -> texIds += t.default.textureId; for (i in 0 until 8) texIds += t.face(i).textureId }
+            val geo = try {
+                if (o.sculpt == null) PrimVolume.build(o.params).let { "${it.faces.size} faces, ${it.faces.sumOf { f -> f.indices.size / 3 }} tris" } else "sculpt/mesh $kind ${o.sculpt!!.assetId}"
+            } catch (e: Exception) { failures += "${o.localId}: ${e.message}"; "FAILED ${e.message}" }
+            println("LIVE  #${o.localId} pcode=${o.pcode} pos=${o.position} scale=${o.scale} parent=${o.parentId} text='${o.text}' particles=${o.particles != null} -> $geo")
+        }
+        val textures = TextureFetcher(http, scope, { caps["GetTexture"] })
+        val wanted = texIds.filter { it != app.linkpoint.core.scene.FaceAppearance.BLANK_ID && it != app.linkpoint.core.scene.FaceAppearance.NULL_ID }
+        wanted.forEach { textures.request(it) }
+        delay(8000)
+        for (id in wanted) println("LIVE  texture $id -> ${textures.peek(id)?.let { "${it.width}x${it.height}, ${it.levels.size} mips" } ?: "NOT LOADED"}")
+        val meshes = MeshFetcher(http, scope, { caps["GetMesh2"] ?: caps["GetMesh"] })
+        val sculpts = SculptFetcher(http, scope, { caps["GetTexture"] })
+        for (o in objs) { val sc = o.sculpt ?: continue; if (sc.kind == SculptKind.MESH) meshes.request(sc.assetId) else sculpts.request(sc.assetId) }
+        delay(8000)
+        for (o in objs) {
+            val sc = o.sculpt ?: continue
+            if (sc.kind == SculptKind.MESH) println("LIVE  mesh ${sc.assetId} -> ${meshes.peek(sc.assetId)?.let { m -> "${m.faces.size} faces, ${m.faces.sumOf { f -> f.indices.size / 3 }} tris" } ?: "NOT LOADED"}")
+            else println("LIVE  sculpt ${sc.assetId} -> ${sculpts.peek(sc.assetId)?.let { img -> "${Sculpt.build(img, sc.type).vertexCount} verts" } ?: "NOT LOADED"}")
+        }
+        s.logout(); scope.cancel()
+        assertTrue("geometry failures: $failures", failures.isEmpty())
     }
 }

@@ -134,3 +134,16 @@ local chat send, and logout. The test region was empty (only the avatar), so rea
 **still unverified**. OpenSim has no Second Life MFA, so the MFA path is only tested against a fake login server
 (`LoginTest`), modelled on Lumiya-Redux's `MfaLoginTest` and the official viewer's `lllogininstance`.
 The MFA hash is stored encrypted with an Android Keystore AES-GCM key (`SecretStore`), keyed per grid and normalised account.
+
+### Content test against OpenSim (generated OAR)
+
+`./gradlew :mockgrid:runOar --args=/tmp/linkpoint-test.oar` writes an OAR (12 objects: box, cylinder, sphere, torus, hollow/twisted/tapered
+box, triangle prism, glow cube, sculpt, LLMesh, a 3-prim linkset, floating text, a particle emitter; 4 assets). Load it with the OpenSim
+console command `load oar --merge /tmp/linkpoint-test.oar`, then run `OpenSimLiveTest.streamsAndDecodesRegionContent`.
+
+Verified against real OpenSim 0.9.3.0: all 14 prims (12 + 2 linkset children) streamed with correct positions, scales, parent ids
+and text; particle block parsed; every shape built geometry; textures downloaded through GetTexture and decoded (128x128, 8 mips);
+the LLMesh downloaded through GetMesh2 and decoded; the sculpt map downloaded and turned into a 32x32 vertex grid.
+Limits: the generated mesh has a single LOD and no skinning, the textures are tiny, and nothing here shows how it *looks*
+(the Filament view has not run on a device). A real-world OAR (multi-LOD meshes, large JPEG 2000 textures, many objects) has not been tried:
+the usual download sites were unreachable from the build sandbox. Load any OAR you have the rights to the same way and rerun the test.
