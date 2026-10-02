@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
+import SkeletonLoader from "../components/SkeletonLoader.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import Radar from "./Radar.jsx";
@@ -402,9 +403,41 @@ export function MuteListScreen() {
 }
 
 export function GenericInventoryScreen({ kind }) {
+  const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
+  const [, setRevision] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setRevision((n) => n + 1);
+    const startLoading = () => setIsLoading(true);
+    const stopLoading = () => setIsLoading(false);
+
+    app.inventory.on("inventory_loaded", refresh);
+    app.inventory.on("inventory_updated", refresh);
+    app.inventory.on("inventory_loading_start", startLoading);
+    app.inventory.on("inventory_loading_end", stopLoading);
+
+    return () => {
+      app.inventory.off("inventory_loaded", refresh);
+      app.inventory.off("inventory_updated", refresh);
+      app.inventory.off("inventory_loading_start", startLoading);
+      app.inventory.off("inventory_loading_end", stopLoading);
+    };
+  }, []);
+
   const wearableTypes = new Set([5, 13, 18, 19, 20, 21, 22, 23, 24]);
-  const values = Array.from(app.inventory.items.values()).filter((item) => kind === "wearable" ? wearableTypes.has(Number(item.assetType)) : Number(item.assetType) === 6);
-  return values.length ? <Rows rows={values} icon="package" /> : <Empty icon="package">No {kind.toLowerCase()} data has been loaded from inventory.</Empty>;
+  const values = Array.from(app.inventory.items.values()).filter((item) =>
+    kind === "wearable" ? wearableTypes.has(Number(item.assetType)) : Number(item.assetType) === 6
+  );
+
+  if (isLoading && values.length === 0) {
+    return <SkeletonLoader type="row" count={5} />;
+  }
+
+  return values.length ? (
+    <Rows rows={values} icon="package" />
+  ) : (
+    <Empty icon="package">No {kind.toLowerCase()} data has been loaded from inventory.</Empty>
+  );
 }
 
 export function ConnectionScreen({ title }) {

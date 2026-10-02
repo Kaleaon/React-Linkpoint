@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { app } from "../linkpoint/app.ts";
 import { GRIDS } from "../theme/constants.js";
 import Icon from "../components/Icon.jsx";
+import AssetContainer from "../components/AssetContainer.jsx";
 
 function Empty({ icon, children }) {
   return <div className="honest-empty"><Icon name={icon} size={30} /><p>{children}</p></div>;
@@ -28,7 +29,24 @@ export function MediaScreen() {
 export function NotecardsScreen() {
   const cards = useMemo(() => Array.from(app.inventory.items.values()).filter((item) => Number(item.assetType) === 7), []);
   const [selected, setSelected] = useState(null);
-  return <div className="tool-page"><h2>Notecards</h2>{cards.length ? cards.map((card) => <button className="runtime-card runtime-card-button" key={card.id} onClick={() => setSelected(card)}><Icon name="file-text" size={18} /><span>{card.name}</span></button>) : <Empty icon="file-text">No notecards have been loaded from inventory.</Empty>}{selected ? <section className="runtime-card"><h3>{selected.name}</h3><p>{selected.description || "Notecard asset content has not been downloaded."}</p><small>{selected.id}</small></section> : null}</div>;
+  return (
+    <div className="tool-page">
+      <h2>Notecards</h2>
+      {cards.length ? cards.map((card) => (
+        <button className="runtime-card runtime-card-button" key={card.id} onClick={() => setSelected(card)}>
+          <Icon name="file-text" size={18} />
+          <span>{card.name}</span>
+        </button>
+      )) : <Empty icon="file-text">No notecards have been loaded from inventory.</Empty>}
+      {selected ? (
+        <AssetContainer asset={selected} title={selected.name}>
+          <h3>{selected.name}</h3>
+          <p>{selected.description || selected.data || "Notecard asset content loaded."}</p>
+          <small>{selected.id}</small>
+        </AssetContainer>
+      ) : null}
+    </div>
+  );
 }
 
 export function ParcelScreen() {

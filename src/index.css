@@ -219,6 +219,73 @@ select:focus-visible {
   }
 }
 
+/* Skeleton UI Loader Styles */
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.skeleton-box {
+  background: linear-gradient(90deg, var(--surf2, rgba(255, 255, 255, 0.08)) 25%, var(--outv, rgba(255, 255, 255, 0.22)) 50%, var(--surf2, rgba(255, 255, 255, 0.08)) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.8s infinite ease-in-out;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-box {
+    animation: skeletonPulse 2s infinite ease-in-out;
+  }
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 6px;
+  border-bottom: 1px solid var(--outv, rgba(255, 255, 255, 0.1));
+}
+
+.skeleton-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  flex: none;
+}
+
+.skeleton-text {
+  height: 14px;
+  border-radius: 3px;
+}
+
+.skeleton-text-sm {
+  height: 10px;
+  border-radius: 3px;
+}
+
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surf, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--outv, rgba(255, 255, 255, 0.15));
+  border-radius: var(--rs, 6px);
+}
+
 /* Shared live-data surfaces. These retain the Linkpoint theme while rendering
    records received from the active grid instead of design-canvas fixtures. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
