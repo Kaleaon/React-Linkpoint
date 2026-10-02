@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
+import ViewportCanvas from "../components/ViewportCanvas";
 import HudControls from "./HudControls.jsx";
 
 export default function World3D({ desktopBackdrop = false }) {
@@ -47,7 +48,17 @@ export default function World3D({ desktopBackdrop = false }) {
     : { flex: 1, minHeight: 0, position: "relative", background: "#000" };
 
   return <section aria-label="3D world view" style={sceneStyle}>
-    <canvas ref={canvasRef} id={desktopBackdrop ? "world-canvas-backdrop" : "world-canvas"} aria-label={`Interactive 3D canvas for ${region}. Drag to look, shift drag to pan, wheel or pinch to zoom. W A S D or arrow keys move the camera.`} style={{ width: "100%", height: "100%", display: "block", cursor: "grab", touchAction: "none", outline: "none" }} />
+    <ViewportCanvas
+      ref={canvasRef}
+      id={desktopBackdrop ? "world-canvas-backdrop" : "world-canvas"}
+      regionName={region}
+      position={position}
+      onCameraMove={(forward, right, up) => move(forward, right, up)}
+      onZoom={(delta) => { app.world.camera3d?.zoom(delta); refresh(); }}
+      onResetView={() => { app.world.resetCamera?.(); refresh(); }}
+      showOverlayControls={!desktopBackdrop}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+    />
     {!desktopBackdrop && <output style={{ position: "absolute", left: 12, top: 12, padding: 8, background: V.surf, color: V.ink, font: `400 10px/1.5 ${t.font}`, borderRadius: V.rs, border: `1px solid ${V.outv}`, backdropFilter: "blur(4px)" }}>
       <strong>{region}</strong><br />
       Pos: {position.join(", ")}<br />
