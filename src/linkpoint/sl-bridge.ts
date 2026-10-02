@@ -172,7 +172,32 @@ export class SLBridge extends Utils.EventEmitter {
     if (!this.connected) return null;
     try { return await this.call('getDiagnostics'); } catch { return null; }
   }
-  /** An animation asset from the simulator, base64-encoded. */
+  /** Directory search capabilities across grid categories ('people', 'groups', 'places'). */
+  async searchDir(params: { category: string; query: string; start?: number }): Promise<{
+    results: Array<{
+      id: string;
+      name?: string;
+      displayName?: string;
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      group?: string;
+      online?: boolean;
+      members?: number;
+      description?: string;
+      dwell?: number;
+      forSale?: boolean;
+      type: string;
+      simName?: string;
+    }>;
+    hasMore?: boolean;
+  }> {
+    if (!this.connected) {
+      throw new Error('Not connected to Second Life');
+    }
+    return this.call('searchDir', params);
+  }
+
   fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
   voiceProvision(sdp: string, parcelLocalId?: number) { return this.call<any>('voiceProvision', { sdp, parcelLocalId }); }
   voiceSignal(viewerSession: string, candidates?: RTCIceCandidateInit[], completed = false) { return this.call('voiceSignal', { viewerSession, candidates, completed }); }

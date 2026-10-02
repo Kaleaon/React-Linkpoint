@@ -11,6 +11,7 @@ const METHODS = new Set([
   'fetchAnimation', 'getMapBlocks', 'getFriends', 'getGroups', 'getInventory', 'getDiagnostics',
   'getSceneObjects', 'getSceneSnapshot',
   'voiceProvision', 'voiceSignal', 'voiceLogout',
+  'searchDir',
 ]);
 
 async function callViewer(session, method, params) {
