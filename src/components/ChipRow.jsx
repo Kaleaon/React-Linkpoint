@@ -89,6 +89,7 @@ export default function ChipRow() {
             }}
             style={{
               ...chipBase,
+              ...(curTab === "IM" ? { paddingRight: "6px" } : null),
               ...(active ? { borderColor: V.pri, background: V.priC, color: V.onpriC } : null),
             }}
           >
@@ -123,13 +124,16 @@ export default function ChipRow() {
                 style={{
                   background: "transparent",
                   border: 0,
-                  padding: "0 2px",
+                  padding: 0,
                   fontSize: "12px",
                   color: "inherit",
                   opacity: 0.65,
                   cursor: "pointer",
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: "24px",
+                  minHeight: "24px",
                 }}
                 title={`Close conversation with ${n}`}
                 aria-label={`Close conversation with ${n}`}

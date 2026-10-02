@@ -61,7 +61,7 @@ export default function Settings() {
         <dt>Resident</dt><dd>{user?.fullName || "—"}</dd>
         <dt>Grid</dt><dd>{user?.grid || "—"}</dd>
         <dt>Region</dt><dd>{region?.name || app.protocol.authReply?.sim_name || "Not supplied"}</dd>
-        <dt>Agent ID</dt><dd>{app.protocol.agentId || "Not supplied"}</dd>
+        <dt>Account ID</dt><dd>{app.protocol.agentId || "Not supplied"}</dd>
       </dl>
       {app.auth.isLoggedIn() ? <button type="button" disabled={disconnecting} onClick={() => void disconnect()}>{disconnecting ? "Disconnecting…" : "Disconnect"}</button> : null}
     </section>

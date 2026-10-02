@@ -98,10 +98,10 @@ export default function DiagnosticsPanel() {
         <div>
           <h2 style={{ margin: 0, color: V.pri, font: `700 18px/1.2 ${t.dfont}`, letterSpacing: ".08em", display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="activity" size={22} />
-            SECOND LIFE CONNECTION DIAGNOSTICS
+            NETWORK HEALTH DIAGNOSTICS
           </h2>
           <div style={{ fontSize: 12, color: V.ink2, marginTop: 4 }}>
-            Real-time telemetry and network circuit monitoring from <code>SLConnectionFull</code>.
+            Real-time telemetry and network circuit monitoring.
           </div>
         </div>
         <button
@@ -135,7 +135,7 @@ export default function DiagnosticsPanel() {
         {/* Status Card */}
         <div style={cardStyle}>
           <div style={{ fontSize: 11, fontWeight: 700, color: V.ink2, letterSpacing: ".1em" }}>
-            CIRCUIT STATE
+            Connection Status
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
             <span style={{ width: 10, height: 10, borderRadius: "50%", background: isConnected ? V.ok : V.err }} />
@@ -151,7 +151,7 @@ export default function DiagnosticsPanel() {
         {/* Latency Card */}
         <div style={cardStyle}>
           <div style={{ fontSize: 11, fontWeight: 700, color: V.ink2, letterSpacing: ".1em", display: "flex", justifyContent: "space-between" }}>
-            <span>SIM LATENCY</span>
+            <span>World Response Time</span>
             <span style={{ color: latencyTone }}>{latency.label}</span>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
@@ -168,7 +168,7 @@ export default function DiagnosticsPanel() {
         {/* Packet Loss Card */}
         <div style={cardStyle}>
           <div style={{ fontSize: 11, fontWeight: 700, color: V.ink2, letterSpacing: ".1em" }}>
-            PACKET LOSS
+            Connection Stability
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ fontSize: 28, fontWeight: 800, color: lossTone, fontFamily: t.dfont }}>
@@ -184,7 +184,7 @@ export default function DiagnosticsPanel() {
         {/* Last Packet Received */}
         <div style={cardStyle}>
           <div style={{ fontSize: 11, fontWeight: 700, color: V.ink2, letterSpacing: ".1em" }}>
-            LAST PACKET RECEIVED
+            Last World Update
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span style={{ fontSize: 28, fontWeight: 800, color: ageTone, fontFamily: t.dfont }}>
@@ -251,11 +251,11 @@ export default function DiagnosticsPanel() {
             <strong>{show(diag.simAddress)}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
-            <span style={{ color: V.ink2 }}>Simulator UDP Port</span>
+            <span style={{ color: V.ink2 }}>Network Port</span>
             <strong>{show(positiveOrNull(diag.simPort))}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
-            <span style={{ color: V.ink2 }}>Circuit Code</span>
+            <span style={{ color: V.ink2 }}>Security Session Key</span>
             <strong>{show(positiveOrNull(diag.circuitCode))}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
@@ -267,7 +267,7 @@ export default function DiagnosticsPanel() {
             <strong style={{ color: V.pri }}>{show(diag.packetsOut)}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", background: V.bg, borderRadius: V.rs }}>
-            <span style={{ color: V.ink2 }}>Agent ID</span>
+            <span style={{ color: V.ink2 }}>Account ID</span>
             <strong style={{ fontSize: 10, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>
               {show(diag.agentId || app.auth.user?.id)}
             </strong>
@@ -278,11 +278,11 @@ export default function DiagnosticsPanel() {
       {/* Capabilities & Event Queue Section */}
       <div style={cardStyle}>
         <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: ".08em" }}>
-          CAPABILITIES & HTTP EVENT QUEUE STATUS
+          CAPABILITIES & EVENT LISTENER STATUS
         </div>
         <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ color: V.ink2 }}>Event Queue State</span>
+            <span style={{ color: V.ink2 }}>Event Listener Status</span>
             <span style={{ padding: "2px 8px", borderRadius: V.rs, background: V.surf2, color: toneColor(queue.tone), fontWeight: 700, fontSize: 11 }}>
               {queue.text}
             </span>
@@ -292,7 +292,7 @@ export default function DiagnosticsPanel() {
             <span>{isConnected ? `${capabilityCount} loaded` : UNKNOWN}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ color: V.ink2 }}>Seed Capability</span>
+            <span style={{ color: V.ink2 }}>Secure Features Key</span>
             <span style={{ fontSize: 10, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", color: V.ink2 }}>
               {show(app.protocol?.seedCapability)}
             </span>

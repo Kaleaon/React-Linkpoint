@@ -202,35 +202,7 @@ function serializeXMLElement(value: LLSDValue, indent: number): string {
  */
 export function parseNotation(notation: string): LLSDValue {
   const trimmed = notation.trim();
-  if (trimmed === '!') return null;
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-  
-  // Handle strings
-  if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1);
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed.slice(1, -1);
-  
-  // Handle numbers
-  if (trimmed.startsWith('i')) return parseInt(trimmed.slice(1), 10);
-  if (trimmed.startsWith('r')) return parseFloat(trimmed.slice(1));
-  
-  // Handle UUID
-  if (trimmed.startsWith('u')) return trimmed.slice(1).replace(/^['"]|['"]$/g, '');
-  
-  // Handle Date
-  if (trimmed.startsWith('d')) return parseISO(trimmed.slice(1).replace(/^['"]|['"]$/g, ''));
-  
-  // Handle URI
-  if (trimmed.startsWith('l')) return trimmed.slice(1).replace(/^['"]|['"]$/g, '');
-  
-  // Handle Binary
-  if (trimmed.startsWith('b')) {
-    const base64 = trimmed.slice(1).replace(/^['"]|['"]$/g, '');
-    return base64ToUint8Array(base64);
-  }
-  
-  // Handle Map and Array (this needs a proper tokenizer)
-  // For now, let's try a very basic recursive approach or just JSON fallback if it looks like JSON
+  if (!trimmed) return null;
   try {
     return new NotationParser(trimmed).parse();
   } catch (e) {

@@ -35,6 +35,8 @@ sealed class LoginUi {
 class ViewerHost(private val app: Application) {
     val prefs = Prefs(app)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val networkMonitor = app.linkpoint.core.net.BasicNetworkMonitor()
+    val errorRecoveryManager = app.linkpoint.core.net.ErrorRecoveryManager(networkMonitor, scope)
     private val http = UrlConnectionHttp()
     val session = ViewerSession(http, scope)
     val textures = TextureFetcher(http, scope, { session.capabilities.value["GetTexture"] })

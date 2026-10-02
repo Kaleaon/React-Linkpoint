@@ -23,8 +23,8 @@ export function latencyBand(ms) {
 }
 
 export function lossBand(pct) {
-  if (!isNum(pct) || pct < 0) return { text: UNKNOWN, tone: "none", note: "No loss statistics from the simulator" };
-  return { text: pct.toFixed(1), tone: pct === 0 ? "ok" : pct < 1.5 ? "warn" : "err", note: pct === 0 ? "No loss reported" : "Loss reported" };
+  if (!isNum(pct) || pct < 0) return { text: UNKNOWN, tone: "none", note: "No connection stability statistics available" };
+  return { text: pct.toFixed(1), tone: pct === 0 ? "ok" : pct < 1.5 ? "warn" : "err", note: pct === 0 ? "Connection stable (no packet loss)" : "Intermittent data loss detected" };
 }
 
 /** Append a latency sample, keeping only real ones and the most recent `max`. */
@@ -48,11 +48,11 @@ export function packetAgeMs(lastTs, now) {
 /** Notification text for a ping probe result. */
 export function describePing(result) {
   const v = realLatency(result?.latencyMs);
-  return v === null ? "Ping probe returned no latency measurement" : `Ping complete: ${Math.round(v)} ms latency`;
+  return v === null ? "Response check returned no measurement" : `Response check complete: ${Math.round(v)} ms response time`;
 }
 
 /** Event queue state from the connection's real flag. */
 export function eventQueueState(connected, running) {
-  if (!connected) return { text: "NOT CONNECTED", tone: "none" };
-  return running ? { text: "RUNNING", tone: "ok" } : { text: "STOPPED", tone: "err" };
+  if (!connected) return { text: "Not connected", tone: "none" };
+  return running ? { text: "Active", tone: "ok" } : { text: "Inactive", tone: "err" };
 }

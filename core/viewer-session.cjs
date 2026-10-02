@@ -26,6 +26,13 @@ const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
   finite, vector, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend,
 } = require('./serializers.cjs');
+const { DirFindQueryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirFindQuery');
+const { DirPlacesQueryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirPlacesQuery');
+const { DirFindFlags } = require('@caspertech/node-metaverse/dist/lib/enums/DirFindFlags');
+const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
+const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
+const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
+const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
 
 const NOT_CONNECTED = 'Not connected to Second Life';
 
@@ -621,6 +628,102 @@ class ViewerSession {
       console.warn('[SL Session] getAllObjects warning:', error);
       return [];
     }
+  }
+
+  async searchDir(params = {}) {
+    const category = String(params.category || 'people').toLowerCase();
+    const query = String(params.query || '').trim();
+    const start = Number(params.start) || 0;
+    if (!query) return { results: [], hasMore: false };
+
+    if (!this.bot) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    if (category === 'people') {
+      const msg = new DirFindQueryMessage();
+      msg.AgentData = {
+        AgentID: this.bot.agent.agentID,
+        SessionID: this.bot.circuit.sessionID,
+      };
+      const queryID = UUID.random();
+      msg.QueryData = {
+        QueryID: queryID,
+        QueryText: Utils.StringToBuffer(query),
+        QueryFlags: DirFindFlags.People | DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
+        QueryStart: start,
+      };
+      this.bot.circuit.sendMessage(msg, PacketFlags.Reliable);
+      const reply = await this.bot.circuit.waitForMessage(Message.DirPeopleReply, 10000, (dpr) => {
+        return dpr.QueryData?.QueryID?.equals(queryID) ? FilterResponse.Finish : FilterResponse.NoMatch;
+      });
+      const results = [];
+      for (const p of reply.QueryReplies || []) {
+        if (!p.AgentID || p.AgentID.isZero()) continue;
+        const firstName = Utils.BufferToStringSimple(p.FirstName || '');
+        const lastName = Utils.BufferToStringSimple(p.LastName || '');
+        const group = Utils.BufferToStringSimple(p.Group || '');
+        const username = lastName && lastName !== 'Resident' ? `${firstName} ${lastName}` : firstName;
+        const displayName = `${firstName} ${lastName}`.trim();
+        results.push({
+          id: p.AgentID.toString(),
+          name: displayName || username,
+          displayName,
+          username,
+          firstName,
+          lastName,
+          group,
+          online: Boolean(p.Online),
+          type: 'people',
+        });
+      }
+      return { results, hasMore: results.length >= 100 };
+    } else if (category === 'groups') {
+      const rawResults = await this.bot.clientCommands.group.searchGroups(query, start);
+      const results = (rawResults || []).map((g) => ({
+        id: g.GroupID?.toString?.() || g.id || crypto.randomUUID(),
+        name: g.GroupName || g.name || query,
+        members: g.Members ?? g.members ?? 0,
+        type: 'groups',
+      }));
+      return { results, hasMore: results.length >= 100 };
+    } else if (category === 'places') {
+      const msg = new DirPlacesQueryMessage();
+      msg.AgentData = {
+        AgentID: this.bot.agent.agentID,
+        SessionID: this.bot.circuit.sessionID,
+      };
+      const queryID = UUID.random();
+      msg.QueryData = {
+        QueryID: queryID,
+        QueryText: Utils.StringToBuffer(query),
+        QueryFlags: DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
+        Category: 0,
+        SimName: Buffer.from(''),
+        QueryStart: start,
+      };
+      this.bot.circuit.sendMessage(msg, PacketFlags.Reliable);
+      const reply = await this.bot.circuit.waitForMessage(Message.DirPlacesReply, 10000, (dpr) => {
+        const qids = dpr.QueryData || [];
+        for (const q of qids) {
+          if (q.QueryID?.equals(queryID)) return FilterResponse.Finish;
+        }
+        return FilterResponse.NoMatch;
+      });
+      const results = [];
+      for (const place of reply.QueryReplies || []) {
+        results.push({
+          id: place.ParcelID?.toString() || crypto.randomUUID(),
+          name: Utils.BufferToStringSimple(place.Name || ''),
+          dwell: place.Dwell || 0,
+          forSale: Boolean(place.ForSale),
+          type: 'places',
+        });
+      }
+      return { results, hasMore: results.length >= 100 };
+    }
+
+    return { results: [], hasMore: false };
   }
 
   /** Objects and decoded assets, for a client that connected after they were first announced. */
