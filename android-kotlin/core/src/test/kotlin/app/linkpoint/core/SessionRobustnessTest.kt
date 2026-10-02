@@ -309,4 +309,33 @@ class SessionRobustnessTest {
         assertFalse(resent)
         c.close(); sim.close(); sc.cancel()
     }
+
+    @Test fun aLocalTeleportMovesOurPositionAndTheCameraWeReport() = runBlocking {
+        FakeSim().use { sim ->
+            val sc = scope()
+            val s = ViewerSession(noHttp, sc)
+            s.connect(login(sim.socket.localPort, sim.agent))
+            assertEquals(10f, s.region.value!!.position!![0], 0f) // from AgentMovementComplete
+            sim.inject(Outgoing(Msg.TeleportLocal, WireWriter().uuid(sim.agent).u32(0).vec3(100f, 90f, 40f).vec3(1f, 0f, 0f).u32(0).toByteArray(), true))
+            eventually { s.region.value?.position?.takeIf { it[0] == 100f } }
+            assertArrayEquals(floatArrayOf(100f, 90f, 40f), s.region.value!!.position!!, 0f)
+            assertEquals("Testville", s.region.value?.name) // nothing else about the region changed
+            // The next AgentUpdate carries the new spot as camera centre (camera centre starts at byte 57: 32 ids + 2x12 rotation + 1 state).
+            eventually { sim.agentUpdates.lastOrNull()?.takeIf { ByteBuffer.wrap(it).order(ByteOrder.LITTLE_ENDIAN).getFloat(57) == 100f } }
+            s.logout(); sc.cancel()
+        }
+    }
+
+    @Test fun ourPositionFollowsOurOwnAvatarInObjectUpdates() = runBlocking {
+        FakeSim().use { sim ->
+            val sc = scope()
+            val s = ViewerSession(noHttp, sc)
+            s.connect(login(sim.socket.localPort, sim.agent))
+            val me = app.linkpoint.core.mock.ObjectSpec(77, fullId = sim.agent, pcode = app.linkpoint.core.scene.PCode.AVATAR, position = app.linkpoint.core.scene.Vec3(200f, 55f, 33f))
+            sim.inject(Outgoing(Msg.ObjectUpdate, app.linkpoint.core.mock.ObjectPackets.full(me), false))
+            val p = eventually { s.region.value?.position?.takeIf { it[0] == 200f } }
+            assertArrayEquals(floatArrayOf(200f, 55f, 33f), p, 0f)
+            s.logout(); sc.cancel()
+        }
+    }
 }

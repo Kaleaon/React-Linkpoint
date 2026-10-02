@@ -123,6 +123,38 @@ class ViewerSession(
 
     private val switchLock = kotlinx.coroutines.sync.Mutex()
 
+    /**
+     * Circuits to neighbouring simulators ("child agents"). A grid tells us about them with EnableSimulator and expects
+     * us to open a circuit to each (UseCircuitCode) so that a region crossing or teleport can hand our agent over;
+     * without them OpenSim answers a crossing with "agent update failed".
+     */
+    private class Child(val circuit: Circuit, val job: Job, @Volatile var handshake: Received?)
+    private val children = java.util.concurrent.ConcurrentHashMap<String, Child>()
+
+    private fun enableChild(ip: String, port: Int) {
+        val key = "$ip:$port"
+        val root = circuit?.remote
+        if (children.containsKey(key) || (root != null && root.address.hostAddress == ip && root.port == port)) return
+        val c = circuitFactory(scope, ip, port)
+        lateinit var child: Child
+        c.start()
+        val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            c.messages.collect { rx ->
+                if (rx.id == Msg.RegionHandshake) {
+                    child.handshake = rx
+                    c.send(Messages.regionHandshakeReply(agentId, sessionId))
+                }
+            }
+        }
+        child = Child(c, job, null)
+        children[key] = child
+        c.send(Messages.useCircuitCode(login!!.circuitCode, sessionId, agentId))
+    }
+
+    private fun closeChildren() {
+        for (k in children.keys.toList()) children.remove(k)?.let { it.job.cancel(); it.circuit.close() }
+    }
+
     /** Open a circuit to a simulator and complete the handshake. Used at login, teleport and region crossing. */
     private suspend fun enterSimulator(ip: String, port: Int, seedCapability: String) = switchLock.withLock {
         val code = login!!.circuitCode
@@ -133,16 +165,21 @@ class ViewerSession(
         previousJobs.forEach { it.cancel() }
         scene.clear(); heightmap.clear(); _nearby.value = emptyList()
 
-        val fresh = circuitFactory(scope, ip, port)
+        // A neighbour we already hold a circuit to is promoted: it has seen UseCircuitCode, so only the movement completes.
+        val promoted = children.remove("$ip:$port")
+        promoted?.job?.cancel()
+        val fresh = promoted?.circuit ?: circuitFactory(scope, ip, port)
         val done = CompletableDeferred<Unit>()
         movementDone = done
         circuitJobs = mutableListOf()
         circuit = fresh
-        fresh.start()
+        if (promoted == null) fresh.start()
         // UNDISPATCHED: the flows do not replay, so we must be subscribed before the first packet can arrive.
         circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.messages.collect { onMessage(it) } }
         circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.lost.collect { if (it == Msg.UseCircuitCode) _notices.tryEmit(ViewerNotice.Error("The simulator did not answer the circuit request")) } }
-        fresh.send(Messages.useCircuitCode(code, sessionId, agentId))
+        // The region handshake may already have arrived while this simulator was only a neighbour: process it now.
+        promoted?.handshake?.let { onMessage(it) }
+        if (promoted == null) fresh.send(Messages.useCircuitCode(code, sessionId, agentId))
         fresh.send(Messages.completeAgentMovement(agentId, sessionId, code))
         try {
             withTimeout(handshakeTimeoutMs) { done.await() }
@@ -154,6 +191,8 @@ class ViewerSession(
             throw java.io.IOException("The simulator did not complete the handshake in ${handshakeTimeoutMs / 1000.0} seconds".replace(".0 ", " "))
         }
         previous?.close()
+        // The grid announces the new neighbours (including the region we just left) once we are in.
+        closeChildren()
         startCaps(seedCapability)
     }
 
@@ -211,6 +250,14 @@ class ViewerSession(
                     int("MaxPrims"), int("TotalPrims"), d["MusicURL"]?.toString() ?: "", d["MediaURL"]?.toString() ?: "",
                 )
             }
+            "EnableSimulator" -> {
+                for (info in e.body["SimulatorInfo"].asLlsdList().orEmpty()) {
+                    val m = info.asLlsdMap() ?: continue
+                    val ip = (m["IP"] as? ByteArray)?.takeIf { it.size == 4 }?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: continue
+                    val port = (m["Port"] as? Number)?.toInt() ?: continue
+                    if (_state.value != ConnectionState.DISCONNECTED) enableChild(ip, port)
+                }
+            }
             "CrossedRegion" -> {
                 val rd = (e.body["RegionData"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return
                 val ip = (rd["SimIP"] as? ByteArray)?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: return
@@ -260,7 +307,11 @@ class ViewerSession(
             is Incoming.TeleportStart -> _notices.tryEmit(ViewerNotice.Teleport("Teleport started"))
             is Incoming.TeleportProgress -> _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
             is Incoming.TeleportFailed -> _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}"))
-            is Incoming.TeleportLocal -> _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
+            is Incoming.TeleportLocal -> {
+                // Same region, new spot: our position (which is also the camera we report) must follow.
+                _region.update { it?.copy(position = m.position) }
+                _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
+            }
             is Incoming.MapBlocks -> mapReply?.complete(m.blocks)
             is Incoming.KickUser -> {
                 _notices.tryEmit(ViewerNotice.Disconnected(m.reason.ifBlank { "You were disconnected by the simulator" }))
@@ -422,6 +473,7 @@ class ViewerSession(
         capsJob?.cancel()
         circuitJobs.forEach { it.cancel() }; circuitJobs.clear()
         circuit?.close(); circuit = null
+        closeChildren()
         _nearby.value = emptyList()
         _state.value = ConnectionState.DISCONNECTED
     }
@@ -450,8 +502,18 @@ class ViewerSession(
         circuit?.send(Messages.agentUpdate(agentId, sessionId, p?.get(0) ?: 128f, p?.get(1) ?: 128f, p?.get(2) ?: 30f, controlFlags = controlFlags, bodyYaw = bodyYaw))
     }
 
+    /** The simulator tells us where our avatar is through ordinary object updates; follow it (not while seated on something). */
+    private fun followOwnAvatar() {
+        val me = scene.findByFullId(agentId)?.takeIf { it.parentId == 0L } ?: return
+        val p = _region.value?.position
+        val x = me.position.x; val y = me.position.y; val z = me.position.z
+        if (p != null && kotlin.math.abs(p[0] - x) < 0.01f && kotlin.math.abs(p[1] - y) < 0.01f && kotlin.math.abs(p[2] - z) < 0.01f) return
+        _region.update { it?.copy(position = floatArrayOf(x, y, z)) }
+    }
+
     private suspend fun agentUpdateLoop() {
         while (currentCoroutineContext().isActive) {
+            followOwnAvatar()
             sendAgentUpdate()
             delay(if (controlFlags != 0L) 100 else 1_000)
         }

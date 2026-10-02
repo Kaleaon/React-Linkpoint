@@ -16,6 +16,8 @@ import org.junit.Test
 class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val gridY: Int = 1001) : AutoCloseable {
     val socket = DatagramSocket(0, InetAddress.getByName("127.0.0.1")).apply { soTimeout = 200 }
     val received = java.util.concurrent.CopyOnWriteArrayList<Int>()
+    /** Number of UseCircuitCode / CompleteAgentMovement messages seen, to tell a fresh circuit from a promoted one. */
+    val circuitCodeCount get() = received.count { it == Msg.UseCircuitCode }
     val chatSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
     /** Region handles from TeleportLocationRequest messages. */
     /** Lure ids from TeleportLureRequest, and landmark ids from TeleportLandmarkRequest (all-zero means "home"). */

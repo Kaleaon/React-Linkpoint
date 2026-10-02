@@ -31,7 +31,7 @@ class OpenSimLiveSessionTest {
     }
 
     private suspend fun login(http: UrlConnectionHttp, pw: String = password): LoginResult =
-        LoginClient.login(http, LoginRequest(Grid("opensim-local", "Local OpenSim", url!!), user, pw, deviceId = "live-session-test"))
+        LoginClient.login(http, LoginRequest(Grid("opensim-local", "Local OpenSim", url!!), user, pw, start = "uri:$home&128&128&40", deviceId = "live-session-test"))
 
     /** OpenSim answers "already logged in" for about a minute after a session ended without a logout. */
     private suspend fun loginPatiently(http: UrlConnectionHttp): LoginResult {
@@ -141,7 +141,9 @@ class OpenSimLiveSessionTest {
         s.teleport(neighbour, 128f, 128f, 50f)
         eventually(60_000, "arrival in $neighbour") { s.region.value?.takeIf { it.name == neighbour } }
         s.teleportHome()
-        val arrived = withTimeoutOrNull(20_000) { eventually(20_000, "home") { s.region.value?.takeIf { it.name == home } } }
+        val end = System.currentTimeMillis() + 20_000
+        var arrived: RegionInfo? = null
+        while (arrived == null && System.currentTimeMillis() < end) { arrived = s.region.value?.takeIf { it.name == home }; delay(100) }
         assumeTrue("this OpenSim account has no home location set, so there is nowhere to teleport to", arrived != null)
         assertEquals(ConnectionState.CONNECTED, s.state.value)
     }

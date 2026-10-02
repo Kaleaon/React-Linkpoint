@@ -218,4 +218,51 @@ class RegionSwitchTest {
         assertThrows(IllegalStateException::class.java) { s.teleportHome() }
         assertThrows(IllegalStateException::class.java) { s.acceptOffer(PendingOffer.Lure(UUID.randomUUID(), "x", "y")) }
     }
+
+    private fun enableSimulator(sim: FakeSim) =
+        mapOf("message" to "EnableSimulator", "body" to mapOf("SimulatorInfo" to listOf(mapOf("Handle" to ByteArray(8), "IP" to loopback, "Port" to sim.socket.localPort))))
+
+    @Test fun anAnnouncedNeighbourGetsACircuitAndIsPromotedOnCrossing() = runBlocking {
+        FakeSim("West", 1000, 1001).use { west -> FakeSim("East", 1001, 1001).use { east ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(west, caps.seed("west")))
+            eventually { s.region.value?.takeIf { it.name == "West" } }
+            assertTrue("no circuit to the neighbour before it is announced", east.received.isEmpty())
+
+            // The grid announces the neighbour (twice, as grids do): we open exactly one child circuit.
+            caps.queue("west").add(enableSimulator(east)); caps.queue("west").add(enableSimulator(east))
+            eventually { east.received.firstOrNull { it == Msg.UseCircuitCode } }
+            delay(300)
+            assertEquals(1, east.circuitCodeCount)
+            assertFalse("a child circuit is not a region entry", east.received.contains(Msg.CompleteAgentMovement))
+            assertEquals("still in the west", "West", s.region.value?.name)
+
+            caps.queue("west").add(simEvent("CrossedRegion", "RegionData", east, caps.seed("east")))
+            eventually { s.region.value?.takeIf { it.name == "East" } }
+            assertEquals("the crossing reused the child circuit", 1, east.circuitCodeCount)
+            assertTrue(east.received.contains(Msg.CompleteAgentMovement))
+            assertEquals(ConnectionState.CONNECTED, s.state.value)
+            s.sendChat("over the line")
+            eventually { east.chatSeen.firstOrNull { it == "over the line" } }
+            s.logout(); scope.cancel()
+        } }
+    }
+
+    @Test fun neighboursAreDroppedWhenTheSessionEnds() = runBlocking {
+        FakeSim("West", 1000, 1001).use { west -> FakeSim("East", 1001, 1001).use { east ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(west, caps.seed("west")))
+            caps.queue("west").add(enableSimulator(east))
+            eventually { east.received.firstOrNull { it == Msg.UseCircuitCode } }
+            s.logout()
+            val before = east.received.size
+            delay(1500) // a leaked child circuit would keep acking/pinging
+            assertTrue("the child circuit should be closed", east.received.size - before <= 1)
+            scope.cancel()
+        } }
+    }
 }
