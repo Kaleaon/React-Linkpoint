@@ -105,14 +105,14 @@ export const LAYOUTS: Record<string, LayoutPack> = {
     look: { card: "box", head: "stack", seg: "fill", chips: true, gap: "9px", measure: null },
     note: "Dense terminal grid: mono type, 4px corners, bottom tabs, '>' status lines, 0.26em tracking on titles."
   },
-  sweep: {
-    name: "Sweep Console",
-    nav: "SWEEP",
-    font: '"Antonio","Jost",sans-serif',
-    dfont: '"Antonio",sans-serif',
-    s: { rs: "999px", rl: "28px", rp: "22px", navr: "0 999px 999px 0", pad: "10px", tls: ".16em" },
-    look: { card: "cap", head: "sweep", seg: "fill", chips: true, gap: "6px", measure: null },
-    note: "LCARS-rule console: the swept elbow is the frame, rail segments ARE the buttons, thickness changes at every turn, rounded caps terminate bars, title-bar grammar (cap → bar → title → end cap), one font at three sizes, two text colours, fills only."
+  metro: {
+    name: "Metro Tiles",
+    nav: "TILES",
+    font: '"Open Sans","Nunito Sans",sans-serif',
+    dfont: '"Open Sans",sans-serif',
+    s: { rs: "0px", rl: "0px", rp: "0px", navr: "0px", pad: "14px", tls: "0em" },
+    look: { card: "flat", head: "pivot", seg: "pivot", chips: false, gap: "2px", measure: null },
+    note: "Metro: zero radius, light-weight pivot titles, spacious 1.25 scale, lowercase tile nav."
   },
   tiles: {
     name: "Metro Tiles",
@@ -123,6 +123,42 @@ export const LAYOUTS: Record<string, LayoutPack> = {
     look: { card: "flat", head: "pivot", seg: "pivot", chips: false, gap: "2px", measure: null },
     note: "Metro: zero radius, light-weight pivot titles, spacious 1.25 scale, lowercase tile nav."
   },
+  lcars: {
+    name: "Sweep Console",
+    nav: "SWEEP",
+    font: '"Antonio","Jost",sans-serif',
+    dfont: '"Antonio",sans-serif',
+    s: { rs: "999px", rl: "28px", rp: "22px", navr: "0 999px 999px 0", pad: "10px", tls: ".16em" },
+    look: { card: "cap", head: "sweep", seg: "fill", chips: true, gap: "6px", measure: null },
+    note: "LCARS-rule console: the swept elbow is the frame, rail segments ARE the buttons, thickness changes at every turn, rounded caps terminate bars."
+  },
+  sweep: {
+    name: "Sweep Console",
+    nav: "SWEEP",
+    font: '"Antonio","Jost",sans-serif',
+    dfont: '"Antonio",sans-serif',
+    s: { rs: "999px", rl: "28px", rp: "22px", navr: "0 999px 999px 0", pad: "10px", tls: ".16em" },
+    look: { card: "cap", head: "sweep", seg: "fill", chips: true, gap: "6px", measure: null },
+    note: "LCARS-rule console: the swept elbow is the frame, rail segments ARE the buttons, thickness changes at every turn, rounded caps terminate bars."
+  },
+  frutiger_aero: {
+    name: "Frutiger Aero",
+    nav: "TABS",
+    font: '"Nunito Sans",sans-serif',
+    dfont: '"Nunito Sans",sans-serif',
+    s: { rs: "12px", rl: "18px", rp: "16px", navr: "12px", pad: "14px", tls: ".06em" },
+    look: { card: "soft", head: "stack", seg: "fill", chips: true, gap: "11px", measure: null },
+    note: "Glossy Aero: 12-18px rounding, comfortable 1.1 spacing, soft panels, rounded duotone icons."
+  },
+  aero: {
+    name: "Frutiger Aero",
+    nav: "TABS",
+    font: '"Nunito Sans",sans-serif',
+    dfont: '"Nunito Sans",sans-serif',
+    s: { rs: "12px", rl: "18px", rp: "16px", navr: "12px", pad: "14px", tls: ".06em" },
+    look: { card: "soft", head: "stack", seg: "fill", chips: true, gap: "11px", measure: null },
+    note: "Glossy Aero: 12-18px rounding, comfortable 1.1 spacing, soft panels, rounded duotone icons."
+  },
   glass: {
     name: "Aero Glass",
     nav: "TABS",
@@ -132,6 +168,15 @@ export const LAYOUTS: Record<string, LayoutPack> = {
     look: { card: "soft", head: "stack", seg: "fill", chips: true, gap: "11px", measure: null },
     note: "Glossy Aero: 12-18px rounding, comfortable 1.1 spacing, soft panels, rounded duotone icons."
   },
+  art_deco: {
+    name: "Art Deco",
+    nav: "RAIL",
+    font: '"Jost",system-ui,sans-serif',
+    dfont: '"Jost",sans-serif',
+    s: { rs: "0px", rl: "0px", rp: "0px", navr: "0px", pad: "11px", tls: ".35em" },
+    look: { card: "rule", head: "rule", seg: "text", chips: false, gap: "0px", measure: null },
+    note: "Deco discipline: hairline rules instead of fills, sharp corners, 0.35em tracking, compact scale, rail nav."
+  },
   rules: {
     name: "Rule & Rail",
     nav: "RAIL",
@@ -140,6 +185,33 @@ export const LAYOUTS: Record<string, LayoutPack> = {
     s: { rs: "0px", rl: "0px", rp: "0px", navr: "0px", pad: "11px", tls: ".35em" },
     look: { card: "rule", head: "rule", seg: "text", chips: false, gap: "0px", measure: null },
     note: "Deco discipline: hairline rules instead of fills, sharp corners, 0.35em tracking, compact scale, rail nav."
+  },
+  modernglass: {
+    name: "Modern Glass",
+    nav: "TABS",
+    font: '"Nunito Sans",sans-serif',
+    dfont: '"Nunito Sans",sans-serif',
+    s: { rs: "16px", rl: "24px", rp: "20px", navr: "16px", pad: "14px", tls: ".08em" },
+    look: { card: "soft", head: "stack", seg: "fill", chips: true, gap: "12px", measure: null },
+    note: "Translucent glass blur with deep curved corners and soft glowing borders."
+  },
+  material3: {
+    name: "Material3",
+    nav: "TABS",
+    font: "system-ui, -apple-system, sans-serif",
+    dfont: "system-ui, sans-serif",
+    s: { rs: "12px", rl: "28px", rp: "16px", navr: "16px", pad: "16px", tls: "0em" },
+    look: { card: "quiet", head: "stack", seg: "fill", chips: true, gap: "8px", measure: null },
+    note: "Material Design 3 layout with rounded pill containers and tonal elevation."
+  },
+  cyberpunk: {
+    name: "Cyberpunk",
+    nav: "RAIL",
+    font: '"JetBrains Mono",monospace',
+    dfont: '"JetBrains Mono",monospace',
+    s: { rs: "0px", rl: "2px", rp: "0px", navr: "0px", pad: "10px", tls: ".25em" },
+    look: { card: "box", head: "sweep", seg: "fill", chips: true, gap: "10px", measure: null },
+    note: "High-contrast dystopian HUD with sharp chamfered cut corners, neon wireframes, and dense telemetry."
   },
   press: {
     name: "Press",
