@@ -18,6 +18,24 @@ export enum LLSDFormat {
 }
 
 /**
+ * Decodes a Base64 string into a Uint8Array across browser, Node.js/Electron, and React Native environments.
+ */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  if (!base64) return new Uint8Array(0);
+  if (typeof Buffer !== 'undefined') {
+    const buf = Buffer.from(base64, 'base64');
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
  * LLSD XML Parsing
  */
 export function parseXML(xml: string): LLSDValue {
@@ -45,10 +63,7 @@ function parseXMLElement(el: Element): LLSDValue {
     case 'uri': return el.textContent?.trim() || '';
     case 'binary': {
       const base64 = el.textContent?.trim() || '';
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return bytes;
+      return base64ToUint8Array(base64);
     }
     case 'map': {
       const map: { [key: string]: LLSDValue } = {};
@@ -152,10 +167,7 @@ export function parseNotation(notation: string): LLSDValue {
   // Handle Binary
   if (trimmed.startsWith('b')) {
     const base64 = trimmed.slice(1).replace(/^['"]|['"]$/g, '');
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
+    return base64ToUint8Array(base64);
   }
   
   // Handle Map and Array (this needs a proper tokenizer)
@@ -211,10 +223,7 @@ class NotationParser {
     if (char === 'b') {
       this.pos++;
       const base64 = this.parseString();
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return bytes;
+      return base64ToUint8Array(base64);
     }
     if (char === "'" || char === '"') return this.parseString();
     
