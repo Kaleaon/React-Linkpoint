@@ -34,7 +34,11 @@ def download(url, dest):
     if os.path.exists(dest) and os.path.getsize(dest) > 0: return dest
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     log("downloading", url); tmp = dest + ".part"
-    with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as f: shutil.copyfileobj(r, f, 1 << 20)
+    # curl honours the proxy settings of sandboxes and CI (urllib can ignore them and hang).
+    if shutil.which("curl"):
+        if subprocess.call(["curl", "-fsSL", "--retry", "3", "-m", "1800", "-o", tmp, url]) != 0: sys.exit(f"download failed: {url}")
+    else:
+        with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as f: shutil.copyfileobj(r, f, 1 << 20)
     os.rename(tmp, dest); return dest
 
 class OpenSim:
