@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML } from './llsd.js';
+import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML, parseNotation, serializeNotation } from './llsd.js';
 import { parseISO } from 'date-fns';
 
 
@@ -350,5 +350,134 @@ describe('serializeXML', () => {
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml).toContain('<llsd>');
     expect(xml).toMatch(/<\/llsd>$/);
+  });
+});
+
+describe('parseNotation and serializeNotation', () => {
+  it('parses null and undef', () => {
+    expect(parseNotation('!')).toBeNull();
+    expect(parseNotation('undef')).toBeNull();
+  });
+
+  it('parses booleans', () => {
+    expect(parseNotation('true')).toBe(true);
+    expect(parseNotation('false')).toBe(false);
+  });
+
+  it('parses integers with prefix i', () => {
+    expect(parseNotation('i42')).toBe(42);
+    expect(parseNotation('i-999')).toBe(-999);
+    expect(parseNotation("i'123'")).toBe(123);
+    expect(parseNotation('i"456"')).toBe(456);
+  });
+
+  it('parses real numbers with prefix r', () => {
+    expect(parseNotation('r3.14159')).toBeCloseTo(3.14159);
+    expect(parseNotation('r-0.5')).toBeCloseTo(-0.5);
+    expect(parseNotation("r'2.718'")).toBeCloseTo(2.718);
+  });
+
+  it('parses UUIDs with prefix u', () => {
+    const uuidStr = '550e8400-e29b-41d4-a716-446655440000';
+    expect(parseNotation(`u'${uuidStr}'`)).toBe(uuidStr);
+    expect(parseNotation(`u"${uuidStr}"`)).toBe(uuidStr);
+  });
+
+  it('parses Dates with prefix d', () => {
+    const iso = '2023-10-27T10:00:00.000Z';
+    const parsed = parseNotation(`d'${iso}'`) as Date;
+    expect(parsed).toBeInstanceOf(Date);
+    expect(parsed.toISOString()).toBe(iso);
+  });
+
+  it('parses URIs with prefix l', () => {
+    const uri = 'http://secondlife.com/api';
+    expect(parseNotation(`l'${uri}'`)).toBe(uri);
+    expect(parseNotation(`l"${uri}"`)).toBe(uri);
+  });
+
+  it('parses Binary with prefix b', () => {
+    // "hello" in base64 -> aGVsbG8=
+    const bytes = parseNotation("b'aGVsbG8='") as Uint8Array;
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(Array.from(bytes)).toEqual([104, 101, 108, 108, 111]);
+
+    // Raw length-prefixed binary b(5)"hello"
+    const rawBytes = parseNotation('b(5)"hello"') as Uint8Array;
+    expect(rawBytes).toBeInstanceOf(Uint8Array);
+    expect(Array.from(rawBytes)).toEqual([104, 101, 108, 108, 111]);
+  });
+
+  it('parses strings with quote escape sequences', () => {
+    expect(parseNotation("'hello \\'world\\''")).toBe("hello 'world'");
+    expect(parseNotation('"line1\\nline2\\tindent"')).toBe("line1\nline2\tindent");
+    expect(parseNotation("s'prefixed string'")).toBe("prefixed string");
+  });
+
+  it('parses arrays', () => {
+    expect(parseNotation('[]')).toEqual([]);
+    expect(parseNotation("[ i1, i2, 'three', true, ! ]")).toEqual([1, 2, 'three', true, null]);
+    expect(parseNotation("[i10 i20 i30]")).toEqual([10, 20, 30]);
+    expect(parseNotation("[ [ i1 ], [ i2, i3 ] ]")).toEqual([[1], [2, 3]]);
+  });
+
+  it('parses maps with quoted, unquoted, and nested keys', () => {
+    expect(parseNotation('{}')).toEqual({});
+    expect(parseNotation("{ 'foo': i42, 'bar': 'test' }")).toEqual({ foo: 42, bar: 'test' });
+    expect(parseNotation("{ unquotedKey: i100, 'quotedKey': true }")).toEqual({ unquotedKey: 100, quotedKey: true });
+    expect(parseNotation("{ 'a': i1 'b': i2 }")).toEqual({ a: 1, b: 2 });
+
+    const nested = parseNotation("{ 'user': { 'id': u'550e8400-e29b-41d4-a716-446655440000', 'active': true }, 'tags': [ 'admin', 'user' ] }");
+    expect(nested).toEqual({
+      user: {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        active: true
+      },
+      tags: ['admin', 'user']
+    });
+  });
+
+  it('serializes values to LLSD Notation', () => {
+    expect(serializeNotation(null)).toBe('!');
+    expect(serializeNotation(true)).toBe('true');
+    expect(serializeNotation(false)).toBe('false');
+    expect(serializeNotation(42)).toBe('i42');
+    expect(serializeNotation(3.14)).toBe('r3.14');
+    expect(serializeNotation('550e8400-e29b-41d4-a716-446655440000')).toBe("u'550e8400-e29b-41d4-a716-446655440000'");
+    expect(serializeNotation('http://example.com')).toBe("l'http://example.com'");
+    expect(serializeNotation('hello world')).toBe("'hello world'");
+    expect(serializeNotation([1, 'two'])).toBe("[ i1, 'two' ]");
+    expect(serializeNotation({ a: 1, b: 'two' })).toBe("{ 'a': i1, 'b': 'two' }");
+  });
+
+  it('supports round-trip parsing and serialization of complex structures', () => {
+    const uuid = '550e8400-e29b-41d4-a716-446655440000';
+    const date = new Date('2023-01-01T12:00:00.000Z');
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+
+    const data = {
+      id: uuid,
+      timestamp: date,
+      payload: bytes,
+      counts: [10, 20, 30],
+      meta: {
+        enabled: true,
+        ratio: 0.75,
+        title: "Hello 'world'\nNext line"
+      }
+    };
+
+    const serialized = serializeNotation(data);
+    const roundTripped = parseNotation(serialized) as any;
+
+    expect(roundTripped.id).toBe(uuid);
+    expect(roundTripped.timestamp).toEqual(date);
+    expect(Array.from(roundTripped.payload)).toEqual([1, 2, 3, 4]);
+    expect(roundTripped.counts).toEqual([10, 20, 30]);
+    expect(roundTripped.meta).toEqual({
+      enabled: true,
+      ratio: 0.75,
+      title: "Hello 'world'\nNext line"
+    });
   });
 });
