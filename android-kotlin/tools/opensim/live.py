@@ -23,6 +23,7 @@ VERSION = "0.9.3.0"
 DIST = f"http://opensimulator.org/dist/opensim-{VERSION}.zip"
 BIG_OAR = "https://www.outworldz.com/cgi/sculpt-save.plx?File=/Sculpts/cgi/files/OAR-Furniture_Vault(1X1).tgz"
 LOGIN_PORT, UDP_PORT, REGION = 9002, 9100, "Test Isle"
+NEIGHBOUR, NEIGHBOUR_UDP = "Neighbour Isle", 9101  # east of REGION: real teleport and border-crossing tests
 USER, PASSWORD = "Linky Tester", "testpass1"
 
 def log(*a): print("[live]", *a, flush=True)
@@ -58,7 +59,9 @@ class OpenSim:
         os.makedirs(f"{b}/Regions", exist_ok=True)
         open(f"{b}/Regions/Regions.ini", "w").write(
             f"[{REGION}]\nRegionUUID = 11111111-2222-3333-4444-aaaaaaaaaaaa\nLocation = 1000,1000\nSizeX = 256\nSizeY = 256\n"
-            f"InternalAddress = 0.0.0.0\nInternalPort = {UDP_PORT}\nAllowAlternatePorts = False\nExternalHostName = 127.0.0.1\n")
+            f"InternalAddress = 0.0.0.0\nInternalPort = {UDP_PORT}\nAllowAlternatePorts = False\nExternalHostName = 127.0.0.1\n\n"
+            f"[{NEIGHBOUR}]\nRegionUUID = 11111111-2222-3333-4444-bbbbbbbbbbbb\nLocation = 1001,1000\nSizeX = 256\nSizeY = 256\n"
+            f"InternalAddress = 0.0.0.0\nInternalPort = {NEIGHBOUR_UDP}\nAllowAlternatePorts = False\nExternalHostName = 127.0.0.1\n")
 
     def start(self):
         self.proc = subprocess.Popen(["dotnet", "OpenSim.dll", "-console=basic"], cwd=self.bin, stdin=subprocess.PIPE,
@@ -71,7 +74,7 @@ class OpenSim:
     # Answers to the console's interactive prompts, matched against the end of the log.
     PROMPTS = [(r"New estate name \[.*\]: $", "Test Estate"), (r"Estate owner first name \[.*\]: $", "Test"),
                (r"Estate owner last name \[.*\]: $", "Owner"), (r"Password: $", "ownerpass"), (r"Email: $", "owner@example.com"),
-               (r"User ID \(.*\) ?\[.*\]: $", ""), (r"User ID \[.*\]: $", ""), (r"Model name \[.*\]: $", "")]
+               (r"User ID \(.*\) ?\[.*\]: $", ""), (r"User ID \[.*\]: $", ""), (r"Model name \[.*\]: $", ""), (r"Estate name to join \[.*\]: $", "Test Estate")]
 
     def wait(self, pattern, timeout=300, what=None):
         """Wait for a regex in new log output, answering known prompts as they appear."""
@@ -90,7 +93,7 @@ class OpenSim:
         sys.exit(f"timed out waiting for {what or pattern}; see {self.logfile}\n" + self.text()[-1500:])
 
     def boot(self):
-        self.start(); self.wait(r"Region \(%s\) # " % re.escape(REGION), 300, "OpenSim console")
+        self.start(); self.wait(r"Region \((?:%s|%s|root)\) # " % (re.escape(REGION), re.escape(NEIGHBOUR)), 300, "OpenSim console")
         log("OpenSim is up")
         self.send(f"create user {USER} {PASSWORD} linky@example.com"); self.wait(r"created successfully", 60, "account creation")
         log("account created:", USER)
@@ -133,10 +136,10 @@ def main():
     gen = os.path.join(WORK, "linkpoint-test.oar")
     if gradle("-q", ":mockgrid:runOar", f"--args={gen}") != 0: sys.exit("could not build the test OAR")
     sim = OpenSim(); sim.configure(); rc = 1
-    env = {"OPENSIM_LOGIN_URL": f"http://127.0.0.1:{LOGIN_PORT}/", "OPENSIM_USER": USER, "OPENSIM_PASSWORD": PASSWORD}
+    env = {"OPENSIM_LOGIN_URL": f"http://127.0.0.1:{LOGIN_PORT}/", "OPENSIM_USER": USER, "OPENSIM_PASSWORD": PASSWORD, "OPENSIM_NEIGHBOUR": NEIGHBOUR}
     try:
         sim.boot(); sim.load_oar(gen, merge=True)
-        rc = gradle(":core:test", "--tests", "*OpenSimLiveTest*", "--rerun-tasks", "-i", env=env)  # prints LIVE lines
+        rc = gradle(":core:test", "--tests", "*OpenSimLive*", "--rerun-tasks", "-i", env=env)  # prints LIVE lines
         big = a.oar
         if a.big and not big: big = download(BIG_OAR, os.path.join(CACHE, "OAR-Furniture_Vault(1X1).tgz"))
         if big and rc == 0:
