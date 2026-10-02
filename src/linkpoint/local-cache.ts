@@ -452,6 +452,32 @@ class LocalCacheManager extends Utils.EventEmitter {
   }
 
   /**
+   * Remove every cached transaction record for an agent.
+   */
+  public async clearTransactions(agentId: string): Promise<void> {
+    this.memoryCache.delete(`txs_${agentId}`);
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        await new Promise<void>((resolve) => {
+          const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
+          const store = tx.objectStore(STORE_TRANSACTIONS);
+          const req = store.index('agentId').getAllKeys(agentId);
+          req.onsuccess = () => {
+            for (const key of req.result || []) store.delete(key);
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+          tx.onabort = () => resolve();
+        });
+      }
+    } catch {
+      // IDB fallback
+    }
+    this.emit('cache_updated', { type: 'transactions', agentId, cleared: true });
+  }
+
+  /**
    * Prune transaction records older than specified days (default 30 days).
    */
   public async pruneOldTransactions(agentId: string, days = 30): Promise<void> {
