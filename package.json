@@ -34,6 +34,7 @@
     "postinstall": "node scripts/patch-metaverse.cjs"
   },
   "dependencies": {
+    "@linkpoint/design-system": "file:../Linkpoint/packages/design-system",
     "@caspertech/node-metaverse": "^0.8.21",
     "@expo/metro-runtime": "~57.0.15",
     "@expo/vector-icons": "^15.1.1",
