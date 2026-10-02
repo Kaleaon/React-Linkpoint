@@ -27,6 +27,8 @@ import kotlinx.coroutines.sync.withLock
  * Not yet exercised against a live grid (see android-kotlin/README.md): behaviour is covered by
  * unit tests and a loopback fake simulator.
  */
+private const val ARRIVAL_GRACE_MS = 2_500L
+
 class ViewerSession(
     private val http: Http,
     private val scope: CoroutineScope,
@@ -134,7 +136,16 @@ class ViewerSession(
     }
     private val children = java.util.concurrent.ConcurrentHashMap<String, Child>()
 
+    @Volatile private var arrivedAt = 0L
+
+    /** Set when we have asked for a teleport and not yet arrived or heard that it failed. */
+    @Volatile private var teleportAskedAt = 0L
+    private val teleportInFlight get() = teleportAskedAt != 0L && clock() - teleportAskedAt < 60_000
+
     private fun enableChild(ip: String, port: Int) {
+        // Opening a child circuit while a teleport is under way makes OpenSim race our UseCircuitCode against the
+        // teleport's agent update (it throws and the teleport fails); we will be told about the neighbours again on arrival.
+        if (teleportInFlight) return
         val key = "$ip:$port"
         val root = circuit?.remote
         if (children.containsKey(key) || (root != null && root.address.hostAddress == ip && root.port == port)) return
@@ -162,6 +173,10 @@ class ViewerSession(
      * a second of arriving next to the target. Bounded so a silent neighbour cannot stall a teleport.
      */
     private suspend fun settleChildren(maxWaitMs: Long = 3_000) {
+        // Right after arriving, the new region's event queue has usually not announced its neighbours yet; if we sent the
+        // request now they would be announced (and connected) in the middle of the teleport. Let that happen first.
+        val grace = arrivedAt + ARRIVAL_GRACE_MS - clock()
+        if (arrivedAt != 0L && grace > 0) delay(grace)
         val end = clock() + maxWaitMs
         while (clock() < end && children.values.any { !it.heard && clock() - it.openedAt < maxWaitMs }) delay(50)
         if (children.isNotEmpty()) delay(150) // the neighbour answered; let its presence finish setting up
@@ -207,6 +222,8 @@ class ViewerSession(
             throw java.io.IOException("The simulator did not complete the handshake in ${handshakeTimeoutMs / 1000.0} seconds".replace(".0 ", " "))
         }
         previous?.close()
+        teleportAskedAt = 0
+        arrivedAt = clock()
         // The grid announces the new neighbours (including the region we just left) once we are in.
         closeChildren()
         startCaps(seedCapability)
@@ -322,9 +339,10 @@ class ViewerSession(
             is Incoming.MoneyBalance -> if (m.success) _balance.value = m.balance
             is Incoming.TeleportStart -> _notices.tryEmit(ViewerNotice.Teleport("Teleport started"))
             is Incoming.TeleportProgress -> _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
-            is Incoming.TeleportFailed -> _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}"))
+            is Incoming.TeleportFailed -> { teleportAskedAt = 0; _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}")) }
             is Incoming.TeleportLocal -> {
                 // Same region, new spot: our position (which is also the camera we report) must follow.
+                teleportAskedAt = 0
                 _region.update { it?.copy(position = m.position) }
                 _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
             }
@@ -350,21 +368,44 @@ class ViewerSession(
             19 -> addChat(ChatEntry(nextId(), ChatKind.OBJECT_IM, m.fromAgentId, m.fromName, text, 1, null, false, clock()))
             4, 9 -> system("${m.fromName} offered you an item: $text")
             22 -> { system("${m.fromName} offered you a teleport: $text"); _offers.update { it + PendingOffer.Lure(m.sessionId, m.fromName, text) } }
+            39 -> {
+                system("${m.fromName} accepted your friendship offer")
+                _friends.update { list -> if (list.any { it.id == from }) list else list + Friend(from, m.fromName, null, 0, 0) }
+                names[from] = m.fromName
+            }
+            40 -> system("${m.fromName} declined your friendship offer")
             38, 41 -> { system("${m.fromName} sent a friendship offer: $text"); _offers.update { it + PendingOffer.Friend(m.sessionId, m.fromName, text) } }
             else -> Unit // typing indicators, group sessions and other dialogs are not shown
         }
+    }
+
+    /** Ask [toId] to be friends. The answer arrives later as a friendship accepted/declined message. */
+    fun sendFriendRequest(toId: UUID, message: String = "Would you like to be my friend?") {
+        requireConnected()
+        require(toId != agentId) { "You cannot befriend yourself" }
+        // The transaction id of a friendship offer is carried in the IM session id field.
+        circuit!!.send(Messages.instantMessage(agentId, sessionId, login!!.fullName, toId, message.trim(), dialog = 38, sessionIdForIm = UUID.randomUUID()))
+        system("Friend request sent")
+    }
+
+    /** Offer [toId] a teleport to where we are. */
+    fun offerTeleport(toId: UUID, message: String = "Join me") {
+        requireConnected()
+        require(toId != agentId) { "You cannot offer a teleport to yourself" }
+        circuit!!.send(Messages.startLure(agentId, sessionId, toId, message.trim()))
+        system("Teleport offer sent")
     }
 
     private fun applyCoarse(c: Incoming.CoarseLocations) {
         val me = c.locations.getOrNull(c.youIndex)
         val missing = ArrayList<UUID>()
         val out = ArrayList<NearbyAvatar>()
-        // The AgentData list skips "you", so list index i corresponds to location index i, except that
-        // our own slot is absent from the id list.
-        var idIx = 0
+        // AgentData is parallel to Location and includes our own slot (verified against a live OpenSim 0.9.3; the
+        // official viewer also reads the two lists by the same index). A location without an id is skipped.
         for ((i, loc) in c.locations.withIndex()) {
             if (i == c.youIndex) continue
-            val id = c.ids.getOrNull(idIx++) ?: break
+            val id = c.ids.getOrNull(i) ?: continue
+            if (id == agentId) continue
             val z = loc[2] * 4
             val dist = me?.let { Math.sqrt(Math.pow((loc[0] - it[0]).toDouble(), 2.0) + Math.pow((loc[1] - it[1]).toDouble(), 2.0) + Math.pow((z - it[2] * 4).toDouble(), 2.0)) }
             out += NearbyAvatar(id, names[id], loc[0], loc[1], z, dist)
@@ -444,7 +485,7 @@ class ViewerSession(
     fun acceptOffer(offer: PendingOffer) {
         requireConnected()
         when (offer) {
-            is PendingOffer.Lure -> { val lure = offer.id; scope.launch { settleChildren(); circuit?.send(Messages.teleportLureRequest(agentId, sessionId, lure)) } }
+            is PendingOffer.Lure -> { val lure = offer.id; scope.launch { settleChildren(); teleportAskedAt = clock(); circuit?.send(Messages.teleportLureRequest(agentId, sessionId, lure)) } }
             is PendingOffer.Friend -> {
                 val inv = _inventory.value
                 val cards = inv.folders.values.firstOrNull { it.typeDefault == 2 }?.id ?: inv.rootId ?: UUID(0, 0)
@@ -471,10 +512,11 @@ class ViewerSession(
         val block = blocks.firstOrNull { it.name.equals(regionName.trim(), true) } ?: throw IllegalArgumentException("No region named \"$regionName\"")
         val handle = ((block.x * 256L) shl 32) or (block.y * 256L)
         settleChildren()
+        teleportAskedAt = clock()
         circuit!!.send(Messages.teleportLocationRequest(agentId, sessionId, handle, x, y, z))
     }
 
-    fun teleportHome() { requireConnected(); scope.launch { settleChildren(); circuit?.send(Messages.teleportHome(agentId, sessionId)) } }
+    fun teleportHome() { requireConnected(); scope.launch { settleChildren(); teleportAskedAt = clock(); circuit?.send(Messages.teleportHome(agentId, sessionId)) } }
 
     suspend fun logout() {
         if (_state.value == ConnectionState.DISCONNECTED) return

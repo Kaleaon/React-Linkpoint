@@ -99,6 +99,8 @@ class OpenSimLiveSessionTest {
     @Test fun profileRequestReturnsWithoutBreakingTheSession() = withLive { l ->
         val profile = l.s.requestProfile(l.s.selfId!!)
         println("LIVE profile of self = ${profile ?: "no answer from this OpenSim (profile module not enabled)"}")
+        // live.py enables the profile service and says so; then an answer is required, not optional.
+        if (System.getenv("OPENSIM_PROFILES") == "1") assertNotNull("the profile service is enabled, so the simulator must answer", profile)
         assertEquals(ConnectionState.CONNECTED, l.s.state.value)
         l.s.sendChat("still alive after profile request")
         eventually(what = "chat echo") { l.s.chat.value.firstOrNull { it.text == "still alive after profile request" } }
@@ -141,9 +143,11 @@ class OpenSimLiveSessionTest {
         s.teleport(neighbour, 128f, 128f, 50f)
         eventually(60_000, "arrival in $neighbour") { s.region.value?.takeIf { it.name == neighbour } }
         s.teleportHome()
-        val end = System.currentTimeMillis() + 20_000
+        val end = System.currentTimeMillis() + (if (System.getenv("OPENSIM_HOME") == "1") 60_000 else 20_000)
         var arrived: RegionInfo? = null
         while (arrived == null && System.currentTimeMillis() < end) { arrived = s.region.value?.takeIf { it.name == home }; delay(100) }
+        // live.py makes the home region the default region, which gives accounts a home; then arriving there is required.
+        if (System.getenv("OPENSIM_HOME") == "1") assertNotNull("the account has a home, so teleport home must arrive", arrived)
         assumeTrue("this OpenSim account has no home location set, so there is nowhere to teleport to", arrived != null)
         assertEquals(ConnectionState.CONNECTED, s.state.value)
     }

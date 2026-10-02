@@ -319,7 +319,7 @@ class SessionRobustnessTest {
             sim.inject(Outgoing(Msg.TeleportLocal, WireWriter().uuid(sim.agent).u32(0).vec3(100f, 90f, 40f).vec3(1f, 0f, 0f).u32(0).toByteArray(), true))
             eventually { s.region.value?.position?.takeIf { it[0] == 100f } }
             assertArrayEquals(floatArrayOf(100f, 90f, 40f), s.region.value!!.position!!, 0f)
-            assertEquals("Testville", s.region.value?.name) // nothing else about the region changed
+            eventually { s.region.value?.name?.takeIf { it == "Testville" } } // the handshake may trail connect(); the teleport must not lose it
             // The next AgentUpdate carries the new spot as camera centre (camera centre starts at byte 57: 32 ids + 2x12 rotation + 1 state).
             eventually { sim.agentUpdates.lastOrNull()?.takeIf { ByteBuffer.wrap(it).order(ByteOrder.LITTLE_ENDIAN).getFloat(57) == 100f } }
             s.logout(); sc.cancel()

@@ -292,6 +292,7 @@ class RegionSwitchTest {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val s = ViewerSession(caps.http(), scope)
             s.connect(login(west, caps.seed("west")))
+            delay(2700) // past the arrival grace period, so only the neighbour matters
             caps.queue("west").add(enableSimulator(east))
             eventually { east.received.firstOrNull { it == Msg.UseCircuitCode } }
             delay(300) // the greeting has arrived
@@ -302,5 +303,22 @@ class RegionSwitchTest {
             assertTrue("took $waited ms", waited < 1500)
             s.logout(); scope.cancel()
         } }
+    }
+
+    @Test fun aTeleportRightAfterArrivingWaitsOutTheGracePeriod() = runBlocking {
+        FakeSim("West", 1000, 1001).use { west ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(west, caps.seed("west")))
+            val t0 = System.currentTimeMillis()
+            s.teleportHome()
+            delay(1000)
+            assertTrue("held back so the new region can announce its neighbours first", west.landmarkRequests.isEmpty())
+            eventually { west.landmarkRequests.firstOrNull() }
+            val waited = System.currentTimeMillis() - t0
+            assertTrue("waited $waited ms, expected about 2.5 s after arrival", waited in 1800..4500)
+            s.logout(); scope.cancel()
+        }
     }
 }

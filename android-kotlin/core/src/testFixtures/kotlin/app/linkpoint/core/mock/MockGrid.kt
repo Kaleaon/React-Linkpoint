@@ -326,8 +326,9 @@ class MockGrid(
                 send(Msg.ObjectUpdateCached, WireWriter().u64(0).u16(0).u8(1).u32(9999).u32(0).u32(0).toByteArray())
             }
         }
-        // Nearby avatars as the simulator's coarse locations; ids exclude "you", and our own slot is index 0.
-        send(Msg.CoarseLocationUpdate, WireWriter().u8(2).u8(122).u8(122).u8(7).u8(130).u8(118).u8(7).u16(0).u16(-1 and 0xFFFF).u8(1).uuid(OTHER_AVATAR).toByteArray())
+        // Nearby avatars as the simulator's coarse locations. As in real OpenSim, AgentData is parallel to Location and
+        // includes "you" (our own slot is index 0); captured from a live OpenSim 0.9.3 packet.
+        send(Msg.CoarseLocationUpdate, WireWriter().u8(2).u8(122).u8(122).u8(7).u8(130).u8(118).u8(7).u16(0).u16(-1 and 0xFFFF).u8(2).uuid(agent).uuid(OTHER_AVATAR).toByteArray())
         send(Msg.ChatFromSimulator, WireWriter().str1("Mock Bot").uuid(UUID(1, 1)).uuid(UUID(1, 1)).u8(1).u8(1).u8(1).vec3(0f, 0f, 0f).str2("Welcome to $regionName (ground $gz m)").toByteArray())
         scenarioDone = true
     }
