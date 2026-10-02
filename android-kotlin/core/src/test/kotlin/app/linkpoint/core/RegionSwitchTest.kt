@@ -130,4 +130,92 @@ class RegionSwitchTest {
             s.logout(); scope.cancel()
         } }
     }
+
+    private fun lureIm(sim: FakeSim, lureId: UUID) = sim.inject(Outgoing(Msg.ImprovedInstantMessage, WireWriter().uuid(UUID(7, 7)).uuid(UUID(0, 0))
+        .bool(false).uuid(sim.agent).u32(0).uuid(UUID(0, 0)).vec3(0f, 0f, 0f).u8(0).u8(22).uuid(lureId).u32(0).str1("Visiting Avatar").str2("Join me at the beach").bin2(ByteArray(0)).u32(0).toByteArray(), true))
+
+    @Test fun acceptingALureSendsTheLureIdAndFollowsTheTeleport() = runBlocking {
+        FakeSim("Origin", 1000, 1001).use { origin -> FakeSim("Beach", 3000, 3001).use { beach ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(origin, caps.seed("origin")))
+            eventually { s.region.value?.takeIf { it.name == "Origin" } }
+
+            val lureId = UUID.randomUUID()
+            lureIm(origin, lureId)
+            val offer = eventually { s.offers.value.filterIsInstance<PendingOffer.Lure>().firstOrNull() }
+            assertEquals(lureId, offer.id); assertEquals("Join me at the beach", offer.text)
+            assertEquals("Visiting Avatar", offer.fromName)
+            assertTrue(s.chat.value.any { it.kind == ChatKind.SYSTEM && it.text.contains("offered you a teleport") })
+
+            s.acceptOffer(offer)
+            assertTrue("accepted offer is removed", s.offers.value.isEmpty())
+            eventually { origin.lureRequests.firstOrNull() }
+            assertEquals(listOf(lureId), origin.lureRequests.toList())
+
+            caps.queue("origin").add(simEvent("TeleportFinish", "Info", beach, caps.seed("beach")))
+            eventually { s.region.value?.takeIf { it.name == "Beach" } }
+            assertEquals(ConnectionState.CONNECTED, s.state.value)
+            s.logout(); scope.cancel()
+        } }
+    }
+
+    @Test fun decliningALureSendsNothingAndDropsTheOffer() = runBlocking {
+        FakeSim("Origin").use { origin ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(origin, caps.seed("origin")))
+            lureIm(origin, UUID.randomUUID())
+            val offer = eventually { s.offers.value.firstOrNull() }
+            s.declineOffer(offer)
+            assertTrue(s.offers.value.isEmpty())
+            delay(300)
+            assertTrue(origin.lureRequests.isEmpty())
+            s.logout(); scope.cancel()
+        }
+    }
+
+    @Test fun teleportHomeSendsAnAllZeroLandmarkAndFollowsTheTeleport() = runBlocking {
+        FakeSim("Away", 1000, 1001).use { away -> FakeSim("Home", 500, 501).use { home ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(away, caps.seed("away")))
+            eventually { s.region.value?.takeIf { it.name == "Away" } }
+
+            s.teleportHome()
+            eventually { away.landmarkRequests.firstOrNull() }
+            assertEquals(listOf(UUID(0, 0)), away.landmarkRequests.toList())
+
+            caps.queue("away").add(simEvent("TeleportFinish", "Info", home, caps.seed("home")))
+            eventually { s.region.value?.takeIf { it.name == "Home" } }
+            assertEquals((500L * 256 shl 32) or (501L * 256), eventually { s.region.value?.handle?.takeIf { it != 0L } })
+            s.logout(); scope.cancel()
+        } }
+    }
+
+    @Test fun teleportFailureIsReportedAndTheSessionStaysInThePlace() = runBlocking {
+        FakeSim("Origin").use { origin ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            val notices = java.util.concurrent.CopyOnWriteArrayList<ViewerNotice>()
+            scope.launch(start = CoroutineStart.UNDISPATCHED) { s.notices.collect { notices += it } }
+            s.connect(login(origin, caps.seed("origin")))
+            origin.inject(Outgoing(Msg.TeleportFailed, WireWriter().uuid(origin.agent).str1("Region is full").u8(0).toByteArray(), true))
+            val err = eventually { notices.filterIsInstance<ViewerNotice.Error>().firstOrNull() }
+            assertTrue(err.toString(), err.toString().contains("Region is full"))
+            assertEquals(ConnectionState.CONNECTED, s.state.value)
+            assertEquals("Origin", s.region.value?.name)
+            s.logout(); scope.cancel()
+        }
+    }
+
+    @Test fun teleportHomeAndLureRequireAConnection() {
+        val s = ViewerSession(Caps().http(), CoroutineScope(Dispatchers.Default))
+        assertThrows(IllegalStateException::class.java) { s.teleportHome() }
+        assertThrows(IllegalStateException::class.java) { s.acceptOffer(PendingOffer.Lure(UUID.randomUUID(), "x", "y")) }
+    }
 }
