@@ -29,6 +29,13 @@ import kotlinx.coroutines.sync.withLock
  */
 private const val ARRIVAL_GRACE_MS = 2_500L
 
+/** A TeleportFailed this soon after we re-sent a teleport request belongs to the attempt that request replaced. */
+private const val STALE_FAILURE_WINDOW_MS = 5_000L
+
+/** How long to wait for a teleport destination to accept us when the teleport can still be re-requested. */
+private const val TELEPORT_ARRIVAL_TIMEOUT_MS = 12_000L
+
+
 class ViewerSession(
     private val http: Http,
     private val scope: CoroutineScope,
@@ -138,6 +145,20 @@ class ViewerSession(
 
     @Volatile private var arrivedAt = 0L
 
+    /**
+     * The teleport request we last sent (by name or home), kept for one automatic retry. OpenSim can accept the teleport
+     * (TeleportFinish) and then drop our connection into a region that still holds a stale presence of ours; its
+     * arrival authorisation is spent, so reconnecting cannot help, but asking for the teleport again works at once.
+     */
+    @Volatile private var lastTeleportRequest: Outgoing? = null
+    @Volatile private var teleportRetriesLeft = 0
+    @Volatile private var retriedAt = -STALE_FAILURE_WINDOW_MS
+    private fun sendTeleportRequest(msg: Outgoing) {
+        lastTeleportRequest = msg; teleportRetriesLeft = 1
+        teleportAskedAt = clock()
+        circuit?.send(msg)
+    }
+
     /** Set when we have asked for a teleport and not yet arrived or heard that it failed. */
     @Volatile private var teleportAskedAt = 0L
     private val teleportInFlight get() = teleportAskedAt != 0L && clock() - teleportAskedAt < 60_000
@@ -187,7 +208,7 @@ class ViewerSession(
     }
 
     /** Open a circuit to a simulator and complete the handshake. Used at login, teleport and region crossing. */
-    private suspend fun enterSimulator(ip: String, port: Int, seedCapability: String) = switchLock.withLock {
+    private suspend fun enterSimulator(ip: String, port: Int, seedCapability: String, timeoutMs: Long = handshakeTimeoutMs) = switchLock.withLock {
         val code = login!!.circuitCode
         val previous = circuit
         val previousJobs = circuitJobs
@@ -207,19 +228,19 @@ class ViewerSession(
         if (promoted == null) fresh.start()
         // UNDISPATCHED: the flows do not replay, so we must be subscribed before the first packet can arrive.
         circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.messages.collect { onMessage(it) } }
-        circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.lost.collect { if (it == Msg.UseCircuitCode) _notices.tryEmit(ViewerNotice.Error("The simulator did not answer the circuit request")) } }
+        circuitJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) { fresh.lost.collect { if (it == Msg.UseCircuitCode && !(lastTeleportRequest != null && teleportRetriesLeft > 0)) _notices.tryEmit(ViewerNotice.Error("The simulator did not answer the circuit request")) } }
         // The region handshake may already have arrived while this simulator was only a neighbour: process it now.
         promoted?.handshake?.let { onMessage(it) }
         if (promoted == null) fresh.send(Messages.useCircuitCode(code, sessionId, agentId))
         fresh.send(Messages.completeAgentMovement(agentId, sessionId, code))
         try {
-            withTimeout(handshakeTimeoutMs) { done.await() }
+            withTimeout(timeoutMs) { done.await() }
         } catch (e: TimeoutCancellationException) {
             fresh.close(); circuitJobs.forEach { it.cancel() }
             // Go back to listening to the old simulator, if there was one.
             circuit = previous
             circuitJobs = if (previous != null) mutableListOf(scope.launch(start = CoroutineStart.UNDISPATCHED) { previous.messages.collect { onMessage(it) } }) else mutableListOf()
-            throw java.io.IOException("The simulator did not complete the handshake in ${handshakeTimeoutMs / 1000.0} seconds".replace(".0 ", " "))
+            throw java.io.IOException("The simulator did not complete the handshake in ${timeoutMs / 1000.0} seconds".replace(".0 ", " "))
         }
         previous?.close()
         teleportAskedAt = 0
@@ -263,8 +284,23 @@ class ViewerSession(
                 val port = (info["SimPort"] as? Number)?.toInt() ?: return
                 val seed = info["SeedCapability"]?.toString() ?: ""
                 _notices.tryEmit(ViewerNotice.Teleport("Arriving at the new region…"))
-                try { enterSimulator(ip, port, seed) } catch (ex: Exception) {
-                    _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${ex.message}"))
+                val retry = lastTeleportRequest?.takeIf { teleportRetriesLeft > 0 }
+                try {
+                    // With a retry available, do not wait the full handshake budget on a connection that is not going to work.
+                    enterSimulator(ip, port, seed, if (retry != null) minOf(handshakeTimeoutMs, TELEPORT_ARRIVAL_TIMEOUT_MS) else handshakeTimeoutMs)
+                    lastTeleportRequest = null
+                } catch (ex: Exception) {
+                    if (retry != null && teleportRetriesLeft > 0) {
+                        teleportRetriesLeft--
+                        _notices.tryEmit(ViewerNotice.Teleport("The teleport did not complete; trying again…"))
+                        delay(1_000)
+                        teleportAskedAt = clock()
+                        retriedAt = clock()
+                        circuit?.send(retry)
+                    } else {
+                        lastTeleportRequest = null
+                        _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${ex.message}"))
+                    }
                 }
             }
             "AgentGroupDataUpdate" -> {
@@ -339,10 +375,14 @@ class ViewerSession(
             is Incoming.MoneyBalance -> if (m.success) _balance.value = m.balance
             is Incoming.TeleportStart -> _notices.tryEmit(ViewerNotice.Teleport("Teleport started"))
             is Incoming.TeleportProgress -> _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
-            is Incoming.TeleportFailed -> { teleportAskedAt = 0; _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}")) }
+            is Incoming.TeleportFailed -> if (clock() - retriedAt < STALE_FAILURE_WINDOW_MS) {
+                // OpenSim reports the abandoned first attempt as failed just as it starts the one we re-requested.
+                retriedAt = 0
+                _notices.tryEmit(ViewerNotice.Teleport("Continuing with the new teleport request"))
+            } else { teleportAskedAt = 0; lastTeleportRequest = null; _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}")) }
             is Incoming.TeleportLocal -> {
                 // Same region, new spot: our position (which is also the camera we report) must follow.
-                teleportAskedAt = 0
+                teleportAskedAt = 0; lastTeleportRequest = null
                 _region.update { it?.copy(position = m.position) }
                 _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
             }
@@ -485,7 +525,7 @@ class ViewerSession(
     fun acceptOffer(offer: PendingOffer) {
         requireConnected()
         when (offer) {
-            is PendingOffer.Lure -> { val lure = offer.id; scope.launch { settleChildren(); teleportAskedAt = clock(); circuit?.send(Messages.teleportLureRequest(agentId, sessionId, lure)) } }
+            is PendingOffer.Lure -> { val lure = offer.id; scope.launch { settleChildren(); sendTeleportRequest(Messages.teleportLureRequest(agentId, sessionId, lure)) } }
             is PendingOffer.Friend -> {
                 val inv = _inventory.value
                 val cards = inv.folders.values.firstOrNull { it.typeDefault == 2 }?.id ?: inv.rootId ?: UUID(0, 0)
@@ -512,11 +552,10 @@ class ViewerSession(
         val block = blocks.firstOrNull { it.name.equals(regionName.trim(), true) } ?: throw IllegalArgumentException("No region named \"$regionName\"")
         val handle = ((block.x * 256L) shl 32) or (block.y * 256L)
         settleChildren()
-        teleportAskedAt = clock()
-        circuit!!.send(Messages.teleportLocationRequest(agentId, sessionId, handle, x, y, z))
+        sendTeleportRequest(Messages.teleportLocationRequest(agentId, sessionId, handle, x, y, z))
     }
 
-    fun teleportHome() { requireConnected(); scope.launch { settleChildren(); teleportAskedAt = clock(); circuit?.send(Messages.teleportHome(agentId, sessionId)) } }
+    fun teleportHome() { requireConnected(); scope.launch { settleChildren(); sendTeleportRequest(Messages.teleportHome(agentId, sessionId)) } }
 
     suspend fun logout() {
         if (_state.value == ConnectionState.DISCONNECTED) return

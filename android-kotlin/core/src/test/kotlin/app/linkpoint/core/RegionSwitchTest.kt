@@ -321,4 +321,61 @@ class RegionSwitchTest {
             s.logout(); scope.cancel()
         }
     }
+
+    @Test fun aTeleportThatIsAcceptedButNeverConnectsIsRequestedAgainOnce() = runBlocking {
+        FakeSim("Away", 1000, 1001).use { away -> FakeSim("Home", 500, 501).use { home ->
+            home.ignoreFirstClients = 1 // the first arrival is dropped, as OpenSim does into a region with a stale presence
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope, handshakeTimeoutMs = 700)
+            val notices = java.util.concurrent.CopyOnWriteArrayList<ViewerNotice>()
+            scope.launch(start = CoroutineStart.UNDISPATCHED) { s.notices.collect { notices += it } }
+            s.connect(login(away, caps.seed("away")))
+            eventually { s.region.value?.takeIf { it.name == "Away" } }
+
+            s.teleportHome()
+            eventually(12_000) { away.landmarkRequests.firstOrNull() }
+            caps.queue("away").add(simEvent("TeleportFinish", "Info", home, caps.seed("home")))
+
+            // The first arrival fails; the viewer asks for the teleport again by itself.
+            eventually(12_000) { away.landmarkRequests.takeIf { it.size >= 2 } }
+            assertEquals("still in the old region, still connected", "Away", s.region.value?.name)
+            assertEquals(ConnectionState.CONNECTED, s.state.value)
+            assertTrue(notices.filterIsInstance<ViewerNotice.Teleport>().any { it.text.contains("trying again") })
+            assertTrue("a retried teleport is not an error yet", notices.none { it is ViewerNotice.Error })
+            // OpenSim reports the abandoned first attempt as failed right after the re-request: that is not the new teleport failing.
+            away.inject(Outgoing(Msg.TeleportFailed, WireWriter().uuid(away.agent).str1("Problems connecting to destination").u8(0).toByteArray(), true))
+            delay(400)
+            assertTrue("a stale failure must not be shown as an error: $notices", notices.none { it is ViewerNotice.Error })
+
+            caps.queue("away").add(simEvent("TeleportFinish", "Info", home, caps.seed("home")))
+            eventually { s.region.value?.takeIf { it.name == "Home" } }
+            assertEquals(2, away.landmarkRequests.size)
+            s.logout(); scope.cancel()
+        } }
+    }
+
+    @Test fun aSecondFailedArrivalIsReportedNotRetriedForever() = runBlocking {
+        FakeSim("Away", 1000, 1001).use { away -> FakeSim("Home", 500, 501).use { home ->
+            home.ignoreFirstClients = 2 // both arrivals are dropped
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope, handshakeTimeoutMs = 600)
+            val notices = java.util.concurrent.CopyOnWriteArrayList<ViewerNotice>()
+            scope.launch(start = CoroutineStart.UNDISPATCHED) { s.notices.collect { notices += it } }
+            s.connect(login(away, caps.seed("away")))
+            eventually { s.region.value?.takeIf { it.name == "Away" } }
+            s.teleportHome()
+            eventually(12_000) { away.landmarkRequests.firstOrNull() }
+            caps.queue("away").add(simEvent("TeleportFinish", "Info", home, caps.seed("home")))
+            eventually(12_000) { away.landmarkRequests.takeIf { it.size >= 2 } }
+            caps.queue("away").add(simEvent("TeleportFinish", "Info", home, caps.seed("home")))
+            val err = eventually(12_000) { notices.filterIsInstance<ViewerNotice.Error>().firstOrNull() }
+            assertTrue(err.text, err.text.startsWith("Teleport failed:"))
+            delay(1500)
+            assertEquals("no third request", 2, away.landmarkRequests.size)
+            assertEquals("Away", s.region.value?.name)
+            s.logout(); scope.cancel()
+        } }
+    }
 }

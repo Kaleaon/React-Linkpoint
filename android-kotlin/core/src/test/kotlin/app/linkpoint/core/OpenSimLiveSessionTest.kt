@@ -21,6 +21,11 @@ class OpenSimLiveSessionTest {
     private val url: String? = System.getenv("OPENSIM_LOGIN_URL")
     private val user = System.getenv("OPENSIM_USER") ?: "Linky Tester"
     private val password = System.getenv("OPENSIM_PASSWORD") ?: "testpass1"
+    /**
+     * OpenSim closes our old presence a few seconds after a teleport; going straight back to the region we just left can
+     * hit that close in mid-teleport and fail ("UpdateAgent failed"). Found in the OpenSim log; a person pauses this long anyway.
+     */
+    private val RETURN_PAUSE_MS = System.getenv("OPENSIM_RETURN_PAUSE_MS")?.toLongOrNull() ?: 10_000L
     private val home = "Test Isle"
     private val neighbour = "Neighbour Isle"
 
@@ -128,9 +133,10 @@ class OpenSimLiveSessionTest {
         eventually(what = "chat echo in the new region") { s.chat.value.firstOrNull { it.text == "hello from the neighbour" } }
         println("LIVE teleported to $neighbour at ${s.region.value?.position?.toList()}; errors=${l.notices.filterIsInstance<ViewerNotice.Error>()}")
 
+        delay(RETURN_PAUSE_MS)
         s.teleport(home, 128f, 128f, 50f)
         eventually(60_000, "arrival back in $home") { s.region.value?.takeIf { it.name == home } }
-        assertTrue(l.notices.filterIsInstance<ViewerNotice.Error>().isEmpty())
+        assertTrue("error notices: ${l.notices}", l.notices.filterIsInstance<ViewerNotice.Error>().isEmpty())
     }
 
     /**
@@ -142,6 +148,7 @@ class OpenSimLiveSessionTest {
         val s = l.s
         s.teleport(neighbour, 128f, 128f, 50f)
         eventually(60_000, "arrival in $neighbour") { s.region.value?.takeIf { it.name == neighbour } }
+        delay(RETURN_PAUSE_MS)
         s.teleportHome()
         val end = System.currentTimeMillis() + (if (System.getenv("OPENSIM_HOME") == "1") 60_000 else 20_000)
         var arrived: RegionInfo? = null

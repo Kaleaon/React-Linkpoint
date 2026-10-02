@@ -25,6 +25,12 @@ class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val g
     val landmarkRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
     /** When true, the first thing a viewer sends us (UseCircuitCode) is answered with a chat line, like a real neighbour that accepted the child agent. */
     @Volatile var greetsOnUseCircuitCode = false
+    /** The first N distinct viewer endpoints are ignored completely, like OpenSim dropping a first connection into a region with a stale presence. */
+    @Volatile var ignoreFirstClients = 0
+    private val ignoredClients = java.util.concurrent.CopyOnWriteArrayList<java.net.SocketAddress>()
+    private val knownClients = java.util.concurrent.CopyOnWriteArrayList<java.net.SocketAddress>()
+    /** Number of distinct viewer endpoints (circuits) that have sent us anything. */
+    val distinctClients get() = knownClients.size
     /** Instant messages the viewer sent: dialog, recipient, text. */
     val imsSent = java.util.concurrent.CopyOnWriteArrayList<Triple<Int, UUID, String>>()
     /** Targets of StartLure (teleport offers) and their message. */
@@ -44,7 +50,10 @@ class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val g
         while (running) {
             val dp = DatagramPacket(buf, buf.size)
             try { socket.receive(dp) } catch (_: java.net.SocketTimeoutException) { continue } catch (_: Exception) { return@Thread }
-            client = dp.socketAddress
+            val from = dp.socketAddress
+            if (from !in knownClients) { knownClients += from; if (ignoredClients.size < ignoreFirstClients) ignoredClients += from }
+            if (from in ignoredClients) continue
+            client = from
             val p = PacketCodec.decode(buf, dp.length)
             received += p.messageId
             if (p.reliable) send(Messages.packetAck(listOf(p.sequence)))
