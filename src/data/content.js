@@ -45,6 +45,8 @@ export const HEAD = (layoutName, paletteName) => {
     Profile: ["PROFILE", `> ${resident}`],
     Groups: ["GROUPS", `> ${app.groups.getGroups().length} loaded`],
     Notices: ["NOTIFICATIONS", `> ${app.notifications.items.length} received this session`],
+    Contacts: ["CONTACTS", `> ${app.contacts.size} saved`],
+    Calendar: ["CALENDAR", `> ${app.notices.list().length} group notices`],
     Teleport: ["TELEPORT", region ? `> currently in ${region.name || "unnamed region"}` : "> no current region"],
     Settings: ["SETTINGS", `> ${layoutName} layout / ${paletteName} colour`],
     Cache: ["CACHE", "> local cache statistics"],

@@ -85,7 +85,7 @@ function SweepHead({ title, subtitle }) {
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "10px 12px 6px 4px" }}>
         <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "24px", minWidth: "24px", padding: "0 8px", background: V.sec2, borderRadius: "8px 0 0 8px", flex: "none", font: "700 8.5px/1 " + t.dfont, color: V.bg, letterSpacing: ".1em" }}>01-4471</span>
         <span style={{ flex: 1, height: "6px", background: V.surf2 }} />
-        <span style={{ font: "700 22px/1 " + t.dfont, letterSpacing: ".14em", color: V.pri, flex: "none", textTransform: "uppercase" }}>{title}</span>
+        <span style={{ font: "700 22px/1 " + t.dfont, letterSpacing: ".14em", color: V.pri, flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "uppercase" }}>{title}</span>
         <span style={{ width: "36px", minWidth: "24px", minHeight: "24px", background: V.pri, borderRadius: "0 8px 8px 0", flex: "none" }} />
       </div>
       <div style={{ flex: "none", padding: "0 12px 8px", font: "400 11px/1.4 " + t.font, letterSpacing: ".06em", color: V.ink2 }}>{subtitle}</div>
