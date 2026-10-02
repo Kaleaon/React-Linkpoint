@@ -49,7 +49,7 @@ function StackHead({ title, subtitle, scr }) {
         <div style={{ font: "400 11px/1.4 " + t.font, color: V.ink2, marginTop: "4px" }}>{subtitle}</div>
       </div>
       {showLink ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", height: "28px", padding: "0 10px", border: "1px solid " + V.ok, borderRadius: V.rs, background: V.surf }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", height: "28px", minWidth: "24px", minHeight: "24px", padding: "0 10px", border: "1px solid " + V.ok, borderRadius: V.rs, background: V.surf, flexShrink: 0 }}>
           <span style={{ width: "6px", height: "6px", borderRadius: "3px", background: V.ok }} />
           <span style={{ font: "600 10px/1 " + t.font, letterSpacing: ".2em", color: V.ok }}>LINK</span>
         </div>
@@ -68,7 +68,7 @@ function StackHead({ title, subtitle, scr }) {
               role="button"
               aria-label={hi.label}
               tabIndex={0}
-              style={{ width: "44px", height: "44px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, display: "flex", alignItems: "center", justifyContent: "center", color: V.pri, cursor: "pointer" }}
+              style={{ width: "44px", height: "44px", minWidth: "24px", minHeight: "24px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, display: "flex", alignItems: "center", justifyContent: "center", color: V.pri, cursor: "pointer", flexShrink: 0 }}
             >
               <Icon name={hi.icon} size={18} />
             </div>
@@ -83,10 +83,10 @@ function SweepHead({ title, subtitle }) {
   return (
     <>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "10px 12px 6px 4px" }}>
-        <span style={{ display: "flex", alignItems: "center", height: "16px", padding: "0 8px", background: V.sec2, borderRadius: "8px 0 0 8px", flex: "none", font: "700 8.5px/1 " + t.dfont, color: V.bg, letterSpacing: ".1em" }}>01-4471</span>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "24px", minWidth: "24px", padding: "0 8px", background: V.sec2, borderRadius: "8px 0 0 8px", flex: "none", font: "700 8.5px/1 " + t.dfont, color: V.bg, letterSpacing: ".1em" }}>01-4471</span>
         <span style={{ flex: 1, height: "6px", background: V.surf2 }} />
         <span style={{ font: "700 22px/1 " + t.dfont, letterSpacing: ".14em", color: V.pri, flex: "none", textTransform: "uppercase" }}>{title}</span>
-        <span style={{ width: "36px", height: "16px", background: V.pri, borderRadius: "0 8px 8px 0", flex: "none" }} />
+        <span style={{ width: "36px", minWidth: "24px", minHeight: "24px", background: V.pri, borderRadius: "0 8px 8px 0", flex: "none" }} />
       </div>
       <div style={{ flex: "none", padding: "0 12px 8px", font: "400 11px/1.4 " + t.font, letterSpacing: ".06em", color: V.ink2 }}>{subtitle}</div>
     </>
@@ -107,7 +107,7 @@ function PivotHead({ title, subtitle, scr }) {
           tabIndex={0}
           aria-label={"Pivot to " + nextScr}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); actions.setScreen(nextScr); } }}
-          style={{ flex: "none", font: "300 42px/1 " + t.dfont, color: V.ink2, opacity: 0.35, cursor: "pointer", textTransform: "lowercase", letterSpacing: "-.02em" }}
+          style={{ flex: "none", minWidth: "24px", minHeight: "24px", font: "300 42px/1 " + t.dfont, color: V.ink2, opacity: 0.35, cursor: "pointer", textTransform: "lowercase", letterSpacing: "-.02em" }}
         >
           {nextScr.toLowerCase()}
         </span>
@@ -120,7 +120,7 @@ function PivotHead({ title, subtitle, scr }) {
 function RuleHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
-    <div style={{ flex: "none", padding: "16px 16px 4px" }}>
+    <div style={{ flex: "none", padding: "16px 16px 4px", minWidth: "24px", minHeight: "24px" }}>
       <div style={{ height: "1px", background: V.pri }} />
       <div style={{ height: "3px", borderBottom: "1px solid " + V.pri }} />
       <div style={{ textAlign: "center", padding: "12px 0 10px", font: "600 15px/1.1 " + t.dfont, letterSpacing: V.tls, color: V.pri, textIndent: V.tls }}>{title}</div>
