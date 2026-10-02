@@ -67,7 +67,7 @@ object ObjectDecoder {
             val text = r.str1(); r.bytes(4); r.str1() // text, text colour, media url
             val ps = r.bin1()
             val extra = r.bin1()
-            r.uuid(); r.uuid(); r.f32(); r.u8(); r.f32() // sound
+            val soundId = r.uuid(); val soundOwner = r.uuid(); val soundGain = r.f32(); val soundFlags = r.u8(); val soundRadius = r.f32()
             r.u8(); r.vec3(); r.vec3()                    // joint
 
             val (pos, rot) = motionBlock(motion)
@@ -87,6 +87,7 @@ object ObjectDecoder {
                     textures = TextureEntry.parse(te), sculpt = ex.sculpt, hasFlexible = ex.flexible,
                     text = text.ifEmpty { null }, particles = if (ps.isNotEmpty()) ParticleParams.parse(ps) else null,
                     updateFlags = flags,
+                    sound = sound(soundId, soundGain, soundFlags, soundRadius, soundOwner),
                 ),
             )
         }
@@ -152,7 +153,8 @@ object ObjectDecoder {
                 c.skip(ParticleParams.LEGACY_SIZE)
             }
             val ex = parseExtraAt(c)
-            if (flags and 0x10 != 0L) c.skip(25)
+            var sound: ObjectSound? = null
+            if (flags and 0x10 != 0L) { val sid = c.uuid(); val g = c.f32(); val f = c.u8(); val rad = c.f32(); sound = sound(sid, g, f, rad, null) }
             if (flags and 0x100 != 0L) c.cstring()
             val pathCurve = c.u8()
             val pathBegin = c.u16(); val pathEnd = c.u16()
@@ -173,12 +175,17 @@ object ObjectDecoder {
                     tx * 0.01f, ty * 0.01f, rev * 0.015f + 1f, sk * 0.01f, pb * CUT, (50000 - pe) * CUT, ph * CUT,
                 ),
                 textures = te, sculpt = ex.sculpt, hasFlexible = ex.flexible, text = text?.ifEmpty { null },
-                particles = particles, updateFlags = updateFlags,
+                particles = particles, updateFlags = updateFlags, sound = sound,
             )
         } catch (_: IndexOutOfBoundsException) {
             return null
         }
     }
+
+    /** A sound is only present when the simulator names one (a nil id means "no sound"). */
+    private fun sound(id: UUID, gain: Float, flags: Int, radius: Float, owner: UUID?): ObjectSound? =
+        if (id.mostSignificantBits == 0L && id.leastSignificantBits == 0L) null
+        else ObjectSound(id, gain.coerceIn(0f, 1f), flags, radius.coerceAtLeast(0f), owner)
 
     private class Extra(val sculpt: SculptInfo?, val flexible: Boolean)
 

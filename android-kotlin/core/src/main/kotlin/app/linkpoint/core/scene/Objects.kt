@@ -34,6 +34,22 @@ object PCode {
     const val TREE = 255
 }
 
+/** Bits of the sound flags the simulator sends with an object's sound. */
+object SoundFlags {
+    const val LOOP = 0x01
+    const val SYNC_MASTER = 0x02
+    const val SYNC_SLAVE = 0x04
+    const val SYNC_PENDING = 0x08
+    const val QUEUE = 0x10
+    const val STOP = 0x20
+}
+
+/** The sound an object plays ([radius] is the half-width of the cube, in metres, outside which it is silent; 0 means no limit). */
+data class ObjectSound(val soundId: UUID, val gain: Float, val flags: Int, val radius: Float, val ownerId: UUID? = null) {
+    val loops get() = flags and SoundFlags.LOOP != 0
+    val stopped get() = flags and SoundFlags.STOP != 0
+}
+
 /** An object in the region as last described by the simulator. Fields the grid has not sent stay null. */
 data class SimObject(
     val localId: Long,
@@ -51,6 +67,7 @@ data class SimObject(
     val text: String? = null,
     val particles: ParticleParams? = null,
     val updateFlags: Long = 0,
+    val sound: ObjectSound? = null,
 ) {
     val isAvatar get() = pcode == PCode.AVATAR
 }

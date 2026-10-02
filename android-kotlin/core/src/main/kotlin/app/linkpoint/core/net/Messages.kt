@@ -39,6 +39,18 @@ sealed class Incoming {
     data class TeleportProgress(val flags: Long, val message: String) : Incoming()
     data class TeleportFailed(val reason: String) : Incoming()
     data class TeleportLocal(val position: FloatArray, val lookAt: FloatArray, val flags: Long) : Incoming()
+    /** A one-shot sound played at a place (llTriggerSound, collision sounds, UI sounds from the simulator). */
+    data class SoundTrigger(val soundId: UUID, val ownerId: UUID, val objectId: UUID, val parentId: UUID, val regionHandle: Long, val position: FloatArray, val gain: Float) : Incoming()
+    /** A sound attached to an object (llPlaySound / llLoopSound); [flags] are the [app.linkpoint.core.scene.SoundFlags] bits. */
+    data class AttachedSound(val soundId: UUID, val objectId: UUID, val ownerId: UUID, val gain: Float, val flags: Int) : Incoming()
+    data class AttachedSoundGainChange(val objectId: UUID, val gain: Float) : Incoming()
+    /** (objectId, ownerId, soundId) triples the simulator suggests fetching before they are needed. */
+    data class PreloadSound(val entries: List<Triple<UUID, UUID, UUID>>) : Incoming()
+    data class ParcelMediaUpdate(
+        val url: String, val mediaId: UUID, val autoScale: Boolean,
+        val type: String, val description: String, val width: Int, val height: Int, val loop: Boolean,
+    ) : Incoming()
+    data class ParcelMediaCommand(val flags: Long, val command: Long, val time: Float) : Incoming()
     data class MapBlocks(val blocks: List<MapBlockInfo>) : Incoming()
     data class KickUser(val reason: String) : Incoming()
     data object LogoutReply : Incoming()
@@ -233,6 +245,17 @@ object Messages {
             Msg.TeleportProgress -> { r.uuid(); Incoming.TeleportProgress(r.u32(), r.str1()) }
             Msg.TeleportFailed -> { r.uuid(); Incoming.TeleportFailed(r.str1()) }
             Msg.TeleportLocal -> { r.uuid(); r.u32(); Incoming.TeleportLocal(r.vec3(), r.vec3(), r.u32()) }
+            Msg.SoundTrigger -> Incoming.SoundTrigger(r.uuid(), r.uuid(), r.uuid(), r.uuid(), r.u64(), r.vec3(), r.f32())
+            Msg.AttachedSound -> Incoming.AttachedSound(r.uuid(), r.uuid(), r.uuid(), r.f32(), r.u8())
+            Msg.AttachedSoundGainChange -> Incoming.AttachedSoundGainChange(r.uuid(), r.f32())
+            Msg.PreloadSound -> Incoming.PreloadSound(List(r.u8()) { Triple(r.uuid(), r.uuid(), r.uuid()) })
+            Msg.ParcelMediaUpdate -> {
+                val url = r.str1(); val id = r.uuid(); val auto = r.u8() != 0
+                // The extended block is missing from older simulators.
+                if (r.remaining >= 2) Incoming.ParcelMediaUpdate(url, id, auto, r.str1(), r.str1(), r.s32(), r.s32(), r.u8() != 0)
+                else Incoming.ParcelMediaUpdate(url, id, auto, "", "", 0, 0, false)
+            }
+            Msg.ParcelMediaCommandMessage -> Incoming.ParcelMediaCommand(r.u32(), r.u32(), r.f32())
             Msg.MapBlockReply -> {
                 r.uuid(); r.u32()
                 val n = r.u8()

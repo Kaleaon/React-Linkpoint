@@ -73,7 +73,23 @@ data class GroupInfo(val id: UUID, val name: String, val acceptNotices: Boolean)
 data class ParcelInfo(
     val localId: Int, val name: String, val description: String, val areaSqm: Int, val ownerId: UUID?,
     val maxPrims: Int?, val totalPrims: Int?, val musicUrl: String, val mediaUrl: String,
+    /** The parcel's media settings, or null when it has no media. */
+    val media: ParcelMedia? = null,
 )
+
+/** A parcel's media: [url] is a stream or page, [mediaId] is the texture the media replaces on objects that use it. */
+data class ParcelMedia(
+    val url: String, val mediaId: UUID?, val autoScale: Boolean, val type: String, val description: String,
+    val width: Int, val height: Int, val loop: Boolean,
+) {
+    /** True when the type or address says this is sound only (an Internet radio stream) rather than video or a page. */
+    val isAudioOnly: Boolean get() = type.startsWith("audio/", true) || url.substringBefore('?').lowercase().let { u -> listOf(".mp3", ".ogg", ".aac", ".m3u", ".pls").any { u.endsWith(it) } }
+}
+
+enum class MediaState { STOPPED, PLAYING, PAUSED }
+
+/** What the simulator has told us about playback of the parcel media (ParcelMediaCommandMessage). */
+data class MediaPlayback(val state: MediaState = MediaState.STOPPED, val timeSeconds: Float = 0f, val loop: Boolean = false)
 
 data class AvatarProfile(val id: UUID, val about: String, val bornOn: String, val partnerId: UUID?, val profileUrl: String, val flags: Long)
 

@@ -286,6 +286,7 @@ class ObjectSpec(
     val sculpt: Pair<UUID, Int>? = null,
     val text: String = "",
     val particles: ByteArray? = null,
+    val sound: app.linkpoint.core.scene.ObjectSound? = null,
 )
 
 object ObjectPackets {
@@ -324,7 +325,8 @@ object ObjectPackets {
         w.u16(q[13]).u16(q[14]).u16(q[15])
         w.bin2(o.textureEntry ?: ByteArray(0)).bin1(ByteArray(0)).bin2(ByteArray(0)).bin2(ByteArray(0))
         w.str1(o.text).bytes(ByteArray(4)).str1("").bin1(o.particles ?: ByteArray(0)).bin1(extra(o))
-        w.uuid(UUID(0, 0)).uuid(UUID(0, 0)).f32(0f).u8(0).f32(0f).u8(0).vec3(0f, 0f, 0f).vec3(0f, 0f, 0f)
+        val snd = o.sound
+        w.uuid(snd?.soundId ?: UUID(0, 0)).uuid(snd?.ownerId ?: UUID(0, 0)).f32(snd?.gain ?: 0f).u8(snd?.flags ?: 0).f32(snd?.radius ?: 0f).u8(0).vec3(0f, 0f, 0f).vec3(0f, 0f, 0f)
         return w.toByteArray()
     }
 
@@ -334,6 +336,7 @@ object ObjectPackets {
         if (o.parent != 0L) flags = flags or 0x20
         if (o.text.isNotEmpty()) flags = flags or 0x04
         if (o.particles != null) flags = flags or 0x08
+        if (o.sound != null) flags = flags or 0x10
         val q = quant(o.params)
         val d = WireWriter()
         d.uuid(o.fullId).u32(o.localId).u8(o.pcode).u8(0).u32(0).u8(0).u8(0)
@@ -344,6 +347,7 @@ object ObjectPackets {
         if (o.text.isNotEmpty()) d.bytes(o.text.toByteArray() + 0).bytes(ByteArray(4))
         if (o.particles != null) d.bytes(o.particles)
         d.bytes(extra(o))
+        o.sound?.let { d.uuid(it.soundId).f32(it.gain).u8(it.flags).f32(it.radius) }
         d.u8(o.params.pathCurve).u16(q[0]).u16(q[1]).u8(q[2]).u8(q[3])
         for (i in 4..10) d.u8(q[i] and 0xFF)
         d.u8(q[11] and 0xFF).u8(q[12] and 0xFF)

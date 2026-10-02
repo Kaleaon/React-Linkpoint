@@ -75,6 +75,15 @@ class ViewerSession(
     private val _environment = MutableStateFlow(RegionEnvironment.FALLBACK)
     /** The region's sky/water settings, or an estimated Windlight sky until the region answers. */
     val environment: StateFlow<RegionEnvironment> = _environment
+    private val _soundEvents = MutableSharedFlow<app.linkpoint.core.audio.SoundEvent>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** Sounds the simulator asks us to play; object sounds that arrive inside object updates are in [scene] instead. */
+    val soundEvents: SharedFlow<app.linkpoint.core.audio.SoundEvent> = _soundEvents
+    private val _parcelMedia = MutableStateFlow<ParcelMedia?>(null)
+    /** The media (stream, video or page) of the parcel we are on, or null when it has none. */
+    val parcelMedia: StateFlow<ParcelMedia?> = _parcelMedia
+    private val _mediaPlayback = MutableStateFlow(MediaPlayback())
+    /** Play / pause / seek commands the simulator has sent for that media. */
+    val mediaPlayback: StateFlow<MediaPlayback> = _mediaPlayback
     private val _capabilities = MutableStateFlow<Map<String, String>>(emptyMap())
     val capabilities: StateFlow<Map<String, String>> = _capabilities
 
@@ -106,6 +115,7 @@ class ViewerSession(
         _state.value = ConnectionState.CONNECTING
         _chat.value = emptyList(); _region.value = null; _balance.value = null; scene.clear(); heightmap.clear()
         _groups.value = emptyList(); _parcel.value = null; _offers.value = emptyList()
+        _parcelMedia.value = null; _mediaPlayback.value = MediaPlayback()
         try {
             login = result
             agentId = UUID.fromString(result.agentId)
@@ -218,6 +228,7 @@ class ViewerSession(
         // simulator begins streaming terrain and objects as soon as it accepts us, and those must not be wiped.
         previousJobs.forEach { it.cancel() }
         scene.clear(); heightmap.clear(); _nearby.value = emptyList()
+        _parcel.value = null; _parcelMedia.value = null; _mediaPlayback.value = MediaPlayback() // the old parcel's stream must not follow us
 
         // A neighbour we already hold a circuit to is promoted: it has seen UseCircuitCode, so only the movement completes.
         val promoted = children.remove("$ip:$port")
@@ -319,7 +330,12 @@ class ViewerSession(
                     int("LocalID") ?: -1, d["Name"]?.toString() ?: "", d["Desc"]?.toString() ?: "", int("Area") ?: 0,
                     (d["OwnerID"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L },
                     int("MaxPrims"), int("TotalPrims"), d["MusicURL"]?.toString() ?: "", d["MediaURL"]?.toString() ?: "",
-                )
+                    media = parcelMediaOf(d, e.body["MediaData"].asLlsdList()?.firstOrNull().asLlsdMap()),
+                ).also { info ->
+                    val old = _parcelMedia.value
+                    _parcelMedia.value = info.media
+                    if (info.media == null || old?.url != info.media.url) _mediaPlayback.value = MediaPlayback()
+                }
             }
             "EnableSimulator" -> {
                 for (info in e.body["SimulatorInfo"].asLlsdList().orEmpty()) {
@@ -338,6 +354,33 @@ class ViewerSession(
                 }
             }
         }
+    }
+
+    /** Media settings from ParcelProperties: the basics live in ParcelData, description/size/type/loop in MediaData (or alongside, on some grids). */
+    private fun parcelMediaOf(d: Map<*, *>, extra: Map<*, *>?): ParcelMedia? {
+        fun str(k: String) = (extra?.get(k) ?: d[k])?.toString().orEmpty()
+        fun int(k: String) = ((extra?.get(k) ?: d[k]) as? Number)?.toInt() ?: 0
+        fun bool(k: String) = when (val v = extra?.get(k) ?: d[k]) { is Boolean -> v; is Number -> v.toInt() != 0; else -> false }
+        val url = d["MediaURL"]?.toString().orEmpty()
+        val id = (d["MediaID"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
+        if (url.isBlank() && id == null) return null
+        return ParcelMedia(url, id, bool("MediaAutoScale"), str("MediaType"), str("MediaDesc"), int("MediaWidth"), int("MediaHeight"), bool("MediaLoop"))
+    }
+
+    private fun applyMediaCommand(c: Incoming.ParcelMediaCommand) {
+        _mediaPlayback.update { cur ->
+            when (c.command) {
+                0L -> MediaPlayback(MediaState.STOPPED, 0f, cur.loop)            // STOP
+                1L -> cur.copy(state = MediaState.PAUSED)                        // PAUSE
+                2L -> cur.copy(state = MediaState.PLAYING)                       // PLAY
+                3L -> MediaPlayback(MediaState.PLAYING, cur.timeSeconds, true)   // LOOP
+                6L -> cur.copy(timeSeconds = c.time.coerceAtLeast(0f))           // TIME: seek
+                8L -> MediaPlayback()                                            // UNLOAD
+                13L -> cur.copy(loop = c.time != 0f)                             // LOOP_SET
+                else -> cur // texture/url/agent/align/type/size/desc arrive as a ParcelMediaUpdate
+            }
+        }
+        if (c.command == 8L) _parcelMedia.value = null
     }
 
     private fun onMessage(rx: Received) {
@@ -399,6 +442,15 @@ class ViewerSession(
                 TerrainDecoder.decode(m.data).patches.forEach(heightmap::put)
             } catch (_: IllegalArgumentException) { /* a damaged layer packet: keep what we have */ }
             is Incoming.AvatarProperties -> profileWaits.remove(m.avatarId)?.complete(m)
+            is Incoming.SoundTrigger -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Trigger(m.soundId, m.objectId, m.ownerId, app.linkpoint.core.scene.Vec3(m.position[0], m.position[1], m.position[2]), m.gain.coerceIn(0f, 1f)))
+            is Incoming.AttachedSound -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Attached(m.soundId, m.objectId, m.gain.coerceIn(0f, 1f), m.flags))
+            is Incoming.AttachedSoundGainChange -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.GainChange(m.objectId, m.gain.coerceIn(0f, 1f)))
+            is Incoming.PreloadSound -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Preload(m.entries.map { it.third }.distinct()))
+            is Incoming.ParcelMediaUpdate -> {
+                val id = m.mediaId.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
+                _parcelMedia.value = if (m.url.isBlank() && id == null) null else ParcelMedia(m.url, id, m.autoScale, m.type, m.description, m.width, m.height, m.loop)
+            }
+            is Incoming.ParcelMediaCommand -> applyMediaCommand(m)
             is Incoming.Unhandled -> Unit
         }
     }
