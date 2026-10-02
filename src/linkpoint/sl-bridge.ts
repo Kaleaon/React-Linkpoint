@@ -174,6 +174,9 @@ export class SLBridge extends Utils.EventEmitter {
   }
   /** An animation asset from the simulator, base64-encoded. */
   fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
+  voiceProvision(sdp: string, parcelLocalId?: number) { return this.call<any>('voiceProvision', { sdp, parcelLocalId }); }
+  voiceSignal(viewerSession: string, candidates?: RTCIceCandidateInit[], completed = false) { return this.call('voiceSignal', { viewerSession, candidates, completed }); }
+  voiceLogout(viewerSession: string) { return this.call('voiceLogout', { viewerSession }); }
 
   disconnect() {
     this.eventSource?.close();
