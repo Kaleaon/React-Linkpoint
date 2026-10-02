@@ -9,6 +9,6 @@ export default function Profile() {
   return <div className="tool-page"><article className="runtime-card" style={{ borderColor: V.outv, background: V.surf }}>
     <Icon name="user" size={34} style={{ color: V.pri }} />
     <h2 style={{ font: `600 20px/1.3 ${t.dfont}` }}>{user.fullName}</h2>
-    <dl><dt>Grid</dt><dd>{user.grid}</dd><dt>Agent ID</dt><dd>{user.id || "Not supplied"}</dd></dl>
+    <dl><dt>Grid</dt><dd>{user.grid}</dd><dt>Account ID</dt><dd>{user.id || "Not supplied"}</dd></dl>
   </article></div>;
 }

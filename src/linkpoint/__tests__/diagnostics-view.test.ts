@@ -53,15 +53,15 @@ describe('diagnostics display rules', () => {
   });
 
   it('describes a ping probe honestly', () => {
-    expect(describePing(null)).toMatch(/no latency/i);
-    expect(describePing({ latencyMs: null })).toMatch(/no latency/i);
-    expect(describePing({ latencyMs: 61.6 })).toBe('Ping complete: 62 ms latency');
+    expect(describePing(null)).toMatch(/no measurement/i);
+    expect(describePing({ latencyMs: null })).toMatch(/no measurement/i);
+    expect(describePing({ latencyMs: 61.6 })).toBe('Response check complete: 62 ms response time');
   });
 
   it('reports the event queue from its real state', () => {
-    expect(eventQueueState(false, true)).toMatchObject({ text: 'NOT CONNECTED' });
-    expect(eventQueueState(true, true)).toMatchObject({ text: 'RUNNING', tone: 'ok' });
-    expect(eventQueueState(true, false)).toMatchObject({ text: 'STOPPED', tone: 'err' });
+    expect(eventQueueState(false, true)).toMatchObject({ text: 'Not connected' });
+    expect(eventQueueState(true, true)).toMatchObject({ text: 'Active', tone: 'ok' });
+    expect(eventQueueState(true, false)).toMatchObject({ text: 'Inactive', tone: 'err' });
   });
 });
 
@@ -84,4 +84,37 @@ describe('no fabricated telemetry remains in the source', () => {
       for (const file of sources) expect(read(file), file).not.toMatch(pattern);
     });
   }
+});
+
+describe('plain language UI refactoring', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
+
+  it('contains no internal class names in DiagnosticsPanel copy', () => {
+    const diagCopy = read('screens/DiagnosticsPanel.jsx');
+    expect(diagCopy).not.toContain('SLConnectionFull');
+    expect(diagCopy).toContain('NETWORK HEALTH DIAGNOSTICS');
+  });
+
+  it('contains plain language KPI labels in DiagnosticsPanel', () => {
+    const diagCopy = read('screens/DiagnosticsPanel.jsx');
+    expect(diagCopy).toContain('Connection Status');
+    expect(diagCopy).toContain('World Response Time');
+    expect(diagCopy).toContain('Connection Stability');
+    expect(diagCopy).toContain('Last World Update');
+  });
+
+  it('contains plain language telemetry detail labels in DiagnosticsPanel', () => {
+    const diagCopy = read('screens/DiagnosticsPanel.jsx');
+    expect(diagCopy).toContain('Network Port');
+    expect(diagCopy).toContain('Security Session Key');
+    expect(diagCopy).toContain('Account ID');
+    expect(diagCopy).toContain('Secure Features Key');
+    expect(diagCopy).toContain('Event Listener Status');
+  });
+
+  it('uses Account ID instead of Agent ID in Settings', () => {
+    const settingsCopy = read('screens/Settings.jsx');
+    expect(settingsCopy).toContain('<dt>Account ID</dt>');
+    expect(settingsCopy).not.toContain('<dt>Agent ID</dt>');
+  });
 });
