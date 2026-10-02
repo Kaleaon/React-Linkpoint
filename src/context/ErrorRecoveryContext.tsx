@@ -41,7 +41,15 @@ export const ErrorRecoveryProvider: React.FC<{ children: React.ReactNode; custom
   }, [service]);
 
   const enqueueRetry = useCallback(
-    <T,>(options: Parameters<ErrorRecoveryContextValue['enqueueRetry']>[0]) => {
+    <T,>(options: {
+      action: () => Promise<T>;
+      category?: string;
+      code?: string;
+      description?: string;
+      maxRetries?: number;
+      onSuccess?: (result: T) => void;
+      onFailure?: (error: Error) => void;
+    }) => {
       return service.enqueueRetry<T>(options);
     },
     [service]
