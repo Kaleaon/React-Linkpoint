@@ -1,6 +1,8 @@
-import { LAYOUTS, PALETTES, DEVICES, ensureMinContrast } from "@linkpoint/design-system/tokens";
-import { STATES } from "./constants.js";
+import { LAYOUTS } from "./layouts.js";
+import { PALETTES } from "./palettes.js";
+import { DEVICES, STATES } from "./constants.js";
 import { pickInk } from "./color.js";
+import { ensureMinContrast } from "./contrast.ts";
 
 // Ported from the top of renderVals(): resolves the active layout+palette into
 // the token set `V`, the device, the console geometry, and the handful of
