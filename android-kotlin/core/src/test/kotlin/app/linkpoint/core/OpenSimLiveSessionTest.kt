@@ -172,4 +172,29 @@ class OpenSimLiveSessionTest {
         val again = connected() // retries while OpenSim still holds the old presence
         try { assertEquals(ConnectionState.CONNECTED, again.s.state.value) } finally { again.finish() }
     }
+
+    /**
+     * A rigged (skinned) mesh served by a real OpenSim through GetMesh2 keeps its rig: joint names, one inverse bind matrix per
+     * joint, and normalised per-vertex weights on joints the rig has. The object comes from the generated OAR.
+     */
+    @Test fun riggedMeshServedByOpenSimKeepsItsRig() = withLive { l ->
+        val s = l.s
+        val caps = eventually(what = "capabilities") { s.capabilities.value.takeIf { "GetMesh2" in it || "GetMesh" in it } }
+        val obj = eventually(what = "the rigged mesh object streamed") { s.scene.snapshot().firstOrNull { it.sculpt?.assetId == app.linkpoint.core.mock.Wire.RIGGED_LIMB_ID } }
+        assertEquals(app.linkpoint.core.scene.SculptKind.MESH, obj.sculpt!!.kind)
+        val fetcher = app.linkpoint.core.scene.MeshFetcher(l.http, l.scope, { caps["GetMesh2"] ?: caps["GetMesh"] })
+        val mesh = fetcher.request(obj.sculpt!!.assetId)!!.await().getOrThrow()
+        val skin = mesh.skin
+        assertNotNull("the rig must survive the trip through OpenSim", skin)
+        println("LIVE rigged mesh: joints=${skin!!.jointNames}, faces=${mesh.faces.size}, vertices=${mesh.faces.sumOf { it.vertexCount }}, unknown joints=${skin.unknownJoints}")
+        assertEquals(listOf("mShoulderLeft", "mElbowLeft", "mWristLeft", "mHandThumb1Left"), skin.jointNames)
+        assertEquals(skin.jointNames.size, skin.inverseBind.size)
+        val face = mesh.faces.single()
+        assertTrue(face.isRigged)
+        for (v in 0 until face.vertexCount) {
+            val sum = (0 until 4).sumOf { face.skinWeights!![v * 4 + it].toDouble() }
+            assertEquals("vertex $v weights sum to 1", 1.0, sum, 1e-4)
+        }
+        assertTrue("the rig is for the standard avatar skeleton", skin.unknownJoints.isEmpty())
+    }
 }

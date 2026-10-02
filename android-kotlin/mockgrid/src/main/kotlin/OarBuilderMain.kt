@@ -111,6 +111,7 @@ fun main(args: Array<String>) {
         Prim("Glow cube (alpha)", cx + 10, cy + 4, z, 1.5f, 1.5f, 1.5f, faces = glow),
         Prim("Sculpt sphere", cx + 10, cy - 4, z, 3f, 3f, 3f, profileCurve = 0, sculpt = TEX_SCULPT to 1, faces = plasma),
         Prim("LLMesh pyramid", cx + 10, cy + 8, z, 3f, 3f, 3f, profileCurve = 0, sculpt = MESH_PYRAMID to 5, faces = checker),
+        Prim("Rigged limb mesh", cx + 10, cy - 8, z, 1f, 1f, 3f, profileCurve = 0, sculpt = Wire.RIGGED_LIMB_ID to 5, faces = checker),
         Prim("Linkset root", cx + 14, cy, z, 2f, 2f, 1f, faces = checker, children = listOf(
             Prim("Linkset child A", 0f, 0f, 1.5f, 1f, 1f, 2f, profileCurve = 0, faces = plasma),
             Prim("Linkset child B", 1.5f, 0f, 0f, 1f, 1f, 1f, profileCurve = 5, pathCurve = 32, faces = glow))),
@@ -128,6 +129,7 @@ fun main(args: Array<String>) {
     tar.add("assets/${TEX_PLASMA}_texture.jp2", res("tex_plasma.j2k"))
     tar.add("assets/${TEX_SCULPT}_texture.jp2", res("sculpt_sphere.j2k"))
     tar.add("assets/${MESH_PYRAMID}_mesh.llmesh", Wire.pyramidMesh())
+    tar.add("assets/${Wire.RIGGED_LIMB_ID}_mesh.llmesh", Wire.riggedLimbMesh()) // skinned mesh: joints, bind matrices, weights
     out.outputStream().use { f -> GZIPOutputStream(f).use { it.write(tar.finish()) } }
     println("wrote ${out.absolutePath} (${out.length()} bytes, ${prims.size} objects)")
 }

@@ -9,8 +9,15 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Geometry for one face of a prim, in the prim's unit space (multiply by the object scale to place it). */
-class MeshFace(val faceIndex: Int, val positions: FloatArray, val normals: FloatArray, val uvs: FloatArray, val indices: IntArray) {
+class MeshFace(
+    val faceIndex: Int, val positions: FloatArray, val normals: FloatArray, val uvs: FloatArray, val indices: IntArray,
+    /** Rigged meshes only: four joint indices per vertex (into [MeshSkin.jointNames]); unused slots are 0 with weight 0. */
+    val skinJoints: IntArray? = null,
+    /** Rigged meshes only: four weights per vertex, normalised to sum to 1 (all zero for a vertex with no influence). */
+    val skinWeights: FloatArray? = null,
+) {
     val vertexCount: Int get() = positions.size / 3
+    val isRigged: Boolean get() = skinJoints != null && skinWeights != null
 }
 
 class PrimMesh(val faces: List<MeshFace>) {

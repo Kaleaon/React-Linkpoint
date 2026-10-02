@@ -133,6 +133,11 @@ class OpenSimLiveTest {
         println("LIVE assets waited ${(System.currentTimeMillis() - a0) / 1000}s, finished=${done()}")
         val mOk = meshIds.count { meshes.peek(it) != null }; val mFail = meshIds.mapNotNull { meshes.failure(it)?.toString() }
         println("LIVE meshes: requested ${meshIds.size}, decoded $mOk, failed ${mFail.size}, pending ${meshIds.size - mOk - mFail.size}; triangles=${meshIds.sumOf { meshes.peek(it)?.faces?.sumOf { f -> f.indices.size / 3 } ?: 0 }}; failures: ${mFail.groupingBy { it.take(90) }.eachCount().entries.take(5)}")
+        val decoded = meshIds.mapNotNull { meshes.peek(it) }
+        val rigged = decoded.filter { it.hasSkin }
+        println("LIVE rigged meshes: ${rigged.size} of ${decoded.size} decoded declare a rig; rig decoded for ${rigged.count { it.skin != null }}; " +
+            "weights usable on ${rigged.count { m -> m.faces.isNotEmpty() && m.faces.all { it.isRigged } }}; " +
+            "non-standard joints seen: ${rigged.flatMap { it.skin?.unknownJoints.orEmpty() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)}")
         println("LIVE failing mesh ids: ${meshIds.filter { meshes.failure(it) != null }}")
         println("LIVE failing texture ids: ${texList.filter { textures.failure(it) != null }}")
         val tOk = texList.count { textures.peek(it) != null }; val tFail = texList.mapNotNull { textures.failure(it)?.toString() }
