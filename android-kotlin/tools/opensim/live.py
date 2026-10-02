@@ -79,8 +79,8 @@ class OpenSim:
             if m: self.pos += m.end(); return
             for p, ans in self.PROMPTS:
                 if re.search(p, t[-200:]):
-                    self.send(ans); time.sleep(1.0)
-                    self.pos = len(self.text())  # consume the answered prompt so it cannot be answered twice
+                    self.pos += len(t)  # consume exactly the prompt just answered; later output stays unread
+                    self.send(ans); time.sleep(0.3)
                     break
             time.sleep(0.3)
         sys.exit(f"timed out waiting for {what or pattern}; see {self.logfile}\n" + self.text()[-1500:])
