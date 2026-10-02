@@ -1,5 +1,6 @@
 import { parseISO, formatISO } from 'date-fns';
 import { v4 as uuidv4, validate as validateUuid } from 'uuid';
+import { DOMParser as XMLDOMParser } from '@xmldom/xmldom';
 
 export type LLSDValue =
   | null
@@ -39,15 +40,51 @@ export function base64ToUint8Array(base64: string): Uint8Array {
  * LLSD XML Parsing
  */
 export function parseXML(xml: string): LLSDValue {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xml, 'text/xml');
-  const parserError = doc.querySelector('parsererror');
+  let doc: any;
+  try {
+    const parser = typeof DOMParser !== 'undefined'
+      ? new DOMParser()
+      : new XMLDOMParser({
+          onError: (level: string, msg: string) => {
+            if (level === 'error' || level === 'fatalError') {
+              throw new Error(`XML Parse Error: ${msg}`);
+            }
+          }
+        });
+
+    doc = parser.parseFromString(xml, 'text/xml');
+  } catch (e: any) {
+    if (e.message?.includes('XML Parse Error')) throw e;
+    throw new Error(`XML Parse Error: ${e.message}`);
+  }
+
+  const parserError = doc.querySelector ? doc.querySelector('parsererror') : doc.getElementsByTagName('parsererror')[0];
   if (parserError) {
     throw new Error(`XML Parse Error: ${parserError.textContent}`);
   }
-  const root = doc.querySelector('llsd');
-  if (!root || !root.firstElementChild) return null;
-  return parseXMLElement(root.firstElementChild);
+
+  let root: Element | null = null;
+  if (doc.querySelector) {
+    root = doc.querySelector('llsd');
+  } else {
+    const llsdNodes = doc.getElementsByTagName('llsd');
+    if (llsdNodes && llsdNodes.length > 0) root = llsdNodes[0] as Element;
+  }
+
+  if (!root) return null;
+
+  // Find first element child
+  let firstChild: Element | null = null;
+  for (let i = 0; i < root.childNodes.length; i++) {
+    const node = root.childNodes[i];
+    if (node.nodeType === 1) { // Element node
+      firstChild = node as Element;
+      break;
+    }
+  }
+  if (!firstChild) return null;
+
+  return parseXMLElement(firstChild);
 }
 
 function parseXMLElement(el: Element): LLSDValue {
@@ -63,17 +100,19 @@ function parseXMLElement(el: Element): LLSDValue {
     case 'uri': return el.textContent?.trim() || '';
     case 'binary': {
       const base64 = el.textContent?.trim() || '';
-      return base64ToUint8Array(base64);
+      return decodeBase64(base64);
     }
     case 'map': {
       const map: { [key: string]: LLSDValue } = {};
       let currentKey: string | null = null;
-      for (let i = 0; i < el.children.length; i++) {
-        const child = el.children[i];
-        if (child.tagName.toLowerCase() === 'key') {
-          currentKey = child.textContent || '';
+      for (let i = 0; i < el.childNodes.length; i++) {
+        const child = el.childNodes[i];
+        if (child.nodeType !== 1) continue;
+        const childEl = child as Element;
+        if (childEl.tagName.toLowerCase() === 'key') {
+          currentKey = childEl.textContent || '';
         } else if (currentKey !== null) {
-          map[currentKey] = parseXMLElement(child);
+          map[currentKey] = parseXMLElement(childEl);
           currentKey = null;
         }
       }
@@ -81,13 +120,43 @@ function parseXMLElement(el: Element): LLSDValue {
     }
     case 'array': {
       const array: LLSDValue[] = [];
-      for (let i = 0; i < el.children.length; i++) {
-        array.push(parseXMLElement(el.children[i]));
+      for (let i = 0; i < el.childNodes.length; i++) {
+        const child = el.childNodes[i];
+        if (child.nodeType !== 1) continue;
+        array.push(parseXMLElement(child as Element));
       }
       return array;
     }
     default: return null;
   }
+}
+
+function decodeBase64(base64: string): Uint8Array {
+  if (typeof atob === 'function') {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+  }
+  return new Uint8Array(0);
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  if (typeof btoa === 'function') {
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('base64');
+  }
+  return '';
 }
 
 /**
@@ -107,12 +176,7 @@ function serializeXMLElement(value: LLSDValue, indent: number): string {
   }
   if (value instanceof Date) return `${pad}<date>${formatISO(value)}</date>`;
   if (value instanceof Uint8Array) {
-    let binary = '';
-    const len = value.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(value[i]);
-    }
-    const base64 = btoa(binary);
+    const base64 = encodeBase64(value);
     return `${pad}<binary encoding="base64">${base64}</binary>`;
   }
   if (Array.isArray(value)) {
@@ -127,7 +191,6 @@ function serializeXMLElement(value: LLSDValue, indent: number): string {
   }
   if (typeof value === 'string') {
     if (validateUuid(value)) return `${pad}<uuid>${value}</uuid>`;
-    // Simple URI check
     if (value.startsWith('http://') || value.startsWith('https://')) return `${pad}<uri>${value}</uri>`;
     return `${pad}<string>${value}</string>`;
   }
@@ -135,13 +198,9 @@ function serializeXMLElement(value: LLSDValue, indent: number): string {
 }
 
 /**
- * LLSD Notation Parsing (Simplified)
+ * LLSD Notation Parser and Tokenizer
  */
 export function parseNotation(notation: string): LLSDValue {
-  // This is a complex parser. For now, we'll use a simplified version.
-  // Real LLSD notation uses specific prefixes for types.
-  // We'll try to handle the most common ones.
-  
   const trimmed = notation.trim();
   if (trimmed === '!') return null;
   if (trimmed === 'true') return true;
@@ -173,9 +232,6 @@ export function parseNotation(notation: string): LLSDValue {
   // Handle Map and Array (this needs a proper tokenizer)
   // For now, let's try a very basic recursive approach or just JSON fallback if it looks like JSON
   try {
-    // If it's valid JSON, it's often valid LLSD notation (mostly)
-    // But LLSD notation uses single quotes and prefixes.
-    // We'll implement a basic tokenizer/parser for Notation.
     return new NotationParser(trimmed).parse();
   } catch (e) {
     console.error('Notation parse error:', e);
@@ -183,113 +239,332 @@ export function parseNotation(notation: string): LLSDValue {
   }
 }
 
-class NotationParser {
+export class NotationParser {
   private pos = 0;
-  constructor(private input: string) {}
+  private len: number;
 
-  parse(): LLSDValue {
-    this.skipWhitespace();
+  constructor(private input: string) {
+    this.len = input.length;
+  }
+
+  public parse(): LLSDValue {
+    this.skipWhitespaceAndCommas();
+    if (this.pos >= this.len) return null;
+
     const char = this.input[this.pos];
+
+    // Map & Array
     if (char === '{') return this.parseMap();
     if (char === '[') return this.parseArray();
-    if (char === '!') { this.pos++; return null; }
-    if (this.input.startsWith('true', this.pos)) { this.pos += 4; return true; }
-    if (this.input.startsWith('false', this.pos)) { this.pos += 5; return false; }
-    
+
+    // Undefined / Null
+    if (char === '!') {
+      this.pos++;
+      return null;
+    }
+    if (this.matchKeyword('undef')) return null;
+
+    // Booleans
+    if (this.matchKeyword('true')) return true;
+    if (this.matchKeyword('false')) return false;
+
+    // Prefixed types: i (integer), r (real), u (uuid), d (date), l (uri), b (binary), s (string)
     if (char === 'i') {
       this.pos++;
-      const start = this.pos;
-      while (this.pos < this.input.length && /[0-9\-]/.test(this.input[this.pos])) this.pos++;
-      return parseInt(this.input.slice(start, this.pos), 10);
+      return this.parseInteger();
     }
+
     if (char === 'r') {
       this.pos++;
-      const start = this.pos;
-      while (this.pos < this.input.length && /[0-9\.\-eE]/.test(this.input[this.pos])) this.pos++;
-      return parseFloat(this.input.slice(start, this.pos));
+      return this.parseReal();
     }
+
     if (char === 'u') {
       this.pos++;
-      return this.parseString();
+      const strVal = this.parseQuotedOrRawString();
+      return strVal;
     }
+
     if (char === 'd') {
       this.pos++;
-      return parseISO(this.parseString());
+      const strVal = this.parseQuotedOrRawString();
+      if (!strVal) return new Date(0);
+      return parseISO(strVal);
     }
+
     if (char === 'l') {
       this.pos++;
-      return this.parseString();
+      return this.parseQuotedOrRawString();
     }
+
     if (char === 'b') {
       this.pos++;
-      const base64 = this.parseString();
-      return base64ToUint8Array(base64);
+      return this.parseBinary();
     }
-    if (char === "'" || char === '"') return this.parseString();
-    
-    // Fallback for unquoted strings or numbers without prefix (not strictly LLSD but common)
-    const start = this.pos;
-    while (this.pos < this.input.length && /[a-zA-Z0-9_\-\.]/.test(this.input[this.pos])) this.pos++;
-    const val = this.input.slice(start, this.pos);
-    if (!isNaN(Number(val))) return Number(val);
-    return val;
+
+    if (char === 's') {
+      this.pos++;
+      return this.parseQuotedOrRawString();
+    }
+
+    // Direct Quoted Strings
+    if (char === "'" || char === '"') {
+      return this.parseQuotedString();
+    }
+
+    // Unprefixed Numbers or Fallback Raw Tokens
+    if (/[0-9\-]/.test(char)) {
+      return this.parseUnprefixedNumber();
+    }
+
+    // Unquoted identifier / token
+    return this.parseUnquotedToken();
   }
 
   private parseMap(): { [key: string]: LLSDValue } {
-    this.pos++; // skip {
+    this.pos++; // skip '{'
     const map: { [key: string]: LLSDValue } = {};
-    while (this.pos < this.input.length) {
-      this.skipWhitespace();
-      if (this.input[this.pos] === '}') { this.pos++; break; }
-      const key = this.parseString();
-      this.skipWhitespace();
-      if (this.input[this.pos] === ':') this.pos++;
-      this.skipWhitespace();
-      map[key] = this.parse();
-      this.skipWhitespace();
-      if (this.input[this.pos] === ',') this.pos++;
+
+    while (this.pos < this.len) {
+      this.skipWhitespaceAndCommas();
+      if (this.pos >= this.len) break;
+      if (this.input[this.pos] === '}') {
+        this.pos++;
+        break;
+      }
+
+      // Parse Key
+      const keyChar = this.input[this.pos];
+      let key = '';
+      if (keyChar === "'" || keyChar === '"') {
+        key = this.parseQuotedString();
+      } else if (keyChar === 's' && (this.peek(1) === "'" || this.peek(1) === '"')) {
+        this.pos++;
+        key = this.parseQuotedString();
+      } else {
+        key = this.parseUnquotedKey();
+      }
+
+      this.skipWhitespaceAndCommas();
+
+      // Skip colon separator if present
+      if (this.pos < this.len && this.input[this.pos] === ':') {
+        this.pos++;
+      }
+
+      this.skipWhitespaceAndCommas();
+
+      // Parse Value
+      const val = this.parse();
+      map[key] = val;
+
+      this.skipWhitespaceAndCommas();
     }
+
     return map;
   }
 
   private parseArray(): LLSDValue[] {
-    this.pos++; // skip [
-    const array: LLSDValue[] = [];
-    while (this.pos < this.input.length) {
-      this.skipWhitespace();
-      if (this.input[this.pos] === ']') { this.pos++; break; }
-      array.push(this.parse());
-      this.skipWhitespace();
-      if (this.input[this.pos] === ',') this.pos++;
+    this.pos++; // skip '['
+    const arr: LLSDValue[] = [];
+
+    while (this.pos < this.len) {
+      this.skipWhitespaceAndCommas();
+      if (this.pos >= this.len) break;
+      if (this.input[this.pos] === ']') {
+        this.pos++;
+        break;
+      }
+
+      const val = this.parse();
+      arr.push(val);
+
+      this.skipWhitespaceAndCommas();
     }
-    return array;
+
+    return arr;
   }
 
-  private parseString(): string {
+  private parseInteger(): number {
     this.skipWhitespace();
-    const quote = this.input[this.pos];
-    if (quote !== "'" && quote !== '"') {
-      // Unquoted string
-      const start = this.pos;
-      while (this.pos < this.input.length && /[a-zA-Z0-9_\-\.]/.test(this.input[this.pos])) this.pos++;
-      return this.input.slice(start, this.pos);
+    if (this.pos < this.len && (this.input[this.pos] === "'" || this.input[this.pos] === '"')) {
+      const raw = this.parseQuotedString();
+      return parseInt(raw, 10) || 0;
     }
-    this.pos++;
-    let str = '';
-    while (this.pos < this.input.length && this.input[this.pos] !== quote) {
-      if (this.input[this.pos] === '\\') {
-        this.pos++;
-        // Handle escapes
-      }
-      str += this.input[this.pos];
+    const start = this.pos;
+    if (this.pos < this.len && (this.input[this.pos] === '+' || this.input[this.pos] === '-')) {
       this.pos++;
     }
-    this.pos++;
+    while (this.pos < this.len && /[0-9]/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+    const str = this.input.slice(start, this.pos);
+    return parseInt(str, 10) || 0;
+  }
+
+  private parseReal(): number {
+    this.skipWhitespace();
+    if (this.pos < this.len && (this.input[this.pos] === "'" || this.input[this.pos] === '"')) {
+      const raw = this.parseQuotedString();
+      return parseFloat(raw) || 0;
+    }
+    const start = this.pos;
+    if (this.pos < this.len && (this.input[this.pos] === '+' || this.input[this.pos] === '-')) {
+      this.pos++;
+    }
+    while (this.pos < this.len && /[0-9\.\-eE+]/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+    const str = this.input.slice(start, this.pos);
+    return parseFloat(str) || 0;
+  }
+
+  private parseBinary(): Uint8Array {
+    this.skipWhitespace();
+    // b64"..." format check
+    if (this.input.startsWith('64', this.pos)) {
+      this.pos += 2;
+    }
+
+    // Binary byte length prefix format: b(len)"..."
+    if (this.pos < this.len && this.input[this.pos] === '(') {
+      this.pos++;
+      const lenStart = this.pos;
+      while (this.pos < this.len && this.input[this.pos] !== ')') {
+        this.pos++;
+      }
+      const numBytes = parseInt(this.input.slice(lenStart, this.pos), 10) || 0;
+      if (this.pos < this.len && this.input[this.pos] === ')') this.pos++;
+
+      this.skipWhitespace();
+      const rawStr = this.parseQuotedString();
+      const bytes = new Uint8Array(numBytes);
+      for (let i = 0; i < Math.min(numBytes, rawStr.length); i++) {
+        bytes[i] = rawStr.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    // Quoted base64 string
+    if (this.pos < this.len && (this.input[this.pos] === "'" || this.input[this.pos] === '"')) {
+      const base64 = this.parseQuotedString();
+      return decodeBase64(base64);
+    }
+
+    // Raw unquoted base64
+    const start = this.pos;
+    while (this.pos < this.len && /[a-zA-Z0-9+/=]/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+    const base64 = this.input.slice(start, this.pos);
+    return decodeBase64(base64);
+  }
+
+  private parseQuotedOrRawString(): string {
+    this.skipWhitespace();
+    if (this.pos < this.len && (this.input[this.pos] === "'" || this.input[this.pos] === '"')) {
+      return this.parseQuotedString();
+    }
+    return this.parseUnquotedToken();
+  }
+
+  private parseQuotedString(): string {
+    const quote = this.input[this.pos];
+    this.pos++; // skip quote
+    let str = '';
+
+    while (this.pos < this.len) {
+      const ch = this.input[this.pos];
+      if (ch === quote) {
+        this.pos++; // closing quote
+        return str;
+      }
+      if (ch === '\\') {
+        this.pos++;
+        if (this.pos >= this.len) break;
+        const esc = this.input[this.pos];
+        switch (esc) {
+          case 'a': str += '\x07'; break;
+          case 'b': str += '\b'; break;
+          case 'f': str += '\f'; break;
+          case 'n': str += '\n'; break;
+          case 'r': str += '\r'; break;
+          case 't': str += '\t'; break;
+          case 'v': str += '\v'; break;
+          case '\\': str += '\\'; break;
+          case "'": str += "'"; break;
+          case '"': str += '"'; break;
+          default: str += esc; break;
+        }
+      } else {
+        str += ch;
+      }
+      this.pos++;
+    }
+
     return str;
   }
 
-  private skipWhitespace() {
-    while (this.pos < this.input.length && /\s/.test(this.input[this.pos])) this.pos++;
+  private parseUnquotedKey(): string {
+    const start = this.pos;
+    while (this.pos < this.len && !/[\s,:={}\[\]]/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+    return this.input.slice(start, this.pos);
+  }
+
+  private parseUnquotedToken(): string {
+    const start = this.pos;
+    while (this.pos < this.len && !/[\s,={}\[\]]/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+    return this.input.slice(start, this.pos);
+  }
+
+  private parseUnprefixedNumber(): number {
+    const start = this.pos;
+    let isFloat = false;
+
+    if (this.input[this.pos] === '+' || this.input[this.pos] === '-') {
+      this.pos++;
+    }
+
+    while (this.pos < this.len && /[0-9\.\-eE+]/.test(this.input[this.pos])) {
+      if (this.input[this.pos] === '.' || this.input[this.pos] === 'e' || this.input[this.pos] === 'E') {
+        isFloat = true;
+      }
+      this.pos++;
+    }
+
+    const raw = this.input.slice(start, this.pos);
+    return isFloat ? parseFloat(raw) : parseInt(raw, 10);
+  }
+
+  private skipWhitespaceAndCommas(): void {
+    while (this.pos < this.len && /[\s,]/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+  }
+
+  private skipWhitespace(): void {
+    while (this.pos < this.len && /\s/.test(this.input[this.pos])) {
+      this.pos++;
+    }
+  }
+
+  private matchKeyword(kw: string): boolean {
+    if (this.input.startsWith(kw, this.pos)) {
+      const endPos = this.pos + kw.length;
+      if (endPos >= this.len || /[\s,:{}\[\]]/.test(this.input[endPos])) {
+        this.pos = endPos;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private peek(offset = 0): string {
+    return this.input[this.pos + offset] || '';
   }
 }
 
@@ -305,21 +580,30 @@ export function serializeNotation(value: LLSDValue): string {
   }
   if (value instanceof Date) return `d'${formatISO(value)}'`;
   if (value instanceof Uint8Array) {
-    const base64 = btoa(String.fromCharCode(...value));
+    const base64 = encodeBase64(value);
     return `b'${base64}'`;
   }
   if (Array.isArray(value)) {
     return `[ ${value.map(v => serializeNotation(v)).join(', ')} ]`;
   }
   if (typeof value === 'object') {
-    return `{ ${Object.entries(value).map(([k, v]) => `'${k}': ${serializeNotation(v)}`).join(', ')} }`;
+    return `{ ${Object.entries(value).map(([k, v]) => `'${escapeString(k)}': ${serializeNotation(v)}`).join(', ')} }`;
   }
   if (typeof value === 'string') {
     if (validateUuid(value)) return `u'${value}'`;
     if (value.startsWith('http://') || value.startsWith('https://')) return `l'${value}'`;
-    return `'${value}'`;
+    return `'${escapeString(value)}'`;
   }
   return '!';
+}
+
+function escapeString(str: string): string {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
 }
 
 /**
@@ -328,7 +612,7 @@ export function serializeNotation(value: LLSDValue): string {
 export function toJSON(value: LLSDValue): string {
   return JSON.stringify(value, (key, val) => {
     if (val instanceof Date) return val.toISOString();
-    if (val instanceof Uint8Array) return btoa(String.fromCharCode(...val));
+    if (val instanceof Uint8Array) return encodeBase64(val);
     return val;
   }, 2);
 }
@@ -343,8 +627,7 @@ export function fromJSON(json: string): LLSDValue {
 export function detectFormat(input: string): LLSDFormat {
   const trimmed = input.trim();
   if (trimmed.startsWith('<?xml') || trimmed.startsWith('<llsd')) return LLSDFormat.XML;
-  if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('!') || /^[irudlb]['"]/.test(trimmed)) {
-    // Check if it's valid JSON first
+  if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('!') || /^[irudlbs]['"]/.test(trimmed)) {
     try {
       JSON.parse(trimmed);
       return LLSDFormat.JSON;
