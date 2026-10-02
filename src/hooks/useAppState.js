@@ -88,10 +88,10 @@ export function useAppState() {
   const [rOpen, setROpen] = useState(null);
   const [rMenu, setRMenu] = useState(null);
   const [cDock, setCDock] = useState(["fly", "sit", "snap", "mini", "inv", "home", "ao", "sun"]);
-  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true, Settings: true, AO: false });
+  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true, Settings: false, AO: false });
   const [flMin, setFlMin] = useState({});
   const [flRect, setFlRect] = useState({});
-  const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat", "Settings"]);
+  const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat"]);
   const [menu, setMenu] = useState(null);
   const [tick, setTick] = useState(0);
   const [loginMode, setLoginModeState] = useState("grid");

@@ -73,3 +73,15 @@ export function closeSLSession(sessionId: string) {
   }
   void session.viewer.close();
 }
+
+/** Log every live avatar out of its grid, so a stopping server does not leave them marked as present. */
+export async function closeAllSLSessions() {
+  const live = Array.from(sessions.values());
+  sessions.clear();
+  await Promise.all(live.map(async (session) => {
+    for (const client of session.eventClients) {
+      try { client.end(); } catch { /* already closed */ }
+    }
+    try { await session.viewer.close(); } catch { /* best effort */ }
+  }));
+}

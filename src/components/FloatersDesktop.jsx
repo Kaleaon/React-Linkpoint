@@ -336,7 +336,7 @@ function buildFBody(state) {
 
   return {
     Chat: chatMessages.slice(-6).map((m) => ({
-      a: m.sender || "Resident",
+      a: `${m.sender || "Resident"}: ${m.text || ""}`,
       b: new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     })),
     Radar: nearby.slice(0, 8).map((r) => ({

@@ -27,6 +27,32 @@ describe('ChatManager', () => {
     expect(manager.messages[0]).toMatchObject({ sender: 'Test Resident', senderId: 'agent-id', text: 'hello', type: 'local' });
   });
 
+  it('drops the simulator echo of our own local chat but keeps other residents', async () => {
+    const manager = new ChatManager(
+      { sendChat: vi.fn().mockResolvedValue(undefined) },
+      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+    );
+
+    await manager.sendMessage('hello', 0, 1);
+    await manager.handleIncomingMessage({ fromId: 'agent-id', fromName: 'Test Resident', message: 'hello', chatType: 1 });
+    expect(manager.messages).toHaveLength(1);
+
+    // An echo that lands before sendChat resolves is dropped too.
+    let release: () => void = () => undefined;
+    const slow = new ChatManager(
+      { sendChat: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })) },
+      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+    );
+    const pending = slow.sendMessage('early', 0, 1);
+    await slow.handleIncomingMessage({ fromId: 'agent-id', fromName: 'Test Resident', message: 'early', chatType: 1 });
+    release();
+    await pending;
+    expect(slow.messages).toHaveLength(1);
+
+    await manager.handleIncomingMessage({ fromId: 'other-id', fromName: 'Other', message: 'hello', chatType: 1 });
+    expect(manager.messages).toHaveLength(2);
+  });
+
   it('does not add a message when the protocol rejects it', async () => {
     const manager = new ChatManager(
       { sendChat: vi.fn().mockRejectedValue(new Error('transport unavailable')) },
