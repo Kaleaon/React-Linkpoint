@@ -23,6 +23,8 @@ class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val g
     /** Lure ids from TeleportLureRequest, and landmark ids from TeleportLandmarkRequest (all-zero means "home"). */
     val lureRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
     val landmarkRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
+    /** When true, the first thing a viewer sends us (UseCircuitCode) is answered with a chat line, like a real neighbour that accepted the child agent. */
+    @Volatile var greetsOnUseCircuitCode = false
     /** Raw bodies of AgentUpdate messages. */
     val agentUpdates = java.util.concurrent.CopyOnWriteArrayList<ByteArray>()
     val teleportRequests = java.util.concurrent.CopyOnWriteArrayList<Long>()
@@ -56,6 +58,7 @@ class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val g
                 }
                 Msg.TeleportLocationRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); teleportRequests += r.u64() }
                 Msg.AgentUpdate -> agentUpdates += p.body
+                Msg.UseCircuitCode -> if (greetsOnUseCircuitCode) send(Outgoing(Msg.ChatFromSimulator, WireWriter().str1("Neighbour").uuid(UUID.randomUUID()).uuid(UUID.randomUUID()).u8(1).u8(1).u8(1).vec3(0f, 0f, 0f).str2("hi neighbour").toByteArray(), true), zero = false)
                 Msg.TeleportLureRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); lureRequests += r.uuid() }
                 Msg.TeleportLandmarkRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); landmarkRequests += r.uuid() }
                 Msg.MapNameRequest -> {

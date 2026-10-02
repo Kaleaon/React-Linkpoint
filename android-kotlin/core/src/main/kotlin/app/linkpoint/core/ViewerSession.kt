@@ -128,7 +128,10 @@ class ViewerSession(
      * us to open a circuit to each (UseCircuitCode) so that a region crossing or teleport can hand our agent over;
      * without them OpenSim answers a crossing with "agent update failed".
      */
-    private class Child(val circuit: Circuit, val job: Job, @Volatile var handshake: Received?)
+    private class Child(val circuit: Circuit, val job: Job, val openedAt: Long, @Volatile var handshake: Received?) {
+        /** True once the neighbour has sent us anything: its side of the child agent exists. */
+        @Volatile var heard = false
+    }
     private val children = java.util.concurrent.ConcurrentHashMap<String, Child>()
 
     private fun enableChild(ip: String, port: Int) {
@@ -140,15 +143,28 @@ class ViewerSession(
         c.start()
         val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             c.messages.collect { rx ->
+                child.heard = true
                 if (rx.id == Msg.RegionHandshake) {
                     child.handshake = rx
                     c.send(Messages.regionHandshakeReply(agentId, sessionId))
                 }
             }
         }
-        child = Child(c, job, null)
+        child = Child(c, job, clock(), null)
         children[key] = child
         c.send(Messages.useCircuitCode(login!!.circuitCode, sessionId, agentId))
+    }
+
+    /**
+     * Give child circuits that were opened a moment ago time to be accepted before a teleport request goes out. OpenSim
+     * handles a UseCircuitCode for a region and a teleport into that same region concurrently, throws, drops our
+     * presence there and fails the teleport 25 s later ("UpdateAgent failed"); seen live when a viewer teleports within
+     * a second of arriving next to the target. Bounded so a silent neighbour cannot stall a teleport.
+     */
+    private suspend fun settleChildren(maxWaitMs: Long = 3_000) {
+        val end = clock() + maxWaitMs
+        while (clock() < end && children.values.any { !it.heard && clock() - it.openedAt < maxWaitMs }) delay(50)
+        if (children.isNotEmpty()) delay(150) // the neighbour answered; let its presence finish setting up
     }
 
     private fun closeChildren() {
@@ -428,7 +444,7 @@ class ViewerSession(
     fun acceptOffer(offer: PendingOffer) {
         requireConnected()
         when (offer) {
-            is PendingOffer.Lure -> circuit!!.send(Messages.teleportLureRequest(agentId, sessionId, offer.id))
+            is PendingOffer.Lure -> { val lure = offer.id; scope.launch { settleChildren(); circuit?.send(Messages.teleportLureRequest(agentId, sessionId, lure)) } }
             is PendingOffer.Friend -> {
                 val inv = _inventory.value
                 val cards = inv.folders.values.firstOrNull { it.typeDefault == 2 }?.id ?: inv.rootId ?: UUID(0, 0)
@@ -454,10 +470,11 @@ class ViewerSession(
         val blocks = withTimeoutOrNull(15_000) { wait.await() } ?: throw java.io.IOException("The grid did not answer the region lookup")
         val block = blocks.firstOrNull { it.name.equals(regionName.trim(), true) } ?: throw IllegalArgumentException("No region named \"$regionName\"")
         val handle = ((block.x * 256L) shl 32) or (block.y * 256L)
+        settleChildren()
         circuit!!.send(Messages.teleportLocationRequest(agentId, sessionId, handle, x, y, z))
     }
 
-    fun teleportHome() { requireConnected(); circuit!!.send(Messages.teleportHome(agentId, sessionId)) }
+    fun teleportHome() { requireConnected(); scope.launch { settleChildren(); circuit?.send(Messages.teleportHome(agentId, sessionId)) } }
 
     suspend fun logout() {
         if (_state.value == ConnectionState.DISCONNECTED) return

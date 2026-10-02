@@ -265,4 +265,42 @@ class RegionSwitchTest {
             scope.cancel()
         } }
     }
+
+    @Test fun aTeleportWaitsForASilentJustOpenedNeighbourButNotForever() = runBlocking {
+        FakeSim("West", 1000, 1001).use { west -> FakeSim("East", 1001, 1001).use { east ->
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(west, caps.seed("west")))
+            caps.queue("west").add(enableSimulator(east))
+            eventually { east.received.firstOrNull { it == Msg.UseCircuitCode } }
+            val t0 = System.currentTimeMillis()
+            s.teleportHome()
+            delay(1200)
+            assertTrue("the request is held back while the neighbour has not answered", west.landmarkRequests.isEmpty())
+            eventually { west.landmarkRequests.firstOrNull() }
+            val waited = System.currentTimeMillis() - t0
+            assertTrue("held back for $waited ms, expected roughly 3 s", waited in 2500..6000)
+            s.logout(); scope.cancel()
+        } }
+    }
+
+    @Test fun aTeleportGoesOutPromptlyOnceTheNeighbourHasAnswered() = runBlocking {
+        FakeSim("West", 1000, 1001).use { west -> FakeSim("East", 1001, 1001).use { east ->
+            east.greetsOnUseCircuitCode = true
+            val caps = Caps()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val s = ViewerSession(caps.http(), scope)
+            s.connect(login(west, caps.seed("west")))
+            caps.queue("west").add(enableSimulator(east))
+            eventually { east.received.firstOrNull { it == Msg.UseCircuitCode } }
+            delay(300) // the greeting has arrived
+            val t0 = System.currentTimeMillis()
+            s.teleportHome()
+            eventually { west.landmarkRequests.firstOrNull() }
+            val waited = System.currentTimeMillis() - t0
+            assertTrue("took $waited ms", waited < 1500)
+            s.logout(); scope.cancel()
+        } }
+    }
 }
