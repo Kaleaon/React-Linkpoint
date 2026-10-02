@@ -29,8 +29,8 @@ import kotlinx.coroutines.sync.withLock
  */
 private const val ARRIVAL_GRACE_MS = 2_500L
 
-/** A TeleportFailed this soon after we re-sent a teleport request belongs to the attempt that request replaced. */
-private const val STALE_FAILURE_WINDOW_MS = 5_000L
+/** How long after a re-request a TeleportFailed (before the next TeleportStart) is taken to belong to the replaced attempt. */
+private const val STALE_FAILURE_WINDOW_MS = 45_000L
 
 /** How long to wait for a teleport destination to accept us when the teleport can still be re-requested. */
 private const val TELEPORT_ARRIVAL_TIMEOUT_MS = 12_000L
@@ -75,6 +75,15 @@ class ViewerSession(
     private val _environment = MutableStateFlow(RegionEnvironment.FALLBACK)
     /** The region's sky/water settings, or an estimated Windlight sky until the region answers. */
     val environment: StateFlow<RegionEnvironment> = _environment
+    private val _soundEvents = MutableSharedFlow<app.linkpoint.core.audio.SoundEvent>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** Sounds the simulator asks us to play; object sounds that arrive inside object updates are in [scene] instead. */
+    val soundEvents: SharedFlow<app.linkpoint.core.audio.SoundEvent> = _soundEvents
+    private val _parcelMedia = MutableStateFlow<ParcelMedia?>(null)
+    /** The media (stream, video or page) of the parcel we are on, or null when it has none. */
+    val parcelMedia: StateFlow<ParcelMedia?> = _parcelMedia
+    private val _mediaPlayback = MutableStateFlow(MediaPlayback())
+    /** Play / pause / seek commands the simulator has sent for that media. */
+    val mediaPlayback: StateFlow<MediaPlayback> = _mediaPlayback
     private val _capabilities = MutableStateFlow<Map<String, String>>(emptyMap())
     val capabilities: StateFlow<Map<String, String>> = _capabilities
 
@@ -106,6 +115,7 @@ class ViewerSession(
         _state.value = ConnectionState.CONNECTING
         _chat.value = emptyList(); _region.value = null; _balance.value = null; scene.clear(); heightmap.clear()
         _groups.value = emptyList(); _parcel.value = null; _offers.value = emptyList()
+        _parcelMedia.value = null; _mediaPlayback.value = MediaPlayback()
         try {
             login = result
             agentId = UUID.fromString(result.agentId)
@@ -153,6 +163,8 @@ class ViewerSession(
     @Volatile private var lastTeleportRequest: Outgoing? = null
     @Volatile private var teleportRetriesLeft = 0
     @Volatile private var retriedAt = -STALE_FAILURE_WINDOW_MS
+    /** After a re-request: true until OpenSim announces the new attempt (TeleportStart); a failure before that is the old one. */
+    @Volatile private var awaitingRetryStart = false
     private fun sendTeleportRequest(msg: Outgoing) {
         lastTeleportRequest = msg; teleportRetriesLeft = 1
         teleportAskedAt = clock()
@@ -216,6 +228,7 @@ class ViewerSession(
         // simulator begins streaming terrain and objects as soon as it accepts us, and those must not be wiped.
         previousJobs.forEach { it.cancel() }
         scene.clear(); heightmap.clear(); _nearby.value = emptyList()
+        _parcel.value = null; _parcelMedia.value = null; _mediaPlayback.value = MediaPlayback() // the old parcel's stream must not follow us
 
         // A neighbour we already hold a circuit to is promoted: it has seen UseCircuitCode, so only the movement completes.
         val promoted = children.remove("$ip:$port")
@@ -295,7 +308,7 @@ class ViewerSession(
                         _notices.tryEmit(ViewerNotice.Teleport("The teleport did not complete; trying again…"))
                         delay(1_000)
                         teleportAskedAt = clock()
-                        retriedAt = clock()
+                        retriedAt = clock(); awaitingRetryStart = true
                         circuit?.send(retry)
                     } else {
                         lastTeleportRequest = null
@@ -317,7 +330,12 @@ class ViewerSession(
                     int("LocalID") ?: -1, d["Name"]?.toString() ?: "", d["Desc"]?.toString() ?: "", int("Area") ?: 0,
                     (d["OwnerID"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L },
                     int("MaxPrims"), int("TotalPrims"), d["MusicURL"]?.toString() ?: "", d["MediaURL"]?.toString() ?: "",
-                )
+                    media = parcelMediaOf(d, e.body["MediaData"].asLlsdList()?.firstOrNull().asLlsdMap()),
+                ).also { info ->
+                    val old = _parcelMedia.value
+                    _parcelMedia.value = info.media
+                    if (info.media == null || old?.url != info.media.url) _mediaPlayback.value = MediaPlayback()
+                }
             }
             "EnableSimulator" -> {
                 for (info in e.body["SimulatorInfo"].asLlsdList().orEmpty()) {
@@ -336,6 +354,36 @@ class ViewerSession(
                 }
             }
         }
+    }
+
+    /** Media settings from ParcelProperties: the basics live in ParcelData, description/size/type/loop in MediaData (or alongside, on some grids). */
+    private fun parcelMediaOf(d: Map<*, *>, extra: Map<*, *>?): ParcelMedia? {
+        fun str(k: String) = (extra?.get(k) ?: d[k])?.toString().orEmpty()
+        fun int(k: String) = ((extra?.get(k) ?: d[k]) as? Number)?.toInt() ?: 0
+        fun bool(k: String) = when (val v = extra?.get(k) ?: d[k]) { is Boolean -> v; is Number -> v.toInt() != 0; else -> false }
+        val url = d["MediaURL"]?.toString().orEmpty()
+        val id = (d["MediaID"] as? UUID)?.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
+        if (url.isBlank() && id == null) return null
+        return ParcelMedia(url, id, bool("MediaAutoScale"), mediaType(str("MediaType")), str("MediaDesc"), int("MediaWidth"), int("MediaHeight"), bool("MediaLoop"))
+    }
+
+    /** Grids send "none/none" for "no type given"; that is the absence of a type, not a type. */
+    private fun mediaType(raw: String) = raw.takeUnless { it.equals("none/none", ignoreCase = true) }.orEmpty()
+
+    private fun applyMediaCommand(c: Incoming.ParcelMediaCommand) {
+        _mediaPlayback.update { cur ->
+            when (c.command) {
+                0L -> MediaPlayback(MediaState.STOPPED, 0f, cur.loop)            // STOP
+                1L -> cur.copy(state = MediaState.PAUSED)                        // PAUSE
+                2L -> cur.copy(state = MediaState.PLAYING)                       // PLAY
+                3L -> MediaPlayback(MediaState.PLAYING, cur.timeSeconds, true)   // LOOP
+                6L -> cur.copy(timeSeconds = c.time.coerceAtLeast(0f))           // TIME: seek
+                8L -> MediaPlayback()                                            // UNLOAD
+                13L -> cur.copy(loop = c.time != 0f)                             // LOOP_SET
+                else -> cur // texture/url/agent/align/type/size/desc arrive as a ParcelMediaUpdate
+            }
+        }
+        if (c.command == 8L) _parcelMedia.value = null
     }
 
     private fun onMessage(rx: Received) {
@@ -373,11 +421,12 @@ class ViewerSession(
             }
             is Incoming.CoarseLocations -> { coarse = m; applyCoarse(m) }
             is Incoming.MoneyBalance -> if (m.success) _balance.value = m.balance
-            is Incoming.TeleportStart -> _notices.tryEmit(ViewerNotice.Teleport("Teleport started"))
+            is Incoming.TeleportStart -> { awaitingRetryStart = false; _notices.tryEmit(ViewerNotice.Teleport("Teleport started")) }
             is Incoming.TeleportProgress -> _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
-            is Incoming.TeleportFailed -> if (clock() - retriedAt < STALE_FAILURE_WINDOW_MS) {
-                // OpenSim reports the abandoned first attempt as failed just as it starts the one we re-requested.
-                retriedAt = 0
+            is Incoming.TeleportFailed -> if (awaitingRetryStart && clock() - retriedAt < STALE_FAILURE_WINDOW_MS) {
+                // OpenSim reports the abandoned first attempt as failed before it starts the one we re-requested
+                // (it handles the new request only once the old transfer has timed out).
+                awaitingRetryStart = false
                 _notices.tryEmit(ViewerNotice.Teleport("Continuing with the new teleport request"))
             } else { teleportAskedAt = 0; lastTeleportRequest = null; _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}")) }
             is Incoming.TeleportLocal -> {
@@ -396,6 +445,15 @@ class ViewerSession(
                 TerrainDecoder.decode(m.data).patches.forEach(heightmap::put)
             } catch (_: IllegalArgumentException) { /* a damaged layer packet: keep what we have */ }
             is Incoming.AvatarProperties -> profileWaits.remove(m.avatarId)?.complete(m)
+            is Incoming.SoundTrigger -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Trigger(m.soundId, m.objectId, m.ownerId, app.linkpoint.core.scene.Vec3(m.position[0], m.position[1], m.position[2]), m.gain.coerceIn(0f, 1f)))
+            is Incoming.AttachedSound -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Attached(m.soundId, m.objectId, m.gain.coerceIn(0f, 1f), m.flags))
+            is Incoming.AttachedSoundGainChange -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.GainChange(m.objectId, m.gain.coerceIn(0f, 1f)))
+            is Incoming.PreloadSound -> _soundEvents.tryEmit(app.linkpoint.core.audio.SoundEvent.Preload(m.entries.map { it.third }.distinct()))
+            is Incoming.ParcelMediaUpdate -> {
+                val id = m.mediaId.takeIf { it.mostSignificantBits != 0L || it.leastSignificantBits != 0L }
+                _parcelMedia.value = if (m.url.isBlank() && id == null) null else ParcelMedia(m.url, id, m.autoScale, mediaType(m.type), m.description, m.width, m.height, m.loop)
+            }
+            is Incoming.ParcelMediaCommand -> applyMediaCommand(m)
             is Incoming.Unhandled -> Unit
         }
     }
@@ -578,6 +636,8 @@ class ViewerSession(
 
     @Volatile private var controlFlags = 0L
     @Volatile private var bodyYaw = 0f
+    /** The way the avatar faces, in radians (0 faces east); the audio listener faces the same way. */
+    val bodyYawRadians: Float get() = bodyYaw
 
     /**
      * Walk the avatar. [forward] and [strafe] are -1, 0 or 1 (strafe positive = left), [up] is 1 to

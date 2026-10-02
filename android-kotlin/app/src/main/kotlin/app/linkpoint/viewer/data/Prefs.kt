@@ -26,6 +26,20 @@ class Prefs(context: Context) {
         get() = sp.getString("start", "last") ?: "last"
         set(v) = sp.edit().putString("start", v).apply()
 
+    // Sound and media. Defaults: everything on, effects a little under full so a loud sound does not startle.
+    var soundOn: Boolean
+        get() = sp.getBoolean("sound_on", true)
+        set(v) = sp.edit().putBoolean("sound_on", v).apply()
+    var soundVolume: Float
+        get() = sp.getFloat("sound_volume", 0.8f)
+        set(v) = sp.edit().putFloat("sound_volume", v.coerceIn(0f, 1f)).apply()
+    var musicOn: Boolean
+        get() = sp.getBoolean("music_on", true)
+        set(v) = sp.edit().putBoolean("music_on", v).apply()
+    var musicVolume: Float
+        get() = sp.getFloat("music_volume", 0.6f)
+        set(v) = sp.edit().putFloat("music_volume", v.coerceIn(0f, 1f)).apply()
+
     /** A random id for this install, hashed into the login's id0/mac fields. */
     val deviceId: String
         get() = sp.getString("device", null) ?: UUID.randomUUID().toString().also { sp.edit().putString("device", it).apply() }

@@ -110,7 +110,7 @@ class OpenSim:
         log("account created:", USER2)
 
     def load_oar(self, path, merge):
-        flags = "--merge" if merge else "--force-terrain --force-parcels"
+        flags = "--merge --force-parcels" if merge else "--force-terrain --force-parcels"  # parcels carry the music/media settings
         self.send(f'change region "{REGION}"'); self.send(f'load oar {flags} "{path}"')
         self.wait(r"Successfully loaded archive", 900, "OAR load")
         m = re.findall(r"Loaded (\d+) scene objects", self.text()); log("OAR loaded:", path, f"({m[-1]} objects)" if m else "")
@@ -137,7 +137,7 @@ def oar_asset_ids(path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tests", default="*OpenSimLive*", help="Gradle --tests pattern to run (default: all live tests)")
+    ap.add_argument("--tests", action="append", help="Gradle --tests pattern to run; may be repeated (default: all live tests)")
     ap.add_argument("--no-tests", action="store_true", help="only boot and populate OpenSim (implies --keep), for poking at it by hand")
     ap.add_argument("--big", action="store_true"); ap.add_argument("--keep", action="store_true"); ap.add_argument("--oar")
     ap.add_argument("--meshes", default="1200"); ap.add_argument("--textures", default="400"); ap.add_argument("--sculpts", default="100")
@@ -152,7 +152,7 @@ def main():
     env = {"OPENSIM_LOGIN_URL": f"http://127.0.0.1:{LOGIN_PORT}/", "OPENSIM_USER": USER, "OPENSIM_PASSWORD": PASSWORD, "OPENSIM_NEIGHBOUR": NEIGHBOUR, "OPENSIM_PROFILES": "1", "OPENSIM_HOME": "1", "OPENSIM_USER2": USER2, "OPENSIM_PASSWORD2": PASSWORD2}
     try:
         sim.boot(); sim.load_oar(gen, merge=True)
-        rc = 0 if a.no_tests else gradle(":core:test", "--tests", a.tests, "--rerun-tasks", "-i", env=env)  # prints LIVE lines
+        rc = 0 if a.no_tests else gradle(":core:test", *[x for t in (a.tests or ["*OpenSimLive*"]) for x in ("--tests", t)], "--rerun-tasks", "-i", env=env)  # prints LIVE lines
         big = a.oar
         if a.big and not big: big = download(BIG_OAR, os.path.join(CACHE, "OAR-Furniture_Vault(1X1).tgz"))
         if big and rc == 0:

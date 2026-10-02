@@ -11,6 +11,10 @@ import app.linkpoint.core.net.UrlConnectionHttp
 import app.linkpoint.core.image.TextureFetcher
 import app.linkpoint.core.scene.MeshFetcher
 import app.linkpoint.core.scene.SculptFetcher
+import app.linkpoint.core.audio.SoundFetcher
+import app.linkpoint.viewer.audio.AudioSettings
+import app.linkpoint.viewer.audio.ParcelAudioPlayer
+import app.linkpoint.viewer.audio.SoundController
 import app.linkpoint.core.tools.Contact
 import app.linkpoint.viewer.data.Prefs
 import kotlinx.coroutines.*
@@ -36,6 +40,13 @@ class ViewerHost(private val app: Application) {
     val textures = TextureFetcher(http, scope, { session.capabilities.value["GetTexture"] })
     val sculpts = SculptFetcher(http, scope, { session.capabilities.value["GetTexture"] })
     val meshes = MeshFetcher(http, scope, { session.capabilities.value.let { it["GetMesh2"] ?: it["GetMesh"] } })
+    /** Sound assets come from the region's ViewerAsset capability. */
+    val sounds = SoundFetcher(http, scope, { session.capabilities.value["ViewerAsset"] })
+    val audioSettings = MutableStateFlow(AudioSettings.load(prefs))
+    /** Places object sounds in 3D around the avatar. */
+    val soundController = SoundController(app, session, sounds, scope, audioSettings)
+    /** The parcel's music stream and audio-only media. */
+    val parcelAudio = ParcelAudioPlayer(session, scope, audioSettings)
     val loginUi = MutableStateFlow<LoginUi>(LoginUi.Idle)
     val contacts = MutableStateFlow(prefs.loadContacts())
     val palette = MutableStateFlow(prefs.paletteKey)
@@ -76,6 +87,12 @@ class ViewerHost(private val app: Application) {
             session.logout()
             app.stopService(Intent(app, ViewerService::class.java))
         }
+    }
+
+    fun setAudio(change: (AudioSettings) -> AudioSettings) {
+        val n = change(audioSettings.value)
+        prefs.soundOn = n.soundOn; prefs.soundVolume = n.soundVolume; prefs.musicOn = n.musicOn; prefs.musicVolume = n.musicVolume
+        audioSettings.value = n
     }
 
     fun setPalette(key: String) { prefs.paletteKey = key; palette.value = key }

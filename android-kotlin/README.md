@@ -20,7 +20,7 @@ Requirements: JDK 21 and the Android SDK (platform 35, build-tools 35). Set `sdk
 
 ```bash
 cd android-kotlin
-./gradlew :core:test            # 91 tests (+3 live OpenSim tests that skip without OPENSIM_LOGIN_URL), including a full session against the mock grid
+./gradlew :core:test            # 210 tests run, 20 more (live OpenSim / Second Life) skip unless their environment is set; includes full sessions against the mock grid
 ./gradlew :app:assembleDebug    # app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -47,13 +47,17 @@ adb shell am start -n app.linkpoint.viewer/.MainActivity \
 
 | Area | Status |
 | --- | --- |
-| Login (XML-RPC, MFA token + remembered device hash, start location, grid redirects, structured failures), grids: Agni, Aditi, OSgrid, Kitely | Implemented; request/response handling unit tested. **Never tried against a real grid.** |
+| Login (XML-RPC, MFA token + remembered device hash, start location, grid redirects, structured failures), grids: Agni, Aditi, OSgrid, Kitely | Implemented; unit tested, and tried against a real OpenSim 0.9.3 (login, wrong password as a structured failure, relogin). **Never tried against Second Life** (see "Second Life live test" below). |
 | UDP circuit: sequence numbers, reliable delivery with resends, acks, ping, duplicate suppression, zero-coding; message numbers taken from the official `message_template.msg` | Implemented; tested over loopback against a fake simulator |
-| Region entry, teleport (by name and home), region crossing, event queue, capabilities | Implemented; teleport by name and region crossing are tested against two loopback fake simulators (`RegionSwitchTest`); teleport home, lure accept/decline and teleport-failed notices are too, but a failed or timed-out handshake is not |
-| Local chat, instant messages, L$ balance, friends with presence, nearby avatars (radar), world map tiles | Implemented |
-| Teleport offers and friend requests: accept / decline | Implemented (accept lure, accept / decline friendship) |
-| Inventory browser (login skeleton + `FetchInventoryDescendents2`), groups list, parcel info, avatar profiles, nearby-objects list | Implemented read-only |
+| Region entry, teleport (by name, home, to a lure), local teleport, region crossing, event queue, capabilities | Implemented; unit tested against fake simulators, **and verified against a real two-region OpenSim**: teleport by name both ways, home, within a region, walking over the border, lure acceptance across regions. Neighbouring regions get child circuits when the grid announces them (`EnableSimulator`), a teleport the grid accepts but never completes is re-requested once, and a teleport waits briefly for new neighbours to settle (all found by live testing; see `ViewerSession`) |
+| Local chat, instant messages, L$ balance, friends with presence, nearby avatars (radar), world map tiles | Implemented; chat, IM both ways, friends and radar verified against a real OpenSim with two avatars (the radar had a real bug here: the id list in `CoarseLocationUpdate` includes you) |
+| Friend requests (send, accept, decline, "accepted" notices) and teleport offers (send, accept, decline) | Implemented and verified live between two avatars |
+| Inventory browser (login skeleton + `FetchInventoryDescendents2`), groups list, parcel info, avatar profiles, nearby-objects list | Implemented read-only; inventory root fetch and profiles verified live |
 | Contacts (device-local, links to Telegram / Discord / web) and `.ics` calendar events | Implemented |
+| Object sounds: looping and play-once sounds carried by objects, `AttachedSound` / gain change / preload messages, one-shot `SoundTrigger`s; sound data via `ViewerAsset` (`?sound_id=`), Ogg Vorbis checked and sized from its headers | Implemented in `core` (tested, incl. against real OpenSim: sounds arrive, download, are placed) and played in the app with `SoundPool` (**compiles; not run on a device**) |
+| 3D (spatial) audio: inverse-distance rolloff, the script "radius" as a cube, constant-power left/right panning from where you face, loudest-N channel limit, linksets/attachments through their parents | Implemented in `core` as `SpatialAudio` + `SoundScene` and unit tested (including a pan-law mutation check). It is a plausible model, not a copy of any viewer's mixer; no doppler, occlusion, reverb or HRTF |
+| Parcel music stream and parcel media (URL, texture, type, size, loop, simulator play/pause/stop/loop/seek commands) | State and commands implemented and tested (also live: URL, texture id and music stream arrive from OpenSim; OpenSim 0.9.3 does not carry the media type/size/loop through an OAR). Audio-only media and the music stream play with `MediaPlayer`; video and web pages are handed to another app. **Playback not run on a device** |
+| Rigged ("skinned") meshes | Rig (joints, bind matrices) and per-vertex weights are decoded and verified against a real OpenSim; **not drawn or animated** (avatars are still capsules) |
 | 24 colour packs from the web app | Implemented |
 | 3D world: object updates (full, compressed, terse, cached, kill), linksets, prims (all profile/path families with cut, hollow, twist, taper, shear, revolutions), LLMesh assets, sculpts, texture entries (colour, texture, repeat/offset/rotation, glow, fullbright), terrain (LayerData decode, height/noise composition, detail textures), JPEG 2000 textures, particles (legacy particle systems), region sky/water (EEP day cycle, Windlight fallback), orbit camera, on-screen walk/fly controls | Implemented in `core` (tested) and `app` (Filament; see below) |
 | JPEG 2000 decoder | Written from the spec; **bit-exact against OpenJPEG** on 39 streams covering all progression orders, tiles, precincts, layers, every code-block mode, odd origins and reduced resolution; within one level on lossy streams |
@@ -67,8 +71,12 @@ adb shell am start -n app.linkpoint.viewer/.MainActivity \
   API, but it has been exercised only in an emulator without GPU acceleration** (see the release
   notes in the pull request for what was observed). It has not been run on a physical device, and
   frame rate on real hardware is unknown.
-* Nothing has been run against Second Life or an OpenSim grid. Real grids will find problems that
-  the mock cannot.
+* The viewer core has been run against a **real OpenSim 0.9.3** (`tools/opensim/live.py`, 19 live tests, 18 of which ran and passed; see below),
+  which found and fixed real bugs the fake grid could not (radar ids, region crossing, teleport races, dropped
+  handshake replies, local-teleport position). **Nothing has been run against Second Life** yet.
+* The app **compiles and the debug APK builds** (Android SDK 35), but the sound and media playback code
+  (`app/.../audio`) has not been run on a device or emulator, so whether it is audible is unverified. Only the
+  logic that decides *what* plays, *where* and *how loud* is tested (in `core`, with a recording backend).
 
 ## What is not done
 
@@ -77,12 +85,12 @@ adb shell am start -n app.linkpoint.viewer/.MainActivity \
   library; none of that exists here, and it cannot be built or checked without a real grid.
 * **Avatars.** Avatars are drawn as placeholder capsules. There is no skeleton, no baked-texture
   composition, no shape sliders, no animation, and attachments (anything parented to an avatar,
-  including rigged mesh and HUDs) are not drawn.
+  including rigged mesh and HUDs) are not drawn. Rigged meshes are decoded (joints and weights) but nothing skins them yet.
 * Flexible prims, texture animation, bump/shiny and PBR materials, shadows, reflections, clouds,
   alpha sorting beyond Filament's default, normal maps.
 * Texture *upload*, inventory editing, outfits, profile editing, search, mute list, group chat and
-  group notices, notecard viewing, media on a prim and streaming media, RLV, object touch/sit/edit,
-  teleport lure *requests*, groups and money transactions beyond the balance.
+  group notices, notecard viewing, media on a prim (MoaP), video inside the viewer (parcel video/web media is opened in another app), RLV, object touch/sit/edit,
+  teleport lure *requests*, groups and money transactions beyond the balance. Sound: no doppler/occlusion, no UI sounds or gestures, no sound *upload*; background playback relies on the existing foreground service (type `dataSync`, not `mediaPlayback`) and is untested.
 * Prim geometry approximations (documented in `PrimVolume`): hole-size scaling on circular paths
   uses a fixed torus proportion, radius offset and skew are ignored, and a sphere profile with path
   cuts is left open. These have not been compared with the official viewer.
@@ -124,23 +132,49 @@ HTTP; Second Life's own grids use HTTPS.
 
 ## Testing against a real OpenSim (automated)
 
-    python3 tools/opensim/live.py          # generated OAR: login, terrain, prims, mesh, sculpt, textures, particles
-    python3 tools/opensim/live.py --big    # also downloads (cached, 770 MB) and loads a real-world OAR and runs the big-content test
-    python3 tools/opensim/live.py --oar X  # load your own OAR (.oar/.tgz) and run the big-content test on it
-    python3 tools/opensim/live.py --keep   # leave OpenSim running on login port 9002 afterwards
+    python3 tools/opensim/live.py                 # everything below, then stops OpenSim; exit code = result
+    python3 tools/opensim/live.py --tests '*OpenSimLiveSessionTest.teleport*'   # only some tests (--tests may be repeated)
+    python3 tools/opensim/live.py --no-tests      # boot and populate OpenSim, leave it running (login http://127.0.0.1:9002/)
+    python3 tools/opensim/live.py --big           # also downloads (cached, 770 MB) and loads a real-world OAR and runs the big-content test
+    python3 tools/opensim/live.py --oar X         # load your own OAR (.oar/.tgz) and run the big-content test on it
+    python3 tools/opensim/live.py --keep          # leave OpenSim running afterwards
 
-The script downloads OpenSim 0.9.3.0, configures a standalone grid, answers the first-run prompts, creates the account
-"Linky Tester" / "testpass1", builds a test OAR (`./gradlew :mockgrid:runOar`), loads it, runs `OpenSimLiveTest` through Gradle and
-stops OpenSim; the exit code is the test result. It needs python3, a JDK, the .NET 8 runtime and libgdiplus
-(`apt-get install -y dotnet-sdk-8.0 libgdiplus`). The plain run was verified from a clean working directory (PASS).
-`OpenSimLiveTest` is skipped by an ordinary `./gradlew :core:test` unless `OPENSIM_LOGIN_URL` is set.
+The script downloads OpenSim 0.9.3.0 (with `curl`, so proxies work), configures a standalone grid with **two regions** ("Test Isle",
+"Neighbour Isle" to its east), makes Test Isle the default region (that is what gives new accounts a **home**), enables the
+**profile service**, answers the first-run prompts, creates **two accounts** ("Linky Tester" / "testpass1", "Linky Friend" /
+"testpass2"), builds a test OAR (`./gradlew :mockgrid:runOar`: prims, mesh, sculpt, a rigged limb mesh, particles, a looping
+**speaker**, a short-range **chime**, a media **parcel**), loads it, runs the live tests through Gradle and stops OpenSim. It needs python3, a
+JDK, curl, the .NET 8 runtime and libgdiplus (`apt-get update && apt-get install -y dotnet-sdk-8.0 libgdiplus`). The live tests are
+skipped by an ordinary `./gradlew :core:test` unless `OPENSIM_LOGIN_URL` is set. CI: `.github/workflows/opensim-live.yml` runs all of
+this nightly, on demand, and on pull requests that touch `core`, `mockgrid` or `tools/opensim`.
 
-Verified against a real OpenSim 0.9.3.0 in this session: XML-RPC login, UDP circuit + region handshake, real LayerData terrain
-decode, capability seed (EventQueueGet, GetTexture, GetMesh/GetMesh2, ViewerAsset, FetchInventoryDescendents2, ExtEnvironment…),
-local chat send, and logout. The test region was empty (only the avatar), so real-grid prim/mesh/texture/particle streaming is
-**still unverified**. OpenSim has no Second Life MFA, so the MFA path is only tested against a fake login server
-(`LoginTest`), modelled on Lumiya-Redux's `MfaLoginTest` and the official viewer's `lllogininstance`.
+What the live tests cover on a real OpenSim (19 exist; the last run passed 18 and skipped the big-content one, which needs `--big`):
+
+| Area | Tests |
+| --- | --- |
+| Login | wrong password is a structured failure; log out and in again; login, terrain, caps, objects |
+| Content | prims, mesh, sculpt, textures, particles streamed and decoded; a rigged mesh keeps its rig through `GetMesh2` |
+| Movement | teleport within a region; to the neighbour and back by name; **home**; walking over the east border |
+| Social (two avatars) | IM both ways; friend request, accept, both become friends; teleport offer accepted (crossing regions); radar with names; profile of another resident |
+| Own data | chat echo; inventory root fetch; own profile |
+| Sound and media | object sounds arrive in updates, download through `ViewerAsset` and are placed in 3D; parcel music and media arrive |
+
+Things the live runs taught us about OpenSim 0.9.3 (each is handled in the viewer or the setup, and commented where it is):
+a teleport can be accepted yet the arrival connection dropped when the destination still holds a stale presence of ours (the viewer
+re-requests once and ignores the grid's late `TeleportFailed` for the replaced attempt); opening a child circuit while a teleport
+into that region is under way makes it fail; the first teleport request right after arriving races the new region's neighbour
+announcements; `CoarseLocationUpdate` lists an id for *every* location including yours; it ignores a parcel's media type / size / loop
+from an OAR; OAR object sound element is `<SoundID>`, parcel files use plain UUID text and `MediaDesc/MediaH/MediaW`. OpenSim has no
+Second Life MFA, so the MFA path is only tested against a fake login server (`LoginTest`).
 The MFA hash is stored encrypted with an Android Keystore AES-GCM key (`SecretStore`), keyed per grid and normalised account.
+
+### Second Life live test (needs credentials)
+
+`SecondLifeLiveTest` logs in to the main grid, streams the region, fetches the inventory root and logs out. It prints **only counts**
+(this repository and its Actions logs are public) and sends no chat, teleports or messages. It is skipped unless `SL_USERNAME` and
+`SL_PASSWORD` are set. `.github/workflows/live-secondlife.yml` runs it with the repository secrets `USERNAME` and `PASSWORD`; it is
+`workflow_dispatch` only (never on pull requests, so forks cannot reach the secrets) and GitHub can only dispatch it once the workflow
+file is on the default branch. **It has not been run.**
 
 ### Content test against OpenSim (generated OAR)
 
@@ -175,6 +209,6 @@ now falls back to the next level that is intact instead of failing the object (u
 memory because decoded textures were cached forever; the app now releases the CPU copy once a texture is on the GPU.
 
 Not covered: most of the archive's mesh/texture references (11,097 mesh ids, 17,844 texture ids) point to assets the OAR does not
-contain, so those 404 by design and were not exercised. Skinned/rigged meshes and animations were not looked at.
+contain, so those 404 by design and were not exercised. Rigged meshes are now decoded and counted by this test (`LIVE rigged meshes: …`) but that line has not been captured from this archive yet; animations were not looked at.
 GPU memory is still unbounded (no eviction of uploaded textures/meshes) and the renderer's object cap (1,500 objects within 192 m) is
 the only brake; neither has been measured on a device, and the Filament view still has not been run on any device or emulator.

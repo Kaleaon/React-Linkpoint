@@ -158,6 +158,7 @@ object Wire {
         fun raw(vararg b: Int) = apply { b.forEach { out.write(it) } }
         fun i32(v: Int) = apply { out.write(ByteBuffer.allocate(4).putInt(v).array()) }
         fun key(k: String) = apply { raw('k'.code).i32(k.length); out.write(k.toByteArray()) }
+        fun str(v: String) = apply { raw('s'.code).i32(v.toByteArray().size); out.write(v.toByteArray()) }
         fun int(v: Int) = apply { raw('i'.code).i32(v) }
         fun real(v: Double) = apply { raw('r'.code); out.write(ByteBuffer.allocate(8).putDouble(v).array()) }
         fun bin(b: ByteArray) = apply { raw('b'.code).i32(b.size); out.write(b) }
@@ -166,6 +167,75 @@ object Wire {
         fun arr(n: Int) = raw('['.code).i32(n)
         fun endArr() = raw(']'.code)
         fun bytes(): ByteArray = out.toByteArray()
+    }
+
+    private fun deflate(data: ByteArray): ByteArray {
+        val d = Deflater(); d.setInput(data); d.finish()
+        val comp = ByteArrayOutputStream(); val buf = ByteArray(2048)
+        while (!d.finished()) comp.write(buf, 0, d.deflate(buf)); d.end()
+        return comp.toByteArray()
+    }
+
+    /** Asset id the generated OAR gives the rigged limb mesh. */
+    val RIGGED_LIMB_ID: java.util.UUID = java.util.UUID.fromString("a0a0a0a0-0000-4000-8000-000000000011")
+
+    /**
+     * A rigged LLMesh: a boxy limb of three rings of four vertices (z = -0.5, 0, 0.5) weighted to [jointNames]. Per vertex:
+     * ring 0 is 100% joint 0; ring 1 blends joints 0 and 1; ring 2 holds, in order, a vertex with FOUR influences (so no 0xFF
+     * terminator), one blending joints 1 and 2, and one each 100% joint 2 and joint 3. [weights] replaces the weight bytes
+     * (for malformed-data tests); [withSkin] = false leaves the rig out.
+     */
+    fun riggedLimbMesh(
+        jointNames: List<String> = listOf("mShoulderLeft", "mElbowLeft", "mWristLeft", "mHandThumb1Left"),
+        weights: ByteArray? = null,
+        withSkin: Boolean = true,
+    ): ByteArray {
+        fun q(v: Float) = (((v + 0.5f) / 1f) * 65535f).roundToInt().coerceIn(0, 65535)
+        val xy = listOf(-0.25f to -0.25f, 0.25f to -0.25f, 0.25f to 0.25f, -0.25f to 0.25f)
+        val pos = ArrayList<Int>()
+        for (z in listOf(-0.5f, 0f, 0.5f)) for ((x, y) in xy) { pos += q(x); pos += q(y); pos += q(z) }
+        val tris = ArrayList<Int>()
+        for (r in 0..1) for (side in 0..3) {
+            val a = r * 4 + side; val b = r * 4 + (side + 1) % 4; val c = (r + 1) * 4 + side; val d = (r + 1) * 4 + (side + 1) % 4
+            tris += listOf(a, b, c, b, d, c)
+        }
+        val w = ByteArrayOutputStream()
+        fun pair(joint: Int, weight: Int) { w.write(joint); w.write(weight and 0xFF); w.write(weight ushr 8) }
+        fun end() = w.write(0xFF)
+        repeat(4) { pair(0, 65535); end() }                       // ring 0
+        repeat(4) { pair(0, 32768); pair(1, 32767); end() }       // ring 1
+        pair(0, 16384); pair(1, 16384); pair(2, 16384); pair(3, 16383) // ring 2, vertex 0: four influences, no terminator
+        pair(1, 32768); pair(2, 32767); end()
+        pair(2, 65535); end()
+        pair(3, 65535); end()
+        val geometry = B().arr(1).map(4)
+            .key("Position").bin(u16s(*pos.toIntArray()))
+            .key("TriangleList").bin(u16s(*tris.toIntArray()))
+            .key("Weights").bin(weights ?: w.toByteArray())
+            .key("PositionDomain").map(2)
+            .key("Min").arr(3).real(-0.5).real(-0.5).real(-0.5).endArr()
+            .key("Max").arr(3).real(0.5).real(0.5).real(0.5).endArr()
+            .endMap().endMap().endArr().bytes()
+        val geoBlock = deflate(geometry)
+        if (!withSkin) return B().map(1).key("high_lod").map(2).key("offset").int(0).key("size").int(geoBlock.size).endMap().endMap().bytes() + geoBlock
+        val skin = B().map(5)
+        skin.key("joint_names").arr(jointNames.size); jointNames.forEach { skin.str(it) }; skin.endArr()
+        skin.key("bind_shape_matrix").arr(16)
+        listOf(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0).forEach { skin.real(it) }
+        skin.endArr()
+        skin.key("inverse_bind_matrix").arr(jointNames.size)
+        for (i in jointNames.indices) { skin.arr(16); listOf(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -0.25 * i, 1.0).forEach { skin.real(it) }; skin.endArr() }
+        skin.endArr()
+        skin.key("alt_inverse_bind_matrix").arr(jointNames.size)
+        for (i in jointNames.indices) { skin.arr(16); listOf(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -0.5 * i, 1.0).forEach { skin.real(it) }; skin.endArr() }
+        skin.endArr()
+        skin.key("pelvis_offset").real(0.125)
+        val skinBlock = deflate(skin.endMap().bytes())
+        val header = B().map(2)
+            .key("high_lod").map(2).key("offset").int(0).key("size").int(geoBlock.size).endMap()
+            .key("skin").map(2).key("offset").int(geoBlock.size).key("size").int(skinBlock.size).endMap()
+            .endMap().bytes()
+        return header + geoBlock + skinBlock
     }
 
     /** An LLMesh asset for a four-sided pyramid (square base, apex up), one face, in unit space. */
@@ -216,6 +286,7 @@ class ObjectSpec(
     val sculpt: Pair<UUID, Int>? = null,
     val text: String = "",
     val particles: ByteArray? = null,
+    val sound: app.linkpoint.core.scene.ObjectSound? = null,
 )
 
 object ObjectPackets {
@@ -254,7 +325,8 @@ object ObjectPackets {
         w.u16(q[13]).u16(q[14]).u16(q[15])
         w.bin2(o.textureEntry ?: ByteArray(0)).bin1(ByteArray(0)).bin2(ByteArray(0)).bin2(ByteArray(0))
         w.str1(o.text).bytes(ByteArray(4)).str1("").bin1(o.particles ?: ByteArray(0)).bin1(extra(o))
-        w.uuid(UUID(0, 0)).uuid(UUID(0, 0)).f32(0f).u8(0).f32(0f).u8(0).vec3(0f, 0f, 0f).vec3(0f, 0f, 0f)
+        val snd = o.sound
+        w.uuid(snd?.soundId ?: UUID(0, 0)).uuid(snd?.ownerId ?: UUID(0, 0)).f32(snd?.gain ?: 0f).u8(snd?.flags ?: 0).f32(snd?.radius ?: 0f).u8(0).vec3(0f, 0f, 0f).vec3(0f, 0f, 0f)
         return w.toByteArray()
     }
 
@@ -264,6 +336,7 @@ object ObjectPackets {
         if (o.parent != 0L) flags = flags or 0x20
         if (o.text.isNotEmpty()) flags = flags or 0x04
         if (o.particles != null) flags = flags or 0x08
+        if (o.sound != null) flags = flags or 0x10
         val q = quant(o.params)
         val d = WireWriter()
         d.uuid(o.fullId).u32(o.localId).u8(o.pcode).u8(0).u32(0).u8(0).u8(0)
@@ -274,6 +347,7 @@ object ObjectPackets {
         if (o.text.isNotEmpty()) d.bytes(o.text.toByteArray() + 0).bytes(ByteArray(4))
         if (o.particles != null) d.bytes(o.particles)
         d.bytes(extra(o))
+        o.sound?.let { d.uuid(it.soundId).f32(it.gain).u8(it.flags).f32(it.radius) }
         d.u8(o.params.pathCurve).u16(q[0]).u16(q[1]).u8(q[2]).u8(q[3])
         for (i in 4..10) d.u8(q[i] and 0xFF)
         d.u8(q[11] and 0xFF).u8(q[12] and 0xFF)

@@ -17,3 +17,10 @@ verified and by what, and what is not done (voice is not implemented; the Filame
 - Unknown values are shown as "—", never invented (repo FAKE_DATA_POLICY).
 - Do not claim rendering works without running it: only compile-verification exists for `app/.../world/`.
 - Do not `pkill -f` a pattern that appears in your own command line (it kills your shell); use `pkill -x name` or PIDs.
+
+## Environment notes (learned the hard way)
+
+- Maven Central answers HTTP 429 in bursts from some sandboxes; just retry the Gradle command after a minute (it resumes from what it downloaded).
+- To compile the app module you need the Android SDK (platform 35, build-tools 35): install `cmdline-tools` and run `sdkmanager "platforms;android-35" "build-tools;35.0.0"`, then put `sdk.dir=...` in `local.properties` (git-ignored). `./gradlew :app:assembleDebug` then works; nothing in `app/` can be *run* without a device or emulator.
+- Live OpenSim tests: `python3 tools/opensim/live.py` (see the README). `--no-tests` leaves OpenSim running so you can probe it; a test written with `eventually { <boolean> }` returns at once on `false` because `false` is non-null — use `until { }` or `takeIf`.
+- OpenSim's own source (github.com/opensim/opensim, raw files) is the quickest way to learn why it ignores something in an OAR.
