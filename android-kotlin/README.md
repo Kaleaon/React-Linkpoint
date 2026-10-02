@@ -20,7 +20,7 @@ Requirements: JDK 21 and the Android SDK (platform 35, build-tools 35). Set `sdk
 
 ```bash
 cd android-kotlin
-./gradlew :core:test            # 80 tests, including a full session against the mock grid
+./gradlew :core:test            # 83 tests (+3 live OpenSim tests that skip without OPENSIM_LOGIN_URL), including a full session against the mock grid
 ./gradlew :app:assembleDebug    # app/build/outputs/apk/debug/app-debug.apk
 ```
 
