@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { UNKNOWN, show, positiveOrNull, realLatency, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState } from '../../screens/diagnosticsView.js';
+import { UNKNOWN, show, positiveOrNull, realLatency, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState, formatConnectionStatus, formatLatencySummary, formatLossSummary, formatLastUpdate, formatTechnicalDetails } from '../../screens/diagnosticsView.js';
 
 describe('diagnostics display rules', () => {
   it('shows unknown values as a dash, never a placeholder', () => {
@@ -62,6 +62,52 @@ describe('diagnostics display rules', () => {
     expect(eventQueueState(false, true)).toMatchObject({ text: 'NOT CONNECTED' });
     expect(eventQueueState(true, true)).toMatchObject({ text: 'RUNNING', tone: 'ok' });
     expect(eventQueueState(true, false)).toMatchObject({ text: 'STOPPED', tone: 'err' });
+  });
+
+  it('formats dual-mode summaries and technical details', () => {
+    // formatConnectionStatus
+    const offlineStatus = formatConnectionStatus(false, 'Agni', 'Ahern');
+    expect(offlineStatus.statusText).toBe('OFFLINE');
+    expect(offlineStatus.summary).toContain('Not connected');
+
+    const onlineStatus = formatConnectionStatus(true, 'Agni', 'Ahern');
+    expect(onlineStatus.statusText).toBe('CONNECTED');
+    expect(onlineStatus.summary).toContain('Connected to Agni (Ahern)');
+
+    // formatLatencySummary
+    const latencyNoData = formatLatencySummary(null);
+    expect(latencyNoData.title).toBe('WORLD RESPONSE TIME');
+    expect(latencyNoData.value).toBe(UNKNOWN);
+
+    const latencyOk = formatLatencySummary(45);
+    expect(latencyOk.value).toBe('45');
+    expect(latencyOk.friendlyLabel).toBe('Excellent Response');
+
+    // formatLossSummary
+    const lossOk = formatLossSummary(0);
+    expect(lossOk.title).toBe('CONNECTION STABILITY');
+    expect(lossOk.value).toBe('0.0');
+
+    // formatLastUpdate
+    const lastUpdateNull = formatLastUpdate(null, Date.now());
+    expect(lastUpdateNull.title).toBe('LAST WORLD UPDATE');
+    expect(lastUpdateNull.value).toBe(UNKNOWN);
+
+    const lastUpdateRecent = formatLastUpdate(1000, 3000);
+    expect(lastUpdateRecent.value).toBe('2.0');
+
+    // formatTechnicalDetails
+    const tech = formatTechnicalDetails(
+      { simPort: 13000, circuitCode: 9999, agentId: '00000000-0000-0000-0000-000000000001', connected: true },
+      { seedCapability: 'https://sim.example.com/cap/123', eventQueueRunning: true },
+      { id: '00000000-0000-0000-0000-000000000001' }
+    );
+    expect(tech.protocolClass).toBe('SLConnectionFull');
+    expect(tech.udpPort).toBe('13000');
+    expect(tech.circuitCode).toBe('9999');
+    expect(tech.seedCapability).toBe('https://sim.example.com/cap/123');
+    expect(tech.agentUuid).toBe('00000000-0000-0000-0000-000000000001');
+    expect(tech.eventQueueState).toBe('RUNNING');
   });
 });
 
