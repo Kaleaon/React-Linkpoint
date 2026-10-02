@@ -22,7 +22,7 @@ export enum LLSDFormat {
  * LLSD XML Parsing
  */
 export function parseXML(xml: string): LLSDValue {
-  let doc: Document;
+  let doc: any;
   try {
     const parser = typeof DOMParser !== 'undefined'
       ? new DOMParser()
