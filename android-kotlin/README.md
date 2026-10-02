@@ -20,7 +20,7 @@ Requirements: JDK 21 and the Android SDK (platform 35, build-tools 35). Set `sdk
 
 ```bash
 cd android-kotlin
-./gradlew :core:test            # 80 tests, including a full session against the mock grid
+./gradlew :core:test            # 91 tests (+3 live OpenSim tests that skip without OPENSIM_LOGIN_URL), including a full session against the mock grid
 ./gradlew :app:assembleDebug    # app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -49,7 +49,7 @@ adb shell am start -n app.linkpoint.viewer/.MainActivity \
 | --- | --- |
 | Login (XML-RPC, MFA token + remembered device hash, start location, grid redirects, structured failures), grids: Agni, Aditi, OSgrid, Kitely | Implemented; request/response handling unit tested. **Never tried against a real grid.** |
 | UDP circuit: sequence numbers, reliable delivery with resends, acks, ping, duplicate suppression, zero-coding; message numbers taken from the official `message_template.msg` | Implemented; tested over loopback against a fake simulator |
-| Region entry, teleport (by name and home), region crossing, event queue, capabilities | Implemented; teleport and crossing are **not** exercised by any test |
+| Region entry, teleport (by name and home), region crossing, event queue, capabilities | Implemented; teleport by name and region crossing are tested against two loopback fake simulators (`RegionSwitchTest`); teleport home, lure accept/decline and teleport-failed notices are too, but a failed or timed-out handshake is not |
 | Local chat, instant messages, L$ balance, friends with presence, nearby avatars (radar), world map tiles | Implemented |
 | Teleport offers and friend requests: accept / decline | Implemented (accept lure, accept / decline friendship) |
 | Inventory browser (login skeleton + `FetchInventoryDescendents2`), groups list, parcel info, avatar profiles, nearby-objects list | Implemented read-only |

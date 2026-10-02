@@ -118,6 +118,10 @@ object Messages {
     fun avatarPropertiesRequest(agentId: UUID, sessionId: UUID, avatarId: UUID) =
         Outgoing(Msg.AvatarPropertiesRequest, agentData(agentId, sessionId).uuid(avatarId).toByteArray(), true)
 
+    /** Offer a teleport to [targetId]: the simulator turns it into a lure instant message for them. */
+    fun startLure(agentId: UUID, sessionId: UUID, targetId: UUID, message: String) =
+        Outgoing(Msg.StartLure, agentData(agentId, sessionId).u8(0).str1(message.take(254)).u8(1).uuid(targetId).toByteArray(), true)
+
     fun teleportLureRequest(agentId: UUID, sessionId: UUID, lureId: UUID, flags: Long = 0) =
         Outgoing(Msg.TeleportLureRequest, agentData(agentId, sessionId).uuid(lureId).u32(flags).toByteArray(), true)
 

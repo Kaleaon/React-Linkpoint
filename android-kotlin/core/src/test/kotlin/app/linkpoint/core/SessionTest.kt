@@ -13,10 +13,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /** A loopback "simulator" speaking just enough of the protocol to drive a ViewerSession. */
-class FakeSim : AutoCloseable {
+class FakeSim(val regionName: String = "Testville", val gridX: Int = 1000, val gridY: Int = 1001) : AutoCloseable {
     val socket = DatagramSocket(0, InetAddress.getByName("127.0.0.1")).apply { soTimeout = 200 }
     val received = java.util.concurrent.CopyOnWriteArrayList<Int>()
+    /** Number of UseCircuitCode / CompleteAgentMovement messages seen, to tell a fresh circuit from a promoted one. */
+    val circuitCodeCount get() = received.count { it == Msg.UseCircuitCode }
     val chatSeen = java.util.concurrent.CopyOnWriteArrayList<String>()
+    /** Region handles from TeleportLocationRequest messages. */
+    /** Lure ids from TeleportLureRequest, and landmark ids from TeleportLandmarkRequest (all-zero means "home"). */
+    val lureRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
+    val landmarkRequests = java.util.concurrent.CopyOnWriteArrayList<UUID>()
+    /** When true, the first thing a viewer sends us (UseCircuitCode) is answered with a chat line, like a real neighbour that accepted the child agent. */
+    @Volatile var greetsOnUseCircuitCode = false
+    /** The first N distinct viewer endpoints are ignored completely, like OpenSim dropping a first connection into a region with a stale presence. */
+    @Volatile var ignoreFirstClients = 0
+    private val ignoredClients = java.util.concurrent.CopyOnWriteArrayList<java.net.SocketAddress>()
+    private val knownClients = java.util.concurrent.CopyOnWriteArrayList<java.net.SocketAddress>()
+    /** Number of distinct viewer endpoints (circuits) that have sent us anything. */
+    val distinctClients get() = knownClients.size
+    /** Instant messages the viewer sent: dialog, recipient, text. */
+    val imsSent = java.util.concurrent.CopyOnWriteArrayList<Triple<Int, UUID, String>>()
+    /** Targets of StartLure (teleport offers) and their message. */
+    val lureOffers = java.util.concurrent.CopyOnWriteArrayList<Pair<UUID, String>>()
+    /** Raw bodies of AgentUpdate messages. */
+    val agentUpdates = java.util.concurrent.CopyOnWriteArrayList<ByteArray>()
+    val teleportRequests = java.util.concurrent.CopyOnWriteArrayList<Long>()
+    /** Regions this sim answers map-name lookups with: name, grid x, grid y. */
+    val knownRegions = java.util.concurrent.CopyOnWriteArrayList<Triple<String, Int, Int>>()
     @Volatile var running = true
     private var seq = 0
     private var client: java.net.SocketAddress? = null
@@ -27,21 +50,38 @@ class FakeSim : AutoCloseable {
         while (running) {
             val dp = DatagramPacket(buf, buf.size)
             try { socket.receive(dp) } catch (_: java.net.SocketTimeoutException) { continue } catch (_: Exception) { return@Thread }
-            client = dp.socketAddress
+            val from = dp.socketAddress
+            if (from !in knownClients) { knownClients += from; if (ignoredClients.size < ignoreFirstClients) ignoredClients += from }
+            if (from in ignoredClients) continue
+            client = from
             val p = PacketCodec.decode(buf, dp.length)
             received += p.messageId
             if (p.reliable) send(Messages.packetAck(listOf(p.sequence)))
             when (p.messageId) {
                 Msg.CompleteAgentMovement -> {
-                    send(Outgoing(Msg.AgentMovementComplete, WireWriter().uuid(agent).uuid(UUID.randomUUID()).vec3(10f, 20f, 30f).vec3(1f, 0f, 0f).u64((1000L * 256 shl 32) or (1001L * 256)).u32(0).u16(0).toByteArray(), true), zero = true)
+                    send(Outgoing(Msg.AgentMovementComplete, WireWriter().uuid(agent).uuid(UUID.randomUUID()).vec3(10f, 20f, 30f).vec3(1f, 0f, 0f).u64((gridX * 256L shl 32) or (gridY * 256L)).u32(0).u16(0).toByteArray(), true), zero = true)
                     // A real simulator starts streaming objects the moment it accepts the circuit.
                     send(Outgoing(Msg.ObjectUpdate, app.linkpoint.core.mock.ObjectPackets.full(app.linkpoint.core.mock.ObjectSpec(5, position = app.linkpoint.core.scene.Vec3(1f, 2f, 3f))), false))
-                    send(Outgoing(Msg.RegionHandshake, WireWriter().u32(0).u8(13).str1("Testville").uuid(UUID.randomUUID()).bool(false).f32(20f).f32(1f).uuid(UUID.randomUUID()).also { w -> repeat(4) { w.uuid(UUID(0, 0)) }; repeat(4) { w.uuid(UUID(9, it.toLong())) }; repeat(4) { w.f32(10f + it) }; repeat(4) { w.f32(40f) } }.toByteArray(), true), zero = true)
+                    send(Outgoing(Msg.RegionHandshake, WireWriter().u32(0).u8(13).str1(regionName).uuid(UUID.randomUUID()).bool(false).f32(20f).f32(1f).uuid(UUID.randomUUID()).also { w -> repeat(4) { w.uuid(UUID(0, 0)) }; repeat(4) { w.uuid(UUID(9, it.toLong())) }; repeat(4) { w.f32(10f + it) }; repeat(4) { w.f32(40f) } }.toByteArray(), true), zero = true)
                     send(Outgoing(Msg.OnlineNotification, WireWriter().u8(1).uuid(friend).toByteArray(), true))
                     send(Outgoing(Msg.ChatFromSimulator, WireWriter().str1("Someone").uuid(UUID.randomUUID()).uuid(UUID.randomUUID()).u8(1).u8(1).u8(1).vec3(0f, 0f, 0f).str2("welcome").toByteArray(), true))
                 }
                 Msg.ChatFromViewer -> {
                     val r = WireReader(p.body); r.uuid(); r.uuid(); chatSeen += r.str2()
+                }
+                Msg.TeleportLocationRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); teleportRequests += r.u64() }
+                Msg.AgentUpdate -> agentUpdates += p.body
+                Msg.ImprovedInstantMessage -> { val r = WireReader(p.body); r.uuid(); r.uuid(); r.u8(); val to = r.uuid(); r.u32(); r.uuid(); r.vec3(); r.u8(); val dialog = r.u8(); r.uuid(); r.u32(); r.str1(); imsSent += Triple(dialog, to, r.str2()) }
+                Msg.StartLure -> { val r = WireReader(p.body); r.uuid(); r.uuid(); r.u8(); val text = r.str1(); r.u8(); lureOffers += r.uuid() to text }
+                Msg.UseCircuitCode -> if (greetsOnUseCircuitCode) send(Outgoing(Msg.ChatFromSimulator, WireWriter().str1("Neighbour").uuid(UUID.randomUUID()).uuid(UUID.randomUUID()).u8(1).u8(1).u8(1).vec3(0f, 0f, 0f).str2("hi neighbour").toByteArray(), true), zero = false)
+                Msg.TeleportLureRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); lureRequests += r.uuid() }
+                Msg.TeleportLandmarkRequest -> { val r = WireReader(p.body); r.uuid(); r.uuid(); landmarkRequests += r.uuid() }
+                Msg.MapNameRequest -> {
+                    val r = WireReader(p.body); r.uuid(); r.uuid(); r.u32(); r.u32(); r.u8(); val wanted = r.str1()
+                    val hits = knownRegions.filter { it.first.equals(wanted, true) }
+                    val w = WireWriter().uuid(agent).u32(0).u8(hits.size)
+                    hits.forEach { w.u16(it.second).u16(it.third).str1(it.first).u8(13).u32(0).u8(20).u8(0).uuid(UUID(0, 0)) }
+                    send(Outgoing(Msg.MapBlockReply, w.toByteArray(), true))
                 }
                 Msg.LogoutRequest -> send(Outgoing(Msg.LogoutReply, WireWriter().uuid(agent).uuid(agent).u8(1).uuid(UUID(0, 0)).toByteArray(), true))
                 Msg.UUIDNameRequest -> {
@@ -52,6 +92,9 @@ class FakeSim : AutoCloseable {
             }
         }
     }.apply { isDaemon = true; start() }
+
+    /** Send a message to the connected viewer, as the simulator would. */
+    fun inject(m: Outgoing) = send(m)
 
     private fun send(m: Outgoing, zero: Boolean = false) {
         val c = client ?: return
