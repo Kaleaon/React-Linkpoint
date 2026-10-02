@@ -3,6 +3,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
 concurrency:
   group: jules-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -21,7 +24,8 @@ jobs:
       # skip the review rather than failing the check in those cases.
       - name: Jules review
         if: ${{ env.JULES_API_KEY != '' }}
-        uses: thalesraymond/jules-pr-reviewer@v1
+        uses: thalesraymond/jules-pr-reviewer@47388f11f27513e89e74a068ad51aa7a0d7ea306 # v1.0.0
         with:
           jules_api_key: ${{ secrets.JULES_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
