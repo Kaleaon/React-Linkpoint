@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
+import TouchTarget from "../components/TouchTarget.tsx";
 
 /** Inventory rows come directly from InventoryManager capability responses. */
 export default function Inventory() {
@@ -83,7 +84,7 @@ export default function Inventory() {
           </button>
         )) : <div className="honest-empty"><Icon name="folder-open" size={28} /><p>{app.auth.isLoggedIn() ? "No inventory data has been loaded by the grid." : "Connect to a grid to load inventory."}</p></div>}
       </div>
-      {selected ? <aside className="record-detail" style={{ background: V.surf, borderColor: V.outv }}><button className="detail-close" onClick={() => setSelected(null)} aria-label="Close inventory details">×</button><Icon name={selected.folder ? "folder" : "file"} size={22} /><h2>{selected.name || "Unnamed item"}</h2><dl><dt>UUID</dt><dd>{selected.id}</dd><dt>Type</dt><dd>{selected.folder ? "Folder" : selected.assetType ?? "Unknown"}</dd>{selected.description ? <><dt>Description</dt><dd>{selected.description}</dd></> : null}</dl></aside> : null}
+      {selected ? <aside className="record-detail" style={{ background: V.surf, borderColor: V.outv }}><TouchTarget minSize={24} className="detail-close" onClick={() => setSelected(null)} aria-label="Close inventory details">×</TouchTarget><Icon name={selected.folder ? "folder" : "file"} size={22} /><h2>{selected.name || "Unnamed item"}</h2><dl><dt>UUID</dt><dd>{selected.id}</dd><dt>Type</dt><dd>{selected.folder ? "Folder" : selected.assetType ?? "Unknown"}</dd>{selected.description ? <><dt>Description</dt><dd>{selected.description}</dd></> : null}</dl></aside> : null}
     </section>
   );
 }

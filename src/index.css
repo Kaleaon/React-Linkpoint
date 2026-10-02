@@ -295,3 +295,24 @@ select:focus-visible {
   border: 0;
 }
 
+/* Accessible Touch Targets (WCAG 2.5.8 Level AA & 2.5.5 Level AAA) */
+.touch-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.overlay-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
