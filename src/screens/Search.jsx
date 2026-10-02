@@ -258,6 +258,13 @@ export default function Search() {
         <Icon name="search" size={16} style={{ color: V.ink2 }} />
         <input
           className="search-input"
+          aria-label={
+            activeTabId === "PEOPLE"
+              ? "Search residents by name"
+              : activeTabId === "GROUPS"
+              ? "Search groups by keyword"
+              : "Search places or destinations"
+          }
           value={state.searchQuery || ""}
           onChange={(e) => {
             actions.setSearchQuery(e.target.value);

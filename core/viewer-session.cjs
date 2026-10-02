@@ -699,12 +699,15 @@ class ViewerSession {
     if (!this.bot) {
       throw new Error(NOT_CONNECTED);
     }
+    // The circuit belongs to the region the avatar is in, not to the Bot itself.
+    const circuit = this.currentRegion()?.circuit;
+    if (!circuit && category !== 'groups') throw new Error(NOT_CONNECTED);
 
     if (category === 'people') {
       const msg = new DirFindQueryMessage();
       msg.AgentData = {
         AgentID: this.bot.agent.agentID,
-        SessionID: this.bot.circuit.sessionID,
+        SessionID: circuit.sessionID,
       };
       const queryID = UUID.random();
       msg.QueryData = {
@@ -713,8 +716,8 @@ class ViewerSession {
         QueryFlags: DirFindFlags.People | DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
         QueryStart: start,
       };
-      this.bot.circuit.sendMessage(msg, PacketFlags.Reliable);
-      const reply = await this.bot.circuit.waitForMessage(Message.DirPeopleReply, 10000, (dpr) => {
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+      const reply = await circuit.waitForMessage(Message.DirPeopleReply, 10000, (dpr) => {
         return dpr.QueryData?.QueryID?.equals(queryID) ? FilterResponse.Finish : FilterResponse.NoMatch;
       });
       const results = [];
@@ -751,7 +754,7 @@ class ViewerSession {
       const msg = new DirPlacesQueryMessage();
       msg.AgentData = {
         AgentID: this.bot.agent.agentID,
-        SessionID: this.bot.circuit.sessionID,
+        SessionID: circuit.sessionID,
       };
       const queryID = UUID.random();
       msg.QueryData = {
@@ -762,8 +765,8 @@ class ViewerSession {
         SimName: Buffer.from(''),
         QueryStart: start,
       };
-      this.bot.circuit.sendMessage(msg, PacketFlags.Reliable);
-      const reply = await this.bot.circuit.waitForMessage(Message.DirPlacesReply, 10000, (dpr) => {
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+      const reply = await circuit.waitForMessage(Message.DirPlacesReply, 10000, (dpr) => {
         const qids = dpr.QueryData || [];
         for (const q of qids) {
           if (q.QueryID?.equals(queryID)) return FilterResponse.Finish;

@@ -42,7 +42,7 @@ export const ErrorRecoveryProvider: React.FC<{ children: React.ReactNode; custom
 
   const enqueueRetry = useCallback(
     <T,>(options: Parameters<ErrorRecoveryContextValue['enqueueRetry']>[0]) => {
-      return service.enqueueRetry<T>(options);
+      return service.enqueueRetry<T>(options as Parameters<typeof service.enqueueRetry<T>>[0]);
     },
     [service]
   );
