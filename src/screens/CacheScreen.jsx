@@ -352,6 +352,7 @@ export default function CacheScreen() {
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <input
+                  aria-label="Custom cache mount path"
                   type="text"
                   value={customPath}
                   onChange={(e) => setCustomPath(e.target.value)}
@@ -413,6 +414,7 @@ export default function CacheScreen() {
             <Icon name="upload" size={16} /> IMPORT FROM FLASHDRIVE…
           </button>
           <input
+            aria-label="Import flashdrive cache file"
             type="file"
             ref={fileInputRef}
             onChange={handleImportFile}
