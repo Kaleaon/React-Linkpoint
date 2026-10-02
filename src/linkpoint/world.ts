@@ -36,6 +36,9 @@ export class WorldViewer extends Utils.EventEmitter {
   private resizeAttached = false;
   private readonly handleResize = () => this.resizeCanvas();
   public use3D: boolean = true;
+  public interactionMode: 'navigate' | 'interact' = 'navigate';
+  private dragVelocityThreshold = 0.05;
+  private dragDisplacementThreshold = 3;
   
   public region: any = null;
   public objects: any[] = [];
@@ -453,6 +456,8 @@ export class WorldViewer extends Utils.EventEmitter {
         this.updateLocationDisplay();
         this.emit('camera_changed', this.getCameraState());
       }, (x, y) => this.pickObject(x, y), (motion, run) => this.controlAvatar(motion, run));
+      this.cameraControls.setVelocityThreshold(this.dragVelocityThreshold);
+      this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
 
       const scene = new Scene3D(graphics, this.camera3d);
       this.scene3d = scene;
@@ -650,7 +655,44 @@ export class WorldViewer extends Utils.EventEmitter {
     return { position: [...this.camera3d.position], preset: this.camera3d.preset, mode: this.camera3d.mode, heading, pitch };
   }
 
+  public getInteractionMode(): 'navigate' | 'interact' {
+    return this.interactionMode;
+  }
+
+  public setInteractionMode(mode: 'navigate' | 'interact') {
+    const nextMode = mode === 'interact' ? 'interact' : 'navigate';
+    if (this.interactionMode !== nextMode) {
+      this.interactionMode = nextMode;
+      this.emit('interaction_mode_changed', this.interactionMode);
+    }
+  }
+
+  public toggleInteractionMode(): 'navigate' | 'interact' {
+    const next = this.interactionMode === 'navigate' ? 'interact' : 'navigate';
+    this.setInteractionMode(next);
+    return next;
+  }
+
+  public getDragVelocityThreshold(): number {
+    return this.cameraControls ? this.cameraControls.getVelocityThreshold() : this.dragVelocityThreshold;
+  }
+
+  public setDragVelocityThreshold(threshold: number): void {
+    this.dragVelocityThreshold = Math.max(0, threshold);
+    if (this.cameraControls) this.cameraControls.setVelocityThreshold(this.dragVelocityThreshold);
+  }
+
+  public getDragDisplacementThreshold(): number {
+    return this.cameraControls ? this.cameraControls.getDisplacementThreshold() : this.dragDisplacementThreshold;
+  }
+
+  public setDragDisplacementThreshold(threshold: number): void {
+    this.dragDisplacementThreshold = Math.max(0, threshold);
+    if (this.cameraControls) this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
+  }
+
   public pickObject(x: number, y: number) {
+    if (this.interactionMode === 'navigate') return null;
     if (!this.canvas || !this.scene3d) return null;
     // A displayed HUD sits over the world, so a tap on it is a touch on the HUD, not a world selection.
     if (this.touchHudAt(x, y)) return null;
