@@ -166,6 +166,7 @@ class ViewerSession(
     /** After a re-request: true until OpenSim announces the new attempt (TeleportStart); a failure before that is the old one. */
     @Volatile private var awaitingRetryStart = false
     private fun sendTeleportRequest(msg: Outgoing) {
+        setMovement(0, 0, 0, fly = false)
         lastTeleportRequest = msg; teleportRetriesLeft = 1
         teleportAskedAt = clock()
         circuit?.send(msg)
@@ -206,6 +207,8 @@ class ViewerSession(
      * a second of arriving next to the target. Bounded so a silent neighbour cannot stall a teleport.
      */
     private suspend fun settleChildren(maxWaitMs: Long = 3_000) {
+        val startWait = clock()
+        while (teleportInFlight && clock() - startWait < 30_000) delay(50)
         // Right after arriving, the new region's event queue has usually not announced its neighbours yet; if we sent the
         // request now they would be announced (and connected) in the middle of the teleport. Let that happen first.
         val grace = arrivedAt + ARRIVAL_GRACE_MS - clock()
@@ -292,8 +295,12 @@ class ViewerSession(
     private suspend fun onEvent(e: SimEvent) {
         when (e.message) {
             "TeleportFinish" -> {
-                val info = (e.body["Info"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return
-                val ip = (info["SimIP"] as? ByteArray)?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: return
+                val info = (e.body["Info"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: (e.body["Info"] as? Map<*, *>) ?: return
+                val ip = when (val raw = info["SimIP"]) {
+                    is ByteArray -> raw.joinToString(".") { (it.toInt() and 0xFF).toString() }
+                    is String -> raw
+                    else -> return
+                }
                 val port = (info["SimPort"] as? Number)?.toInt() ?: return
                 val seed = info["SeedCapability"]?.toString() ?: ""
                 _notices.tryEmit(ViewerNotice.Teleport("Arriving at the new region…"))
