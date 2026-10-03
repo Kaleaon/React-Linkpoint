@@ -25,7 +25,7 @@ cd android-kotlin
 ```
 
 Release builds are signed with the debug key unless you configure a keystore; Google Play will
-reject that. CI (`.github/workflows/android-kotlin.yml`) runs the tests and builds the debug APK.
+reject that. CI (`.github/workflows/ci.yml`) runs the tests and builds the debug APK.
 
 ### Developing without a grid
 
@@ -145,7 +145,7 @@ The script downloads OpenSim 0.9.3.0 (with `curl`, so proxies work), configures 
 "testpass2"), builds a test OAR (`./gradlew :mockgrid:runOar`: prims, mesh, sculpt, a rigged limb mesh, particles, a looping
 **speaker**, a short-range **chime**, a media **parcel**), loads it, runs the live tests through Gradle and stops OpenSim. It needs python3, a
 JDK, curl, the .NET 8 runtime and libgdiplus (`apt-get update && apt-get install -y dotnet-sdk-8.0 libgdiplus`). The live tests are
-skipped by an ordinary `./gradlew :core:test` unless `OPENSIM_LOGIN_URL` is set. CI: `.github/workflows/opensim-live.yml` runs all of
+skipped by an ordinary `./gradlew :core:test` unless `OPENSIM_LOGIN_URL` is set. CI: `.github/workflows/live.yml` runs all of
 this nightly, on demand, and on pull requests that touch `core`, `mockgrid` or `tools/opensim`.
 
 What the live tests cover on a real OpenSim (19 exist; the last run passed 18 and skipped the big-content one, which needs `--big`):
@@ -172,7 +172,7 @@ The MFA hash is stored encrypted with an Android Keystore AES-GCM key (`SecretSt
 
 `SecondLifeLiveTest` logs in to the main grid, streams the region, fetches the inventory root and logs out. It prints **only counts**
 (this repository and its Actions logs are public) and sends no chat, teleports or messages. It is skipped unless `SL_USERNAME` and
-`SL_PASSWORD` are set. `.github/workflows/live-secondlife.yml` runs it with the repository secrets `USERNAME` and `PASSWORD`; it is
+`SL_PASSWORD` are set. `.github/workflows/live.yml` (manual, `target: secondlife`) runs it with the repository secrets `USERNAME` and `PASSWORD`; it is
 `workflow_dispatch` only (never on pull requests, so forks cannot reach the secrets) and GitHub can only dispatch it once the workflow
 file is on the default branch. **It has not been run.**
 

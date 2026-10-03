@@ -10,9 +10,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sync-design
+  cancel-in-progress: false
+
 jobs:
   sync-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
 
@@ -48,8 +53,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           if [ -n "$(git status --porcelain)" ]; then
-            git add .
+            git add src
             git commit -m "chore(design): auto-sync latest designs from linkpoint-design"
+            git push
           else
             echo "No design changes detected."
           fi

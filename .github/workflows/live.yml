@@ -1,0 +1,94 @@
+name: Live grid tests
+
+# OpenSim: starts a real OpenSim 0.9.3 on the runner (two regions, two local test accounts, a generated OAR), then runs
+# the live tests in android-kotlin/core against it: login, terrain, prims/mesh/sculpt/textures, teleport, border
+# crossing, IM, friends, teleport offers, radar, profiles. No secrets: the accounts exist only in that throwaway grid.
+#
+# Second Life: manual only. It uses the SL account in the repository secrets USERNAME and PASSWORD, so it must never run
+# for pull requests (forks could otherwise read the secrets). The repository is public, so the job log is public too:
+# the test prints only counts and pass/fail, never names, places or inventory, and it sends no chat or teleports.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which live test to run
+        type: choice
+        default: opensim
+        options:
+          - opensim
+          - secondlife
+          - all
+  schedule:
+    - cron: '41 3 * * *'   # nightly OpenSim run (runs on the default branch)
+  pull_request:
+    paths:
+      - 'android-kotlin/core/**'
+      - 'android-kotlin/mockgrid/**'
+      - 'android-kotlin/tools/opensim/**'
+      - '.github/workflows/live.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  opensim:
+    name: Live tests against OpenSim
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target != 'secondlife' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android-kotlin
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.0.0
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install libgdiplus (OpenSim's map tile renderer needs it)
+        run: sudo apt-get update && sudo apt-get install -y libgdiplus
+      - name: Cache the OpenSim download
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.cache/linkpoint-opensim
+          key: opensim-0.9.3.0
+      - name: Run the live tests
+        run: python3 tools/opensim/live.py
+      - name: Keep the reports and OpenSim's own log
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: opensim-live-reports
+          path: |
+            android-kotlin/core/build/reports/tests/test
+            /tmp/linkpoint-opensim/opensim.log
+          retention-days: 7
+
+  secondlife:
+    name: Log in to Second Life, stream the region, log out
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target != 'opensim' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: android-kotlin
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Live Second Life test
+        env:
+          SL_USERNAME: ${{ secrets.USERNAME }}
+          SL_PASSWORD: ${{ secrets.PASSWORD }}
+        run: ./gradlew :core:test --tests '*SecondLifeLiveTest*' --rerun-tasks -i --no-daemon
