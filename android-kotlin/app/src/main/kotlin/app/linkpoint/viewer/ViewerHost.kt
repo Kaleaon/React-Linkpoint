@@ -7,6 +7,8 @@ import androidx.core.content.ContextCompat
 import app.linkpoint.core.ViewerSession
 import app.linkpoint.core.login.*
 import app.linkpoint.core.model.ConnectionState
+import app.linkpoint.core.net.BasicNetworkMonitor
+import app.linkpoint.core.net.ErrorRecoveryManager
 import app.linkpoint.core.net.UrlConnectionHttp
 import app.linkpoint.core.image.TextureFetcher
 import app.linkpoint.core.scene.MeshFetcher
@@ -35,8 +37,8 @@ sealed class LoginUi {
 class ViewerHost(private val app: Application) {
     val prefs = Prefs(app)
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val networkMonitor = app.linkpoint.core.net.BasicNetworkMonitor()
-    val errorRecoveryManager = app.linkpoint.core.net.ErrorRecoveryManager(networkMonitor, scope)
+    val networkMonitor = BasicNetworkMonitor()
+    val errorRecoveryManager = ErrorRecoveryManager(networkMonitor, scope)
     private val http = UrlConnectionHttp()
     val session = ViewerSession(http, scope)
     val textures = TextureFetcher(http, scope, { session.capabilities.value["GetTexture"] })
