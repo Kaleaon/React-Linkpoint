@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WorldViewer } from '../world';
 import { Utils } from '../utils';
+import { Camera3D } from '../camera-3d';
 
 class ProtocolStub extends Utils.EventEmitter {
   connected = false;
@@ -196,5 +197,71 @@ describe('WorldViewer data status', () => {
       position: [30, 40, 0],
       distance: 50, // 3-4-5 triangle: hypot(30, 40) = 50
     });
+  });
+
+  it('resets camera view to the avatar position with resetCamera()', () => {
+    const protocol = new ProtocolStub() as any;
+    protocol.connected = true;
+    protocol.agentId = 'my-avatar';
+    const world = new WorldViewer(protocol);
+    (world as any).camera3d = new Camera3D();
+
+    world.avatarPosition = [140, 150, 30];
+    world.resetCamera();
+
+    expect(world.camera3d.orbitTarget).toEqual([140, 150, 30]);
+    expect(world.camera3d.preset).toBe('rear');
+    expect(world.camera3d.mode).toBe('orbit');
+    expect(world.camera3d.orbitDistance).toBe(7.5);
+  });
+
+  it('hydrates sculpts and meshes with decodedMeshes even when assets arrive before objects', () => {
+    const protocol = new ProtocolStub() as any;
+    protocol.connected = true;
+    const world = new WorldViewer(protocol);
+
+    // 1. Sculpt asset arrives before prim object (geometry has no .parts)
+    protocol.emit('scene:asset-ready', {
+      assetId: 'sculpt-1',
+      geometry: { vertices: [0, 0, 0, 1, 1, 1], indices: [0, 1, 0] },
+    });
+
+    // 2. Prim object arrives after asset is cached
+    protocol.emit('scene:object-add', {
+      id: 'sculpt-prim',
+      localId: 50,
+      assetId: 'sculpt-1',
+      assetKind: 'sculpt',
+      position: [10, 10, 10],
+    });
+
+    const obj = world.objects.find((o) => o.id === 'sculpt-prim');
+    expect(obj).toBeDefined();
+    expect(obj.decodedMeshes).toEqual([{ mesh: 'asset:sculpt-1:0', materialIndex: 0 }]);
+  });
+
+  it('resolves textures from decodedTextures cache when prim arrives', () => {
+    const protocol = new ProtocolStub() as any;
+    protocol.connected = true;
+    const world = new WorldViewer(protocol);
+
+    // Pre-cache texture
+    protocol.emit('scene:texture-ready', {
+      assetId: 'tex-99',
+      width: 2,
+      height: 2,
+      rgba: btoa('\u00ff\u00ff\u00ff\u00ff'),
+    });
+
+    protocol.emit('scene:object-add', {
+      id: 'textured-prim',
+      localId: 60,
+      textureId: 'tex-99',
+      position: [1, 2, 3],
+    });
+
+    const obj = world.objects.find((o) => o.id === 'textured-prim');
+    expect(obj).toBeDefined();
+    expect(obj.decodedTexture).toBe('texture:tex-99');
   });
 });

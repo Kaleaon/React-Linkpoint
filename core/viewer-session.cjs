@@ -9,6 +9,16 @@ const crypto = require('node:crypto');
 // node-metaverse compatibility/identity patches before its module is loaded so a skipped
 // postinstall cannot leave the viewer unable to log in (or identifying as the library itself).
 require('../scripts/patch-metaverse.cjs').applyPatches({ strict: true });
+const LLSD = require('@caspertech/llsd');
+if (LLSD?.LLSD?.type) {
+  const origType = LLSD.LLSD.type;
+  LLSD.LLSD.type = function (value) {
+    if (value && typeof value === 'object' && (typeof value.mUUID === 'string' || value.constructor?.name === 'UUID')) {
+      return 'uuid';
+    }
+    return origType.call(this, value);
+  };
+}
 const {
   Bot,
   BotOptionFlags,
@@ -86,8 +96,14 @@ class ViewerSession {
 
   /** Download, decode and stream one asset once; failures are reported to the client as `asset-error`. */
   streamAsset(key, kind, assetId, download, ready) {
+    if (this.replay && this.decodedAssets.has(key)) {
+      const cached = this.decodedAssets.get(key);
+      if (cached) this.sendEvent(cached.type, cached.data);
+      return;
+    }
     if (this.assetRequests.has(key)) return;
-    if (Date.now() - (this.assetFailures.get(key) || 0) < 5000) return;
+    const nextRetry = this.assetFailures.get(key) || 0;
+    if (Date.now() < nextRetry) return;
     const request = (async () => {
       const buffer = download
         ? await download()
@@ -98,8 +114,11 @@ class ViewerSession {
       // A failed promise must not poison this asset for the rest of the session. Object updates can
       // retry it after a short backoff, which is important while region capabilities are settling.
       this.assetRequests.delete(key);
-      this.assetFailures.set(key, Date.now());
-      this.send('asset-error', { assetId, message: error.message });
+      const msg = String(error?.message || error);
+      const isPermanent = msg.includes('403') || msg.includes('Forbidden') || msg.includes('404') || msg.includes('unavailable');
+      const backoffMs = isPermanent ? 3600000 : 5000;
+      this.assetFailures.set(key, Date.now() + backoffMs);
+      this.send('asset-error', { assetId, message: msg });
     });
     this.assetRequests.set(key, request);
   }
@@ -117,13 +136,45 @@ class ViewerSession {
         if (capability) {
           const separator = String(capability).includes('?') ? '&' : '?';
           const response = await caps.requestGet(`${capability}${separator}texture_id=${encodeURIComponent(assetId)}`);
-          if (response?.body) return response.body;
+          if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
         }
       } catch (error) {
-        console.warn(`[SL Session] GetTexture failed for ${assetId}; falling back to ViewerAsset:`, error.message);
+        const msg = String(error?.message || error);
+        // If the grid denies access with 403 Forbidden or 404 Not Found, falling back to ViewerAsset will also fail.
+        if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('404')) {
+          throw new Error(`Texture ${assetId} unavailable: ${msg}`);
+        }
+        console.warn(`[SL Session] GetTexture failed for ${assetId}; falling back to ViewerAsset:`, msg);
       }
     }
     return this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+  }
+
+  /**
+   * Second Life exposes uploaded 3D meshes through GetMesh2 / GetMesh capabilities.
+   * Downloads the raw LLMesh payload as a binary buffer.
+   */
+  async downloadMesh(assetId) {
+    const caps = this.currentRegion()?.caps;
+    if (caps?.getCapability && caps?.requestGet) {
+      for (const capName of ['GetMesh2', 'GetMesh']) {
+        try {
+          const capability = await caps.getCapability(capName);
+          if (capability) {
+            const separator = String(capability).includes('?') ? '&' : '?';
+            const response = await caps.requestGet(`${capability}${separator}mesh_id=${encodeURIComponent(assetId)}`, { responseType: 'buffer' });
+            if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
+          }
+        } catch (error) {
+          const msg = String(error?.message || error);
+          if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('404')) {
+            throw new Error(`Mesh ${assetId} unavailable: ${msg}`);
+          }
+          console.warn(`[SL Session] ${capName} failed for ${assetId}; trying next:`, msg);
+        }
+      }
+    }
+    return this.bot.clientCommands.asset.downloadAsset(AssetType.Mesh, assetId);
   }
 
   loadTexture(assetId) {
@@ -149,7 +200,10 @@ class ViewerSession {
     const appearance = primAppearance(object);
     if (!appearance.assetId) return;
     const kind = appearance.assetKind === 'mesh' ? AssetType.Mesh : AssetType.Texture;
-    this.streamAsset(appearance.assetId, kind, appearance.assetId, null, async (buffer) => {
+    const download = appearance.assetKind === 'sculpt'
+      ? () => this.downloadTexture(appearance.assetId)
+      : () => this.downloadMesh(appearance.assetId);
+    this.streamAsset(appearance.assetId, kind, appearance.assetId, download, async (buffer) => {
       const geometry = appearance.assetKind === 'mesh'
         ? await decodeLLMesh(buffer)
         : await decodeSculpt(buffer, appearance.sculptType);
@@ -682,6 +736,9 @@ class ViewerSession {
     try {
       return (objects.getAllObjects({ includeAvatars: true }) || []).map((object) => {
         const localId = object.ID || object.localID;
+        this.loadObjectAsset(object);
+        this.loadObjectTexture(object);
+        this.loadObjectMaterials(object);
         return serializeObject({ localID: localId, object });
       });
     } catch (error) {

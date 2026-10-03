@@ -76,6 +76,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   constructor() {
     super();
+    this.attachBridge();
   }
 
   private resetConnectionState() {
@@ -97,9 +98,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.eventQueueFailures = 0;
   }
 
+  private bridgeAttached = false;
+
   /** Route every viewer-session event to the interface. The one mapping for desktop, web and mobile. */
   private attachBridge() {
-    slBridge.removeAllListeners();
+    if (this.bridgeAttached) return;
+    this.bridgeAttached = true;
     const forward = (from: string, to: string, wrap: (data: any) => any = (data) => data) => slBridge.on(from, (data: any) => this.emit(to, wrap(data)));
     forward('chat', 'ChatFromSimulator');
     forward('im', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'im' }));

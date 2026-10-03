@@ -330,57 +330,79 @@ export class WorldViewer extends Utils.EventEmitter {
     return this.worldTransform(object);
   }
 
+  private sameId(a: any, b: any): boolean {
+    return Boolean(a && b && String(a).toLowerCase() === String(b).toLowerCase());
+  }
+
   private applyAsset(asset: any) {
     if (!asset?.assetId || !asset.geometry) return;
-    this.decodedAssets.set(asset.assetId, asset.geometry);
-    this.restSkinRows.delete(asset.assetId);
-    const meshes = this.scene3d?.addAssetMesh(asset.assetId, asset.geometry);
+    const assetIdStr = String(asset.assetId);
+    this.decodedAssets.set(assetIdStr, asset.geometry);
+    this.decodedAssets.set(assetIdStr.toLowerCase(), asset.geometry);
+    this.restSkinRows.delete(assetIdStr);
+    this.restSkinRows.delete(assetIdStr.toLowerCase());
+    const meshes = this.scene3d?.addAssetMesh(assetIdStr, asset.geometry);
+    const fallbackMeshes = asset.geometry.parts?.length
+      ? asset.geometry.parts.map((part: any, index: number) => ({ mesh: `asset:${assetIdStr}:${index}`, materialIndex: part.materialIndex ?? index }))
+      : [{ mesh: `asset:${assetIdStr}:0`, materialIndex: 0 }];
+    const resolvedMeshes = meshes || fallbackMeshes;
     for (const object of this.sceneObjects.values()) {
-      if (object.assetId !== asset.assetId) continue;
-      object.decodedMeshes = meshes || asset.geometry.parts?.map((part: any, index: number) => ({ mesh: `asset:${asset.assetId}:${index}`, materialIndex: part.materialIndex ?? index }));
+      if (!this.sameId(object.assetId, assetIdStr)) continue;
+      object.decodedMeshes = resolvedMeshes;
       this.applySceneObject(object);
     }
   }
 
   private applyTexture(asset: any) {
     if (!asset?.assetId || !asset.rgba) return;
-    this.decodedTextures.set(asset.assetId, asset);
+    const assetIdStr = String(asset.assetId);
+    this.decodedTextures.set(assetIdStr, asset);
+    this.decodedTextures.set(assetIdStr.toLowerCase(), asset);
     if (!this.scene3d) return;
     const binary = atob(asset.rgba);
     const rgba = Uint8Array.from(binary, character => character.charCodeAt(0));
-    const texture = this.scene3d.addAssetTexture(asset.assetId, asset.width, asset.height, rgba);
+    const texture = this.scene3d.addAssetTexture(assetIdStr, asset.width, asset.height, rgba);
     for (const object of this.sceneObjects.values()) {
-      const usedByFace = object.faceTextures?.some((face: any) => face.textureId === asset.assetId || this.materialTextureIds(face.materialId).includes(asset.assetId));
-      if (object.textureId !== asset.assetId && !usedByFace) continue;
-      if (object.textureId === asset.assetId) object.decodedTexture = texture;
+      const usedByFace = object.faceTextures?.some((face: any) => this.sameId(face.textureId, assetIdStr) || this.materialTextureIds(face.materialId).some((id: any) => this.sameId(id, assetIdStr)));
+      if (!this.sameId(object.textureId, assetIdStr) && !usedByFace) continue;
+      if (this.sameId(object.textureId, assetIdStr)) object.decodedTexture = texture;
       object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
       this.applySceneObject(object);
     }
   }
 
   private materialTextureIds(materialId: string | null) {
-    const material = materialId && this.decodedMaterials.get(materialId);
+    const materialIdStr = materialId ? String(materialId) : '';
+    const material = materialIdStr && (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase()));
     return material ? Object.values(material.textures || {}).map((texture: any) => texture?.textureId).filter(Boolean) : [];
   }
 
   private applyMaterial(asset: any) {
     if (!asset?.assetId || !asset.material) return;
-    this.decodedMaterials.set(asset.assetId, asset.material);
+    const assetIdStr = String(asset.assetId);
+    this.decodedMaterials.set(assetIdStr, asset.material);
+    this.decodedMaterials.set(assetIdStr.toLowerCase(), asset.material);
     for (const object of this.sceneObjects.values()) {
-      if (!object.faceTextures?.some((face: any) => face.materialId === asset.assetId)) continue;
+      if (!object.faceTextures?.some((face: any) => this.sameId(face.materialId, assetIdStr))) continue;
       this.applySceneObject(object);
     }
   }
 
   private resolveFace(face: any) {
-    const base = face.materialId && this.decodedMaterials.get(face.materialId);
-    if (!base) return { ...face, texture: this.decodedTextures.has(face.textureId) ? `texture:${face.textureId}` : undefined };
+    const materialIdStr = face.materialId ? String(face.materialId) : '';
+    const base = materialIdStr && (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase()));
+    const findTexture = (id?: string) => {
+      if (!id) return undefined;
+      const str = String(id);
+      return (this.decodedTextures.has(str) || this.decodedTextures.has(str.toLowerCase())) ? `texture:${str}` : undefined;
+    };
+    if (!base) return { ...face, texture: findTexture(face.textureId) || face.texture };
     const override = face.materialOverride || {};
     const overrideTextures = override.textures || [];
     const baseTransform = override.textureTransforms?.[0] || base.textures?.baseColor || {};
     const texture = (role: string, index: number) => {
       const textureId = overrideTextures[index] || base.textures?.[role]?.textureId;
-      return textureId && this.decodedTextures.has(textureId) ? `texture:${textureId}` : undefined;
+      return findTexture(textureId);
     };
     return {
       ...face,
@@ -398,14 +420,24 @@ export class WorldViewer extends Utils.EventEmitter {
         baseColorTexture: texture('baseColor', 0), normalTexture: texture('normal', 1),
         metallicRoughnessTexture: texture('metallicRoughness', 2), emissiveTexture: texture('emissive', 3),
       },
-      texture: texture('baseColor', 0),
+      texture: texture('baseColor', 0) || findTexture(face.textureId) || face.texture,
     };
   }
 
   public async loadScene() {
     if (slBridge.connected) {
       try {
-        const objects = await slBridge.fetchScene();
+        const snapshot = typeof (slBridge as any).fetchSceneSnapshot === 'function'
+          ? await (slBridge as any).fetchSceneSnapshot()
+          : null;
+        if (snapshot?.assets && Array.isArray(snapshot.assets)) {
+          for (const item of snapshot.assets) {
+            if (item.type === 'asset-ready') this.applyAsset(item.data);
+            else if (item.type === 'texture-ready') this.applyTexture(item.data);
+            else if (item.type === 'material-ready') this.applyMaterial(item.data);
+          }
+        }
+        const objects = snapshot?.objects || (await slBridge.fetchScene());
         if (Array.isArray(objects) && objects.length > 0) {
           for (const obj of objects) {
             this.upsertSceneObject(obj);
@@ -470,11 +502,22 @@ export class WorldViewer extends Utils.EventEmitter {
       await this.loadBody();
       if (stale()) return;
       this.installBodyMeshes(scene);
-      for (const [assetId, geometry] of this.decodedAssets) scene.addAssetMesh(assetId, geometry);
+      for (const [assetId, geometry] of this.decodedAssets) {
+        const meshes = scene.addAssetMesh(assetId, geometry);
+        for (const object of this.sceneObjects.values()) {
+          if (object.assetId === assetId) object.decodedMeshes = meshes;
+        }
+      }
       for (const texture of this.decodedTextures.values()) this.applyTexture(texture);
       await this.loadScene();
       if (stale()) return;
-      for (const object of this.sceneObjects.values()) this.applySceneObject(object);
+      for (const object of this.sceneObjects.values()) {
+        if (object.assetId && !object.decodedMeshes && this.decodedAssets.has(object.assetId)) {
+          const geometry = this.decodedAssets.get(object.assetId);
+          object.decodedMeshes = scene.addAssetMesh(object.assetId, geometry);
+        }
+        this.applySceneObject(object);
+      }
       for (const object of this.sceneObjects.values()) if (this.followAvatar(object)) break;
 
       this.startRendering();
@@ -691,6 +734,29 @@ export class WorldViewer extends Utils.EventEmitter {
     if (this.cameraControls) this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
   }
 
+  public getPanMode(): boolean {
+    return this.cameraControls ? this.cameraControls.getPanMode() : false;
+  }
+
+  public setPanMode(enabled: boolean): void {
+    if (this.cameraControls) this.cameraControls.setPanMode(enabled);
+    this.emit('pan_mode_changed', enabled);
+  }
+
+  public togglePanMode(): boolean {
+    const next = !this.getPanMode();
+    this.setPanMode(next);
+    return next;
+  }
+
+  public resetCamera(): void {
+    if (!this.camera3d) return;
+    const target = this.avatarPosition || (this.protocol?.agentId && this.sceneObjects.get(this.protocol.agentId)?.position) || [128, 128, 25];
+    this.camera3d.reset(target);
+    this.updateLocationDisplay();
+    this.emit('camera_changed', this.getCameraState());
+  }
+
   public pickObject(x: number, y: number) {
     if (this.interactionMode === 'navigate') return null;
     if (!this.canvas || !this.scene3d) return null;
@@ -734,6 +800,22 @@ export class WorldViewer extends Utils.EventEmitter {
     this.sceneObjects.set(object.id, merged);
     this.particles.setEmitter(object.id, merged.particles || null, performance.now() / 1000);
     if (object.localId) this.localObjectIds.set(object.localId, object.id);
+    if (merged.assetId && !merged.decodedMeshes) {
+      const assetKey = String(merged.assetId);
+      const geometry = this.decodedAssets.get(assetKey) || this.decodedAssets.get(assetKey.toLowerCase());
+      if (geometry) {
+        const meshes = this.scene3d?.addAssetMesh(assetKey, geometry);
+        merged.decodedMeshes = meshes || (geometry?.parts?.length
+          ? geometry.parts.map((p: any, i: number) => ({ mesh: `asset:${assetKey}:${i}`, materialIndex: p.materialIndex ?? i }))
+          : [{ mesh: `asset:${assetKey}:0`, materialIndex: 0 }]);
+      }
+    }
+    if (merged.textureId && !merged.decodedTexture) {
+      const texKey = String(merged.textureId);
+      if (this.decodedTextures.has(texKey) || this.decodedTextures.has(texKey.toLowerCase())) {
+        merged.decodedTexture = `texture:${texKey}`;
+      }
+    }
     this.objects = Array.from(this.sceneObjects.values());
     this.applySceneObject(merged);
     // A root prim moving changes every child prim's world transform even when
@@ -901,7 +983,7 @@ export class WorldViewer extends Utils.EventEmitter {
       rotation: this.quaternionToEuler(rotation),
       scale,
       color: object.avatar ? [0.3, 0.65, 1, 1] : object.color || [0.8, 0.8, 0.8, 1],
-      texture: object.decodedTexture,
+      texture: object.decodedTexture || (object.textureId && this.decodedTextures.has(object.textureId) ? `texture:${object.textureId}` : undefined),
       faces: object.decodedFaceTextures,
       reflectionProbe: object.reflectionProbe,
       skin,
@@ -1028,29 +1110,12 @@ export class WorldViewer extends Utils.EventEmitter {
         position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1],
         // A baked texture replaces the flat fallback colour; hair blends, skin and eyes are cut out.
         color: texture ? [1, 1, 1, 1] : color,
-        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5, doubleSided: true } }] : [],
+        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5 } }] : [],
         skin: rows.get(instance), visible: true,
       };
       if (this.scene3d.objects.has(partId)) this.scene3d.updateObject(partId, part3d);
       else this.scene3d.addObject(partId, part3d);
     }
-    // The skirt is a separate optional system layer. Do not show an opaque
-    // fallback skirt, but do render it whenever the skirt bake is available.
-    const skirtTexture = this.bakedTexture(object, 'skirt');
-    const skirtId = `${id}:body:skirt`;
-    const skirtGeometry = this.bodyParts?.get('skirt');
-    if (skirtTexture && skirtGeometry) {
-      let skirtSkin = this.bodySkins.get('skirt');
-      if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
-      const skirt = {
-        mesh: 'cube', meshes: [{ mesh: 'avatar-body:skirt', materialIndex: 0 }],
-        position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1], color: [1, 1, 1, 1],
-        faces: [{ texture: skirtTexture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: 'MASK', alphaCutoff: 0.5, doubleSided: true } }],
-        skin: bodyPartRows(this.skeleton, skirtSkin, this.skeleton.worldMatrices(this.animator.pose(id)), (this.scene3d as any).graphics?.maxJoints || 110), visible: true,
-      };
-      if (this.scene3d.objects.has(skirtId)) this.scene3d.updateObject(skirtId, skirt);
-      else this.scene3d.addObject(skirtId, skirt);
-    } else this.scene3d.removeObject(skirtId);
     for (const suffix of [':body', ':head', ':legs']) this.scene3d.removeObject(`${id}${suffix}`);
     this.scene3d.updateObject(id, { visible: false });
   }
@@ -1063,14 +1128,6 @@ export class WorldViewer extends Utils.EventEmitter {
       if (!this.animator.isAnimating(object.id)) continue;
       const rows = this.avatarBodyRows(object.id);
       for (const [instance, skin] of rows) this.scene3d.updateObject(`${object.id}:body:${instance}`, { skin });
-      const skirt = this.scene3d.objects.get(`${object.id}:body:skirt`);
-      const skirtGeometry = skirt && this.bodyParts.get('skirt');
-      if (skirtGeometry) {
-        let skirtSkin = this.bodySkins.get('skirt');
-        if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
-        const world = this.skeleton.worldMatrices(this.animator.pose(object.id));
-        this.scene3d.updateObject(`${object.id}:body:skirt`, { skin: bodyPartRows(this.skeleton, skirtSkin, world, (this.scene3d as any).graphics?.maxJoints || 110) });
-      }
     }
   }
 

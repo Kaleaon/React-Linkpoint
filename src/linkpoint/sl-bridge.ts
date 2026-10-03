@@ -177,6 +177,15 @@ export class SLBridge extends Utils.EventEmitter {
     if (!this.connected) return [];
     try { return await this.call<any[]>('getSceneObjects'); } catch { return []; }
   }
+  async fetchSceneSnapshot(): Promise<{ objects: any[]; assets: any[] }> {
+    if (!this.connected) return { objects: [], assets: [] };
+    try {
+      const snapshot = await this.call<{ objects: any[]; assets: any[] }>('getSceneSnapshot');
+      return snapshot || { objects: [], assets: [] };
+    } catch {
+      return { objects: await this.fetchScene(), assets: [] };
+    }
+  }
   async fetchDiagnostics() {
     if (!this.connected) return null;
     try { return await this.call('getDiagnostics'); } catch { return null; }

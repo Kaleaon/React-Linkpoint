@@ -304,15 +304,6 @@ export class Graphics3D extends Utils.EventEmitter {
    */
   createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[], skin?: { joints: number[]; weights: number[] }) {
     const gl = this.gl!;
-    if (vertices.length % 3 !== 0 || vertices.some((value) => !Number.isFinite(value))) {
-      throw new Error(`Mesh ${name} contains invalid vertex data`);
-    }
-    const vertexCount = vertices.length / 3;
-    const validAttribute = (values: number[] | undefined, width: number) => !values ||
-      (values.length === vertexCount * width && values.every((value) => Number.isFinite(value)));
-    if (!validAttribute(normals, 3) || !validAttribute(texCoords, 2) || !validAttribute(tangents, 3)) {
-      throw new Error(`Mesh ${name} contains malformed vertex attributes`);
-    }
     const previous = this.meshes.get(name);
     if (previous) this.deleteMesh(previous);
     let maxIndex = 0;
@@ -344,7 +335,7 @@ export class Graphics3D extends Utils.EventEmitter {
       buffers: {},
       indexCount: indices.length,
       indexType,
-      vertexCount,
+      vertexCount: vertices.length / 3,
       bounds
     };
 
@@ -381,8 +372,7 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Skin influences: four joint indices and weights per vertex
-    if (skin && skin.joints.length === vertexCount * 4 && skin.weights.length === skin.joints.length &&
-        skin.joints.every(Number.isFinite) && skin.weights.every((weight) => Number.isFinite(weight) && weight >= 0)) {
+    if (skin && skin.joints.length === (vertices.length / 3) * 4 && skin.weights.length === skin.joints.length) {
       mesh.buffers.joints = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.joints);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(clampJointIndices(skin.joints, Math.max(this.maxJoints, 1))), gl.STATIC_DRAW);
@@ -408,17 +398,18 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     this.meshes.set(name, mesh);
+    this.meshes.set(name.toLowerCase(), mesh);
     return mesh;
   }
 
   /** True when the mesh carries joint indices and weights. */
   isSkinnedMesh(name: string): boolean {
-    return Boolean(this.meshes.get(name)?.skinned);
+    return Boolean((this.meshes.get(name) || this.meshes.get(name.toLowerCase()))?.skinned);
   }
 
   /** Local-space bounding box of a mesh, or null if unknown. */
   getMeshBounds(name: string): { min: number[]; max: number[] } | null {
-    return this.meshes.get(name)?.bounds ?? null;
+    return (this.meshes.get(name) || this.meshes.get(name.toLowerCase()))?.bounds ?? null;
   }
 
   /**
@@ -426,7 +417,7 @@ export class Graphics3D extends Utils.EventEmitter {
    */
   drawMesh(meshName: string, programName: string, uniforms: any, options: DrawOptions = {}) {
     const gl = this.gl!;
-    const mesh = this.meshes.get(meshName);
+    const mesh = this.meshes.get(meshName) || this.meshes.get(meshName.toLowerCase());
     const programInfo = this.programs.get(programName);
 
     if (!mesh || !programInfo) return;
@@ -453,7 +444,8 @@ export class Graphics3D extends Utils.EventEmitter {
       const sampler = programInfo.uniforms[uniformName];
       if (!sampler) continue;
       const fallback = uniformName === 'uNormalTexture' ? '__normal' : '__white';
-      const texture = this.textures.get(uniforms[valueName]) || this.textures.get(fallback);
+      const val = uniforms[valueName];
+      const texture = this.textures.get(val) || (val && this.textures.get(String(val).toLowerCase())) || this.textures.get(fallback);
       if (!texture) continue;
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -485,7 +477,7 @@ export class Graphics3D extends Utils.EventEmitter {
 
   createTexture(name: string, width: number, height: number, rgba: Uint8Array) {
     const gl = this.gl!;
-    const existing = this.textures.get(name);
+    const existing = this.textures.get(name) || this.textures.get(name.toLowerCase());
     if (existing) gl.deleteTexture(existing);
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -499,19 +491,21 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
     if (canMipmap) gl.generateMipmap(gl.TEXTURE_2D);
     this.textures.set(name, texture);
+    this.textures.set(name.toLowerCase(), texture);
     let hasAlpha = false;
     for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] < 250) { hasAlpha = true; break; } }
     this.textureAlpha.set(name, hasAlpha);
+    this.textureAlpha.set(name.toLowerCase(), hasAlpha);
     return name;
   }
 
   hasTexture(name: string | undefined | null): boolean {
-    return Boolean(name && this.textures.has(name));
+    return Boolean(name && (this.textures.has(name) || this.textures.has(String(name).toLowerCase())));
   }
 
   /** True when the named texture has transparent pixels. Unknown textures are opaque. */
   textureHasAlpha(name: string | undefined | null): boolean {
-    return Boolean(name && this.textureAlpha.get(name));
+    return Boolean(name && (this.textureAlpha.get(name) || this.textureAlpha.get(String(name).toLowerCase())));
   }
 
   /** Clear only the depth buffer, so a later pass (the HUD) draws over everything already rendered. */

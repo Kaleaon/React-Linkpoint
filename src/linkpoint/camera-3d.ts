@@ -173,6 +173,23 @@ export class Camera3D extends Utils.EventEmitter {
     this.emit('preset_changed', preset);
   }
 
+  reset(target?: number[]) {
+    if (target && Array.isArray(target) && target.length >= 3) {
+      this.orbitTarget = [Number(target[0]) || 128, Number(target[1]) || 128, Number(target[2]) || 25];
+    }
+    this.mode = 'orbit';
+    this.preset = 'rear';
+    this.rotation = [-0.28, Math.PI, 0];
+    this.orbitDistance = 7.5;
+    this.fov = 60;
+    this.updateMatrices();
+    this.emit('preset_changed', this.preset);
+    this.emit('mode_changed', this.mode);
+    this.emit('zoomed', this.orbitDistance);
+    this.emit('rotated', this.rotation);
+    this.emit('reset');
+  }
+
   /** Pan parallel to the view plane, as Firestorm's Alt+Ctrl+Shift drag does. */
   pan(horizontal: number, vertical: number) {
     const [hx, hy] = this.horizontalHeading();

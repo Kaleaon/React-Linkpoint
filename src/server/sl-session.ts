@@ -14,12 +14,15 @@ const { callViewer } = require('../../core/viewer-api.cjs') as { callViewer: (se
 // Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
 const _origConsoleError = console.error;
 console.error = function (...args: any[]) {
+  const msg = typeof args[0] === 'string' ? args[0] : (args[0]?.message || '');
   if (
-    typeof args[0] === 'string' &&
-    (args[0].startsWith('WARNING: Finished reading ') ||
-     args[0].includes('not at the end of the packet') ||
-     args[0].startsWith('WARNING: Bytes written does not match') ||
-     args[0].startsWith('WARNING: BUFFER UNDERFLOW'))
+    typeof msg === 'string' &&
+    (msg.startsWith('WARNING: Finished reading ') ||
+     msg.includes('not at the end of the packet') ||
+     msg.startsWith('WARNING: Bytes written does not match') ||
+     msg.startsWith('WARNING: BUFFER UNDERFLOW') ||
+     msg.includes('ChatSessionRequest') ||
+     msg.includes('Response code 500 (Internal Server Error)'))
   ) {
     return;
   }

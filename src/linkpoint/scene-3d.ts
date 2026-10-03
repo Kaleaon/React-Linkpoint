@@ -154,8 +154,13 @@ export class Scene3D extends Utils.EventEmitter {
     return parts.map((part, index) => {
       const name = `asset:${assetId}:${index}`;
       const skin = Array.isArray(part.joints) && Array.isArray(part.jointWeights) ? { joints: part.joints, weights: part.jointWeights } : undefined;
-      this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords, undefined, skin);
-      return { mesh: name, materialIndex: Number(part.materialIndex ?? index) };
+      try {
+        this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords, undefined, skin);
+        return { mesh: name, materialIndex: Number(part.materialIndex ?? index) };
+      } catch (err) {
+        console.warn(`[Scene3D] Failed to register mesh ${name}, falling back to asset proxy:`, err);
+        return { mesh: 'asset-proxy', materialIndex: Number(part.materialIndex ?? index) };
+      }
     });
   }
 

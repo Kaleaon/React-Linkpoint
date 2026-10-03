@@ -112,5 +112,21 @@ describe('Camera3D viewer controls', () => {
         expect(heading()).toBeLessThan(before);
       }
     });
+
+    it('resets camera view to target and default orbit rear preset', () => {
+      const camera = new Camera3D();
+      camera.setMode('first-person');
+      camera.setRotation(0.5, 1.2);
+      camera.orbitDistance = 25;
+      camera.fov = 90;
+
+      camera.reset([50, 60, 20]);
+      expect(camera.mode).toBe('orbit');
+      expect(camera.preset).toBe('rear');
+      expect(camera.orbitTarget).toEqual([50, 60, 20]);
+      expect(camera.orbitDistance).toBe(7.5);
+      expect(camera.fov).toBe(60);
+      expect(camera.rotation).toEqual([-0.28, Math.PI, 0]);
+    });
   });
 });

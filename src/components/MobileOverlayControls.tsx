@@ -14,7 +14,14 @@ export interface MobileOverlayControlsProps {
   onOpenSettings?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  onResetView?: () => void;
   onRefreshScene?: () => void;
+  onToggleOverlays?: () => void;
+  showDpad?: boolean;
+  onToggleDpad?: () => void;
+  panMode?: boolean;
+  onTogglePan?: () => void;
+  chatOpen?: boolean;
   enhanced?: boolean;
   className?: string;
   style?: React.CSSProperties;
@@ -38,7 +45,14 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
   onOpenSettings,
   onZoomIn,
   onZoomOut,
+  onResetView,
   onRefreshScene,
+  onToggleOverlays,
+  showDpad = true,
+  onToggleDpad,
+  panMode = false,
+  onTogglePan,
+  chatOpen = false,
   enhanced = false,
   className = "",
   style,
@@ -115,17 +129,65 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           ))}
         </div>
 
-        {onRefreshScene && (
-          <TouchTarget
-            minSize={24}
-            enhanced={enhanced}
-            aria-label="Sync 3D Scene"
-            onClick={onRefreshScene}
-            style={buttonStyle}
-          >
-            <Icon name="rotate-cw" size={14} />
-          </TouchTarget>
-        )}
+        <div style={{ ...containerStyle, flexWrap: "wrap" }}>
+          {onRefreshScene && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label="Sync 3D Scene"
+              title="Sync Scene"
+              onClick={onRefreshScene}
+              style={buttonStyle}
+            >
+              <Icon name="rotate-cw" size={14} />
+            </TouchTarget>
+          )}
+
+          {onResetView && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label="Reset Camera View"
+              title="Reset Camera View (Home key)"
+              onClick={onResetView}
+              style={buttonStyle}
+            >
+              <Icon name="home" size={14} />
+            </TouchTarget>
+          )}
+
+          {onToggleDpad && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label={showDpad ? "Hide movement controls" : "Show movement controls"}
+              title={showDpad ? "Hide D-pad controls" : "Show D-pad controls"}
+              aria-pressed={showDpad}
+              onClick={onToggleDpad}
+              style={showDpad ? activeButtonStyle : buttonStyle}
+            >
+              <span style={{ fontSize: "10px", padding: "0 4px" }}>
+                {showDpad ? "DPAD ON" : "DPAD OFF"}
+              </span>
+            </TouchTarget>
+          )}
+
+          {onToggleOverlays && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label="Hide 3D overlays"
+              title="Hide all overlays (H)"
+              onClick={onToggleOverlays}
+              style={{ ...buttonStyle, padding: "0 6px" }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px" }}>
+                <Icon name="eye-off" size={13} />
+                <span>HIDE UI</span>
+              </span>
+            </TouchTarget>
+          )}
+        </div>
       </div>
 
       {/* Middle Area: Side Action Rail */}
@@ -152,9 +214,10 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             <TouchTarget
               minSize={24}
               enhanced={enhanced}
-              aria-label="Open Chat"
+              aria-label={chatOpen ? "Close Chat Overlay" : "Open Chat"}
+              aria-pressed={chatOpen}
               onClick={onOpenChat}
-              style={buttonStyle}
+              style={chatOpen ? activeButtonStyle : buttonStyle}
             >
               <Icon name="message-square" size={16} />
             </TouchTarget>
@@ -214,6 +277,31 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
               <Icon name="zoom-out" size={16} />
             </TouchTarget>
           )}
+          {onTogglePan && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label={panMode ? "Switch to Orbit Mode" : "Switch to Pan Mode"}
+              title={panMode ? "Pan Mode Active (Tap to Orbit)" : "Orbit Mode Active (Tap to Pan)"}
+              aria-pressed={panMode}
+              onClick={onTogglePan}
+              style={panMode ? activeButtonStyle : buttonStyle}
+            >
+              <Icon name="move" size={16} />
+            </TouchTarget>
+          )}
+          {onResetView && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label="Reset Camera View"
+              title="Reset View (Home key)"
+              onClick={onResetView}
+              style={buttonStyle}
+            >
+              <Icon name="home" size={16} />
+            </TouchTarget>
+          )}
           {onOpenRadar && (
             <TouchTarget
               minSize={24}
@@ -246,8 +334,9 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           ...containerStyle,
           justifyContent: "space-between",
           alignItems: "flex-end",
-          pointerEvents: "auto",
+          pointerEvents: showDpad ? "auto" : "none",
           width: "100%",
+          visibility: showDpad ? "visible" : "hidden",
         }}
       >
         {/* D-Pad Movement Flexbox Container */}
