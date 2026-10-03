@@ -10,6 +10,8 @@ export interface MobileOverlayControlsProps {
   onOpenChat?: () => void;
   onOpenMenu?: () => void;
   onOpenInventory?: () => void;
+  onOpenOutfits?: () => void;
+  outfitsOpen?: boolean;
   onOpenRadar?: () => void;
   onOpenSettings?: () => void;
   voiceState?: string;
@@ -45,6 +47,8 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
   onOpenChat,
   onOpenMenu,
   onOpenInventory,
+  onOpenOutfits,
+  outfitsOpen = false,
   onOpenRadar,
   onOpenSettings,
   voiceState,
@@ -125,7 +129,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           ].map((preset) => (
             <TouchTarget
               key={preset.id}
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label={`Camera view ${preset.label}`}
               aria-pressed={cameraPreset === preset.id}
@@ -140,7 +144,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
         <div style={{ ...containerStyle, flexWrap: "wrap" }}>
           {onRefreshScene && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Sync 3D Scene"
               title="Sync Scene"
@@ -153,7 +157,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
 
           {onResetView && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Reset Camera View"
               title="Reset Camera View (Home key)"
@@ -166,7 +170,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
 
           {onToggleDpad && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label={showDpad ? "Hide movement controls" : "Show movement controls"}
               title={showDpad ? "Hide D-pad controls" : "Show D-pad controls"}
@@ -182,7 +186,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
 
           {onToggleOverlays && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Hide 3D overlays"
               title="Hide all overlays (H)"
@@ -220,7 +224,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
         >
           {(onToggleMic || onJoinVoice) && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label={voiceState === "connected" ? (voiceMuted ? "Unmute Microphone" : "Mute Microphone") : "Join Voice"}
               title={voiceState === "connected" ? (voiceMuted ? "Unmute Microphone" : "Mute Microphone") : "Join Voice"}
@@ -233,7 +237,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onOpenChat && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label={chatOpen ? "Close Chat Overlay" : "Open Chat"}
               aria-pressed={chatOpen}
@@ -245,7 +249,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onOpenMenu && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Open Menu"
               onClick={onOpenMenu}
@@ -256,13 +260,25 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onOpenInventory && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Open Inventory"
               onClick={onOpenInventory}
               style={buttonStyle}
             >
               <Icon name="folder" size={16} />
+            </TouchTarget>
+          )}
+          {onOpenOutfits && (
+            <TouchTarget
+              minSize={44}
+              enhanced={enhanced}
+              aria-label={outfitsOpen ? "Close Outfits Drawer" : "Open Outfits Drawer"}
+              aria-pressed={outfitsOpen}
+              onClick={onOpenOutfits}
+              style={outfitsOpen ? activeButtonStyle : buttonStyle}
+            >
+              <Icon name="shirt" size={16} />
             </TouchTarget>
           )}
         </div>
@@ -278,7 +294,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
         >
           {onZoomIn && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Zoom In"
               onClick={onZoomIn}
@@ -289,7 +305,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onZoomOut && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Zoom Out"
               onClick={onZoomOut}
@@ -300,7 +316,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onTogglePan && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label={panMode ? "Switch to Orbit Mode" : "Switch to Pan Mode"}
               title={panMode ? "Pan Mode Active (Tap to Orbit)" : "Orbit Mode Active (Tap to Pan)"}
@@ -313,7 +329,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onResetView && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Reset Camera View"
               title="Reset View (Home key)"
@@ -325,7 +341,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onOpenRadar && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Open Radar"
               onClick={onOpenRadar}
@@ -336,7 +352,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           )}
           {onOpenSettings && (
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Open Settings"
               onClick={onOpenSettings}
@@ -370,7 +386,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
         >
           <div style={containerStyle}>
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Move forward"
               onClick={() => onMove?.(1, 0)}
@@ -381,7 +397,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           </div>
           <div style={containerStyle}>
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Move left"
               onClick={() => onMove?.(0, -1)}
@@ -390,7 +406,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
               <Icon name="arrow-left" size={16} />
             </TouchTarget>
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Move backward"
               onClick={() => onMove?.(-1, 0)}
@@ -399,7 +415,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
               <Icon name="arrow-down" size={16} />
             </TouchTarget>
             <TouchTarget
-              minSize={24}
+              minSize={44}
               enhanced={enhanced}
               aria-label="Move right"
               onClick={() => onMove?.(0, 1)}
@@ -419,7 +435,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           }}
         >
           <TouchTarget
-            minSize={24}
+            minSize={44}
             enhanced={enhanced}
             aria-label="Move up"
             onClick={() => onMove?.(0, 0, 1)}
@@ -428,7 +444,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             <span style={{ fontSize: "10px" }}>UP</span>
           </TouchTarget>
           <TouchTarget
-            minSize={24}
+            minSize={44}
             enhanced={enhanced}
             aria-label="Move down"
             onClick={() => onMove?.(0, 0, -1)}
