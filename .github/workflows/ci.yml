@@ -1,0 +1,153 @@
+name: CI
+
+# One workflow for everything that checks a change: the web/TypeScript suite (always), the Expo Android debug APK and
+# the native Kotlin app (only when their files changed), and the optional Jules review on pull requests.
+on:
+  push:
+    branches: [main, master, development]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      expo: ${{ steps.filter.outputs.expo }}
+      kotlin: ${{ steps.filter.outputs.kotlin }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 0
+      - name: Filter by path
+        id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          expo=true
+          kotlin=true
+          # Build everything on manual runs, new branches and anything we cannot diff.
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            files="$(git diff --name-only "$BASE" HEAD)"
+            expo=false
+            kotlin=false
+            if grep -qE '^(src/|public/|android/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
+            if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
+          fi
+          echo "expo=$expo" >> "$GITHUB_OUTPUT"
+          echo "kotlin=$kotlin" >> "$GITHUB_OUTPUT"
+
+  web:
+    name: Type check, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.x
+      - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: TypeScript type check
+        run: npm run lint
+      - name: Check for fabricated data
+        run: npm run check:fake-data
+      - name: Unit tests (Vitest)
+        run: npm run test
+      - name: Production build
+        run: npm run build
+
+  expo-apk:
+    name: Expo debug APK
+    needs: changes
+    if: ${{ needs.changes.outputs.expo == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.x
+      - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Assemble debug APK
+        run: npm run android:build -- --no-daemon
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: linkpoint-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  kotlin:
+    name: Native Kotlin app
+    needs: changes
+    if: ${{ needs.changes.outputs.kotlin == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android-kotlin
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Unit and end-to-end tests (core)
+        run: ./gradlew :core:test --no-daemon
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: kotlin-core-test-reports
+          path: android-kotlin/core/build/reports/tests/test
+          retention-days: 7
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: linkpoint-kotlin-debug-apk
+          path: android-kotlin/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  jules-review:
+    name: Jules PR review
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      checks: write
+    env:
+      JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+    steps:
+      # Secrets are not exposed to PRs from forks, and the key may not be set;
+      # skip the review rather than failing the check in those cases.
+      - name: Jules review
+        if: ${{ env.JULES_API_KEY != '' }}
+        uses: thalesraymond/jules-pr-reviewer@47388f11f27513e89e74a068ad51aa7a0d7ea306 # v1.0.0
+        with:
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
