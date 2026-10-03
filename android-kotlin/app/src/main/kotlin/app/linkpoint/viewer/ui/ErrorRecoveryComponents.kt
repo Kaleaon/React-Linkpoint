@@ -47,7 +47,7 @@ fun ErrorRecoveryBanner(host: ViewerHost) {
                         .size(8.dp)
                         .background(
                             color = if (!isOnline) Color(0xFFEF4444) else Color(0xFFF97316),
-                            shape = RoundedCornerShape(50%)
+                            shape = RoundedCornerShape(50)
                         )
                 )
                 Text(

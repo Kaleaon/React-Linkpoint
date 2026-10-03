@@ -107,7 +107,7 @@ object ObjectDecoder {
             val avatar = c.u8() != 0
             if (avatar) c.skip(16)
             val pos = Vec3(c.f32(), c.f32(), c.f32())
-            c.skip(12) // velocity and acceleration, 3 x u16 each
+            c.skip(6) // velocity: 3 x u16 compressed
             val rot = Quat(c.u16f(-1f, 1f), c.u16f(-1f, 1f), c.u16f(-1f, 1f), c.u16f(-1f, 1f))
             val tex = if (te.size > 4) TextureEntry.parse(te, 4, te.size - 4) else null
             out += ObjectChange.Motion(localId, pos, rot, avatar, tex)

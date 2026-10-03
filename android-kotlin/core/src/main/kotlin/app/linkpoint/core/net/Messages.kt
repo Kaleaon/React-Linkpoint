@@ -39,6 +39,7 @@ sealed class Incoming {
     data class TeleportProgress(val flags: Long, val message: String) : Incoming()
     data class TeleportFailed(val reason: String) : Incoming()
     data class TeleportLocal(val position: FloatArray, val lookAt: FloatArray, val flags: Long) : Incoming()
+    data class CrossedRegion(val ip: String, val port: Int, val regionHandle: Long, val seedCap: String, val position: FloatArray, val lookAt: FloatArray) : Incoming()
     /** A one-shot sound played at a place (llTriggerSound, collision sounds, UI sounds from the simulator). */
     data class SoundTrigger(val soundId: UUID, val ownerId: UUID, val objectId: UUID, val parentId: UUID, val regionHandle: Long, val position: FloatArray, val gain: Float) : Incoming()
     /** A sound attached to an object (llPlaySound / llLoopSound); [flags] are the [app.linkpoint.core.scene.SoundFlags] bits. */
@@ -245,6 +246,12 @@ object Messages {
             Msg.TeleportProgress -> { r.uuid(); Incoming.TeleportProgress(r.u32(), r.str1()) }
             Msg.TeleportFailed -> { r.uuid(); Incoming.TeleportFailed(r.str1()) }
             Msg.TeleportLocal -> { r.uuid(); r.u32(); Incoming.TeleportLocal(r.vec3(), r.vec3(), r.u32()) }
+            Msg.CrossedRegion -> {
+                r.uuid(); r.uuid()
+                val ip = r.ipv4(); val port = r.port(); val handle = r.u64(); val seed = r.str2()
+                val pos = r.vec3(); val lookAt = r.vec3()
+                Incoming.CrossedRegion(ip, port, handle, seed, pos, lookAt)
+            }
             Msg.SoundTrigger -> Incoming.SoundTrigger(r.uuid(), r.uuid(), r.uuid(), r.uuid(), r.u64(), r.vec3(), r.f32())
             Msg.AttachedSound -> Incoming.AttachedSound(r.uuid(), r.uuid(), r.uuid(), r.f32(), r.u8())
             Msg.AttachedSoundGainChange -> Incoming.AttachedSoundGainChange(r.uuid(), r.f32())

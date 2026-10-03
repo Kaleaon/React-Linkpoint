@@ -152,6 +152,7 @@ class ViewerSession(
         @Volatile var heard = false
     }
     private val children = java.util.concurrent.ConcurrentHashMap<String, Child>()
+    private val pendingChildren = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     @Volatile private var arrivedAt = 0L
 
@@ -166,6 +167,7 @@ class ViewerSession(
     /** After a re-request: true until OpenSim announces the new attempt (TeleportStart); a failure before that is the old one. */
     @Volatile private var awaitingRetryStart = false
     private fun sendTeleportRequest(msg: Outgoing) {
+        setMovement(0, 0, 0, fly = false)
         lastTeleportRequest = msg; teleportRetriesLeft = 1
         teleportAskedAt = clock()
         circuit?.send(msg)
@@ -175,10 +177,15 @@ class ViewerSession(
     @Volatile private var teleportAskedAt = 0L
     private val teleportInFlight get() = teleportAskedAt != 0L && clock() - teleportAskedAt < 60_000
 
-    private fun enableChild(ip: String, port: Int) {
+    private fun enableChild(ip: String, port: Int, circuitCode: Int = login!!.circuitCode) {
+        if (_state.value == ConnectionState.DISCONNECTED) return
         // Opening a child circuit while a teleport is under way makes OpenSim race our UseCircuitCode against the
         // teleport's agent update (it throws and the teleport fails); we will be told about the neighbours again on arrival.
-        if (teleportInFlight) return
+        if (teleportInFlight) {
+            pendingChildren["$ip:$port"] = circuitCode
+            return
+        }
+        pendingChildren.remove("$ip:$port")
         val key = "$ip:$port"
         val root = circuit?.remote
         if (children.containsKey(key) || (root != null && root.address.hostAddress == ip && root.port == port)) return
@@ -191,12 +198,24 @@ class ViewerSession(
                 if (rx.id == Msg.RegionHandshake) {
                     child.handshake = rx
                     c.send(Messages.regionHandshakeReply(agentId, sessionId))
+                    c.send(Messages.agentThrottle(agentId, sessionId, circuitCode))
                 }
             }
         }
         child = Child(c, job, clock(), null)
         children[key] = child
-        c.send(Messages.useCircuitCode(login!!.circuitCode, sessionId, agentId))
+        c.send(Messages.useCircuitCode(circuitCode, sessionId, agentId))
+    }
+
+    private fun processPendingChildren() {
+        if (teleportInFlight) return
+        val pending = pendingChildren.toMap()
+        for ((key, code) in pending) {
+            val ip = key.substringBeforeLast(":")
+            val portStr = key.substringAfterLast(":")
+            val port = portStr.toIntOrNull() ?: continue
+            enableChild(ip, port, code)
+        }
     }
 
     /**
@@ -206,22 +225,32 @@ class ViewerSession(
      * a second of arriving next to the target. Bounded so a silent neighbour cannot stall a teleport.
      */
     private suspend fun settleChildren(maxWaitMs: Long = 3_000) {
+        val startWait = clock()
+        while (teleportInFlight && clock() - startWait < 30_000) delay(50)
         // Right after arriving, the new region's event queue has usually not announced its neighbours yet; if we sent the
         // request now they would be announced (and connected) in the middle of the teleport. Let that happen first.
         val grace = arrivedAt + ARRIVAL_GRACE_MS - clock()
         if (arrivedAt != 0L && grace > 0) delay(grace)
         val end = clock() + maxWaitMs
         while (clock() < end && children.values.any { !it.heard && clock() - it.openedAt < maxWaitMs }) delay(50)
-        if (children.isNotEmpty()) delay(150) // the neighbour answered; let its presence finish setting up
+        if (children.isNotEmpty()) delay(500) // the neighbour answered; let its presence finish setting up
     }
 
     private fun closeChildren() {
+        pendingChildren.clear()
         for (k in children.keys.toList()) children.remove(k)?.let { it.job.cancel(); it.circuit.close() }
     }
 
     /** Open a circuit to a simulator and complete the handshake. Used at login, teleport and region crossing. */
-    private suspend fun enterSimulator(ip: String, port: Int, seedCapability: String, timeoutMs: Long = handshakeTimeoutMs) = switchLock.withLock {
-        val code = login!!.circuitCode
+    private suspend fun enterSimulator(
+        ip: String,
+        port: Int,
+        seedCapability: String,
+        timeoutMs: Long = handshakeTimeoutMs,
+        initialPosition: FloatArray? = null,
+        circuitCode: Int = login!!.circuitCode,
+    ) = switchLock.withLock {
+        val code = circuitCode
         val previous = circuit
         val previousJobs = circuitJobs
         // Stop listening to the old simulator and forget its region *before* the new circuit starts: the new
@@ -229,6 +258,10 @@ class ViewerSession(
         previousJobs.forEach { it.cancel() }
         scene.clear(); heightmap.clear(); _nearby.value = emptyList()
         _parcel.value = null; _parcelMedia.value = null; _mediaPlayback.value = MediaPlayback() // the old parcel's stream must not follow us
+
+        if (initialPosition != null) {
+            _region.update { it?.copy(position = initialPosition) }
+        }
 
         // A neighbour we already hold a circuit to is promoted: it has seen UseCircuitCode, so only the movement completes.
         val promoted = children.remove("$ip:$port")
@@ -246,6 +279,7 @@ class ViewerSession(
         promoted?.handshake?.let { onMessage(it) }
         if (promoted == null) fresh.send(Messages.useCircuitCode(code, sessionId, agentId))
         fresh.send(Messages.completeAgentMovement(agentId, sessionId, code))
+        sendAgentUpdate()
         try {
             withTimeout(timeoutMs) { done.await() }
         } catch (e: TimeoutCancellationException) {
@@ -260,6 +294,7 @@ class ViewerSession(
         arrivedAt = clock()
         // The grid announces the new neighbours (including the region we just left) once we are in.
         closeChildren()
+        processPendingChildren()
         startCaps(seedCapability)
     }
 
@@ -292,15 +327,20 @@ class ViewerSession(
     private suspend fun onEvent(e: SimEvent) {
         when (e.message) {
             "TeleportFinish" -> {
-                val info = (e.body["Info"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return
-                val ip = (info["SimIP"] as? ByteArray)?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: return
+                val info = (e.body["Info"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: (e.body["Info"] as? Map<*, *>) ?: return
+                val ip = when (val raw = info["SimIP"]) {
+                    is ByteArray -> raw.joinToString(".") { (it.toInt() and 0xFF).toString() }
+                    is String -> raw
+                    else -> return
+                }
                 val port = (info["SimPort"] as? Number)?.toInt() ?: return
                 val seed = info["SeedCapability"]?.toString() ?: ""
+                val code = (info["CircuitCode"] as? Number)?.toInt() ?: login!!.circuitCode
                 _notices.tryEmit(ViewerNotice.Teleport("Arriving at the new region…"))
                 val retry = lastTeleportRequest?.takeIf { teleportRetriesLeft > 0 }
                 try {
                     // With a retry available, do not wait the full handshake budget on a connection that is not going to work.
-                    enterSimulator(ip, port, seed, if (retry != null) minOf(handshakeTimeoutMs, TELEPORT_ARRIVAL_TIMEOUT_MS) else handshakeTimeoutMs)
+                    enterSimulator(ip, port, seed, if (retry != null) minOf(handshakeTimeoutMs, TELEPORT_ARRIVAL_TIMEOUT_MS) else handshakeTimeoutMs, circuitCode = code)
                     lastTeleportRequest = null
                 } catch (ex: Exception) {
                     if (retry != null && teleportRetriesLeft > 0) {
@@ -342,14 +382,27 @@ class ViewerSession(
                     val m = info.asLlsdMap() ?: continue
                     val ip = (m["IP"] as? ByteArray)?.takeIf { it.size == 4 }?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: continue
                     val port = (m["Port"] as? Number)?.toInt() ?: continue
-                    if (_state.value != ConnectionState.DISCONNECTED) enableChild(ip, port)
+                    val code = (m["CircuitCode"] as? Number)?.toInt() ?: login!!.circuitCode
+                    if (_state.value != ConnectionState.DISCONNECTED) enableChild(ip, port, code)
                 }
             }
             "CrossedRegion" -> {
-                val rd = (e.body["RegionData"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: return
-                val ip = (rd["SimIP"] as? ByteArray)?.joinToString(".") { (it.toInt() and 0xFF).toString() } ?: return
+                val rd = (e.body["RegionData"] as? List<*>)?.firstOrNull() as? Map<*, *> ?: (e.body["RegionData"] as? Map<*, *>) ?: return
+                val ip = when (val raw = rd["SimIP"]) {
+                    is ByteArray -> raw.joinToString(".") { (it.toInt() and 0xFF).toString() }
+                    is String -> raw
+                    else -> return
+                }
                 val port = (rd["SimPort"] as? Number)?.toInt() ?: return
-                try { enterSimulator(ip, port, rd["SeedCapability"]?.toString() ?: "") } catch (ex: Exception) {
+                val posList = rd["Position"] as? List<*>
+                val pos = if (posList != null && posList.size >= 3) {
+                    floatArrayOf(
+                        (posList[0] as? Number)?.toFloat() ?: 128f,
+                        (posList[1] as? Number)?.toFloat() ?: 128f,
+                        (posList[2] as? Number)?.toFloat() ?: 30f
+                    )
+                } else null
+                try { enterSimulator(ip, port, rd["SeedCapability"]?.toString() ?: "", initialPosition = pos) } catch (ex: Exception) {
                     _notices.tryEmit(ViewerNotice.Error("Crossing into the next region failed: ${ex.message}"))
                 }
             }
@@ -433,7 +486,16 @@ class ViewerSession(
                 // Same region, new spot: our position (which is also the camera we report) must follow.
                 teleportAskedAt = 0; lastTeleportRequest = null
                 _region.update { it?.copy(position = m.position) }
+                sendAgentUpdate()
                 _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
+                processPendingChildren()
+            }
+            is Incoming.CrossedRegion -> {
+                scope.launch {
+                    try { enterSimulator(m.ip, m.port, m.seedCap, initialPosition = m.position) } catch (ex: Exception) {
+                        _notices.tryEmit(ViewerNotice.Error("Crossing into the next region failed: ${ex.message}"))
+                    }
+                }
             }
             is Incoming.MapBlocks -> mapReply?.complete(m.blocks)
             is Incoming.KickUser -> {
@@ -643,12 +705,13 @@ class ViewerSession(
      * Walk the avatar. [forward] and [strafe] are -1, 0 or 1 (strafe positive = left), [up] is 1 to
      * rise or -1 to descend when flying, and [yaw] is the heading in radians (0 faces +X, east).
      */
-    fun setMovement(forward: Int, strafe: Int, up: Int = 0, yaw: Float = bodyYaw, fly: Boolean = false) {
+    fun setMovement(forward: Int, strafe: Int, up: Int = 0, yaw: Float = bodyYaw, fly: Boolean = false, fast: Boolean = true) {
         var f = 0L
         if (forward > 0) f = f or AgentControl.AT_POS else if (forward < 0) f = f or AgentControl.AT_NEG
         if (strafe > 0) f = f or AgentControl.LEFT_POS else if (strafe < 0) f = f or AgentControl.LEFT_NEG
         if (up > 0) f = f or AgentControl.UP_POS else if (up < 0) f = f or AgentControl.UP_NEG
         if (fly) f = f or AgentControl.FLY
+        if (fast && forward != 0) f = f or AgentControl.FAST_AT or AgentControl.ALWAYS_RUN
         controlFlags = f
         bodyYaw = yaw
         if (_state.value == ConnectionState.CONNECTED) sendAgentUpdate()
@@ -657,7 +720,8 @@ class ViewerSession(
     /** Keep the camera at our avatar so the simulator streams the objects around us. */
     private fun sendAgentUpdate() {
         val p = _region.value?.position
-        circuit?.send(Messages.agentUpdate(agentId, sessionId, p?.get(0) ?: 128f, p?.get(1) ?: 128f, p?.get(2) ?: 30f, controlFlags = controlFlags, bodyYaw = bodyYaw))
+        val x = p?.get(0) ?: 128f; val y = p?.get(1) ?: 128f; val z = p?.get(2) ?: 30f
+        circuit?.send(Messages.agentUpdate(agentId, sessionId, x, y, z, controlFlags = controlFlags, bodyYaw = bodyYaw))
     }
 
     /** The simulator tells us where our avatar is through ordinary object updates; follow it (not while seated on something). */

@@ -20,7 +20,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CACHE = os.path.expanduser("~/.cache/linkpoint-opensim")
 WORK = os.environ.get("OPENSIM_WORK", "/tmp/linkpoint-opensim")
 VERSION = "0.9.3.0"
-DIST = f"http://opensimulator.org/dist/opensim-{VERSION}.zip"
+DIST = os.environ.get("OPENSIM_DIST_URL", "https://github.com/opensim/opensim/releases/download/r04ca1d9/LastDotNetBuild.zip")
 BIG_OAR = "https://www.outworldz.com/cgi/sculpt-save.plx?File=/Sculpts/cgi/files/OAR-Furniture_Vault(1X1).tgz"
 LOGIN_PORT, UDP_PORT, REGION = 9002, 9100, "Test Isle"
 NEIGHBOUR, NEIGHBOUR_UDP = "Neighbour Isle", 9101  # east of REGION: real teleport and border-crossing tests
@@ -45,10 +45,15 @@ def download(url, dest):
 
 class OpenSim:
     def __init__(self):
-        self.bin = os.path.join(WORK, "opensim", "bin"); self.logfile = os.path.join(WORK, "opensim.log"); self.proc = None; self.pos = 0
+        self.bin = os.path.join(WORK, "opensim", "bin")
+        self.logfile = os.path.join(WORK, "opensim.log")
+        self.proc = None
+        self.pos = 0
 
     def configure(self):
         with zipfile.ZipFile(download(DIST, os.path.join(CACHE, f"opensim-{VERSION}.zip"))) as z: z.extractall(WORK)
+        if not os.path.exists(self.bin) and os.path.exists(os.path.join(WORK, "bin")):
+            self.bin = os.path.join(WORK, "bin")
         b = self.bin
         shutil.copy(f"{b}/OpenSim.ini.example", f"{b}/OpenSim.ini")
         shutil.copy(f"{b}/config-include/StandaloneCommon.ini.example", f"{b}/config-include/StandaloneCommon.ini")
@@ -143,7 +148,7 @@ def main():
     ap.add_argument("--meshes", default="1200"); ap.add_argument("--textures", default="400"); ap.add_argument("--sculpts", default="100")
     a = ap.parse_args()
     need("dotnet", ".NET 8 runtime, e.g. apt-get install -y dotnet-sdk-8.0"); need("java", "JDK 17+")
-    if subprocess.run("ldconfig -p | grep -q gdiplus", shell=True).returncode != 0:
+    if subprocess.run("PATH=$PATH:/usr/sbin ldconfig -p | grep -q gdiplus", shell=True).returncode != 0:
         sys.exit("missing libgdiplus (apt-get install -y libgdiplus); OpenSim cannot start without it")
     shutil.rmtree(WORK, ignore_errors=True); os.makedirs(WORK)
     gen = os.path.join(WORK, "linkpoint-test.oar")
