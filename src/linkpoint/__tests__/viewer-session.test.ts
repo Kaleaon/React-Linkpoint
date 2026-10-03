@@ -241,49 +241,35 @@ describe('desktop session script dialogs and lures', () => {
   });
 });
 
-describe('desktop session render asset downloads', () => {
+describe('desktop session texture downloads', () => {
   const { AssetType } = require('@caspertech/node-metaverse');
   const { ViewerSession } = require('../../../core/viewer-session.cjs');
 
-  it('uses the official ViewerAsset path for textures without applying inventory permission bits', async () => {
+  it('uses the Second Life GetTexture capability instead of ViewerAsset', async () => {
     const session = new ViewerSession(() => undefined);
-    const requestGet = vi.fn();
-    const downloadAsset = vi.fn().mockResolvedValue(Buffer.from('texture'));
+    const requestGet = vi.fn().mockResolvedValue({ body: Buffer.from('texture') });
+    const downloadAsset = vi.fn();
     session.bot = {
       currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue('https://asset.example/get?token=one'), requestGet } },
       clientCommands: { asset: { downloadAsset } },
     };
 
     await expect(session.downloadTexture('texture id')).resolves.toEqual(Buffer.from('texture'));
-    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture id');
-    expect(requestGet).not.toHaveBeenCalled();
+    expect(requestGet).toHaveBeenCalledWith('https://asset.example/get?token=one&texture_id=texture%20id');
+    expect(downloadAsset).not.toHaveBeenCalled();
   });
 
-  it('falls back to the legacy GetTexture capability for OpenSim', async () => {
+  it('falls back to the generic asset service when GetTexture is unavailable', async () => {
     const session = new ViewerSession(() => undefined);
-    const requestGet = vi.fn().mockResolvedValue({ body: Buffer.from('legacy texture') });
-    const downloadAsset = vi.fn().mockRejectedValue(new Error('ViewerAsset unavailable'));
+    const downloaded = Buffer.from('fallback');
+    const downloadAsset = vi.fn().mockResolvedValue(downloaded);
     session.bot = {
-      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue('https://asset.example/get?token=one'), requestGet } },
+      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue(undefined), requestGet: vi.fn() } },
       clientCommands: { asset: { downloadAsset } },
     };
 
-    await expect(session.downloadTexture('texture id')).resolves.toEqual(Buffer.from('legacy texture'));
-    expect(requestGet).toHaveBeenCalledWith('https://asset.example/get?token=one&texture_id=texture%20id', { responseType: 'buffer' });
-  });
-
-  it('uses ViewerAsset for meshes and only tries legacy mesh capabilities after it fails', async () => {
-    const session = new ViewerSession(() => undefined);
-    const downloadAsset = vi.fn().mockResolvedValue(Buffer.from('mesh'));
-    const getCapability = vi.fn();
-    session.bot = {
-      currentRegion: { caps: { getCapability, requestGet: vi.fn() } },
-      clientCommands: { asset: { downloadAsset } },
-    };
-
-    await expect(session.downloadMesh('mesh-id')).resolves.toEqual(Buffer.from('mesh'));
-    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Mesh, 'mesh-id');
-    expect(getCapability).not.toHaveBeenCalled();
+    await expect(session.downloadTexture('texture-id')).resolves.toBe(downloaded);
+    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture-id');
   });
 
   it('allows transiently failed assets to retry instead of leaving their proxy forever', async () => {

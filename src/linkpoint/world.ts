@@ -1152,7 +1152,7 @@ export class WorldViewer extends Utils.EventEmitter {
         position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1],
         // A baked texture replaces the flat fallback colour; hair blends, skin and eyes are cut out.
         color: texture ? [1, 1, 1, 1] : color,
-        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5, doubleSided: true } }] : [],
+        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5 } }] : [],
         skin: rows.get(instance), visible: true,
       };
       if (this.scene3d.objects.has(partId)) this.scene3d.updateObject(partId, part3d);

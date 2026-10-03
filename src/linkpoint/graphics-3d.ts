@@ -304,15 +304,6 @@ export class Graphics3D extends Utils.EventEmitter {
    */
   createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[], skin?: { joints: number[]; weights: number[] }) {
     const gl = this.gl!;
-    if (vertices.length % 3 !== 0 || vertices.some((value) => !Number.isFinite(value))) {
-      throw new Error(`Mesh ${name} contains invalid vertex data`);
-    }
-    const vertexCount = vertices.length / 3;
-    const validAttribute = (values: number[] | undefined, width: number) => !values ||
-      (values.length === vertexCount * width && values.every((value) => Number.isFinite(value)));
-    if (!validAttribute(normals, 3) || !validAttribute(texCoords, 2) || !validAttribute(tangents, 3)) {
-      throw new Error(`Mesh ${name} contains malformed vertex attributes`);
-    }
     const previous = this.meshes.get(name);
     if (previous) this.deleteMesh(previous);
     let maxIndex = 0;
@@ -344,7 +335,7 @@ export class Graphics3D extends Utils.EventEmitter {
       buffers: {},
       indexCount: indices.length,
       indexType,
-      vertexCount,
+      vertexCount: vertices.length / 3,
       bounds
     };
 
@@ -381,8 +372,7 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Skin influences: four joint indices and weights per vertex
-    if (skin && skin.joints.length === vertexCount * 4 && skin.weights.length === skin.joints.length &&
-        skin.joints.every(Number.isFinite) && skin.weights.every((weight) => Number.isFinite(weight) && weight >= 0)) {
+    if (skin && skin.joints.length === (vertices.length / 3) * 4 && skin.weights.length === skin.joints.length) {
       mesh.buffers.joints = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.joints);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(clampJointIndices(skin.joints, Math.max(this.maxJoints, 1))), gl.STATIC_DRAW);
