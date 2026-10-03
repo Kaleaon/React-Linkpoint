@@ -90,6 +90,26 @@ describe('rigged mesh in the world', () => {
     protocol.emit('scene:asset-ready', { assetId: 'mesh-3', geometry: geometry(1) });
     expect(scene.objects.get('rig').skin[11]).toBeCloseTo(before + 1, 3);
   });
+
+  it('shares attachment joint translations across every mesh worn by the avatar', () => {
+    const { protocol, scene } = setup();
+    const part = [{ vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }];
+    protocol.emit('scene:object-add', { id: 'shirt', localId: 2, parentId: 1, assetId: 'shirt-mesh' });
+    protocol.emit('scene:object-add', { id: 'body', localId: 3, parentId: 1, assetId: 'body-mesh' });
+    protocol.emit('scene:asset-ready', { assetId: 'body-mesh', geometry: { parts: part, skin: { jointNames: ['mHead'], bindShapeMatrix: identity, inverseBindMatrices: [identity] } } });
+    const before = scene.objects.get('body').skin[11];
+    protocol.emit('scene:asset-ready', {
+      assetId: 'shirt-mesh',
+      geometry: { parts: part, skin: {
+        jointNames: ['mHead'], bindShapeMatrix: identity, inverseBindMatrices: [identity],
+        alternateInverseBindMatrices: [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0.75, 1]],
+        pelvisOffset: 0.2,
+      } },
+    });
+    // Decoding the shirt rebuilds the avatar-wide skeleton and updates the already rendered body mesh.
+    expect(scene.objects.get('body').skin[11]).toBeGreaterThan(before + 0.2);
+    expect(scene.objects.get('shirt').skin[11]).toBeCloseTo(scene.objects.get('body').skin[11], 4);
+  });
 });
 
 describe('animated rigged mesh in the world', () => {

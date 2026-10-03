@@ -148,10 +148,10 @@ export interface MeshSkin {
   lockScaleIfJointPosition?: boolean;
 }
 
-/** Overrides apply only when every joint has an alternate bind matrix (the viewer ignores mismatched counts). */
+/** A skin has usable joint overrides when it contains at least one alternate bind matrix. */
 export function hasJointOverrides(skin: MeshSkin): boolean {
   const alternates = skin.alternateInverseBindMatrices || [];
-  return alternates.length > 0 && alternates.length === skin.jointNames.length;
+  return alternates.length > 0;
 }
 
 /** Joint position changes smaller than this (metres) are treated as the default (the viewer's 0.1 mm threshold). */
@@ -161,14 +161,14 @@ export const JOINT_POSITION_THRESHOLD = 0.0001;
  * Joint position overrides requested by a rigged mesh: the translation of each alternate inverse
  * bind matrix replaces that joint's local rest position (this is how modern SL meshes, including
  * Bento and Animesh, reshape the skeleton). Row-vector storage keeps translation at indices 12-14.
- * Mirrors the official viewer (LLVOAvatar::addAttachmentOverridesForObject): the counts must match
- * and only positions further than 0.1 mm from the joint's default count.
+ * Mirrors Lumiya's MeshData parser: consume the pairs which are present and ignore malformed or
+ * unknown entries. Tiny changes are discarded to avoid rebuilding a skeleton for exporter noise.
  */
 export function jointPositionOverrides(skeleton: AvatarSkeleton, skin: MeshSkin): Map<string, Vec3> {
   const overrides = new Map<string, Vec3>();
   if (!hasJointOverrides(skin)) return overrides;
   const alternates = skin.alternateInverseBindMatrices!;
-  skin.jointNames.forEach((name, i) => {
+  skin.jointNames.slice(0, alternates.length).forEach((name, i) => {
     const m = alternates[i];
     const bone = skeleton.resolve(name);
     if (!m || m.length !== 16 || !bone) return;
