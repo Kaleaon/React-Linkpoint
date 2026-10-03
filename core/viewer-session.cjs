@@ -115,7 +115,9 @@ class ViewerSession {
       // retry it after a short backoff, which is important while region capabilities are settling.
       this.assetRequests.delete(key);
       const msg = String(error?.message || error);
-      const isPermanent = msg.includes('403') || msg.includes('Forbidden') || msg.includes('404') || msg.includes('unavailable');
+      // A 403 can be produced by a stale ViewerAsset cap during a region crossing. The official
+      // viewer retries it, so let a later object update try again instead of suppressing it for an hour.
+      const isPermanent = msg.includes('404') || msg.includes('unavailable');
       const backoffMs = isPermanent ? 3600000 : 5000;
       this.assetFailures.set(key, Date.now() + backoffMs);
       this.send('asset-error', { assetId, message: msg });
@@ -123,46 +125,60 @@ class ViewerSession {
     this.assetRequests.set(key, request);
   }
 
-  /**
-   * Second Life exposes textures through GetTexture. node-metaverse's generic asset downloader uses
-   * ViewerAsset instead, which is present on Agni but does not reliably serve texture assets. Prefer
-   * the texture capability and retain ViewerAsset as a fallback for OpenSim and older regions.
-   */
-  async downloadTexture(assetId) {
-    const caps = this.currentRegion()?.caps;
-    if (caps?.getCapability && caps?.requestGet) {
+  /** Download through ViewerAsset, matching the official viewer, and reacquire the current region
+   * between retries so a region crossing cannot leave us using a stale capability URL. */
+  async downloadViewerAsset(type, assetId) {
+    let lastError;
+    for (const delay of [0, 500, 1500]) {
+      if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
       try {
-        const capability = await caps.getCapability('GetTexture');
-        if (capability) {
-          const separator = String(capability).includes('?') ? '&' : '?';
-          const response = await caps.requestGet(`${capability}${separator}texture_id=${encodeURIComponent(assetId)}`);
-          if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
-        }
+        return await this.bot.clientCommands.asset.downloadAsset(type, assetId);
       } catch (error) {
-        const msg = String(error?.message || error);
-        // If the grid denies access with 403 Forbidden or 404 Not Found, falling back to ViewerAsset will also fail.
-        if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('404')) {
-          throw new Error(`Texture ${assetId} unavailable: ${msg}`);
-        }
-        console.warn(`[SL Session] GetTexture failed for ${assetId}; falling back to ViewerAsset:`, msg);
+        lastError = error;
+        const message = String(error?.message || error);
+        if (!/(?:403|Forbidden|404|Not Found)/i.test(message)) throw error;
       }
     }
-    return this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
+    throw lastError;
+  }
+
+  async downloadTexture(assetId) {
+    try {
+      return await this.downloadViewerAsset(AssetType.Texture, assetId);
+    } catch (error) {
+      const message = String(error?.message || error);
+      // OpenSim grids may expose the older GetTexture cap without ViewerAsset.
+      if (!/ViewerAsset.*(?:not available|unavailable)/i.test(message)) throw error;
+    }
+    const caps = this.currentRegion()?.caps;
+    if (caps?.getCapability && caps?.requestGet) {
+      const capability = await caps.getCapability('GetTexture');
+      if (capability) {
+        const response = await caps.requestGet(`${String(capability).replace(/\/?$/, '/')}?texture_id=${encodeURIComponent(assetId)}`);
+        if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
+      }
+    }
+    throw new Error(`Texture ${assetId} unavailable: ViewerAsset and GetTexture capabilities are unavailable`);
   }
 
   /**
-   * Second Life exposes uploaded 3D meshes through GetMesh2 / GetMesh capabilities.
-   * Downloads the raw LLMesh payload as a binary buffer.
+   * Download an uploaded mesh using ViewerAsset. GetMesh2/GetMesh are retained only for OpenSim
+   * compatibility; current Second Life viewers use ViewerAsset for both meshes and textures.
    */
   async downloadMesh(assetId) {
+    try {
+      return await this.downloadViewerAsset(AssetType.Mesh, assetId);
+    } catch (error) {
+      const message = String(error?.message || error);
+      if (!/ViewerAsset.*(?:not available|unavailable)/i.test(message)) throw error;
+    }
     const caps = this.currentRegion()?.caps;
     if (caps?.getCapability && caps?.requestGet) {
       for (const capName of ['GetMesh2', 'GetMesh']) {
         try {
           const capability = await caps.getCapability(capName);
           if (capability) {
-            const separator = String(capability).includes('?') ? '&' : '?';
-            const response = await caps.requestGet(`${capability}${separator}mesh_id=${encodeURIComponent(assetId)}`, { responseType: 'buffer' });
+            const response = await caps.requestGet(`${String(capability).replace(/\/?$/, '/')}?mesh_id=${encodeURIComponent(assetId)}`, { responseType: 'buffer' });
             if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
           }
         } catch (error) {
@@ -174,7 +190,7 @@ class ViewerSession {
         }
       }
     }
-    return this.bot.clientCommands.asset.downloadAsset(AssetType.Mesh, assetId);
+    throw new Error(`Mesh ${assetId} unavailable: ViewerAsset and mesh capabilities are unavailable`);
   }
 
   loadTexture(assetId) {

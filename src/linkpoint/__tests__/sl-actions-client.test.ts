@@ -11,12 +11,15 @@ describe('viewer actions on the client', () => {
     await expect(c.teleportTo('Ahern')).rejects.toThrow(/Not connected/);
     await expect(c.touchObject({ id: 'x' })).rejects.toThrow(/Not connected/);
     await expect(c.stand()).rejects.toThrow(/Not connected/);
+    await expect(c.setMovement({ forward: 1 })).rejects.toThrow(/Not connected/);
   });
 
   it('use the desktop bridge when it is present', async () => {
     const call = vi.fn(async (method: string) => method === 'teleport'
       ? { requested: { region: 'Ahern', x: 1, y: 2, z: 3 }, message: 'ok' }
-      : method === 'touchObject' ? { touched: 'abc' } : { sitting: 'ground' });
+      : method === 'touchObject' ? { touched: 'abc' }
+      : method === 'setMovement' ? { moving: true }
+      : { sitting: 'ground' });
     (window as any).linkpointDesktop = { call };
     const c = connected();
     const seen = vi.fn();
@@ -28,6 +31,8 @@ describe('viewer actions on the client', () => {
     expect(call).toHaveBeenCalledWith('touchObject', { id: 'abc', face: 1 });
     await c.sit();
     expect(call).toHaveBeenCalledWith('sit', { id: undefined });
+    await expect(c.setMovement({ forward: 1, right: -1, run: true })).resolves.toEqual({ moving: true });
+    expect(call).toHaveBeenCalledWith('setMovement', { forward: 1, right: -1, run: true });
   });
 
   it('fall back to the web server with the session id and surface its error message', async () => {

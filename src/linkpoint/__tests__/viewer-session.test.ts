@@ -245,31 +245,46 @@ describe('desktop session texture downloads', () => {
   const { AssetType } = require('@caspertech/node-metaverse');
   const { ViewerSession } = require('../../../core/viewer-session.cjs');
 
-  it('uses the Second Life GetTexture capability instead of ViewerAsset', async () => {
+  it('uses ViewerAsset for textures like the official Second Life viewer', async () => {
     const session = new ViewerSession(() => undefined);
-    const requestGet = vi.fn().mockResolvedValue({ body: Buffer.from('texture') });
-    const downloadAsset = vi.fn();
+    const downloadAsset = vi.fn().mockResolvedValue(Buffer.from('texture'));
     session.bot = {
-      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue('https://asset.example/get?token=one'), requestGet } },
+      currentRegion: { caps: {} },
       clientCommands: { asset: { downloadAsset } },
     };
 
     await expect(session.downloadTexture('texture id')).resolves.toEqual(Buffer.from('texture'));
-    expect(requestGet).toHaveBeenCalledWith('https://asset.example/get?token=one&texture_id=texture%20id');
-    expect(downloadAsset).not.toHaveBeenCalled();
+    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture id');
   });
 
-  it('falls back to the generic asset service when GetTexture is unavailable', async () => {
+  it('retries stale ViewerAsset URLs after a 403 during a region crossing', async () => {
+    vi.useFakeTimers();
     const session = new ViewerSession(() => undefined);
-    const downloaded = Buffer.from('fallback');
-    const downloadAsset = vi.fn().mockResolvedValue(downloaded);
+    const downloadAsset = vi.fn()
+      .mockRejectedValueOnce(new Error('Response code 403 (Forbidden)'))
+      .mockResolvedValue(Buffer.from('fresh-cap'));
     session.bot = {
-      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue(undefined), requestGet: vi.fn() } },
+      currentRegion: { caps: {} },
       clientCommands: { asset: { downloadAsset } },
     };
 
-    await expect(session.downloadTexture('texture-id')).resolves.toBe(downloaded);
-    expect(downloadAsset).toHaveBeenCalledWith(AssetType.Texture, 'texture-id');
+    const result = session.downloadTexture('texture-id');
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(result).resolves.toEqual(Buffer.from('fresh-cap'));
+    expect(downloadAsset).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('uses the correctly slashed legacy capability URL only for OpenSim fallback', async () => {
+    const session = new ViewerSession(() => undefined);
+    const requestGet = vi.fn().mockResolvedValue({ body: Buffer.from('texture') });
+    session.bot = {
+      currentRegion: { caps: { getCapability: vi.fn().mockResolvedValue('https://asset.example/get'), requestGet } },
+      clientCommands: { asset: { downloadAsset: vi.fn().mockRejectedValue(new Error('Capability ViewerAsset not available')) } },
+    };
+
+    await expect(session.downloadTexture('texture id')).resolves.toEqual(Buffer.from('texture'));
+    expect(requestGet).toHaveBeenCalledWith('https://asset.example/get/?texture_id=texture%20id');
   });
 
   it('allows transiently failed assets to retry instead of leaving their proxy forever', async () => {

@@ -704,7 +704,11 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private async pulseAvatar(motion: { forward: number; right: number; up: number }) {
     await this.protocol.setMovement({ ...motion, turn: 0, run: false });
-    window.setTimeout(() => void this.protocol.setMovement({ forward: 0, right: 0, up: 0, turn: 0, run: false }), 180);
+    window.setTimeout(() => {
+      void this.protocol
+        .setMovement({ forward: 0, right: 0, up: 0, turn: 0, run: false })
+        .catch((error: unknown) => console.warn('[WorldViewer] avatar movement unavailable:', error));
+    }, 180);
   }
 
   /** Rotate the view by the given pitch/yaw deltas in degrees (positive yaw turns right). */
