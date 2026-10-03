@@ -115,6 +115,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
     forward('friend-remove', 'friend_remove');
     forward('script-dialog', 'script_dialog');
     forward('lure', 'lure');
+    forward('inventory-offer', 'inventory-offer');
+    forward('group-invite', 'group-invite');
     forward('parcel-properties', 'ParcelProperties', (data) => ({ parcelData: data }));
     forward('coarse-avatar', 'CoarseAvatarUpdate');
     for (const name of ['avatar_presence', 'avatar-presence']) {
@@ -307,6 +309,18 @@ export class SLConnectionFull extends Utils.EventEmitter {
   async acceptLure(id: string) {
     this.requireConnected();
     return slBridge.acceptLure({ id });
+  }
+
+  /** Accept an inventory offer. */
+  async acceptInventoryOffer(request: { id: string }) {
+    this.requireConnected();
+    return slBridge.acceptInventoryOffer(request);
+  }
+
+  /** Accept a group invite. */
+  async acceptGroupInvite(request: { id: string }) {
+    this.requireConnected();
+    return slBridge.acceptGroupInvite(request);
   }
 
   /** Forget an interaction on the server. Nothing is sent to the grid. */

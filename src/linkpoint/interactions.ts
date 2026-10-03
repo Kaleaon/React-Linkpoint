@@ -39,7 +39,28 @@ export interface LureRequest {
   gridY: number | null;
 }
 
-export type Interaction = ScriptDialogRequest | LureRequest;
+export interface InventoryOfferRequest {
+  kind: 'inventory-offer';
+  id: string;
+  receivedAt: number;
+  fromId: string | null;
+  fromName: string;
+  requestId: string | null;
+  message: string;
+  type: number;
+}
+
+export interface GroupInviteRequest {
+  kind: 'group-invite';
+  id: string;
+  receivedAt: number;
+  fromId: string | null;
+  fromName: string;
+  message: string;
+  inviteId: string | null;
+}
+
+export type Interaction = ScriptDialogRequest | LureRequest | InventoryOfferRequest | GroupInviteRequest;
 
 /** The button label a script uses (llTextBox) to ask for typed text instead of a choice. */
 export const TEXT_BOX_MARKER = '!!llTextBox!!';
@@ -60,6 +81,8 @@ export class InteractionsManager extends Utils.EventEmitter {
   init() {
     this.protocol.on('script_dialog', (data: any) => this.add('script-dialog', data));
     this.protocol.on('lure', (data: any) => this.add('lure', data));
+    this.protocol.on('inventory-offer', (data: any) => this.add('inventory-offer', data));
+    this.protocol.on('group-invite', (data: any) => this.add('group-invite', data));
     this.protocol.on('disconnected', () => this.clear());
     this.protocol.on('connection_failed', () => this.clear());
   }
@@ -82,29 +105,49 @@ export class InteractionsManager extends Utils.EventEmitter {
     if (!data || typeof data.id !== 'string' || !data.id) return;
     if (this.list.some((item) => item.id === data.id)) return;
     const base = { id: data.id, receivedAt: Number.isFinite(data.receivedAt) ? data.receivedAt : Date.now() };
-    const item: Interaction = kind === 'script-dialog'
-      ? {
-          ...base, kind,
-          objectId: data.objectId ?? null,
-          objectName: String(data.objectName || ''),
-          ownerName: String(data.ownerName || ''),
-          message: String(data.message || ''),
-          channel: Number.isFinite(data.channel) ? data.channel : 0,
-          imageId: data.imageId ?? null,
-          buttons: Array.isArray(data.buttons) ? data.buttons.map(String) : [],
-          textBox: Boolean(data.textBox),
-          textBoxIndex: Number.isInteger(data.textBoxIndex) ? data.textBoxIndex : -1,
-        }
-      : {
-          ...base, kind,
-          fromId: data.fromId ?? null,
-          fromName: String(data.fromName || ''),
-          message: String(data.message || ''),
-          regionId: data.regionId ?? null,
-          position: Array.isArray(data.position) && data.position.length === 3 ? (data.position as [number, number, number]) : null,
-          gridX: Number.isFinite(data.gridX) ? data.gridX : null,
-          gridY: Number.isFinite(data.gridY) ? data.gridY : null,
-        };
+    let item: Interaction;
+    if (kind === 'script-dialog') {
+      item = {
+        ...base, kind,
+        objectId: data.objectId ?? null,
+        objectName: String(data.objectName || ''),
+        ownerName: String(data.ownerName || ''),
+        message: String(data.message || ''),
+        channel: Number.isFinite(data.channel) ? data.channel : 0,
+        imageId: data.imageId ?? null,
+        buttons: Array.isArray(data.buttons) ? data.buttons.map(String) : [],
+        textBox: Boolean(data.textBox),
+        textBoxIndex: Number.isInteger(data.textBoxIndex) ? data.textBoxIndex : -1,
+      };
+    } else if (kind === 'lure') {
+      item = {
+        ...base, kind,
+        fromId: data.fromId ?? null,
+        fromName: String(data.fromName || ''),
+        message: String(data.message || ''),
+        regionId: data.regionId ?? null,
+        position: Array.isArray(data.position) && data.position.length === 3 ? (data.position as [number, number, number]) : null,
+        gridX: Number.isFinite(data.gridX) ? data.gridX : null,
+        gridY: Number.isFinite(data.gridY) ? data.gridY : null,
+      };
+    } else if (kind === 'inventory-offer') {
+      item = {
+        ...base, kind,
+        fromId: data.fromId ?? null,
+        fromName: String(data.fromName || ''),
+        requestId: data.requestId ?? null,
+        message: String(data.message || ''),
+        type: Number.isFinite(data.type) ? data.type : 0,
+      };
+    } else {
+      item = {
+        ...base, kind,
+        fromId: data.fromId ?? null,
+        fromName: String(data.fromName || ''),
+        message: String(data.message || ''),
+        inviteId: data.inviteId ?? null,
+      };
+    }
     this.list.push(item);
     while (this.list.length > MAX_INTERACTIONS) this.list.shift();
     this.changed();
@@ -169,7 +212,19 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
-  /** Dismiss locally. The grid is not told: the client library cannot decline a lure. */
+  /** Accept an inventory offer. */
+  async acceptInventoryOffer(id: string) {
+    const result = await this.run(id, () => (this.protocol as any).acceptInventoryOffer({ id }));
+    return Boolean(result);
+  }
+
+  /** Accept a group invite. */
+  async acceptGroupInvite(id: string) {
+    const result = await this.run(id, () => (this.protocol as any).acceptGroupInvite({ id }));
+    return Boolean(result);
+  }
+
+  /** Dismiss locally. */
   async dismiss(id: string) {
     this.remove(id);
     this.busyIds.delete(id);

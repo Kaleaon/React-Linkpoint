@@ -587,6 +587,8 @@ class ViewerSession {
   }
   respondScriptDialog(params = {}) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params); }
   acceptLure(params = {}) { return interactions.acceptLure(this.requireBot(), this.pending, params); }
+  acceptInventoryOffer(params = {}) { return interactions.acceptInventoryOffer(this.requireBot(), this.pending, params); }
+  acceptGroupInvite(params = {}) { return interactions.acceptGroupInvite(this.requireBot(), this.pending, params); }
   dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }
 
   /**

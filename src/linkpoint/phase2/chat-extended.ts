@@ -123,7 +123,21 @@ export class ChatExtended {
    * Check if user is muted
    */
   isUserMuted(userId: string): boolean {
-    return this.muteList.has(userId);
+    if (!userId) return false;
+    const clean = userId.trim().toLowerCase();
+    return Array.from(this.muteList).some((id) => id.trim().toLowerCase() === clean);
+  }
+
+  /**
+   * Check if a chat/IM message should be displayed according to the mute list and filters
+   */
+  shouldDisplayMessage(message: any): boolean {
+    if (!message) return false;
+    const fromId = message.fromId || message.from;
+    const fromName = message.fromName || message.from;
+    if (fromId && this.isUserMuted(fromId)) return false;
+    if (fromName && (this.isUserMuted(fromName) || this.isObjectMuted(fromName))) return false;
+    return this.applyFilters(message);
   }
 
   getMutedUsers() {

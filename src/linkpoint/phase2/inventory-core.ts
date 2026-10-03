@@ -55,6 +55,48 @@ export class InventoryCore {
   }
 
   /**
+   * Replace a folder's children and items atomically, removing stale descendents.
+   * Mirrors Lumiya's atomic inventory folder sync recovery behavior.
+   */
+  updateFolderAtomically(folderId: string, newFoldersData: any[], newItemsData: any[]) {
+    let folder = this.folders.get(folderId);
+    if (!folder) {
+      folder = this.createFolder(folderId, { name: 'Folder', parentId: this.rootFolderId });
+    }
+
+    // Remove existing children folders and items belonging directly to this folder
+    const oldChildrenIds: string[] = [...folder.children];
+    const oldItemIds: string[] = [...folder.items];
+
+    for (const childId of oldChildrenIds) {
+      this.folders.delete(childId);
+    }
+    for (const itemId of oldItemIds) {
+      this.items.delete(itemId);
+    }
+
+    folder.children = [];
+    folder.items = [];
+
+    // Insert new folders
+    for (const fData of newFoldersData) {
+      const fId = fData.id || fData.folderId;
+      if (!fId) continue;
+      this.createFolder(fId, { ...fData, parentId: folderId });
+    }
+
+    // Insert new items
+    for (const iData of newItemsData) {
+      const iId = iData.id || iData.itemId;
+      if (!iId) continue;
+      this.addItem(iId, { ...iData, folderId });
+    }
+
+    console.log(`[Inventory] Atomically updated folder ${folderId}: ${newFoldersData.length} folders, ${newItemsData.length} items`);
+    return this.listFolderContents(folderId);
+  }
+
+  /**
    * List folder contents
    */
   listFolderContents(folderId: string) {
