@@ -116,3 +116,34 @@ describe('viewer identity patch for node-metaverse (TPV_COMPLIANCE.md section 1)
     expect(text).toContain(`channel: ${JSON.stringify(patcher.readViewerIdentity().channel)}`);
   });
 });
+
+describe('node-metaverse seed capability patch', () => {
+  const sample = `        this.requestPost(seedURL, LLSD.LLSD.formatXML(req), 'application/llsd+xml').then((resp) => {
+            this.capabilities = LLSD.LLSD.parseXML(resp.body);
+            this.gotSeedCap = true;
+            this.onGotSeedCap.next();
+            if (this.capabilities.EventQueueGet) {
+                if (this.eventQueueClient !== null) {
+                    void this.eventQueueClient.shutdown();
+                }
+                this.eventQueueClient = new EventQueueClient_1.EventQueueClient(this.agent, this, this.clientEvents);
+            }
+        }).catch((err) => {
+            console.error('Error getting seed capability');
+            console.error(err);
+        });`;
+
+  it('retries transient failures and releases capability waiters after the final failure', () => {
+    const out = patcher.patchCapsSeedRetry(sample);
+    expect(out).toContain('const maxAttempts = 30');
+    expect(out).toContain('setTimeout(resolve, 2000)');
+    expect(out).toContain('Seed capability unavailable after retries');
+    expect(out).toContain('this.gotSeedCap = true');
+    expect(out).not.toContain("console.error('Error getting seed capability')");
+    expect(patcher.patchCapsSeedRetry(out)).toBe(out);
+  });
+
+  it('reports an incompatible dependency instead of silently skipping the fix', () => {
+    expect(patcher.patchCapsSeedRetry('different implementation')).toBeNull();
+  });
+});

@@ -27,6 +27,64 @@ function patchLoginIdentity(content, channel, version) {
   return content.replace(channelLiteral, `channel: ${JSON.stringify(channel)}`).replace(versionLine, `const version = ${JSON.stringify(version)};`);
 }
 
+/**
+ * Seed capability endpoints can briefly return 404 while the simulator is bringing the agent's
+ * capability host online. The upstream constructor makes one request, dumps the complete `got`
+ * error, and leaves every subsequent capability lookup waiting forever. Replace that request with
+ * a bounded retry which always releases waiters after its final attempt.
+ */
+function patchCapsSeedRetry(content) {
+  const original = `        this.requestPost(seedURL, LLSD.LLSD.formatXML(req), 'application/llsd+xml').then((resp) => {
+            this.capabilities = LLSD.LLSD.parseXML(resp.body);
+            this.gotSeedCap = true;
+            this.onGotSeedCap.next();
+            if (this.capabilities.EventQueueGet) {
+                if (this.eventQueueClient !== null) {
+                    void this.eventQueueClient.shutdown();
+                }
+                this.eventQueueClient = new EventQueueClient_1.EventQueueClient(this.agent, this, this.clientEvents);
+            }
+        }).catch((err) => {
+            console.error('Error getting seed capability');
+            console.error(err);
+        });`;
+  const replacement = `        const requestSeed = async () => {
+            const maxAttempts = 30;
+            let lastError;
+            for (let attempt = 0; attempt < maxAttempts && this.active; attempt++) {
+                if (attempt > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, 2000));
+                }
+                if (!this.active) return;
+                try {
+                    const resp = await this.requestPost(seedURL, LLSD.LLSD.formatXML(req), 'application/llsd+xml');
+                    this.capabilities = LLSD.LLSD.parseXML(resp.body);
+                    this.gotSeedCap = true;
+                    this.onGotSeedCap.next();
+                    if (this.capabilities.EventQueueGet) {
+                        if (this.eventQueueClient !== null) {
+                            void this.eventQueueClient.shutdown();
+                        }
+                        this.eventQueueClient = new EventQueueClient_1.EventQueueClient(this.agent, this, this.clientEvents);
+                    }
+                    return;
+                }
+                catch (err) {
+                    lastError = err;
+                }
+            }
+            if (!this.active) return;
+            this.gotSeedCap = true;
+            this.onGotSeedCap.next();
+            const status = lastError && lastError.response && lastError.response.statusCode;
+            console.warn('[Caps] Seed capability unavailable after retries' + (status ? ' (HTTP ' + status + ')' : '') + ': ' + ((lastError && lastError.message) || lastError));
+        };
+        void requestSeed();`;
+  if (content.includes('const requestSeed = async () => {')) return content;
+  if (!content.includes(original)) return null;
+  return content.replace(original, replacement);
+}
+
 function applyPatches(options = {}) {
   const { strict = require.main === module } = options;
 
@@ -95,6 +153,16 @@ function applyPatches(options = {}) {
   if (fs.existsSync(capsPath)) {
     let capsContent = fs.readFileSync(capsPath, 'utf8');
     let modified = false;
+
+    const seedRetryPatched = patchCapsSeedRetry(capsContent);
+    if (seedRetryPatched === null) {
+      const message = '[patch-metaverse] Caps.js has an unexpected seed capability request shape; retries were not installed.';
+      if (strict) throw new Error(message);
+      console.error(message);
+    } else if (seedRetryPatched !== capsContent) {
+      capsContent = seedRetryPatched;
+      modified = true;
+    }
 
     // Enhance requestGet to support texture downloads with proper binary buffer and Accept header
     const requestGetTarget = `    async requestGet(requestURL) {
@@ -218,6 +286,6 @@ function applyPatches(options = {}) {
   }
 }
 
-module.exports = { readViewerIdentity, patchLoginIdentity, applyPatches };
+module.exports = { readViewerIdentity, patchLoginIdentity, patchCapsSeedRetry, applyPatches };
 
 if (require.main === module) applyPatches();

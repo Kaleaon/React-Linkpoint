@@ -331,6 +331,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.stand();
   }
 
+  /** Update the logged-in avatar's directional control flags. */
+  async setMovement(movement: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean }) {
+    this.requireConnected();
+    return slBridge.setMovement(movement);
+  }
+
   /** L$ balance, or null when the grid has not answered. Never a guess. */
   public balance: number | null = null;
 
