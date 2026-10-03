@@ -25,8 +25,11 @@ export interface BodyPartGeometry {
 
 /** Parts drawn for a default avatar, with the baked-texture slot each one wears and a plain fallback colour. */
 export const BODY_PARTS: Array<{ part: string; instance: string; bake: 'head' | 'upper' | 'lower' | 'eyes' | 'hair'; color: [number, number, number, number]; rigidJoint?: string }> = [
-  { part: 'upperBody', instance: 'upperBody', bake: 'upper', color: [0.82, 0.62, 0.48, 1] },
-  { part: 'lowerBody', instance: 'lowerBody', bake: 'lower', color: [0.82, 0.62, 0.48, 1] },
+  // The coloured fallbacks are intentionally modest. A bake can be delayed for
+  // several seconds after an avatar enters a region; showing skin-coloured torso
+  // and legs during that window made otherwise healthy avatars appear naked.
+  { part: 'upperBody', instance: 'upperBody', bake: 'upper', color: [0.18, 0.32, 0.52, 1] },
+  { part: 'lowerBody', instance: 'lowerBody', bake: 'lower', color: [0.09, 0.12, 0.18, 1] },
   { part: 'head', instance: 'head', bake: 'head', color: [0.82, 0.62, 0.48, 1] },
   { part: 'eyelashes', instance: 'eyelashes', bake: 'head', color: [0.12, 0.08, 0.06, 1] },
   { part: 'eye', instance: 'eyeLeft', bake: 'eyes', color: [0.95, 0.95, 0.95, 1], rigidJoint: 'mEyeLeft' },
