@@ -146,7 +146,7 @@ describe('sit, stand and balance', () => {
 
   it('returns the balance the grid reported, and refuses to invent one', async () => {
     const { bot } = makeBot();
-    expect(await actions.getBalance(bot)).toEqual({ balance: 1234 });
+    expect(await actions.getBalance(bot)).toEqual({ balance: 1234, currencySymbol: 'L$', isZeroCurrency: false });
     bot.clientCommands.grid.getBalance = vi.fn(async () => undefined as any);
     await expect(actions.getBalance(bot)).rejects.toThrow(/no balance/);
     bot.clientCommands.grid.getBalance = vi.fn(async () => { throw new Error('timeout'); });
