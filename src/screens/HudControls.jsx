@@ -5,12 +5,18 @@ import TouchTarget from "../components/TouchTarget.tsx";
 
 // Worn HUDs the simulator has sent. Pick one to show it over the view, zoom it,
 // tap its buttons to touch them, hide it. Renders nothing until there is a HUD.
-export default function HudControls() {
+export default function HudControls({ bottomOffset, collapsed = false, outfitDrawerOpen = false }) {
   const { V, t } = useTheme();
   const [huds, setHuds] = useState(() => app.world.getHuds());
   const [displayed, setDisplayed] = useState(() => app.world.displayedHud);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (outfitDrawerOpen || collapsed) {
+      setOpen(false);
+    }
+  }, [outfitDrawerOpen, collapsed]);
 
   useEffect(() => {
     let timer;
@@ -31,27 +37,29 @@ export default function HudControls() {
     };
   }, []);
 
+  if (collapsed || outfitDrawerOpen) return null;
   if (!huds.length && !displayed && !notice) return null;
 
   const current = displayed ? huds.find((hud) => hud.id === displayed.id) : null;
-  const small = { minHeight: 32, minWidth: 32, padding: "0 10px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.pri, cursor: "pointer", font: `600 10px/1 ${t.font}`, letterSpacing: ".08em" };
+  const small = { minHeight: 44, minWidth: 44, padding: "0 10px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.pri, cursor: "pointer", font: `600 10px/1 ${t.font}`, letterSpacing: ".08em" };
+  const actualBottom = bottomOffset ?? 14;
 
-  return <div aria-label="Worn HUDs" style={{ position: "absolute", left: "50%", bottom: 14, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, zIndex: 30, maxWidth: "92%" }}>
+  return <div aria-label="Worn HUDs" style={{ position: "absolute", left: "50%", bottom: actualBottom, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, zIndex: 30, maxWidth: "92%", maxHeight: "30vh" }}>
     {notice ? <div role="alert" style={{ padding: "6px 10px", background: V.surf, color: V.err, border: `1px solid ${V.err}`, borderRadius: V.rs, font: `500 11px/1.3 ${t.font}` }}>{notice}</div> : null}
     {open && huds.length ? <ul aria-label="Choose a HUD" style={{ listStyle: "none", margin: 0, padding: 6, display: "grid", gap: 8, background: V.surf, border: `1px solid ${V.pri}`, borderRadius: V.rs, maxHeight: 220, overflowY: "auto", minWidth: 220 }}>
       {huds.map((hud) => <li key={hud.id}>
-        <TouchTarget aria-pressed={displayed?.id === hud.id} onClick={() => { app.world.setDisplayedHud(displayed?.id === hud.id ? null : hud.id); setOpen(false); }} style={{ ...small, width: "100%", textAlign: "left", background: displayed?.id === hud.id ? V.pri : V.bg, color: displayed?.id === hud.id ? V.onpri : V.ink }}>
+        <TouchTarget minSize={44} aria-pressed={displayed?.id === hud.id} onClick={() => { app.world.setDisplayedHud(displayed?.id === hud.id ? null : hud.id); setOpen(false); }} style={{ ...small, width: "100%", textAlign: "left", background: displayed?.id === hud.id ? V.pri : V.bg, color: displayed?.id === hud.id ? V.onpri : V.ink }}>
           {hud.name || "Unnamed HUD"} <span style={{ opacity: .7 }}>· {hud.pointName}</span>
         </TouchTarget>
       </li>)}
     </ul> : null}
     <div style={{ display: "flex", gap: 8, alignItems: "center", padding: 4, background: V.surf, border: `1px solid ${V.outv}`, borderRadius: V.rs }}>
-      {huds.length ? <TouchTarget aria-expanded={open} onClick={() => setOpen((value) => !value)} style={small}>HUDS ({huds.length})</TouchTarget> : null}
+      {huds.length ? <TouchTarget minSize={44} aria-expanded={open} onClick={() => setOpen((value) => !value)} style={small}>HUDS ({huds.length})</TouchTarget> : null}
       {current ? <>
         <span style={{ color: V.ink2, font: `500 10px/1 ${t.font}`, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.name || "HUD"}</span>
-        <TouchTarget aria-label="Make HUD smaller" onClick={() => app.world.zoomHud(-1)} style={small}>−</TouchTarget>
-        <TouchTarget aria-label="Make HUD larger" onClick={() => app.world.zoomHud(1)} style={small}>+</TouchTarget>
-        <TouchTarget aria-label="Hide HUD" onClick={() => app.world.setDisplayedHud(null)} style={small}>HIDE</TouchTarget>
+        <TouchTarget minSize={44} aria-label="Make HUD smaller" onClick={() => app.world.zoomHud(-1)} style={small}>−</TouchTarget>
+        <TouchTarget minSize={44} aria-label="Make HUD larger" onClick={() => app.world.zoomHud(1)} style={small}>+</TouchTarget>
+        <TouchTarget minSize={44} aria-label="Hide HUD" onClick={() => app.world.setDisplayedHud(null)} style={small}>HIDE</TouchTarget>
       </> : null}
     </div>
   </div>;
