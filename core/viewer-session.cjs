@@ -124,57 +124,43 @@ class ViewerSession {
   }
 
   /**
-   * Second Life exposes textures through GetTexture. node-metaverse's generic asset downloader uses
-   * ViewerAsset instead, which is present on Agni but does not reliably serve texture assets. Prefer
-   * the texture capability and retain ViewerAsset as a fallback for OpenSim and older regions.
+   * Fetch a render asset through the logged-in agent's region capabilities.  The official viewer
+   * uses ViewerAsset for both texture_id and mesh_id requests.  Inventory copy/modify/transfer bits
+   * do not gate scene rendering: the grid decides whether this authenticated capability may return
+   * the referenced asset.  Legacy named capabilities remain fallbacks for OpenSim regions.
    */
-  async downloadTexture(assetId) {
-    const caps = this.currentRegion()?.caps;
-    if (caps?.getCapability && caps?.requestGet) {
-      try {
-        const capability = await caps.getCapability('GetTexture');
-        if (capability) {
-          const separator = String(capability).includes('?') ? '&' : '?';
-          const response = await caps.requestGet(`${capability}${separator}texture_id=${encodeURIComponent(assetId)}`);
-          if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
-        }
-      } catch (error) {
-        const msg = String(error?.message || error);
-        // If the grid denies access with 403 Forbidden or 404 Not Found, falling back to ViewerAsset will also fail.
-        if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('404')) {
-          throw new Error(`Texture ${assetId} unavailable: ${msg}`);
-        }
-        console.warn(`[SL Session] GetTexture failed for ${assetId}; falling back to ViewerAsset:`, msg);
-      }
+  async downloadRenderAsset(assetId, assetType, legacyCapabilities, queryName) {
+    let viewerAssetError;
+    try {
+      return await this.bot.clientCommands.asset.downloadAsset(assetType, assetId);
+    } catch (error) {
+      viewerAssetError = error;
     }
-    return this.bot.clientCommands.asset.downloadAsset(AssetType.Texture, assetId);
-  }
 
-  /**
-   * Second Life exposes uploaded 3D meshes through GetMesh2 / GetMesh capabilities.
-   * Downloads the raw LLMesh payload as a binary buffer.
-   */
-  async downloadMesh(assetId) {
     const caps = this.currentRegion()?.caps;
     if (caps?.getCapability && caps?.requestGet) {
-      for (const capName of ['GetMesh2', 'GetMesh']) {
+      for (const capName of legacyCapabilities) {
         try {
           const capability = await caps.getCapability(capName);
           if (capability) {
             const separator = String(capability).includes('?') ? '&' : '?';
-            const response = await caps.requestGet(`${capability}${separator}mesh_id=${encodeURIComponent(assetId)}`, { responseType: 'buffer' });
+            const response = await caps.requestGet(`${capability}${separator}${queryName}=${encodeURIComponent(assetId)}`, { responseType: 'buffer' });
             if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
           }
         } catch (error) {
-          const msg = String(error?.message || error);
-          if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('404')) {
-            throw new Error(`Mesh ${assetId} unavailable: ${msg}`);
-          }
-          console.warn(`[SL Session] ${capName} failed for ${assetId}; trying next:`, msg);
+          console.warn(`[SL Session] ${capName} failed for ${assetId}; trying next:`, String(error?.message || error));
         }
       }
     }
-    return this.bot.clientCommands.asset.downloadAsset(AssetType.Mesh, assetId);
+    throw viewerAssetError;
+  }
+
+  downloadTexture(assetId) {
+    return this.downloadRenderAsset(assetId, AssetType.Texture, ['GetTexture'], 'texture_id');
+  }
+
+  downloadMesh(assetId) {
+    return this.downloadRenderAsset(assetId, AssetType.Mesh, ['GetMesh2', 'GetMesh'], 'mesh_id');
   }
 
   loadTexture(assetId) {
