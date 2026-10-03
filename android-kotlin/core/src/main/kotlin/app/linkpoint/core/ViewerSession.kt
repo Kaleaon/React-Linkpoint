@@ -205,22 +205,16 @@ class ViewerSession(
         child = Child(c, job, clock(), null)
         children[key] = child
         c.send(Messages.useCircuitCode(circuitCode, sessionId, agentId))
-        scope.launch {
-            delay(250)
-            c.send(Messages.useCircuitCode(circuitCode, sessionId, agentId))
-        }
     }
 
     private fun processPendingChildren() {
         if (teleportInFlight) return
         val pending = pendingChildren.toMap()
         for ((key, code) in pending) {
-            val parts = key.split(":")
-            if (parts.size == 2) {
-                val ip = parts[0]
-                val port = parts[1].toIntOrNull() ?: continue
-                enableChild(ip, port, code)
-            }
+            val ip = key.substringBeforeLast(":")
+            val portStr = key.substringAfterLast(":")
+            val port = portStr.toIntOrNull() ?: continue
+            enableChild(ip, port, code)
         }
     }
 
@@ -728,9 +722,6 @@ class ViewerSession(
         val p = _region.value?.position
         val x = p?.get(0) ?: 128f; val y = p?.get(1) ?: 128f; val z = p?.get(2) ?: 30f
         circuit?.send(Messages.agentUpdate(agentId, sessionId, x, y, z, controlFlags = controlFlags, bodyYaw = bodyYaw))
-        for (child in children.values) {
-            child.circuit.send(Messages.agentUpdate(agentId, sessionId, x - 256f, y, z, controlFlags = controlFlags, bodyYaw = bodyYaw))
-        }
     }
 
     /** The simulator tells us where our avatar is through ordinary object updates; follow it (not while seated on something). */
