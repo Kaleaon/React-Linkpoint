@@ -99,19 +99,6 @@ describe('avatar body in the world', () => {
     expect(scene.objects.get('av:body:upperBody').color).toEqual([1, 1, 1, 1]);
   });
 
-  it('renders the optional baked skirt and uses modest clothing colours before body bakes arrive', () => {
-    const { protocol, world, scene } = setup(true);
-    (world as any).decodedTextures.set('skirt-bake', {});
-    protocol.emit('scene:object-add', { ...avatar, faceTextures: faces({ 19: 'skirt-bake' }) });
-    expect(scene.objects.get('av:body:skirt')).toMatchObject({
-      meshes: [{ mesh: 'avatar-body:skirt', materialIndex: 0 }],
-      color: [1, 1, 1, 1],
-    });
-    expect(scene.objects.get('av:body:skirt').faces[0].texture).toBe('texture:skirt-bake');
-    expect(scene.objects.get('av:body:upperBody').color).toEqual([0.18, 0.32, 0.52, 1]);
-    expect(scene.objects.get('av:body:lowerBody').color).toEqual([0.09, 0.12, 0.18, 1]);
-  });
-
   it('keeps flat colours while a bake is missing, undownloaded, or the simulator placeholder', () => {
     const { protocol, world, scene } = setup(true);
     (world as any).decodedTextures.set('c228d1cf-4b5d-4ba8-84f4-899a0796aa97', {});

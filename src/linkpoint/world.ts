@@ -1110,29 +1110,12 @@ export class WorldViewer extends Utils.EventEmitter {
         position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1],
         // A baked texture replaces the flat fallback colour; hair blends, skin and eyes are cut out.
         color: texture ? [1, 1, 1, 1] : color,
-        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5, doubleSided: true } }] : [],
+        faces: texture ? [{ texture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: bake === 'hair' ? 'BLEND' : 'MASK', alphaCutoff: 0.5 } }] : [],
         skin: rows.get(instance), visible: true,
       };
       if (this.scene3d.objects.has(partId)) this.scene3d.updateObject(partId, part3d);
       else this.scene3d.addObject(partId, part3d);
     }
-    // The skirt is a separate optional system layer. Do not show an opaque
-    // fallback skirt, but do render it whenever the skirt bake is available.
-    const skirtTexture = this.bakedTexture(object, 'skirt');
-    const skirtId = `${id}:body:skirt`;
-    const skirtGeometry = this.bodyParts?.get('skirt');
-    if (skirtTexture && skirtGeometry) {
-      let skirtSkin = this.bodySkins.get('skirt');
-      if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
-      const skirt = {
-        mesh: 'cube', meshes: [{ mesh: 'avatar-body:skirt', materialIndex: 0 }],
-        position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1], color: [1, 1, 1, 1],
-        faces: [{ texture: skirtTexture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: 'MASK', alphaCutoff: 0.5, doubleSided: true } }],
-        skin: bodyPartRows(this.skeleton, skirtSkin, this.skeleton.worldMatrices(this.animator.pose(id)), (this.scene3d as any).graphics?.maxJoints || 110), visible: true,
-      };
-      if (this.scene3d.objects.has(skirtId)) this.scene3d.updateObject(skirtId, skirt);
-      else this.scene3d.addObject(skirtId, skirt);
-    } else this.scene3d.removeObject(skirtId);
     for (const suffix of [':body', ':head', ':legs']) this.scene3d.removeObject(`${id}${suffix}`);
     this.scene3d.updateObject(id, { visible: false });
   }
@@ -1145,14 +1128,6 @@ export class WorldViewer extends Utils.EventEmitter {
       if (!this.animator.isAnimating(object.id)) continue;
       const rows = this.avatarBodyRows(object.id);
       for (const [instance, skin] of rows) this.scene3d.updateObject(`${object.id}:body:${instance}`, { skin });
-      const skirt = this.scene3d.objects.get(`${object.id}:body:skirt`);
-      const skirtGeometry = skirt && this.bodyParts.get('skirt');
-      if (skirtGeometry) {
-        let skirtSkin = this.bodySkins.get('skirt');
-        if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
-        const world = this.skeleton.worldMatrices(this.animator.pose(object.id));
-        this.scene3d.updateObject(`${object.id}:body:skirt`, { skin: bodyPartRows(this.skeleton, skirtSkin, world, (this.scene3d as any).graphics?.maxJoints || 110) });
-      }
     }
   }
 
