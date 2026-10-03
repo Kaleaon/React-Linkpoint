@@ -87,7 +87,7 @@ describe('avatar skeleton', () => {
     expect(moved[0][14]).toBeCloseTo(rest[0][14] + 0.2, 4);
   });
 
-  it('follows the viewer\'s override rules: counts must match, defaults and unknown joints are ignored', () => {
+  it('follows Lumiya\'s override rules: available pairs are used while defaults and unknown joints are ignored', () => {
     const at = (pos: number[]) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, pos[0], pos[1], pos[2], 1];
     const headRest = skeleton.bones[skeleton.indexOf('mHead')].rest;
     // a position equal to the joint default is not an override (within 0.1 mm)
@@ -98,9 +98,9 @@ describe('avatar skeleton', () => {
     expect(jointPositionOverrides(skeleton, moved).get('mHead')).toEqual([headRest[0], headRest[1], headRest[2] + 0.01]);
     // unknown joint names are ignored
     expect(jointPositionOverrides(skeleton, { ...moved, jointNames: ['nope'] }).size).toBe(0);
-    // mismatched counts disable all overrides
-    expect(jointPositionOverrides(skeleton, { ...moved, jointNames: ['mHead', 'mNeck'] }).size).toBe(0);
-    expect(hasJointOverrides({ ...moved, jointNames: ['mHead', 'mNeck'] })).toBe(false);
+    // Lumiya consumes the alternate matrices that are present even when an exporter omitted a tail entry.
+    expect(jointPositionOverrides(skeleton, { ...moved, jointNames: ['mHead', 'mNeck'] }).get('mHead')).toEqual([headRest[0], headRest[1], headRest[2] + 0.01]);
+    expect(hasJointOverrides({ ...moved, jointNames: ['mHead', 'mNeck'] })).toBe(true);
     expect(hasJointOverrides(moved)).toBe(true);
   });
 

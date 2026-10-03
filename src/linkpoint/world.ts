@@ -9,7 +9,7 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
-import { AvatarSkeleton, hasJointOverrides, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
+import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
 import { parseAnimation, type JointPose } from './avatar-animation';
 import { packJointRows } from './skinning';
 import { generateVolume, volumeKey, volumeParamsFrom, type VolumeFace } from './sl-volume';
@@ -243,7 +243,6 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   private skeleton: AvatarSkeleton | null = null;
-  private restSkinRows = new Map<string, Float32Array | null>();
   private animator = new AvatarAnimator(this.animationLoader());
   /** Bundled animations first, then (for custom/uploaded ones) the simulator's asset service. */
   private animationLoader() {
@@ -274,24 +273,52 @@ export class WorldViewer extends Utils.EventEmitter {
 
   /**
    * Joint matrices for a rigged mesh asset, including the joint position overrides (Bento /
-   * alternate bind) the mesh asks for. Without a pose this is the rest pose and is cached.
+   * alternate bind) requested by every mesh worn on the same avatar.
    * Null for unrigged meshes.
    */
-  private skinRowsFor(assetId: string, pose?: Map<string, JointPose>): Float32Array | null {
-    if (!pose && this.restSkinRows.has(assetId)) return this.restSkinRows.get(assetId)!;
-    const skin = this.decodedAssets.get(assetId)?.skin as (MeshSkin & { pelvisOffset?: number | number[] | null }) | null | undefined;
+  private skinRowsFor(assetId: string, pose?: Map<string, JointPose>, subject?: string): Float32Array | null {
+    const key = String(assetId);
+    const skin = (this.decodedAssets.get(key) || this.decodedAssets.get(key.toLowerCase()))?.skin as (MeshSkin & { pelvisOffset?: number | number[] | null }) | null | undefined;
     let rows: Float32Array | null = null;
     if (skin?.jointNames?.length) {
       this.skeleton ||= new AvatarSkeleton();
-      const offset = typeof skin.pelvisOffset === 'number' ? skin.pelvisOffset : 0;
-      const overrides = jointPositionOverrides(this.skeleton, skin);
-      // The pelvis offset only applies together with a valid set of joint overrides (as in the viewer).
-      const world = this.skeleton.worldMatrices(pose, overrides, [0, 0, hasJointOverrides(skin) ? offset : 0]);
+      const deformation = subject ? this.avatarDeformation(subject) : {
+        overrides: jointPositionOverrides(this.skeleton, skin),
+        pelvisOffset: typeof skin.pelvisOffset === 'number' ? skin.pelvisOffset : 0,
+      };
+      const world = this.skeleton.worldMatrices(pose, deformation.overrides, [0, 0, deformation.pelvisOffset]);
       const maxJoints = (this.scene3d as any)?.graphics?.maxJoints || 110;
       rows = packJointRows(skinMatrices(this.skeleton, { ...skin, pelvisOffset: undefined }, world), maxJoints);
     }
-    if (!pose) this.restSkinRows.set(assetId, rows);
     return rows;
+  }
+
+  /**
+   * Lumiya rebuilds one avatar skeleton from every worn rigged mesh. Joint translations therefore
+   * reshape the body and all attachments together; applying each mesh's alternate bind only to
+   * itself makes separately-authored clothes diverge and appear stretched or exploded.
+   */
+  private avatarDeformation(subject: string): { overrides: Map<string, [number, number, number]>; pelvisOffset: number } {
+    this.skeleton ||= new AvatarSkeleton();
+    const overrides = new Map<string, [number, number, number]>();
+    let pelvisOffset = 0;
+    for (const object of this.sceneObjects.values()) {
+      if (!object.assetId || this.animationSubject(object) !== subject) continue;
+      const key = String(object.assetId);
+      const skin = (this.decodedAssets.get(key) || this.decodedAssets.get(key.toLowerCase()))?.skin as MeshSkin | undefined;
+      if (!skin) continue;
+      // MeshJointTranslations.ApplyJointTranslations sums the pelvis offsets and lets the later
+      // attachment win when two meshes override the same joint.
+      if (typeof skin.pelvisOffset === 'number' && Number.isFinite(skin.pelvisOffset)) pelvisOffset += skin.pelvisOffset;
+      for (const [joint, position] of jointPositionOverrides(this.skeleton, skin)) overrides.set(joint, position);
+    }
+    return { overrides, pelvisOffset };
+  }
+
+  private avatarWorldMatrices(subject: string, pose = this.animator.pose(subject)) {
+    this.skeleton ||= new AvatarSkeleton();
+    const deformation = this.avatarDeformation(subject);
+    return this.skeleton.worldMatrices(pose, deformation.overrides, [0, 0, deformation.pelvisOffset]);
   }
 
   /** The avatar a rigged attachment is worn by, or the object itself (an animated object is its own subject). */
@@ -305,15 +332,23 @@ export class WorldViewer extends Utils.EventEmitter {
     return object.id;
   }
 
+  private reapplyAvatarSubject(subject: string) {
+    for (const object of this.sceneObjects.values()) {
+      const objectSubject = object.avatar ? object.id : this.animationSubject(object);
+      if (objectSubject === subject) this.applySceneObject(object);
+    }
+  }
+
   /** Re-pose every rigged mesh whose avatar / animated object is running animations. Called once per frame. */
   private updateAnimatedSkins() {
     if (!this.scene3d) return;
     for (const object of this.sceneObjects.values()) {
-      if (object.avatar || !object.assetId || !this.decodedAssets.get(object.assetId)?.skin) continue;
+      const assetKey = String(object.assetId || '');
+      if (object.avatar || !assetKey || !(this.decodedAssets.get(assetKey) || this.decodedAssets.get(assetKey.toLowerCase()))?.skin) continue;
       const subject = this.animationSubject(object);
       const animating = this.animator.isAnimating(subject);
       if (!animating && !this.posedObjects.has(object.id)) continue;
-      const rows = animating ? this.skinRowsFor(object.assetId, this.animator.pose(subject)) : this.skinRowsFor(object.assetId);
+      const rows = this.skinRowsFor(object.assetId, animating ? this.animator.pose(subject) : undefined, subject);
       if (animating) this.posedObjects.add(object.id); else this.posedObjects.delete(object.id);
       if (rows) this.scene3d.updateObject(object.id, { skin: rows });
     }
@@ -339,18 +374,20 @@ export class WorldViewer extends Utils.EventEmitter {
     const assetIdStr = String(asset.assetId);
     this.decodedAssets.set(assetIdStr, asset.geometry);
     this.decodedAssets.set(assetIdStr.toLowerCase(), asset.geometry);
-    this.restSkinRows.delete(assetIdStr);
-    this.restSkinRows.delete(assetIdStr.toLowerCase());
     const meshes = this.scene3d?.addAssetMesh(assetIdStr, asset.geometry);
     const fallbackMeshes = asset.geometry.parts?.length
       ? asset.geometry.parts.map((part: any, index: number) => ({ mesh: `asset:${assetIdStr}:${index}`, materialIndex: part.materialIndex ?? index }))
       : [{ mesh: `asset:${assetIdStr}:0`, materialIndex: 0 }];
     const resolvedMeshes = meshes || fallbackMeshes;
+    const affectedSubjects = new Set<string>();
     for (const object of this.sceneObjects.values()) {
       if (!this.sameId(object.assetId, assetIdStr)) continue;
       object.decodedMeshes = resolvedMeshes;
-      this.applySceneObject(object);
+      affectedSubjects.add(this.animationSubject(object));
     }
+    // One newly decoded attachment can alter the shared skeleton used by all clothing and the body.
+    // Reapply the complete avatar, matching Lumiya's shapeParamsUpdate skeleton rebuild.
+    for (const subject of affectedSubjects) this.reapplyAvatarSubject(subject);
   }
 
   private applyTexture(asset: any) {
@@ -818,6 +855,10 @@ export class WorldViewer extends Utils.EventEmitter {
     }
     this.objects = Array.from(this.sceneObjects.values());
     this.applySceneObject(merged);
+    if (!previous && merged.assetId) {
+      const key = String(merged.assetId);
+      if ((this.decodedAssets.get(key) || this.decodedAssets.get(key.toLowerCase()))?.skin) this.reapplyAvatarSubject(this.animationSubject(merged));
+    }
     // A root prim moving changes every child prim's world transform even when
     // the simulator quite correctly sends no update for those children.
     if (merged.localId) this.reapplyChildren(merged.localId);
@@ -969,7 +1010,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applySceneObject(object: any) {
     if (!this.scene3d) return;
-    const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId) : null;
+    const subject = !object.avatar ? this.animationSubject(object) : object.id;
+    const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId, undefined, subject) : null;
     const { position, rotation } = skin ? this.riggedTransform(object) : this.worldTransform(object);
     const hudRoot = object.avatar ? null : this.hudRootOf(object);
     // SL rigged vertices are authored in avatar space. Applying the attachment prim's scale again
@@ -1060,7 +1102,7 @@ export class WorldViewer extends Utils.EventEmitter {
   /** Joint matrices for every body part of an avatar in its current animated pose. */
   private avatarBodyRows(avatarId: string): Map<string, Float32Array> {
     this.skeleton ||= new AvatarSkeleton();
-    const world = this.skeleton.worldMatrices(this.animator.pose(avatarId));
+    const world = this.avatarWorldMatrices(avatarId);
     const maxJoints = (this.scene3d as any)?.graphics?.maxJoints || 110;
     const rows = new Map<string, Float32Array>();
     for (const { part, instance, rigidJoint } of BODY_PARTS) {
@@ -1116,6 +1158,23 @@ export class WorldViewer extends Utils.EventEmitter {
       if (this.scene3d.objects.has(partId)) this.scene3d.updateObject(partId, part3d);
       else this.scene3d.addObject(partId, part3d);
     }
+    // The skirt is a separate optional system layer. Do not show an opaque
+    // fallback skirt, but do render it whenever the skirt bake is available.
+    const skirtTexture = this.bakedTexture(object, 'skirt');
+    const skirtId = `${id}:body:skirt`;
+    const skirtGeometry = this.bodyParts?.get('skirt');
+    if (skirtTexture && skirtGeometry) {
+      let skirtSkin = this.bodySkins.get('skirt');
+      if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
+      const skirt = {
+        mesh: 'cube', meshes: [{ mesh: 'avatar-body:skirt', materialIndex: 0 }],
+        position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1], color: [1, 1, 1, 1],
+        faces: [{ texture: skirtTexture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: 'MASK', alphaCutoff: 0.5, doubleSided: true } }],
+        skin: bodyPartRows(this.skeleton, skirtSkin, this.avatarWorldMatrices(id), (this.scene3d as any).graphics?.maxJoints || 110), visible: true,
+      };
+      if (this.scene3d.objects.has(skirtId)) this.scene3d.updateObject(skirtId, skirt);
+      else this.scene3d.addObject(skirtId, skirt);
+    } else this.scene3d.removeObject(skirtId);
     for (const suffix of [':body', ':head', ':legs']) this.scene3d.removeObject(`${id}${suffix}`);
     this.scene3d.updateObject(id, { visible: false });
   }
@@ -1128,6 +1187,14 @@ export class WorldViewer extends Utils.EventEmitter {
       if (!this.animator.isAnimating(object.id)) continue;
       const rows = this.avatarBodyRows(object.id);
       for (const [instance, skin] of rows) this.scene3d.updateObject(`${object.id}:body:${instance}`, { skin });
+      const skirt = this.scene3d.objects.get(`${object.id}:body:skirt`);
+      const skirtGeometry = skirt && this.bodyParts.get('skirt');
+      if (skirtGeometry) {
+        let skirtSkin = this.bodySkins.get('skirt');
+        if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
+        const world = this.avatarWorldMatrices(object.id);
+        this.scene3d.updateObject(`${object.id}:body:skirt`, { skin: bodyPartRows(this.skeleton, skirtSkin, world, (this.scene3d as any).graphics?.maxJoints || 110) });
+      }
     }
   }
 
@@ -1150,6 +1217,8 @@ export class WorldViewer extends Utils.EventEmitter {
       ? object.id
       : this.localObjectIds.get(object.localId);
     if (!id) return;
+    const removed = this.sceneObjects.get(id);
+    const affectedSubject = removed && !removed.avatar ? this.animationSubject(removed) : null;
     this.sceneObjects.delete(id);
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
@@ -1159,6 +1228,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.scene3d?.removeObject(id);
     for (const suffix of [':body', ':head', ':legs', ...BODY_PARTS.map((p) => `:body:${p.instance}`)]) this.scene3d?.removeObject(`${id}${suffix}`);
     this.objects = Array.from(this.sceneObjects.values());
+    if (affectedSubject && affectedSubject !== id) this.reapplyAvatarSubject(affectedSubject);
     if (this.selectedObject?.id === id) {
       this.selectedObject = null;
       this.emit('selection_changed', null);
