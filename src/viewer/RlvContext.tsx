@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { RlvController } from '../linkpoint/rlv';
 
 /**
  * RLV (Restrained Life Viewer) restrictions.
@@ -9,33 +10,19 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
  * this context before it renders as usable. A restricted control is disabled
  * and says which restriction is holding it, because a dead button with no
  * explanation reads as a bug.
- *
- * Commands are the standard RLV behaviour names, so a restriction issued by an
- * in-world object maps straight onto the key used here.
  */
 export type RlvRestriction =
-  /** @detach=n — attachments and HUDs cannot be removed. */
   | 'detach'
-  /** @showloc=n — region name, coordinates and SLURLs must be hidden. */
   | 'showloc'
-  /** @shownames=n — other residents' names must be hidden. */
   | 'shownames'
-  /** @sendchat=n — cannot send to local chat. */
   | 'sendchat'
-  /** @sendim=n — cannot send instant messages. */
   | 'sendim'
-  /** @tplm=n — cannot teleport via a landmark. */
   | 'tplm'
-  /** @tploc=n — cannot teleport to an arbitrary location. */
   | 'tploc'
-  /** @showinv=n — the inventory must not be browsable. */
   | 'showinv'
-  /** @showworldmap=n — the world map must not be viewable. */
   | 'showworldmap'
-  /** @showminimap=n — the radar and minimap must not be viewable. */
   | 'showminimap';
 
-/** What to tell the resident when a control is held by a restriction. */
 export const RLV_REASONS: Record<RlvRestriction, string> = {
   detach: 'Locked by RLV — this item cannot be detached.',
   showloc: 'Hidden by RLV — your location is restricted.',
@@ -49,40 +36,53 @@ export const RLV_REASONS: Record<RlvRestriction, string> = {
   showminimap: 'Hidden by RLV — the radar is restricted.',
 };
 
-/** The placeholder shown wherever a name or location has been censored. */
 export const RLV_REDACTED = '(hidden)';
 
 interface RlvContextValue {
-  /** Master switch. With RLV off no restriction applies, whatever is set. */
   enabled: boolean;
   setEnabled: (on: boolean) => void;
-  /** The restrictions currently issued by in-world objects. */
   active: Set<RlvRestriction>;
-  /** True when this restriction is in force right now. */
   restricted: (r: RlvRestriction) => boolean;
-  /** The reason string when restricted, otherwise null — handy for a title. */
   reasonFor: (r: RlvRestriction) => string | null;
-  /** Apply or clear a restriction, as an in-world command would. */
   setRestriction: (r: RlvRestriction, on: boolean) => void;
+  controller: RlvController;
+  processMessage: (sourceId: string, messageText: string) => void;
 }
 
 const RlvContext = createContext<RlvContextValue | null>(null);
 
 export const RlvProvider: React.FC<{
   children: React.ReactNode;
-  /** Restore the consent flag, e.g. after a relog. */
   initialEnabled?: boolean;
-  /** Restore restrictions still held by objects the resident is wearing. */
   initialRestrictions?: RlvRestriction[];
 }> = ({ children, initialEnabled = false, initialRestrictions }) => {
-  // RLV is off until a resident consents to it: restrictions are consensual by
-  // definition, so nothing is enforced by default.
-  const [enabled, setEnabled] = useState(initialEnabled);
+  const [enabled, setEnabledState] = useState(initialEnabled);
   const [active, setActive] = useState<Set<RlvRestriction>>(() => new Set(initialRestrictions ?? []));
+  const controllerRef = useRef<RlvController>(new RlvController(initialEnabled));
 
-  const restricted = useCallback((r: RlvRestriction) => enabled && active.has(r), [enabled, active]);
+  const setEnabled = useCallback((on: boolean) => {
+    setEnabledState(on);
+    controllerRef.current.setEnabled(on);
+  }, []);
 
-  const reasonFor = useCallback((r: RlvRestriction) => (enabled && active.has(r) ? RLV_REASONS[r] : null), [enabled, active]);
+  const restricted = useCallback(
+    (r: RlvRestriction) => {
+      if (!enabled) return false;
+      if (r === 'detach') return !controllerRef.current.canDetach();
+      if (r === 'sendchat') return !controllerRef.current.canSendChat();
+      if (r === 'sendim') return !controllerRef.current.canSendIM();
+      if (r === 'tplm') return !controllerRef.current.canTeleportLandmark();
+      if (r === 'tploc') return !controllerRef.current.canTeleportLocation();
+      if (r === 'showinv') return !controllerRef.current.canShowInventory();
+      return active.has(r);
+    },
+    [enabled, active]
+  );
+
+  const reasonFor = useCallback(
+    (r: RlvRestriction) => (restricted(r) ? RLV_REASONS[r] : null),
+    [restricted]
+  );
 
   const setRestriction = useCallback((r: RlvRestriction, on: boolean) => {
     setActive((prev) => {
@@ -93,9 +93,22 @@ export const RlvProvider: React.FC<{
     });
   }, []);
 
+  const processMessage = useCallback((sourceId: string, messageText: string) => {
+    controllerRef.current.processMessage(sourceId, messageText);
+  }, []);
+
   const value = useMemo<RlvContextValue>(
-    () => ({ enabled, setEnabled, active, restricted, reasonFor, setRestriction }),
-    [enabled, active, restricted, reasonFor, setRestriction],
+    () => ({
+      enabled,
+      setEnabled,
+      active,
+      restricted,
+      reasonFor,
+      setRestriction,
+      controller: controllerRef.current,
+      processMessage,
+    }),
+    [enabled, setEnabled, active, restricted, reasonFor, setRestriction, processMessage]
   );
 
   return <RlvContext.Provider value={value}>{children}</RlvContext.Provider>;
@@ -106,3 +119,4 @@ export function useRlv(): RlvContextValue {
   if (!ctx) throw new Error('useRlv must be used inside an RlvProvider');
   return ctx;
 }
+

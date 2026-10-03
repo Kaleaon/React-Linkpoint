@@ -77,6 +77,27 @@ function serializeGroupNotice(event) {
   };
 }
 
+/** Describe an InventoryOfferedEvent for the client. */
+function serializeInventoryOffer(event) {
+  return {
+    fromId: idString(event.from),
+    fromName: String(event.fromName || 'Resident'),
+    requestId: idString(event.requestID),
+    message: String(event.message || ''),
+    type: event.type !== undefined ? event.type : 0,
+  };
+}
+
+/** Describe a GroupInviteEvent for the client. */
+function serializeGroupInvite(event) {
+  return {
+    fromId: idString(event.from),
+    fromName: String(event.fromName || 'Resident'),
+    message: String(event.message || ''),
+    inviteId: idString(event.inviteID),
+  };
+}
+
 /**
  * Original events awaiting an answer, keyed by an opaque id. Bounded, and
  * cleared when the session closes.
@@ -158,10 +179,28 @@ async function acceptLure(bot, pending, params) {
   return { accepted: true, message: result && result.message ? String(result.message) : '' };
 }
 
+/** Accept an inventory offer. */
+async function acceptInventoryOffer(bot, pending, params) {
+  const offer = pending.get('inventory-offer', params && params.id);
+  if (commands(bot).inventory && typeof commands(bot).inventory.acceptInventoryOffer === 'function') {
+    await commands(bot).inventory.acceptInventoryOffer(offer);
+  }
+  pending.remove(params.id);
+  return { accepted: true };
+}
+
+/** Accept a group invite. */
+async function acceptGroupInvite(bot, pending, params) {
+  const invite = pending.get('group-invite', params && params.id);
+  if (commands(bot).groups && typeof commands(bot).groups.acceptGroupInvite === 'function') {
+    await commands(bot).groups.acceptGroupInvite(invite);
+  }
+  pending.remove(params.id);
+  return { accepted: true };
+}
+
 /**
- * Dismiss an interaction locally. This does not tell the grid anything: the
- * client library has no call for declining a lure, and an unanswered script
- * dialog simply times out in the script.
+ * Dismiss an interaction locally.
  */
 function dismissInteraction(pending, params) {
   if (!params || typeof params.id !== 'string') throw new Error('An interaction id is required');
@@ -169,7 +208,7 @@ function dismissInteraction(pending, params) {
 }
 
 /**
- * Subscribe to the library's script dialog and lure events. `send(type, data)` is
+ * Subscribe to the library's script dialog, lure, inventory offer, and group invite events. `send(type, data)` is
  * the backend's event sink. Returns the subscriptions so the caller can drop them.
  */
 function subscribeInteractions(events, pending, send) {
@@ -183,6 +222,9 @@ function subscribeInteractions(events, pending, send) {
   };
   watch(events.onScriptDialog, 'script-dialog', serializeScriptDialog);
   watch(events.onLure, 'lure', serializeLure);
+  watch(events.onInventoryOffered, 'inventory-offer', serializeInventoryOffer);
+  watch(events.onGroupInvite, 'group-invite', serializeGroupInvite);
+
   if (events.onGroupNotice && typeof events.onGroupNotice.subscribe === 'function') {
     subscriptions.push(events.onGroupNotice.subscribe((event) => {
       send('group-notice', { id: randomUUID(), timestamp: Date.now(), ...serializeGroupNotice(event) });
@@ -198,9 +240,13 @@ module.exports = {
   serializeScriptDialog,
   serializeLure,
   serializeGroupNotice,
+  serializeInventoryOffer,
+  serializeGroupInvite,
   PendingInteractions,
   subscribeInteractions,
   respondScriptDialog,
   acceptLure,
+  acceptInventoryOffer,
+  acceptGroupInvite,
   dismissInteraction,
 };

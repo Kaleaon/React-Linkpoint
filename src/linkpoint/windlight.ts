@@ -184,10 +184,18 @@ export function presetToSkyFrame(preset: WindlightPreset): WindlightSkyFrame {
 }
 
 /**
+ * Time of day from simulator SunPhase message, matching Lumiya's exact formula:
+ * (SunPhase / 2π) + 0.25
+ */
+export function sunHourFromSunPhase(sunPhase: number): number {
+  if (!Number.isFinite(sunPhase)) return 0;
+  const hour = (sunPhase / (2 * Math.PI)) + 0.25;
+  return ((hour % 1) + 1) % 1;
+}
+
+/**
  * Time of day as a fraction of a four-hour Second Life day, from a Unix time in
- * milliseconds. This is an estimate: the simulator's own sun phase is not
- * exposed by the client library, and the cycle's alignment to real time is
- * assumed (day starts at the Unix epoch, so the fraction is time mod 4 hours).
+ * milliseconds. This is an estimate used as fallback when SunPhase is unavailable.
  */
 export function estimatedSunHour(nowMs: number): number {
   const seconds = nowMs / 1000;
