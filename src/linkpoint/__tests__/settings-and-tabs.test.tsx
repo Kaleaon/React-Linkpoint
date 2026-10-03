@@ -4,7 +4,7 @@ import { act } from 'react';
 import Settings from '../../screens/Settings.jsx';
 import { FriendsScreen, NoticesScreen } from '../../screens/LiveScreens.jsx';
 import { app } from '../app';
-import { buttonByText, click, flush, mountScreen, unmount, type Mounted } from './ui-helpers';
+import { buttonByText, click, flush, mountScreen, typeInto, unmount, type Mounted } from './ui-helpers';
 
 const google = vi.hoisted(() => ({ signOut: vi.fn() }));
 vi.mock('../../services/google.ts', () => ({
@@ -52,6 +52,31 @@ describe('Settings: optional Google integration', () => {
     mounted = await mountScreen(Settings);
     await act(async () => { toggle(mounted!.host).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
     expect(app.preferences.isGoogleEnabled()).toBe(true);
+  });
+});
+
+describe('Settings: mobile appearance and viewer preferences', () => {
+  it('exposes layout, theme, format, density and the previously hidden preferences', async () => {
+    mounted = await mountScreen(Settings);
+    for (const id of [
+      'settings-layout-select', 'settings-theme-select', 'settings-format-select', 'settings-density-select',
+      'settings-frame-rate-select', 'settings-avatar-complexity-select', 'settings-translation-select',
+      'settings-maturity-select', 'settings-cache-limit-select', 'settings-cache-location-select',
+    ]) expect(mounted.host.querySelector(`#${id}`), id).not.toBeNull();
+    expect(mounted.host.textContent).toContain('THEME STUDIO');
+  });
+
+  it('changes the mobile layout, colour theme and compact format immediately', async () => {
+    mounted = await mountScreen(Settings);
+    await typeInto(mounted.host.querySelector('#settings-layout-select') as HTMLSelectElement, 'tiles');
+    await typeInto(mounted.host.querySelector('#settings-theme-select') as HTMLSelectElement, 'aero');
+    await typeInto(mounted.host.querySelector('#settings-format-select') as HTMLSelectElement, 'mobile');
+    await typeInto(mounted.host.querySelector('#settings-density-select') as HTMLSelectElement, 'compact');
+
+    expect(mounted.ctx.current.state.layout).toBe('tiles');
+    expect(mounted.ctx.current.state.palette).toBe('aero');
+    expect(mounted.ctx.current.state.viewMode).toBe('mobile');
+    expect(mounted.ctx.current.state.dense).toBe(true);
   });
 });
 

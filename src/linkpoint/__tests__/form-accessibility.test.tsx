@@ -108,8 +108,18 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
     const selectIds = [
       'settings-draw-distance-select',
       'settings-graphics-quality-select',
+      'settings-frame-rate-select',
+      'settings-avatar-complexity-select',
       'settings-bandwidth-limit-select',
       'settings-master-volume-select',
+      'settings-layout-select',
+      'settings-theme-select',
+      'settings-format-select',
+      'settings-density-select',
+      'settings-translation-select',
+      'settings-maturity-select',
+      'settings-cache-limit-select',
+      'settings-cache-location-select',
     ];
 
     for (const id of selectIds) {

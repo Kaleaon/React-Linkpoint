@@ -8,6 +8,7 @@
 import { AvatarSkeleton, compose, skinMatrices, type Mat4, type MeshSkin } from './avatar-skeleton';
 import { packJointRows } from './skinning';
 import { assetBase } from './avatar-animator';
+import { rateLimitedFetch } from './rate-limited-fetch';
 
 export interface BodyPartMeta { vertexCount: number; faceCount: number; hasWeights: boolean; jointNames: string[] }
 export interface BodyPartGeometry {
@@ -90,17 +91,19 @@ export function bodyPartRows(skeleton: AvatarSkeleton, skin: MeshSkin, world: Ma
 }
 
 export async function loadBodyParts(baseUrl = `${assetBase()}avatar/`, fetcher: typeof fetch = (input, init) => fetch(input, init)): Promise<Map<string, BodyPartGeometry>> {
-  const metaResponse = await fetcher(`${baseUrl}meshes.json`);
+  const metaResponse = await rateLimitedFetch(`${baseUrl}meshes.json`, undefined, fetcher);
   if (!metaResponse.ok) throw new Error(`Avatar mesh index unavailable (HTTP ${metaResponse.status})`);
   let meta: Record<string, BodyPartMeta>;
   try { meta = (await metaResponse.json()) as Record<string, BodyPartMeta>; }
   catch { throw new Error(`Avatar mesh index at ${baseUrl}meshes.json is not JSON (is public/avatar deployed?)`); }
   const parts = new Map<string, BodyPartGeometry>();
-  await Promise.all(Object.keys(meta).map(async (part) => {
-    const response = await fetcher(`${baseUrl}${part}.bin`);
+  // These files are small. Loading them in order avoids an eight-request burst that can exhaust
+  // the whole origin's rate limit just as the viewer is also fetching its initial session state.
+  for (const part of Object.keys(meta)) {
+    const response = await rateLimitedFetch(`${baseUrl}${part}.bin`, undefined, fetcher);
     if (!response.ok) throw new Error(`Avatar mesh ${part} unavailable (HTTP ${response.status})`);
     try { parts.set(part, parseBodyPart(await response.arrayBuffer(), meta[part])); }
     catch (error) { throw new Error(`Avatar mesh ${baseUrl}${part}.bin is invalid: ${(error as Error).message}`); }
-  }));
+  }
   return parts;
 }

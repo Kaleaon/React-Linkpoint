@@ -19,7 +19,7 @@ export default function DeviceFrame() {
   const { V, t, isFloat, isConsole } = useTheme();
   const loggedIn = app.auth.isLoggedIn();
 
-  const frameStyle = { position: "relative", overflow: "hidden", background: V.bg, color: V.ink, fontFamily: t.font, display: "flex", flexDirection: "column", width: "100%", height: "100%" };
+  const frameStyle = { position: "relative", overflow: "hidden", background: V.bg, color: V.ink, fontFamily: t.font, fontSize: state.toggles.largeType ? "16px" : "14px", display: "flex", flexDirection: "column", width: "100%", height: "100%" };
   const cfWrap = { flex: 1, minHeight: 0, minWidth: 0, position: "relative", display: "flex", overflow: "hidden", background: V.bg };
 
   return (
