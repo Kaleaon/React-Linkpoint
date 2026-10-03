@@ -30,7 +30,14 @@ export default function FloatersDesktop() {
   const bodyInsetTop = kind === "metro" ? 3 : 0;
   const [quickMsg, setQuickMsg] = useState("");
   const [showCamHud, setShowCamHud] = useState(true);
+  const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
   const [, setRuntimeRevision] = useState(0);
+
+  useEffect(() => {
+    const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
+    app.voice.on("state", updateVoice);
+    return () => app.voice.off("state", updateVoice);
+  }, []);
 
   useEffect(() => {
     const refresh = () => setRuntimeRevision((value) => value + 1);
@@ -290,6 +297,27 @@ export default function FloatersDesktop() {
         })}
 
         <div style={{ flex: 1, minWidth: "8px" }} />
+
+        {/* Microphone / Voice Control */}
+        <div
+          onClick={() => {
+            if (voice.state === "connected") {
+              app.voice.setMuted(!voice.muted);
+            } else {
+              void app.voice.connect().catch(() => {});
+            }
+          }}
+          style={{
+            flex: "none",
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+            ...chipStyle(kind, { V, t, on: voice.state === "connected" && !voice.muted, ink }),
+          }}
+          title={voice.state === "connected" ? (voice.muted ? "Unmute Microphone" : "Mute Microphone") : "Connect Voice Microphone"}
+        >
+          <Icon name={voice.state === "connected" && voice.muted ? "mic-off" : "mic"} size={13} />
+          {voice.state === "connected" ? (voice.muted ? "MIC MUTED" : "MIC LIVE") : "JOIN VOICE"}
+        </div>
 
         {/* Toggle Camera HUD Button */}
         <button

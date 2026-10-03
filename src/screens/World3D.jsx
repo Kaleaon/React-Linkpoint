@@ -19,6 +19,13 @@ export default function World3D({ desktopBackdrop = false }) {
   const [selection, setSelection] = useState(app.world.selectedObject);
   const [interactionMode, setInteractionModeState] = useState(() => app.world.getInteractionMode());
   const [chatMessages, setChatMessages] = useState(() => app.chat.messages);
+  const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
+
+  useEffect(() => {
+    const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
+    app.voice.on("state", updateVoice);
+    return () => app.voice.off("state", updateVoice);
+  }, []);
 
   // Overlay visibility controls
   const [showOverlays, setShowOverlays] = useState(true);
@@ -624,6 +631,10 @@ export default function World3D({ desktopBackdrop = false }) {
             onResetView={handleResetView}
             onOpenChat={() => setShowChatOverlay((prev) => !prev)}
             chatOpen={showChatOverlay}
+            voiceState={voice.state}
+            voiceMuted={voice.muted}
+            onToggleMic={() => app.voice.setMuted(!voice.muted)}
+            onJoinVoice={() => void app.voice.connect().catch(() => {})}
             onZoomIn={() => {
               app.world.camera3d?.zoom(0.2);
               refresh();
@@ -633,6 +644,83 @@ export default function World3D({ desktopBackdrop = false }) {
               refresh();
             }}
           />
+
+          {/* 3D World View Microphone & Voice Widget */}
+          <div
+            style={{
+              position: "absolute",
+              left: 14,
+              top: showDiagnostics ? (diagnosticsExpanded ? "42%" : 46) : 14,
+              zIndex: 25,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "5px 10px",
+              background: "rgba(0, 0, 0, 0.75)",
+              border: `1px solid ${V.outv}`,
+              borderRadius: V.rs,
+              backdropFilter: "blur(6px)",
+              color: V.ink,
+            }}
+          >
+            <Icon name={voice.muted ? "mic-off" : "mic"} size={14} style={{ color: voice.state === "connected" ? (voice.muted ? V.err : V.pri) : V.ink2 }} />
+            <span style={{ fontSize: "10px", fontWeight: 700 }}>
+              VOICE: {voice.state.toUpperCase()}{voice.state === "connected" ? (voice.muted ? " (MUTED)" : " (LIVE)") : ""}
+            </span>
+            {voice.state === "connected" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => app.voice.setMuted(!voice.muted)}
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    background: voice.muted ? V.pri : "rgba(255, 255, 255, 0.12)",
+                    color: voice.muted ? V.onpri : V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    cursor: "pointer",
+                  }}
+                >
+                  {voice.muted ? "UNMUTE MIC" : "MUTE MIC"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void app.voice.disconnect()}
+                  style={{
+                    padding: "2px 6px",
+                    fontSize: "10px",
+                    background: "transparent",
+                    color: V.err,
+                    border: `1px solid ${V.err}`,
+                    borderRadius: V.rs,
+                    cursor: "pointer",
+                  }}
+                >
+                  LEAVE
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={!app.auth.isLoggedIn()}
+                onClick={() => void app.voice.connect().catch(() => {})}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  background: V.pri,
+                  color: V.onpri,
+                  border: 0,
+                  borderRadius: V.rs,
+                  cursor: "pointer",
+                }}
+              >
+                JOIN VOICE
+              </button>
+            )}
+          </div>
 
           {/* Spatial Chat Overlay (Collapsible & dismissible) */}
           {showChatOverlay && (

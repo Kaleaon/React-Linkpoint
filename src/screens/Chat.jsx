@@ -20,6 +20,13 @@ export default function Chat() {
   const [awayMessage, setAwayMessage] = useState(() => app.chat.getAwayMessage());
   const [showAwaySettings, setShowAwaySettings] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
+
+  useEffect(() => {
+    const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
+    app.voice.on("state", updateVoice);
+    return () => app.voice.off("state", updateVoice);
+  }, []);
 
   // Active sub-tab from navigation (LOCAL, IM, GROUP)
   const activeTab = state.tabs?.Chat || "LOCAL";
@@ -334,9 +341,74 @@ export default function Chat() {
           </div>
         )}
 
-        {/* Instant Messenger Contact Selector (When IM tab is active) */}
+        {/* Instant Messenger Contact Selector & Voice Call Bar (When IM tab is active) */}
         {activeTab === "IM" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", background: V.bg, borderRadius: V.rs, border: `1px solid ${V.outv}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name={voice.muted ? "mic-off" : "mic"} size={13} style={{ color: voice.state === "connected" ? (voice.muted ? V.err : V.pri) : V.ink2 }} />
+                <span style={{ fontSize: "10px", fontWeight: 700, color: V.ink }}>
+                  IM CALL: {voice.state === "connected" ? (voice.muted ? "MUTED" : "LIVE") : voice.state === "connecting" ? "CONNECTING..." : "OFF"}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {voice.state === "connected" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => app.voice.setMuted(!voice.muted)}
+                      style={{
+                        padding: "2px 8px",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        background: voice.muted ? V.pri : V.surf,
+                        color: voice.muted ? V.onpri : V.ink,
+                        border: `1px solid ${V.outv}`,
+                        borderRadius: V.rs,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {voice.muted ? "UNMUTE MIC" : "MUTE MIC"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void app.voice.disconnect()}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: "10px",
+                        background: "transparent",
+                        color: V.err,
+                        border: `1px solid ${V.err}`,
+                        borderRadius: V.rs,
+                        cursor: "pointer",
+                      }}
+                    >
+                      END CALL
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!connected}
+                    onClick={() => void app.voice.connect().catch(() => {})}
+                    style={{
+                      padding: "2px 8px",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      background: V.pri,
+                      color: V.onpri,
+                      border: 0,
+                      borderRadius: V.rs,
+                      cursor: "pointer",
+                    }}
+                  >
+                    START VOICE CALL
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
             <span style={{ fontSize: "10px", fontWeight: 700, color: V.ink2, flexShrink: 0 }}>
               RECIPIENT:
             </span>
@@ -405,6 +477,7 @@ export default function Chat() {
               );
             })}
           </div>
+        </div>
         )}
       </div>
 
