@@ -84,7 +84,12 @@ function primAppearance(object) {
     const value = typeof rgba?.[method] === 'function' ? rgba[method]() : rgba?.[property];
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
   };
-  const faceCount = Math.max(1, object.TextureEntry?.faces?.length || 0);
+  // Mesh assets can contain up to eight material slots even when every slot inherits the default
+  // TextureEntry. `faces.length` then reports zero, which used to serialize only slot 0: the server
+  // never requested the inherited texture for the remaining draws and they rendered plain white.
+  const materialFaces = Math.max(-1, ...(renderMaterials?.params || []).map((param) => finite(param.textureIndex, -1)));
+  const overrideFaces = Math.max(-1, ...Array.from(object.TextureEntry?.gltfMaterialOverrides?.keys?.() || []));
+  const faceCount = Math.max(asset ? 8 : 1, object.TextureEntry?.faces?.length || 0, materialFaces + 1, overrideFaces + 1);
   const faceTextures = Array.from({ length: faceCount }, (_, faceIndex) => {
     const face = object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) || object.TextureEntry?.faces?.[faceIndex] || object.TextureEntry?.defaultTexture;
     const faceRgba = face?.rgba;

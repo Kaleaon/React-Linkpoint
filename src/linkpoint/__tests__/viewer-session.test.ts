@@ -156,6 +156,21 @@ describe('desktop simulator object bridge', () => {
     ]);
   });
 
+  it('serializes inherited texture entries for every mesh material slot', () => {
+    const inherited = {
+      textureID: { toString: () => 'default-texture' },
+      rgba: { getRed: () => 1, getGreen: () => 1, getBlue: () => 1, getAlpha: () => 1 },
+    };
+    const result = serializeObject({ localID: 14, object: {
+      FullID: { toString: () => 'mesh' }, PCode: 9,
+      MeshData: { meshData: { toString: () => 'mesh-asset' } },
+      TextureEntry: { faces: [], defaultTexture: inherited, getEffectiveEntryForFace: () => inherited },
+    } });
+
+    expect(result.faceTextures).toHaveLength(8);
+    expect(result.faceTextures.every((face: any) => face.textureId === 'default-texture')).toBe(true);
+  });
+
   it('identifies modern PBR materials and mirror reflection probes from UDP extra params', () => {
     const result = serializeObject({
       localID: 12,
@@ -269,7 +284,7 @@ describe('desktop session texture downloads', () => {
     };
 
     const result = session.downloadTexture('texture-id');
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await expect(result).resolves.toEqual(Buffer.from('fresh-cap'));
     expect(downloadAsset).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
@@ -304,6 +319,37 @@ describe('desktop session texture downloads', () => {
     await session.assetRequests.get('mesh:test');
     expect(download).toHaveBeenCalledTimes(2);
     expect(ready).toHaveBeenCalledWith(Buffer.from('ok'));
+    vi.useRealTimers();
+  });
+
+  it('limits concurrent simulator asset downloads so attachments are not rate-limited', async () => {
+    const session = new ViewerSession(() => undefined);
+    let active = 0;
+    let peak = 0;
+    const pending = Array.from({ length: 12 }, () => session.queueAssetDownload(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active--;
+      return Buffer.from('asset');
+    }));
+
+    await Promise.all(pending);
+    expect(peak).toBe(4);
+  });
+
+  it('retries ViewerAsset downloads after a 429 response', async () => {
+    vi.useFakeTimers();
+    const session = new ViewerSession(() => undefined);
+    const downloadAsset = vi.fn()
+      .mockRejectedValueOnce(new Error('Response code 429 (Too Many Requests)'))
+      .mockResolvedValue(Buffer.from('texture'));
+    session.bot = { currentRegion: { caps: {} }, clientCommands: { asset: { downloadAsset } } };
+
+    const result = session.downloadTexture('texture-id');
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(result).resolves.toEqual(Buffer.from('texture'));
+    expect(downloadAsset).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
 });

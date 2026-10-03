@@ -61,6 +61,8 @@ class ViewerSession {
     this.subscriptions = [];
     this.assetRequests = new Map();
     this.assetFailures = new Map();
+    this.assetDownloadQueue = [];
+    this.activeAssetDownloads = 0;
     this.decodedAssets = new Map();
     this.friendPresence = new Map();
     this.soundRequests = new Set();
@@ -94,6 +96,28 @@ class ViewerSession {
 
   // ---- asset streaming --------------------------------------------------------------------------
 
+  /**
+   * Simulator asset capabilities rate-limit bursts aggressively. Keep mesh, texture, material and
+   * animation downloads behind one queue so entering a mesh-heavy region cannot starve attachments.
+   */
+  queueAssetDownload(download) {
+    return new Promise((resolve, reject) => {
+      this.assetDownloadQueue.push({ download, resolve, reject });
+      this.pumpAssetDownloads();
+    });
+  }
+
+  pumpAssetDownloads() {
+    while (this.activeAssetDownloads < 4 && this.assetDownloadQueue.length) {
+      const job = this.assetDownloadQueue.shift();
+      this.activeAssetDownloads++;
+      Promise.resolve().then(job.download).then(job.resolve, job.reject).finally(() => {
+        this.activeAssetDownloads--;
+        this.pumpAssetDownloads();
+      });
+    }
+  }
+
   /** Download, decode and stream one asset once; failures are reported to the client as `asset-error`. */
   streamAsset(key, kind, assetId, download, ready) {
     if (this.replay && this.decodedAssets.has(key)) {
@@ -105,9 +129,9 @@ class ViewerSession {
     const nextRetry = this.assetFailures.get(key) || 0;
     if (Date.now() < nextRetry) return;
     const request = (async () => {
-      const buffer = download
-        ? await download()
-        : await this.bot.clientCommands.asset.downloadAsset(kind, assetId);
+      const buffer = await this.queueAssetDownload(() => download
+        ? download()
+        : this.bot.clientCommands.asset.downloadAsset(kind, assetId));
       await ready(buffer);
       this.assetFailures.delete(key);
     })().catch((error) => {
@@ -129,14 +153,14 @@ class ViewerSession {
    * between retries so a region crossing cannot leave us using a stale capability URL. */
   async downloadViewerAsset(type, assetId) {
     let lastError;
-    for (const delay of [0, 500, 1500]) {
+    for (const delay of [0, 1000, 3000, 7000]) {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
       try {
         return await this.bot.clientCommands.asset.downloadAsset(type, assetId);
       } catch (error) {
         lastError = error;
         const message = String(error?.message || error);
-        if (!/(?:403|Forbidden|404|Not Found)/i.test(message)) throw error;
+        if (!/(?:403|Forbidden|404|Not Found|429|Too Many Requests)/i.test(message)) throw error;
       }
     }
     throw lastError;
@@ -590,7 +614,8 @@ class ViewerSession {
   }
 
   async fetchAnimation({ id }) {
-    return { id, data: await downloadAnimation(this.requireBot(), id) };
+    const bot = this.requireBot();
+    return { id, data: await this.queueAssetDownload(() => downloadAnimation(bot, id)) };
   }
 
   async voiceProvision({ sdp, parcelLocalId } = {}) {

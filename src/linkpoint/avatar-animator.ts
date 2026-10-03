@@ -4,6 +4,7 @@
  * its blended skeleton pose over time.
  */
 import { blendAnimations, parseAnimation, type JointPose, type KeyframeAnimation, type RunningAnimation } from './avatar-animation';
+import { rateLimitedFetch } from './rate-limited-fetch';
 
 export interface AnimationRequest { id: string; seq: number }
 export type AnimationLoader = (id: string) => Promise<KeyframeAnimation | null>;
@@ -20,7 +21,7 @@ export function bundledAnimationLoader(baseUrl = `${assetBase()}anims/`, fetcher
   return async (id) => {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
     try {
-      const response = await fetcher(`${baseUrl}${id.toLowerCase()}`);
+      const response = await rateLimitedFetch(`${baseUrl}${id.toLowerCase()}`, undefined, fetcher);
       if (!response.ok) return null;
       return parseAnimation(new Uint8Array(await response.arrayBuffer()));
     } catch {

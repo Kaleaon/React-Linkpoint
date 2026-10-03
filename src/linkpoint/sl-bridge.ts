@@ -1,5 +1,11 @@
 import { Utils } from './utils';
 import { failureFromResponseBody } from './login-failure';
+import { rateLimitedFetch } from './rate-limited-fetch';
+
+const READ_ONLY_CALLS = new Set([
+  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getInventory',
+  'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
+]);
 
 export interface SLBridgeConnectParams {
   loginUrl: string;
@@ -24,6 +30,7 @@ export class SLBridge extends Utils.EventEmitter {
   public connected: boolean = false;
   private eventSource: EventSource | null = null;
   private removeNativeListener: (() => void) | null = null;
+  private pendingReads = new Map<string, Promise<any>>();
 
   private async failure(response: Response, fallback: string) {
     const err = await response.json().catch(() => ({ error: fallback }));
@@ -114,14 +121,28 @@ export class SLBridge extends Utils.EventEmitter {
     const native = desktop();
     if (native) return native.call(method, params) as Promise<T>;
     if (!this.sessionId) throw new Error('Not connected to Second Life');
-    const response = await fetch('/api/sl/call', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: this.sessionId, method, params }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || data.message || `Request failed (HTTP ${response.status})`);
-    return data as T;
+    const request = async () => {
+      const options = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.sessionId, method, params }),
+      };
+      // Never replay chat, payments, movement, or other mutations. Read calls can be throttled,
+      // coalesced and retried without applying an action twice.
+      const response = READ_ONLY_CALLS.has(method)
+        ? await rateLimitedFetch('/api/sl/call', options)
+        : await fetch('/api/sl/call', options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || `Request failed (HTTP ${response.status})`);
+      return data as T;
+    };
+    if (!READ_ONLY_CALLS.has(method)) return request();
+    const key = JSON.stringify([this.sessionId, method, params || null]);
+    const existing = this.pendingReads.get(key);
+    if (existing) return existing as Promise<T>;
+    const pending = request().finally(() => this.pendingReads.delete(key));
+    this.pendingReads.set(key, pending);
+    return pending;
   }
 
   teleport(params: { destination?: string; region?: string; x?: number; y?: number; z?: number }) {
@@ -162,7 +183,7 @@ export class SLBridge extends Utils.EventEmitter {
     const native = desktop();
     if (native) return native.fetchProfilePhoto({ name, full });
     const query = `sessionId=${encodeURIComponent(this.sessionId || '')}&name=${encodeURIComponent(name)}${full ? '&size=full' : ''}`;
-    const response = await fetch(`/api/sl/avatar/photo?${query}`);
+    const response = await rateLimitedFetch(`/api/sl/avatar/photo?${query}`);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status})`);
     return data;
@@ -231,6 +252,7 @@ export class SLBridge extends Utils.EventEmitter {
     const sid = this.sessionId;
     this.sessionId = null;
     this.connected = false;
+    this.pendingReads.clear();
     if (wasConnected) {
       const native = desktop();
       if (native) void native.disconnectViewer().catch(() => {});
