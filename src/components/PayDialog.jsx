@@ -13,6 +13,9 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
   const [error, setError] = useState(null);
   const [successTx, setSuccessTx] = useState(null);
 
+  const currencySymbol = app.economy?.currencySymbol || "L$";
+  const isZeroCurrency = Boolean(app.economy?.isZeroCurrency);
+
   const targetId = target?.id || target?.targetId || (typeof target === "string" ? target : "");
   const targetName = target?.name || target?.targetName || (target?.type === "object" ? "Object" : "Resident");
   const targetType = target?.type || "avatar";
@@ -34,14 +37,14 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
   const currentAmount = isCustom ? parseInt(customAmount, 10) || 0 : selectedPreset;
 
   const handlePresetSelect = (amount) => {
-    if (loading) return;
+    if (loading || isZeroCurrency) return;
     setIsCustom(false);
     setSelectedPreset(amount);
     setError(null);
   };
 
   const handleCustomChange = (e) => {
-    if (loading) return;
+    if (loading || isZeroCurrency) return;
     setIsCustom(true);
     setCustomAmount(e.target.value.replace(/[^0-9]/g, ""));
     setError(null);
@@ -49,7 +52,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
 
   const handlePay = async (e) => {
     e?.preventDefault();
-    if (loading) return;
+    if (loading || isZeroCurrency) return;
 
     if (!targetId) {
       setError("No valid target specified for payment.");
@@ -69,7 +72,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
         targetId,
         targetName,
         amount: currentAmount,
-        description: description.trim() || `L$ ${currentAmount} to ${targetName}`,
+        description: description.trim() || `${currencySymbol} ${currentAmount} to ${targetName}`,
       };
 
       let tx;
@@ -168,7 +171,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
               </div>
               <h4 style={{ margin: "0 0 6px 0", fontSize: "18px", color: "#34d399" }}>Payment Successful</h4>
               <p style={{ margin: "0 0 16px 0", color: "#cbd5e1", fontSize: "14px" }}>
-                Sent <strong>L$ {successTx.amount}</strong> to <strong>{targetName}</strong>
+                Sent <strong>{currencySymbol} {successTx.amount}</strong> to <strong>{targetName}</strong>
               </p>
               <div style={{
                 fontSize: "12px",
@@ -202,6 +205,23 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
           ) : (
             /* Payment Form State */
             <form onSubmit={handlePay} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {isZeroCurrency && (
+                <div style={{
+                  padding: "10px 12px",
+                  backgroundColor: "rgba(234, 179, 8, 0.15)",
+                  border: "1px solid #eab308",
+                  borderRadius: "6px",
+                  color: "#fef08a",
+                  fontSize: "13px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}>
+                  <Icon name="alert-circle" size={16} style={{ flexShrink: 0, color: "#eab308" }} />
+                  <span>Notice: This grid operates in zero-currency mode. Payments and transactions are disabled.</span>
+                </div>
+              )}
+
               {error && (
                 <div style={{
                   padding: "10px 12px",
@@ -222,7 +242,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
               {/* Quick-tip Preset Amounts */}
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#94a3b8", marginBottom: "8px" }}>
-                  Quick-tip Presets (L$)
+                  Quick-tip Presets ({currencySymbol})
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
                   {PRESETS.map((preset) => {
@@ -231,7 +251,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                       <button
                         key={preset}
                         type="button"
-                        disabled={loading}
+                        disabled={loading || isZeroCurrency}
                         onClick={() => handlePresetSelect(preset)}
                         style={{
                           padding: "10px 0",
@@ -241,11 +261,12 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                           color: active ? "#ffffff" : "#cbd5e1",
                           fontWeight: "600",
                           fontSize: "14px",
-                          cursor: loading ? "not-allowed" : "pointer",
+                          cursor: (loading || isZeroCurrency) ? "not-allowed" : "pointer",
+                          opacity: isZeroCurrency ? 0.5 : 1,
                           transition: "all 0.15s ease",
                         }}
                       >
-                        L$ {preset}
+                        {currencySymbol} {preset}
                       </button>
                     );
                   })}
@@ -258,14 +279,14 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                   Or enter custom amount
                 </label>
                 <div style={{ position: "relative" }}>
-                  <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: "600" }}>L$</span>
+                  <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: "600" }}>{currencySymbol}</span>
                   <input
                     type="text"
                     inputMode="numeric"
                     placeholder="Custom amount"
                     value={customAmount}
                     onChange={handleCustomChange}
-                    disabled={loading}
+                    disabled={loading || isZeroCurrency}
                     style={{
                       width: "100%",
                       padding: "8px 12px 8px 36px",
@@ -276,6 +297,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                       fontSize: "14px",
                       boxSizing: "border-box",
                       outline: "none",
+                      opacity: isZeroCurrency ? 0.5 : 1,
                     }}
                   />
                 </div>
@@ -290,8 +312,8 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                   type="text"
                   placeholder="Note to recipient"
                   value={description}
-                  onChange={(e) => !loading && setDescription(e.target.value)}
-                  disabled={loading}
+                  onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
+                  disabled={loading || isZeroCurrency}
                   style={{
                     width: "100%",
                     padding: "8px 12px",
@@ -302,6 +324,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                     fontSize: "14px",
                     boxSizing: "border-box",
                     outline: "none",
+                    opacity: isZeroCurrency ? 0.5 : 1,
                   }}
                 />
               </div>
@@ -327,31 +350,32 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || currentAmount <= 0}
+                  disabled={loading || isZeroCurrency || currentAmount <= 0}
                   style={{
                     flex: 2,
                     padding: "10px",
                     borderRadius: "6px",
                     border: "none",
-                    backgroundColor: loading || currentAmount <= 0 ? "#475569" : "#0284c7",
+                    backgroundColor: loading || isZeroCurrency || currentAmount <= 0 ? "#475569" : "#0284c7",
                     color: "#ffffff",
                     fontWeight: "600",
-                    cursor: loading || currentAmount <= 0 ? "not-allowed" : "pointer",
+                    cursor: loading || isZeroCurrency || currentAmount <= 0 ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
+                    opacity: isZeroCurrency ? 0.5 : 1,
                   }}
                 >
                   {loading ? (
                     <>
                       <Icon name="loader" size={16} className="animate-spin" />
-                      <span>Sending L$...</span>
+                      <span>Sending {currencySymbol}...</span>
                     </>
                   ) : (
                     <>
                       <Icon name="banknote" size={16} />
-                      <span>Pay L$ {currentAmount}</span>
+                      <span>Pay {currencySymbol} {currentAmount}</span>
                     </>
                   )}
                 </button>
