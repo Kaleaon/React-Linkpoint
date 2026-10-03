@@ -12,6 +12,10 @@ export interface MobileOverlayControlsProps {
   onOpenInventory?: () => void;
   onOpenRadar?: () => void;
   onOpenSettings?: () => void;
+  voiceState?: string;
+  voiceMuted?: boolean;
+  onToggleMic?: () => void;
+  onJoinVoice?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onResetView?: () => void;
@@ -43,6 +47,10 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
   onOpenInventory,
   onOpenRadar,
   onOpenSettings,
+  voiceState,
+  voiceMuted,
+  onToggleMic,
+  onJoinVoice,
   onZoomIn,
   onZoomOut,
   onResetView,
@@ -210,6 +218,19 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             pointerEvents: "auto",
           }}
         >
+          {(onToggleMic || onJoinVoice) && (
+            <TouchTarget
+              minSize={24}
+              enhanced={enhanced}
+              aria-label={voiceState === "connected" ? (voiceMuted ? "Unmute Microphone" : "Mute Microphone") : "Join Voice"}
+              title={voiceState === "connected" ? (voiceMuted ? "Unmute Microphone" : "Mute Microphone") : "Join Voice"}
+              aria-pressed={voiceState === "connected" && !voiceMuted}
+              onClick={voiceState === "connected" ? onToggleMic : onJoinVoice}
+              style={voiceState === "connected" && !voiceMuted ? activeButtonStyle : buttonStyle}
+            >
+              <Icon name={voiceState === "connected" && voiceMuted ? "mic-off" : "mic"} size={16} />
+            </TouchTarget>
+          )}
           {onOpenChat && (
             <TouchTarget
               minSize={24}
