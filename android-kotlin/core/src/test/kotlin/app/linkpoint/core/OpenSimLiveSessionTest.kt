@@ -155,14 +155,12 @@ class OpenSimLiveSessionTest {
     @Test fun walkingAcrossTheEastBorderEntersTheNeighbour() = withLive { l ->
         requireNeighbour()
         val s = l.s
-        s.teleport(home, 240f, 128f, 30f)
-        eventually(60_000, "avatar near the east border of $home") { s.region.value?.takeIf { it.name == home }?.position?.takeIf { it[0] > 235f } }
+        s.teleport(home, 245f, 128f, 60f)
+        eventually(60_000, "avatar near the east border of $home") { s.region.value?.takeIf { it.name == home }?.position?.takeIf { it[0] > 240f } }
+        delay(3_000)
         s.setMovement(forward = 1, strafe = 0, yaw = 0f, fly = true) // yaw 0 faces +X (east)
         val crossed = try {
-            eventually(15_000, "crossing into $neighbour") { s.region.value?.takeIf { it.name == neighbour } }
-        } catch (_: Throwable) {
-            s.teleport(neighbour, 128f, 128f, 50f)
-            eventually(30_000, "teleporting into $neighbour") { s.region.value?.takeIf { it.name == neighbour } }
+            eventually(60_000, "crossing into $neighbour") { s.region.value?.takeIf { it.name == neighbour } }
         } finally { s.setMovement(0, 0) }
         println("LIVE crossed the border into ${crossed.name}; errors=${l.notices.filterIsInstance<ViewerNotice.Error>()}")
         assertEquals(ConnectionState.CONNECTED, s.state.value)
