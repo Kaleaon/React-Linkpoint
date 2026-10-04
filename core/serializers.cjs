@@ -88,7 +88,11 @@ function primAppearance(object) {
   // TextureEntry. `faces.length` then reports zero, which used to serialize only slot 0: the server
   // never requested the inherited texture for the remaining draws and they rendered plain white.
   const materialFaces = Math.max(-1, ...(renderMaterials?.params || []).map((param) => finite(param.textureIndex, -1)));
-  const overrideFaces = Math.max(-1, ...Array.from(object.TextureEntry?.gltfMaterialOverrides?.keys?.() || []));
+  const overridesMap = object.TextureEntry?.gltfMaterialOverrides;
+  const overrideKeys = overridesMap instanceof Map
+    ? Array.from(overridesMap.keys())
+    : (overridesMap ? Object.keys(overridesMap).map(Number) : []);
+  const overrideFaces = Math.max(-1, ...overrideKeys);
   const faceCount = Math.max(asset ? 8 : 1, object.TextureEntry?.faces?.length || 0, materialFaces + 1, overrideFaces + 1);
   const faceTextures = Array.from({ length: faceCount }, (_, faceIndex) => {
     const face = object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) || object.TextureEntry?.faces?.[faceIndex] || object.TextureEntry?.defaultTexture;
@@ -99,7 +103,9 @@ function primAppearance(object) {
     };
     const id = face?.textureID?.toString?.();
     const materialParam = renderMaterials?.params?.find((param) => Number(param.textureIndex) === faceIndex);
-    const override = object.TextureEntry?.gltfMaterialOverrides?.get?.(faceIndex) || null;
+    const override = overridesMap instanceof Map
+      ? overridesMap.get(faceIndex)
+      : (overridesMap ? overridesMap[faceIndex] ?? overridesMap[String(faceIndex)] : null);
     return {
       textureId: id && id !== '00000000-0000-0000-0000-000000000000' ? id : null,
       color: [channel('getRed', 'red', 1), channel('getGreen', 'green', 1), channel('getBlue', 'blue', 1), channel('getAlpha', 'alpha', 1)],

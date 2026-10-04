@@ -55,8 +55,17 @@ const BASIC_FRAGMENT_SHADER = `
         uniform int uAlphaMode;
         
         void main() {
+          // SL applies repeats first, then rotates around the texture centre,
+          // then applies the face offset. Rotating before repeat distorted
+          // non-square/repeated textures and made textured meshes look squeezed.
+          vec2 centered = vTexCoord * uTexTransform.xy - vec2(0.5);
+          float texSin = sin(uTexRotation);
+          float texCos = cos(uTexRotation);
+          vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
+          vec2 transformedUV = rotated + uTexTransform.zw;
+
           vec3 normal = normalize(vNormal);
-          if (uUseNormalTexture) normal = normalize(normal + (texture2D(uNormalTexture, vTexCoord).xyz * 2.0 - 1.0));
+          if (uUseNormalTexture) normal = normalize(normal + (texture2D(uNormalTexture, transformedUV).xyz * 2.0 - 1.0));
           vec3 lightDir = normalize(uLightPos - vPosition);
           
           // Ambient
@@ -67,14 +76,6 @@ const BASIC_FRAGMENT_SHADER = `
           vec3 diffuse = diff * uLightColor;
           
           // Final color
-          // SL applies repeats first, then rotates around the texture centre,
-          // then applies the face offset. Rotating before repeat distorted
-          // non-square/repeated textures and made textured meshes look squeezed.
-          vec2 centered = vTexCoord * uTexTransform.xy - vec2(0.5);
-          float texSin = sin(uTexRotation);
-          float texCos = cos(uTexRotation);
-          vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
-          vec2 transformedUV = rotated + uTexTransform.zw;
           vec4 baseColor = uUseTexture ? texture2D(uTexture, transformedUV) * uColor : uColor;
           if (uAlphaMode == 1 && baseColor.a < uAlphaCutoff) discard;
           vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, transformedUV).rgb : vec3(1.0);

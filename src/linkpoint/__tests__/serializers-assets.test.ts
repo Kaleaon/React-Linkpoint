@@ -33,4 +33,22 @@ describe('which asset a prim draws from', () => {
     expect(primAppearance({ extraParams: mesh }).animatedMesh).toBe(true);
     expect(primAppearance({ extraParams: { ...mesh, sculptData: { texture: uuid(ID), type: 2 } } }).animatedMesh).toBe(false);
   });
+
+  it('serializes gltfMaterialOverrides from plain JS objects as well as Maps', () => {
+    const objectWithObjectOverrides = {
+      TextureEntry: {
+        defaultTexture: { textureID: uuid(ZERO) },
+        gltfMaterialOverrides: {
+          '0': { metallicFactor: 0.8, roughnessFactor: 0.2, textures: [{ textureId: ID }] }
+        }
+      }
+    };
+    const appearance = primAppearance(objectWithObjectOverrides);
+    expect(appearance.faceTextures.length).toBeGreaterThanOrEqual(1);
+    expect(appearance.faceTextures[0].materialOverride).toEqual({
+      metallicFactor: 0.8,
+      roughnessFactor: 0.2,
+      textures: [{ textureId: ID }]
+    });
+  });
 });

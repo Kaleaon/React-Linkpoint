@@ -287,4 +287,44 @@ describe('WorldViewer data status', () => {
     expect(updateObject).toHaveBeenCalled();
     expect(updateObject.mock.calls.at(-1)?.[1].faces[0].texture).toBe('texture:OVERRIDE-TEX');
   });
+
+  it('resolves PBR face material overrides even when no base material asset exists', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    (world as any).scene3d = {
+      objects: new Map(),
+      addAssetTexture: vi.fn((id: string) => `texture:${id}`),
+      updateObject: vi.fn(),
+      addObject: vi.fn(),
+    };
+    protocol.emit('scene:texture-ready', {
+      assetId: 'pbr-base', width: 1, height: 1, rgba: btoa('\u00ff\u00ff\u00ff\u00ff'),
+    });
+    protocol.emit('scene:object-add', {
+      id: 'standalone-pbr-prim', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1],
+      faceTextures: [{
+        materialOverride: {
+          metallicFactor: 0.9,
+          roughnessFactor: 0.1,
+          textures: [{ textureId: 'pbr-base' }]
+        }
+      }],
+    });
+
+    const obj = world.objects.find((o) => o.id === 'standalone-pbr-prim');
+    expect(obj).toBeDefined();
+    expect(obj.decodedFaceTextures[0].pbr).toEqual({
+      metallic: 0.9,
+      roughness: 0.1,
+      emissive: undefined,
+      alphaMode: undefined,
+      alphaCutoff: undefined,
+      doubleSided: undefined,
+      baseColorTexture: 'texture:pbr-base',
+      normalTexture: undefined,
+      metallicRoughnessTexture: undefined,
+      emissiveTexture: undefined,
+    });
+    expect(obj.decodedFaceTextures[0].texture).toBe('texture:pbr-base');
+  });
 });
