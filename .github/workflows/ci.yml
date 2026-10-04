@@ -46,7 +46,7 @@ jobs:
           echo "kotlin=$kotlin" >> "$GITHUB_OUTPUT"
 
   web:
-    name: Type check, tests and build
+    name: Task 1 - Web & TypeScript Validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -68,7 +68,7 @@ jobs:
         run: npm run build
 
   expo-apk:
-    name: Expo debug APK
+    name: Task 2 - Expo Android Debug APK
     needs: changes
     if: ${{ needs.changes.outputs.expo == 'true' }}
     runs-on: ubuntu-latest
@@ -99,7 +99,7 @@ jobs:
           retention-days: 14
 
   kotlin:
-    name: Native Kotlin app
+    name: Task 3 - Native Kotlin Core & App
     needs: changes
     if: ${{ needs.changes.outputs.kotlin == 'true' }}
     runs-on: ubuntu-latest
@@ -133,7 +133,7 @@ jobs:
           retention-days: 14
 
   jules-review:
-    name: Jules PR review
+    name: Task 4 - Automated PR Review
     if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
