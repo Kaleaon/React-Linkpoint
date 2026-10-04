@@ -195,9 +195,8 @@ Studio.
 No local Android Studio installation is required. Two workflows build Android
 packages, and both use the checked-in native Gradle project:
 
-- **Build Android test APK** (`android-apk.yml`) produces a debug APK. It runs
-  automatically for pull requests that change the native app, Android project,
-  dependencies, or that workflow, and can be started from the **Actions** tab.
+- **CI Pipeline** (`ci.yml`) produces an Expo debug APK and runs native Kotlin tests. It runs
+  automatically for pull requests and pushes to `main`, `master`, and `development`.
   Download `linkpoint-debug-apk` from the completed run; the artifact expires
   after 14 days.
 - **Build all packages** (`release.yml`) produces a release APK and a Play
