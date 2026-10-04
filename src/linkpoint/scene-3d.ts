@@ -771,17 +771,14 @@ export class Scene3D extends Utils.EventEmitter {
    */
   private calculateModelMatrix(position: number[], rotation: number[], scale: number[]) {
     const matrix = this.mat4Identity();
-    
-    // Translate
-    this.mat4Translate(matrix, position);
-    
-    // Rotate
+
+    // The rotation helpers pre-multiply, so build S, then R, then T. Applying
+    // translation first would rotate the object's position around the origin.
+    this.mat4Scale(matrix, scale);
     if (rotation[0] !== 0) this.mat4RotateX(matrix, rotation[0]);
     if (rotation[1] !== 0) this.mat4RotateY(matrix, rotation[1]);
     if (rotation[2] !== 0) this.mat4RotateZ(matrix, rotation[2]);
-    
-    // Scale
-    this.mat4Scale(matrix, scale);
+    this.mat4Translate(matrix, position);
     
     return matrix;
   }
@@ -807,46 +804,34 @@ export class Scene3D extends Utils.EventEmitter {
   private mat4RotateX(m: Float32Array, angle: number) {
     const c = Math.cos(angle);
     const s = Math.sin(angle);
-    const m1 = m[1], m2 = m[2];
-    const m5 = m[5], m6 = m[6];
-    const m9 = m[9], m10 = m[10];
-    
-    m[1] = m1 * c + m2 * s;
-    m[2] = m2 * c - m1 * s;
-    m[5] = m5 * c + m6 * s;
-    m[6] = m6 * c - m5 * s;
-    m[9] = m9 * c + m10 * s;
-    m[10] = m10 * c - m9 * s;
+    for (let column = 0; column < 4; column++) {
+      const offset = column * 4;
+      const y = m[offset + 1], z = m[offset + 2];
+      m[offset + 1] = y * c - z * s;
+      m[offset + 2] = y * s + z * c;
+    }
   }
 
   private mat4RotateY(m: Float32Array, angle: number) {
     const c = Math.cos(angle);
     const s = Math.sin(angle);
-    const m0 = m[0], m2 = m[2];
-    const m4 = m[4], m6 = m[6];
-    const m8 = m[8], m10 = m[10];
-    
-    m[0] = m0 * c - m2 * s;
-    m[2] = m0 * s + m2 * c;
-    m[4] = m4 * c - m6 * s;
-    m[6] = m4 * s + m6 * c;
-    m[8] = m8 * c - m10 * s;
-    m[10] = m8 * s + m10 * c;
+    for (let column = 0; column < 4; column++) {
+      const offset = column * 4;
+      const x = m[offset], z = m[offset + 2];
+      m[offset] = x * c + z * s;
+      m[offset + 2] = z * c - x * s;
+    }
   }
 
   private mat4RotateZ(m: Float32Array, angle: number) {
     const c = Math.cos(angle);
     const s = Math.sin(angle);
-    const m0 = m[0], m1 = m[1];
-    const m4 = m[4], m5 = m[5];
-    const m8 = m[8], m9 = m[9];
-    
-    m[0] = m0 * c + m1 * s;
-    m[1] = m1 * c - m0 * s;
-    m[4] = m4 * c + m5 * s;
-    m[5] = m5 * c - m4 * s;
-    m[8] = m8 * c + m9 * s;
-    m[9] = m9 * c - m8 * s;
+    for (let column = 0; column < 4; column++) {
+      const offset = column * 4;
+      const x = m[offset], y = m[offset + 1];
+      m[offset] = x * c - y * s;
+      m[offset + 1] = x * s + y * c;
+    }
   }
 
   private mat4Scale(m: Float32Array, v: number[]) {

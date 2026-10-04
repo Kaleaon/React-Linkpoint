@@ -264,4 +264,27 @@ describe('WorldViewer data status', () => {
     expect(obj).toBeDefined();
     expect(obj.decodedTexture).toBe('texture:tex-99');
   });
+
+  it('reapplies a face when its GLTF override texture arrives', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    const updateObject = vi.fn();
+    (world as any).scene3d = {
+      objects: new Map([['pbr-prim', {}]]),
+      addAssetTexture: vi.fn((id: string) => `texture:${id}`),
+      updateObject,
+    };
+    protocol.emit('scene:object-add', {
+      id: 'pbr-prim', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1],
+      faceTextures: [{ materialOverride: { textures: [{ textureId: 'OVERRIDE-TEX' }] } }],
+    });
+    updateObject.mockClear();
+
+    protocol.emit('scene:texture-ready', {
+      assetId: 'override-tex', width: 1, height: 1, rgba: btoa('\u00ff\u00ff\u00ff\u00ff'),
+    });
+
+    expect(updateObject).toHaveBeenCalled();
+    expect(updateObject.mock.calls.at(-1)?.[1].faces[0].texture).toBe('texture:OVERRIDE-TEX');
+  });
 });

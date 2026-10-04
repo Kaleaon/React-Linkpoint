@@ -394,7 +394,9 @@ export class WorldViewer extends Utils.EventEmitter {
     const rgba = Uint8Array.from(binary, character => character.charCodeAt(0));
     const texture = this.scene3d.addAssetTexture(assetIdStr, asset.width, asset.height, rgba);
     for (const object of this.sceneObjects.values()) {
-      const usedByFace = object.faceTextures?.some((face: any) => this.sameId(face.textureId, assetIdStr) || this.materialTextureIds(face.materialId).some((id: any) => this.sameId(id, assetIdStr)));
+      const usedByFace = object.faceTextures?.some((face: any) =>
+        [face.textureId, ...this.overrideTextureIds(face), ...this.materialTextureIds(face.materialId)]
+          .some((id: any) => this.sameId(id, assetIdStr)));
       if (!this.sameId(object.textureId, assetIdStr) && !usedByFace) continue;
       if (this.sameId(object.textureId, assetIdStr)) object.decodedTexture = texture;
       object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
@@ -406,6 +408,15 @@ export class WorldViewer extends Utils.EventEmitter {
     const materialIdStr = materialId ? String(materialId) : '';
     const material = materialIdStr && (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase()));
     return material ? Object.values(material.textures || {}).map((texture: any) => texture?.textureId).filter(Boolean) : [];
+  }
+
+  private overrideTextureIds(face: any): string[] {
+    const textures = face?.materialOverride?.textures;
+    const values = Array.isArray(textures) ? textures : Object.values(textures || {});
+    return values
+      .map((texture: any) => texture?.textureId || texture?.id || texture)
+      .filter(Boolean)
+      .map(String);
   }
 
   private applyMaterial(asset: any) {
@@ -427,12 +438,16 @@ export class WorldViewer extends Utils.EventEmitter {
       const str = String(id);
       return (this.decodedTextures.has(str) || this.decodedTextures.has(str.toLowerCase())) ? `texture:${str}` : undefined;
     };
-    if (!base) return { ...face, texture: findTexture(face.textureId) || face.texture };
     const override = face.materialOverride || {};
-    const overrideTextures = override.textures || [];
+    const overrideTextures = Array.isArray(override.textures) ? override.textures : Object.values(override.textures || {});
+    const overrideTextureId = (index: number) => {
+      const texture = overrideTextures[index];
+      return texture?.textureId || texture?.id || texture;
+    };
+    if (!base) return { ...face, texture: findTexture(overrideTextureId(0)) || findTexture(face.textureId) || face.texture };
     const baseTransform = override.textureTransforms?.[0] || base.textures?.baseColor || {};
     const texture = (role: string, index: number) => {
-      const textureId = overrideTextures[index] || base.textures?.[role]?.textureId;
+      const textureId = overrideTextureId(index) || base.textures?.[role]?.textureId;
       return findTexture(textureId);
     };
     return {
@@ -1046,7 +1061,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const frames = this.particles.update(now, positions);
     const live = new Set<string>();
     // A plane starts in XY. Match its normal to the view direction with the camera pitch/yaw.
-    const rotation = [Math.PI / 2 - this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
+    const rotation = [Math.PI / 2 + this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
     for (const particle of frames) {
       const id = `particle:${particle.id}`;
       live.add(id);
