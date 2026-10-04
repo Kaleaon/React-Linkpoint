@@ -27,6 +27,20 @@ describe('Scene3D rendering state', () => {
     expect(Array.from(matrix.slice(12, 15))).toEqual([12, 34, 56]);
   });
 
+  it('rotates counterclockwise using the same convention as simulator quaternions', () => {
+    const { scene } = makeScene();
+    const matrix = (scene as any).calculateModelMatrix([2, 3, 4], [0, 0, Math.PI / 2], [1, 1, 1]);
+    const point = [
+      matrix[0] + matrix[12],
+      matrix[1] + matrix[13],
+      matrix[2] + matrix[14],
+    ];
+
+    expect(point[0]).toBeCloseTo(2, 6);
+    expect(point[1]).toBeCloseTo(4, 6);
+    expect(point[2]).toBeCloseTo(4, 6);
+  });
+
   it('uses inverse scale for the normal matrix', () => {
     const { scene } = makeScene();
     const model = (scene as any).calculateModelMatrix([0, 0, 0], [0, 0, 0], [2, 4, 8]);

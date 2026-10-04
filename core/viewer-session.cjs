@@ -253,7 +253,20 @@ class ViewerSession {
 
   loadObjectTexture(object) {
     const appearance = primAppearance(object);
-    const ids = new Set([appearance.textureId, appearance.particles?.textureId, ...appearance.faceTextures.map((face) => face.textureId)].filter(Boolean));
+    // GLTF material overrides carry replacement texture UUIDs on the object,
+    // rather than in the referenced material asset. Request those alongside
+    // legacy face textures or the renderer can only bind its white fallback.
+    const overrideTextures = appearance.faceTextures.flatMap((face) => {
+      const textures = face.materialOverride?.textures;
+      const values = Array.isArray(textures) ? textures : Object.values(textures || {});
+      return values.map((texture) => texture?.textureId || texture?.id || texture).filter(Boolean);
+    });
+    const ids = new Set([
+      appearance.textureId,
+      appearance.particles?.textureId,
+      ...appearance.faceTextures.map((face) => face.textureId),
+      ...overrideTextures,
+    ].filter(Boolean).map(String));
     for (const assetId of ids) this.loadTexture(assetId);
   }
 

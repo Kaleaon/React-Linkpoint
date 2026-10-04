@@ -2,9 +2,26 @@ import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../core/viewer-session.cjs');
+const { ViewerSession, serializeEnvironment, serializeObject, serializeTerrain, serializeFriend } = require('../../../core/viewer-session.cjs');
 
 describe('desktop simulator object bridge', () => {
+  it('requests textures referenced only by a GLTF material override', () => {
+    const session = new ViewerSession(() => undefined);
+    session.loadTexture = vi.fn();
+    const inherited = { textureID: { toString: () => 'legacy-texture' } };
+    session.loadObjectTexture({
+      TextureEntry: {
+        faces: [inherited], defaultTexture: inherited,
+        getEffectiveEntryForFace: () => inherited,
+        gltfMaterialOverrides: new Map([[0, { textures: ['override-base', { textureId: 'override-normal' }] }]]),
+      },
+    });
+
+    expect(session.loadTexture.mock.calls.map(([id]: [string]) => id)).toEqual(expect.arrayContaining([
+      'legacy-texture', 'override-base', 'override-normal',
+    ]));
+  });
+
   it('serializes native friends for the renderer process', () => {
     expect(serializeFriend({
       getKey: () => ({ toString: () => 'friend-id' }),
