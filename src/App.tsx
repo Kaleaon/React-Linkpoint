@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { AppProvider, useApp } from "./context/AppContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
+import { TickProvider } from "./context/TickContext.jsx";
 import { ErrorRecoveryProvider } from "./context/ErrorRecoveryContext.tsx";
 import { ErrorRecoveryBanner } from "./components/ErrorRecoveryBanner.tsx";
 import { ErrorRecoveryModal } from "./components/ErrorRecoveryModal.tsx";
@@ -34,9 +35,11 @@ export default function App() {
     <ErrorBoundary label="Linkpoint">
       <ErrorRecoveryProvider>
         <AppProvider>
-          <ThemeProvider>
-            <Viewer />
-          </ThemeProvider>
+          <TickProvider>
+            <ThemeProvider>
+              <Viewer />
+            </ThemeProvider>
+          </TickProvider>
         </AppProvider>
       </ErrorRecoveryProvider>
     </ErrorBoundary>
