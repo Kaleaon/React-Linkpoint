@@ -96,9 +96,19 @@ export default function Chat() {
     return Array.from(byId.values());
   }, [knownGroups, messages]);
   const [selectedGroup, setSelectedGroup] = useState("");
+  const [groupQuery, setGroupQuery] = useState("");
   useEffect(() => {
     if (!selectedGroup && groupOptions.length === 1) setSelectedGroup(groupOptions[0].id);
   }, [groupOptions, selectedGroup]);
+  useEffect(() => {
+    if (activeTab !== "GROUP" || !state.chip) return;
+    const requested = groupOptions.find((group) => group.id === state.chip || group.name === state.chip);
+    if (requested) setSelectedGroup(requested.id);
+  }, [activeTab, groupOptions, state.chip]);
+  const matchingGroups = useMemo(() => {
+    const needle = groupQuery.trim().toLocaleLowerCase();
+    return needle ? groupOptions.filter((group) => group.name.toLocaleLowerCase().includes(needle)) : groupOptions;
+  }, [groupOptions, groupQuery]);
 
   // Filter messages based on activeTab
   const visibleMessages = useMemo(() => {
@@ -116,11 +126,11 @@ export default function Chat() {
         return matchesSender || matchesRecipient;
       }
       if (activeTab === "GROUP") {
-        return m.type === "group";
+        return m.type === "group" && (!selectedGroup || m.groupId === selectedGroup);
       }
       return true;
     });
-  }, [messages, activeTab, selectedContact]);
+  }, [messages, activeTab, selectedContact, selectedGroup]);
 
   const handleToggleAutoReply = () => {
     const next = !autoReplyEnabled;
@@ -308,36 +318,16 @@ export default function Chat() {
 
         {/* Group Selector (When GROUP tab is active) */}
         {activeTab === "GROUP" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-            <span style={{ fontSize: "10px", fontWeight: 700, color: V.ink2, flexShrink: 0 }}>GROUP:</span>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, .7fr) minmax(160px, 1fr)", alignItems: "center", gap: 7, paddingBottom: 2 }}>
+            <label style={{ position: "relative" }}>
+              <span className="sr-only">Search group conversations</span>
+              <Icon name="search" size={13} style={{ position: "absolute", left: 8, top: 8, color: V.ink2 }} />
+              <input value={groupQuery} onChange={(event) => setGroupQuery(event.target.value)} placeholder="Find a group…" style={{ boxSizing: "border-box", width: "100%", height: 30, padding: "0 8px 0 27px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, fontSize: 11 }} />
+            </label>
             {groupOptions.length === 0 && (
               <span style={{ fontSize: "10px", color: V.ink2 }}>No groups available on this connection.</span>
             )}
-            {groupOptions.map((g) => {
-              const isSelected = selectedGroup === g.id;
-              return (
-                <button
-                  key={g.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => setSelectedGroup(g.id)}
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: "10px",
-                    borderRadius: V.rs,
-                    borderWidth: 1,
-                    borderStyle: "solid",
-                    borderColor: isSelected ? V.pri : V.outv,
-                    background: isSelected ? V.pri : V.bg,
-                    color: isSelected ? V.onpri : V.ink,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
-                >
-                  {g.name}
-                </button>
-              );
-            })}
+            {groupOptions.length > 0 && <label style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ fontSize: 10, fontWeight: 700, color: V.ink2 }}>TO</span><select aria-label="Group conversation" value={selectedGroup} onChange={(event) => { setSelectedGroup(event.target.value); actions?.setChip(event.target.value); }} style={{ width: "100%", minWidth: 0, height: 30, padding: "0 8px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, fontSize: 11 }}><option value="">Choose a group</option>{matchingGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
           </div>
         )}
 
@@ -492,7 +482,7 @@ export default function Chat() {
             ? activeTab === "IM"
               ? (selectedContact ? `No Instant Messages yet with ${selectedContact}.` : "No Instant Messages yet. Pick a resident above to start an IM.")
               : activeTab === "GROUP"
-              ? "No group chat received."
+              ? (selectedGroup ? `No messages yet in ${groupOptions.find((group) => group.id === selectedGroup)?.name || "this group"}.` : "Choose a group above to open its conversation.")
               : "Listening to live Second Life region chat…"
             : "Connect to a grid to chat."
         }
@@ -516,7 +506,7 @@ export default function Chat() {
                 : activeTab === "IM"
                 ? (selectedContact ? `Instant Message to ${selectedContact}…` : "Select a friend above or enter message…")
                 : activeTab === "GROUP"
-                ? (selectedGroup ? "Send to group…" : "Select a group above…")
+                ? (selectedGroup ? `Message ${groupOptions.find((group) => group.id === selectedGroup)?.name || "group"}…` : "Select a group above…")
                 : "Say to nearby region…"
             }
             autoComplete="off"

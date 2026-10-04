@@ -257,8 +257,104 @@ export function WorldScreen() {
 }
 
 export function GroupsScreen() {
-  const rows = app.groups.getGroups();
-  return rows.length ? <Rows rows={rows} icon="users-round" /> : <Empty icon="users-round">No group records have been received.</Empty>;
+  const { V, t } = useTheme();
+  const { actions } = useApp();
+  const [groups, setGroups] = useState(() => app.groups.getGroups());
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState(() => groups[0]?.id || "");
+  const [section, setSection] = useState("OVERVIEW");
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const loaded = await app.loadGroups();
+      const next = Array.isArray(loaded) ? loaded : app.groups.getGroups();
+      setGroups(next);
+      setSelectedId((current) => next.some((group) => group.id === current) ? current : next[0]?.id || "");
+    } catch (error) {
+      actions.notify(error?.message || "Groups could not be refreshed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return groups;
+    return groups.filter((group) => [group.name, group.title, group.charter, group.role]
+      .some((value) => String(value || "").toLocaleLowerCase().includes(needle)));
+  }, [groups, query]);
+  const selected = groups.find((group) => group.id === selectedId) || null;
+  const members = selected ? Array.from(app.groups.getGroupMembers(selected.id).values()) : [];
+  const roles = selected ? Array.from(app.groups.getGroupRoles(selected.id).values()) : [];
+  const notices = selected ? app.groups.getGroupNotices(selected.id) : [];
+  const button = { minHeight: 34, padding: "0 12px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.ink, cursor: "pointer", font: `700 10.5px/1 ${t.font}`, letterSpacing: ".06em" };
+
+  const openChat = () => {
+    if (!selected) return;
+    actions.setChip(selected.id);
+    actions.setTab("Chat", "GROUP");
+    actions.setScreen("Chat");
+  };
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: "flex", background: V.bg, color: V.ink, overflow: "hidden" }}>
+      <aside aria-label="Your groups" style={{ width: "clamp(210px, 34%, 340px)", minWidth: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${V.outv}`, background: V.surf }}>
+        <div style={{ padding: 12, display: "grid", gap: 8, borderBottom: `1px solid ${V.outv}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <strong style={{ font: `700 11px/1 ${t.font}`, letterSpacing: ".09em" }}>{groups.length} GROUP{groups.length === 1 ? "" : "S"}</strong>
+            <button type="button" onClick={refresh} disabled={loading} aria-label="Reload groups" title="Reload groups" style={{ ...button, width: 34, padding: 0, display: "grid", placeItems: "center" }}><Icon name="refresh-cw" size={14} /></button>
+          </div>
+          <label style={{ position: "relative", display: "block" }}>
+            <span className="sr-only">Search your groups</span>
+            <Icon name="search" size={15} style={{ position: "absolute", left: 10, top: 10, color: V.ink2 }} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search groups by name…" style={{ boxSizing: "border-box", width: "100%", minHeight: 36, padding: "0 32px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, font: `400 13px/1 ${t.font}` }} />
+            {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear group search" style={{ position: "absolute", right: 4, top: 4, width: 28, height: 28, border: 0, background: "transparent", color: V.ink2, cursor: "pointer" }}><Icon name="x" size={14} /></button> : null}
+          </label>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 7 }}>
+          {!filtered.length ? <div style={{ padding: 18, textAlign: "center", color: V.ink2, fontSize: 12 }}>{groups.length ? `No groups match “${query}”.` : "No group records have been received."}</div> : filtered.map((group) => {
+            const active = group.id === selectedId;
+            return <button key={group.id} type="button" onClick={() => { setSelectedId(group.id); setSection("OVERVIEW"); }} aria-current={active ? "true" : undefined} style={{ width: "100%", minHeight: 52, padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, textAlign: "left", border: 0, borderLeft: `3px solid ${active ? V.pri : "transparent"}`, borderRadius: V.rs, background: active ? V.priC : "transparent", color: active ? V.onpriC : V.ink, cursor: "pointer" }}>
+              <span style={{ width: 31, height: 31, flex: "0 0 31px", display: "grid", placeItems: "center", borderRadius: V.rs, background: active ? V.pri : V.bg, color: active ? V.onpri : V.ink2 }}><Icon name="users-round" size={16} /></span>
+              <span style={{ minWidth: 0 }}><strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5 }}>{group.name || "Unnamed group"}</strong><small style={{ display: "block", marginTop: 3, color: active ? V.onpriC : V.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.title || group.role || (group.members != null ? `${group.members} members` : "Member")}</small></span>
+            </button>;
+          })}
+        </div>
+      </aside>
+
+      <main style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {!selected ? <Empty icon="users-round">Choose a group to see its details.</Empty> : <>
+          <header style={{ padding: "16px clamp(14px, 3vw, 24px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottom: `1px solid ${V.outv}`, background: V.surf }}>
+            <div style={{ minWidth: 0 }}><div style={{ color: V.ink2, fontSize: 10, fontWeight: 700, letterSpacing: ".12em" }}>GROUP PROFILE</div><h2 style={{ margin: "4px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", font: `700 clamp(17px, 3vw, 22px)/1.2 ${t.font}` }}>{selected.name || "Unnamed group"}</h2></div>
+            <button type="button" onClick={openChat} style={{ ...button, flexShrink: 0, display: "flex", alignItems: "center", gap: 7, background: V.pri, borderColor: V.pri, color: V.onpri }}><Icon name="message-circle" size={15} /> MESSAGE</button>
+          </header>
+          <nav aria-label="Group information sections" style={{ display: "flex", gap: 2, padding: "8px 12px 0", overflowX: "auto", borderBottom: `1px solid ${V.outv}` }}>
+            {[['OVERVIEW', 'info'], ['MEMBERS', 'users'], ['ROLES', 'shield'], ['NOTICES', 'bell']].map(([label, icon]) => <button key={label} type="button" onClick={() => setSection(label)} aria-pressed={section === label} style={{ ...button, border: 0, borderBottom: `2px solid ${section === label ? V.pri : "transparent"}`, borderRadius: 0, background: "transparent", color: section === label ? V.pri : V.ink2, display: "flex", gap: 6, alignItems: "center" }}><Icon name={icon} size={13} />{label}</button>)}
+          </nav>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "clamp(14px, 3vw, 24px)" }}>
+            {section === "OVERVIEW" ? <div style={{ display: "grid", gap: 16, maxWidth: 720 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+                {[["YOUR TITLE", selected.title || selected.role || "Member"], ["MEMBERS", selected.members ?? (members.length || "—")], ["ENROLLMENT", selected.openEnrollment ? "Open" : "Invitation"], ["JOIN FEE", `${selected.membershipFee ?? selected.joinFee ?? 0} L$`]].map(([label, value]) => <div key={label} style={{ padding: 12, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf }}><small style={{ color: V.ink2, fontWeight: 700, letterSpacing: ".07em" }}>{label}</small><strong style={{ display: "block", marginTop: 7, fontSize: 14 }}>{value}</strong></div>)}
+              </div>
+              <section><h3 style={{ margin: "0 0 8px", fontSize: 12, letterSpacing: ".08em" }}>CHARTER</h3><p style={{ margin: 0, padding: 14, minHeight: 54, whiteSpace: "pre-wrap", lineHeight: 1.6, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.ink2, fontSize: 13 }}>{selected.charter || "This group has not provided a charter."}</p></section>
+            </div> : null}
+            {section === "MEMBERS" ? <GroupDetailList items={members} empty="No member details have been received for this group." icon="user" V={V} /> : null}
+            {section === "ROLES" ? <GroupDetailList items={roles} empty="No role details have been received for this group." icon="shield" V={V} /> : null}
+            {section === "NOTICES" ? <GroupDetailList items={[...notices].reverse()} empty="No notices have been received for this group." icon="bell" V={V} /> : null}
+          </div>
+        </>}
+      </main>
+    </div>
+  );
+}
+
+function GroupDetailList({ items, empty, icon, V }) {
+  if (!items.length) return <div style={{ padding: 18, border: `1px dashed ${V.outv}`, borderRadius: V.rs, color: V.ink2, fontSize: 13 }}>{empty}</div>;
+  return <div style={{ display: "grid", gap: 7 }}>{items.map((item, index) => <article key={item.id || index} style={{ padding: "11px 12px", display: "flex", gap: 10, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf }}><Icon name={icon} size={16} style={{ color: V.pri, flexShrink: 0 }} /><div style={{ minWidth: 0 }}><strong style={{ display: "block", fontSize: 13 }}>{item.name || item.subject || item.title || item.id || "Group record"}</strong>{item.description || item.message || item.title ? <small style={{ display: "block", marginTop: 4, color: V.ink2, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{item.description || item.message || item.title}</small> : null}</div></article>)}</div>;
 }
 
 export function NoticesScreen() {

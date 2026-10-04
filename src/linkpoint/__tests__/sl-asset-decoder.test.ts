@@ -60,6 +60,18 @@ describe('UDP-referenced LLMesh asset decoding', () => {
       lodLevels: { high_lod: [{ position: [{ x: 0, y: 0, z: 0 }], triangleList: [0, 1, 0] }] },
     })).toThrow(/invalid vertex index/);
   });
+
+  it('does not mark an unweighted static mesh as skinned', () => {
+    const mesh = normalizeLLMesh({
+      lodLevels: { high_lod: [{
+        position: [{ x: -.5, y: -.5, z: 0 }, { x: .5, y: -.5, z: 0 }, { x: 0, y: .5, z: 0 }],
+        triangleList: [0, 1, 2],
+      }] },
+    });
+
+    expect(mesh.parts[0].joints).toBeUndefined();
+    expect(mesh.parts[0].jointWeights).toBeUndefined();
+  });
 });
 
 describe('simulator image asset decoding', () => {

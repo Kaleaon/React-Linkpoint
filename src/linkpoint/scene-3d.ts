@@ -717,11 +717,12 @@ export class Scene3D extends Utils.EventEmitter {
    */
   renderObject(object: any, viewMatrix: Float32Array, projectionMatrix: Float32Array, options: { model?: Float32Array; fullBright?: boolean } = {}) {
     const skinned = Boolean(object.skin) && typeof this.graphics.isSkinnedMesh === 'function';
-    // Rigged meshes are authored in avatar space: the viewer ignores the object's prim scale for them.
+    // WorldViewer has already resolved the correct scale: worn rigged attachments use unit scale,
+    // while Animesh keeps its simulator scale. Do not discard that distinction here.
     const modelMatrix = options.model || this.calculateModelMatrix(
       object.position,
       object.rotation,
-      skinned ? [1, 1, 1] : object.scale
+      object.scale
     );
     
     const normalMatrix = this.mat3FromMat4(modelMatrix);

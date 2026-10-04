@@ -67,11 +67,14 @@ const BASIC_FRAGMENT_SHADER = `
           vec3 diffuse = diff * uLightColor;
           
           // Final color
-          vec2 centered = vTexCoord - vec2(0.5);
+          // SL applies repeats first, then rotates around the texture centre,
+          // then applies the face offset. Rotating before repeat distorted
+          // non-square/repeated textures and made textured meshes look squeezed.
+          vec2 centered = vTexCoord * uTexTransform.xy - vec2(0.5);
           float texSin = sin(uTexRotation);
           float texCos = cos(uTexRotation);
           vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
-          vec2 transformedUV = rotated * uTexTransform.xy + uTexTransform.zw;
+          vec2 transformedUV = rotated + uTexTransform.zw;
           vec4 baseColor = uUseTexture ? texture2D(uTexture, transformedUV) * uColor : uColor;
           if (uAlphaMode == 1 && baseColor.a < uAlphaCutoff) discard;
           vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, transformedUV).rgb : vec3(1.0);
@@ -484,12 +487,21 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
     const powerOfTwo = (value: number) => value > 0 && (value & (value - 1)) === 0;
-    const canMipmap = powerOfTwo(width) && powerOfTwo(height);
+    const webgl2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+    // WebGL 2 permits repeat wrapping and mipmaps for NPOT textures. The old
+    // WebGL-1-only check clamped many SL textures, so repeats sampled a stretched
+    // edge instead of the actual surface image.
+    const canMipmap = webgl2 || (powerOfTwo(width) && powerOfTwo(height));
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, canMipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
     if (canMipmap) gl.generateMipmap(gl.TEXTURE_2D);
+    const anisotropic = this.extensions.anisotropic;
+    if (anisotropic) {
+      const maximum = gl.getParameter(anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 1;
+      gl.texParameterf(gl.TEXTURE_2D, anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, maximum));
+    }
     this.textures.set(name, texture);
     this.textures.set(name.toLowerCase(), texture);
     let hasAlpha = false;
