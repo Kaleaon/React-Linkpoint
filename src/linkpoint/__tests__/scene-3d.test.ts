@@ -20,6 +20,22 @@ function makeScene() {
 }
 
 describe('Scene3D rendering state', () => {
+  it('keeps every simulator terrain sample so ground and prim positions agree', () => {
+    const { scene, graphics } = makeScene();
+    const size = 256;
+    const heights = Array.from({ length: size * size }, (_, index) => index);
+
+    expect(scene.setTerrain(heights, size)).toBe(true);
+
+    const [name, vertices, indices] = graphics.createMesh.mock.calls[0];
+    expect(name).toBe('terrain');
+    expect(vertices).toHaveLength(size * size * 3);
+    expect(indices).toHaveLength((size - 1) * (size - 1) * 6);
+    expect(vertices.slice(3, 6)).toEqual([1, 0, 1]);
+    expect(vertices.slice(-3)).toEqual([255, 255, size * size - 1]);
+    expect(indices.slice(-6)).toEqual([65278, 65279, 65534, 65279, 65535, 65534]);
+  });
+
   it('keeps translations fixed when a prim is rotated', () => {
     const { scene } = makeScene();
     const matrix = (scene as any).calculateModelMatrix([12, 34, 56], [0.4, -0.7, 1.2], [2, 3, 4]);

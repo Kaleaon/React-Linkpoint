@@ -186,7 +186,12 @@ export class Scene3D extends Utils.EventEmitter {
   /** Replace the flat helper grid with the simulator's height field. */
   setTerrain(heights: number[], size = 256) {
     if (!Array.isArray(heights) || size < 2 || heights.length < size * size) return false;
-    const cells = Math.min(128, size - 1);
+    // A simulator region supplies one height sample per metre.  Keep every sample for the
+    // normal 256x256 height field: reducing it to 128 cells moves the intervening vertices onto
+    // rounded sample positions and makes the rendered ground cut through (or sit below) prims
+    // whose placement was calculated from the original terrain.  255 cells still fit exactly in
+    // WebGL's unsigned-short index range (256 * 256 vertices, last index 65535).
+    const cells = Math.min(255, size - 1);
     const vertices: number[] = [], normals: number[] = [], texCoords: number[] = [], indices: number[] = [];
     const sample = (x: number, y: number) => Number(heights[Math.min(size - 1, y) * size + Math.min(size - 1, x)]) || 0;
     for (let y = 0; y <= cells; y++) {
