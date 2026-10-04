@@ -1,5 +1,6 @@
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
+import { useTickContext } from "../context/TickContext.jsx";
 import { NAV_ALL, HEAD } from "../data/content.js";
 import { LAYOUTS } from "../theme/layouts.js";
 import { PALETTES } from "../theme/palettes.js";
@@ -19,7 +20,7 @@ import { app } from "../linkpoint/app";
 export default function ConsoleFrame() {
   const { state, actions } = useApp();
   const { V, t, C, ink, consoleScene } = useTheme();
-  const tick = state.tick || 0;
+  const tick = useTickContext();
   void tick; // re-render each second so the live readouts below stay current
   const loggedIn = app.auth.isLoggedIn();
   const liveStats = loggedIn ? formatLiveStats({ latencyMs: app.protocol.getDiagnostics().latencyMs, nearbyCount: app.world.nearbyUsers.length }) : [];

@@ -93,7 +93,6 @@ export function useAppState() {
   const [flRect, setFlRect] = useState({});
   const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat"]);
   const [menu, setMenu] = useState(null);
-  const [tick, setTick] = useState(0);
   const [loginMode, setLoginModeState] = useState("grid");
   const [loginGrid, setLoginGrid] = useState("agni");
   const [loginBusy, setLoginBusy] = useState(false);
@@ -117,12 +116,6 @@ export function useAppState() {
     const timer = setInterval(() => app.world.moveCamera(step[0] * metersPerTick, step[1] * metersPerTick, step[2] * metersPerTick), 50);
     return () => clearInterval(timer);
   }, [cHeld, cRun]);
-
-  // ---- tick clock (componentDidMount's setInterval) ---------------------
-  useEffect(() => {
-    const iv = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(iv);
-  }, []);
 
   // Form factor is an implementation concern in the real app. The design
   // canvas exposes a manual device picker, but the React port follows its host
@@ -540,7 +533,7 @@ export function useAppState() {
       layout, palette, customTheme, device, viewMode, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
       toggles, cond, hudOn, hudPos, hudPicker, target, targetPicker, navPeek,
       cPad, cHeld, cRun, cEdit, cFlash, cReason, cTog,
-      rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu, tick,
+      rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu,
       loginMode, loginGrid, loginBusy, loginError, customGrids, addGrid, addGridName, addGridHost,
       searchFrom, searchTab, searchQuery, searchState, reconnecting, toast,
       prefs, cacheCleared, camPreset,
