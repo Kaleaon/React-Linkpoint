@@ -211,8 +211,12 @@ export function TeleportScreen() {
   const teleport = async () => {
     try {
       const result = await app.protocol.teleportTo(destination.trim());
-      setStatus(result?.message ? `Grid: ${result.message}` : `Teleport to ${result.requested.region} requested.`);
-    } catch (error) { setStatus(error instanceof Error ? error.message : "Teleport failed."); }
+      setStatus(result?.message ? `Grid: ${result.message}` : `Teleport to ${result?.requested?.region || destination.trim()} requested.`);
+    } catch (error) {
+      if (!app.interactions.teleportSession) {
+        setStatus(error instanceof Error ? error.message : "Teleport failed.");
+      }
+    }
   };
   return <div className="tool-page"><h2>Teleport</h2><div className="inline-tool"><input aria-label="Teleport destination URI" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="secondlife://Region/x/y/z" /><button onClick={() => void teleport()} disabled={!destination.trim()}>Go</button></div>{status ? <p className="tool-status">{status}</p> : null}</div>;
 }

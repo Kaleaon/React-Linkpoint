@@ -60,6 +60,20 @@ export interface GroupInviteRequest {
   inviteId: string | null;
 }
 
+export type TeleportPhase = 'initiating' | 'contacting' | 'preparing' | 'arriving' | 'completed' | 'failed' | 'cancelled';
+
+export interface TeleportSession {
+  active: boolean;
+  destination: string;
+  regionName?: string;
+  phase: TeleportPhase;
+  stepPercent: number;
+  statusText: string;
+  error?: string | null;
+  startedAt: number;
+  completedAt?: number;
+}
+
 export type Interaction = ScriptDialogRequest | LureRequest | InventoryOfferRequest | GroupInviteRequest;
 
 /** The button label a script uses (llTextBox) to ask for typed text instead of a choice. */
@@ -73,6 +87,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 export class InteractionsManager extends Utils.EventEmitter {
   private list: Interaction[] = [];
   private busyIds = new Set<string>();
+  private activeTeleport: TeleportSession | null = null;
 
   constructor(private protocol: SLConnectionFull) {
     super();
@@ -85,6 +100,16 @@ export class InteractionsManager extends Utils.EventEmitter {
     this.protocol.on('group-invite', (data: any) => this.add('group-invite', data));
     this.protocol.on('disconnected', () => this.clear());
     this.protocol.on('connection_failed', () => this.clear());
+
+    this.protocol.on('teleport_started', (data: any) => this.startTeleportSession(data?.destination || 'Destination'));
+    this.protocol.on('teleport_progress', (data: any) => this.updateTeleportProgress(data?.phase, data?.percent ?? data?.stepPercent ?? 0, data?.statusText, data?.regionName));
+    this.protocol.on('teleport_completed', (data: any) => this.completeTeleportSession(data?.regionName));
+    this.protocol.on('teleport_failed', (data: any) => this.failTeleportSession(data?.message || data?.error || 'Teleport failed'));
+  }
+
+  /** Current active teleport session moment, or null when idle. */
+  get teleportSession(): TeleportSession | null {
+    return this.activeTeleport;
   }
 
   /** Pending requests, oldest first. */
@@ -95,6 +120,104 @@ export class InteractionsManager extends Utils.EventEmitter {
   /** The request to show now: the oldest unanswered one. */
   get current(): Interaction | null {
     return this.list[0] || null;
+  }
+
+  startTeleportSession(destination: string): TeleportSession {
+    this.activeTeleport = {
+      active: true,
+      destination,
+      phase: 'initiating',
+      stepPercent: 10,
+      statusText: `Resolving ${destination}...`,
+      error: null,
+      startedAt: Date.now(),
+    };
+    this.changed();
+    return this.activeTeleport;
+  }
+
+  updateTeleportProgress(phase: TeleportPhase, stepPercent: number, statusText: string, regionName?: string) {
+    const percent = Math.min(100, Math.max(0, stepPercent ?? 0));
+    if (!this.activeTeleport) {
+      this.activeTeleport = {
+        active: true,
+        destination: regionName || 'Destination',
+        phase,
+        stepPercent: percent,
+        statusText: statusText || '',
+        regionName,
+        startedAt: Date.now(),
+      };
+    } else {
+      this.activeTeleport = {
+        ...this.activeTeleport,
+        phase,
+        stepPercent: percent,
+        statusText: statusText || this.activeTeleport.statusText,
+        regionName: regionName || this.activeTeleport.regionName,
+      };
+    }
+    this.changed();
+  }
+
+  failTeleportSession(error: string) {
+    if (!this.activeTeleport) {
+      this.activeTeleport = {
+        active: true,
+        destination: 'Destination',
+        phase: 'failed',
+        stepPercent: 0,
+        statusText: error,
+        error,
+        startedAt: Date.now(),
+      };
+    } else {
+      this.activeTeleport = {
+        ...this.activeTeleport,
+        phase: 'failed',
+        error,
+        statusText: error,
+      };
+    }
+    this.changed();
+  }
+
+  completeTeleportSession(regionName?: string) {
+    if (this.activeTeleport) {
+      this.activeTeleport = {
+        ...this.activeTeleport,
+        phase: 'completed',
+        stepPercent: 100,
+        statusText: 'Arrived at destination',
+        regionName: regionName || this.activeTeleport.regionName,
+        completedAt: Date.now(),
+      };
+      this.changed();
+      this.clearTeleportSession();
+    }
+  }
+
+  cancelTeleportSession() {
+    if (this.activeTeleport) {
+      this.activeTeleport.phase = 'cancelled';
+      this.activeTeleport.active = false;
+      this.activeTeleport = null;
+      this.changed();
+    }
+  }
+
+  clearTeleportSession() {
+    if (this.activeTeleport) {
+      this.activeTeleport = null;
+      this.changed();
+    }
+  }
+
+  retryHomeTeleport() {
+    this.startTeleportSession('home');
+    void this.protocol.teleportTo('home').catch((err) => {
+      this.failTeleportSession(err instanceof Error ? err.message : String(err || 'Failed to teleport home'));
+    });
   }
 
   isBusy(id: string) {
@@ -162,11 +285,14 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   private changed() {
     this.emit('interactions_changed', this.list);
+    this.emit('interaction_changed', { list: this.list, teleportSession: this.activeTeleport });
   }
 
   clear() {
     this.busyIds.clear();
-    if (!this.list.length) return;
+    const hadTeleport = this.activeTeleport !== null;
+    this.activeTeleport = null;
+    if (!this.list.length && !hadTeleport) return;
     this.list = [];
     this.changed();
   }

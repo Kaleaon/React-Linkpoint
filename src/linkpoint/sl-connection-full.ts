@@ -288,9 +288,22 @@ export class SLConnectionFull extends Utils.EventEmitter {
   /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
   async teleportTo(destination: string) {
     this.requireConnected();
-    const result = await slBridge.teleport({ destination });
-    this.emit('teleport_requested', result);
-    return result;
+    this.emit('teleport_started', { destination });
+    this.emit('teleport_progress', { phase: 'initiating', percent: 15, statusText: `Resolving ${destination}...`, regionName: destination });
+    this.emit('teleport_progress', { phase: 'contacting', percent: 40, statusText: 'Contacting destination region...' });
+    try {
+      this.emit('teleport_progress', { phase: 'preparing', percent: 65, statusText: 'Preparing avatar transfer...' });
+      const result = await slBridge.teleport({ destination });
+      this.emit('teleport_progress', { phase: 'arriving', percent: 90, statusText: 'Arriving at destination...' });
+      this.emit('teleport_requested', result);
+      const regionName = result?.requested?.region || destination;
+      this.emit('teleport_completed', { regionName, result });
+      return result;
+    } catch (error: any) {
+      const message = error instanceof Error ? error.message : String(error || 'Teleport failed');
+      this.emit('teleport_failed', { message, error });
+      throw error;
+    }
   }
 
   /** A resident's public profile picture (base64), or null when they have none. */
