@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EconomyManager } from '../economy-manager';
+import { formatCurrency, formatAmount } from '../currency-formatter';
 import { localCache } from '../local-cache';
 import { slBridge } from '../sl-bridge';
 
@@ -11,6 +12,30 @@ describe('EconomyManager Subsystem', () => {
     economy.activeAgentId = 'test-agent-uuid-1234';
     economy.transactions = [];
     economy.balance = 500;
+  });
+
+  it('formats currency dynamic symbols and handles zero-currency mode', () => {
+    expect(formatCurrency(1500, 'OS$')).toBe('OS$ 1,500');
+    expect(formatCurrency(50, 'D$')).toBe('D$ 50');
+    expect(formatCurrency(100, 'L$', true)).toBe('No Currency System');
+    expect(formatAmount(2500, 'OS$')).toBe('OS$ 2,500');
+  });
+
+  it('updates grid currency and suppresses payments on zero-currency grids', async () => {
+    economy.setGridCurrency('OS$', false);
+    expect(economy.currencySymbol).toBe('OS$');
+    expect(economy.isZeroCurrency).toBe(false);
+
+    economy.setGridCurrency('', true);
+    expect(economy.isZeroCurrency).toBe(true);
+
+    await expect(
+      economy.payObject({ targetId: 'obj-123', amount: 50 })
+    ).rejects.toThrow('Payments are disabled on zero-currency grids');
+
+    await expect(
+      economy.payAvatar({ targetId: 'avatar-123', amount: 50 })
+    ).rejects.toThrow('Payments are disabled on zero-currency grids');
   });
 
   it('provides standard quick-tip presets', () => {

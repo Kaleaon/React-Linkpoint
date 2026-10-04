@@ -1,0 +1,4 @@
+# Treat image test fixtures as binary files to prevent line ending or character conversions
+*.pgm binary
+*.ppm binary
+*.j2k binary

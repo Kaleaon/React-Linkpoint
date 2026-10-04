@@ -32,6 +32,8 @@ export interface PaymentParams {
 
 export interface EconomyStats {
   balance: number | null;
+  currencySymbol?: string;
+  isZeroCurrency?: boolean;
   totalTransactions: number;
   totalSpent30Days: number;
   totalReceived30Days: number;
@@ -40,6 +42,8 @@ export interface EconomyStats {
 
 export class EconomyManager extends Utils.EventEmitter {
   public balance: number | null = null;
+  public currencySymbol: string = 'L$';
+  public isZeroCurrency: boolean = false;
   public transactions: TransactionRecord[] = [];
   public activeAgentId: string = 'current';
 
@@ -48,19 +52,40 @@ export class EconomyManager extends Utils.EventEmitter {
     this.setupListeners();
   }
 
+  public setGridCurrency(symbol: string = 'L$', isZeroCurrency = false): void {
+    this.currencySymbol = symbol || 'L$';
+    this.isZeroCurrency = Boolean(isZeroCurrency);
+    this.emit('currency_updated', {
+      currencySymbol: this.currencySymbol,
+      isZeroCurrency: this.isZeroCurrency,
+    });
+  }
+
   private setupListeners() {
     slBridge.on('balance_updated', (data: any) => {
       if (typeof data === 'number') {
         this.balance = data;
-      } else if (data && typeof data.balance === 'number') {
-        this.balance = data.balance;
+      } else if (data && typeof data === 'object') {
+        if (typeof data.balance === 'number' || data.balance === null) {
+          this.balance = data.balance;
+        }
+        if (data.currencySymbol || data.currency_symbol) {
+          this.currencySymbol = data.currencySymbol || data.currency_symbol;
+        }
+        if (typeof data.isZeroCurrency === 'boolean' || typeof data.is_zero_currency === 'boolean') {
+          this.isZeroCurrency = Boolean(data.isZeroCurrency ?? data.is_zero_currency);
+        }
         if (data.transaction) {
           void this.recordTransaction(data.transaction);
         }
       } else if (data === null) {
         this.balance = null;
       }
-      this.emit('balance_updated', this.balance);
+      this.emit('balance_updated', {
+        balance: this.balance,
+        currencySymbol: this.currencySymbol,
+        isZeroCurrency: this.isZeroCurrency,
+      });
     });
 
     slBridge.on('transaction-recorded', (tx: any) => {
@@ -97,6 +122,9 @@ export class EconomyManager extends Utils.EventEmitter {
    * Send payment to an in-world Object (tip jar, vendor, rental box, etc.)
    */
   public async payObject(params: PaymentParams): Promise<TransactionRecord> {
+    if (this.isZeroCurrency) {
+      throw new Error('Payments are disabled on zero-currency grids');
+    }
     const targetId = params.targetId;
     if (!targetId) {
       throw new Error('Target object ID is required');
@@ -115,6 +143,8 @@ export class EconomyManager extends Utils.EventEmitter {
         amount,
         description,
         targetName,
+        currencySymbol: this.currencySymbol,
+        isZeroCurrency: this.isZeroCurrency,
       });
 
       const record: TransactionRecord = {
@@ -154,6 +184,9 @@ export class EconomyManager extends Utils.EventEmitter {
    * Send payment/tip to another Resident/Avatar.
    */
   public async payAvatar(params: PaymentParams): Promise<TransactionRecord> {
+    if (this.isZeroCurrency) {
+      throw new Error('Payments are disabled on zero-currency grids');
+    }
     const targetId = params.targetId;
     if (!targetId) {
       throw new Error('Target avatar ID is required');
@@ -172,6 +205,8 @@ export class EconomyManager extends Utils.EventEmitter {
         amount,
         description,
         targetName,
+        currencySymbol: this.currencySymbol,
+        isZeroCurrency: this.isZeroCurrency,
       });
 
       const record: TransactionRecord = {
@@ -217,10 +252,20 @@ export class EconomyManager extends Utils.EventEmitter {
 
     try {
       const remote = await slBridge.getTransactionHistory();
-      if (typeof remote.balance === 'number') {
+      if (typeof remote.balance === 'number' || remote.balance === null) {
         this.balance = remote.balance;
-        this.emit('balance_updated', this.balance);
       }
+      if (remote.currencySymbol || remote.currency_symbol) {
+        this.currencySymbol = remote.currencySymbol || remote.currency_symbol;
+      }
+      if (typeof remote.isZeroCurrency === 'boolean' || typeof remote.is_zero_currency === 'boolean') {
+        this.isZeroCurrency = Boolean(remote.isZeroCurrency ?? remote.is_zero_currency);
+      }
+      this.emit('balance_updated', {
+        balance: this.balance,
+        currencySymbol: this.currencySymbol,
+        isZeroCurrency: this.isZeroCurrency,
+      });
 
       if (Array.isArray(remote.transactions)) {
         for (const tx of remote.transactions) {
@@ -321,6 +366,8 @@ export class EconomyManager extends Utils.EventEmitter {
 
     return {
       balance: this.balance,
+      currencySymbol: this.currencySymbol,
+      isZeroCurrency: this.isZeroCurrency,
       totalTransactions: valid.length,
       totalSpent30Days: totalSpent,
       totalReceived30Days: totalReceived,
