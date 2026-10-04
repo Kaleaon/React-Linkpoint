@@ -395,8 +395,8 @@ export class WorldViewer extends Utils.EventEmitter {
     const texture = this.scene3d.addAssetTexture(assetIdStr, asset.width, asset.height, rgba);
     for (const object of this.sceneObjects.values()) {
       const usedByFace = object.faceTextures?.some((face: any) =>
-        [face.textureId, ...this.overrideTextureIds(face), ...this.materialTextureIds(face.materialId)]
-          .some((id: any) => this.sameId(id, assetIdStr)));
+        [this.faceTextureId(face), ...this.overrideTextureIds(face), ...this.materialTextureIds(face.materialId)]
+          .some((id: any) => id && this.sameId(id, assetIdStr)));
       if (!this.sameId(object.textureId, assetIdStr) && !usedByFace) continue;
       if (this.sameId(object.textureId, assetIdStr)) object.decodedTexture = texture;
       object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
@@ -404,10 +404,17 @@ export class WorldViewer extends Utils.EventEmitter {
     }
   }
 
+  private faceTextureId(face: any): string | undefined {
+    if (!face) return undefined;
+    const raw = face.textureId || face.texture_id || face.imageId || face.image_id || face.image || (typeof face.texture === 'string' ? face.texture : undefined);
+    if (!raw) return undefined;
+    return String(raw).replace(/^texture:/, '');
+  }
+
   private materialTextureIds(materialId: string | null) {
     const materialIdStr = materialId ? String(materialId) : '';
     const material = materialIdStr && (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase()));
-    return material ? Object.values(material.textures || {}).map((texture: any) => texture?.textureId).filter(Boolean) : [];
+    return material ? Object.values(material.textures || {}).map((texture: any) => texture?.textureId ? String(texture.textureId).replace(/^texture:/, '') : undefined).filter(Boolean) : [];
   }
 
   private overrideTextureIds(face: any): string[] {
@@ -416,7 +423,7 @@ export class WorldViewer extends Utils.EventEmitter {
     return values
       .map((texture: any) => texture?.textureId || texture?.id || texture)
       .filter(Boolean)
-      .map(String);
+      .map((id: any) => String(id).replace(/^texture:/, ''));
   }
 
   private applyMaterial(asset: any) {
@@ -435,9 +442,10 @@ export class WorldViewer extends Utils.EventEmitter {
     const base = materialIdStr ? (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase())) : undefined;
     const findTexture = (id?: string) => {
       if (!id) return undefined;
-      const str = String(id);
+      const str = String(id).replace(/^texture:/, '');
       return (this.decodedTextures.has(str) || this.decodedTextures.has(str.toLowerCase())) ? `texture:${str}` : undefined;
     };
+    const rawTexId = this.faceTextureId(face);
     const override = face.materialOverride || {};
     const overrideTextures = Array.isArray(override.textures) ? override.textures : Object.values(override.textures || {});
     const overrideTextureId = (index: number) => {
@@ -446,7 +454,8 @@ export class WorldViewer extends Utils.EventEmitter {
     };
     const hasPbrOverride = override.metallicFactor !== undefined || override.roughnessFactor !== undefined || override.alphaMode !== undefined || override.baseColor || override.textureTransforms || overrideTextures.length > 0;
     if (!base && !hasPbrOverride) {
-      return { ...face, texture: findTexture(overrideTextureId(0)) || findTexture(face.textureId) || face.texture };
+      const resolvedTexture = findTexture(overrideTextureId(0)) || findTexture(rawTexId) || (rawTexId ? `texture:${rawTexId}` : face.texture);
+      return { ...face, texture: resolvedTexture };
     }
     const baseTransform = override.textureTransforms?.[0] || base?.textures?.baseColor || {};
     const texture = (role: string, index: number) => {
@@ -475,6 +484,7 @@ export class WorldViewer extends Utils.EventEmitter {
       metallicRoughnessTexture: metallicRoughnessTex,
       emissiveTexture: emissiveTex,
     };
+    const resolvedTexture = baseColorTex || findTexture(rawTexId) || (rawTexId ? `texture:${rawTexId}` : face.texture);
     return {
       ...face,
       color: override.baseColor || base?.baseColor || face.color,
@@ -482,7 +492,7 @@ export class WorldViewer extends Utils.EventEmitter {
       offset: baseTransform.offset || face.offset,
       rotation: baseTransform.rotation ?? face.rotation,
       pbr,
-      texture: baseColorTex || findTexture(face.textureId) || face.texture,
+      texture: resolvedTexture,
     };
   }
 

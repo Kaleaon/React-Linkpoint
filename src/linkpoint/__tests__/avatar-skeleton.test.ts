@@ -13,11 +13,46 @@ describe('avatar skeleton', () => {
     expect(skeleton.bones.filter((b) => b.joint && !skeleton.bones[b.index].name.startsWith('mFace')).length).toBeGreaterThan(50);
   });
 
-  it('resolves legacy animation names to joints', () => {
+  it('resolves legacy animation names, avatar_ prefixes, and attachment point names to Bento joints', () => {
     expect(skeleton.resolve('hip')).toBe('mPelvis');
     expect(skeleton.resolve('lShldr')).toBe('mShoulderLeft');
     expect(skeleton.resolve('avatar_mHead')).toBe('mHead');
+    expect(skeleton.resolve('avatar_mFaceJaw')).toBe('mFaceJaw');
+    expect(skeleton.resolve('avatar_mHandRing1Left')).toBe('mHandRing1Left');
+    expect(skeleton.resolve('avatar_mWing1Left')).toBe('mWing1Left');
+    expect(skeleton.resolve('ATTACH_LHAND_RING1')).toBe('mHandRing1Left');
+    expect(skeleton.resolve('ATTACH_TAIL_BASE')).toBe('mTail1');
+    expect(skeleton.resolve('ATTACH_LWING')).toBe('mWing1Left');
+    expect(skeleton.resolve('ATTACH_FACE_JAW')).toBe('mFaceJaw');
     expect(skeleton.resolve('WISDOM_SWORD_1')).toBeNull();
+  });
+
+  it('exposes AvatarSkeleton.BONES containing all 133 Bento facial, hand, wing, and tail joint names', () => {
+    expect(AvatarSkeleton.BONES).toBeDefined();
+    expect(AvatarSkeleton.BONES.length).toBeGreaterThanOrEqual(133);
+    expect(AvatarSkeleton.BONES).toContain('mFaceJaw');
+    expect(AvatarSkeleton.BONES).toContain('mHandRing1Left');
+    expect(AvatarSkeleton.BONES).toContain('mWing1Left');
+    expect(AvatarSkeleton.BONES).toContain('mTail1');
+    expect(AvatarSkeleton.BONES).toContain('mFaceEar1Left');
+    expect(AvatarSkeleton.BONES).toContain('mFaceEyeAltLeft');
+  });
+
+  it('preserves extended Bento joint skinning matrices without scrubbing valid joints to mPelvis', () => {
+    const world = skeleton.worldMatrices();
+    const bentoSkin = {
+      jointNames: ['mFaceJaw', 'avatar_mHandRing1Left', 'avatar_mWing1Left', 'ATTACH_TAIL_BASE'],
+      bindShapeMatrix: null,
+      inverseBindMatrices: [identity(), identity(), identity(), identity()],
+    };
+    const matrices = skinMatrices(skeleton, bentoSkin, world);
+    const pelvisMatrix = skinMatrices(skeleton, { jointNames: ['mPelvis'], bindShapeMatrix: null, inverseBindMatrices: [identity()] }, world)[0];
+    
+    // Valid Bento joints must NOT scrub to pelvis
+    expect(Array.from(matrices[0])).not.toEqual(Array.from(pelvisMatrix)); // mFaceJaw
+    expect(Array.from(matrices[1])).not.toEqual(Array.from(pelvisMatrix)); // avatar_mHandRing1Left
+    expect(Array.from(matrices[2])).not.toEqual(Array.from(pelvisMatrix)); // avatar_mWing1Left
+    expect(Array.from(matrices[3])).not.toEqual(Array.from(pelvisMatrix)); // ATTACH_TAIL_BASE
   });
 
   it('puts the head above the pelvis at rest', () => {

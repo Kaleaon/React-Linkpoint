@@ -6,8 +6,9 @@
  * shaders may index uniform arrays dynamically, so no joint texture is needed.
  */
 
-/** Joints in the largest rigs Second Life accepts. */
-export const SL_MAX_RIGGED_JOINTS = 110;
+/** Joints in the largest rigs Second Life accepts (134 Bento joints). */
+export const SL_MAX_RIGGED_JOINTS = 134;
+export const MAX_JOINTS = 134;
 /** Uniform vectors left for the matrices/camera/etc. of the vertex shader. */
 const RESERVED_VERTEX_VECTORS = 24;
 
