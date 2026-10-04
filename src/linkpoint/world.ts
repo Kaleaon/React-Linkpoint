@@ -432,7 +432,7 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private resolveFace(face: any) {
     const materialIdStr = face.materialId ? String(face.materialId) : '';
-    const base = materialIdStr && (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase()));
+    const base = materialIdStr ? (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase())) : undefined;
     const findTexture = (id?: string) => {
       if (!id) return undefined;
       const str = String(id);
@@ -444,29 +444,45 @@ export class WorldViewer extends Utils.EventEmitter {
       const texture = overrideTextures[index];
       return texture?.textureId || texture?.id || texture;
     };
-    if (!base) return { ...face, texture: findTexture(overrideTextureId(0)) || findTexture(face.textureId) || face.texture };
-    const baseTransform = override.textureTransforms?.[0] || base.textures?.baseColor || {};
+    const hasPbrOverride = override.metallicFactor !== undefined || override.roughnessFactor !== undefined || override.alphaMode !== undefined || override.baseColor || override.textureTransforms || overrideTextures.length > 0;
+    if (!base && !hasPbrOverride) {
+      return { ...face, texture: findTexture(overrideTextureId(0)) || findTexture(face.textureId) || face.texture };
+    }
+    const baseTransform = override.textureTransforms?.[0] || base?.textures?.baseColor || {};
     const texture = (role: string, index: number) => {
-      const textureId = overrideTextureId(index) || base.textures?.[role]?.textureId;
+      const textureId = overrideTextureId(index) || base?.textures?.[role]?.textureId;
       return findTexture(textureId);
+    };
+    const metallic = override.metallicFactor ?? base?.metallic;
+    const roughness = override.roughnessFactor ?? base?.roughness;
+    const emissive = override.emissiveFactor || base?.emissive;
+    const alphaMode = override.alphaMode ?? base?.alphaMode;
+    const alphaCutoff = override.alphaCutoff ?? base?.alphaCutoff;
+    const doubleSided = override.doubleSided ?? base?.doubleSided;
+    const baseColorTex = texture('baseColor', 0);
+    const normalTex = texture('normal', 1);
+    const metallicRoughnessTex = texture('metallicRoughness', 2);
+    const emissiveTex = texture('emissive', 3);
+    const pbr = {
+      metallic,
+      roughness,
+      emissive,
+      alphaMode,
+      alphaCutoff,
+      doubleSided,
+      baseColorTexture: baseColorTex,
+      normalTexture: normalTex,
+      metallicRoughnessTexture: metallicRoughnessTex,
+      emissiveTexture: emissiveTex,
     };
     return {
       ...face,
-      color: override.baseColor || base.baseColor || face.color,
+      color: override.baseColor || base?.baseColor || face.color,
       repeat: baseTransform.scale || face.repeat,
       offset: baseTransform.offset || face.offset,
       rotation: baseTransform.rotation ?? face.rotation,
-      pbr: {
-        metallic: override.metallicFactor ?? base.metallic,
-        roughness: override.roughnessFactor ?? base.roughness,
-        emissive: override.emissiveFactor || base.emissive,
-        alphaMode: override.alphaMode ?? base.alphaMode,
-        alphaCutoff: override.alphaCutoff ?? base.alphaCutoff,
-        doubleSided: override.doubleSided ?? base.doubleSided,
-        baseColorTexture: texture('baseColor', 0), normalTexture: texture('normal', 1),
-        metallicRoughnessTexture: texture('metallicRoughness', 2), emissiveTexture: texture('emissive', 3),
-      },
-      texture: texture('baseColor', 0) || findTexture(face.textureId) || face.texture,
+      pbr,
+      texture: baseColorTex || findTexture(face.textureId) || face.texture,
     };
   }
 
