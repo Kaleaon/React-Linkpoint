@@ -3,6 +3,8 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL } from "../data/content.js";
 import Icon from "./Icon.jsx";
 import { navActive } from "../theme/look.js";
+import { TileNav as SystemTileNav } from "@linkpoint/design-system/react";
+import { LAYOUTS } from "@linkpoint/design-system/tokens";
 
 // Ported from the `isTiles` <sc-if> block — Metro's bottom tile strip.
 export default function TileNav() {

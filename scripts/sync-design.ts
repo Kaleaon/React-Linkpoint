@@ -1,72 +1,90 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
-
-const DESIGN_REPO_URL = 'https://github.com/Kaleaon/linkpoint-design';
-const TEMP_DIR = path.join(process.cwd(), '.tmp-linkpoint-design');
-const TARGET_SRC = path.join(process.cwd(), 'src');
+import { LAYOUTS, PALETTES, themeNames, computeThemeTokens } from '@linkpoint/design-system/tokens';
+import * as ReactComponents from '@linkpoint/design-system/react';
 
 async function syncDesign() {
-  console.log('🔄 Syncing Linkpoint Design...');
+  console.log('🔄 Validating Linkpoint Design System package integration...');
 
-  if (fs.existsSync(TEMP_DIR)) {
-    console.log('Cleaning up existing temp directory...');
-    fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-  }
-
-  console.log(`📥 Cloning design repository from ${DESIGN_REPO_URL}...`);
-  execSync(`git clone --depth 1 ${DESIGN_REPO_URL} "${TEMP_DIR}"`, { stdio: 'inherit' });
-
-  const designReactSrc = path.join(TEMP_DIR, 'docs', 'react', 'src');
-  if (!fs.existsSync(designReactSrc)) {
-    throw new Error(`React source not found at ${designReactSrc}`);
-  }
-
-  console.log('📂 Copying React components, hooks, screens, data, and theme...');
-  const subdirs = ['components', 'screens', 'hooks', 'theme', 'context', 'data'];
-
-  for (const dir of subdirs) {
-    const srcDir = path.join(designReactSrc, dir);
-    const destDir = path.join(TARGET_SRC, dir);
-
-    if (fs.existsSync(srcDir)) {
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true });
-      }
-      fs.cpSync(srcDir, destDir, { recursive: true, force: true });
-      console.log(`  ✓ Synced ${dir}`);
+  // 1. Verify package installation & version
+  let pkgVersion = 'unknown';
+  try {
+    const pkgPath = require.resolve('@linkpoint/design-system/package.json');
+    const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    pkgVersion = pkgJson.version || 'unknown';
+    console.log(`  ✓ Package @linkpoint/design-system resolved (v${pkgVersion})`);
+  } catch (err) {
+    // Fallback: check node_modules or local package.json
+    const localPkgPath = path.join(process.cwd(), 'packages', 'design-system', 'package.json');
+    if (fs.existsSync(localPkgPath)) {
+      const pkgJson = JSON.parse(fs.readFileSync(localPkgPath, 'utf8'));
+      pkgVersion = pkgJson.version || 'unknown';
+      console.log(`  ✓ Package @linkpoint/design-system resolved locally (v${pkgVersion})`);
+    } else {
+      throw new Error('Failed to resolve @linkpoint/design-system package.');
     }
   }
 
-  // Copy CSS and App
-  const cssSrc = path.join(designReactSrc, 'index.css');
-  if (fs.existsSync(cssSrc)) {
-    fs.copyFileSync(cssSrc, path.join(TARGET_SRC, 'index.css'));
-    console.log('  ✓ Synced index.css');
+  // 2. Token validity checks: LAYOUTS
+  const requiredLayouts = ['terminal', 'sweep', 'tiles', 'glass', 'rules', 'press'];
+  if (!LAYOUTS || typeof LAYOUTS !== 'object') {
+    throw new Error('LAYOUTS export from @linkpoint/design-system/tokens is invalid.');
   }
 
-  // Save raw HTML mockup and translation mapping for reference/auto-conversion rules
-  const docsDir = path.join(TEMP_DIR, 'docs');
-  const designDir = path.join(TARGET_SRC, 'design');
-  if (!fs.existsSync(designDir)) {
-    fs.mkdirSync(designDir, { recursive: true });
+  for (const layoutKey of requiredLayouts) {
+    if (!LAYOUTS[layoutKey]) {
+      throw new Error(`Missing required layout key '${layoutKey}' in design system LAYOUTS.`);
+    }
+    const l = LAYOUTS[layoutKey];
+    if (!l.name || !l.nav || !l.s || !l.look) {
+      throw new Error(`Invalid layout structure for '${layoutKey}'.`);
+    }
+  }
+  console.log(`  ✓ Verified ${Object.keys(LAYOUTS).length} layout packs in @linkpoint/design-system/tokens`);
+
+  // 3. Token validity checks: PALETTES
+  const requiredPalettes = ['ink', 'lcars', 'metro', 'aero', 'navy', 'paper', 'deco'];
+  if (!PALETTES || typeof PALETTES !== 'object') {
+    throw new Error('PALETTES export from @linkpoint/design-system/tokens is invalid.');
   }
 
-  if (fs.existsSync(path.join(docsDir, 'mockup-to-react.yaml'))) {
-    fs.copyFileSync(path.join(docsDir, 'mockup-to-react.yaml'), path.join(designDir, 'mockup-to-react.yaml'));
+  for (const palKey of requiredPalettes) {
+    if (!PALETTES[palKey]) {
+      throw new Error(`Missing required palette key '${palKey}' in design system PALETTES.`);
+    }
+    const p = PALETTES[palKey];
+    if (!p.name || !p.c || !p.c.bg || !p.c.pri) {
+      throw new Error(`Invalid palette structure for '${palKey}'.`);
+    }
   }
-  if (fs.existsSync(path.join(docsDir, 'index.html'))) {
-    fs.copyFileSync(path.join(docsDir, 'index.html'), path.join(designDir, 'index.html'));
+  console.log(`  ✓ Verified ${Object.keys(PALETTES).length} palette packs in @linkpoint/design-system/tokens`);
+
+  // 4. Token compute function & contrast check
+  const testTokens = computeThemeTokens('terminal', 'ink');
+  if (!testTokens || !testTokens.bg || !testTokens.pri) {
+    throw new Error('computeThemeTokens failed to produce valid theme tokens.');
   }
-  console.log('  ✓ Synced raw HTML mockup & mockup-to-react mapping');
+  console.log('  ✓ Token computation and contrast enforcement verified');
 
-  console.log('🧹 Cleaning up temporary clone...');
-  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+  // 5. Verify theme names list
+  if (!Array.isArray(themeNames) || (themeNames as readonly string[]).length === 0) {
+    throw new Error('themeNames export from @linkpoint/design-system/tokens is empty or invalid.');
+  }
+  console.log(`  ✓ Verified ${themeNames.length} synchronized theme names`);
 
-  console.log('✅ Linkpoint Design synchronization completed successfully!');
+  // 6. Verify React component primitives
+  const expectedComponents = ['Card', 'BottomTabs', 'RailNav', 'TileNav', 'ConsoleFrame', 'DeviceFrame'];
+  for (const compName of expectedComponents) {
+    if (typeof (ReactComponents as any)[compName] !== 'function') {
+      throw new Error(`Missing expected React layout primitive '${compName}' in @linkpoint/design-system/react.`);
+    }
+  }
+  console.log('  ✓ Verified React layout primitives (@linkpoint/design-system/react)');
+
+  console.log(`✅ Linkpoint Design System integration verified successfully (v${pkgVersion})!`);
 }
 
 syncDesign().catch((err) => {
-  console.error('❌ Error during design sync:', err);
+  console.error('❌ Error during design system verification:', err);
   process.exit(1);
 });

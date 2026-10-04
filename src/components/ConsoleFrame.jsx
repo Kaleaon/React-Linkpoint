@@ -1,8 +1,8 @@
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL, HEAD } from "../data/content.js";
-import { LAYOUTS } from "../theme/layouts.js";
-import { PALETTES } from "../theme/palettes.js";
+import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
+import { ConsoleFrame as SystemConsoleFrame } from "@linkpoint/design-system/react";
 import { CBTN, CSUB, CPAD, CPADR, subView, setSub } from "../theme/constants.js";
 import Icon from "./Icon.jsx";
 import ScreenBody from "./ScreenBody.jsx";

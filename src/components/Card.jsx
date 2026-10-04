@@ -2,6 +2,8 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { cardLooks, cardAccentStyle, actionButtonStyle } from "../theme/look.js";
 import Icon from "./Icon.jsx";
 import Toggle from "./Toggle.jsx";
+import { Card as SystemCard } from "@linkpoint/design-system/react";
+import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 
 // Ported from the CARDS.map(...) block + the `isCards` template section
 // (sc-if value="{{ isCards }}"). One card renders: icon+title+right/badge/

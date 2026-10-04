@@ -3,6 +3,8 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL } from "../data/content.js";
 import Icon from "./Icon.jsx";
 import { navActive } from "../theme/look.js";
+import { RailNav as SystemRailNav } from "@linkpoint/design-system/react";
+import { LAYOUTS } from "@linkpoint/design-system/tokens";
 
 /**
  * RailNav component provides accessible side rail navigation.
