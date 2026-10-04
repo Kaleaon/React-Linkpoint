@@ -19,6 +19,8 @@ import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
 import { economyManager, EconomyManager } from './economy-manager';
 
+import { ChatProtocolAdapter } from './chat-protocol-adapter';
+
 // Phase 2 Modules
 import { EventQueueManager } from './phase2/event-queue';
 import { CapabilitiesManager } from './phase2/capabilities';
@@ -47,6 +49,7 @@ export class LinkpointApp {
   public audio: AudioManager;
   public voice: VoiceManager;
   public economy: EconomyManager;
+  public chatAdapter: ChatProtocolAdapter;
 
   // Phase 2 Managers
   public eventQueue: EventQueueManager;
@@ -62,10 +65,11 @@ export class LinkpointApp {
 
   constructor() {
     this.protocol = new SLConnectionFull();
+    this.chatAdapter = new ChatProtocolAdapter(this.protocol);
     this.preferences = new PreferencesManager();
     this.auth = new AuthManager(this.protocol);
     this.world = new WorldViewer(this.protocol);
-    this.chat = new ChatManager(this.protocol, this.auth);
+    this.chat = new ChatManager(this.chatAdapter, this.auth);
     this.inventory = new InventoryManager(this.protocol, this.auth);
     this.notifications = new NotificationsManager(this.protocol);
     this.interactions = new InteractionsManager(this.protocol);
@@ -83,8 +87,8 @@ export class LinkpointApp {
     this.inventoryCore = new InventoryCore();
     this.inventoryOps = new InventoryOperations(this.inventoryCore);
     this.inventoryTypes = new InventorySpecialTypes();
-    this.chatExtended = new ChatExtended(this.protocol);
-    this.groups = new GroupsManager(this.protocol);
+    this.chatExtended = new ChatExtended(this.chatAdapter);
+    this.groups = new GroupsManager(this.chatAdapter);
     this.friends = new FriendsExtended(this.protocol);
   }
 

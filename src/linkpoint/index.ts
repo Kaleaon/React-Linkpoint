@@ -31,6 +31,10 @@ export { SecondLifeLLSDUtils } from './secondlife/SecondLifeLLSDUtils';
 // Firestorm extensions
 export { FirestormLLSDUtils } from './firestorm/FirestormLLSDUtils';
 
+// Chat Protocol Adapter
+export { ChatProtocolAdapter } from './chat-protocol-adapter';
+export type { QueuedIM, QueuedGroupMessage, ImprovedInstantMessagePayload } from './chat-protocol-adapter';
+
 import { LLSD, LLSDValue, LLSDMap, LLSDArray } from './types';
 import { LLSDXMLParser } from './xmlParser';
 import { LLSDBinaryParser } from './binaryParser';

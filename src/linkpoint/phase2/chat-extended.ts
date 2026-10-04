@@ -8,8 +8,11 @@
  * Extends chat functionality with history, filtering, mute list, range, and typing indicators.
  */
 
+import { ChatProtocolAdapter } from '../chat-protocol-adapter';
+
 export class ChatExtended {
   private protocol: any;
+  public adapter: ChatProtocolAdapter;
   private chatHistory: any[] = [];
   private maxHistorySize: number = 1000;
   private filters: Map<string, Function> = new Map();
@@ -19,7 +22,10 @@ export class ChatExtended {
   private typingTimeout: number = 5000; // milliseconds
 
   constructor(protocolManager?: any) {
-    this.protocol = protocolManager;
+    this.adapter = protocolManager instanceof ChatProtocolAdapter
+      ? protocolManager
+      : new ChatProtocolAdapter(protocolManager);
+    this.protocol = this.adapter.protocol || protocolManager;
   }
 
   /**
@@ -179,23 +185,21 @@ export class ChatExtended {
       throw new Error(`Invalid range. Must be one of: ${validRanges.join(', ')}`);
     }
     
+    const chatType = range === 'whisper' ? 0 : range === 'shout' ? 2 : 1;
     const message = {
       text: text,
       range: range,
-      channel: range === 'whisper' ? 1 : range === 'shout' ? 2 : 0,
+      channel: 0,
+      chatType: chatType,
       timestamp: Date.now()
     };
     
     console.log(`[ChatExtended] Sending ${range} message: ${text}`);
-    if (this.protocol && typeof this.protocol.sendChat === 'function') {
-      try {
-        await this.protocol.sendChat(text, message.channel, 1);
-      } catch (error) {
-        console.error('[ChatExtended] Failed to send message:', error);
-        throw error;
-      }
-    } else {
-      console.warn('[ChatExtended] Protocol handler not available');
+    try {
+      await this.adapter.sendSpatialChat(text, range);
+    } catch (error) {
+      console.error('[ChatExtended] Failed to send message:', error);
+      throw error;
     }
     
     return Promise.resolve(message);

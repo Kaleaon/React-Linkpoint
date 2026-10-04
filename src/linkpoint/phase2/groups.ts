@@ -8,15 +8,21 @@
  * Manages group information, members, roles, chat, and notices.
  */
 
+import { ChatProtocolAdapter } from '../chat-protocol-adapter';
+
 export class GroupsManager {
   private protocol: any;
+  public adapter: ChatProtocolAdapter;
   private groups: Map<string, any> = new Map();
   private groupMembers: Map<string, Map<string, any>> = new Map();
   private groupRoles: Map<string, Map<string, any>> = new Map();
   private groupNotices: Map<string, any[]> = new Map();
 
   constructor(protocolManager?: any) {
-    this.protocol = protocolManager;
+    this.adapter = protocolManager instanceof ChatProtocolAdapter
+      ? protocolManager
+      : new ChatProtocolAdapter(protocolManager);
+    this.protocol = this.adapter.protocol || protocolManager;
   }
 
   /**
@@ -132,28 +138,17 @@ export class GroupsManager {
       throw new Error('Valid group ID and message required');
     }
     
+    console.log(`[Groups] Sending group chat to ${groupId}: ${message}`);
+    const payload = await this.adapter.sendGroupChat(groupId, message);
+
     const chatMsg = {
       groupId: groupId,
       message: message,
-      timestamp: Date.now(),
+      timestamp: payload.timestamp || Date.now(),
       type: 'group'
     };
     
-    console.log(`[Groups] Sending group chat to ${groupId}: ${message}`);
-
-    if (this.protocol && typeof this.protocol.sendChat === 'function') {
-      try {
-        // Group chat usually uses a specific channel or type (e.g. type 2 for group chat)
-        await this.protocol.sendChat(message, 0, 2);
-      } catch (error) {
-        console.error('[Groups] Failed to send group chat:', error);
-        throw error;
-      }
-    } else {
-      console.warn('[Groups] Protocol handler not available');
-    }
-    
-    return Promise.resolve(chatMsg);
+    return chatMsg;
   }
 
   /**

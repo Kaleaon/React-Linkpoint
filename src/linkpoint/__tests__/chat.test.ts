@@ -120,9 +120,10 @@ describe('ChatManager', () => {
   });
 
   it('triggers an auto-reply for incoming IMs when enabled', async () => {
+    const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
     const sendChat = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager(
-      { sendChat },
+      { sendInstantMessage, sendChat },
       { isLoggedIn: () => true, user: { id: 'my-agent-id', fullName: 'My Avatar' } },
     );
 
@@ -139,8 +140,9 @@ describe('ChatManager', () => {
       message: 'Hey, are you free to chat?',
     });
 
-    // Verify protocol call was made with auto-response
-    expect(sendChat).toHaveBeenCalledWith('[Auto-Response] At the beach club, send notecard.', 0, 4);
+    // Verify direct IM dispatch was called and spatial chat was suppressed
+    expect(sendInstantMessage).toHaveBeenCalledWith('friend-uuid-1', '[Auto-Response] At the beach club, send notecard.');
+    expect(sendChat).not.toHaveBeenCalled();
 
     // Verify auto-response message was added to chat history
     const autoReplyMsg = manager.messages.find((m) => m.isAutoReply);
@@ -154,43 +156,46 @@ describe('ChatManager', () => {
   });
 
   it('does not send duplicate auto-replies to the same resident in the same session', async () => {
+    const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
     const sendChat = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager(
-      { sendChat },
+      { sendInstantMessage, sendChat },
       { isLoggedIn: () => true, user: { id: 'my-agent-id', fullName: 'My Avatar' } },
     );
 
     manager.setAutoReplyEnabled(true);
     manager.setAwayMessage('Busy right now.');
 
-    manager.handleIncomingMessage({
+    await manager.handleIncomingMessage({
       type: 'im',
       fromId: 'resident-uuid',
       fromName: 'Bob Resident',
       message: 'First ping',
     });
 
-    manager.handleIncomingMessage({
+    await manager.handleIncomingMessage({
       type: 'im',
       fromId: 'resident-uuid',
       fromName: 'Bob Resident',
       message: 'Second ping right away',
     });
 
-    expect(sendChat).toHaveBeenCalledTimes(1);
+    expect(sendInstantMessage).toHaveBeenCalledTimes(1);
+    expect(sendChat).not.toHaveBeenCalled();
     expect(manager.hasAutoRepliedTo('resident-uuid')).toBe(true);
   });
 
   it('does not trigger auto-reply when auto-reply is disabled or for local chat', async () => {
+    const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
     const sendChat = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager(
-      { sendChat },
+      { sendInstantMessage, sendChat },
       { isLoggedIn: () => true, user: { id: 'my-agent-id', fullName: 'My Avatar' } },
     );
 
     manager.setAutoReplyEnabled(false);
 
-    manager.handleIncomingMessage({
+    await manager.handleIncomingMessage({
       type: 'im',
       fromId: 'sender-1',
       fromName: 'Other Resident',
@@ -198,33 +203,36 @@ describe('ChatManager', () => {
     });
 
     manager.setAutoReplyEnabled(true);
-    manager.handleIncomingMessage({
+    await manager.handleIncomingMessage({
       type: 'local',
       fromId: 'sender-2',
       fromName: 'Nearby Resident',
       message: 'Local chat message',
     });
 
+    expect(sendInstantMessage).not.toHaveBeenCalled();
     expect(sendChat).not.toHaveBeenCalled();
     expect(manager.messages.some((m) => m.isAutoReply)).toBe(false);
   });
 
   it('does not auto-reply to messages from own avatar', async () => {
+    const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
     const sendChat = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager(
-      { sendChat },
+      { sendInstantMessage, sendChat },
       { isLoggedIn: () => true, user: { id: 'my-agent-id', fullName: 'My Avatar' } },
     );
 
     manager.setAutoReplyEnabled(true);
 
-    manager.handleIncomingMessage({
+    await manager.handleIncomingMessage({
       type: 'im',
       fromId: 'my-agent-id',
       fromName: 'My Avatar',
       message: 'Echo from another device',
     });
 
+    expect(sendInstantMessage).not.toHaveBeenCalled();
     expect(sendChat).not.toHaveBeenCalled();
   });
 });

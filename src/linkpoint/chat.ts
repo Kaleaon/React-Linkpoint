@@ -4,6 +4,7 @@
 
 import { Utils } from './utils';
 import { isFabricatedContact, purgeFabricatedMessages } from './fabricated-data';
+import { ChatProtocolAdapter } from './chat-protocol-adapter';
 
 export interface AutoReplyConfig {
   enabled: boolean;
@@ -12,6 +13,7 @@ export interface AutoReplyConfig {
 
 export class ChatManager extends Utils.EventEmitter {
   public protocol: any;
+  public adapter: ChatProtocolAdapter;
   public auth: any;
   public messages: any[] = [];
   /** Our own outgoing local chat awaiting the simulator's echo, so it is logged once. */
@@ -25,14 +27,19 @@ export class ChatManager extends Utils.EventEmitter {
 
   constructor(protocolManager: any, authManager: any) {
     super();
-    this.protocol = protocolManager;
+    this.adapter = protocolManager instanceof ChatProtocolAdapter
+      ? protocolManager
+      : new ChatProtocolAdapter(protocolManager);
+    this.protocol = this.adapter.protocol || protocolManager;
     this.auth = authManager;
   }
 
   init() {
-    this.protocol.on('ChatFromSimulator', (data: any) => this.handleIncomingMessage(data));
-    this.protocol.on('chat', (data: any) => this.handleIncomingMessage(data));
-    this.protocol.on('im', (data: any) => this.handleIncomingMessage({ ...data, type: 'im' }));
+    if (this.protocol && typeof this.protocol.on === 'function') {
+      this.protocol.on('ChatFromSimulator', (data: any) => this.handleIncomingMessage(data));
+      this.protocol.on('chat', (data: any) => this.handleIncomingMessage(data));
+      this.protocol.on('im', (data: any) => this.handleIncomingMessage({ ...data, type: 'im' }));
+    }
     this.loadSessions();
     this.loadChatHistory();
     this.loadAutoReplyConfig();
@@ -182,7 +189,7 @@ export class ChatManager extends Utils.EventEmitter {
     const echo = type === 4 ? null : { text: message, until: Date.now() + 15000 };
     if (echo) this.pendingEchoes.push(echo);
     try {
-      await this.protocol.sendChat(message, channel, type);
+      await this.adapter.sendSpatialChat(message, channel, type);
       
       const messageData = {
         id: Utils.generateUUID(),
@@ -210,11 +217,7 @@ export class ChatManager extends Utils.EventEmitter {
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
     try {
-      if (typeof this.protocol?.sendInstantMessage === 'function') {
-        await this.protocol.sendInstantMessage(recipientId, message);
-      } else {
-        await this.protocol.sendChat(message, 0, 4);
-      }
+      const result = await this.adapter.sendDirectIM(recipientId, message, recipientName);
 
       const messageData = {
         id: Utils.generateUUID(),
@@ -226,7 +229,8 @@ export class ChatManager extends Utils.EventEmitter {
         recipientName,
         text: message,
         timestamp: Date.now(),
-        type: 'im'
+        type: 'im',
+        queued: result.queued
       };
 
       this.addMessage(messageData);
@@ -244,11 +248,12 @@ export class ChatManager extends Utils.EventEmitter {
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
     try {
-      // Group messages must never degrade to local chat (which would broadcast them to the region).
-      if (typeof this.protocol?.sendGroupMessage !== 'function') {
+      if (typeof this.protocol?.sendGroupMessage !== 'function' &&
+          typeof this.protocol?.sendImprovedInstantMessage !== 'function' &&
+          !this.adapter.isTransportAvailable()) {
         throw new Error('Group chat is unavailable on this connection');
       }
-      await this.protocol.sendGroupMessage(groupId, message);
+      await this.adapter.sendGroupChat(groupId, message, groupName);
 
       const messageData = {
         id: Utils.generateUUID(),
@@ -409,11 +414,7 @@ export class ChatManager extends Utils.EventEmitter {
 
     const replyText = `[Auto-Response] ${this.awayMessage}`;
     try {
-      if (typeof this.protocol?.sendInstantMessage === 'function') {
-        await this.protocol.sendInstantMessage(recipientId, replyText);
-      } else if (typeof this.protocol?.sendChat === 'function') {
-        await this.protocol.sendChat(replyText, 0, 4);
-      }
+      await this.adapter.sendDirectIM(recipientId, replyText, recipientName);
 
       const autoReplyMessage = {
         id: Utils.generateUUID(),
