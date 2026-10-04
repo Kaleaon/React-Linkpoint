@@ -35,6 +35,20 @@ function setup() {
 }
 
 describe('rigged mesh in the world', () => {
+  it('tilts particle billboards with the camera pitch', () => {
+    const { scene, world } = setup();
+    const camera = new Camera3D();
+    camera.rotation = [0.35, 0.2, 0];
+    (world as any).camera3d = camera;
+    (world as any).particles = {
+      update: () => [{ id: 1, position: [1, 2, 3], scale: [2, 2], color: [1, 1, 1, 1], textureId: null, emissive: false }],
+    };
+
+    (world as any).updateParticles(1);
+
+    expect(scene.objects.get('particle:1').rotation).toEqual([Math.PI / 2 + 0.35, 0, -0.2]);
+  });
+
   it('keeps the rear camera behind the logged-in avatar', () => {
     const { protocol, world } = setup();
     protocol.agentId = 'avatar';

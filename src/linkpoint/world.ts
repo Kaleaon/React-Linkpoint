@@ -1046,7 +1046,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const frames = this.particles.update(now, positions);
     const live = new Set<string>();
     // A plane starts in XY. Match its normal to the view direction with the camera pitch/yaw.
-    const rotation = [Math.PI / 2 - this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
+    const rotation = [Math.PI / 2 + this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
     for (const particle of frames) {
       const id = `particle:${particle.id}`;
       live.add(id);
