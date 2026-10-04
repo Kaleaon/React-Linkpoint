@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML, parseNotation, serializeNotation } from './llsd.js';
+import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML, parseNotation, serializeNotation, LLSDUUID, LLSDUndef, LLSDURI, LLSDBinary } from './llsd.js';
 import { parseISO } from 'date-fns';
 
 
@@ -330,19 +330,25 @@ describe('serializeXML', () => {
     expect(xml).toContain('</map>');
   });
 
-  it('serializes strings to string', () => {
+  it('serializes strings to string without regex misclassification', () => {
     expect(serializeXML("hello world")).toContain('<string>hello world</string>');
     expect(serializeXML("")).toContain('<string></string>');
+    expect(serializeXML("123e4567-e89b-12d3-a456-426614174000")).toContain('<string>123e4567-e89b-12d3-a456-426614174000</string>');
+    expect(serializeXML("http://example.com")).toContain('<string>http://example.com</string>');
   });
 
-  it('serializes valid UUIDs to uuid', () => {
+  it('serializes valid LLSDUUID sentinels to uuid', () => {
     const uuid = "123e4567-e89b-12d3-a456-426614174000";
-    expect(serializeXML(uuid)).toContain(`<uuid>${uuid}</uuid>`);
+    expect(serializeXML(new LLSDUUID(uuid))).toContain(`<uuid>${uuid}</uuid>`);
   });
 
-  it('serializes URIs to uri', () => {
-    expect(serializeXML("http://example.com")).toContain('<uri>http://example.com</uri>');
-    expect(serializeXML("https://secure.example.com")).toContain('<uri>https://secure.example.com</uri>');
+  it('serializes valid LLSDURI sentinels to uri', () => {
+    expect(serializeXML(new LLSDURI("http://example.com"))).toContain('<uri>http://example.com</uri>');
+    expect(serializeXML(new LLSDURI("https://secure.example.com"))).toContain('<uri>https://secure.example.com</uri>');
+  });
+
+  it('serializes LLSDUndef sentinels to undef', () => {
+    expect(serializeXML(new LLSDUndef())).toContain('<undef />');
   });
 
   it('includes xml declaration and root llsd element', () => {
@@ -439,12 +445,14 @@ describe('parseNotation and serializeNotation', () => {
 
   it('serializes values to LLSD Notation', () => {
     expect(serializeNotation(null)).toBe('!');
+    expect(serializeNotation(new LLSDUndef())).toBe('!');
     expect(serializeNotation(true)).toBe('true');
     expect(serializeNotation(false)).toBe('false');
     expect(serializeNotation(42)).toBe('i42');
     expect(serializeNotation(3.14)).toBe('r3.14');
-    expect(serializeNotation('550e8400-e29b-41d4-a716-446655440000')).toBe("u'550e8400-e29b-41d4-a716-446655440000'");
-    expect(serializeNotation('http://example.com')).toBe("l'http://example.com'");
+    expect(serializeNotation(new LLSDUUID('550e8400-e29b-41d4-a716-446655440000'))).toBe("u'550e8400-e29b-41d4-a716-446655440000'");
+    expect(serializeNotation('550e8400-e29b-41d4-a716-446655440000')).toBe("'550e8400-e29b-41d4-a716-446655440000'");
+    expect(serializeNotation(new LLSDURI('http://example.com'))).toBe("l'http://example.com'");
     expect(serializeNotation('hello world')).toBe("'hello world'");
     expect(serializeNotation([1, 'two'])).toBe("[ i1, 'two' ]");
     expect(serializeNotation({ a: 1, b: 'two' })).toBe("{ 'a': i1, 'b': 'two' }");
@@ -456,7 +464,7 @@ describe('parseNotation and serializeNotation', () => {
     const bytes = new Uint8Array([1, 2, 3, 4]);
 
     const data = {
-      id: uuid,
+      id: new LLSDUUID(uuid),
       timestamp: date,
       payload: bytes,
       counts: [10, 20, 30],

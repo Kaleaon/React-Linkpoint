@@ -3,6 +3,77 @@
  * Handles parsing and building of LLSD XML for Second Life capabilities
  */
 
+export class LLSDUUID {
+  public type = 'uuid' as const;
+  public value: string;
+
+  constructor(uuid: string | LLSDUUID) {
+    this.value = uuid instanceof LLSDUUID ? uuid.value : String(uuid || '');
+  }
+
+  toString(): string {
+    return this.value;
+  }
+
+  valueOf(): string {
+    return this.value;
+  }
+}
+
+export class LLSDUndef {
+  public type = 'undef' as const;
+  public value = null;
+
+  toString(): string {
+    return '';
+  }
+
+  valueOf(): null {
+    return null;
+  }
+}
+
+export class LLSDURI {
+  public type = 'uri' as const;
+  public value: string;
+
+  constructor(uri: string | LLSDURI) {
+    this.value = uri instanceof LLSDURI ? uri.value : String(uri || '');
+  }
+
+  toString(): string {
+    return this.value;
+  }
+
+  valueOf(): string {
+    return this.value;
+  }
+}
+
+export class LLSDBinary {
+  public type = 'binary' as const;
+  public value: Uint8Array | string;
+
+  constructor(data: Uint8Array | string) {
+    this.value = data;
+  }
+
+  toString(): string {
+    if (typeof this.value === 'string') return this.value;
+    let binary = '';
+    const bytes = this.value;
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return typeof btoa === 'function' ? btoa(binary) : binary;
+  }
+
+  valueOf(): Uint8Array | string {
+    return this.value;
+  }
+}
+
 export class LLSD {
   /**
    * Parse LLSD XML string to JavaScript object
@@ -149,8 +220,23 @@ export class LLSD {
    * @private
    */
   private static _buildElement(data: any): string {
-    if (data === null || data === undefined) {
+    if (data === null || data === undefined || data instanceof LLSDUndef || (typeof data === 'object' && data !== null && data.type === 'undef')) {
       return '<undef />';
+    }
+
+    if (data instanceof LLSDUUID || (typeof data === 'object' && data !== null && data.type === 'uuid')) {
+      const val = data.value !== undefined ? data.value : String(data);
+      return `<uuid>${this._escapeXML(val)}</uuid>`;
+    }
+
+    if (data instanceof LLSDURI || (typeof data === 'object' && data !== null && data.type === 'uri')) {
+      const val = data.value !== undefined ? data.value : String(data);
+      return `<uri>${this._escapeXML(val)}</uri>`;
+    }
+
+    if (data instanceof LLSDBinary || (typeof data === 'object' && data !== null && data.type === 'binary')) {
+      const val = typeof data.value === 'string' ? data.value : (data.value instanceof Uint8Array ? String(data) : String(data.value || ''));
+      return `<binary>${val}</binary>`;
     }
 
     if (typeof data === 'boolean') {
@@ -165,14 +251,6 @@ export class LLSD {
     }
 
     if (typeof data === 'string') {
-      // Check if it looks like a UUID?
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)) {
-        return `<uuid>${data}</uuid>`;
-      }
-      // Check if it's a URI? (Simplified check)
-      if (data.startsWith('http://') || data.startsWith('https://')) {
-        return `<uri>${this._escapeXML(data)}</uri>`;
-      }
       return `<string>${this._escapeXML(data)}</string>`;
     }
 
@@ -190,11 +268,6 @@ export class LLSD {
     }
 
     if (typeof data === 'object') {
-      // Typed objects (custom wrappers)
-      if (data.type === 'uuid' && data.value) return `<uuid>${data.value}</uuid>`;
-      if (data.type === 'uri' && data.value) return `<uri>${this._escapeXML(data.value)}</uri>`;
-      if (data.type === 'binary' && data.value) return `<binary>${data.value}</binary>`; // Assume base64 already
-
       // Generic Map
       let xml = '<map>';
       for (const key in data) {

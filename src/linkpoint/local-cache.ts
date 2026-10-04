@@ -28,6 +28,54 @@ const STORE_TEXTURES = 'textures';
 const STORE_META = 'metadata';
 const STORE_TRANSACTIONS = 'transactions';
 
+function standardizeFolder(f: any): any {
+  if (!f || typeof f !== 'object') return f;
+  return {
+    ...f,
+    id: String(f.id || f.folder_id || f.category_id || ''),
+    name: String(f.name || f.folder_name || 'New Folder'),
+    parent: String(f.parent || f.parent_id || ''),
+    type: 'folder',
+    folderType: f.folderType ?? f.preferred_type ?? f.type_default ?? f.type ?? -1,
+    version: Number(f.version ?? 0),
+    children: Array.isArray(f.children) ? [...f.children] : [],
+  };
+}
+
+function standardizeItem(item: any): any {
+  if (!item || typeof item !== 'object') return item;
+  return {
+    ...item,
+    id: String(item.id || item.item_id || ''),
+    name: String(item.name || item.item_name || 'New Item'),
+    parent: String(item.parent || item.parent_id || ''),
+    type: 'item',
+    assetType: item.assetType ?? item.asset_type ?? item.type_default ?? item.type ?? 0,
+    assetId: String(item.assetId || item.asset_id || item.asset_uuid || ''),
+    description: String(item.description || item.desc || ''),
+    invType: Number(item.invType ?? item.inv_type ?? 0),
+    flags: Number(item.flags ?? 0),
+    creationDate: item.creationDate || item.creation_date || 0,
+    ownerId: String(item.ownerId || item.owner_id || ''),
+    groupId: String(item.groupId || item.group_id || ''),
+    permissions: item.permissions || item.permissions_base || {},
+    data: item.data || null,
+  };
+}
+
+function standardizeInventoryPayload(data: { folders: any[]; items: any[]; rootId?: string; rootName?: string }): { folders: any[]; items: any[]; rootId?: string; rootName?: string } {
+  if (!data) return { folders: [], items: [] };
+  const folders = Array.isArray(data.folders) ? data.folders.map(standardizeFolder) : [];
+  const items = Array.isArray(data.items) ? data.items.map(standardizeItem) : [];
+  return {
+    ...data,
+    folders,
+    items,
+    rootId: data.rootId,
+    rootName: data.rootName,
+  };
+}
+
 class LocalCacheManager extends Utils.EventEmitter {
   public locationType: CacheLocationType = 'internal';
   public customFlashdrivePath: string = '/media/usb/sl-cache';
@@ -134,13 +182,14 @@ class LocalCacheManager extends Utils.EventEmitter {
    * Save complete inventory (skeleton folders & items) to cache.
    */
   public async saveInventory(agentId: string, inventoryData: { folders: any[]; items: any[]; rootId?: string; rootName?: string }): Promise<void> {
+    const stdData = standardizeInventoryPayload(inventoryData);
     const payload = {
       id: `inv_${agentId}`,
       agentId,
       timestamp: Date.now(),
-      foldersCount: inventoryData.folders?.length || 0,
-      itemsCount: inventoryData.items?.length || 0,
-      data: inventoryData,
+      foldersCount: stdData.folders?.length || 0,
+      itemsCount: stdData.items?.length || 0,
+      data: stdData,
     };
 
     // 1. Keep in memory for fast lookup
@@ -185,7 +234,7 @@ class LocalCacheManager extends Utils.EventEmitter {
       // IDB error fallback
     }
 
-    this.emit('cache_updated', { type: 'inventory', agentId, count: inventoryData.folders?.length });
+    this.emit('cache_updated', { type: 'inventory', agentId, count: stdData.folders?.length });
   }
 
   /**
@@ -195,7 +244,7 @@ class LocalCacheManager extends Utils.EventEmitter {
     // 1. Check memory cache first
     const mem = this.memoryCache.get(`inv_${agentId}`);
     if (mem?.data?.folders?.length) {
-      return mem.data;
+      return standardizeInventoryPayload(mem.data);
     }
 
     // 2. Try loading from selected flashdrive folder via Web File System API
@@ -206,8 +255,10 @@ class LocalCacheManager extends Utils.EventEmitter {
         const text = await file.text();
         const parsed = JSON.parse(text);
         if (parsed?.data?.folders?.length) {
+          const std = standardizeInventoryPayload(parsed.data);
+          parsed.data = std;
           this.memoryCache.set(`inv_${agentId}`, parsed);
-          return parsed.data;
+          return std;
         }
       } catch {
         // Fall back to server/IDB
@@ -220,8 +271,10 @@ class LocalCacheManager extends Utils.EventEmitter {
       if (res.ok) {
         const serverCache = await res.json();
         if (serverCache?.data?.folders?.length) {
+          const std = standardizeInventoryPayload(serverCache.data);
+          serverCache.data = std;
           this.memoryCache.set(`inv_${agentId}`, serverCache);
-          return serverCache.data;
+          return std;
         }
       }
     } catch {
@@ -240,8 +293,10 @@ class LocalCacheManager extends Utils.EventEmitter {
         });
 
         if (result?.data?.folders?.length) {
+          const std = standardizeInventoryPayload(result.data);
+          result.data = std;
           this.memoryCache.set(`inv_${agentId}`, result);
-          return result.data;
+          return std;
         }
       }
     } catch {

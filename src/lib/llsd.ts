@@ -2,6 +2,71 @@ import { parseISO, formatISO } from 'date-fns';
 import { v4 as uuidv4, validate as validateUuid } from 'uuid';
 import { DOMParser as XMLDOMParser } from '@xmldom/xmldom';
 
+export class LLSDUUID {
+  public type = 'uuid' as const;
+  public value: string;
+
+  constructor(uuid: string | LLSDUUID) {
+    this.value = uuid instanceof LLSDUUID ? uuid.value : String(uuid || '');
+  }
+
+  toString(): string {
+    return this.value;
+  }
+
+  valueOf(): string {
+    return this.value;
+  }
+}
+
+export class LLSDUndef {
+  public type = 'undef' as const;
+  public value = null;
+
+  toString(): string {
+    return '';
+  }
+
+  valueOf(): null {
+    return null;
+  }
+}
+
+export class LLSDURI {
+  public type = 'uri' as const;
+  public value: string;
+
+  constructor(uri: string | LLSDURI) {
+    this.value = uri instanceof LLSDURI ? uri.value : String(uri || '');
+  }
+
+  toString(): string {
+    return this.value;
+  }
+
+  valueOf(): string {
+    return this.value;
+  }
+}
+
+export class LLSDBinary {
+  public type = 'binary' as const;
+  public value: Uint8Array | string;
+
+  constructor(data: Uint8Array | string) {
+    this.value = data;
+  }
+
+  toString(): string {
+    if (typeof this.value === 'string') return this.value;
+    return encodeBase64(this.value);
+  }
+
+  valueOf(): Uint8Array | string {
+    return this.value;
+  }
+}
+
 export type LLSDValue =
   | null
   | boolean
@@ -9,6 +74,10 @@ export type LLSDValue =
   | string
   | Date
   | Uint8Array
+  | LLSDUUID
+  | LLSDUndef
+  | LLSDURI
+  | LLSDBinary
   | { [key: string]: LLSDValue }
   | LLSDValue[];
 
@@ -168,7 +237,22 @@ export function serializeXML(value: LLSDValue): string {
 
 function serializeXMLElement(value: LLSDValue, indent: number): string {
   const pad = '  '.repeat(indent);
-  if (value === null) return `${pad}<undef />`;
+  if (value === null || value === undefined || value instanceof LLSDUndef || (typeof value === 'object' && value !== null && (value as any).type === 'undef')) {
+    return `${pad}<undef />`;
+  }
+  if (value instanceof LLSDUUID || (typeof value === 'object' && value !== null && (value as any).type === 'uuid')) {
+    const val = (value as any).value !== undefined ? (value as any).value : String(value);
+    return `${pad}<uuid>${val}</uuid>`;
+  }
+  if (value instanceof LLSDURI || (typeof value === 'object' && value !== null && (value as any).type === 'uri')) {
+    const val = (value as any).value !== undefined ? (value as any).value : String(value);
+    return `${pad}<uri>${val}</uri>`;
+  }
+  if (value instanceof LLSDBinary || (typeof value === 'object' && value !== null && (value as any).type === 'binary')) {
+    const raw = (value as any).value;
+    const val = typeof raw === 'string' ? raw : (raw instanceof Uint8Array ? encodeBase64(raw) : String(raw || ''));
+    return `${pad}<binary encoding="base64">${val}</binary>`;
+  }
   if (typeof value === 'boolean') return `${pad}<boolean>${value}</boolean>`;
   if (typeof value === 'number') {
     if (Number.isInteger(value)) return `${pad}<integer>${value}</integer>`;
@@ -183,16 +267,14 @@ function serializeXMLElement(value: LLSDValue, indent: number): string {
     const children = value.map(v => serializeXMLElement(v, indent + 1)).join('\n');
     return `${pad}<array>\n${children}\n${pad}</array>`;
   }
+  if (typeof value === 'string') {
+    return `${pad}<string>${value}</string>`;
+  }
   if (typeof value === 'object') {
     const children = Object.entries(value).map(([k, v]) => {
       return `${pad}  <key>${k}</key>\n${serializeXMLElement(v, indent + 1)}`;
     }).join('\n');
     return `${pad}<map>\n${children}\n${pad}</map>`;
-  }
-  if (typeof value === 'string') {
-    if (validateUuid(value)) return `${pad}<uuid>${value}</uuid>`;
-    if (value.startsWith('http://') || value.startsWith('https://')) return `${pad}<uri>${value}</uri>`;
-    return `${pad}<string>${value}</string>`;
   }
   return `${pad}<undef />`;
 }
@@ -544,7 +626,22 @@ export class NotationParser {
  * LLSD Notation Serialization
  */
 export function serializeNotation(value: LLSDValue): string {
-  if (value === null) return '!';
+  if (value === null || value === undefined || value instanceof LLSDUndef || (typeof value === 'object' && value !== null && (value as any).type === 'undef')) {
+    return '!';
+  }
+  if (value instanceof LLSDUUID || (typeof value === 'object' && value !== null && (value as any).type === 'uuid')) {
+    const val = (value as any).value !== undefined ? (value as any).value : String(value);
+    return `u'${val}'`;
+  }
+  if (value instanceof LLSDURI || (typeof value === 'object' && value !== null && (value as any).type === 'uri')) {
+    const val = (value as any).value !== undefined ? (value as any).value : String(value);
+    return `l'${val}'`;
+  }
+  if (value instanceof LLSDBinary || (typeof value === 'object' && value !== null && (value as any).type === 'binary')) {
+    const raw = (value as any).value;
+    const val = typeof raw === 'string' ? raw : (raw instanceof Uint8Array ? encodeBase64(raw) : String(raw || ''));
+    return `b'${val}'`;
+  }
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') {
     if (Number.isInteger(value)) return `i${value}`;
@@ -558,13 +655,11 @@ export function serializeNotation(value: LLSDValue): string {
   if (Array.isArray(value)) {
     return `[ ${value.map(v => serializeNotation(v)).join(', ')} ]`;
   }
+  if (typeof value === 'string') {
+    return `'${escapeString(value)}'`;
+  }
   if (typeof value === 'object') {
     return `{ ${Object.entries(value).map(([k, v]) => `'${escapeString(k)}': ${serializeNotation(v)}`).join(', ')} }`;
-  }
-  if (typeof value === 'string') {
-    if (validateUuid(value)) return `u'${value}'`;
-    if (value.startsWith('http://') || value.startsWith('https://')) return `l'${value}'`;
-    return `'${escapeString(value)}'`;
   }
   return '!';
 }
