@@ -7,8 +7,11 @@ import { XMLRPCClient } from './xmlrpc-client';
 import { LLSD } from './llsd';
 import { corsHandler } from './cors-handler';
 import { VIEWER_CHANNEL, VIEWER_VERSION } from './viewer-identity';
+import { CircuitContextManager } from './circuit-context';
+import { CoordinateNormalizer } from './coordinate-normalizer';
 
 export class SLProtocol extends Utils.EventEmitter {
+  public circuitContext = new CircuitContextManager();
   public sessionId: string | null = null;
   public secureSessionId: string | null = null;
   public agentId: string | null = null;
@@ -110,9 +113,18 @@ export class SLProtocol extends Utils.EventEmitter {
       
       this.region = {
         name: response['sim_name'] || 'Unknown',
-        x: parseInt(response.region_x) || 0,
-        y: parseInt(response.region_y) || 0
+        x: CoordinateNormalizer.normalizeRegionTileCoordinate(response.region_x),
+        y: CoordinateNormalizer.normalizeRegionTileCoordinate(response.region_y)
       };
+
+      this.circuitContext.updateCircuit({
+        agentId: this.agentId,
+        sessionId: this.sessionId,
+        circuitCode: this.circuitCode,
+        secureSessionId: this.secureSessionId,
+        seedCapability: this.seedCapability,
+        regionName: this.region.name,
+      });
 
       this.connected = true;
 
@@ -177,6 +189,7 @@ export class SLProtocol extends Utils.EventEmitter {
   }
 
   async logout() {
+    this.circuitContext.reset();
     this.sessionId = null;
     this.agentId = null;
     this.connected = false;

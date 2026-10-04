@@ -149,4 +149,13 @@ describe('EventQueueManager', () => {
     const departedObj = world.objects.find((o: any) => o.id === 'resident-uuid-1');
     expect(departedObj).toBeUndefined();
   });
+
+  it('updates capability URL on region handoff', async () => {
+    eventQueue.updateCapabilityUrl('https://sim1.example.com/caps/eventQueue');
+    expect(eventQueue.getStats().queueUrl).toBe('https://sim1.example.com/caps/eventQueue');
+
+    await eventQueue.handleRegionHandoff('https://sim2.example.com/caps/seed', 'https://sim2.example.com/caps/eventQueue');
+    expect(eventQueue.getStats().queueUrl).toBe('https://sim2.example.com/caps/eventQueue');
+    expect(eventQueue.getStats().isPolling).toBe(true);
+  });
 });

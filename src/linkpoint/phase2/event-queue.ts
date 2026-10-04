@@ -75,6 +75,14 @@ export class EventQueueManager {
           if (data.id) this.ackId = data.id;
         }
       } else {
+        if (response && (response.status === 403 || response.status === 404)) {
+          console.warn(`[EventQueue] Got HTTP ${response.status} during region boundary crossing. Resetting ack and updating capability URL.`);
+          this.ackId = null;
+          if (this.protocol && this.protocol.seedCapability && this.protocol.seedCapability !== this.queueUrl) {
+            this.queueUrl = this.protocol.seedCapability;
+            this.currentDelay = this.baseDelay;
+          }
+        }
         // Exponential backoff
         this.currentDelay = Math.min(this.currentDelay * 2, this.maxDelay);
         console.warn(`[EventQueue] Polling error. Backing off to ${this.currentDelay}ms`);
@@ -95,6 +103,30 @@ export class EventQueueManager {
     this.isPolling = false;
     this.eventBuffer = [];
     console.log('[EventQueue] Stopped polling');
+  }
+
+  /**
+   * Update capability URL and restart polling for new region simulator when crossing region boundaries.
+   */
+  async handleRegionHandoff(newSeedCapability: string, newEventQueueUrl?: string) {
+    if (!newSeedCapability && !newEventQueueUrl) return;
+    this.queueUrl = newEventQueueUrl || newSeedCapability;
+    this.ackId = null;
+    this.currentDelay = this.baseDelay;
+    console.log('[EventQueue] Switched polling capability URL for region handoff:', this.queueUrl);
+    if (!this.isPolling) {
+      this.isPolling = true;
+      this.pollLoop();
+    }
+  }
+
+  /**
+   * Update active capability queue URL directly.
+   */
+  updateCapabilityUrl(newUrl: string) {
+    if (!newUrl || typeof newUrl !== 'string') return;
+    this.queueUrl = newUrl;
+    this.ackId = null;
   }
 
   /**

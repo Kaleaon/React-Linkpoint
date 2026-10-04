@@ -37,6 +37,10 @@ export { LumiyaLLSDUtils, LumiyaValidationRules, LumiyaValidationResult } from '
 // Linkpoint extensions
 export { LinkpointLLSDUtils, GridKind } from './linkpoint/LinkpointLLSDUtils';
 export type { LoginRequestContract, SessionSnapshotContract } from './linkpoint/LinkpointLLSDUtils';
+export { CircuitContextManager } from './circuit-context';
+export type { CircuitParams } from './circuit-context';
+export { CoordinateNormalizer } from './coordinate-normalizer';
+export type { RegionOrigin, Vector3Tuple } from './coordinate-normalizer';
 
 // Chat Protocol Adapter
 export { ChatProtocolAdapter } from './chat-protocol-adapter';

@@ -65,6 +65,17 @@ export class SLValidationResult {
 
 export class SecondLifeLLSDUtils {
     /**
+     * Create a standard AgentData block for UDP packets and LLSD requests
+     */
+    static createAgentDataBlock(agentId: string, sessionId: string, circuitCode: number): LLSDMap {
+        return {
+            AgentID: agentId,
+            SessionID: sessionId,
+            CircuitCode: circuitCode
+        };
+    }
+
+    /**
      * Create a standard SL capability request
      */
     static createCapRequest(method: string, params: LLSDMap = {}): LLSD {
