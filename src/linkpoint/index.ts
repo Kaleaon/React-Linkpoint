@@ -38,6 +38,10 @@ export { LumiyaLLSDUtils, LumiyaValidationRules, LumiyaValidationResult } from '
 export { LinkpointLLSDUtils, GridKind } from './linkpoint/LinkpointLLSDUtils';
 export type { LoginRequestContract, SessionSnapshotContract } from './linkpoint/LinkpointLLSDUtils';
 
+// Chat Protocol Adapter
+export { ChatProtocolAdapter } from './chat-protocol-adapter';
+export type { QueuedIM, QueuedGroupMessage, ImprovedInstantMessagePayload } from './chat-protocol-adapter';
+
 import { LLSD, LLSDValue, LLSDMap, LLSDArray } from './types';
 import { LLSDXMLParser } from './xmlParser';
 import { LLSDBinaryParser } from './binaryParser';
