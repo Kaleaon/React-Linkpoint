@@ -224,8 +224,24 @@ export default function Radar() {
     }
 
     if (label === "PROFILE" || label === "VIEW PROFILE") {
+      if (typeof actions.setTarget === "function") actions.setTarget({ name: target.attachedTo || target.name, id: target.id });
       actions.setScreen("Profile");
       actions.notify(`Opened Profile for ${target.attachedTo || target.name}`);
+      return;
+    }
+
+    if (label === "FRIEND") {
+      app.friends.sendFriendRequest(target.id).then(
+        () => actions.notify(`Friendship offered to ${target.name}`),
+        (err) => actions.notify(err instanceof Error ? err.message : "Unable to offer friendship"),
+      );
+      return;
+    }
+
+    if (label === "ZOOM") {
+      const ok = app.world?.focusObjectById?.(target.id);
+      actions.setScreen("3D View");
+      actions.notify(ok ? `Zoomed in on ${target.name}` : `Showing 3D view (${target.name} position unavailable)`);
       return;
     }
 
@@ -266,6 +282,17 @@ export default function Radar() {
 
     actions.notify(`${label}: ${target.name}`);
   };
+
+  const actionBtn = (primary) => ({
+    padding: "9px 12px",
+    minHeight: "36px",
+    borderRadius: V.rs,
+    border: "1px solid " + (primary ? V.pri : V.outv),
+    background: primary ? V.pri : V.surf,
+    color: primary ? V.onpri : V.ink,
+    font: "700 11px/1 " + t.dfont,
+    cursor: "pointer",
+  });
 
   // Switch between PERSON and ITEM
   const switchRadarMode = (mode) => {
@@ -773,6 +800,7 @@ export default function Radar() {
               <div
                 key={entry.id}
                 style={{
+                  flex: "none",
                   border: isSelected || isLongPressMenu ? `1px solid ${band.tone}` : `1px solid ${V.outv}`,
                   borderRadius: V.rs,
                   background: isSelected ? V.surf2 : V.surf,
@@ -817,7 +845,7 @@ export default function Radar() {
                   {/* Center Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                      <strong style={{ font: "600 13px/1.2 " + t.font, color: V.ink }}>
+                      <strong style={{ font: "700 14px/1.3 " + t.font, color: V.ink, overflowWrap: "anywhere" }}>
                         {entry.name}
                       </strong>
 
@@ -956,31 +984,29 @@ export default function Radar() {
                       <>
                         <button
                           onClick={() => handleAction("PROFILE", entry)}
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: V.rs,
-                            border: "1px solid " + V.outv,
-                            background: V.surf,
-                            color: V.ink,
-                            font: "600 10.5px/1 " + t.dfont,
-                            cursor: "pointer",
-                          }}
+                          style={actionBtn(false)}
                         >
                           PROFILE
                         </button>
+                        {!entry.isFriend && (
+                        <button
+                          onClick={() => handleAction("FRIEND", entry)}
+                          style={actionBtn(false)}
+                        >
+                          ADD FRIEND
+                        </button>
+                        )}
+                        <button
+                          onClick={() => handleAction("ZOOM", entry)}
+                          style={actionBtn(false)}
+                        >
+                          ZOOM TO
+                        </button>
                         <button
                           onClick={() => handleAction("IM", entry)}
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: V.rs,
-                            border: "1px solid " + V.pri,
-                            background: V.pri,
-                            color: V.onpri,
-                            font: "700 10.5px/1 " + t.dfont,
-                            cursor: "pointer",
-                          }}
+                          style={actionBtn(true)}
                         >
-                          IM CHAT
+                          MESSAGE
                         </button>
                         <button
                           onClick={() => handleAction("TELEPORT TO", entry)}
@@ -995,20 +1021,6 @@ export default function Radar() {
                           }}
                         >
                           TELEPORT TO
-                        </button>
-                        <button
-                          onClick={() => handleAction("CAM TO", entry)}
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: V.rs,
-                            border: "1px solid " + V.outv,
-                            background: V.surf,
-                            color: V.ink,
-                            font: "600 10.5px/1 " + t.dfont,
-                            cursor: "pointer",
-                          }}
-                        >
-                          CAM / TRACK
                         </button>
                         <button
                           onClick={() => handleAction("MUTE", entry)}
