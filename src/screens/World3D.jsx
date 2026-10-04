@@ -5,6 +5,7 @@ import ViewportCanvas from "../components/ViewportCanvas";
 import HudControls from "./HudControls.jsx";
 import TouchTarget from "../components/TouchTarget.tsx";
 import MobileOverlayControls from "../components/MobileOverlayControls.tsx";
+import OutfitCarouselDrawer from "../components/OutfitCarouselDrawer.tsx";
 import AccessibleChatLog from "../components/AccessibleChatLog.jsx";
 import Icon from "../components/Icon.jsx";
 
@@ -20,6 +21,17 @@ export default function World3D({ desktopBackdrop = false }) {
   const [interactionMode, setInteractionModeState] = useState(() => app.world.getInteractionMode());
   const [chatMessages, setChatMessages] = useState(() => app.chat.messages);
   const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
+  const [showOutfitDrawer, setShowOutfitDrawer] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isSmallViewport = viewportWidth < 480;
+  const isDesktopViewport = viewportWidth >= 768;
 
   useEffect(() => {
     const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
@@ -162,7 +174,7 @@ export default function World3D({ desktopBackdrop = false }) {
       {!desktopBackdrop && !showOverlays && (
         <div style={{ position: "absolute", top: 14, right: 14, zIndex: 40, display: "flex", gap: 8 }}>
           <TouchTarget
-            minSize={36}
+            minSize={44}
             aria-label="Reset Camera View"
             title="Reset Camera View (Home key)"
             onClick={handleResetView}
@@ -185,7 +197,7 @@ export default function World3D({ desktopBackdrop = false }) {
             <span>RESET</span>
           </TouchTarget>
           <TouchTarget
-            minSize={36}
+            minSize={44}
             aria-label="Show 3D overlays"
             title="Show overlays (Shortcut: H)"
             onClick={toggleOverlays}
@@ -218,7 +230,7 @@ export default function World3D({ desktopBackdrop = false }) {
           {/* Top-Right Quick Action Buttons */}
           <div style={{ position: "absolute", top: 12, right: 12, zIndex: 35, display: "flex", gap: 6 }}>
             <TouchTarget
-              minSize={32}
+              minSize={44}
               aria-label="Reset Camera View"
               title="Reset View (Home key)"
               onClick={handleResetView}
@@ -241,7 +253,7 @@ export default function World3D({ desktopBackdrop = false }) {
               <span>RESET</span>
             </TouchTarget>
             <TouchTarget
-              minSize={32}
+              minSize={44}
               aria-label="Hide 3D overlays"
               title="Hide all overlays (Shortcut: H)"
               onClick={toggleOverlays}
@@ -331,8 +343,13 @@ export default function World3D({ desktopBackdrop = false }) {
                   MODE: {interactionMode.toUpperCase()} ({interactionMode === "navigate" ? "Raycast Disabled" : "Raycast Active"}) · {panMode ? "PAN" : "ORBIT"}
                 </span>
                 <div style={{ marginTop: 6, opacity: 0.75 }}>
-                  Mobile: 2-finger pan & pinch-zoom (spread: zoom in, pinch: zoom out) · 1-finger orbit or pan<br />
-                  Desktop: Drag: orbit · Shift-drag: pan · Wheel: zoom · WASD: move
+                  Mobile: 2-finger pan & pinch-zoom (spread: zoom in, pinch: zoom out) · 1-finger orbit or pan
+                  {isDesktopViewport && (
+                    <>
+                      <br />
+                      Desktop: Drag: orbit · Shift-drag: pan · Wheel: zoom · WASD: move
+                    </>
+                  )}
                 </div>
                 <div style={{ marginTop: 4, opacity: 0.9 }}>
                   {interactionMode === "navigate" ? "Switch to INTERACT mode to tap objects" : "Tap an object to inspect it"}
@@ -407,7 +424,7 @@ export default function World3D({ desktopBackdrop = false }) {
             )
           ) : (
             <TouchTarget
-              minSize={28}
+              minSize={44}
               aria-label="Show scene information"
               title="Show scene info"
               onClick={() => setShowDiagnostics(true)}
@@ -631,6 +648,8 @@ export default function World3D({ desktopBackdrop = false }) {
             onResetView={handleResetView}
             onOpenChat={() => setShowChatOverlay((prev) => !prev)}
             chatOpen={showChatOverlay}
+            onOpenOutfits={() => setShowOutfitDrawer((prev) => !prev)}
+            outfitsOpen={showOutfitDrawer}
             voiceState={voice.state}
             voiceMuted={voice.muted}
             onToggleMic={() => app.voice.setMuted(!voice.muted)}
@@ -786,7 +805,16 @@ export default function World3D({ desktopBackdrop = false }) {
           )}
 
           {/* HUD Controls */}
-          <HudControls />
+          <HudControls
+            bottomOffset={isSmallViewport && showDpad ? 110 : 14}
+            outfitDrawerOpen={showOutfitDrawer}
+          />
+
+          {/* Outfit Carousel Drawer */}
+          <OutfitCarouselDrawer
+            isOpen={showOutfitDrawer}
+            onClose={() => setShowOutfitDrawer(false)}
+          />
         </>
       )}
     </section>
