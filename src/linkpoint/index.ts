@@ -26,10 +26,17 @@ export { LLSDXMLSerializer } from './xmlSerializer';
 export { LLSDBinarySerializer } from './binarySerializer';
 
 // Second Life extensions
-export { SecondLifeLLSDUtils } from './secondlife/SecondLifeLLSDUtils';
+export { SecondLifeLLSDUtils, SLValidationRules, SLValidationResult } from './secondlife/SecondLifeLLSDUtils';
 
 // Firestorm extensions
-export { FirestormLLSDUtils } from './firestorm/FirestormLLSDUtils';
+export { FirestormLLSDUtils, FSValidationRules, FSValidationResult } from './firestorm/FirestormLLSDUtils';
+
+// Lumiya extensions
+export { LumiyaLLSDUtils, LumiyaValidationRules, LumiyaValidationResult } from './lumiya/LumiyaLLSDUtils';
+
+// Linkpoint extensions
+export { LinkpointLLSDUtils, GridKind } from './linkpoint/LinkpointLLSDUtils';
+export type { LoginRequestContract, SessionSnapshotContract } from './linkpoint/LinkpointLLSDUtils';
 
 import { LLSD, LLSDValue, LLSDMap, LLSDArray } from './types';
 import { LLSDXMLParser } from './xmlParser';
