@@ -1012,9 +1012,11 @@ export class WorldViewer extends Utils.EventEmitter {
     const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId, undefined, subject) : null;
     const { position, rotation } = skin ? this.riggedTransform(object) : this.worldTransform(object);
     const hudRoot = object.avatar ? null : this.hudRootOf(object);
-    // SL rigged vertices are authored in avatar space. Applying the attachment prim's scale again
-    // stretches the skeleton and is the usual cause of exploded/deformed worn mesh.
-    const scale = skin ? [1, 1, 1] : Array.isArray(object.scale) ? object.scale : [1, 1, 1];
+    // Worn rigged attachments are authored in avatar space and ignore their prim scale. Animesh is
+    // different: it is a world object and Second Life applies the object's scale after skinning.
+    // Treating both alike made scaled Animesh appear compressed into its unit-sized bind shape.
+    const objectScale = Array.isArray(object.scale) ? object.scale : [1, 1, 1];
+    const scale = skin && !object.animatedMesh ? [1, 1, 1] : objectScale;
     object.decodedFaceTextures = (object.faceTextures || []).map((face: any) => this.resolveFace(face));
     const config = {
       mesh: object.avatar ? 'sphere' : ['cube', 'cylinder', 'sphere', 'prism', 'torus', 'asset-proxy'].includes(object.shape) ? object.shape : 'cube',
@@ -1023,7 +1025,7 @@ export class WorldViewer extends Utils.EventEmitter {
       rotation: this.quaternionToEuler(rotation),
       scale,
       color: object.avatar ? [0.3, 0.65, 1, 1] : object.color || [0.8, 0.8, 0.8, 1],
-      texture: object.decodedTexture || (object.textureId && this.decodedTextures.has(object.textureId) ? `texture:${object.textureId}` : undefined),
+      texture: object.decodedTexture || (object.textureId && (this.decodedTextures.has(String(object.textureId)) || this.decodedTextures.has(String(object.textureId).toLowerCase())) ? `texture:${object.textureId}` : undefined),
       faces: object.decodedFaceTextures,
       reflectionProbe: object.reflectionProbe,
       skin,

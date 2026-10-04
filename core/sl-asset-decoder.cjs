@@ -22,6 +22,10 @@ function matrixValues(matrix) {
 }
 
 function decodeWeights(weights, vertexCount) {
+  // Static LLMesh submeshes do not carry a weights block. Do not manufacture
+  // zero-weight influences for them: doing so makes the renderer classify an
+  // ordinary object as skinned and bypass its simulator scale.
+  if (!weights) return {};
   const joints = [], jointWeights = [];
   for (let vertex = 0; vertex < vertexCount; vertex++) {
     const influences = Object.entries(weights?.[vertex] || {})

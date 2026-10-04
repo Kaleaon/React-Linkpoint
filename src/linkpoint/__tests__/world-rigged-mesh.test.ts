@@ -164,4 +164,22 @@ describe('animated rigged mesh in the world', () => {
     expect(scene.objects.get('animesh').skin[1]).toBeCloseTo(-1, 3);
     expect(scene.objects.get('animesh').position).toEqual([4, 5, 6]);
   });
+
+  it('preserves simulator scale for Animesh instead of flattening it to bind-pose size', () => {
+    const { protocol, scene } = setup();
+    protocol.emit('scene:object-add', {
+      id: 'animesh-scale', localId: 6, assetId: 'mesh-scale', animatedMesh: true,
+      position: [4, 5, 6], rotation: [0, 0, 0, 1], scale: [2, 3, 4],
+    });
+    protocol.emit('scene:asset-ready', {
+      assetId: 'mesh-scale',
+      geometry: {
+        parts: [{ vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }],
+        skin: { jointNames: ['mPelvis'], bindShapeMatrix: identity, inverseBindMatrices: [identity] },
+      },
+    });
+
+    expect(scene.objects.get('animesh-scale').skin).toBeInstanceOf(Float32Array);
+    expect(scene.objects.get('animesh-scale').scale).toEqual([2, 3, 4]);
+  });
 });

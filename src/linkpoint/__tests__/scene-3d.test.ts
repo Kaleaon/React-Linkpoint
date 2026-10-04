@@ -35,6 +35,19 @@ describe('Scene3D rendering state', () => {
     expect(Array.from(normal)).toEqual([0.5, 0, 0, 0, 0.25, 0, 0, 0, 0.125]);
   });
 
+  it('keeps the scale supplied for a skinned world object', () => {
+    const { scene, graphics } = makeScene();
+    (graphics as any).isSkinnedMesh = () => true;
+    scene.addObject('animesh', {
+      mesh: 'animated', position: [0, 0, 0], scale: [2, 3, 4], skin: new Float32Array(12),
+    });
+
+    scene.renderObject(scene.objects.get('animesh'), new Float32Array(16), new Float32Array(16));
+
+    const model = graphics.drawMesh.mock.calls[0][2].uModelMatrix;
+    expect([model[0], model[5], model[10]]).toEqual([2, 3, 4]);
+  });
+
   it('resets persistent material uniforms when drawing terrain', () => {
     const { scene, graphics } = makeScene();
     scene.renderGrid(new Float32Array(16), new Float32Array(16));
