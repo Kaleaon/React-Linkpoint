@@ -914,6 +914,60 @@ export class WorldViewer extends Utils.EventEmitter {
     ];
   }
 
+  /** Skeleton joint used as the origin of each in-world attachment point. */
+  private static readonly ATTACHMENT_JOINTS: Readonly<Record<number, string>> = {
+    1: 'mChest', 2: 'mSkull', 3: 'mCollarLeft', 4: 'mCollarRight', 5: 'mWristLeft', 6: 'mWristRight',
+    7: 'mAnkleLeft', 8: 'mAnkleRight', 9: 'mTorso', 10: 'mPelvis', 11: 'mHead', 12: 'mHead',
+    13: 'mHead', 14: 'mHead', 15: 'mEyeLeft', 16: 'mEyeRight', 17: 'mHead',
+    18: 'mShoulderRight', 19: 'mElbowRight', 20: 'mShoulderLeft', 21: 'mElbowLeft',
+    22: 'mHipRight', 23: 'mHipRight', 24: 'mKneeRight', 25: 'mHipLeft', 26: 'mHipLeft',
+    27: 'mKneeLeft', 28: 'mTorso', 29: 'mChest', 30: 'mChest', 39: 'mNeck', 40: 'mPelvis',
+    41: 'mHandRing1Left', 42: 'mHandRing1Right', 43: 'mTail1', 44: 'mTail6',
+    45: 'mWing1Left', 46: 'mWing1Right', 47: 'mFaceJaw', 48: 'mFaceEar1Left', 49: 'mFaceEar1Right',
+    50: 'mFaceEyeAltLeft', 51: 'mFaceEyeAltRight', 52: 'mFaceTongueBase', 53: 'mGroin',
+    54: 'mHindLimb4Left', 55: 'mHindLimb4Right',
+  };
+
+  private quaternionFromMatrix(matrix: ArrayLike<number>): number[] {
+    const trace = matrix[0] + matrix[5] + matrix[10];
+    let x: number, y: number, z: number, w: number;
+    if (trace > 0) {
+      const s = Math.sqrt(trace + 1) * 2;
+      w = s / 4; x = (matrix[6] - matrix[9]) / s; y = (matrix[8] - matrix[2]) / s; z = (matrix[1] - matrix[4]) / s;
+    } else if (matrix[0] > matrix[5] && matrix[0] > matrix[10]) {
+      const s = Math.sqrt(1 + matrix[0] - matrix[5] - matrix[10]) * 2;
+      w = (matrix[6] - matrix[9]) / s; x = s / 4; y = (matrix[4] + matrix[1]) / s; z = (matrix[8] + matrix[2]) / s;
+    } else if (matrix[5] > matrix[10]) {
+      const s = Math.sqrt(1 + matrix[5] - matrix[0] - matrix[10]) * 2;
+      w = (matrix[8] - matrix[2]) / s; x = (matrix[4] + matrix[1]) / s; y = s / 4; z = (matrix[9] + matrix[6]) / s;
+    } else {
+      const s = Math.sqrt(1 + matrix[10] - matrix[0] - matrix[5]) * 2;
+      w = (matrix[1] - matrix[4]) / s; x = (matrix[8] + matrix[2]) / s; y = (matrix[9] + matrix[6]) / s; z = s / 4;
+    }
+    return [x, y, z, w];
+  }
+
+  /** Transform an attachment root from its joint-local coordinates into region coordinates. */
+  private attachmentTransform(object: any, avatar: any): { position: number[]; rotation: number[] } | null {
+    if (isHudPoint(Number(object.attachmentPoint))) return null;
+    const jointName = WorldViewer.ATTACHMENT_JOINTS[Number(object.attachmentPoint)];
+    if (!jointName) return null;
+    this.skeleton ||= new AvatarSkeleton();
+    const jointIndex = this.skeleton.indexOf(jointName);
+    if (jointIndex < 0) return null;
+    const matrix = this.avatarWorldMatrices(avatar.id)[jointIndex];
+    const jointPosition = [matrix[12], matrix[13], matrix[14]];
+    const jointRotation = this.quaternionFromMatrix(matrix);
+    const localPosition = Array.isArray(object.position) ? object.position : [0, 0, 0];
+    const localRotation = Array.isArray(object.rotation) && object.rotation.length === 4 ? object.rotation : [0, 0, 0, 1];
+    const avatarTransform = this.worldTransform(avatar);
+    const jointOffset = jointPosition.map((value, axis) => value + this.rotateVector(localPosition, jointRotation)[axis]);
+    return {
+      position: avatarTransform.position.map((value, axis) => value + this.rotateVector(jointOffset, avatarTransform.rotation)[axis]),
+      rotation: this.multiplyQuaternion(avatarTransform.rotation, this.multiplyQuaternion(jointRotation, localRotation)),
+    };
+  }
+
   private worldTransform(object: any, visited = new Set<string>()): { position: number[]; rotation: number[] } {
     const position = Array.isArray(object.position) ? object.position : [0, 0, 0];
     const rotation = Array.isArray(object.rotation) && object.rotation.length === 4 ? object.rotation : [0, 0, 0, 1];
@@ -923,6 +977,10 @@ export class WorldViewer extends Utils.EventEmitter {
     const parentId = this.localObjectIds.get(Number(object.parentId));
     const parent = parentId && this.sceneObjects.get(parentId);
     if (!parent) return { position, rotation };
+    if (parent.avatar && Number(object.attachmentPoint) > 0) {
+      const attached = this.attachmentTransform(object, parent);
+      if (attached) return attached;
+    }
     visited.add(object.id);
     const parentTransform = this.worldTransform(parent, visited);
     const offset = this.rotateVector(position, parentTransform.rotation);

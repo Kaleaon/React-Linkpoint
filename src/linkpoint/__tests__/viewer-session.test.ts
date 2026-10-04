@@ -64,6 +64,7 @@ describe('desktop simulator object bridge', () => {
       pcode: 9,
       avatar: false,
       attachmentPoint: 0,
+      attachment: false,
       attachmentName: null,
       isHud: false,
       position: [1, 2, 3],

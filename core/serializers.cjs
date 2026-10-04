@@ -142,11 +142,16 @@ function primAppearance(object) {
 function serializeObject(event) {
   const object = event.object;
   const rotation = object.Rotation || { x: 0, y: 0, z: 0, w: 1 };
+  const attachment = actions.attachmentInfo(object);
   return {
     id: object.FullID?.toString() || String(event.localID),
     localId: event.localID,
     parentId: object.ParentID || 0,
-    ...actions.attachmentInfo(object),
+    ...attachment,
+    // Keep this explicit: parentId alone also describes ordinary linksets.  The
+    // renderer uses the flag to decide whether the root's local transform is
+    // relative to an avatar attachment joint.
+    attachment: Boolean(object.IsAttachment && attachment.attachmentPoint),
     pcode: object.PCode,
     avatar: object.PCode === PCode.Avatar,
     position: vector(object.Position),

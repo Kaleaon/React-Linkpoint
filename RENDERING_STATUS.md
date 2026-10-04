@@ -17,13 +17,19 @@ renderer**.
   at high available LOD, and streamed to WebGL with positions, normals, UVs,
   and triangle indices. JPEG2000 textures are decoded to RGBA, including sculpt
   maps which are converted to indexed scene geometry.
+- Mesh rendering preserves simulator transforms and material assignments end to
+  end: static meshes retain their object scale, Animesh applies its simulator
+  scale after skinning, worn rigged meshes use avatar-space scale and placement,
+  and model rotation no longer rotates the object's world translation. Inherited
+  TextureEntry slots and GLTF material-override textures are requested and
+  rebound when their decoded assets arrive instead of remaining white.
 - **Sky, light and water from the region environment (EEP)**, following the official viewer (checked against its shader and settings source):
   - `eep.ts` samples the region's day cycle by time of day (day length and offset from the simulator, keyframes interpolated with wrap-around, sun/moon rotations slerped), derives sun and moon directions, and computes light the way `LLSettingsSky::calculateLightSettings` does (sunlight attenuated by altitude, ambient raised under cloud).
   - `atmosphere.ts` ports the viewer's sky scattering shader (blue/haze density and horizon, glow around the sun, sun and moon discs); the same function is reflected in the water. Cloud textures, rainbows and halos are not drawn.
   - Objects are lit by that sun/moon and ambient (gamma-correct lighting); the sky refreshes every two seconds.
   - Water uses the water settings' Fresnel, fog colour and density, blends a reflection of the sky, and has a sun glint. Waves are procedural (the EEP normal-map texture is not downloaded yet).
   - Without a day cycle the single sky frame is used, then Lumiya's Windlight presets as before.
-- **Terrain** is textured like the viewer: four detail textures blended by height plus noise against per-corner start heights and ranges from the region handshake (fallback colours until the textures load). The region's water height is used.
+- **Terrain** is textured like the viewer: four detail textures blended by height plus noise against per-corner start heights and ranges from the region handshake (fallback colours until the textures load). The region's water height is used, and the standard 256×256 height field retains every metre sample so terrain agrees with simulator object placement.
 - **Prims** use real Second Life geometry (`sl-volume.ts`, a port of the viewer's profile/path generator): all profile shapes, cut, hollow and hole shapes, twist, taper, shear, skew, radius offset and revolutions, with faces in texture-entry order. Meshes use their LLMesh data; sculpts use their sculpt maps.
 - Frustum culling against per-mesh bounds (skipped when bounds are unknown), and
   oriented-bounding-box picking via `Scene3D.pick` (not yet wired to the UI).

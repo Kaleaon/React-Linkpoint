@@ -95,6 +95,23 @@ describe('rigged mesh in the world', () => {
     expect(scene.objects.get('prim').position).toEqual([1, 2, 3]);
   });
 
+  it('places an unrigged attachment relative to its avatar skeleton joint', () => {
+    const { protocol, scene } = setup();
+    protocol.emit('scene:object-add', {
+      id: 'hat', localId: 4, parentId: 1, attachment: true, attachmentPoint: 2,
+      position: [0, 0, 0.2], rotation: [0, 0, 0, 1], scale: [1, 1, 1],
+    });
+
+    const hat = scene.objects.get('hat');
+    // The skull joint has a small lateral rest offset; this proves the object is
+    // using the joint rather than merely inheriting the avatar origin.
+    expect(hat.position[0]).toBeGreaterThan(9.9);
+    expect(hat.position[0]).toBeLessThan(10);
+    expect(hat.position[1]).toBeCloseTo(20, 5);
+    expect(hat.position[2]).toBeGreaterThan(31.5);
+    expect(hat.position[2]).toBeLessThan(33);
+  });
+
   it('rebuilds joint matrices when an asset is re-decoded', () => {
     const { protocol, scene } = setup();
     protocol.emit('scene:object-add', { id: 'rig', localId: 2, parentId: 1, assetId: 'mesh-3', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
