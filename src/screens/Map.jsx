@@ -59,8 +59,14 @@ export default function Map() {
   const teleport = async () => {
     if (!chosen?.block) return;
     setMessage("");
-    try { await app.protocol.teleportTo(teleportTarget(chosen.block)); setMessage(`Teleport to ${chosen.block.name} requested`); }
-    catch (error) { setMessage(error?.message || "Teleport failed"); }
+    try {
+      await app.protocol.teleportTo(teleportTarget(chosen.block));
+      setMessage(`Teleport to ${chosen.block.name} requested`);
+    } catch (error) {
+      if (!app.interactions.teleportSession) {
+        setMessage(error?.message || "Teleport failed");
+      }
+    }
   };
 
   const button = { border: `1px solid ${V.outv}`, background: V.surf, color: V.on, borderRadius: 6, padding: "4px 10px", cursor: "pointer" };
