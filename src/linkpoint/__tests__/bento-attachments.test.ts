@@ -22,7 +22,7 @@ describe('Bento Attachment Points & Face Texture Hydration', () => {
       rotation: [0, 0, 0, 1],
       scale: [1, 1, 1.9],
     };
-    world.upsertSceneObject(avatar);
+    (world as any).upsertSceneObject(avatar);
 
     // Attach items to extended Bento attachment points
     const bentoPoints = [
@@ -44,7 +44,7 @@ describe('Bento Attachment Points & Face Texture Hydration', () => {
         position: [0, 0, 0],
         rotation: [0, 0, 0, 1],
       };
-      world.upsertSceneObject(attachment);
+      (world as any).upsertSceneObject(attachment);
 
       const sceneObj = (world as any).sceneObjects.get(`attach-${item.point}`);
       expect(sceneObj).toBeDefined();
@@ -84,11 +84,11 @@ describe('Bento Attachment Points & Face Texture Hydration', () => {
         },
       ],
     };
-    world.upsertSceneObject(objectWithFace);
+    (world as any).upsertSceneObject(objectWithFace);
 
     // Apply downloaded texture asset
     const rgbaBase64 = btoa('RGBAdata4bytes!!');
-    world.applyTexture({ assetId: 'face-tex-12345678', width: 2, height: 2, rgba: rgbaBase64 });
+    (world as any).applyTexture({ assetId: 'face-tex-12345678', width: 2, height: 2, rgba: rgbaBase64 });
 
     expect(mockScene3d.addAssetTexture).toHaveBeenCalledWith('face-tex-12345678', 2, 2, expect.any(Uint8Array));
     const sceneObj = (world as any).sceneObjects.get('prim-1');
