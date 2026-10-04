@@ -6,8 +6,7 @@ import { loadGoogle } from "../services/google.ts";
 import { useApp } from "../context/AppContext.jsx";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
-import { LAYOUTS } from "../theme/layouts.js";
-import { FAMILIES, PALETTES } from "../theme/palettes.js";
+import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from "@linkpoint/design-system/tokens";
 
 function SwitchSetting({ id, title, description, on, onClick }) {
   return (

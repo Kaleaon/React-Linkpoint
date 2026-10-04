@@ -1,6 +1,5 @@
 import { useApp } from "../context/AppContext.jsx";
-import { LAYOUTS } from "../theme/layouts.js";
-import { PALETTES, FAMILIES } from "../theme/palettes.js";
+import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from "@linkpoint/design-system/tokens";
 import { DEVICES, SCREENS } from "../theme/constants.js";
 import { DIALOGS } from "../theme/dialogs.js";
 import ThemeStudio from "./ThemeStudio.jsx";

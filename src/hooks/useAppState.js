@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LAYOUTS } from "../theme/layouts.js";
-import { PALETTES } from "../theme/palettes.js";
+import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
 import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
 import { app } from "../linkpoint/app";

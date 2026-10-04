@@ -10,6 +10,8 @@ import InteractionDialog from "./InteractionDialog.jsx";
 import Toast from "./Toast.jsx";
 import BottomTabs from "./BottomTabs.jsx";
 import TileNav from "./TileNav.jsx";
+import { DeviceFrame as SystemDeviceFrame } from "@linkpoint/design-system/react";
+import { LAYOUTS } from "@linkpoint/design-system/tokens";
 
 // The React deliverable is the application itself, not the GitHub Pages
 // presentation canvas. Device bezels, fake OS chrome and design pickers remain

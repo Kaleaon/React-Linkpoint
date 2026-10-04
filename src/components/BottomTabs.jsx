@@ -3,6 +3,8 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL, TABS_NAV_IDS } from "../data/content.js";
 import Icon from "./Icon.jsx";
 import { navActive } from "../theme/look.js";
+import { BottomTabs as SystemBottomTabs } from "@linkpoint/design-system/react";
+import { LAYOUTS } from "@linkpoint/design-system/tokens";
 
 /**
  * BottomTabs component provides accessible bottom tab bar navigation.
