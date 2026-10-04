@@ -3,7 +3,7 @@
  */
 
 import { Utils } from './utils';
-import { LLSD } from './llsd';
+import { LLSD, LLSDUUID } from './llsd';
 import { SLConnectionFull } from './sl-connection-full';
 import { AuthManager } from './auth';
 import { corsHandler } from './cors-handler';
@@ -25,6 +25,92 @@ export class InventoryManager extends Utils.EventEmitter {
     this.auth = authManager;
   }
 
+  normalizeFolder(rawFolder: any, defaultParentId: string = ''): any {
+    if (!rawFolder || typeof rawFolder !== 'object') return null;
+    const id = String(rawFolder.id || rawFolder.folder_id || rawFolder.category_id || Utils.generateUUID());
+    const name = String(rawFolder.name || rawFolder.folder_name || 'New Folder');
+    const parent = String(rawFolder.parent || rawFolder.parent_id || defaultParentId || '');
+    const folderType = rawFolder.folderType ?? rawFolder.preferred_type ?? rawFolder.type_default ?? rawFolder.type ?? -1;
+    const version = Number(rawFolder.version ?? 0);
+    const children = Array.isArray(rawFolder.children) ? [...rawFolder.children] : [];
+
+    return {
+      ...rawFolder,
+      id,
+      name,
+      type: 'folder',
+      folderType,
+      parent,
+      children,
+      version,
+    };
+  }
+
+  normalizeItem(rawItem: any, defaultParentId: string = ''): any {
+    if (!rawItem || typeof rawItem !== 'object') return null;
+    const id = String(rawItem.id || rawItem.item_id || Utils.generateUUID());
+    const name = String(rawItem.name || rawItem.item_name || 'New Item');
+    const parent = String(rawItem.parent || rawItem.parent_id || defaultParentId || '');
+    const assetType = rawItem.assetType ?? rawItem.asset_type ?? rawItem.type_default ?? rawItem.type ?? 0;
+    const assetId = String(rawItem.assetId || rawItem.asset_id || rawItem.asset_uuid || '');
+    const description = String(rawItem.description || rawItem.desc || '');
+    const invType = Number(rawItem.invType ?? rawItem.inv_type ?? 0);
+    const flags = Number(rawItem.flags ?? 0);
+    const creationDate = rawItem.creationDate || rawItem.creation_date || 0;
+    const ownerId = String(rawItem.ownerId || rawItem.owner_id || '');
+    const groupId = String(rawItem.groupId || rawItem.group_id || '');
+    const permissions = rawItem.permissions || rawItem.permissions_base || {};
+    const data = rawItem.data || null;
+
+    return {
+      ...rawItem,
+      id,
+      name,
+      type: 'item',
+      assetType,
+      assetId,
+      parent,
+      description,
+      invType,
+      flags,
+      creationDate,
+      ownerId,
+      groupId,
+      permissions,
+      data,
+    };
+  }
+
+  private _addNormalizedFolder(rawFolder: any, defaultParentId: string = '') {
+    const folder = this.normalizeFolder(rawFolder, defaultParentId);
+    if (!folder) return null;
+    const existing = this.folders.get(folder.id);
+    if (existing && Array.isArray(existing.children)) {
+      folder.children = Array.from(new Set([...folder.children, ...existing.children]));
+    }
+    this.folders.set(folder.id, folder);
+    if (folder.parent) {
+      const parentFolder = this.folders.get(folder.parent);
+      if (parentFolder && Array.isArray(parentFolder.children) && !parentFolder.children.includes(folder.id)) {
+        parentFolder.children.push(folder.id);
+      }
+    }
+    return folder;
+  }
+
+  private _addNormalizedItem(rawItem: any, defaultParentId: string = '') {
+    const item = this.normalizeItem(rawItem, defaultParentId);
+    if (!item) return null;
+    this.items.set(item.id, item);
+    if (item.parent) {
+      const parentFolder = this.folders.get(item.parent);
+      if (parentFolder && Array.isArray(parentFolder.children) && !parentFolder.children.includes(item.id)) {
+        parentFolder.children.push(item.id);
+      }
+    }
+    return item;
+  }
+
   async init() {
     this.protocol.on('inventory_update', (data: any) => this.handleInventoryUpdate(data));
   }
@@ -42,22 +128,15 @@ export class InventoryManager extends Utils.EventEmitter {
           const cached = await localCache.loadInventory(agentId);
           if (cached && Array.isArray(cached.folders) && cached.folders.length > 0) {
             const rootId = cached.rootId || this.protocol.inventoryRoot || 'root';
-            this.rootFolder = { id: rootId, name: cached.rootName || 'My Inventory', type: 'folder', children: [] };
-            this.folders.set(rootId, this.rootFolder);
+            this.rootFolder = this._addNormalizedFolder({ id: rootId, name: cached.rootName || 'My Inventory', parent: '' });
 
             for (const f of cached.folders) {
-              const fid = f.id || Utils.generateUUID();
-              this.folders.set(fid, { id: fid, name: f.name, type: 'folder', parent: f.parent || rootId, children: [] });
-              const parent = this.folders.get(f.parent || rootId);
-              if (parent && !parent.children.includes(fid)) parent.children.push(fid);
+              this._addNormalizedFolder(f, rootId);
             }
 
             if (Array.isArray(cached.items)) {
               for (const item of cached.items) {
-                const iid = item.id || Utils.generateUUID();
-                this.items.set(iid, { id: iid, name: item.name, type: 'item', assetType: item.assetType, parent: item.parent || rootId, description: item.description, data: item.data });
-                const parent = this.folders.get(item.parent || rootId);
-                if (parent && !parent.children.includes(iid)) parent.children.push(iid);
+                this._addNormalizedItem(item, rootId);
               }
             }
 
@@ -80,29 +159,22 @@ export class InventoryManager extends Utils.EventEmitter {
           const inv = await slBridge.fetchInventory();
           if (inv) {
             const rootId = inv.folderId || this.protocol.inventoryRoot || 'root';
-            this.rootFolder = { id: rootId, name: inv.folderName || 'My Inventory', type: 'folder', children: [] };
-            this.folders.set(rootId, this.rootFolder);
+            this.rootFolder = this._addNormalizedFolder({ id: rootId, name: inv.folderName || 'My Inventory', parent: '' });
             if (Array.isArray(inv.folders)) {
               for (const f of inv.folders) {
-                const fid = f.id || Utils.generateUUID();
-                this.folders.set(fid, { id: fid, name: f.name, type: 'folder', parent: f.parent || rootId, children: [] });
-                const parent = this.folders.get(f.parent || rootId);
-                if (parent && !parent.children.includes(fid)) parent.children.push(fid);
+                this._addNormalizedFolder(f, rootId);
               }
             }
             if (Array.isArray(inv.items)) {
               for (const item of inv.items) {
-                const iid = item.id || Utils.generateUUID();
-                this.items.set(iid, { id: iid, name: item.name, type: 'item', assetType: item.assetType, parent: item.parent || rootId, description: item.description, data: item.data });
-                const parent = this.folders.get(item.parent || rootId);
-                if (parent && !parent.children.includes(iid)) parent.children.push(iid);
+                this._addNormalizedItem(item, rootId);
               }
             }
 
             this.loadedFromCache = false;
             await localCache.saveInventory(agentId, {
-              folders: inv.folders || [],
-              items: inv.items || [],
+              folders: Array.from(this.folders.values()),
+              items: Array.from(this.items.values()),
               rootId,
               rootName: inv.folderName || 'My Inventory',
             });
@@ -125,8 +197,7 @@ export class InventoryManager extends Utils.EventEmitter {
         return;
       }
 
-      this.rootFolder = { id: inventoryRoot, name: 'My Inventory', type: 'folder', children: [] };
-      this.folders.set(inventoryRoot, this.rootFolder);
+      this.rootFolder = this._addNormalizedFolder({ id: inventoryRoot, name: 'My Inventory', parent: '' });
       await this.fetchFolderContents(inventoryRoot);
       this.isLoading = false;
       this.emit('inventory_loaded');
@@ -145,18 +216,12 @@ export class InventoryManager extends Utils.EventEmitter {
         if (inv) {
           if (Array.isArray(inv.folders)) {
             for (const f of inv.folders) {
-              const fid = f.id || Utils.generateUUID();
-              this.folders.set(fid, { id: fid, name: f.name, type: 'folder', parent: f.parent || folderId, children: [] });
-              const parent = this.folders.get(f.parent || folderId);
-              if (parent && !parent.children.includes(fid)) parent.children.push(fid);
+              this._addNormalizedFolder(f, folderId);
             }
           }
           if (Array.isArray(inv.items)) {
             for (const item of inv.items) {
-              const iid = item.id || Utils.generateUUID();
-              this.items.set(iid, { id: iid, name: item.name, type: 'item', assetType: item.assetType, parent: item.parent || folderId, description: item.description });
-              const parent = this.folders.get(item.parent || folderId);
-              if (parent && !parent.children.includes(iid)) parent.children.push(iid);
+              this._addNormalizedItem(item, folderId);
             }
           }
           this.emit('inventory_updated');
@@ -172,10 +237,11 @@ export class InventoryManager extends Utils.EventEmitter {
     if (!url) return;
 
     try {
+      const ownerId = this.auth.user?.id || this.protocol.agentId || '00000000-0000-0000-0000-000000000000';
       const requestData = {
         folders: [{
-          folder_id: folderId,
-          owner_id: this.auth.user.id,
+          folder_id: new LLSDUUID(folderId),
+          owner_id: new LLSDUUID(ownerId),
           fetch_folders: true,
           fetch_items: true,
           sort_order: 1
@@ -201,31 +267,20 @@ export class InventoryManager extends Utils.EventEmitter {
   handleInventoryResponse(data: any) {
     if (!data) return;
 
-    const foldersList = Array.isArray(data.folders) ? data.folders : (data.categories ? [data] : []);
+    const foldersList = Array.isArray(data.folders) ? data.folders : (data.categories || data.items ? [data] : []);
 
     foldersList.forEach((folderData: any) => {
-      if (folderData.categories) {
+      const defaultParent = folderData.folder_id || folderData.category_id || '';
+
+      if (Array.isArray(folderData.categories)) {
         folderData.categories.forEach((cat: any) => {
-          const folder = { id: cat.category_id || cat.folder_id, name: cat.name, type: 'folder', parent: cat.parent_id, children: [] };
-          this.folders.set(folder.id, folder);
-          const parent = this.folders.get(folder.parent);
-          if (parent && !parent.children.includes(folder.id)) parent.children.push(folder.id);
+          this._addNormalizedFolder(cat, defaultParent);
         });
       }
 
-      if (folderData.items) {
+      if (Array.isArray(folderData.items)) {
         folderData.items.forEach((itemData: any) => {
-           const item = {
-             ...itemData,
-             id: itemData.item_id,
-             name: itemData.name,
-             type: 'item',
-             assetType: itemData.asset_type ?? itemData.type_default,
-             parent: itemData.parent_id,
-           };
-           this.items.set(item.id, item);
-           const parent = this.folders.get(item.parent);
-           if (parent && !parent.children.includes(item.id)) parent.children.push(item.id);
+          this._addNormalizedItem(itemData, defaultParent);
         });
       }
     });
@@ -235,6 +290,17 @@ export class InventoryManager extends Utils.EventEmitter {
   }
 
   handleInventoryUpdate(data: any) {
+    if (data) {
+      if (Array.isArray(data.folders)) {
+        data.folders.forEach((f: any) => this._addNormalizedFolder(f));
+      }
+      if (Array.isArray(data.categories)) {
+        data.categories.forEach((f: any) => this._addNormalizedFolder(f));
+      }
+      if (Array.isArray(data.items)) {
+        data.items.forEach((i: any) => this._addNormalizedItem(i));
+      }
+    }
     this.emit('inventory_updated', data);
   }
 
