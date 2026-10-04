@@ -821,6 +821,20 @@ export class WorldViewer extends Utils.EventEmitter {
     return selection;
   }
 
+  /** Zoom the orbit camera onto an avatar or object by id (used by the radar list). */
+  public focusObjectById(id: string) {
+    if (!this.camera3d) return false;
+    const target = this.sceneObjects.get(id) || this.objects.find((o) => o.id === id) || this.nearbyUsers.find((u) => u.id === id);
+    const position = target?.position;
+    if (!Array.isArray(position)) return false;
+    this.camera3d.setOrbitTarget(position[0], position[1], position[2] + (target.avatar || target.kind === 'person' ? 1.2 : 0));
+    this.camera3d.setMode('orbit');
+    this.camera3d.orbitDistance = target.avatar ? 4 : Math.max(2.5, Math.hypot(...(target.scale || [1, 1, 1])) * 2.5);
+    this.camera3d.updateMatrices();
+    this.emit('camera_changed', this.getCameraState());
+    return true;
+  }
+
   public focusSelectedObject() {
     if (!this.selectedObject || !this.camera3d) return false;
     const { position } = this.worldTransform(this.selectedObject);
