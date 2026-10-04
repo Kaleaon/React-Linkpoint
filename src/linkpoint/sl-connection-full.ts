@@ -8,8 +8,10 @@ import { SLProtocol } from './sl-protocol-real';
 import { LLSD } from './llsd';
 import { corsHandler } from './cors-handler';
 import { slBridge } from './sl-bridge';
+import { CircuitContextManager } from './circuit-context';
 
 export class SLConnectionFull extends Utils.EventEmitter {
+  public circuitContext = new CircuitContextManager();
   public state: string = 'IDLE'; // IDLE, AUTHENTICATING, CONNECTING, CONNECTED
   public connected: boolean = false;
   public authReply: any = null;
@@ -80,6 +82,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   private resetConnectionState() {
+    this.circuitContext.handleNetworkDisconnect();
     this.connected = false;
     this.balance = null;
     this.authReply = null;
@@ -142,6 +145,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
     // The session runs the circuit for us, so the interface learns only what the login reply says.
     this.sessionId = String(loginResult.sessionId ?? loginResult.session_id);
     this.circuitCode = Number(loginResult.circuit_code) || null;
+    this.seedCapability = loginResult.seed_capability || loginResult.seedCapability || null;
+    this.circuitContext.updateCircuit({
+      agentId: this.agentId,
+      sessionId: this.sessionId,
+      circuitCode: this.circuitCode,
+      seedCapability: this.seedCapability,
+    });
     this.inventoryRoot = loginResult.inventory_root || null;
     this.simAddress = null;
     this.simPort = null;

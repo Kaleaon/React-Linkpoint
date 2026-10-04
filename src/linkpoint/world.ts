@@ -17,6 +17,7 @@ import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
 import { BODY_PARTS, bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, type BodyPartGeometry } from './avatar-body';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 import { ParticleEngine } from './particles';
+import { CoordinateNormalizer } from './coordinate-normalizer';
 
 export class WorldViewer extends Utils.EventEmitter {
   /**
@@ -70,18 +71,11 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol = protocolManager;
     this.protocol.on('connected', (reply: any) => {
       this.applyWorldData(reply.world_data);
-      const normalizeGridCoordinate = (value: any) => {
-        const coordinate = Number(value);
-        if (!Number.isFinite(coordinate)) return null;
-        // Login replies generally use global metre coordinates while region
-        // handshakes and map services use region-grid coordinates.
-        return coordinate >= 25600 ? Math.floor(coordinate / 256) : coordinate;
-      };
       this.region = {
         ...this.region,
         name: reply.sim_name || reply.region_name || null,
-        x: normalizeGridCoordinate(reply.region_x),
-        y: normalizeGridCoordinate(reply.region_y),
+        x: CoordinateNormalizer.normalizeRegionTileCoordinate(reply.region_x),
+        y: CoordinateNormalizer.normalizeRegionTileCoordinate(reply.region_y),
       };
       this.emit('region_changed', this.region);
       void this.loadScene();
@@ -113,8 +107,8 @@ export class WorldViewer extends Utils.EventEmitter {
       this.region = {
         id: data.regionID || data.region_id,
         name: data.regionName || data.region_name || data.name || 'Unknown region',
-        x: data.regionX ?? data.region_x ?? 0,
-        y: data.regionY ?? data.region_y ?? 0,
+        x: CoordinateNormalizer.normalizeRegionTileCoordinate(data.regionX ?? data.region_x ?? 0),
+        y: CoordinateNormalizer.normalizeRegionTileCoordinate(data.regionY ?? data.region_y ?? 0),
       };
       this.emit('region_changed', { ...this.region });
       this.updateLocationDisplay();
@@ -1250,11 +1244,12 @@ export class WorldViewer extends Utils.EventEmitter {
     const next: any[] = [];
     for (let index = 0; index < locations.length; index++) {
       const location = locations[index];
-      const position: [number, number, number] = [
+      const rawPos = [
         Number(location.X ?? location.x ?? 0),
         Number(location.Y ?? location.y ?? 0),
         Number(location.Z ?? location.z ?? 0) * 4,
       ];
+      const position: [number, number, number] = CoordinateNormalizer.globalToRegionLocal(rawPos, this.region);
       if (index === you) {
         this.avatarPosition = position;
         continue;
@@ -1273,7 +1268,7 @@ export class WorldViewer extends Utils.EventEmitter {
 
   public parseCoordinates(item: any): [number, number, number] | null {
     if (!item) return null;
-    const raw =
+    const parsed = CoordinateNormalizer.parseVector(item) || CoordinateNormalizer.parseVector(
       item.coordinates ??
       item.Coordinates ??
       item.position ??
@@ -1282,33 +1277,10 @@ export class WorldViewer extends Utils.EventEmitter {
       item.Pos ??
       item.coarsePosition ??
       item.location ??
-      item.Location;
-    if (!raw) return null;
-    if (Array.isArray(raw)) {
-      const x = Number(raw[0]);
-      const y = Number(raw[1]);
-      const z = Number(raw[2] ?? 0);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        return [x, y, Number.isFinite(z) ? z : 0];
-      }
-      return null;
-    }
-    if (typeof raw === 'object') {
-      const x = Number(raw.x ?? raw.X);
-      const y = Number(raw.y ?? raw.Y);
-      const z = Number(raw.z ?? raw.Z ?? 0);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        return [x, y, Number.isFinite(z) ? z : 0];
-      }
-      return null;
-    }
-    if (typeof raw === 'string') {
-      const parts = raw.replace(/[<>[\]()]/g, '').split(',').map((s) => Number(s.trim()));
-      if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
-        return [parts[0], parts[1], Number.isFinite(parts[2]) ? parts[2] : 0];
-      }
-    }
-    return null;
+      item.Location
+    );
+    if (!parsed) return null;
+    return CoordinateNormalizer.globalToRegionLocal(parsed, this.region);
   }
 
   public handleAvatarPresence(data: any) {

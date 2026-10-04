@@ -95,4 +95,14 @@ export class CapabilitiesManager {
   clearCache() {
     this.capabilities.clear();
   }
+
+  /**
+   * Update capability seed URL and clear cached capabilities on region boundary crossing.
+   */
+  async updateSeedUrl(newSeedUrl: string) {
+    if (!newSeedUrl || typeof newSeedUrl !== 'string') return;
+    this.seedUrl = newSeedUrl;
+    this.clearCache();
+    console.log(`[Capabilities] Seed capability URL updated for region crossing: ${newSeedUrl}`);
+  }
 }
