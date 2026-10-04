@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { app } from "../linkpoint/app.ts";
 import Icon from "./Icon.jsx";
+import FocusTrap from "./FocusTrap.jsx";
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -94,26 +95,37 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
   };
 
   return (
-    <div className="pay-modal-overlay" style={{
-      position: "fixed",
-      top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.65)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 1000,
-      padding: "16px",
-    }}>
-      <div className="pay-modal-container" style={{
-        backgroundColor: "#1e222d",
-        color: "#e2e8f0",
-        borderRadius: "12px",
-        width: "100%",
-        maxWidth: "420px",
-        boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5), 0 10px 10px -5px rgba(0,0,0,0.3)",
-        border: "1px solid #334155",
-        overflow: "hidden",
-      }}>
+    <FocusTrap
+      active={isOpen}
+      onEscape={onClose}
+      className="pay-modal-overlay"
+      style={{
+        position: "fixed",
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.65)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "16px",
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pay-dialog-title"
+        className="pay-modal-container"
+        style={{
+          backgroundColor: "#1e222d",
+          color: "#e2e8f0",
+          borderRadius: "12px",
+          width: "100%",
+          maxWidth: "420px",
+          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5), 0 10px 10px -5px rgba(0,0,0,0.3)",
+          border: "1px solid #334155",
+          overflow: "hidden",
+        }}
+      >
         {/* Header */}
         <div style={{
           padding: "16px 20px",
@@ -126,7 +138,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <Icon name={targetType === "object" ? "box" : "contact"} size={20} style={{ color: "#38bdf8" }} />
             <div>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>
+              <h3 id="pay-dialog-title" style={{ margin: 0, fontSize: "16px", fontWeight: "600" }}>
                 Pay {targetType === "object" ? "Object" : "Resident"}
               </h3>
               <small style={{ color: "#94a3b8", fontSize: "12px" }}>{targetName}</small>
@@ -136,6 +148,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
             type="button"
             onClick={onClose}
             disabled={loading}
+            aria-label="Close dialog"
             style={{
               background: "transparent",
               border: "none",
@@ -384,6 +397,6 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
           )}
         </div>
       </div>
-    </div>
+    </FocusTrap>
   );
 }

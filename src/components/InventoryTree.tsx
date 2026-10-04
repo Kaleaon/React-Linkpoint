@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, MoreVertical, ArrowUp, ArrowDown, FolderInput, X } from 'lucide-react';
 import { app } from '../linkpoint/app';
+import FocusTrap from './FocusTrap';
 
 export interface InventoryTreeProps {
   rootFolderId?: string;
@@ -462,10 +463,9 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
 
       {/* Target Folder Prompt Modal for Single-Pointer Item Movement */}
       {moveTargetItem && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="move-modal-title"
+        <FocusTrap
+          active={!!moveTargetItem}
+          onEscape={() => setMoveTargetItem(null)}
           style={{
             position: 'fixed',
             inset: 0,
@@ -478,6 +478,9 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
           }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="move-modal-title"
             style={{
               backgroundColor: '#1e293b',
               border: '1px solid #334155',
@@ -563,7 +566,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </FocusTrap>
       )}
     </div>
   );

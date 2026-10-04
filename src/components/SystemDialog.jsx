@@ -4,6 +4,7 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { DIALOGS } from "../theme/dialogs.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
+import FocusTrap from "./FocusTrap.jsx";
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -194,17 +195,32 @@ export default function SystemDialog() {
   if (!dlg) return null;
 
   return (
-    <div style={{ position: "absolute", inset: 0, zIndex: 9, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "flex-end" }}>
-      <div style={{ width: "100%", background: V.surf, borderTop: "1px solid " + V.pri, borderRadius: V.rl + " " + V.rl + " 0 0", padding: "18px 16px 22px" }}>
+    <FocusTrap
+      active={true}
+      onEscape={() => actions.setDialog(null)}
+      style={{ position: "absolute", inset: 0, zIndex: 9, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "flex-end" }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="system-dialog-title"
+        aria-describedby="system-dialog-body"
+        style={{ width: "100%", background: V.surf, borderTop: "1px solid " + V.pri, borderRadius: V.rl + " " + V.rl + " 0 0", padding: "18px 16px 22px" }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "10px" }}>
           <Icon name={dlg.icon} size={18} style={{ color: V.pri }} />
           <span style={{ flex: 1, font: "600 12px/1 " + t.font, letterSpacing: ".2em", color: V.pri }}>{dlg.kind}</span>
-          <span onClick={() => actions.setDialog(null)} style={{ font: "400 11px/1 " + t.font, color: V.ink2, cursor: "pointer" }}>
+          <button
+            type="button"
+            onClick={() => actions.setDialog(null)}
+            aria-label="Close dialog"
+            style={{ font: "400 11px/1 " + t.font, color: V.ink2, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+          >
             CLOSE
-          </span>
+          </button>
         </div>
-        <div style={{ font: "600 15px/1.35 " + t.font, color: V.ink }}>{dlg.title}</div>
-        <div style={{ font: "400 12.5px/1.65 " + t.font, color: V.ink2, marginTop: "8px" }}>{dlg.body}</div>
+        <div id="system-dialog-title" style={{ font: "600 15px/1.35 " + t.font, color: V.ink }}>{dlg.title}</div>
+        <div id="system-dialog-body" style={{ font: "400 12.5px/1.65 " + t.font, color: V.ink2, marginTop: "8px" }}>{dlg.body}</div>
         {dlg.meta ? (
           <div style={{ marginTop: "10px", border: "1px dashed " + V.outv, borderRadius: V.rs, padding: "9px", font: "400 11px/1.6 " + t.font, color: V.ink2 }}>{dlg.meta}</div>
         ) : null}
@@ -214,7 +230,8 @@ export default function SystemDialog() {
               older "decorative, CLOSE-only" behavior this port originally
               matched. */}
           {dlg.buttons.map((b, i) => (
-            <div
+            <button
+              type="button"
               key={i}
               onClick={() => {
                 actions.setDialog(null);
@@ -223,10 +240,11 @@ export default function SystemDialog() {
               style={{ ...btnBase, ...(b.primary ? { background: V.pri, color: V.onpri, borderColor: V.pri } : b.dim ? { color: V.ink2 } : null) }}
             >
               {b.label}
-            </div>
+            </button>
           ))}
         </div>
       </div>
-    </div>
+    </FocusTrap>
   );
 }
+

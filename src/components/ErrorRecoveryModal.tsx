@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useErrorRecovery } from '../context/ErrorRecoveryContext';
+import FocusTrap from './FocusTrap';
 
 interface ErrorRecoveryModalProps {
   onNavigateFallback?: (route: 'Chat' | 'Login') => void;
@@ -34,10 +35,9 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="recovery-modal-title"
+    <FocusTrap
+      active={!!activeError}
+      onEscape={clearError}
       style={{
         position: 'fixed',
         inset: 0,
@@ -48,9 +48,12 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
         padding: '16px',
         zIndex: 10000,
       }}
-      data-testid="error-recovery-modal"
     >
       <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="recovery-modal-title"
+        data-testid="error-recovery-modal"
         style={{
           backgroundColor: '#1f2937',
           color: '#f9fafb',
@@ -206,6 +209,6 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
           </div>
         </div>
       </div>
-    </div>
+    </FocusTrap>
   );
 };
