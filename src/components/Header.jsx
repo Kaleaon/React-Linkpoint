@@ -42,7 +42,7 @@ function StackHead({ title, subtitle, scr }) {
       ? [{ icon: "refresh-cw", label: "RE-RUN PROBE", pick: () => actions.notify("RE-RUN PROBE — 48ms") }]
       : null;
   return (
-    <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px 8px" }}>
+    <header style={{ flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px 8px" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ font: "700 21px/1.05 " + t.dfont, letterSpacing: V.tls, color: V.pri }}>{title}</div>
         <div style={{ font: "400 11px/1.4 " + t.font, color: V.ink2, marginTop: "4px" }}>{subtitle}</div>
@@ -73,14 +73,14 @@ function StackHead({ title, subtitle, scr }) {
             </div>
           ))
         : null}
-    </div>
+    </header>
   );
 }
 
 function SweepHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
-    <>
+    <header style={{ flex: "none" }}>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: "6px", padding: "10px 12px 6px 4px" }}>
         <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "24px", minWidth: "24px", padding: "0 8px", background: V.sec2, borderRadius: "8px 0 0 8px", flex: "none", font: "700 8.5px/1 " + t.dfont, color: V.bg, letterSpacing: ".1em" }}>01-4471</span>
         <span style={{ flex: 1, height: "6px", background: V.surf2 }} />
@@ -88,7 +88,7 @@ function SweepHead({ title, subtitle }) {
         <span style={{ width: "36px", minWidth: "24px", minHeight: "24px", background: V.pri, borderRadius: "0 8px 8px 0", flex: "none" }} />
       </div>
       <div style={{ flex: "none", padding: "0 12px 8px", font: "400 11px/1.4 " + t.font, letterSpacing: ".06em", color: V.ink2 }}>{subtitle}</div>
-    </>
+    </header>
   );
 }
 
@@ -97,7 +97,7 @@ function PivotHead({ title, subtitle, scr }) {
   const { actions } = useApp();
   const nextScr = SCREENS[(SCREENS.indexOf(scr) + 1) % SCREENS.length];
   return (
-    <>
+    <header style={{ flex: "none" }}>
       <div style={{ flex: "none", padding: "14px 0 2px 16px", display: "flex", alignItems: "baseline", gap: "22px", overflow: "hidden" }}>
         <span style={{ flex: "none", font: "300 42px/1 " + t.dfont, color: V.ink, textTransform: "lowercase", letterSpacing: "-.02em" }}>{String(title || "").toLowerCase()}</span>
         <span
@@ -112,29 +112,29 @@ function PivotHead({ title, subtitle, scr }) {
         </span>
       </div>
       <div style={{ flex: "none", padding: "2px 16px 10px", font: "300 12px/1.4 " + t.font, color: V.ink2 }}>{subtitle}</div>
-    </>
+    </header>
   );
 }
 
 function RuleHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
-    <div style={{ flex: "none", padding: "16px 16px 4px", minWidth: "24px", minHeight: "24px" }}>
+    <header style={{ flex: "none", padding: "16px 16px 4px", minWidth: "24px", minHeight: "24px" }}>
       <div style={{ height: "1px", background: V.pri }} />
       <div style={{ height: "3px", borderBottom: "1px solid " + V.pri }} />
       <div style={{ textAlign: "center", padding: "12px 0 10px", font: "600 15px/1.1 " + t.dfont, letterSpacing: V.tls, color: V.pri, textIndent: V.tls }}>{title}</div>
       <div style={{ textAlign: "center", font: "400 10px/1.4 " + t.font, letterSpacing: ".16em", color: V.ink2 }}>{subtitle}</div>
       <div style={{ height: "1px", background: V.outv, marginTop: "12px" }} />
-    </div>
+    </header>
   );
 }
 
 function EditorialHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
-    <div style={{ flex: "none", padding: "18px 18px 10px", borderBottom: "2px solid " + V.ink }}>
+    <header style={{ flex: "none", padding: "18px 18px 10px", borderBottom: "2px solid " + V.ink }}>
       <div style={{ font: "600 27px/1.12 " + t.font, letterSpacing: "-.01em", color: V.ink, textTransform: "capitalize" }}>{title}</div>
       <div style={{ font: "400 12px/1.5 " + t.font, color: V.ink2, marginTop: "6px", maxWidth: "46ch" }}>{subtitle}</div>
-    </div>
+    </header>
   );
 }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import BottomTabs from '../../components/BottomTabs.jsx';
 import MenuBar from '../../components/MenuBar.jsx';
 import RailNav from '../../components/RailNav.jsx';
@@ -254,3 +255,89 @@ describe('W3C Specification References Documentation Compliance', () => {
     }
   });
 });
+
+describe('Skip Navigation Link and Application Landmarks (WCAG 2.2 SC 2.4.1 & 1.3.1)', () => {
+  let AppModule: any;
+  let ViewerModule: any;
+  let HeaderModule: any;
+  let TileNavModule: any;
+  let DesktopChromeModule: any;
+
+  beforeAll(async () => {
+    const appImp = await import('../../App.tsx');
+    AppModule = appImp.default;
+    ViewerModule = appImp.Viewer;
+    HeaderModule = (await import('../../components/Header.jsx')).default;
+    TileNavModule = (await import('../../components/TileNav.jsx')).default;
+    DesktopChromeModule = (await import('../../components/DesktopChrome.jsx')).default;
+  });
+
+  it('renders skip navigation link pointing to #main-content in App', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(createElement(AppModule));
+    });
+
+    const skipLink = host.querySelector('a.skip-to-content-link') as HTMLAnchorElement;
+    expect(skipLink).not.toBeNull();
+    expect(skipLink.getAttribute('href')).toBe('#main-content');
+    expect(skipLink.textContent?.trim()).toBe('Skip to main content');
+
+    await act(async () => { root.unmount(); });
+    host.remove();
+  });
+
+  it('renders a single <main id="main-content" tabIndex={-1}> landmark enclosing view content', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(createElement(AppModule));
+    });
+
+    const mainElements = host.querySelectorAll('main');
+    expect(mainElements.length).toBe(1);
+
+    const main = host.querySelector('main#main-content');
+    expect(main).not.toBeNull();
+    expect(main?.getAttribute('tabindex')).toBe('-1');
+
+    await act(async () => { root.unmount(); });
+    host.remove();
+  });
+
+  it('renders global header components inside <header> tags', async () => {
+    mounted = await mountScreen(HeaderModule);
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('ios');
+      mounted!.ctx.current.actions.setScreen('Chat');
+    });
+
+    const header = mounted.host.querySelector('header');
+    expect(header).not.toBeNull();
+  });
+
+  it('renders TileNav inside <nav aria-label="Tile Navigation">', async () => {
+    mounted = await mountScreen(TileNavModule);
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('ios');
+      mounted!.ctx.current.actions.setLayout('metro');
+    });
+
+    const nav = mounted.host.querySelector('nav[aria-label="Tile Navigation"]');
+    expect(nav).not.toBeNull();
+  });
+
+  it('renders DesktopChrome location bar inside <nav aria-label="Location bar">', async () => {
+    mounted = await mountScreen(DesktopChromeModule);
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('desk');
+    });
+
+    const locNav = mounted.host.querySelector('nav[aria-label="Location bar"]');
+    expect(locNav).not.toBeNull();
+  });
+});
+

@@ -13,7 +13,7 @@ export default function TileNav() {
   if (nav !== "tiles") return null;
 
   return (
-    <div style={{ flex: "none", display: "flex", gap: "3px", background: V.bg, padding: "3px" }}>
+    <nav aria-label="Tile Navigation" style={{ flex: "none", display: "flex", gap: "3px", background: V.bg, padding: "3px" }}>
       {NAV_ALL.map((n) => {
         const active = navActive(state.screen, n.id);
         const bg = active ? V.pri : V.surf;
@@ -46,6 +46,6 @@ export default function TileNav() {
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }

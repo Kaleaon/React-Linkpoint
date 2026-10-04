@@ -33,39 +33,41 @@ export default function ScreenBody() {
         {scr !== "Login" && <Header />}
         <SegmentedTabs />
         <ChipRow />
-        {norm && scr === "Chat" && <Chat />}
-        {norm && scr === "Radar" && <Radar />}
-        {norm && scr === "Map" && <Map />}
-        {norm && scr === "3D View" && !consoleScene && (
-          <>
-            <World3D />
-            <World3DActionBar />
-          </>
-        )}
-        {norm && scr === "Inventory" && <Inventory />}
-        {norm && scr === "Profile" && <Profile />}
-        {norm && scr === "Cache" && <CacheScreen />}
-        {norm && scr === "Settings" && <Settings />}
-        {norm && scr === "Friends" && <FriendsScreen />}
-        {norm && scr === "Contacts" && <ContactsScreen />}
-        {norm && scr === "Calendar" && <CalendarScreen />}
-        {norm && scr === "Groups" && <GroupsScreen />}
-        {norm && scr === "Notices" && <NoticesScreen />}
-        {norm && scr === "Mute List" && <MuteListScreen />}
-        {norm && scr === "Outfits" && <OutfitViewer />}
-        {norm && scr === "Objects" && <GenericInventoryScreen kind="object" />}
-        {norm && scr === "Notecards" && <NotecardsScreen />}
-        {norm && scr === "Media" && <MediaScreen />}
-        {norm && scr === "Accounts" && <AccountsScreen />}
-        {norm && scr === "Grids" && <GridsScreen />}
-        {norm && scr === "Teleport" && <TeleportScreen />}
-        {norm && scr === "Parcel" && <ParcelScreen />}
-        {norm && scr === "Transactions" && <TransactionsScreen />}
-        {norm && scr === "Diagnostics" && <DiagnosticsScreen />}
-        {norm && scr === "AO" && <AOScreen />}
-        {scr === "Login" && <Login />}
-        {scr === "Search" && <SearchScreen />}
-        {!norm && <StateBlock />}
+        <main id="main-content" tabIndex={-1} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden", outline: "none" }}>
+          {norm && scr === "Chat" && <Chat />}
+          {norm && scr === "Radar" && <Radar />}
+          {norm && scr === "Map" && <Map />}
+          {norm && scr === "3D View" && !consoleScene && (
+            <>
+              <World3D />
+              <World3DActionBar />
+            </>
+          )}
+          {norm && scr === "Inventory" && <Inventory />}
+          {norm && scr === "Profile" && <Profile />}
+          {norm && scr === "Cache" && <CacheScreen />}
+          {norm && scr === "Settings" && <Settings />}
+          {norm && scr === "Friends" && <FriendsScreen />}
+          {norm && scr === "Contacts" && <ContactsScreen />}
+          {norm && scr === "Calendar" && <CalendarScreen />}
+          {norm && scr === "Groups" && <GroupsScreen />}
+          {norm && scr === "Notices" && <NoticesScreen />}
+          {norm && scr === "Mute List" && <MuteListScreen />}
+          {norm && scr === "Outfits" && <OutfitViewer />}
+          {norm && scr === "Objects" && <GenericInventoryScreen kind="object" />}
+          {norm && scr === "Notecards" && <NotecardsScreen />}
+          {norm && scr === "Media" && <MediaScreen />}
+          {norm && scr === "Accounts" && <AccountsScreen />}
+          {norm && scr === "Grids" && <GridsScreen />}
+          {norm && scr === "Teleport" && <TeleportScreen />}
+          {norm && scr === "Parcel" && <ParcelScreen />}
+          {norm && scr === "Transactions" && <TransactionsScreen />}
+          {norm && scr === "Diagnostics" && <DiagnosticsScreen />}
+          {norm && scr === "AO" && <AOScreen />}
+          {scr === "Login" && <Login />}
+          {scr === "Search" && <SearchScreen />}
+          {!norm && <StateBlock />}
+        </main>
       </div>
       <SplitDetail />
     </div>

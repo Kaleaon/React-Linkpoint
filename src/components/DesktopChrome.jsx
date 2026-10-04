@@ -86,7 +86,7 @@ export default function DesktopChrome() {
           <div aria-hidden="true" style={{ position: "absolute", top: 0, left: G.rail + G.elbow - 1, right: 0, height: G.frame, background: V.pri, borderRadius: "0 999px 999px 0", zIndex: 57 }} />
         </>
       )}
-      <div className="desktop-location-bar" style={locationBarStyle}>
+      <nav className="desktop-location-bar" aria-label="Location bar" style={locationBarStyle}>
         <div className="desktop-history-controls" aria-label="Navigation history">
           <button type="button" aria-label="Back" title="Back" style={iconButton} onClick={() => actions.notify("No previous location") }><Icon name="chevron-left" size={15} /></button>
           <button type="button" aria-label="Forward" title="Forward" style={iconButton} onClick={() => actions.notify("No next location") }><Icon name="chevron-right" size={15} /></button>
@@ -104,7 +104,7 @@ export default function DesktopChrome() {
           <span style={{ color: kind === "sweep" ? "inherit" : V.ok }}>L$</span> {balance === null ? "—" : balance.toLocaleString()}
         </button>
         <button type="button" aria-label="Search" title="Search" style={iconButton} onClick={() => actions.openSearch(state.screen, "ALL")}><Icon name="search" size={14} /></button>
-      </div>
+      </nav>
 
       {kind === "sweep" ? <SweepRail G={G} V={V} t={t} ink={ink} state={state} actions={actions} /> : kind === "metro" ? <MetroTiles G={G} V={V} t={t} state={state} actions={actions} /> : (
       <nav className="desktop-tool-rail" aria-label="Viewer tools" style={{ background: V.surf, borderColor: V.outv }}>

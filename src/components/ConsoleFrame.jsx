@@ -123,7 +123,7 @@ export default function ConsoleFrame() {
       </div>
 
       {consoleScene ? (
-        <>
+        <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
           <ConsoleScene />
           <div
             onMouseDown={actions.holdStart}
@@ -190,7 +190,7 @@ export default function ConsoleFrame() {
           </div>
         ) : null}
       </div>
-        </>
+        </main>
       ) : null}
 
       <div style={{ position: "absolute", left: C.rail + C.gap + "px", right: C.gap + "px", bottom: C.gap + "px", height: C.foot + "px", display: "flex", gap: C.gap + "px" }}>
