@@ -42,6 +42,8 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
 
   const currentOutfit = outfits[activeIdx] || outfits[0];
 
+  if (!currentOutfit) return null;
+
   const handleNext = () => {
     setActiveIdx((prev) => (prev + 1) % outfits.length);
   };

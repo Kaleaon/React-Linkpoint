@@ -39,7 +39,7 @@ export type LLSDValue =
     | LLSDMap;
 
 export class LLSDException extends Error {
-    public cause?: Error;
+    public override cause?: Error;
 
     constructor(message: string, cause?: Error) {
         super(message);

@@ -126,9 +126,9 @@ describe('Scene3D sky and water', () => {
     const call = graphics.drawMesh.mock.calls.find((c) => c[1] === 'sky')!;
     expect(Array.from(call[2].uSkyViewMatrix.slice(12, 15))).toEqual([0, 0, 0]);
     // the atmosphere inputs come straight from the sky settings
-    expect(Array.from(call[2].uBlueHorizon).map((v: number) => +v.toFixed(3))).toEqual([0.2, 0.2, 0.2]);
+    expect(Array.from(call[2].uBlueHorizon as ArrayLike<number>).map((v) => +v.toFixed(3))).toEqual([0.2, 0.2, 0.2]);
     expect(Array.from(call[2].uBlueDensity)).toEqual([1, 1, 1]);
-    expect(Array.from(call[2].uSunlight).map((v: number) => +v.toFixed(3))).toEqual([0.1, 0.1, 0.1]);
+    expect(Array.from(call[2].uSunlight as ArrayLike<number>).map((v) => +v.toFixed(3))).toEqual([0.1, 0.1, 0.1]);
     expect(call[2].uSunDir).toHaveLength(3);
     expect(call[2].uSunRadius).toBeGreaterThan(0);
     expect(call[3]).toMatchObject({ depthWrite: false });

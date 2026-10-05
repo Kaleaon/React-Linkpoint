@@ -159,15 +159,30 @@ function normalizeGLTFMaterial(data) {
 async function decodePixels(buffer) {
   try {
     const image = new JpxImage();
-    image.parse(new Uint8Array(buffer));
+    // jpeg2000's implementation uses Buffer's big-endian readers even though
+    // its declarations advertise Uint8Array.
+    image.parse(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+    if (!Number.isInteger(image.width) || !Number.isInteger(image.height) || image.width < 1 || image.height < 1 || image.width > 8192 || image.height > 8192) {
+      throw new Error('JPEG2000 returned invalid texture dimensions');
+    }
+    if (!Number.isInteger(image.componentsCount) || image.componentsCount < 1 || image.componentsCount > 4) {
+      throw new Error(`Unsupported JPEG2000 component count: ${image.componentsCount}`);
+    }
     const rgba = Buffer.alloc(image.width * image.height * 4, 255);
-    for (const tile of image.tiles) for (let y = 0; y < tile.height; y++) for (let x = 0; x < tile.width; x++) {
-      const source = (y * tile.width + x) * image.componentsCount;
-      const target = ((tile.top + y) * image.width + tile.left + x) * 4;
-      rgba[target] = tile.items[source];
-      rgba[target + 1] = image.componentsCount > 1 ? tile.items[source + 1] : tile.items[source];
-      rgba[target + 2] = image.componentsCount > 2 ? tile.items[source + 2] : tile.items[source];
-      if (image.componentsCount > 3) rgba[target + 3] = tile.items[source + 3];
+    for (const tile of image.tiles) {
+      if (tile.left < 0 || tile.top < 0 || tile.width < 0 || tile.height < 0 || tile.left + tile.width > image.width || tile.top + tile.height > image.height) {
+        throw new Error('JPEG2000 tile lies outside the texture canvas');
+      }
+      if (tile.items.length < tile.width * tile.height * image.componentsCount) throw new Error('JPEG2000 tile has truncated component data');
+      for (let y = 0; y < tile.height; y++) for (let x = 0; x < tile.width; x++) {
+        const source = (y * tile.width + x) * image.componentsCount;
+        const target = ((tile.top + y) * image.width + tile.left + x) * 4;
+        rgba[target] = tile.items[source];
+        rgba[target + 1] = image.componentsCount >= 3 ? tile.items[source + 1] : tile.items[source];
+        rgba[target + 2] = image.componentsCount >= 3 ? tile.items[source + 2] : tile.items[source];
+        if (image.componentsCount === 2) rgba[target + 3] = tile.items[source + 1];
+        else if (image.componentsCount === 4) rgba[target + 3] = tile.items[source + 3];
+      }
     }
     return { data: rgba, width: image.width, height: image.height, channels: 4 };
   } catch {

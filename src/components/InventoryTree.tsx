@@ -296,7 +296,7 @@ const TreeNode: React.FC<NodeProps> = ({
       {/* Expanded Child Nodes */}
       {isFolder && isOpen && (
         <div role="group">
-          {children.map((childId: string) => (
+          {(children as string[]).map((childId) => (
             <TreeNode
               key={childId}
               id={childId}

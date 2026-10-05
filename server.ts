@@ -394,17 +394,26 @@ async function startServer() {
   const wss = new WebSocketServer({ server, path: '/api/udp-proxy' });
 
   wss.on('connection', (ws) => {
-    let udpSocket = null;
-    let targetIp = null;
-    let targetPort = null;
+    let udpSocket: dgram.Socket | null = null;
+    let targetIp: string | null = null;
+    let targetPort: number | null = null;
 
     ws.on('message', (message) => {
       // First message must be a JSON config containing ip and port
       if (!udpSocket) {
         try {
-          const config = JSON.parse(message.toString());
+          const config = JSON.parse(message.toString()) as { ip?: unknown; port?: unknown };
           if (!config.ip || !config.port) {
             throw new Error("Missing ip or port");
+          }
+          if (
+            typeof config.ip !== 'string' ||
+            typeof config.port !== 'number' ||
+            !Number.isInteger(config.port) ||
+            config.port < 1 ||
+            config.port > 65_535
+          ) {
+            throw new Error("Invalid ip or port");
           }
           targetIp = config.ip;
           targetPort = config.port;
@@ -431,7 +440,10 @@ async function startServer() {
       } else {
         // Forward binary WebSocket messages to UDP
         if (targetIp && targetPort) {
-          udpSocket.send(message, targetPort, targetIp, (err) => {
+          const datagram = typeof message === 'string' || Buffer.isBuffer(message)
+            ? message
+            : Buffer.from(message instanceof ArrayBuffer ? message : Buffer.concat(message));
+          udpSocket.send(datagram, targetPort, targetIp, (err) => {
              if (err) console.error("[UDP Proxy] Send error:", err);
           });
         }

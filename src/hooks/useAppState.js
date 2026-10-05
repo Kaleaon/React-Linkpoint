@@ -47,7 +47,7 @@ export function useAppState() {
     return () => window.removeEventListener("resize", onResize);
   }, [viewMode, deviceForViewport]);
   const [screen, setScreen] = useState("Login");
-  const [dialog, setDialog] = useState(null);
+  const [dialog, setDialog] = useState(/** @type {string | null} */ (null));
   const [dense, setDense] = useState(false);
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
   const [chip, setChip] = useState("");

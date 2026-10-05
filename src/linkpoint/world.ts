@@ -1295,12 +1295,12 @@ export class WorldViewer extends Utils.EventEmitter {
     const skirtGeometry = this.bodyParts?.get('skirt');
     if (skirtTexture && skirtGeometry) {
       let skirtSkin = this.bodySkins.get('skirt');
-      if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
+      if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton!, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
       const skirt = {
         mesh: 'cube', meshes: [{ mesh: 'avatar-body:skirt', materialIndex: 0 }],
         position: [x, y, z - height / 2], rotation: config.rotation, scale: [1, 1, 1], color: [1, 1, 1, 1],
         faces: [{ texture: skirtTexture, color: [1, 1, 1, 1], repeat: [1, 1], offset: [0, 0], rotation: 0, pbr: { alphaMode: 'MASK', alphaCutoff: 0.5, doubleSided: true } }],
-        skin: bodyPartRows(this.skeleton, skirtSkin, this.avatarWorldMatrices(id), (this.scene3d as any).graphics?.maxJoints || 110), visible: true,
+        skin: bodyPartRows(this.skeleton!, skirtSkin, this.avatarWorldMatrices(id), (this.scene3d as any).graphics?.maxJoints || 110), visible: true,
       };
       if (this.scene3d.objects.has(skirtId)) this.scene3d.updateObject(skirtId, skirt);
       else this.scene3d.addObject(skirtId, skirt);
@@ -1321,9 +1321,9 @@ export class WorldViewer extends Utils.EventEmitter {
       const skirtGeometry = skirt && this.bodyParts.get('skirt');
       if (skirtGeometry) {
         let skirtSkin = this.bodySkins.get('skirt');
-        if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
+        if (!skirtSkin) { skirtSkin = bodyPartSkin(this.skeleton!, skirtGeometry); this.bodySkins.set('skirt', skirtSkin); }
         const world = this.avatarWorldMatrices(object.id);
-        this.scene3d.updateObject(`${object.id}:body:skirt`, { skin: bodyPartRows(this.skeleton, skirtSkin, world, (this.scene3d as any).graphics?.maxJoints || 110) });
+        this.scene3d.updateObject(`${object.id}:body:skirt`, { skin: bodyPartRows(this.skeleton!, skirtSkin, world, (this.scene3d as any).graphics?.maxJoints || 110) });
       }
     }
   }

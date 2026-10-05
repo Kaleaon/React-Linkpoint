@@ -6,6 +6,7 @@ import { SkeletonAssetPlaceholder } from "./SkeletonLoader.jsx";
 /**
  * AssetContainer component with skeleton UI placeholder, progressive download progress listener,
  * smooth transition to loaded asset content, and clear error state with retry.
+ * @param {{ asset?: any, onFetch?: ((asset: any, onProgress: (loaded: number, total: number) => void) => Promise<any>) | null, onProgress?: ((percent: number, loaded: number, total: number) => void) | null, autoFetch?: boolean, title?: string | null, renderContent?: ((data: any) => import("react").ReactNode) | null, children?: import("react").ReactNode, style?: import("react").CSSProperties, className?: string }} props
  */
 export default function AssetContainer({
   asset = null,
