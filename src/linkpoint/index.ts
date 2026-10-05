@@ -46,6 +46,10 @@ export type { RegionOrigin, Vector3Tuple } from './coordinate-normalizer';
 export { ChatProtocolAdapter } from './chat-protocol-adapter';
 export type { QueuedIM, QueuedGroupMessage, ImprovedInstantMessagePayload } from './chat-protocol-adapter';
 
+// Appearance & Skeleton
+export { AppearanceManager } from './appearance-manager';
+export { AvatarSkeleton } from './avatar-skeleton';
+
 import { LLSD, LLSDValue, LLSDMap, LLSDArray } from './types';
 import { LLSDXMLParser } from './xmlParser';
 import { LLSDBinaryParser } from './binaryParser';

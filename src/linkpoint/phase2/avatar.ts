@@ -9,6 +9,7 @@
  */
 
 import { Utils } from '../utils';
+import { AppearanceManager } from '../appearance-manager';
 
 export class AvatarManager extends Utils.EventEmitter {
   public avatarId: string | null = null;
@@ -16,6 +17,7 @@ export class AvatarManager extends Utils.EventEmitter {
   private attachments: Map<number, any> = new Map();
   private visualParams: Map<number, number> = new Map();
   private skeletonData: any = null;
+  public readonly appearanceManager = new AppearanceManager();
 
   constructor() {
     super();
@@ -73,8 +75,19 @@ export class AvatarManager extends Utils.EventEmitter {
     }
     const clampedValue = Math.max(0, Math.min(1, value));
     this.visualParams.set(paramId, clampedValue);
+    this.appearanceManager.setVisualParam(paramId, clampedValue);
     console.log(`[Avatar] Set visual param ${paramId}: ${clampedValue}`);
     this.emit('visual_param_changed', { paramId, value: clampedValue });
+  }
+
+  setVisualParams(params: Map<number | string, number> | Record<string | number, number>) {
+    const matrices = this.appearanceManager.setVisualParams(params);
+    const entries = params instanceof Map ? params.entries() : Object.entries(params);
+    for (const [k, v] of entries) {
+      this.visualParams.set(Number(k), Math.max(0, Math.min(1, Number(v))));
+    }
+    this.emit('visual_params_changed', { params, matrices });
+    return matrices;
   }
 
   getVisualParam(paramId: number) {
