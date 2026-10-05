@@ -58,6 +58,7 @@ function sanitize(raw: any): SavedNotice | null {
 export class NoticeStore extends Utils.EventEmitter {
   private notices = new Map<string, SavedNotice>();
   private counter = 0;
+  private initialized = false;
   /** A notice another screen asked the calendar to open; read once with `takeFocus`. */
   private focusId: string | null = null;
 
@@ -68,7 +69,10 @@ export class NoticeStore extends Utils.EventEmitter {
 
   /** Start listening for notices from the grid. */
   init() {
+    if (this.initialized) return;
+    this.initialized = true;
     this.protocol?.on('group_notice', (data: any) => this.receive(data));
+    this.protocol?.on('group-notice', (data: any) => this.receive(data));
   }
 
   private load() {

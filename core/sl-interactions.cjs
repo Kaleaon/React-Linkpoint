@@ -199,6 +199,22 @@ async function acceptGroupInvite(bot, pending, params) {
   return { accepted: true };
 }
 
+/** Decline an inventory offer. */
+async function declineInventoryOffer(bot, pending, params) {
+  if (params && params.id) {
+    pending.remove(params.id);
+  }
+  return { declined: true };
+}
+
+/** Decline a group invite. */
+async function declineGroupInvite(bot, pending, params) {
+  if (params && params.id) {
+    pending.remove(params.id);
+  }
+  return { declined: true };
+}
+
 /**
  * Dismiss an interaction locally.
  */
@@ -247,6 +263,8 @@ module.exports = {
   respondScriptDialog,
   acceptLure,
   acceptInventoryOffer,
+  declineInventoryOffer,
   acceptGroupInvite,
+  declineGroupInvite,
   dismissInteraction,
 };

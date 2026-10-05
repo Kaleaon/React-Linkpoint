@@ -21,6 +21,17 @@ describe('NoticeStore', () => {
     expect(store.get('n1')).toMatchObject({ subject: 'Dance Saturday 7pm', from: 'Officer', groupId: 'g1', calendar: null });
   });
 
+  it('receives both group_notice and group-notice events idempotently', () => {
+    const protocol = new Utils.EventEmitter();
+    const store = new NoticeStore(protocol as any);
+    store.init();
+    store.init(); // Test idempotency of init()
+    protocol.emit('group-notice', sent({ id: 'n3', subject: 'Hyphen Notice' }));
+    protocol.emit('group_notice', sent({ id: 'n4', subject: 'Snake Notice' }));
+    expect(store.get('n3')?.subject).toBe('Hyphen Notice');
+    expect(store.get('n4')?.subject).toBe('Snake Notice');
+  });
+
   it('gives a notice with no id its own id, and rejects non-objects', () => {
     const store = new NoticeStore();
     expect(store.receive(null)).toBeNull();
