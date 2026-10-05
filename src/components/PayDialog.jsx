@@ -5,7 +5,14 @@ import FocusTrap from "./FocusTrap.jsx";
 
 const PRESETS = [5, 10, 50, 100];
 
-export default function PayDialog({ isOpen, onClose, target, onSuccess }) {
+/**
+ * @param {Object} props
+ * @param {boolean} props.isOpen
+ * @param {Function} props.onClose
+ * @param {Object} [props.target]
+ * @param {Function} [props.onSuccess]
+ */
+export default function PayDialog({ isOpen, onClose, target, onSuccess = null }) {
   const [selectedPreset, setSelectedPreset] = useState(10);
   const [customAmount, setCustomAmount] = useState("");
   const [isCustom, setIsCustom] = useState(false);
