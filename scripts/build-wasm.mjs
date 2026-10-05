@@ -10,6 +10,40 @@ const rootDir = path.resolve(__dirname, '..');
 const cSource = path.join(rootDir, 'src', 'wasm', 'spatial_engine.c');
 const wasmOut = path.join(rootDir, 'public', 'spatial.wasm');
 const tsOut = path.join(rootDir, 'src', 'wasm', 'spatial-wasm-binary.ts');
+const checkOnly = process.argv.includes('--check');
+
+function validateGeneratedArtifacts() {
+  if (!fs.existsSync(wasmOut) || !fs.existsSync(tsOut)) {
+    throw new Error('Generated WASM artifacts are missing. Run `npm run build:wasm` with clang installed.');
+  }
+
+  const wasmBuffer = fs.readFileSync(wasmOut);
+  if (wasmBuffer.length > 100 * 1024) {
+    throw new Error(`WASM binary exceeds 100KB size limit (${wasmBuffer.length} bytes)`);
+  }
+  if (!wasmBuffer.subarray(0, 4).equals(Buffer.from([0x00, 0x61, 0x73, 0x6d]))) {
+    throw new Error(`${wasmOut} is not a valid WebAssembly binary`);
+  }
+
+  const embeddedSource = fs.readFileSync(tsOut, 'utf8');
+  const sizeMatch = embeddedSource.match(/SPATIAL_WASM_SIZE = (\d+);/);
+  const bytesMatch = embeddedSource.match(/Uint8Array\(\[([\d,]*)\]\)/);
+  const embeddedBytes = bytesMatch
+    ? Buffer.from(bytesMatch[1].split(',').filter(Boolean).map(Number))
+    : null;
+
+  if (!sizeMatch || Number(sizeMatch[1]) !== wasmBuffer.length || !embeddedBytes?.equals(wasmBuffer)) {
+    throw new Error('Generated WASM artifacts are out of sync. Run `npm run build:wasm` with clang installed.');
+  }
+
+  console.log(`WASM artifacts verified (${wasmBuffer.length} bytes).`);
+  return wasmBuffer;
+}
+
+if (checkOnly) {
+  validateGeneratedArtifacts();
+  process.exit(0);
+}
 
 console.log('Compiling spatial_engine.c to WebAssembly SIMD module...');
 
@@ -38,3 +72,5 @@ export const SPATIAL_WASM_SIZE = ${wasmBuffer.length};
 
 fs.writeFileSync(tsOut, tsContent, 'utf-8');
 console.log(`Embedded WASM binary module written to ${tsOut}`);
+
+validateGeneratedArtifacts();

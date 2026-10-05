@@ -5,6 +5,7 @@
 import { Utils } from './utils';
 import { isFabricatedContact, purgeFabricatedMessages } from './fabricated-data';
 import { ChatProtocolAdapter } from './chat-protocol-adapter';
+import { ChatType } from './sl-message-types';
 
 export interface AutoReplyConfig {
   enabled: boolean;
@@ -182,11 +183,11 @@ export class ChatManager extends Utils.EventEmitter {
     }
   }
 
-  async sendMessage(message: string, channel: number = 0, type: number = 1) {
+  async sendMessage(message: string, channel: number = 0, type: ChatType = ChatType.NORMAL) {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
-    const echo = type === 4 ? null : { text: message, until: Date.now() + 15000 };
+    const echo = type === ChatType.START ? null : { text: message, until: Date.now() + 15000 };
     if (echo) this.pendingEchoes.push(echo);
     try {
       await this.adapter.sendSpatialChat(message, channel, type);

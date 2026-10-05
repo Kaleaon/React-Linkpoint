@@ -3,14 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "description": "Second Life communicator and viewer utility suite.",
   "author": "Linkpoint Contributors",
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "node scripts/build-wasm.mjs && node scripts/check-source-imports.mjs && vite build",
+    "build": "node scripts/build-wasm.mjs --check && node scripts/check-source-imports.mjs && vite build",
     "build:wasm": "node scripts/build-wasm.mjs",
     "build:materials": "node scripts/build-materials.mjs",
     "build:desktop": "node scripts/build-desktop.mjs",
@@ -27,6 +27,7 @@
     "test": "vitest run",
     "check:fake-data": "node scripts/check-fake-data.mjs",
     "check:source-imports": "node scripts/check-source-imports.mjs",
+    "test:live-grid": "node scripts/live-grid-smoke.mjs",
     "check": "npm run lint && npm run check:fake-data && npm run test && npm run build",
     "web": "expo start --web",
     "sync-design": "tsx scripts/sync-design.ts",
@@ -82,10 +83,19 @@
     "electron": "^38.8.6",
     "electron-builder": "^26.15.3",
     "jsdom": "^29.0.1",
-    "typescript": "~5.8.2",
+    "typescript": "~5.9.3",
     "vitest": "^4.1.1"
   },
   "overrides": {
     "@xmldom/xmldom": "0.9.12"
+  },
+  "allowScripts": {
+    "@firebase/util@1.15.3": true,
+    "@google/genai@2.27.0": true,
+    "electron@38.8.6": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.6": true,
+    "sharp@0.34.5": true
   }
 }
