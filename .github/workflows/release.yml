@@ -308,7 +308,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build desktop packages
-        run: npm run build:desktop -- ${{ matrix.target }} --publish never --config.extraMetadata.version="$VERSION"
+        env:
+          TARGET: ${{ matrix.target }}
+        run: npm run build:desktop -- "$TARGET" --publish never --config.extraMetadata.version="$VERSION"
 
       - name: Collect desktop packages
         run: |
