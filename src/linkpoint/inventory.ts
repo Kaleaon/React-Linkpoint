@@ -10,6 +10,126 @@ import { corsHandler } from './cors-handler';
 import { slBridge } from './sl-bridge';
 import { localCache } from './local-cache';
 
+export enum LLAssetType {
+  Texture = 0,
+  Sound = 1,
+  CallingCard = 2,
+  Landmark = 3,
+  Script = 4,
+  Clothing = 5,
+  Object = 6,
+  Notecard = 7,
+  Category = 8,
+  Root = 9,
+  LSLText = 10,
+  LSLBytecode = 11,
+  Bodypart = 13,
+  Trash = 14,
+  Snapshot = 15,
+  LostAndFound = 16,
+  SoundWAV = 17,
+  ImageTGA = 18,
+  ImageJPEG = 19,
+  Animation = 20,
+  Gesture = 21,
+  SimState = 22,
+  Favorite = 23,
+  Link = 24,
+  LinkFolder = 25,
+  Settings = 26,
+  Mesh = 49,
+  Material = 56,
+  Unknown = -1,
+}
+
+export enum LLFolderType {
+  None = -1,
+  Texture = 0,
+  Sound = 1,
+  CallingCard = 2,
+  Landmark = 3,
+  Clothing = 5,
+  Object = 6,
+  Notecard = 7,
+  Root = 8,
+  LSLText = 10,
+  Bodypart = 12,
+  Trash = 13,
+  Snapshot = 14,
+  LostAndFound = 15,
+  Animation = 19,
+  Gesture = 20,
+  Favorite = 22,
+  Inbox = 23,
+  Outfit = 24,
+  Settings = 25,
+  Environment = 26,
+  Suitcase = 46,
+  Material = 56,
+}
+
+export function parseLLFolderType(val: any): LLFolderType {
+  if (typeof val === 'number' && Number.isInteger(val)) {
+    return Object.values(LLFolderType).includes(val) ? (val as LLFolderType) : LLFolderType.None;
+  }
+  if (typeof val === 'string') {
+    const num = Number(val);
+    if (!isNaN(num) && Object.values(LLFolderType).includes(num)) {
+      return num as LLFolderType;
+    }
+    const key = val.trim();
+    if (key in LLFolderType) {
+      return (LLFolderType as any)[key];
+    }
+  }
+  return LLFolderType.None;
+}
+
+export function parseLLAssetType(val: any): LLAssetType {
+  if (typeof val === 'number' && Number.isInteger(val)) {
+    return Object.values(LLAssetType).includes(val) ? (val as LLAssetType) : LLAssetType.Unknown;
+  }
+  if (typeof val === 'string') {
+    const num = Number(val);
+    if (!isNaN(num) && Object.values(LLAssetType).includes(num)) {
+      return num as LLAssetType;
+    }
+    const key = val.trim();
+    const strMap: Record<string, LLAssetType> = {
+      texture: LLAssetType.Texture,
+      sound: LLAssetType.Sound,
+      callcard: LLAssetType.CallingCard,
+      callingcard: LLAssetType.CallingCard,
+      landmark: LLAssetType.Landmark,
+      script: LLAssetType.Script,
+      clothing: LLAssetType.Clothing,
+      object: LLAssetType.Object,
+      notecard: LLAssetType.Notecard,
+      category: LLAssetType.Category,
+      lsltext: LLAssetType.LSLText,
+      lslbyte: LLAssetType.LSLBytecode,
+      bodypart: LLAssetType.Bodypart,
+      trash: LLAssetType.Trash,
+      snapshot: LLAssetType.Snapshot,
+      animatn: LLAssetType.Animation,
+      animation: LLAssetType.Animation,
+      gesture: LLAssetType.Gesture,
+      link: LLAssetType.Link,
+      link_f: LLAssetType.LinkFolder,
+      mesh: LLAssetType.Mesh,
+      material: LLAssetType.Material,
+      settings: LLAssetType.Settings,
+    };
+    if (key.toLowerCase() in strMap) {
+      return strMap[key.toLowerCase()];
+    }
+    if (key in LLAssetType) {
+      return (LLAssetType as any)[key];
+    }
+  }
+  return LLAssetType.Unknown;
+}
+
 export class InventoryManager extends Utils.EventEmitter {
   public protocol: SLConnectionFull;
   public auth: AuthManager;
@@ -30,7 +150,8 @@ export class InventoryManager extends Utils.EventEmitter {
     const id = String(rawFolder.id || rawFolder.folder_id || rawFolder.category_id || Utils.generateUUID());
     const name = String(rawFolder.name || rawFolder.folder_name || 'New Folder');
     const parent = String(rawFolder.parent || rawFolder.parent_id || defaultParentId || '');
-    const folderType = rawFolder.folderType ?? rawFolder.preferred_type ?? rawFolder.type_default ?? rawFolder.type ?? -1;
+    const rawFolderType = rawFolder.folderType ?? rawFolder.preferred_type ?? rawFolder.type_default ?? rawFolder.type ?? -1;
+    const folderType = parseLLFolderType(rawFolderType);
     const version = Number(rawFolder.version ?? 0);
     const children = Array.isArray(rawFolder.children) ? [...rawFolder.children] : [];
 
@@ -51,7 +172,8 @@ export class InventoryManager extends Utils.EventEmitter {
     const id = String(rawItem.id || rawItem.item_id || Utils.generateUUID());
     const name = String(rawItem.name || rawItem.item_name || 'New Item');
     const parent = String(rawItem.parent || rawItem.parent_id || defaultParentId || '');
-    const assetType = rawItem.assetType ?? rawItem.asset_type ?? rawItem.type_default ?? rawItem.type ?? 0;
+    const rawAssetType = rawItem.assetType ?? rawItem.asset_type ?? rawItem.type_default ?? rawItem.type ?? 0;
+    const assetType = parseLLAssetType(rawAssetType);
     const assetId = String(rawItem.assetId || rawItem.asset_id || rawItem.asset_uuid || '');
     const description = String(rawItem.description || rawItem.desc || '');
     const invType = Number(rawItem.invType ?? rawItem.inv_type ?? 0);
