@@ -120,8 +120,8 @@ export class InventoryCore {
     }
     
     return {
-      folders: Array.from(new Set(folder.children || [])).map((id: string) => this.folders.get(id)).filter(Boolean),
-      items: Array.from(new Set(folder.items || [])).map((id: string) => this.items.get(id)).filter(Boolean)
+      folders: (Array.from(new Set(folder.children || [])) as string[]).map((id: string) => this.folders.get(id)).filter(Boolean),
+      items: (Array.from(new Set(folder.items || [])) as string[]).map((id: string) => this.items.get(id)).filter(Boolean)
     };
   }
 
