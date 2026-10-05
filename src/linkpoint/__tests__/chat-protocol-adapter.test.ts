@@ -44,11 +44,11 @@ describe('ChatProtocolAdapter', () => {
       expect(mockProtocol.sendChat).toHaveBeenCalledWith('script chat', 5, 1);
     });
 
-    it('suppresses ChatType 4 fallback on spatial chat', async () => {
+    it('preserves the official ChatType 4 typing-start signal', async () => {
       const adapter = new ChatProtocolAdapter(mockProtocol);
       await adapter.sendSpatialChat('test', 0, 4);
 
-      expect(mockProtocol.sendChat).toHaveBeenCalledWith('test', 0, 1);
+      expect(mockProtocol.sendChat).toHaveBeenCalledWith('test', 0, 4);
     });
 
     it('rejects empty messages', async () => {
