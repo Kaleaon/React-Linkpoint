@@ -8,6 +8,7 @@ import { Camera3D } from './camera-3d';
 import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
+import { AgentKeyboard } from './agent-keyboard';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
 import { parseAnimation, type JointPose } from './avatar-animation';
@@ -33,6 +34,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public scene3d: Scene3D | null = null;
   private animationId: number | null = null;
   private cameraControls: CameraControls | null = null;
+  private agentKeyboard: AgentKeyboard | null = null;
   private lastMovement = '';
   private resizeAttached = false;
   private readonly handleResize = () => this.resizeCanvas();
@@ -587,6 +589,14 @@ export class WorldViewer extends Utils.EventEmitter {
       }, (x, y) => this.pickObject(x, y), (motion, run) => this.controlAvatar(motion, run));
       this.cameraControls.setVelocityThreshold(this.dragVelocityThreshold);
       this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
+      this.agentKeyboard = new AgentKeyboard({
+        enabled: () => this.agentControlsActive(),
+        send: (controlFlags) => {
+          void this.protocol.setMovement({ controlFlags }).catch((error: unknown) => {
+            console.warn('[WorldViewer] avatar movement unavailable:', error);
+          });
+        },
+      });
 
       const scene = new Scene3D(graphics, this.camera3d);
       this.scene3d = scene;
@@ -701,6 +711,8 @@ export class WorldViewer extends Utils.EventEmitter {
     this.resizeObserver = null;
     this.cameraControls?.destroy();
     this.cameraControls = null;
+    this.agentKeyboard?.destroy();
+    this.agentKeyboard = null;
     if (this.lastMovement && this.protocol.connected) {
       this.lastMovement = '';
       void this.protocol.setMovement({ forward: 0, right: 0, up: 0, turn: 0, run: false }).catch(() => undefined);
@@ -751,8 +763,14 @@ export class WorldViewer extends Utils.EventEmitter {
     return true;
   }
 
+  /** The avatar, not the free camera, owns the movement keys. */
+  private agentControlsActive() {
+    return Boolean(this.camera3d && this.camera3d.preset !== 'free' && this.protocol.connected);
+  }
+
   private controlAvatar(motion: { forward: number; right: number; up: number; turn: number }, run: boolean) {
     if (this.camera3d?.preset === 'free' || !this.protocol.connected) return false;
+    if (this.agentKeyboard) return true; // AgentKeyboard sends the flags from the official bindings
     const signature = `${motion.forward}:${motion.right}:${motion.up}:${motion.turn}:${run}`;
     if (signature !== this.lastMovement) {
       this.lastMovement = signature;

@@ -369,7 +369,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Update the logged-in avatar's directional control flags. */
-  async setMovement(movement: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean }) {
+  async setMovement(movement: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean; controlFlags?: number }) {
     this.requireConnected();
     return slBridge.setMovement(movement);
   }

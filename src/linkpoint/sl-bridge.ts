@@ -160,8 +160,8 @@ export class SLBridge extends Utils.EventEmitter {
   }
   sit(params: { id?: string } = {}) { return this.call<{ sitting: string }>('sit', params); }
   stand() { return this.call<{ standing: boolean }>('stand'); }
-  setMovement(params: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean }) {
-    return this.call<{ moving: boolean }>('setMovement', params);
+  setMovement(params: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean; controlFlags?: number }) {
+    return this.call<{ moving: boolean; flags?: number }>('setMovement', params);
   }
   getBalance() { return this.call<{ balance: number; currencySymbol?: string; currency_symbol?: string; isZeroCurrency?: boolean; is_zero_currency?: boolean }>('getBalance'); }
   payObject(params: { targetId?: string; id?: string; objectId?: string; amount: number; description?: string; targetName?: string; currencySymbol?: string; isZeroCurrency?: boolean }) {

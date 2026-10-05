@@ -532,6 +532,7 @@ class ViewerSession {
   setMovement(params = {}) {
     const agent = this.requireBot().agent;
     if (!agent?.setControlFlag || !agent?.clearControlFlag || !agent?.sendAgentUpdate) throw new Error('Avatar movement unavailable');
+    if (params.controlFlags !== undefined) return this.setControlFlags(agent, params.controlFlags);
     const directional = [
       ControlFlags.AGENT_CONTROL_AT_POS, ControlFlags.AGENT_CONTROL_AT_NEG,
       ControlFlags.AGENT_CONTROL_LEFT_POS, ControlFlags.AGENT_CONTROL_LEFT_NEG,
@@ -554,6 +555,20 @@ class ViewerSession {
     if (params.run && params.up) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_UP);
     agent.sendAgentUpdate();
     return { moving: Boolean(params.forward || params.right || params.up || params.turn) };
+  }
+  // Flags the client owns when it sends a full flag word: everything except what the library sets itself.
+  // One-shot flags (stop, stand up, sit on ground, nudges) are cleared right after the update that carries them.
+  setControlFlags(agent, requested) {
+    const flags = Number(requested);
+    if (!Number.isInteger(flags) || flags < 0 || flags > 0xFFFFFFFF) throw new Error('controlFlags must be an unsigned 32-bit integer');
+    const oneShot = 0x4000 | 0x10000 | 0x20000 | 0x80000 | 0x100000 | 0x200000 | 0x400000 | 0x800000 | 0x1000000;
+    for (let bit = 0; bit < 32; bit++) {
+      const flag = (1 << bit) | 0;
+      if ((flags >>> bit) & 1) agent.setControlFlag(flag); else agent.clearControlFlag(flag);
+    }
+    agent.sendAgentUpdate();
+    for (let bit = 0; bit < 32; bit++) if ((oneShot >>> bit) & 1) agent.clearControlFlag((1 << bit) | 0);
+    return { moving: Boolean(flags & 0x0600003F), flags };
   }
   getBalance() { return actions.getBalance(this.requireBot()); }
   async payObject(params = {}) {
