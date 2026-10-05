@@ -36,10 +36,12 @@ describe('desktop simulator object bridge', () => {
       regionID: { toString: () => 'region-id' }, dayLength: 14400,
       dayCycle: { frames: new Map([['sky', sky]]) },
     });
-    const terrain = Array.from({ length: 256 }, (_, x) => Array.from({ length: 256 }, (_, y) => x + y));
+    const terrain = Array.from({ length: 256 }, (_, y) => Array.from({ length: 256 }, (_, x) => y * 1000 + x));
 
     expect(environment).toMatchObject({ regionId: 'region-id', dayLength: 14400, currentSky: { blueHorizon: [0.2, 0.4, 0.8] } });
-    expect(serializeTerrain({ terrain })).toMatchObject({ size: 256, heights: expect.arrayContaining([0, 1, 255, 510]) });
+    const serialized = serializeTerrain({ terrain });
+    expect(serialized).toMatchObject({ size: 256 });
+    expect(serialized.heights[10 * 256 + 20]).toBe(10 * 1000 + 20); // y=10, x=20
     expect(() => structuredClone(environment)).not.toThrow();
   });
 

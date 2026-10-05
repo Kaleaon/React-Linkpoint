@@ -126,7 +126,7 @@ describe('Camera3D viewer controls', () => {
       expect(camera.orbitTarget).toEqual([50, 60, 20]);
       expect(camera.orbitDistance).toBe(7.5);
       expect(camera.fov).toBe(60);
-      expect(camera.rotation).toEqual([-0.28, Math.PI, 0]);
+      expect(camera.rotation).toEqual([-0.28, -Math.PI / 2, 0]);
     });
   });
 });

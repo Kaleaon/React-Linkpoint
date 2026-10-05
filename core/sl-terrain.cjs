@@ -5,8 +5,8 @@ const finite = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number
 
 /**
  * From the RegionHandshake: the four detail texture ids (low to high), the start height and height
- * range at each corner in the handshake's order 00, 01, 10, 11 (south-west, south-east, north-west,
- * north-east), the region's global origin in metres, and the water height.
+ * range at each corner in the renderer's order SW, SE, NW, NE (handshake 00, 10, 01, 11),
+ * the region's global origin in metres, and the water height.
  */
 function serializeTerrainMaterials(region) {
   if (!region) return null;
@@ -15,8 +15,8 @@ function serializeTerrainMaterials(region) {
     .map((id) => (id && id !== ZERO_UUID ? id : null));
   return {
     textureIds: ids,
-    startHeights: [region.terrainStartHeight00, region.terrainStartHeight01, region.terrainStartHeight10, region.terrainStartHeight11].map((v) => finite(v, 20)),
-    heightRanges: [region.terrainHeightRange00, region.terrainHeightRange01, region.terrainHeightRange10, region.terrainHeightRange11].map((v) => finite(v, 60)),
+    startHeights: [region.terrainStartHeight00, region.terrainStartHeight10, region.terrainStartHeight01, region.terrainStartHeight11].map((v) => finite(v, 20)),
+    heightRanges: [region.terrainHeightRange00, region.terrainHeightRange10, region.terrainHeightRange01, region.terrainHeightRange11].map((v) => finite(v, 60)),
     origin: [finite(region.xCoordinate), finite(region.yCoordinate)],
     waterHeight: Number.isFinite(Number(region.waterHeight)) ? Number(region.waterHeight) : null,
   };

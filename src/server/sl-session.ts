@@ -22,7 +22,9 @@ console.error = function (...args: any[]) {
      msg.startsWith('WARNING: Bytes written does not match') ||
      msg.startsWith('WARNING: BUFFER UNDERFLOW') ||
      msg.includes('ChatSessionRequest') ||
-     msg.includes('Response code 500 (Internal Server Error)'))
+     msg.includes('Response code 500 (Internal Server Error)') ||
+     msg.includes('PayloadTooLargeError') ||
+     msg.includes('request entity too large'))
   ) {
     return;
   }

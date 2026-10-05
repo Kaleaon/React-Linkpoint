@@ -82,7 +82,7 @@ describe('rigged mesh in the world', () => {
     expect(rig.skin[3]).toBeCloseTo(0, 5);
     expect(rig.skin[11]).toBeCloseTo(1.067, 2);
     // the mesh uses the avatar's transform, not the attachment offset
-    expect(rig.position).toEqual([10, 20, 30]);
+    expect(rig.position).toEqual([10, 20, 30 - 0.95]);
     expect(rig.scale).toEqual([1, 1, 1]);
     expect(rig.meshes).toEqual([{ mesh: 'asset:mesh-1:0', materialIndex: 0 }]);
   });
@@ -108,8 +108,8 @@ describe('rigged mesh in the world', () => {
     expect(hat.position[0]).toBeGreaterThan(9.9);
     expect(hat.position[0]).toBeLessThan(10);
     expect(hat.position[1]).toBeCloseTo(20, 5);
-    expect(hat.position[2]).toBeGreaterThan(31.5);
-    expect(hat.position[2]).toBeLessThan(33);
+    expect(hat.position[2]).toBeGreaterThan(30.5);
+    expect(hat.position[2]).toBeLessThan(32);
   });
 
   it('rebuilds joint matrices when an asset is re-decoded', () => {

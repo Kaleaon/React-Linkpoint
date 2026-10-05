@@ -50,7 +50,7 @@ function serializeTerrain(region) {
   const size = 256;
   if (!region?.terrain || region.terrain.length < size) return null;
   const heights = new Array(size * size);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) heights[y * size + x] = finite(region.terrain[x]?.[y]);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) heights[y * size + x] = finite(region.terrain[y]?.[x]);
   return { size, heights };
 }
 

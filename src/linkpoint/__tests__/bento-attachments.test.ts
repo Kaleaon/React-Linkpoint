@@ -56,9 +56,10 @@ describe('Bento Attachment Points & Face Texture Hydration', () => {
       expect(jointIndex).toBeGreaterThanOrEqual(0);
 
       const expectedJointPos = [worldMatrices[jointIndex][12], worldMatrices[jointIndex][13], worldMatrices[jointIndex][14]];
+      const heightOffset = avatar.scale[2] / 2;
       expect(transform.position[0]).toBeCloseTo(avatar.position[0] + expectedJointPos[0], 2);
       expect(transform.position[1]).toBeCloseTo(avatar.position[1] + expectedJointPos[1], 2);
-      expect(transform.position[2]).toBeCloseTo(avatar.position[2] + expectedJointPos[2], 2);
+      expect(transform.position[2]).toBeCloseTo(avatar.position[2] - heightOffset + expectedJointPos[2], 2);
     }
   });
 

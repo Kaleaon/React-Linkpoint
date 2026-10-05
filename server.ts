@@ -33,7 +33,9 @@ console.error = function (...args: any[]) {
      msg.startsWith('WARNING: Bytes written does not match') ||
      msg.startsWith('WARNING: BUFFER UNDERFLOW') ||
      msg.includes('ChatSessionRequest') ||
-     msg.includes('Response code 500 (Internal Server Error)'))
+     msg.includes('Response code 500 (Internal Server Error)') ||
+     msg.includes('PayloadTooLargeError') ||
+     msg.includes('request entity too large'))
   ) {
     return;
   }
@@ -49,9 +51,10 @@ export async function createApp() {
   // Vite middleware on this same origin; deployments must set APP_URL.
   const allowedOrigin = process.env.APP_URL;
   app.use(cors({ origin: allowedOrigin ? [allowedOrigin] : true, credentials: true }));
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.text({ type: ['text/xml', 'application/xml', 'application/llsd+xml'] }));
-  app.use(express.raw({ type: '*/*', limit: '1mb' }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.text({ type: ['text/xml', 'application/xml', 'application/llsd+xml'], limit: '50mb' }));
+  app.use(express.raw({ type: '*/*', limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // Health check
   app.get("/api/health", (req, res) => {
@@ -334,9 +337,9 @@ export async function createApp() {
           "Accept": String(req.headers.accept || "text/xml, application/xml"),
           "Content-Type": String(req.headers["content-type"] || "text/xml"),
         },
-        timeout: 10000,
-        maxContentLength: 1024 * 1024,
-        maxBodyLength: 1024 * 1024,
+        timeout: 15000,
+        maxContentLength: 50 * 1024 * 1024,
+        maxBodyLength: 50 * 1024 * 1024,
         maxRedirects: 0,
       });
 
@@ -363,8 +366,21 @@ export async function createApp() {
     }
   });
 
+  // Handle payload too large or body-parser errors gracefully
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err?.type === 'entity.too.large' || err?.status === 413 || err?.name === 'PayloadTooLargeError') {
+      console.warn(`[Server] Request entity too large (${req.method} ${req.url})`);
+      res.status(413).json({
+        error: "Payload too large",
+        message: "The submitted request body exceeds the size limit.",
+      });
+      return;
+    }
+    next(err);
+  });
+
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !process.env.VITEST) {
     console.log("[Server] Mounting Vite middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -463,6 +479,8 @@ async function startServer() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-startServer().catch((err) => {
-  console.error("[Server] Failed to start:", err);
-});
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+  startServer().catch((err) => {
+    console.error("[Server] Failed to start:", err);
+  });
+}
