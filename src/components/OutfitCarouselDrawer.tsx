@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import TouchTarget from "./TouchTarget";
 import Icon from "./Icon";
+import FocusTrap from "./FocusTrap.jsx";
 
 export interface OutfitItem {
   id: string;
@@ -62,10 +63,13 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
   };
 
   return (
-    <aside
-      aria-label="Outfit Carousel Drawer"
-      aria-expanded={isOpen}
-      className={`outfit-carousel-drawer ${className}`.trim()}
+    <FocusTrap active={isOpen} onEscape={onClose}>
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Outfit Carousel Drawer"
+        aria-expanded={isOpen}
+        className={`outfit-carousel-drawer ${className}`.trim()}
       style={{
         position: "absolute",
         left: "50%",
@@ -175,7 +179,8 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
         </TouchTarget>
       </div>
     </aside>
-  );
+  </FocusTrap>
+);
 };
 
 export default OutfitCarouselDrawer;
