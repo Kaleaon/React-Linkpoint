@@ -403,3 +403,24 @@ a:focus-visible,
   align-items: center;
   box-sizing: border-box;
 }
+
+/* Skip Navigation Link (WCAG 2.2 SC 2.4.1 Bypass Blocks & 2.4.7 Focus Visible) */
+.skip-to-content-link {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  z-index: 99999;
+  padding: 8px 16px;
+  background: var(--v-pri, #0284c7);
+  color: var(--v-onpri, #ffffff);
+  border-radius: 4px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.skip-to-content-link:focus,
+.skip-to-content-link:focus-visible {
+  top: 12px;
+  left: 12px;
+}
+

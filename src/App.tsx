@@ -12,7 +12,7 @@ import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 let startup: Promise<void> | null = null;
 
-function Viewer() {
+export function Viewer() {
   const { actions } = useApp();
 
   useEffect(() => {
@@ -22,6 +22,9 @@ function Viewer() {
 
   return (
     <>
+      <a href="#main-content" className="skip-to-content-link">
+        Skip to main content
+      </a>
       <ErrorRecoveryBanner />
       <LiveRegionAnnouncerComponent />
       <DeviceFrame />
