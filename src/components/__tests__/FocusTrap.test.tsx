@@ -8,6 +8,7 @@ import { DIALOGS } from '../../theme/dialogs.js';
 import InteractionDialog from '../InteractionDialog.jsx';
 import { ErrorRecoveryModal } from '../ErrorRecoveryModal';
 import InventoryTree from '../InventoryTree';
+import OutfitCarouselDrawer from '../OutfitCarouselDrawer';
 import { AppProvider, useApp } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import { ErrorRecoveryProvider, useErrorRecovery } from '../../context/ErrorRecoveryContext';
@@ -326,5 +327,25 @@ describe('Modal ARIA Semantics and Focus Trap Integration', () => {
     expect(moveModal).not.toBeNull();
     expect(moveModal?.getAttribute('aria-modal')).toBe('true');
     expect(moveModal?.getAttribute('aria-labelledby')).toBe('move-modal-title');
+  });
+
+  it('renders OutfitCarouselDrawer with role="dialog", aria-modal="true", and FocusTrap wrapper', async () => {
+    const handleClose = vi.fn();
+    const host = await mount(createElement(OutfitCarouselDrawer, { isOpen: true, onClose: handleClose }));
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.getAttribute('aria-label')).toBe('Outfit Carousel Drawer');
+
+    // Verify FocusTrap container wraps the dialog
+    const focusTrapContainer = dialog?.parentElement;
+    expect(focusTrapContainer?.getAttribute('tabindex')).toBe('-1');
+
+    // Test Escape key dismissal handled by FocusTrap
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(handleClose).toHaveBeenCalledTimes(1);
   });
 });
