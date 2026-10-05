@@ -5,6 +5,10 @@ import { Utils } from '../utils';
 class ProtocolStub extends Utils.EventEmitter {
   respondScriptDialog = vi.fn().mockResolvedValue({ answered: true });
   acceptLure = vi.fn().mockResolvedValue({ accepted: true, message: 'Arrived' });
+  acceptInventoryOffer = vi.fn().mockResolvedValue({ accepted: true });
+  declineInventoryOffer = vi.fn().mockResolvedValue({ declined: true });
+  acceptGroupInvite = vi.fn().mockResolvedValue({ accepted: true });
+  declineGroupInvite = vi.fn().mockResolvedValue({ declined: true });
   dismissInteraction = vi.fn().mockResolvedValue({ dismissed: true });
 }
 
@@ -128,5 +132,46 @@ describe('InteractionsManager', () => {
     expect(changed).toHaveBeenCalledTimes(2);
     protocol.emit('disconnected', {});
     expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it('receives both snake_case and hyphenated event names without duplicates', () => {
+    const { protocol, manager } = setup();
+    protocol.emit('inventory_offer', { id: 'io1', fromName: 'Alex' });
+    protocol.emit('inventory-offer', { id: 'io1', fromName: 'Alex' });
+    protocol.emit('group_invite', { id: 'gi1', fromName: 'Officer' });
+    protocol.emit('group-invite', { id: 'gi1', fromName: 'Officer' });
+    expect(manager.items).toHaveLength(2);
+    expect(manager.items[0]).toMatchObject({ kind: 'inventory-offer', id: 'io1', fromName: 'Alex' });
+    expect(manager.items[1]).toMatchObject({ kind: 'group-invite', id: 'gi1', fromName: 'Officer' });
+  });
+
+  it('is idempotent when init() is called multiple times', () => {
+    const { protocol, manager } = setup();
+    manager.init();
+    manager.init();
+    protocol.emit('inventory_offer', { id: 'io1', fromName: 'Alex' });
+    expect(manager.items).toHaveLength(1);
+  });
+
+  it('handles accept, decline, and dismissInteraction for inventory offers and group invites', async () => {
+    const { protocol, manager } = setup();
+    protocol.emit('inventory_offer', { id: 'io1', fromName: 'Alex' });
+    protocol.emit('inventory_offer', { id: 'io2', fromName: 'Bob' });
+    protocol.emit('group_invite', { id: 'gi1', fromName: 'Guild' });
+    protocol.emit('group_invite', { id: 'gi2', fromName: 'Club' });
+
+    await expect(manager.acceptInventoryOffer('io1')).resolves.toBe(true);
+    expect(protocol.acceptInventoryOffer).toHaveBeenCalledWith({ id: 'io1' });
+
+    await expect(manager.declineInventoryOffer('io2')).resolves.toBe(true);
+    expect(protocol.declineInventoryOffer).toHaveBeenCalledWith({ id: 'io2' });
+
+    await expect(manager.acceptGroupInvite('gi1')).resolves.toBe(true);
+    expect(protocol.acceptGroupInvite).toHaveBeenCalledWith({ id: 'gi1' });
+
+    await expect(manager.declineGroupInvite('gi2')).resolves.toBe(true);
+    expect(protocol.declineGroupInvite).toHaveBeenCalledWith({ id: 'gi2' });
+
+    expect(manager.items).toHaveLength(0);
   });
 });

@@ -48,7 +48,9 @@ export default function InteractionDialog() {
   const error = errors[current.id];
   const waiting = items.length - 1;
   const isLure = current.kind === "lure";
-  const isTextBox = !isLure && current.textBox;
+  const isInventoryOffer = current.kind === "inventory-offer";
+  const isGroupInvite = current.kind === "group-invite";
+  const isTextBox = !isLure && !isInventoryOffer && !isGroupInvite && current.textBox;
 
   const button = { flex: "1 1 40%", minHeight: 46, display: "flex", alignItems: "center", justifyContent: "center", borderWidth: 1, borderStyle: "solid", borderColor: V.outv, borderRadius: V.rs, background: "transparent", font: `700 11px/1 ${t.font}`, letterSpacing: ".1em", color: V.ink, textAlign: "center", padding: "0 8px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.55 : 1 };
   const primary = { ...button, background: V.pri, color: V.onpri, borderColor: V.pri };
@@ -58,9 +60,25 @@ export default function InteractionDialog() {
     ? `Position ${current.position.map((n) => Math.round(n)).join(", ")}${current.gridX != null && current.gridY != null ? ` · grid ${current.gridX}, ${current.gridY}` : ""}`
     : null;
 
-  const heading = isLure ? `${current.fromName || "A resident"} offers to teleport you` : (current.objectName || "Object");
-  const kind = isLure ? "TELEPORT OFFER" : isTextBox ? "TEXT INPUT" : "OBJECT DIALOG";
-  const visibleButtons = isLure || isTextBox ? [] : current.buttons.map((label, index) => ({ label, index })).filter((entry) => entry.label !== TEXT_BOX_MARKER);
+  const heading = isLure
+    ? `${current.fromName || "A resident"} offers to teleport you`
+    : isInventoryOffer
+    ? `${current.fromName || "A resident"} offered you an item`
+    : isGroupInvite
+    ? `${current.fromName || "A resident"} invited you to join a group`
+    : (current.objectName || "Object");
+
+  const kind = isLure
+    ? "TELEPORT OFFER"
+    : isInventoryOffer
+    ? "INVENTORY OFFER"
+    : isGroupInvite
+    ? "GROUP INVITATION"
+    : isTextBox
+    ? "TEXT INPUT"
+    : "OBJECT DIALOG";
+
+  const visibleButtons = isLure || isInventoryOffer || isGroupInvite || isTextBox ? [] : current.buttons.map((label, index) => ({ label, index })).filter((entry) => entry.label !== TEXT_BOX_MARKER);
 
   // Starting a new attempt clears the previous failure for this request.
   const attempt = (run) => {
@@ -107,6 +125,16 @@ export default function InteractionDialog() {
             <>
               <button type="button" ref={firstRef} disabled={busy} style={primary} onClick={() => attempt(() => app.interactions.acceptLure(current.id))}>ACCEPT</button>
               <button type="button" disabled={busy} style={dim} onClick={() => void app.interactions.dismiss(current.id)}>DISMISS</button>
+            </>
+          ) : isInventoryOffer ? (
+            <>
+              <button type="button" ref={firstRef} disabled={busy} style={primary} onClick={() => attempt(() => app.interactions.acceptInventoryOffer(current.id))}>ACCEPT</button>
+              <button type="button" disabled={busy} style={dim} onClick={() => attempt(() => app.interactions.declineInventoryOffer(current.id))}>DECLINE</button>
+            </>
+          ) : isGroupInvite ? (
+            <>
+              <button type="button" ref={firstRef} disabled={busy} style={primary} onClick={() => attempt(() => app.interactions.acceptGroupInvite(current.id))}>ACCEPT</button>
+              <button type="button" disabled={busy} style={dim} onClick={() => attempt(() => app.interactions.declineGroupInvite(current.id))}>DECLINE</button>
             </>
           ) : isTextBox ? (
             <>

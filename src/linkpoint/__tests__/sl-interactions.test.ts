@@ -5,6 +5,8 @@ const require = createRequire(import.meta.url);
 const {
   TEXT_BOX_MARKER, MAX_REPLY_BYTES, serializeScriptDialog, serializeLure, PendingInteractions,
   subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction, serializeGroupNotice,
+  serializeInventoryOffer, serializeGroupInvite, acceptInventoryOffer, declineInventoryOffer,
+  acceptGroupInvite, declineGroupInvite,
 } = require('../../../core/sl-interactions.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
@@ -229,5 +231,41 @@ describe('lures', () => {
     expect(dismissInteraction(pending, { id })).toEqual({ dismissed: true });
     expect(dismissInteraction(pending, { id })).toEqual({ dismissed: false });
     expect(() => dismissInteraction(pending, {})).toThrow(/id is required/);
+  });
+});
+
+describe('inventory offers and group invites', () => {
+  it('serializes inventory offer and group invite events', () => {
+    const offer = serializeInventoryOffer({ from: uuid('f1'), fromName: 'Alice', requestID: uuid('r1'), message: 'Take this', type: 1 });
+    expect(offer).toEqual({ fromId: 'f1', fromName: 'Alice', requestId: 'r1', message: 'Take this', type: 1 });
+
+    const invite = serializeGroupInvite({ from: uuid('f2'), fromName: 'Bob', message: 'Join us', inviteID: uuid('i1') });
+    expect(invite).toEqual({ fromId: 'f2', fromName: 'Bob', message: 'Join us', inviteId: 'i1' });
+  });
+
+  it('accepts and declines inventory offers', async () => {
+    const pending = new PendingInteractions();
+    const id = pending.add('inventory-offer', { from: 'f1' });
+    const acceptFn = vi.fn().mockResolvedValue(undefined);
+    const bot = { clientCommands: { inventory: { acceptInventoryOffer: acceptFn } } };
+    await expect(acceptInventoryOffer(bot, pending, { id })).resolves.toEqual({ accepted: true });
+    expect(pending.size).toBe(0);
+
+    const id2 = pending.add('inventory-offer', { from: 'f2' });
+    await expect(declineInventoryOffer(bot, pending, { id: id2 })).resolves.toEqual({ declined: true });
+    expect(pending.size).toBe(0);
+  });
+
+  it('accepts and declines group invites', async () => {
+    const pending = new PendingInteractions();
+    const id = pending.add('group-invite', { from: 'f1' });
+    const acceptFn = vi.fn().mockResolvedValue(undefined);
+    const bot = { clientCommands: { groups: { acceptGroupInvite: acceptFn } } };
+    await expect(acceptGroupInvite(bot, pending, { id })).resolves.toEqual({ accepted: true });
+    expect(pending.size).toBe(0);
+
+    const id2 = pending.add('group-invite', { from: 'f2' });
+    await expect(declineGroupInvite(bot, pending, { id: id2 })).resolves.toEqual({ declined: true });
+    expect(pending.size).toBe(0);
   });
 });

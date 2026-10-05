@@ -88,16 +88,23 @@ export class InteractionsManager extends Utils.EventEmitter {
   private list: Interaction[] = [];
   private busyIds = new Set<string>();
   private activeTeleport: TeleportSession | null = null;
+  private initialized = false;
 
   constructor(private protocol: SLConnectionFull) {
     super();
   }
 
   init() {
+    if (this.initialized) return;
+    this.initialized = true;
+
     this.protocol.on('script_dialog', (data: any) => this.add('script-dialog', data));
+    this.protocol.on('script-dialog', (data: any) => this.add('script-dialog', data));
     this.protocol.on('lure', (data: any) => this.add('lure', data));
     this.protocol.on('inventory-offer', (data: any) => this.add('inventory-offer', data));
+    this.protocol.on('inventory_offer', (data: any) => this.add('inventory-offer', data));
     this.protocol.on('group-invite', (data: any) => this.add('group-invite', data));
+    this.protocol.on('group_invite', (data: any) => this.add('group-invite', data));
     this.protocol.on('disconnected', () => this.clear());
     this.protocol.on('connection_failed', () => this.clear());
 
@@ -344,9 +351,21 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
+  /** Decline an inventory offer. */
+  async declineInventoryOffer(id: string) {
+    const result = await this.run(id, () => typeof (this.protocol as any).declineInventoryOffer === 'function' ? (this.protocol as any).declineInventoryOffer({ id }) : this.protocol.dismissInteraction(id));
+    return Boolean(result);
+  }
+
   /** Accept a group invite. */
   async acceptGroupInvite(id: string) {
     const result = await this.run(id, () => (this.protocol as any).acceptGroupInvite({ id }));
+    return Boolean(result);
+  }
+
+  /** Decline a group invite. */
+  async declineGroupInvite(id: string) {
+    const result = await this.run(id, () => typeof (this.protocol as any).declineGroupInvite === 'function' ? (this.protocol as any).declineGroupInvite({ id }) : this.protocol.dismissInteraction(id));
     return Boolean(result);
   }
 
@@ -355,5 +374,10 @@ export class InteractionsManager extends Utils.EventEmitter {
     this.remove(id);
     this.busyIds.delete(id);
     try { await this.protocol.dismissInteraction(id); } catch { /* the server may already have dropped it */ }
+  }
+
+  /** Dismiss an interaction. Alias for dismiss(id). */
+  async dismissInteraction(id: string) {
+    return this.dismiss(id);
   }
 }
