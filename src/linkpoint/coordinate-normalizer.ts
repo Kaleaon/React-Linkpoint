@@ -5,6 +5,8 @@
  * and global grid coordinates for SL and OpenSim worlds.
  */
 
+import { SpatialPipeline } from './spatial-pipeline';
+
 export interface RegionOrigin {
   x?: number | null;
   y?: number | null;
@@ -68,7 +70,7 @@ export class CoordinateNormalizer {
 
   /**
    * Translates a spatial position (global grid coordinate or region vector)
-   * into a region-local vector normalized to region-local origin (0 to 256 meters).
+   * into a region-local vector normalized to region-local origin (supporting VarRegions up to 4096m).
    */
   public static globalToRegionLocal(
     position: any,
@@ -77,37 +79,18 @@ export class CoordinateNormalizer {
   ): Vector3Tuple {
     const vec = CoordinateNormalizer.parseVector(position);
     if (!vec) return [0, 0, 0];
-
-    const [originX, originY] = CoordinateNormalizer.getRegionOriginMeters(regionOrigin);
-    let [x, y, z] = vec;
-
-    // If coordinate is in global meters, translate relative to region origin
-    if (x >= originX && originX > 0) {
-      x = x - originX;
-    } else if (x > regionSize && originX === 0) {
-      x = x % regionSize;
-    }
-
-    if (y >= originY && originY > 0) {
-      y = y - originY;
-    } else if (y > regionSize && originX === 0) {
-      y = y % regionSize;
-    }
-
-    return CoordinateNormalizer.clampToRegionBounds([x, y, z], [regionSize, regionSize]);
+    return SpatialPipeline.getInstance().globalToRegionLocal(vec, regionOrigin, regionSize);
   }
 
   /**
-   * Converts a region-local vector (0 to 256 meters) to global grid coordinates in meters.
+   * Converts a region-local vector (0 to regionSize meters) to global grid coordinates in meters.
    */
   public static regionLocalToGlobal(
     localPos: any,
     regionOrigin?: RegionOrigin | null
   ): Vector3Tuple {
     const vec = CoordinateNormalizer.parseVector(localPos) || [0, 0, 0];
-    const [originX, originY] = CoordinateNormalizer.getRegionOriginMeters(regionOrigin);
-
-    return [originX + vec[0], originY + vec[1], vec[2]];
+    return SpatialPipeline.getInstance().regionLocalToGlobal(vec, regionOrigin);
   }
 
   /**

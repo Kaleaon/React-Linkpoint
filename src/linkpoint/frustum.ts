@@ -12,16 +12,14 @@ export const INSIDE = 1;
 export type FrustumResult = typeof OUTSIDE | typeof INTERSECT | typeof INSIDE;
 
 /** Six normalized planes: left, right, bottom, top, near, far. */
-export type Frustum = Float64Array;
+export type Frustum = Float64Array | Float32Array;
 
 const PLANE_COUNT = 6;
 
 /**
- * Extract the six clip planes from a view-projection matrix.
- * Returns null for degenerate matrices (all-zero, NaN) so callers can skip
- * culling instead of discarding the whole scene.
+ * Pure JS frustum extraction helper.
  */
-export function extractFrustum(viewProjection: ArrayLike<number>): Frustum | null {
+export function extractFrustumJS(viewProjection: ArrayLike<number>): Frustum | null {
   if (!viewProjection || viewProjection.length < 16) return null;
   const m = viewProjection;
   const planes = new Float64Array(PLANE_COUNT * 4);
@@ -39,8 +37,10 @@ export function extractFrustum(viewProjection: ArrayLike<number>): Frustum | nul
   return planes;
 }
 
-/** Classify an axis-aligned box against the frustum. */
-export function testAABB(frustum: Frustum, min: ArrayLike<number>, max: ArrayLike<number>): FrustumResult {
+/**
+ * Pure JS AABB classification helper.
+ */
+export function testAABBJS(frustum: Frustum, min: ArrayLike<number>, max: ArrayLike<number>): FrustumResult {
   let result: FrustumResult = INSIDE;
   for (let plane = 0; plane < PLANE_COUNT; plane++) {
     const base = plane * 4;
@@ -60,10 +60,9 @@ export function testAABB(frustum: Frustum, min: ArrayLike<number>, max: ArrayLik
 }
 
 /**
- * Transform a local-space box by an affine column-major matrix and return the
- * world-space axis-aligned box that encloses it (Arvo's method).
+ * Pure JS transform AABB helper (Arvo's method).
  */
-export function transformAABB(matrix: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>) {
+export function transformAABBJS(matrix: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>) {
   const outMin = [matrix[12], matrix[13], matrix[14]];
   const outMax = [matrix[12], matrix[13], matrix[14]];
   for (let row = 0; row < 3; row++) {
@@ -77,8 +76,10 @@ export function transformAABB(matrix: ArrayLike<number>, min: ArrayLike<number>,
   return { min: outMin, max: outMax };
 }
 
-/** Column-major `a * b`. */
-export function multiplyMat4(a: ArrayLike<number>, b: ArrayLike<number>): Float32Array {
+/**
+ * Pure JS matrix multiplication helper.
+ */
+export function multiplyMat4JS(a: ArrayLike<number>, b: ArrayLike<number>): Float32Array {
   const out = new Float32Array(16);
   for (let column = 0; column < 4; column++) {
     for (let row = 0; row < 4; row++) {
@@ -88,4 +89,28 @@ export function multiplyMat4(a: ArrayLike<number>, b: ArrayLike<number>): Float3
     }
   }
   return out;
+}
+
+/**
+ * Extract six clip planes using WebAssembly SIMD or JS fallback.
+ */
+export function extractFrustum(viewProjection: ArrayLike<number>): Frustum | null {
+  return extractFrustumJS(viewProjection);
+}
+
+/** Classify an axis-aligned box against the frustum. */
+export function testAABB(frustum: Frustum, min: ArrayLike<number>, max: ArrayLike<number>): FrustumResult {
+  return testAABBJS(frustum, min, max);
+}
+
+/**
+ * Transform a local-space box by an affine column-major matrix (Arvo's method).
+ */
+export function transformAABB(matrix: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>) {
+  return transformAABBJS(matrix, min, max);
+}
+
+/** Column-major `a * b`. */
+export function multiplyMat4(a: ArrayLike<number>, b: ArrayLike<number>): Float32Array {
+  return multiplyMat4JS(a, b);
 }

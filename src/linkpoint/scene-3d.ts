@@ -7,6 +7,7 @@ import { Graphics3D } from './graphics-3d';
 import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
 import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Frustum } from './frustum';
+import { SpatialPipeline } from './spatial-pipeline';
 import { intersectRayOrientedBox } from './ray-pick';
 import { HEAVENLY_BODY_RADIUS, atmosphereColor, atmosphereUniforms } from './atmosphere';
 import { DEFAULT_SKY, DEFAULT_WATER, dayFraction, normalizeSky, normalizeWater, skyAt, skyState, waterAt, type SkySettings, type SkyState, type WaterSettings } from './eep';
@@ -610,9 +611,10 @@ export class Scene3D extends Utils.EventEmitter {
     if (!frustum) return false;
     const local = this.objectLocalBounds(object);
     if (!local) return false;
+    const pipeline = SpatialPipeline.getInstance();
     const model = this.calculateModelMatrix(object.position, object.rotation, object.scale);
-    const world = transformAABB(model, local.min, local.max);
-    return testAABB(frustum, world.min, world.max) === OUTSIDE;
+    const world = pipeline.transformAABB(model, local.min, local.max);
+    return pipeline.testAABB(frustum, world.min, world.max) === OUTSIDE;
   }
 
   /**
