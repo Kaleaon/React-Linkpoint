@@ -168,6 +168,20 @@ describe('Typed LLSD Sentinel Nodes & Unified Inventory Reconciler Store', () =>
       expect(normalizedI.assetId).toBe('asset-chair-uuid');
       expect(normalizedI.type).toBe('item');
     });
+
+    it('validates and normalizes asset and folder types against LLAssetType and LLFolderType enums', () => {
+      const folderWithStr = invManager.normalizeFolder({ id: 'f-1', name: 'Trash', type: 'Trash' });
+      expect(folderWithStr.folderType).toBe(13); // LLFolderType.Trash
+
+      const itemWithStrType = invManager.normalizeItem({ id: 'i-1', name: 'My Texture', asset_type: 'texture' });
+      expect(itemWithStrType.assetType).toBe(0); // LLAssetType.Texture
+
+      const itemWithMeshStr = invManager.normalizeItem({ id: 'i-2', name: 'Mesh Prim', asset_type: 'mesh' });
+      expect(itemWithMeshStr.assetType).toBe(49); // LLAssetType.Mesh
+
+      const itemWithUnknownType = invManager.normalizeItem({ id: 'i-3', name: 'Unknown Asset', asset_type: 'invalid_custom_type' });
+      expect(itemWithUnknownType.assetType).toBe(-1); // LLAssetType.Unknown
+    });
   });
 
   describe('localCache Persistence & Rehydration Round-Trip', () => {
