@@ -200,7 +200,7 @@ export class InventorySpecialTypes {
       sound.audioElement.volume = sound.volume || 1.0;
       sound.audioElement.currentTime = 0;
 
-      sound.audioElement.play().catch((err) => {
+      sound.audioElement.play().catch((err: unknown) => {
         console.error(`[InventoryTypes] Error playing sound ${soundId}:`, err);
       });
     } catch (err) {

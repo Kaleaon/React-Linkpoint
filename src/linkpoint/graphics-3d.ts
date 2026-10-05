@@ -506,7 +506,9 @@ export class Graphics3D extends Utils.EventEmitter {
     this.textures.set(name, texture);
     this.textures.set(name.toLowerCase(), texture);
     let hasAlpha = false;
-    for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] < 250) { hasAlpha = true; break; } }
+    // Lumiya and the official viewer treat every non-opaque alpha value as
+    // transparency; a threshold here incorrectly made 250..254 fully opaque.
+    for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] !== 255) { hasAlpha = true; break; } }
     this.textureAlpha.set(name, hasAlpha);
     this.textureAlpha.set(name.toLowerCase(), hasAlpha);
     return name;

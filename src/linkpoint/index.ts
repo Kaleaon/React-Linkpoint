@@ -42,6 +42,10 @@ export type { CircuitParams } from './circuit-context';
 export { CoordinateNormalizer } from './coordinate-normalizer';
 export type { RegionOrigin, Vector3Tuple } from './coordinate-normalizer';
 
+// Simulator texture assets
+export { decodeJPEG2000, expandJpxTiles, MAX_TEXTURE_DIMENSION } from './texture-decoder';
+export type { DecodedTexture, JpxRaster } from './texture-decoder';
+
 // Chat Protocol Adapter
 export { ChatProtocolAdapter } from './chat-protocol-adapter';
 export type { QueuedIM, QueuedGroupMessage, ImprovedInstantMessagePayload } from './chat-protocol-adapter';

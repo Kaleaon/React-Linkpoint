@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML, parseNotation, serializeNotation, LLSDUUID, LLSDUndef, LLSDURI, LLSDBinary } from './llsd.js';
+import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML, parseNotation, serializeNotation, LLSDUUID, LLSDUndef, LLSDURI, LLSDBinary, type LLSDValue } from './llsd.js';
 import { parseISO } from 'date-fns';
 
 
@@ -50,7 +50,7 @@ describe('LLSD JSON Serialization (toJSON)', () => {
   it('serializes complex nested structures with Date and Uint8Array', () => {
     const d = new Date('2023-01-01T12:00:00.000Z');
     const data = new Uint8Array([1, 2, 3]);
-    const obj = {
+    const obj: LLSDValue = {
       timestamp: d,
       payload: data,
       items: [

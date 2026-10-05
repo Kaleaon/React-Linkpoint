@@ -256,7 +256,7 @@ export class EconomyManager extends Utils.EventEmitter {
         this.balance = remote.balance;
       }
       if (remote.currencySymbol || remote.currency_symbol) {
-        this.currencySymbol = remote.currencySymbol || remote.currency_symbol;
+        this.currencySymbol = remote.currencySymbol || remote.currency_symbol || this.currencySymbol;
       }
       if (typeof remote.isZeroCurrency === 'boolean' || typeof remote.is_zero_currency === 'boolean') {
         this.isZeroCurrency = Boolean(remote.isZeroCurrency ?? remote.is_zero_currency);

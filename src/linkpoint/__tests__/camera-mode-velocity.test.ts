@@ -61,7 +61,7 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       const selection = world.pickObject(100, 100);
 
       expect(selection).toBeNull();
-      expect(world.scene3d.pick).not.toHaveBeenCalled();
+      expect(world.scene3d!.pick).not.toHaveBeenCalled();
       expect(selectionListener).not.toHaveBeenCalled();
     });
 
@@ -80,7 +80,7 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       world.setInteractionMode('interact');
       const selection = world.pickObject(100, 100);
 
-      expect(world.scene3d.pick).toHaveBeenCalledWith(100, 100, 800, 600);
+      expect(world.scene3d!.pick).toHaveBeenCalledWith(100, 100, 800, 600);
       expect(selection).not.toBeNull();
       expect(selection?.id).toBe('obj-123');
       expect(selectionListener).toHaveBeenCalledWith(expect.objectContaining({ id: 'obj-123' }));

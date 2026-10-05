@@ -57,7 +57,7 @@ const emit = async (type: string, data: any) => {
 afterEach(async () => {
   if (mounted) {
     await act(async () => mounted!.root.unmount());
-    mounted.host.remove();
+    mounted!.host.remove();
     mounted = null;
   }
   await act(async () => {
@@ -99,7 +99,7 @@ describe('Spatial Touch Pods & Responsive Overlay Architecture', () => {
 
     // Clean up mobile mount
     await act(async () => mounted!.root.unmount());
-    mounted.host.remove();
+    mounted!.host.remove();
     mounted = null;
 
     // Desktop Viewport (1024px)

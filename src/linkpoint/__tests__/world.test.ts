@@ -209,10 +209,10 @@ describe('WorldViewer data status', () => {
     world.avatarPosition = [140, 150, 30];
     world.resetCamera();
 
-    expect(world.camera3d.orbitTarget).toEqual([140, 150, 30]);
-    expect(world.camera3d.preset).toBe('rear');
-    expect(world.camera3d.mode).toBe('orbit');
-    expect(world.camera3d.orbitDistance).toBe(7.5);
+    expect(world.camera3d!.orbitTarget).toEqual([140, 150, 30]);
+    expect(world.camera3d!.preset).toBe('rear');
+    expect(world.camera3d!.mode).toBe('orbit');
+    expect(world.camera3d!.orbitDistance).toBe(7.5);
   });
 
   it('hydrates sculpts and meshes with decodedMeshes even when assets arrive before objects', () => {

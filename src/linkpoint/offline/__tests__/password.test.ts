@@ -65,7 +65,7 @@ describe('offline account password hashing', () => {
       false,
       ['deriveBits']
     );
-    const saltBytes = new Uint8Array(record.salt.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    const saltBytes = new Uint8Array(record.salt.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
     const bits = await globalThis.crypto.subtle.deriveBits(
       { name: 'PBKDF2', salt: saltBytes, iterations: record.iterations, hash: 'SHA-256' },
       keyMaterial,
@@ -85,7 +85,7 @@ describe('offline account password hashing', () => {
       false,
       ['deriveBits']
     );
-    const saltBytes = new Uint8Array(record.salt.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    const saltBytes = new Uint8Array(record.salt.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
     const bits = await globalThis.crypto.subtle.deriveBits(
       { name: 'PBKDF2', salt: saltBytes, iterations: 1000, hash: 'SHA-256' },
       keyMaterial,

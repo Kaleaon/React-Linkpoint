@@ -1,9 +1,19 @@
 import { useEffect, useRef } from "react";
 
 /**
+ * @typedef {import("react").HTMLAttributes<HTMLDivElement> & {
+ *   active?: boolean,
+ *   onEscape?: (event: KeyboardEvent) => void,
+ *   autoFocus?: boolean,
+ *   children?: import("react").ReactNode
+ * }} FocusTrapProps
+ */
+
+/**
  * FocusTrap component wraps interactive dialogs/overlays to trap keyboard focus,
  * handle Escape dismissals, and restore focus to the triggering element upon unmount.
  */
+/** @param {FocusTrapProps} props */
 export default function FocusTrap({
   active = true,
   onEscape = undefined,
@@ -12,9 +22,9 @@ export default function FocusTrap({
   style = undefined,
   className = undefined,
   ...props
-} = {}) {
-  const containerRef = useRef(null);
-  const previousFocusRef = useRef(null);
+}) {
+  const containerRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const previousFocusRef = useRef(/** @type {HTMLElement | null} */ (null));
 
   const getFocusableElements = () => {
     if (!containerRef.current) return [];
