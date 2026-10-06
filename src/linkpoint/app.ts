@@ -191,6 +191,7 @@ export class LinkpointApp {
       this.eventQueue.stopPolling();
       this.chat.clearHistory();
       this.friends.clear();
+      this.groups.replaceGroups([]);
     });
   }
 
@@ -199,10 +200,8 @@ export class LinkpointApp {
     try {
       if (slBridge.connected) {
         const groups = await slBridge.fetchGroups();
-        if (Array.isArray(groups) && groups.length > 0) {
-          for (const g of groups) {
-            this.groups.setGroupInfo(g.id, g);
-          }
+        if (Array.isArray(groups)) {
+          this.groups.replaceGroups(groups);
           return groups;
         }
       }
@@ -210,6 +209,14 @@ export class LinkpointApp {
       console.warn('[LinkpointApp] loadGroups warning:', err);
     }
     return this.groups.getGroups();
+  }
+
+  async loadGroupDetails(groupId: string, section: string) {
+    const data = await slBridge.fetchGroupDetails(groupId, section);
+    if (section === 'members') this.groups.replaceMembers(groupId, data);
+    else if (section === 'roles') this.groups.replaceRoles(groupId, data);
+    else this.groups.setGroupInfo(groupId, { ...this.groups.getGroupInfo(groupId), ...data });
+    return data;
   }
 
   async loadFriends() {

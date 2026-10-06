@@ -16,6 +16,9 @@ export class NotificationsManager extends Utils.EventEmitter {
   public unreadCount: number = 0;
   public items: NotificationData[] = [];
   private noticeCounter = 0;
+  private filters = { local: true, im: true, group: true };
+
+  setFilters(filters: { local: boolean; im: boolean; group: boolean }) { this.filters = { ...filters }; }
 
   constructor(protocolManager: SLConnectionFull) {
     super();
@@ -42,7 +45,8 @@ export class NotificationsManager extends Utils.EventEmitter {
     this.items.push({ ...data });
     this.unreadCount++;
     this.emit('notification_received', data);
-    Utils.showToast(data.title || 'Notification', 'info');
+    const category = data.groupId || data.kind === 'notice' ? 'group' : data.kind === 'im' || data.type === 'im' ? 'im' : 'local';
+    if (this.filters[category]) Utils.showToast(data.title || 'Notification', 'info');
   }
 
   clear() {

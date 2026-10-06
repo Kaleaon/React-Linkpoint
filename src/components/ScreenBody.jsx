@@ -13,6 +13,8 @@ import Inventory from "../screens/Inventory.jsx";
 import Profile from "../screens/Profile.jsx";
 import Login from "../screens/Login.jsx";
 import CacheScreen from "../screens/CacheScreen.jsx";
+import { CameraScreen, EnvironmentScreen, SnapshotScreen } from "../screens/ViewerControls.jsx";
+import ScreenDirectory from "../screens/ScreenDirectory.jsx";
 import Settings from "../screens/Settings.jsx";
 import ContactsScreen from "../screens/ContactsScreen.jsx";
 import CalendarScreen from "../screens/CalendarScreen.jsx";
@@ -47,6 +49,10 @@ export default function ScreenBody() {
           {norm && scr === "Profile" && <Profile />}
           {norm && scr === "Cache" && <CacheScreen />}
           {norm && scr === "Settings" && <Settings />}
+          {norm && scr === "Screens" && <ScreenDirectory />}
+          {norm && scr === "Camera" && <CameraScreen />}
+          {norm && scr === "Environment" && <EnvironmentScreen />}
+          {norm && scr === "Snapshot" && <SnapshotScreen />}
           {norm && scr === "Friends" && <FriendsScreen />}
           {norm && scr === "Contacts" && <ContactsScreen />}
           {norm && scr === "Calendar" && <CalendarScreen />}

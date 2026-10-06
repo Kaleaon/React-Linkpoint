@@ -93,7 +93,9 @@ function primAppearance(object) {
     ? Array.from(overridesMap.keys())
     : (overridesMap ? Object.keys(overridesMap).map(Number) : []);
   const overrideFaces = Math.max(-1, ...overrideKeys);
-  const faceCount = Math.max(asset ? 8 : 1, object.TextureEntry?.faces?.length || 0, materialFaces + 1, overrideFaces + 1);
+  // Generated prims have up to nine faces; each inherits the full default TE,
+  // including repeat/offset/rotation/fullbright. Avatars need all legacy bake slots.
+  const faceCount = Math.max(object.PCode === PCode.Avatar ? 21 : asset ? 8 : 9, object.TextureEntry?.faces?.length || 0, materialFaces + 1, overrideFaces + 1);
   const faceTextures = Array.from({ length: faceCount }, (_, faceIndex) => {
     const face = object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) || object.TextureEntry?.faces?.[faceIndex] || object.TextureEntry?.defaultTexture;
     const faceRgba = face?.rgba;

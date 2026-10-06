@@ -15,6 +15,7 @@ const TOOLBAR = [
   ["map", "Map", "Map"],
   ["folder", "Inventory", "Inventory"],
   ["settings", "Preferences", "Settings"],
+  ["menu", "All screens", "Screens"],
 ];
 
 /**

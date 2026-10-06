@@ -424,3 +424,30 @@ a:focus-visible,
   left: 12px;
 }
 
+
+/* Viewer settings use the current theme rather than a separate fixed palette. */
+.settings-browser { flex: 1; min-height: 0; min-width: 0; display: flex; flex-wrap: wrap; container-type: inline-size; }
+.settings-categories { width: 190px; flex-shrink: 0; padding: 12px; overflow: auto; border-right: 1px solid var(--settings-border); }
+.settings-categories label { display: grid; gap: 8px; font-size: 12px; }
+.settings-categories input { width: 100%; box-sizing: border-box; padding: 10px; background: var(--settings-surface); color: inherit; border: 1px solid var(--settings-border); border-radius: var(--settings-radius); }
+.settings-categories nav { display: grid; gap: 4px; margin-top: 12px; }
+.settings-categories button { text-align: left; min-height: 40px; border: 0; padding: 10px; border-radius: var(--settings-radius); font: inherit; cursor: pointer; }
+.settings-content { min-width: 0; }
+.settings-content .runtime-card { background: var(--settings-surface); border-color: var(--settings-border); border-radius: var(--settings-radius); }
+.settings-content .runtime-card[hidden] { display: none; }
+.settings-tools { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
+.settings-tools button { flex-shrink: 0; padding: 8px 12px; background: var(--settings-surface); color: inherit; border: 1px solid var(--settings-border); border-radius: var(--settings-radius); cursor: pointer; }
+.group-back { display: none; }
+@container (max-width: 600px) {
+  .settings-categories { flex-basis: 100%; box-sizing: border-box; width: auto; border-right: 0; border-bottom: 1px solid var(--settings-border); }
+  .settings-categories nav { display: flex; overflow-x: auto; }
+  .settings-categories button { white-space: nowrap; }
+  .settings-content { width: 100%; box-sizing: border-box; }
+  .group-browser > .group-list-pane { width: 100% !important; border-right: 0 !important; }
+  .group-browser > .group-detail-pane { display: none !important; }
+  .group-browser-detail > .group-list-pane { display: none !important; }
+  .group-browser-detail > .group-detail-pane { display: flex !important; }
+  .group-back { display: block; }
+}
+/* Container queries cannot restyle their own container. */
+@media (max-width: 700px) { .settings-browser { flex-direction: column; } }

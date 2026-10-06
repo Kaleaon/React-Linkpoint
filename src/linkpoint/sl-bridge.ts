@@ -3,7 +3,7 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getInventory',
+  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
   'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
 ]);
 
@@ -216,6 +216,11 @@ export class SLBridge extends Utils.EventEmitter {
   }
 
   async fetchFriends() { return this.connected ? this.call<any[]>('getFriends') : []; }
+  async fetchGroupDetails(groupId: string, section: string = 'profile') {
+    if (!this.connected) throw new Error('Connect to a grid to load group details');
+    return this.call<any>('getGroupDetails', { groupId, section });
+  }
+
   async fetchGroups() { return this.connected ? this.call<any[]>('getGroups') : []; }
   async fetchInventory(folderId?: string) {
     return this.connected ? this.call('getInventory', folderId ? { folderId } : {}) : { folders: [], items: [] };

@@ -85,7 +85,7 @@ export default function ConsoleFrame() {
   })();
   const cfCurveFill = { position: "absolute", left: C.rail + "px", top: C.bar + "px", width: C.cur + "px", height: C.cur + "px", background: V.pri };
   const cfCurveCut = { position: "absolute", left: C.rail + "px", top: C.bar + "px", width: C.cur + "px", height: C.cur + "px", background: V.bg, borderRadius: C.cur + "px 0 0 0" };
-  const cfRailCol = { position: "absolute", left: 0, top: C.bar + "px", width: C.rail + "px", bottom: C.foot + C.gap + "px", display: "flex", flexDirection: "column", gap: C.gap + "px" };
+  const cfRailCol = { overflowY: "auto", minHeight: 0, position: "absolute", left: 0, top: C.bar + "px", width: C.rail + "px", bottom: C.foot + C.gap + "px", display: "flex", flexDirection: "column", gap: C.gap + "px" };
   const cfArm = { flex: "none", boxSizing: "border-box", height: (C.wide ? 42 : 32) + "px", width: C.rail + "px", background: V.pri, color: ink(V.pri, [V.bg, V.onpri, V.ink]), display: "flex", alignItems: "center", padding: "0 0 0 10px", font: "700 " + (C.wide ? 12 : 10) + "px/1.05 " + t.dfont, letterSpacing: ".14em" };
 
   const consoleNav = buildConsoleNav({ state, actions, V, t, C, ink });

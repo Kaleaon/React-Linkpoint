@@ -173,6 +173,9 @@ describe('animated rigged mesh in the world', () => {
     expect(posed[1]).toBeCloseTo(-1, 3);
     expect(posed[4]).toBeCloseTo(1, 3);
 
+    protocol.emit('scene:object-update', { id: 'rig', position: [2, 3, 4] });
+    expect(Array.from(scene.objects.get('rig').skin.slice(0, 12))).toEqual(posed);
+
     protocol.emit('scene:animations', { kind: 'avatar', id: 'avatar', animations: [] });
     t = 5; // well past the 0.5 s ease-out
     (world as any).updateAnimatedSkins();
