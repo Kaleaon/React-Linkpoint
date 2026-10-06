@@ -285,7 +285,7 @@ describe('WorldViewer data status', () => {
     });
 
     expect(updateObject).toHaveBeenCalled();
-    expect(updateObject.mock.calls.at(-1)?.[1].faces[0].texture).toBe('texture:OVERRIDE-TEX');
+    expect(updateObject.mock.calls.at(-1)?.[1].faces[0].texture).toBe('texture:override-tex');
   });
 
   it('resolves PBR face material overrides even when no base material asset exists', () => {

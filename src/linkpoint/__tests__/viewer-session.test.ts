@@ -79,7 +79,7 @@ describe('desktop simulator object bridge', () => {
       sculptType: null,
       assetId: null,
       textureId: null,
-      faceTextures: [{
+      faceTextures: Array.from({ length: 9 }, () => ({
         textureId: null,
         color: [1, 1, 1, 1],
         repeat: [1, 1],
@@ -88,7 +88,7 @@ describe('desktop simulator object bridge', () => {
         fullBright: false,
         materialId: null,
         materialOverride: null,
-      }],
+      })),
       reflectionProbe: null,
       particles: null,
       color: [1, 1, 1, 1],
@@ -170,7 +170,7 @@ describe('desktop simulator object bridge', () => {
       },
     });
 
-    expect(result.faceTextures).toEqual([
+    expect(result.faceTextures.slice(0, 2)).toEqual([
       expect.objectContaining({ textureId: 'face-zero', color: [.4, .2, .3, 1], repeat: [2, 3] }),
       expect.objectContaining({ textureId: 'face-one', color: [.8, .2, .3, 1], offset: [.1, .2], rotation: .5, fullBright: true }),
     ]);
@@ -400,5 +400,30 @@ describe('desktop session avatar movement', () => {
     expect(session.currentRegion()).toBeNull();
     expect(session.getSceneObjects()).toEqual([]);
     expect(session.getDiagnostics()).toMatchObject({ connected: true, regionName: '' });
+  });
+});
+
+describe('live group detail bridge', () => {
+  const groupId = '00000000-0000-0000-0000-000000000042';
+  it('normalizes profiles, members and roles across the shared viewer API', async () => {
+    const groups = {
+      getGroupProfile: vi.fn(async () => ({ GroupID: groupId, Name: 'Builders', Charter: 'Build together', MemberTitle: 'Owner', MembershipFee: 10, OpenEnrollment: true, GroupMembershipCount: 12 })),
+      getMemberList: vi.fn(async () => [{ AgentID: 'resident', Title: 'Owner', OnlineStatus: 'Online', IsOwner: true, AgentPowers: 123n }]),
+      getGroupRoles: vi.fn(async () => [{ RoleID: 'role', Name: 'Owners', Title: 'Owner', Description: 'Manage group', Members: 2, Powers: 456n }]),
+    };
+    const session = new ViewerSession(() => undefined);
+    session.bot = { clientCommands: { groups } };
+    expect(await session.getGroupDetails({ groupId })).toMatchObject({ name: 'Builders', charter: 'Build together', members: 12 });
+    expect(await session.getGroupDetails({ groupId, section: 'members' })).toEqual([expect.objectContaining({ id: 'resident', onlineStatus: 'Online', powers: '123' })]);
+    const roles = await session.getGroupDetails({ groupId, section: 'roles' });
+    expect(roles).toEqual([expect.objectContaining({ name: 'Owners', memberCount: 2, powers: '456' })]);
+    expect(() => JSON.stringify(roles)).not.toThrow();
+    await expect(session.getGroupDetails({ groupId: 'invalid' })).rejects.toThrow('Valid group ID');
+    await expect(session.getGroupDetails({ groupId, section: 'unknown' })).rejects.toThrow('Unknown group');
+  });
+  it('reports a failed membership request rather than claiming no memberships', async () => {
+    const session = new ViewerSession(() => undefined);
+    session.bot = { clientCommands: { agent: { getAvatarGroups: vi.fn().mockRejectedValue(new Error('timeout')) } } };
+    await expect(session.getGroups()).rejects.toThrow('Group list could not be loaded');
   });
 });

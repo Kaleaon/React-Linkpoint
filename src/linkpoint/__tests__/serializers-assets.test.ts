@@ -52,3 +52,13 @@ describe('which asset a prim draws from', () => {
     });
   });
 });
+
+
+describe('inherited prim face appearance', () => {
+  it('applies repeat, offset, rotation and fullbright to every generated face', () => {
+    const inherited = { textureID: uuid(ID), repeatU: 2, repeatV: 3, offsetU: .1, offsetV: .2, rotation: .4, fullBright: true };
+    const appearance = primAppearance({ TextureEntry: { faces: [], defaultTexture: inherited } });
+    expect(appearance.faceTextures).toHaveLength(9);
+    for (const face of appearance.faceTextures) expect(face).toMatchObject({ textureId: ID, repeat: [2, 3], offset: [.1, .2], rotation: .4, fullBright: true });
+  });
+});

@@ -260,6 +260,8 @@ export function WorldScreen() {
 export function GroupsScreen() {
   const { V, t } = useTheme();
   const { actions } = useApp();
+  const [showDetail, setShowDetail] = useState(false);
+  const [detailStatus, setDetailStatus] = useState("");
   const [groups, setGroups] = useState(() => app.groups.getGroups());
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(() => groups[0]?.id || "");
@@ -282,6 +284,17 @@ export function GroupsScreen() {
 
   useEffect(() => { void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    let current = true;
+    if (!selectedId || section === "NOTICES") { setDetailStatus(""); return; }
+    const requested = section === "OVERVIEW" ? "profile" : section.toLowerCase();
+    setDetailStatus("Loading group details…");
+    app.loadGroupDetails(selectedId, requested).then(() => {
+      if (current) { setGroups(app.groups.getGroups()); setDetailStatus(""); }
+    }).catch(error => { if (current) setDetailStatus(error.message || "Group details could not be loaded."); });
+    return () => { current = false; };
+  }, [selectedId, section]);
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     if (!needle) return groups;
@@ -302,8 +315,8 @@ export function GroupsScreen() {
   };
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", background: V.bg, color: V.ink, overflow: "hidden" }}>
-      <aside aria-label="Your groups" style={{ width: "clamp(210px, 34%, 340px)", minWidth: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${V.outv}`, background: V.surf }}>
+    <div className={`group-browser${showDetail ? " group-browser-detail" : ""}`} style={{ flex: 1, minHeight: 0, display: "flex", background: V.bg, color: V.ink, overflow: "hidden", containerType: "inline-size" }}>
+      <aside className="group-list-pane" aria-label="Your groups" style={{ width: "clamp(210px, 34%, 340px)", minWidth: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${V.outv}`, background: V.surf }}>
         <div style={{ padding: 12, display: "grid", gap: 8, borderBottom: `1px solid ${V.outv}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <strong style={{ font: `700 11px/1 ${t.font}`, letterSpacing: ".09em" }}>{groups.length} GROUP{groups.length === 1 ? "" : "S"}</strong>
@@ -319,7 +332,7 @@ export function GroupsScreen() {
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 7 }}>
           {!filtered.length ? <div style={{ padding: 18, textAlign: "center", color: V.ink2, fontSize: 12 }}>{groups.length ? `No groups match “${query}”.` : "No group records have been received."}</div> : filtered.map((group) => {
             const active = group.id === selectedId;
-            return <button key={group.id} type="button" onClick={() => { setSelectedId(group.id); setSection("OVERVIEW"); }} aria-current={active ? "true" : undefined} style={{ width: "100%", minHeight: 52, padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, textAlign: "left", border: 0, borderLeft: `3px solid ${active ? V.pri : "transparent"}`, borderRadius: V.rs, background: active ? V.priC : "transparent", color: active ? V.onpriC : V.ink, cursor: "pointer" }}>
+            return <button key={group.id} type="button" onClick={() => { setSelectedId(group.id); setSection("OVERVIEW"); setShowDetail(true); }} aria-current={active ? "true" : undefined} style={{ width: "100%", minHeight: 52, padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, textAlign: "left", border: 0, borderLeft: `3px solid ${active ? V.pri : "transparent"}`, borderRadius: V.rs, background: active ? V.priC : "transparent", color: active ? V.onpriC : V.ink, cursor: "pointer" }}>
               <span style={{ width: 31, height: 31, flex: "0 0 31px", display: "grid", placeItems: "center", borderRadius: V.rs, background: active ? V.pri : V.bg, color: active ? V.onpri : V.ink2 }}><Icon name="users-round" size={16} /></span>
               <span style={{ minWidth: 0 }}><strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5 }}>{group.name || "Unnamed group"}</strong><small style={{ display: "block", marginTop: 3, color: active ? V.onpriC : V.ink2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{group.title || group.role || (group.members != null ? `${group.members} members` : "Member")}</small></span>
             </button>;
@@ -327,9 +340,10 @@ export function GroupsScreen() {
         </div>
       </aside>
 
-      <main style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <main className="group-detail-pane" style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {!selected ? <Empty icon="users-round">Choose a group to see its details.</Empty> : <>
           <header style={{ padding: "16px clamp(14px, 3vw, 24px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottom: `1px solid ${V.outv}`, background: V.surf }}>
+            <button className="group-back" type="button" style={button} onClick={() => setShowDetail(false)} aria-label="Back to groups"><Icon name="arrow-left" size={16} /></button>
             <div style={{ minWidth: 0 }}><div style={{ color: V.ink2, fontSize: 10, fontWeight: 700, letterSpacing: ".12em" }}>GROUP PROFILE</div><h2 style={{ margin: "4px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", font: `700 clamp(17px, 3vw, 22px)/1.2 ${t.font}` }}>{selected.name || "Unnamed group"}</h2></div>
             <button type="button" onClick={openChat} style={{ ...button, flexShrink: 0, display: "flex", alignItems: "center", gap: 7, background: V.pri, borderColor: V.pri, color: V.onpri }}><Icon name="message-circle" size={15} /> MESSAGE</button>
           </header>
@@ -337,6 +351,7 @@ export function GroupsScreen() {
             {[['OVERVIEW', 'info'], ['MEMBERS', 'users'], ['ROLES', 'shield'], ['NOTICES', 'bell']].map(([label, icon]) => <button key={label} type="button" onClick={() => setSection(label)} aria-pressed={section === label} style={{ ...button, border: 0, borderBottom: `2px solid ${section === label ? V.pri : "transparent"}`, borderRadius: 0, background: "transparent", color: section === label ? V.pri : V.ink2, display: "flex", gap: 6, alignItems: "center" }}><Icon name={icon} size={13} />{label}</button>)}
           </nav>
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "clamp(14px, 3vw, 24px)" }}>
+            {detailStatus ? <p role="status" style={{ color: V.ink2 }}>{detailStatus}</p> : null}
             {section === "OVERVIEW" ? <div style={{ display: "grid", gap: 16, maxWidth: 720 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
                 {[["YOUR TITLE", selected.title || selected.role || "Member"], ["MEMBERS", selected.members ?? (members.length || "—")], ["ENROLLMENT", selected.openEnrollment ? "Open" : "Invitation"], ["JOIN FEE", `${selected.membershipFee ?? selected.joinFee ?? 0} L$`]].map(([label, value]) => <div key={label} style={{ padding: 12, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf }}><small style={{ color: V.ink2, fontWeight: 700, letterSpacing: ".07em" }}>{label}</small><strong style={{ display: "block", marginTop: 7, fontSize: 14 }}>{value}</strong></div>)}

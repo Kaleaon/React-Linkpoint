@@ -55,6 +55,15 @@ describe('UDP-referenced LLMesh asset decoding', () => {
     expect(mesh.skin.inverseBindMatrices[0]).toHaveLength(16);
   });
 
+  it('keeps original material slots when an LOD contains empty faces', () => {
+    const mesh = normalizeLLMesh({ lodLevels: { high_lod: [
+      { noGeometry: true },
+      { position: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }], triangleList: [0, 1, 2] },
+    ] } });
+    expect(mesh.parts).toHaveLength(1);
+    expect(mesh.parts[0].materialIndex).toBe(1);
+  });
+
   it('rejects corrupt triangle indices instead of sending unsafe geometry to WebGL', () => {
     expect(() => normalizeLLMesh({
       lodLevels: { high_lod: [{ position: [{ x: 0, y: 0, z: 0 }], triangleList: [0, 1, 0] }] },

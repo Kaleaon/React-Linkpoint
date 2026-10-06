@@ -18,10 +18,17 @@ export const NAV_ALL = [
   { id: "Media", label: "MEDIA", tile: "media", icon: "radio" },
   { id: "Accounts", label: "ACCOUNTS", tile: "accounts", icon: "contact" },
   { id: "Grids", label: "GRIDS", tile: "grids", icon: "network" },
-  { id: "Settings", label: "MORE", tile: "settings", icon: "settings" },
+  ...[
+    ["Groups", "users-round"], ["Profile", "user"], ["Notices", "bell"],
+    ["Contacts", "contact"], ["Calendar", "calendar"], ["Teleport", "zap"],
+    ["Camera", "video"], ["Environment", "sun"], ["Snapshot", "camera"],
+    ["Search", "search"], ["AO", "activity"], ["Cache", "hard-drive"], ["Diagnostics", "activity"],
+  ].map(([id, icon]) => ({ id, label: id.toUpperCase(), tile: id.toLowerCase(), icon })),
+  { id: "Settings", label: "SETTINGS", tile: "settings", icon: "settings" },
+  { id: "Screens", label: "MORE", tile: "more", icon: "menu" },
 ];
 
-export const TABS_NAV_IDS = ["Chat", "Friends", "Radar", "Map", "3D View", "Settings"];
+export const TABS_NAV_IDS = ["Chat", "Friends", "Radar", "Map", "3D View", "Screens"];
 
 export const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 
@@ -37,6 +44,7 @@ export const HEAD = (layoutName, paletteName) => {
   const muted = app.chatExtended.getMutedUsers?.().length || 0;
   const coordinate = position ? ` <${position.map((value) => Math.round(value)).join(", ")}>` : "";
   return {
+    ...Object.fromEntries(NAV_ALL.map(({ id, label }) => [id, [id === "Screens" ? "ALL SCREENS" : label, ""]])),
     Chat: ["CHAT", connected ? `> ${resident}${region?.name ? ` @ ${region.name}` : ""}` : "> disconnected"],
     Friends: ["FRIENDS", `> ${online} online / ${friends.length} loaded`],
     Radar: ["RADAR", `> ${app.world.nearbyUsers.length} nearby avatars · ${app.world.objects.length} scene objects`],

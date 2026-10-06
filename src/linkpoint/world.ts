@@ -46,6 +46,12 @@ export class WorldViewer extends Utils.EventEmitter {
   public nearbyUsers: any[] = [];
   public avatarPosition: [number, number, number] | null = null;
   public environment: any = null;
+  public localEnvironmentHour: number | null = null;
+
+  public setLocalEnvironment(hour: number | null) {
+    this.localEnvironmentHour = hour == null ? null : ((hour % 1) + 1) % 1;
+    this.applyEnvironment();
+  }
   public simSunHour: number | null = null;
   public terrain: { size: number; heights: number[] } | null = null;
   public selectedObject: any = null;
@@ -390,9 +396,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applyAsset(asset: any) {
     if (!asset?.assetId || !asset.geometry) return;
-    const assetIdStr = String(asset.assetId);
+    const assetIdStr = String(asset.assetId).toLowerCase();
     this.decodedAssets.set(assetIdStr, asset.geometry);
-    this.decodedAssets.set(assetIdStr.toLowerCase(), asset.geometry);
     const meshes = this.scene3d?.addAssetMesh(assetIdStr, asset.geometry);
     const fallbackMeshes = asset.geometry.parts?.length
       ? asset.geometry.parts.map((part: any, index: number) => ({ mesh: `asset:${assetIdStr}:${index}`, materialIndex: part.materialIndex ?? index }))
@@ -411,9 +416,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applyTexture(asset: any) {
     if (!asset?.assetId || !asset.rgba) return;
-    const assetIdStr = String(asset.assetId);
+    const assetIdStr = String(asset.assetId).toLowerCase();
     this.decodedTextures.set(assetIdStr, asset);
-    this.decodedTextures.set(assetIdStr.toLowerCase(), asset);
     if (!this.scene3d) return;
     const binary = atob(asset.rgba);
     const rgba = Uint8Array.from(binary, character => character.charCodeAt(0));
@@ -453,9 +457,8 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applyMaterial(asset: any) {
     if (!asset?.assetId || !asset.material) return;
-    const assetIdStr = String(asset.assetId);
+    const assetIdStr = String(asset.assetId).toLowerCase();
     this.decodedMaterials.set(assetIdStr, asset.material);
-    this.decodedMaterials.set(assetIdStr.toLowerCase(), asset.material);
     for (const object of this.sceneObjects.values()) {
       if (!object.faceTextures?.some((face: any) => this.sameId(face.materialId, assetIdStr))) continue;
       this.applySceneObject(object);
@@ -467,22 +470,23 @@ export class WorldViewer extends Utils.EventEmitter {
     const base = materialIdStr ? (this.decodedMaterials.get(materialIdStr) || this.decodedMaterials.get(materialIdStr.toLowerCase())) : undefined;
     const findTexture = (id?: string) => {
       if (!id) return undefined;
-      const str = String(id).replace(/^texture:/, '');
+      const str = String(id).replace(/^texture:/, '').toLowerCase();
       return (this.decodedTextures.has(str) || this.decodedTextures.has(str.toLowerCase())) ? `texture:${str}` : undefined;
     };
     const rawTexId = this.faceTextureId(face);
     const override = face.materialOverride || {};
-    const overrideTextures = Array.isArray(override.textures) ? override.textures : Object.values(override.textures || {});
+    // Preserve texture slot indices even when an override arrives as a sparse object.
+    const overrideTextures = override.textures || [];
     const overrideTextureId = (index: number) => {
       const texture = overrideTextures[index];
       return texture?.textureId || texture?.id || texture;
     };
-    const hasPbrOverride = override.metallicFactor !== undefined || override.roughnessFactor !== undefined || override.alphaMode !== undefined || override.baseColor || override.textureTransforms || overrideTextures.length > 0;
+    const hasPbrOverride = override.metallicFactor !== undefined || override.roughnessFactor !== undefined || override.alphaMode !== undefined || override.baseColor || override.textureTransforms || override.emissiveFactor || override.alphaCutoff !== undefined || override.doubleSided !== undefined || Object.keys(overrideTextures).length > 0;
     if (!base && !hasPbrOverride) {
       const resolvedTexture = findTexture(overrideTextureId(0)) || findTexture(rawTexId) || (rawTexId ? `texture:${rawTexId}` : face.texture);
       return { ...face, texture: resolvedTexture };
     }
-    const baseTransform = override.textureTransforms?.[0] || base?.textures?.baseColor || {};
+    const baseTransform = { ...base?.textures?.baseColor, ...override.textureTransforms?.[0] };
     const texture = (role: string, index: number) => {
       const textureId = overrideTextureId(index) || base?.textures?.[role]?.textureId;
       return findTexture(textureId);
@@ -602,7 +606,7 @@ export class WorldViewer extends Utils.EventEmitter {
       for (const [assetId, geometry] of this.decodedAssets) {
         const meshes = scene.addAssetMesh(assetId, geometry);
         for (const object of this.sceneObjects.values()) {
-          if (object.assetId === assetId) object.decodedMeshes = meshes;
+          if (this.sameId(object.assetId, assetId)) object.decodedMeshes = meshes;
         }
       }
       for (const texture of this.decodedTextures.values()) this.applyTexture(texture);
@@ -659,6 +663,10 @@ export class WorldViewer extends Utils.EventEmitter {
   /** Use the simulator's environment when there is one, else the bundled Windlight day at the estimated hour. */
   private applyEnvironment(now = Date.now()) {
     if (!this.scene3d) return;
+    if (this.localEnvironmentHour !== null) {
+      this.scene3d.setEnvironment(windlightEnvironment(this.localEnvironmentHour));
+      return;
+    }
     if (this.environment) {
       this.scene3d.setEnvironment(this.environment);
       return;
@@ -668,11 +676,29 @@ export class WorldViewer extends Utils.EventEmitter {
     this.scene3d.setEnvironment(windlightEnvironment(hour));
   }
 
+  private renderPreferences = { drawDistance: Infinity, fov: 60, fps: 0, batterySaver: false };
+  public configureRendering(options: { drawDistance: number; fov: number; fps: number; batterySaver: boolean }) {
+    this.renderPreferences = {
+      drawDistance: Number.isFinite(options.drawDistance) ? Math.max(16, options.drawDistance) : Infinity,
+      fov: Number.isFinite(options.fov) ? Math.max(30, Math.min(110, options.fov)) : 60,
+      fps: Number.isFinite(options.fps) ? Math.max(0, options.fps) : 0,
+      batterySaver: Boolean(options.batterySaver),
+    };
+  }
+
   public startRendering() {
     if (this.animationId !== null) return;
+    let lastFrame = -Infinity;
     const render = (time: number) => {
+      const preferences = this.renderPreferences;
+      const hidden = typeof document !== 'undefined' && document.hidden;
+      const fps = hidden && preferences.batterySaver ? 5 : preferences.fps;
+      if (fps && time - lastFrame < 1000 / fps - 0.5) { this.animationId = requestAnimationFrame(render); return; }
+      lastFrame = time;
       if (this.use3D && this.scene3d && this.camera3d) {
         if (!this.environment && Date.now() - this.fallbackSkyAt > WorldViewer.FALLBACK_SKY_REFRESH_MS) this.applyEnvironment();
+        this.camera3d.fov = preferences.fov;
+        this.scene3d.drawDistance = preferences.drawDistance;
         this.camera3d.updateMatrices();
         this.updateAnimatedSkins();
         this.updateAnimatedAvatars();
@@ -912,12 +938,20 @@ export class WorldViewer extends Utils.EventEmitter {
     // Terse simulator updates only carry motion fields.  Keep the shape,
     // material and link metadata learned from the full ObjectUpdate packet.
     const previous = this.sceneObjects.get(object.id);
-    const merged = previous ? { ...previous, ...object } : object;
+    const merged = previous ? { ...previous, ...object } : { ...object };
+    // A full update can replace an asset; terse motion updates must retain it.
+    if (previous && ('assetId' in object || 'assetKind' in object) &&
+        (String(previous.assetId || '').toLowerCase() !== String(merged.assetId || '').toLowerCase() || previous.assetKind !== merged.assetKind)) {
+      delete merged.decodedMeshes;
+    }
+    if (previous && 'textureId' in object && !this.sameId(previous.textureId, merged.textureId)) {
+      delete merged.decodedTexture;
+    }
     this.sceneObjects.set(object.id, merged);
     this.particles.setEmitter(object.id, merged.particles || null, performance.now() / 1000);
     if (object.localId) this.localObjectIds.set(object.localId, object.id);
     if (merged.assetId && !merged.decodedMeshes) {
-      const assetKey = String(merged.assetId);
+      const assetKey = String(merged.assetId).toLowerCase();
       const geometry = this.decodedAssets.get(assetKey) || this.decodedAssets.get(assetKey.toLowerCase());
       if (geometry) {
         const meshes = this.scene3d?.addAssetMesh(assetKey, geometry);
@@ -927,16 +961,22 @@ export class WorldViewer extends Utils.EventEmitter {
       }
     }
     if (merged.textureId && !merged.decodedTexture) {
-      const texKey = String(merged.textureId);
+      const texKey = String(merged.textureId).toLowerCase();
       if (this.decodedTextures.has(texKey) || this.decodedTextures.has(texKey.toLowerCase())) {
         merged.decodedTexture = `texture:${texKey}`;
       }
     }
     this.objects = Array.from(this.sceneObjects.values());
     this.applySceneObject(merged);
-    if (!previous && merged.assetId) {
+    if ((!previous || previous.parentId !== merged.parentId ||
+         !this.sameId(previous.assetId, merged.assetId) || previous.assetKind !== merged.assetKind) &&
+        (merged.assetId || previous?.assetId)) {
       const key = String(merged.assetId);
-      if ((this.decodedAssets.get(key) || this.decodedAssets.get(key.toLowerCase()))?.skin) this.reapplyAvatarSubject(this.animationSubject(merged));
+      if ((this.decodedAssets.get(key) || this.decodedAssets.get(key.toLowerCase()))?.skin ||
+          (previous?.assetId && this.decodedAssets.get(String(previous.assetId).toLowerCase())?.skin)) {
+        this.reapplyAvatarSubject(this.animationSubject(merged));
+        if (previous && this.animationSubject(previous) !== this.animationSubject(merged)) this.reapplyAvatarSubject(this.animationSubject(previous));
+      }
     }
     // A root prim moving changes every child prim's world transform even when
     // the simulator quite correctly sends no update for those children.
@@ -1148,7 +1188,7 @@ export class WorldViewer extends Utils.EventEmitter {
   private applySceneObject(object: any) {
     if (!this.scene3d) return;
     const subject = !object.avatar ? this.animationSubject(object) : object.id;
-    const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId, undefined, subject) : null;
+    const skin = object.assetId && !object.avatar ? this.skinRowsFor(object.assetId, this.animator.pose(subject), subject) : null;
     const { position, rotation } = skin ? this.riggedTransform(object) : this.worldTransform(object);
     const hudRoot = object.avatar ? null : this.hudRootOf(object);
     // Worn rigged attachments are authored in avatar space and ignore their prim scale. Animesh is
@@ -1164,7 +1204,7 @@ export class WorldViewer extends Utils.EventEmitter {
       rotation: this.quaternionToEuler(rotation),
       scale,
       color: object.avatar ? [0.3, 0.65, 1, 1] : object.color || [0.8, 0.8, 0.8, 1],
-      texture: object.decodedTexture || (object.textureId && (this.decodedTextures.has(String(object.textureId)) || this.decodedTextures.has(String(object.textureId).toLowerCase())) ? `texture:${object.textureId}` : undefined),
+      texture: object.decodedTexture || (object.textureId && (this.decodedTextures.has(String(object.textureId)) || this.decodedTextures.has(String(object.textureId).toLowerCase())) ? `texture:${String(object.textureId).toLowerCase()}` : undefined),
       faces: object.decodedFaceTextures,
       reflectionProbe: object.reflectionProbe,
       skin,
@@ -1265,7 +1305,8 @@ export class WorldViewer extends Utils.EventEmitter {
   /** Name of the decoded baked texture for a body slot, or null while it is missing or not yet downloaded. */
   private bakedTexture(object: any, bake: string): string | null {
     const index = WorldViewer.BAKED_FACE[bake];
-    const textureId: string | null | undefined = object?.faceTextures?.[index]?.textureId;
+    const rawId = object?.faceTextures?.[index]?.textureId;
+    const textureId = rawId ? String(rawId).toLowerCase() : null;
     const key = `${object?.id || ''}:${bake}`;
     if (textureId && !WorldViewer.UNBAKED_TEXTURES.has(textureId) && this.decodedTextures.has(textureId)) {
       this.avatarBakes.set(key, textureId);
@@ -1345,7 +1386,9 @@ export class WorldViewer extends Utils.EventEmitter {
     this.scene3d.updateObject(id, { visible: false });
     const scene = this.scene3d;
     void this.loadBody().then(() => {
-      if (this.scene3d !== scene || !this.bodyParts) return;
+      if (this.scene3d !== scene || !this.sceneObjects.has(id)) return;
+      // A failed body download must leave a visible marker until a retry succeeds.
+      if (!this.bodyParts) { scene.updateObject(id, { visible: true }); return; }
       this.installBodyMeshes(scene);
       for (const avatar of this.sceneObjects.values()) if (avatar.avatar) this.applySceneObject(avatar);
     });

@@ -1,3 +1,4 @@
+import { NAV_ALL } from "../data/content.js";
 // Ported verbatim from index.html's <script> block: device list,
 // the desktop floater/window model, the menu bar, screen order, custom dock
 // buttons, per-screen sub-segments, the movement pad, worn HUDs, world-view
@@ -14,14 +15,14 @@ export const DEVICES = {
 // Desktop SL is not a screen stack — it is N resizable windows over one scene. The
 // floater set is the window model: position, size, z-order and minimise all live in state.
 export const FBAR = 26;
-export const FLOATERS = [
+const INITIAL_FLOATERS = [
   { id:"Chat",        title:"Local Chat",    icon:"message-square", x:20,   y:24,  w:424, h:296 },
   { id:"Radar",       title:"Nearby",        icon:"radar",          x:462,  y:24,  w:372, h:296 },
   { id:"Friends",     title:"People",        icon:"users",          x:20,   y:340, w:300, h:262 },
   { id:"Inventory",   title:"Inventory",     icon:"folder",         x:1056, y:24,  w:346, h:420 },
   { id:"Map",         title:"World Map",     icon:"map",            x:462,  y:340, w:372, h:262 },
   { id:"Profile",     title:"Profile",       icon:"user",           x:340,  y:110, w:392, h:430 },
-  { id:"Groups",      title:"Groups",        icon:"users-round",    x:852,  y:24,  w:196, h:252 },
+  { id:"Groups",      title:"Groups",        icon:"users-round",    x:852,  y:24,  w:520, h:460 },
   { id:"Notices",     title:"Notifications", icon:"bell",           x:852,  y:292, w:196, h:252 },
   { id:"Teleport",    title:"Places",        icon:"zap",            x:330,  y:150, w:370, h:350 },
   { id:"Settings",    title:"Preferences",   icon:"settings",       x:290,  y:80,  w:540, h:470 },
@@ -31,6 +32,9 @@ export const FLOATERS = [
   { id:"Contacts",    title:"Contacts",      icon:"contact",        x:360,  y:90,  w:500, h:460 },
   { id:"Calendar",    title:"Calendar",      icon:"calendar",       x:420,  y:90,  w:500, h:470 },
 ];
+export const FLOATERS = INITIAL_FLOATERS.concat(NAV_ALL
+  .filter(({ id }) => id !== "3D View" && !INITIAL_FLOATERS.some(f => f.id === id))
+  .map(({ id, icon }, index) => ({ id, title: id, icon, x: 80 + index * 12, y: 60 + index * 10, w: 520, h: 460 })));
 export const FMENU = [
   { label:"File",  items:[["Upload Image…","⌘U"],["Take Snapshot","⌘`"],["Save Texture As…",""],["Quit","⌘Q"]] },
   { label:"Edit",  items:[["Undo","⌘Z"],["Redo","⇧⌘Z"],["Appearance…",""],["Preferences…","⌘,"]] },
@@ -40,7 +44,7 @@ export const FMENU = [
   { label:"Help",  items:[["Second Life Help","F1"],["Report Abuse…",""],["Report Bug…",""],["About Linkpoint",""]] },
 ];
 
-export const SCREENS = ["Chat","Friends","Radar","Map","3D View","Inventory","Profile","Groups","Notices","Teleport","Outfits","Objects","Parcel","Transactions","Mute List","Settings","Cache","Diagnostics","Login","Search","Contacts","Calendar"];
+export const SCREENS = [...NAV_ALL.map(({ id }) => id), "Login"];
 // Grid picker for Login: Second Life's own two (Agni/Aditi) plus a few
 // well-known OpenSim grids, so the login screen isn't LL-only.
 export const GRIDS = [
