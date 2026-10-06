@@ -8,6 +8,7 @@ import MobileOverlayControls from "../components/MobileOverlayControls.tsx";
 import OutfitCarouselDrawer from "../components/OutfitCarouselDrawer.tsx";
 import AccessibleChatLog from "../components/AccessibleChatLog.jsx";
 import Icon from "../components/Icon.jsx";
+import SplitPaneCompositor from "../components/SplitPaneCompositor";
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
@@ -140,6 +141,7 @@ export default function World3D({ desktopBackdrop = false }) {
   const region = app.protocol.authReply?.sim_name || app.protocol.authReply?.region_name || app.world.region?.name || "Region unavailable";
   const dataStatus = app.world.getDataStatus();
   const button = { minWidth: 44, minHeight: 44, border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.pri, cursor: "pointer" };
+  const sceneStyle = { position: "relative", width: "100%", height: "100%", background: "#05070a", overflow: "hidden" };
 
   const handleRefreshScene = async () => {
     try {
@@ -151,15 +153,30 @@ export default function World3D({ desktopBackdrop = false }) {
     }
   };
 
-  const sceneStyle = desktopBackdrop
-    ? { position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "hidden", background: "#000" }
-    : { flex: 1, minHeight: 0, position: "relative", background: "#000" };
+  if (desktopBackdrop) {
+    return (
+      <section aria-label="3D world view" style={sceneStyle}>
+        <ViewportCanvas
+          ref={canvasRef}
+          id="world-canvas-backdrop"
+          regionName={region}
+          position={position}
+          onCameraMove={(forward, right, up) => move(forward, right, up)}
+          onZoom={(delta) => { app.world.camera3d?.zoom(delta); refresh(); }}
+          onResetView={handleResetView}
+          onPan={(dx, dy) => { app.world.camera3d?.pan(-dx * 0.02, dy * 0.02); refresh(); }}
+          showOverlayControls={false}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "none" }}
+        />
+      </section>
+    );
+  }
 
-  return (
-    <section aria-label="3D world view" style={sceneStyle}>
+  const renderViewportScene = (paneId) => (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
       <ViewportCanvas
         ref={canvasRef}
-        id={desktopBackdrop ? "world-canvas-backdrop" : "world-canvas"}
+        id={`world-canvas-${paneId || 'main'}`}
         regionName={region}
         position={position}
         onCameraMove={(forward, right, up) => move(forward, right, up)}
@@ -171,7 +188,7 @@ export default function World3D({ desktopBackdrop = false }) {
       />
 
       {/* Floating buttons when overlays are hidden to easily restore them */}
-      {!desktopBackdrop && !showOverlays && (
+      {!showOverlays && (
         <div style={{ position: "absolute", top: 14, right: 14, zIndex: 40, display: "flex", gap: 8 }}>
           <TouchTarget
             minSize={44}
@@ -225,7 +242,7 @@ export default function World3D({ desktopBackdrop = false }) {
       )}
 
       {/* Overlays when enabled */}
-      {!desktopBackdrop && showOverlays && (
+      {showOverlays && (
         <>
           {/* Top-Right Quick Action Buttons */}
           <div style={{ position: "absolute", top: 12, right: 12, zIndex: 35, display: "flex", gap: 6 }}>
@@ -398,158 +415,21 @@ export default function World3D({ desktopBackdrop = false }) {
                     color: V.pri,
                     cursor: "pointer",
                     padding: "2px 4px",
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: 700,
                   }}
                 >
                   [+]
                 </button>
-                <button
-                  type="button"
-                  aria-label="Hide scene statistics"
-                  title="Hide"
-                  onClick={() => setShowDiagnostics(false)}
-                  style={{
-                    background: "transparent",
-                    border: 0,
-                    color: V.ink2,
-                    cursor: "pointer",
-                    padding: "2px 4px",
-                    fontSize: 10,
-                  }}
-                >
-                  ✕
-                </button>
               </output>
             )
-          ) : (
-            <TouchTarget
-              minSize={44}
-              aria-label="Show scene information"
-              title="Show scene info"
-              onClick={() => setShowDiagnostics(true)}
-              style={{
-                position: "absolute",
-                left: 12,
-                top: 12,
-                zIndex: 22,
-                background: "rgba(0, 0, 0, 0.65)",
-                color: V.pri,
-                border: `1px solid ${V.outv}`,
-                borderRadius: V.rs,
-                padding: "4px 6px",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 10,
-                cursor: "pointer",
-              }}
-            >
-              <Icon name="info" size={13} />
-              <span>INFO</span>
-            </TouchTarget>
-          )}
+          ) : null}
 
-          {/* Mode Selector Top-Center */}
-          <div
-            aria-label="Viewport interaction mode"
-            data-testid="interaction-mode-selector"
-            style={{
-              position: "absolute",
-              left: "50%",
-              transform: "translateX(-50%)",
-              top: 12,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              background: "rgba(0, 0, 0, 0.7)",
-              border: `1px solid ${V.outv}`,
-              borderRadius: V.rs,
-              padding: 3,
-              backdropFilter: "blur(4px)",
-              zIndex: 24,
-            }}
-          >
-            <button
-              type="button"
-              aria-pressed={interactionMode === "navigate"}
-              aria-label="Navigate Mode"
-              onClick={() => app.world.setInteractionMode("navigate")}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: "4px 8px",
-                background: interactionMode === "navigate" ? V.pri : "transparent",
-                color: interactionMode === "navigate" ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              NAVIGATE
-            </button>
-            <button
-              type="button"
-              aria-pressed={interactionMode === "interact"}
-              aria-label="Interact Mode"
-              onClick={() => app.world.setInteractionMode("interact")}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: "4px 8px",
-                background: interactionMode === "interact" ? V.pri : "transparent",
-                color: interactionMode === "interact" ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              INTERACT
-            </button>
-            <div style={{ width: 1, height: 16, background: V.outv, margin: "0 2px" }} />
-            <button
-              type="button"
-              aria-pressed={!panMode}
-              aria-label="Orbit View Mode"
-              title="1-finger drag orbits view"
-              onClick={() => app.world.setPanMode?.(false)}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: "4px 6px",
-                background: !panMode ? V.pri : "transparent",
-                color: !panMode ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              ORBIT
-            </button>
-            <button
-              type="button"
-              aria-pressed={panMode}
-              aria-label="Pan View Mode"
-              title="1-finger drag pans view"
-              onClick={() => app.world.setPanMode?.(true)}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: "4px 6px",
-                background: panMode ? V.pri : "transparent",
-                color: panMode ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              PAN
-            </button>
-          </div>
+          {/* HudControls Layer */}
+          <HudControls
+            bottomOffset={isSmallViewport && showDpad ? 110 : 14}
+            outfitDrawerOpen={showOutfitDrawer}
+          />
 
           {/* Selected Object Inspector */}
           {selection && (
@@ -741,7 +621,7 @@ export default function World3D({ desktopBackdrop = false }) {
             )}
           </div>
 
-          {/* Spatial Chat Overlay (Collapsible & dismissible) */}
+          {/* Spatial Chat Overlay */}
           {showChatOverlay && (
             <div
               style={{
@@ -788,7 +668,6 @@ export default function World3D({ desktopBackdrop = false }) {
                     cursor: "pointer",
                     padding: "2px 4px",
                     fontSize: 11,
-                    fontWeight: 700,
                   }}
                 >
                   ✕
@@ -797,18 +676,13 @@ export default function World3D({ desktopBackdrop = false }) {
               <AccessibleChatLog
                 messages={spatialMessages}
                 variant="overlay"
-                ariaLabel="Spatial chat overlay log"
-                emptyStateMessage="No recent spatial chat."
-                maxHeight={140}
+                activeTab="SPATIAL CHAT"
+                ariaLabel="Spatial chat messages overlay"
+                showFreezeToggle={false}
+                style={{ background: "transparent", padding: "6px 8px" }}
               />
             </div>
           )}
-
-          {/* HUD Controls */}
-          <HudControls
-            bottomOffset={isSmallViewport && showDpad ? 110 : 14}
-            outfitDrawerOpen={showOutfitDrawer}
-          />
 
           {/* Outfit Carousel Drawer */}
           <OutfitCarouselDrawer
@@ -817,6 +691,15 @@ export default function World3D({ desktopBackdrop = false }) {
           />
         </>
       )}
+    </div>
+  );
+
+  return (
+    <section aria-label="3D world view" style={sceneStyle}>
+      <SplitPaneCompositor
+        renderViewport={(paneId) => renderViewportScene(paneId)}
+        style={{ width: "100%", height: "100%" }}
+      />
     </section>
   );
 }
