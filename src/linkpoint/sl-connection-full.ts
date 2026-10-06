@@ -379,6 +379,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.declineGroupInvite(request);
   }
 
+  /** Accept a group notice attachment. */
+  async acceptGroupNoticeAttachment(request: { id?: string; noticeId?: string; groupId?: string; attachmentItemId?: string; attachmentOwnerId?: string; folderId?: string }) {
+    this.requireConnected();
+    return slBridge.acceptGroupNoticeAttachment(request);
+  }
+
   /** Forget an interaction on the server. Nothing is sent to the grid. */
   async dismissInteraction(id: string) {
     this.requireConnected();

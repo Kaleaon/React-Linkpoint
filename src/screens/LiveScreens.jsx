@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { app } from "../linkpoint/app.ts";
+import { Utils } from "../linkpoint/utils.ts";
 import Icon from "../components/Icon.jsx";
 import SkeletonLoader from "../components/SkeletonLoader.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
@@ -364,6 +365,129 @@ export function NoticesScreen() {
   return sub === "CALENDAR" ? <CalendarScreen /> : <NoticesList />;
 }
 
+function NoticeAttachmentBanner({ notice, V, t }) {
+  const [saving, setSaving] = useState(false);
+  const attachment = notice.attachment || (notice.hasAttachment ? {
+    hasAttachment: true,
+    attachmentName: notice.attachmentName,
+    attachmentItemId: notice.attachmentItemId,
+    attachmentType: notice.attachmentType,
+    attachmentOwnerId: notice.attachmentOwnerId,
+    savedToInventoryAt: notice.savedToInventoryAt,
+  } : null);
+
+  const hasAttachment = Boolean(attachment?.hasAttachment || notice.hasAttachment);
+  if (!hasAttachment) return null;
+
+  const attName = attachment?.attachmentName || notice.attachmentName || "Attached Item";
+  const attType = attachment?.attachmentType ?? notice.attachmentType ?? null;
+  const savedAt = attachment?.savedToInventoryAt ?? notice.savedToInventoryAt ?? null;
+  const isSaved = Boolean(savedAt);
+  const isLandmark = attType === 3 || attType === "3" || attType === "landmark";
+
+  let iconName = "package";
+  let typeLabel = "Attachment";
+  if (isLandmark) {
+    iconName = "map-pin";
+    typeLabel = "Landmark";
+  } else if (attType === 7 || attType === "7" || attType === "notecard") {
+    iconName = "file-text";
+    typeLabel = "Notecard";
+  } else if (attType === 6 || attType === "6" || attType === "object") {
+    iconName = "box";
+    typeLabel = "Object";
+  } else if (attType === 0 || attType === "0" || attType === "texture") {
+    iconName = "image";
+    typeLabel = "Texture";
+  } else if (attType === 1 || attType === "1" || attType === "sound") {
+    iconName = "volume-2";
+    typeLabel = "Sound";
+  }
+
+  const handleSave = async () => {
+    if (saving || isSaved) return;
+    setSaving(true);
+    try {
+      if (app.protocol && typeof app.protocol.acceptGroupNoticeAttachment === "function") {
+        await app.protocol.acceptGroupNoticeAttachment({
+          id: notice.id,
+          noticeId: notice.id,
+          groupId: notice.groupId,
+          attachmentItemId: attachment?.attachmentItemId || notice.attachmentItemId,
+          attachmentOwnerId: attachment?.attachmentOwnerId || notice.attachmentOwnerId,
+        });
+      }
+      app.notices.markAttachmentSaved(notice.id);
+      Utils.showToast(`${attName} saved to inventory`, "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err || "Transfer failed");
+      Utils.showToast(`Failed to save attachment: ${msg}`, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTeleport = async () => {
+    if (!app.protocol) return;
+    try {
+      const destination = attName || notice.subject;
+      await app.protocol.teleportTo(destination);
+      Utils.showToast(`Teleporting to ${destination}...`, "info");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err || "Teleport failed");
+      Utils.showToast(`Teleport failed: ${msg}`, "error");
+    }
+  };
+
+  const btnStyle = { minHeight: 32, padding: "0 12px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.pri, cursor: "pointer", font: `700 10.5px/1 ${t.font}`, letterSpacing: ".08em", display: "inline-flex", alignItems: "center", gap: 6 };
+
+  return (
+    <div aria-label="Notice Attachment" style={{ margin: "8px 0", padding: "10px 12px", border: `1px solid ${V.pri}`, borderRadius: V.rs, background: V.priC || V.surf, display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name={iconName} size={18} style={{ color: V.pri, flexShrink: 0 }} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <strong style={{ display: "block", fontSize: 13, color: V.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attName}</strong>
+          <small style={{ color: V.ink2, fontSize: 11 }}>ATTACHMENT · {typeLabel.toUpperCase()}</small>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <button
+          type="button"
+          disabled={saving || isSaved}
+          onClick={handleSave}
+          style={{
+            ...btnStyle,
+            background: isSaved ? V.surf : V.pri,
+            color: isSaved ? V.ink2 : V.onpri,
+            borderColor: isSaved ? V.outv : V.pri,
+            opacity: saving ? 0.7 : 1,
+            cursor: (saving || isSaved) ? "default" : "pointer",
+          }}
+        >
+          <Icon name={isSaved ? "check" : "download"} size={13} />
+          {saving ? "SAVING..." : isSaved ? "SAVED TO INVENTORY" : "SAVE TO INVENTORY"}
+        </button>
+
+        {isLandmark ? (
+          <button
+            type="button"
+            onClick={handleTeleport}
+            style={{
+              ...btnStyle,
+              background: V.surf,
+              color: V.pri,
+              borderColor: V.pri,
+            }}
+          >
+            <Icon name="navigation" size={13} />
+            TELEPORT TO LANDMARK
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function NoticesList() {
   const { V, t } = useTheme();
   const { actions } = useApp();
@@ -394,15 +518,17 @@ function NoticesList() {
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12, display: "grid", gap: 8, alignContent: "start", background: V.bg, color: V.ink }}>
       {notices.map((notice) => {
         const open = openId === notice.id;
+        const hasAttachment = Boolean(notice.attachment?.hasAttachment || notice.hasAttachment);
         return (
           <article key={notice.id} style={{ padding: "10px 12px", background: V.surf, border: `1px solid ${open ? V.pri : V.outv}`, borderRadius: V.rs }}>
             <button type="button" aria-expanded={open} onClick={() => setOpenId(open ? null : notice.id)} style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}>
               <strong style={{ display: "block", fontSize: 13 }}>{notice.subject}</strong>
-              <small style={{ color: V.ink2 }}>{[groupName(notice.groupId), notice.from, new Date(notice.timestamp).toLocaleString()].filter(Boolean).join(" · ")}{notice.calendar ? " · in calendar" : ""}</small>
+              <small style={{ color: V.ink2 }}>{[groupName(notice.groupId), notice.from, new Date(notice.timestamp).toLocaleString()].filter(Boolean).join(" · ")}{notice.calendar ? " · in calendar" : ""}{hasAttachment ? " · 📎 Attachment" : ""}</small>
             </button>
             {open ? (
               <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
                 <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", font: `400 12.5px/1.6 ${t.font}`, color: V.ink2 }}>{notice.message || "No message."}</div>
+                {hasAttachment ? <NoticeAttachmentBanner notice={notice} V={V} t={t} /> : null}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button type="button" style={{ ...button, background: V.pri, color: V.onpri, borderColor: V.pri }} onClick={() => { app.notices.focus(notice.id); actions.setScreen("Calendar"); }}>ADD TO CALENDAR</button>
                   <button type="button" style={{ ...button, color: V.err }} onClick={() => { app.notices.remove(notice.id); setOpenId(null); }}>DELETE</button>

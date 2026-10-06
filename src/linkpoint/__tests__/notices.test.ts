@@ -100,4 +100,39 @@ describe('NoticeStore', () => {
     store.focus('missing');
     expect(store.takeFocus()).toBeNull();
   });
+
+  it('preserves attachment metadata and updates savedToInventoryAt', () => {
+    const store = new NoticeStore();
+    store.receive(sent({
+      id: 'att1',
+      hasAttachment: true,
+      attachmentName: 'Weekly Gift Landmark',
+      attachmentItemId: 'item-100',
+      attachmentType: 3,
+      attachmentOwnerId: 'owner-200',
+    }));
+    const notice = store.get('att1')!;
+    expect(notice.attachment).toMatchObject({
+      hasAttachment: true,
+      attachmentName: 'Weekly Gift Landmark',
+      attachmentItemId: 'item-100',
+      attachmentType: 3,
+      attachmentOwnerId: 'owner-200',
+      savedToInventoryAt: null,
+    });
+    expect(notice.hasAttachment).toBe(true);
+
+    store.markAttachmentSaved('att1', 5000);
+    expect(store.get('att1')!.attachment?.savedToInventoryAt).toBe(5000);
+    expect(new NoticeStore().get('att1')!.attachment?.savedToInventoryAt).toBe(5000);
+  });
+
+  it('sanitizes legacy saved notices without attachment fields cleanly to attachment: null', () => {
+    localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify({ notices: [
+      { id: 'legacy1', subject: 'Old Notice', message: 'Old message', from: 'Old Friend', timestamp: 100 },
+    ] }));
+    const notice = new NoticeStore().get('legacy1')!;
+    expect(notice.attachment).toBeNull();
+    expect(notice.hasAttachment).toBe(false);
+  });
 });

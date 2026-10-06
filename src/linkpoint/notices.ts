@@ -20,6 +20,15 @@ export interface NoticeCalendarEntry {
   addedAt: number;
 }
 
+export interface NoticeAttachment {
+  hasAttachment: boolean;
+  attachmentName: string | null;
+  attachmentItemId: string | null;
+  attachmentType: number | null;
+  attachmentOwnerId: string | null;
+  savedToInventoryAt: number | null;
+}
+
 export interface SavedNotice {
   id: string;
   groupId: string | null;
@@ -29,6 +38,13 @@ export interface SavedNotice {
   /** When the notice arrived (ms). */
   timestamp: number;
   calendar: NoticeCalendarEntry | null;
+  attachment: NoticeAttachment | null;
+  hasAttachment?: boolean;
+  attachmentName?: string | null;
+  attachmentItemId?: string | null;
+  attachmentType?: number | null;
+  attachmentOwnerId?: string | null;
+  savedToInventoryAt?: number | null;
 }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
@@ -44,6 +60,18 @@ function sanitize(raw: any): SavedNotice | null {
         addedAt: raw.calendar.addedAt,
       }
     : null;
+
+  const rawAtt = raw.attachment || (raw.hasAttachment || raw.attachmentName || raw.attachmentItemId || raw.attachmentType !== undefined ? raw : null);
+  const hasAtt = Boolean(rawAtt?.hasAttachment ?? raw.hasAttachment ?? false);
+  const attachment: NoticeAttachment | null = hasAtt ? {
+    hasAttachment: true,
+    attachmentName: text(rawAtt?.attachmentName ?? raw.attachmentName, 300) || null,
+    attachmentItemId: typeof (rawAtt?.attachmentItemId ?? raw.attachmentItemId) === 'string' ? (rawAtt?.attachmentItemId ?? raw.attachmentItemId) : null,
+    attachmentType: Number.isFinite(rawAtt?.attachmentType ?? raw.attachmentType) ? Number(rawAtt?.attachmentType ?? raw.attachmentType) : null,
+    attachmentOwnerId: typeof (rawAtt?.attachmentOwnerId ?? raw.attachmentOwnerId) === 'string' ? (rawAtt?.attachmentOwnerId ?? raw.attachmentOwnerId) : null,
+    savedToInventoryAt: Number.isFinite(rawAtt?.savedToInventoryAt ?? raw.savedToInventoryAt) ? Number(rawAtt?.savedToInventoryAt ?? raw.savedToInventoryAt) : null,
+  } : null;
+
   return {
     id: raw.id.trim().slice(0, 100),
     groupId: typeof raw.groupId === 'string' && raw.groupId ? raw.groupId.slice(0, 100) : null,
@@ -52,6 +80,13 @@ function sanitize(raw: any): SavedNotice | null {
     from: text(raw.from, 120, 'Resident'),
     timestamp: Number.isFinite(raw.timestamp) ? raw.timestamp : Date.now(),
     calendar,
+    attachment,
+    hasAttachment: Boolean(attachment),
+    attachmentName: attachment?.attachmentName ?? null,
+    attachmentItemId: attachment?.attachmentItemId ?? null,
+    attachmentType: attachment?.attachmentType ?? null,
+    attachmentOwnerId: attachment?.attachmentOwnerId ?? null,
+    savedToInventoryAt: attachment?.savedToInventoryAt ?? null,
   };
 }
 
@@ -134,12 +169,47 @@ export class NoticeStore extends Utils.EventEmitter {
       from: data.fromName || data.from,
       timestamp: data.timestamp,
       calendar: null,
+      attachment: data.hasAttachment || data.attachment ? {
+        hasAttachment: Boolean(data.hasAttachment ?? data.attachment?.hasAttachment ?? true),
+        attachmentName: data.attachmentName ?? data.attachment?.attachmentName,
+        attachmentItemId: data.attachmentItemId ?? data.attachment?.attachmentItemId,
+        attachmentType: data.attachmentType ?? data.attachment?.attachmentType,
+        attachmentOwnerId: data.attachmentOwnerId ?? data.attachment?.attachmentOwnerId,
+        savedToInventoryAt: data.savedToInventoryAt ?? data.attachment?.savedToInventoryAt ?? null,
+      } : null,
+      hasAttachment: data.hasAttachment,
+      attachmentName: data.attachmentName,
+      attachmentItemId: data.attachmentItemId,
+      attachmentType: data.attachmentType,
+      attachmentOwnerId: data.attachmentOwnerId,
+      savedToInventoryAt: data.savedToInventoryAt,
     });
     if (!notice) return null;
     this.notices.set(notice.id, notice);
     while (this.notices.size > MAX_NOTICES) this.notices.delete(this.notices.keys().next().value as string);
     this.save();
     this.emit('notice_received', notice);
+    return notice;
+  }
+
+  /** Record that a notice attachment was saved to inventory. */
+  markAttachmentSaved(id: string, savedAt: number = Date.now()): SavedNotice {
+    const notice = this.notices.get(id);
+    if (!notice) throw new Error('That notice is not saved.');
+    if (notice.attachment) {
+      notice.attachment.savedToInventoryAt = savedAt;
+    } else {
+      notice.attachment = {
+        hasAttachment: true,
+        attachmentName: notice.attachmentName || null,
+        attachmentItemId: notice.attachmentItemId || null,
+        attachmentType: notice.attachmentType ?? null,
+        attachmentOwnerId: notice.attachmentOwnerId || null,
+        savedToInventoryAt: savedAt,
+      };
+    }
+    notice.savedToInventoryAt = savedAt;
+    this.save();
     return notice;
   }
 

@@ -604,6 +604,7 @@ class ViewerSession {
   declineInventoryOffer(params = {}) { return interactions.declineInventoryOffer(this.requireBot(), this.pending, params); }
   acceptGroupInvite(params = {}) { return interactions.acceptGroupInvite(this.requireBot(), this.pending, params); }
   declineGroupInvite(params = {}) { return interactions.declineGroupInvite(this.requireBot(), this.pending, params); }
+  acceptGroupNoticeAttachment(params = {}) { return interactions.acceptGroupNoticeAttachment(this.requireBot(), this.pending, params); }
   dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }
 
   /**
