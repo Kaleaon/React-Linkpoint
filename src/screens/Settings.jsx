@@ -11,7 +11,7 @@ import Icon from "../components/Icon.jsx";
 import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from "@linkpoint/design-system/tokens";
 
 function SwitchSetting({ id, title, description, on, onClick }) {
-  const unavailable = ["shadows", "voice-indicator", "media-auto", "chat-cmds", "timestamps", "im-logs", "typing", "push", "show-online", "rlv", "cache-exit"].includes(id);
+  const unavailable = ["shadows", "voice-indicator", "media-auto", "chat-cmds", "typing", "push", "show-online", "rlv", "cache-exit"].includes(id);
   return (
     <div className="settings-switch-row">
       <div>
@@ -154,7 +154,8 @@ export default function Settings() {
             </select>
           </label>
           <label htmlFor="settings-density-select">Content density
-            <select id="settings-density-select" value={state.dense ? "compact" : "comfortable"} onChange={(event) => actions.setDense(event.target.value === "compact")}>
+            <select id="settings-density-select" value={state.customTheme.density} onChange={(event) => actions.setDensity(event.target.value)}>
+              <option value="standard">Standard</option>
               <option value="comfortable">Comfortable</option>
               <option value="compact">Compact</option>
             </select>
@@ -237,8 +238,8 @@ export default function Settings() {
           </label>
         </div>
         <SwitchSetting id="chat-cmds" title="Chat channel commands" description="Enable /1 gesture shortcuts and chat channel commands." on={state.toggles.chatCmds} onClick={() => actions.toggleSetting("chatCmds")} />
-        <SwitchSetting id="timestamps" title="Message timestamps" description="Prefix chat messages with local simulator time." on={state.toggles.timestamps} onClick={() => actions.toggleSetting("timestamps")} />
-        <SwitchSetting id="im-logs" title="Keep IM logs on device" description="Save conversation history locally in device storage." on={state.toggles.imLogs} onClick={() => actions.toggleSetting("imLogs")} />
+        <SwitchSetting id="timestamps" title="Message timestamps" description="Show the device’s local time alongside messages." on={state.toggles.timestamps} onClick={() => actions.toggleSetting("timestamps")} />
+        <SwitchSetting id="im-logs" title="Keep chat logs on device" description="Save conversation history locally in device storage." on={state.toggles.imLogs} onClick={() => actions.toggleSetting("imLogs")} />
         <SwitchSetting id="typing" title="Send typing status" description="Notify contacts when you are composing a reply." on={state.toggles.typingSent} onClick={() => actions.toggleSetting("typingSent")} />
         <SwitchSetting id="autoresponse" title="Autoresponse while away" description="Send auto-reply message on incoming IMs while away." on={state.toggles.autoresponse} onClick={() => actions.toggleSetting("autoresponse")} />
       </section>

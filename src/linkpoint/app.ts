@@ -88,6 +88,7 @@ export class LinkpointApp {
     this.inventoryOps = new InventoryOperations(this.inventoryCore);
     this.inventoryTypes = new InventorySpecialTypes();
     this.chatExtended = new ChatExtended(this.chatAdapter);
+    this.chat.setMessageFilter(message => this.chatExtended.shouldDisplayMessage(message));
     this.groups = new GroupsManager(this.chatAdapter);
     this.friends = new FriendsExtended(this.protocol);
   }
@@ -111,7 +112,7 @@ export class LinkpointApp {
     await this.world.init();
     this.chat.init();
     await this.inventory.init();
-    this.notifications.init();
+    this.notifications.init(this.chat);
     this.audio.init();
 
     this.setupEventListeners();
@@ -174,7 +175,7 @@ export class LinkpointApp {
       await this.economy.init(user?.agent_id);
       await this.inventory.load();
       await this.loadFriends();
-      await this.loadGroups();
+      try { await this.loadGroups(); } catch (err) { console.warn("[LinkpointApp] Group loading failed:", err); }
     });
 
     this.protocol.on('capabilities_ready', (caps: any) => {
@@ -197,22 +198,19 @@ export class LinkpointApp {
 
   async loadGroups() {
     if (!this.auth.isLoggedIn()) return [];
-    try {
-      if (slBridge.connected) {
-        const groups = await slBridge.fetchGroups();
-        if (Array.isArray(groups)) {
-          this.groups.replaceGroups(groups);
-          return groups;
-        }
-      }
-    } catch (err) {
-      console.warn('[LinkpointApp] loadGroups warning:', err);
-    }
-    return this.groups.getGroups();
+    if (!slBridge.connected) return this.groups.getGroups();
+    const sessionId = slBridge.sessionId;
+    const groups = await slBridge.fetchGroups();
+    if (!slBridge.connected || !this.auth.isLoggedIn() || slBridge.sessionId !== sessionId) throw new Error("Session changed while loading groups");
+    if (!Array.isArray(groups)) throw new Error('Group list response was invalid');
+    this.groups.replaceGroups(groups);
+    return groups;
   }
 
   async loadGroupDetails(groupId: string, section: string) {
+    const sessionId = slBridge.sessionId;
     const data = await slBridge.fetchGroupDetails(groupId, section);
+    if (!slBridge.connected || !this.auth.isLoggedIn() || slBridge.sessionId !== sessionId) throw new Error("Session changed while loading group details");
     if (section === 'members') this.groups.replaceMembers(groupId, data);
     else if (section === 'roles') this.groups.replaceRoles(groupId, data);
     else this.groups.setGroupInfo(groupId, { ...this.groups.getGroupInfo(groupId), ...data });

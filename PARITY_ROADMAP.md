@@ -1,12 +1,18 @@
 # Lumiya parity roadmap
 
+> Status review (2026-10-06): this document records an earlier development state.
+> Use [the consolidated follow-up audit](docs/followup-audit.md) for current implementation
+> status, remaining PRs and validation limits. Old statements about missing skinning,
+> animation, voice, search, PBR or simulator environment must not be treated as current.
+
+
 What is left to bring Linkpoint to the behaviour of the Lumiya viewer it continues, what
 blocks each item, and where Rust or Kotlin would actually help.
 
 Reference: the recovered Lumiya sources (`Kaleaon/Lumiya-redux`, Java/Kotlin plus smali from
 the original APK). Lumiya is a behavioural reference only; no recovered code is copied here.
-`ROADMAP.md` is the original phase plan and its checkboxes are out of date; this file is the
-current status. See also `LUMIYA_FEATURE_AUDIT.md` (screens), `LUMIYA_RENDERING_ANALYSIS.md`
+`ROADMAP.md` is the original phase plan and its checkboxes are out of date; this file is a
+historical snapshot; the linked consolidated audit is the current status. See also `LUMIYA_FEATURE_AUDIT.md` (screens), `LUMIYA_RENDERING_ANALYSIS.md`
 (renderer facts checked against smali), `RENDERING_STATUS.md` and `TPV_COMPLIANCE.md`.
 
 ## How to read the status

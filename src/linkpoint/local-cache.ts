@@ -567,35 +567,33 @@ class LocalCacheManager extends Utils.EventEmitter {
   /**
    * Clear all cache data from the active location.
    */
-  public async clearCache(agentId?: string): Promise<void> {
-    this.memoryCache.clear();
-
-    // Clear server cache
-    try {
-      await fetch('/api/sl/cache/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customPath: this.customFlashdrivePath, agentId }),
-      });
-    } catch {
-      // Ignore
-    }
-
-    // Clear IndexedDB
-    try {
-      const db = await this.initIDB();
-      if (db) {
-        const tx = db.transaction([STORE_INVENTORY, STORE_TEXTURES, STORE_META, STORE_TRANSACTIONS], 'readwrite');
+  public async clearCache(agentId?: string): Promise<{ serverCleared: boolean }> {
+    // Transaction history is a user record, not a replaceable asset cache.
+    const db = await this.initIDB();
+    if (db) {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([STORE_INVENTORY, STORE_TEXTURES, STORE_META], 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('Device cache could not be cleared'));
+        tx.onabort = () => reject(tx.error || new Error('Device cache clearing was aborted'));
         tx.objectStore(STORE_INVENTORY).clear();
         tx.objectStore(STORE_TEXTURES).clear();
         tx.objectStore(STORE_META).clear();
-        tx.objectStore(STORE_TRANSACTIONS).clear();
-      }
-    } catch {
-      // Ignore
+      });
     }
+    for (const key of this.memoryCache.keys()) if (!key.startsWith('txs_')) this.memoryCache.delete(key);
 
+    let serverCleared = false;
+    try {
+      const response = await fetch('/api/sl/cache/clear', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customPath: this.customFlashdrivePath, agentId }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      serverCleared = response.ok;
+    } catch { /* A browser/device cache can be cleared while the server is unavailable. */ }
     this.emit('cache_cleared');
+    return { serverCleared };
   }
 
   /**

@@ -1,5 +1,7 @@
 # Viewer parity audit
 
+Follow-up review: [consolidated audit and proposed PRs](followup-audit.md).
+
 Reference date: 2026-10-06. This is an implementation audit, not a claim of complete competitor parity.
 
 ## Reference evidence
@@ -10,7 +12,7 @@ Reference date: 2026-10-06. This is an implementation audit, not a claim of comp
 
 [viewer-screen-inventory.csv](viewer-screen-inventory.csv) inventories the reference repositories' default English floater, group-panel and preference definitions. There are 258 Firestorm and 200 official-viewer floater definitions, including auxiliary dialogs. Filename matches identify possible Linkpoint counterparts; they do not certify equivalent behavior. Every unmatched definition remains explicitly unverified. Native dialogs are not assumed to require a separate browser screen.
 
-## Changes in this PR
+## Changes merged in PR #150
 
 | Area | Implemented behavior |
 | --- | --- |
@@ -24,13 +26,22 @@ Reference date: 2026-10-06. This is an implementation audit, not a claim of comp
 | Feedback | Cache clearing invokes the cache manager, reconnect opens sign-in, release notes and bug reports open the real repository; permission revocation no longer falsely reports success. |
 | Rendering | See the separate rendering reference and regression tests for mesh replacement, UUID identity, avatar appearance packets/bakes, prim-face inheritance, attachment skeletons and viewport lifecycle. |
 
+## Follow-up repairs
+
+The consolidated review adds validated preference restoration, palette/density and
+Chat/Settings synchronization, working timestamps and chat-history controls, incoming
+local mute enforcement, normalized IM/group popup subscriptions, group refresh/session
+error handling and notice-store integration, and cache clearing that preserves
+transaction records and reports incomplete server clearing. These are corrections
+and extensions to the merged behavior above, not claims of full competitor parity.
+
 ## Remaining gaps
 
 Complete Lumiya/Firestorm/official parity requires further implementation and live-grid validation. Existing Linkpoint screens often cover inspection or a subset of actions. In particular:
 
 * Group activation/titles, join/leave, invitations, member/role administration, group accounting/land and historical notice retrieval are not implemented by this change. Member IDs/statuses are available; name resolution is not added.
 * Object create/build/edit/link, terrain editing, estate administration, asset uploads, full appearance editing, inventory permission workflows and gesture editing/activation are not brought to competitor parity.
-* Graphics quality, avatar complexity, bandwidth, shadows, chat translation, global maturity updates, online visibility, browser push, chat timestamp/logging/typing controls, automatic cache clearing on logout, and RLV enforcement settings still need backend wiring. Controls without a runtime implementation are disabled and identified in Settings; old saved values do not establish runtime support. Full avatar shape morphing and independent PBR channel transforms remain unverified.
+* Graphics quality, avatar complexity, bandwidth, shadows, chat translation, global maturity updates, online visibility, browser push, typing controls, automatic cache clearing on logout, and RLV enforcement settings still need backend wiring. Controls without a runtime implementation are disabled and identified in Settings; old saved values do not establish runtime support. Full avatar shape morphing and independent PBR channel transforms remain unverified.
 * Native platform controls such as Android Wi-Fi locks, filesystem paths and desktop crash-report configuration require platform-specific equivalents rather than cosmetic toggles.
 * Snapshot publishing/email, camera key-binding editing, custom EEP asset editors, and account-specific settings import/export are outside the implemented screen behavior.
 

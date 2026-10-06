@@ -139,9 +139,9 @@ export class ChatExtended {
    */
   shouldDisplayMessage(message: any): boolean {
     if (!message) return false;
-    const fromId = message.fromId || message.from;
-    const fromName = message.fromName || message.from;
-    if (fromId && this.isUserMuted(fromId)) return false;
+    const fromId = message.fromId || message.senderId || message.from;
+    const fromName = message.fromName || message.sender || message.from;
+    if (fromId && (this.isUserMuted(fromId) || this.isObjectMuted(fromId))) return false;
     if (fromName && (this.isUserMuted(fromName) || this.isObjectMuted(fromName))) return false;
     return this.applyFilters(message);
   }
