@@ -3,6 +3,7 @@ import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
 import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
 import { readViewerSettings, saveViewerSettings } from "./viewerSettings.js";
+import { Utils } from "../linkpoint/utils";
 import { localCache } from "../linkpoint/local-cache";
 import { app } from "../linkpoint/app";
 
@@ -17,7 +18,8 @@ export function useAppState() {
   const [palette, setPalette] = useState(() => PALETTES[savedSettings.palette] ? savedSettings.palette : "ink");
   const [customTheme, setCustomTheme] = useState(() => {
     const shared = decodeSharedTheme(new URLSearchParams(window.location.search).get("theme") || "");
-    return shared || readSavedTheme() || themeFromPalette(PALETTES.ink);
+    const base = readSavedTheme() || themeFromPalette(PALETTES[savedSettings.palette] || PALETTES.ink);
+    return shared || { ...base, density: savedSettings.density || (savedSettings.dense ? "compact" : base.density) };
   });
   const [viewMode, setViewModeState] = useState(() => {
     try {
@@ -51,7 +53,7 @@ export function useAppState() {
   }, [viewMode, deviceForViewport]);
   const [screen, setScreen] = useState("Login");
   const [dialog, setDialog] = useState(/** @type {string | null} */ (null));
-  const [dense, setDense] = useState(savedSettings.dense === true);
+  const [dense, setDense] = useState(customTheme.density === "compact");
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
   const [chip, setChip] = useState("");
   const [tileOk, setTileOk] = useState(true);
@@ -59,11 +61,14 @@ export function useAppState() {
   const [dismissed, setDismissed] = useState({});
   const [pinned, setPinned] = useState({});
   const [toggles, setToggles] = useState(() => ({
-    largeType: false, push: true, voice: true, chatCmds: true, autoresponse: app.chat.isAutoReplyEnabled(),
+    largeType: false, push: true, voice: true, chatCmds: true,
     rlv: false, shadows: false, battery: true, timestamps: true, imLogs: true, mediaAuto: false,
     showOnline: true, typingSent: true, cacheOnExit: false,
     notifyLocal: true, notifyIM: true, notifyGroup: true,
     ...savedSettings.toggles,
+    autoresponse: typeof Utils.storage.get("linkpoint_auto_reply_config")?.enabled === "boolean"
+      ? Utils.storage.get("linkpoint_auto_reply_config").enabled
+      : savedSettings.toggles?.autoresponse ?? app.chat.isAutoReplyEnabled(),
   }));
   // Everything the preferences screens expose as a <select>: one flat bag so a
   // new preference is one entry here plus one card, not a new state key each time.
@@ -123,15 +128,22 @@ export function useAppState() {
   }, [cHeld, cRun]);
 
   useEffect(() => {
-    saveViewerSettings({ layout, palette, dense, toggles, prefs });
-  }, [layout, palette, dense, toggles, prefs]);
+    saveViewerSettings({ layout, palette, dense, density: customTheme.density, toggles, prefs });
+  }, [layout, palette, dense, customTheme.density, toggles, prefs]);
 
   useEffect(() => {
     app.world.configureRendering({ drawDistance: Number.parseInt(prefs.draw, 10), fov: Number(prefs.fov), fps: prefs.fps === "Uncapped" ? 0 : Number.parseInt(prefs.fps, 10), batterySaver: toggles.battery });
     app.audio.setVolume(Number.parseInt(prefs.volume, 10) / 100 || 0);
-    app.chat.setAutoReplyEnabled(toggles.autoresponse);
     app.notifications.setFilters({ local: toggles.notifyLocal, im: toggles.notifyIM, group: toggles.notifyGroup });
-  }, [prefs.draw, prefs.fov, prefs.fps, prefs.volume, toggles.battery, toggles.autoresponse, toggles.notifyLocal, toggles.notifyIM, toggles.notifyGroup]);
+  }, [prefs.draw, prefs.fov, prefs.fps, prefs.volume, toggles.battery, toggles.notifyLocal, toggles.notifyIM, toggles.notifyGroup]);
+
+  useEffect(() => {
+    const syncAutoReply = ({ enabled }) => setToggles(current => current.autoresponse === enabled ? current : { ...current, autoresponse: enabled });
+    app.chat.on("auto_reply_changed", syncAutoReply);
+    return () => app.chat.off("auto_reply_changed", syncAutoReply);
+  }, []);
+  useEffect(() => { app.chat.setAutoReplyEnabled(toggles.autoresponse); }, [toggles.autoresponse]);
+  useEffect(() => { app.chat.setHistoryLoggingEnabled(toggles.imLogs); }, [toggles.imLogs]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout
@@ -174,7 +186,7 @@ export function useAppState() {
     setDense(density === "compact");
   }, []);
   const setBreakpoint = useCallback((breakpoint) => setCustomTheme((theme) => ({ ...theme, active: true, breakpoint })), []);
-  const selectPalette = useCallback((key) => { setPalette(key); setCustomTheme(themeFromPalette(PALETTES[key])); }, []);
+  const selectPalette = useCallback((key) => { setPalette(key); setCustomTheme(themeFromPalette(PALETTES[key])); localStorage.removeItem(THEME_STORAGE_KEY); }, []);
   const saveTheme = useCallback(() => { localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(customTheme)); notify("Theme saved to this device."); }, [customTheme, notify]);
   const resetTheme = useCallback(() => { setCustomTheme(themeFromPalette(PALETTES[palette])); localStorage.removeItem(THEME_STORAGE_KEY); notify("Theme reset to the selected colour pack."); }, [palette, notify]);
   const importTheme = useCallback(async (json) => {
@@ -321,9 +333,11 @@ export function useAppState() {
     [notify]
   );
   const clearAllCache = useCallback(async () => {
-    await localCache.clearCache(app.auth.user?.id);
-    setCacheCleared({});
-    notify("Local caches cleared — assets refetch on demand");
+    try {
+      const result = await localCache.clearCache(app.auth.user?.id);
+      setCacheCleared({});
+      notify(result.serverCleared ? "Caches cleared — assets refetch on demand" : "Device cache cleared; server cache could not be cleared.");
+    } catch (error) { notify(error.message || "Cache could not be cleared."); }
   }, [notify]);
 
   // ---- settings: reconnect to grid ---------------------------------------

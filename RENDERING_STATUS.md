@@ -1,5 +1,10 @@
 # 3D rendering status
 
+Reviewed 2026-10-06. See [the consolidated audit](docs/followup-audit.md) and
+[PR #150's rendering reference](docs/rendering-reference.md) for current evidence
+and follow-ups. Automated tests do not establish live-grid visual parity.
+
+
 The renderer is operational, but it is **not yet a complete Second Life scene
 renderer**.
 
@@ -51,27 +56,35 @@ renderer**.
 - Shape sliders (morph targets) and body-size deformation are not applied; every avatar has the default shape. Skirt and facial expression bones are not driven.
 - Animations: bundled ones play from `public/anims`; others are downloaded from the simulator's asset service and parsed. The animation listener follows the agent between regions.
 - Static assets are fetched from `BASE_URL`; the packaged desktop build loads from `file://`, where these fetches have not been tested.
-- Skinned objects are never frustum-culled and are picked by their bind-pose box.
+- Skinned objects skip frustum culling; picking uses conservative bounds/unit-volume fallback rather than posed triangles.
 - Nothing here has been checked against a live simulator.
 
-## Not implemented yet
+## Implemented since the earlier rendering review
 
-- Per-face materials, alpha modes, normal/specular maps, and PBR rendering.
-- Below-water lighting, cloud layers, the EEP water normal-map texture, altitude sky tracks, and parcel overlays.
-- Avatar shape sliders, attachment point placement of non-rigged attachments,
-  particles, flexible prims, shadows and reflection probes.
-- Touch, sit, edit, and build interactions in the 3D canvas. Picking uses each
-  object's oriented bounding box; per-face triangle and UV hits remain to be
-  implemented.
+Per-face legacy/PBR material state, alpha blending/masking, normal/metallic-roughness/
+emissive/occlusion texture paths, particles, attachment placement and planar mirror
+rendering have code and regression coverage. World view supports object selection,
+touch and sit actions. These are partial viewer implementations, not certificates
+of native-viewer parity.
 
-The World screen reports whether it has a native live scene stream or only
-login/region metadata. It must not describe metadata-only browser sessions as a
-fully rendered simulator scene.
+## Remaining rendering work
 
-## Windlight fallback sky and primitive geometry
+- Avatar morph targets, body-size deformation and facial expressions.
+- Per-triangle face/UV picking for accurate touch and media interactions.
+- Distance-based mesh LOD selection and safe posed bounds for avatar culling.
+- Independent PBR texture-channel transforms, flexible prims, shadows, complete
+  reflection-probe/environment lighting and water/cloud detail parity.
+- Safe re-integration of multiple viewports with explicit renderer ownership;
+  the split-pane compositor remains unused after the visibility regression fix.
+- Real-grid and packaged desktop/mobile checks, including material/alpha/bake
+  screenshots and device performance measurements.
+
+## Earlier Windlight recovery notes (historical)
+
+These notes predate the environment, atmosphere and sun-hour paths described above.
 
 - `src/linkpoint/windlight.ts` bundles Lumiya's eight text Windlight presets (`src/assets/windlight/`, LLSD XML, no binaries) and applies Lumiya's loading rules (scale factors, gamma 1/2.2 × 1.25 on ambient and sunlight, 3-hour steps with wrap-around interpolation). It is used only when the simulator has sent no environment.
-- **Estimated, not read from the sim:** the time of day is guessed from the clock as a four-hour cycle starting at the Unix epoch. The client library does not expose the simulator's sun phase (Lumiya reads `SimulatorViewerTime.SunPhase`), so the fallback sun can disagree with the region's real sun. Sun direction comes from `sun_angle`/`east_angle`, not Lumiya's `lightnorm` axes (whose coordinate frame is unverified).
+- **Simulator phase when supplied, estimate otherwise:** `WorldViewer` listens for sun-hour updates. Its clock estimate is used when neither simulator time nor an environment is available. Sun direction comes from `sun_angle`/`east_angle`, not Lumiya's `lightnorm` axes (whose coordinate frame is unverified).
 - The sky colour uses Lumiya's formula without a sun glow term, so dawn and dusk skies are blue rather than orange. Cloud textures (`clouds_*.tga`) are binary and not imported.
 - Objects use the sky's ambient term, and the combined light is clamped to 1 before it multiplies the surface colour, as in Lumiya's prim shader.
 - Primitives follow Second Life conventions: the unit box (cylinder/sphere diameter equals the prim scale) with the cylinder axis and sphere poles on Z. Cylinders previously had one cap, lay along Y and were twice the intended size; spheres were twice the size and fully inside-out.

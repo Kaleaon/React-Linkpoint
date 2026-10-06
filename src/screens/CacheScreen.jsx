@@ -196,9 +196,10 @@ export default function CacheScreen() {
     if (!confirm("Are you sure you want to clear the local/flashdrive cache?")) return;
     setBusy(true);
     try {
-      await localCache.clearCache(agentId);
-      setMessage("Cache cleared. Next startup will refetch from Second Life.");
-      actions.notify("Cache cleared");
+      const result = await localCache.clearCache(agentId);
+      const message = result.serverCleared ? "Caches cleared. Assets will refetch from Second Life; transaction history was preserved." : "Device cache cleared; server cache could not be cleared. Transaction history was preserved.";
+      setMessage(message);
+      actions.notify(message);
       await refreshStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Clear failed");

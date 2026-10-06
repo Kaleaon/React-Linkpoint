@@ -262,6 +262,9 @@ export function GroupsScreen() {
   const { actions } = useApp();
   const [showDetail, setShowDetail] = useState(false);
   const [detailStatus, setDetailStatus] = useState("");
+  const [listError, setListError] = useState("");
+  const [detailRefresh, setDetailRefresh] = useState(0);
+  const [, refreshNotices] = useState(0);
   const [groups, setGroups] = useState(() => app.groups.getGroups());
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(() => groups[0]?.id || "");
@@ -274,15 +277,22 @@ export function GroupsScreen() {
       const loaded = await app.loadGroups();
       const next = Array.isArray(loaded) ? loaded : app.groups.getGroups();
       setGroups(next);
+      setListError("");
+      setDetailRefresh(value => value + 1);
       setSelectedId((current) => next.some((group) => group.id === current) ? current : next[0]?.id || "");
     } catch (error) {
-      actions.notify(error?.message || "Groups could not be refreshed.");
+      setListError(error?.message || "Groups could not be refreshed.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { void refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const update = () => refreshNotices(value => value + 1);
+    app.notices.on("notices_changed", update);
+    return () => app.notices.off("notices_changed", update);
+  }, []);
 
   useEffect(() => {
     let current = true;
@@ -293,7 +303,7 @@ export function GroupsScreen() {
       if (current) { setGroups(app.groups.getGroups()); setDetailStatus(""); }
     }).catch(error => { if (current) setDetailStatus(error.message || "Group details could not be loaded."); });
     return () => { current = false; };
-  }, [selectedId, section]);
+  }, [selectedId, section, detailRefresh]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -304,7 +314,7 @@ export function GroupsScreen() {
   const selected = groups.find((group) => group.id === selectedId) || null;
   const members = selected ? Array.from(app.groups.getGroupMembers(selected.id).values()) : [];
   const roles = selected ? Array.from(app.groups.getGroupRoles(selected.id).values()) : [];
-  const notices = selected ? app.groups.getGroupNotices(selected.id) : [];
+  const notices = selected ? [...new Map([...app.groups.getGroupNotices(selected.id), ...app.notices.list().filter(notice => notice.groupId === selected.id)].map(notice => [notice.id, notice])).values()].sort((a, b) => a.timestamp - b.timestamp) : [];
   const button = { minHeight: 34, padding: "0 12px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.ink, cursor: "pointer", font: `700 10.5px/1 ${t.font}`, letterSpacing: ".06em" };
 
   const openChat = () => {
@@ -329,6 +339,7 @@ export function GroupsScreen() {
             {query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear group search" style={{ position: "absolute", right: 4, top: 4, width: 28, height: 28, border: 0, background: "transparent", color: V.ink2, cursor: "pointer" }}><Icon name="x" size={14} /></button> : null}
           </label>
         </div>
+        {listError ? <p role="alert" style={{ padding: "0 12px", color: V.err }}>{listError}</p> : null}
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 7 }}>
           {!filtered.length ? <div style={{ padding: 18, textAlign: "center", color: V.ink2, fontSize: 12 }}>{groups.length ? `No groups match “${query}”.` : "No group records have been received."}</div> : filtered.map((group) => {
             const active = group.id === selectedId;
