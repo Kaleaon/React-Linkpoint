@@ -6,7 +6,7 @@ const {
   TEXT_BOX_MARKER, MAX_REPLY_BYTES, serializeScriptDialog, serializeLure, PendingInteractions,
   subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction, serializeGroupNotice,
   serializeInventoryOffer, serializeGroupInvite, acceptInventoryOffer, declineInventoryOffer,
-  acceptGroupInvite, declineGroupInvite,
+  acceptGroupInvite, declineGroupInvite, acceptGroupNoticeAttachment,
 } = require('../../../core/sl-interactions.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
@@ -128,7 +128,45 @@ describe('subscribeInteractions', () => {
   });
 
   it('fills in defaults for a sparse group notice', () => {
-    expect(serializeGroupNotice({})).toEqual({ groupId: null, fromId: null, fromName: 'Resident', subject: 'Group Notice', message: '' });
+    expect(serializeGroupNotice({})).toEqual({
+      groupId: null,
+      fromId: null,
+      fromName: 'Resident',
+      subject: 'Group Notice',
+      message: '',
+      hasAttachment: false,
+      attachmentName: null,
+      attachmentItemId: null,
+      attachmentType: null,
+      attachmentOwnerId: null,
+    });
+  });
+
+  it('serializes notice attachment fields when present', () => {
+    const notice = serializeGroupNotice({
+      groupID: uuid('g1'),
+      from: uuid('f1'),
+      fromName: 'Sender',
+      subject: 'Gift Notice',
+      message: 'Here is a gift',
+      hasAttachment: true,
+      attachmentName: 'Free Outfit',
+      attachmentItemId: uuid('item-1'),
+      attachmentType: 6,
+      attachmentOwnerId: uuid('owner-1'),
+    });
+    expect(notice).toEqual({
+      groupId: 'g1',
+      fromId: 'f1',
+      fromName: 'Sender',
+      subject: 'Gift Notice',
+      message: 'Here is a gift',
+      hasAttachment: true,
+      attachmentName: 'Free Outfit',
+      attachmentItemId: 'item-1',
+      attachmentType: 6,
+      attachmentOwnerId: 'owner-1',
+    });
   });
 
   it('copes with a library that lacks the subjects', () => {
@@ -267,5 +305,17 @@ describe('inventory offers and group invites', () => {
     const id2 = pending.add('group-invite', { from: 'f2' });
     await expect(declineGroupInvite(bot, pending, { id: id2 })).resolves.toEqual({ declined: true });
     expect(pending.size).toBe(0);
+  });
+
+  it('accepts group notice attachments', async () => {
+    const pending = new PendingInteractions();
+    const acceptFn = vi.fn().mockResolvedValue(undefined);
+    const bot = { clientCommands: { groups: { acceptGroupNoticeAttachment: acceptFn } } };
+    await expect(acceptGroupNoticeAttachment(bot, pending, { groupId: 'g1', attachmentItemId: 'item-1' })).resolves.toEqual({
+      accepted: true,
+      groupId: 'g1',
+      attachmentItemId: 'item-1',
+    });
+    expect(acceptFn).toHaveBeenCalledWith(expect.objectContaining({ groupId: 'g1', attachmentItemId: 'item-1' }));
   });
 });

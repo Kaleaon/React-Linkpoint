@@ -68,12 +68,29 @@ function serializeLure(event) {
 
 /** Describe a GroupNoticeEvent. Notices need no answer, so nothing is kept for them. */
 function serializeGroupNotice(event) {
+  const rawHasAttachment = event.hasAttachment ?? event.HasAttachment ?? event.has_attachment;
+  const attachmentItemId = idString(event.attachmentItemId ?? event.AttachmentItemID ?? event.attachment_item_id ?? event.attachmentItemID);
+  const attachmentName = event.attachmentName != null ? String(event.attachmentName) :
+                         (event.AttachmentName != null ? String(event.AttachmentName) :
+                         (event.attachment_name != null ? String(event.attachment_name) : null));
+  const attachmentType = finiteOr(event.attachmentType ?? event.AttachmentType ?? event.attachment_type, null);
+  const attachmentOwnerId = idString(event.attachmentOwnerId ?? event.AttachmentOwnerID ?? event.attachment_owner_id ?? event.attachmentOwnerID);
+
+  const hasAttachment = Boolean(
+    rawHasAttachment ?? (attachmentItemId || attachmentName || attachmentType !== null)
+  );
+
   return {
-    groupId: idString(event.groupID),
-    fromId: idString(event.from),
-    fromName: String(event.fromName || 'Resident'),
+    groupId: idString(event.groupID ?? event.groupId ?? event.group_id),
+    fromId: idString(event.from ?? event.fromId ?? event.from_id),
+    fromName: String(event.fromName || event.from_name || 'Resident'),
     subject: String(event.subject || 'Group Notice'),
     message: String(event.message || ''),
+    hasAttachment,
+    attachmentName: hasAttachment ? (attachmentName || null) : null,
+    attachmentItemId: hasAttachment ? attachmentItemId : null,
+    attachmentType: hasAttachment ? attachmentType : null,
+    attachmentOwnerId: hasAttachment ? attachmentOwnerId : null,
   };
 }
 
@@ -199,6 +216,31 @@ async function acceptGroupInvite(bot, pending, params) {
   return { accepted: true };
 }
 
+/** Accept a group notice attachment. */
+async function acceptGroupNoticeAttachment(bot, pending, params = {}) {
+  let noticeEvent = null;
+  if (params && params.id && pending.items?.has?.(params.id)) {
+    try {
+      noticeEvent = pending.get('group-notice', params.id);
+    } catch {}
+  }
+  const groupId = idString(params.groupId || noticeEvent?.groupID || noticeEvent?.groupId);
+  const attachmentItemId = idString(params.attachmentItemId || noticeEvent?.attachmentItemId || noticeEvent?.AttachmentItemID);
+  const attachmentOwnerId = idString(params.attachmentOwnerId || noticeEvent?.attachmentOwnerId || noticeEvent?.AttachmentOwnerID);
+  const folderId = idString(params.folderId);
+
+  const cmd = commands(bot);
+  if (cmd.groups && typeof cmd.groups.acceptGroupNoticeAttachment === 'function') {
+    await cmd.groups.acceptGroupNoticeAttachment({ groupId, attachmentItemId, attachmentOwnerId, folderId, ...params });
+  } else if (cmd.inventory && typeof cmd.inventory.acceptGroupNoticeAttachment === 'function') {
+    await cmd.inventory.acceptGroupNoticeAttachment({ groupId, attachmentItemId, attachmentOwnerId, folderId, ...params });
+  }
+  if (params && params.id) {
+    pending.remove(params.id);
+  }
+  return { accepted: true, groupId: groupId || null, attachmentItemId: attachmentItemId || null };
+}
+
 /** Decline an inventory offer. */
 async function declineInventoryOffer(bot, pending, params) {
   if (params && params.id) {
@@ -266,5 +308,6 @@ module.exports = {
   declineInventoryOffer,
   acceptGroupInvite,
   declineGroupInvite,
+  acceptGroupNoticeAttachment,
   dismissInteraction,
 };

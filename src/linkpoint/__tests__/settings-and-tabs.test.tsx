@@ -127,6 +127,53 @@ describe('Notices list', () => {
     await click(buttonByText(mounted.host, 'DELETE'));
     expect(app.notices.list()).toHaveLength(0);
   });
+
+  it('renders Attachment Banner and handles SAVE TO INVENTORY for notice attachments', async () => {
+    const acceptSpy = vi.spyOn(app.protocol, 'acceptGroupNoticeAttachment').mockResolvedValue({ accepted: true } as any);
+    mounted = await mountScreen(NoticesScreen);
+    await act(async () => {
+      app.notices.receive(sent({
+        id: 'n_att',
+        subject: 'Group Gift',
+        hasAttachment: true,
+        attachmentName: 'Special Gift Box',
+        attachmentItemId: 'item-99',
+        attachmentType: 6,
+      }));
+    });
+    expect(mounted.host.textContent).toContain('Group Gift');
+    await click(mounted.host.querySelector('article button'));
+    expect(mounted.host.textContent).toContain('Special Gift Box');
+    expect(mounted.host.textContent).toContain('SAVE TO INVENTORY');
+
+    await click(buttonByText(mounted.host, 'SAVE TO INVENTORY'));
+    expect(acceptSpy).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'n_att',
+      attachmentItemId: 'item-99',
+    }));
+    expect(mounted.host.textContent).toContain('SAVED TO INVENTORY');
+    expect(app.notices.get('n_att')?.attachment?.savedToInventoryAt).not.toBeNull();
+  });
+
+  it('renders TELEPORT TO LANDMARK button for landmark attachments and triggers teleportation', async () => {
+    const teleportSpy = vi.spyOn(app.protocol, 'teleportTo').mockResolvedValue({ requested: { region: 'Beach', x: 128, y: 128, z: 30 }, message: 'ok' } as any);
+    mounted = await mountScreen(NoticesScreen);
+    await act(async () => {
+      app.notices.receive(sent({
+        id: 'n_lm',
+        subject: 'Party Landmark',
+        hasAttachment: true,
+        attachmentName: 'Beach Party Club',
+        attachmentItemId: 'item-lm1',
+        attachmentType: 3,
+      }));
+    });
+    await click(mounted.host.querySelector('article button'));
+    expect(mounted.host.textContent).toContain('TELEPORT TO LANDMARK');
+
+    await click(buttonByText(mounted.host, 'TELEPORT TO LANDMARK'));
+    expect(teleportSpy).toHaveBeenCalledWith('Beach Party Club');
+  });
 });
 
 describe('Friends: saving to Contacts', () => {
