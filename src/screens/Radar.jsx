@@ -35,17 +35,29 @@ export default function Radar() {
   // Live simulator updates
   const [liveObjects, setLiveObjects] = useState(() => [...(app.world?.objects || [])]);
   const [liveNearby, setLiveNearby] = useState(() => [...(app.world?.nearbyUsers || [])]);
+  const [activeSpeakers, setActiveSpeakers] = useState({});
 
   useEffect(() => {
     const handleObjectsChanged = (items) => setLiveObjects([...items]);
     const handleNearbyChanged = (items) => setLiveNearby([...items]);
+    const handleSpeaking = (data) => {
+      const map = {};
+      if (Array.isArray(data?.speakers)) {
+        data.speakers.forEach((s) => {
+          if (s.speaking) map[s.id] = s;
+        });
+      }
+      setActiveSpeakers(map);
+    };
 
     app.world?.on?.("objects_changed", handleObjectsChanged);
     app.world?.on?.("nearby_changed", handleNearbyChanged);
+    app.voice?.on?.("speaking", handleSpeaking);
 
     return () => {
       app.world?.off?.("objects_changed", handleObjectsChanged);
       app.world?.off?.("nearby_changed", handleNearbyChanged);
+      app.voice?.off?.("speaking", handleSpeaking);
     };
   }, []);
 
@@ -76,6 +88,7 @@ export default function Radar() {
       seen.add(u.id);
       const dist = u.distance != null ? Number(u.distance) : null;
       const brg = u.bearing ?? null;
+      const isSpeaking = Boolean(activeSpeakers[u.id]?.speaking || activeSpeakers[u.name]?.speaking || u.speaking);
       result.push({
         id: u.id,
         name: u.name || `Resident ${String(u.id).slice(0, 8)}`,
@@ -87,7 +100,8 @@ export default function Radar() {
         icon: "user",
         isFriend: Boolean(app.friends?.isFriend?.(u.id) || app.friends?.isFriend?.(u.name)),
         typing: Boolean(u.typing),
-        voice: Boolean(u.voice),
+        voice: Boolean(u.voice || isSpeaking),
+        speaking: isSpeaking,
         payment: u.payment || null,
         age: u.age || null,
         altitude: u.position?.[2] ? `${Math.round(u.position[2])}m` : null,
@@ -96,7 +110,7 @@ export default function Radar() {
     });
 
     return result;
-  }, [liveNearby]);
+  }, [liveNearby, activeSpeakers]);
 
   // 2. Process Items (Objects with IN SIM vs ON-AVATAR distinction)
   const itemsList = useMemo(() => {

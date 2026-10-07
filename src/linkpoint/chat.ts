@@ -24,6 +24,10 @@ export class ChatManager extends Utils.EventEmitter {
   private messageFilter: ((message: any) => boolean) | null = null;
 
   setMessageFilter(filter: (message: any) => boolean) { this.messageFilter = filter; }
+  setHistoryLoggingEnabled(enabled: boolean) {
+    this.historyLoggingEnabled = Boolean(enabled);
+    if (!this.historyLoggingEnabled) Utils.storage.remove('linkpoint_chat_history');
+  }
   public autoReplyEnabled: boolean = false;
   public awayMessage: string = 'I am currently away. Your message has been received and I will reply as soon as possible.';
   private autoReplyRecipients: Set<string> = new Set();
@@ -164,7 +168,141 @@ export class ChatManager extends Utils.EventEmitter {
     this.autoReplyRecipients.clear();
   }
 
-  …1304 tokens truncated… {
+  hasAutoRepliedTo(senderId: string): boolean {
+    return this.autoReplyRecipients.has(senderId);
+  }
+
+  saveAutoReplyConfig() {
+    Utils.storage.set('linkpoint_auto_reply_config', {
+      enabled: this.autoReplyEnabled,
+      awayMessage: this.awayMessage,
+    });
+  }
+
+  loadAutoReplyConfig() {
+    const config = Utils.storage.get('linkpoint_auto_reply_config', null);
+    if (config) {
+      if (typeof config.enabled === 'boolean') {
+        this.autoReplyEnabled = config.enabled;
+      }
+      if (typeof config.awayMessage === 'string' && config.awayMessage.trim()) {
+        this.awayMessage = config.awayMessage;
+      }
+    }
+  }
+
+  async sendMessage(message: string, channel: number = 0, type: ChatType = ChatType.NORMAL) {
+    if (!message.trim()) throw new Error('Message cannot be empty');
+    if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
+
+    const echo = type === ChatType.START ? null : { text: message, until: Date.now() + 15000 };
+    if (echo) this.pendingEchoes.push(echo);
+    try {
+      await this.adapter.sendSpatialChat(message, channel, type);
+      
+      const messageData = {
+        id: Utils.generateUUID(),
+        sender: typeof this.auth.getUserDisplayName === 'function'
+          ? this.auth.getUserDisplayName()
+          : (this.auth.user?.fullName || this.auth.user?.username || 'Me'),
+        senderId: this.auth.user?.id,
+        text: message,
+        timestamp: Date.now(),
+        type: type === 4 ? 'im' : 'local'
+      };
+
+      this.addMessage(messageData);
+      this.emit('message_sent', messageData);
+    } catch (error) {
+      if (echo) this.pendingEchoes = this.pendingEchoes.filter((e) => e !== echo);
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  }
+
+  async sendInstantMessage(recipientId: string, message: string, recipientName: string = 'Resident') {
+    if (!message.trim()) throw new Error('Message cannot be empty');
+    if (!recipientId) throw new Error('Recipient ID required');
+    if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
+
+    try {
+      const result = await this.adapter.sendDirectIM(recipientId, message, recipientName);
+
+      const messageData = {
+        id: Utils.generateUUID(),
+        sender: typeof this.auth.getUserDisplayName === 'function'
+          ? this.auth.getUserDisplayName()
+          : (this.auth.user?.fullName || this.auth.user?.username || 'Me'),
+        senderId: this.auth.user?.id,
+        recipientId,
+        recipientName,
+        text: message,
+        timestamp: Date.now(),
+        type: 'im',
+        queued: result.queued
+      };
+
+      this.addMessage(messageData);
+      this.emit('message_sent', messageData);
+      return messageData;
+    } catch (error) {
+      console.error('Error sending instant message:', error);
+      throw error;
+    }
+  }
+
+  async sendGroupMessage(groupId: string, message: string, groupName: string = 'Group') {
+    if (!message.trim()) throw new Error('Message cannot be empty');
+    if (!groupId) throw new Error('Group ID required');
+    if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
+
+    try {
+      if (typeof this.protocol?.sendGroupMessage !== 'function' &&
+          typeof this.protocol?.sendImprovedInstantMessage !== 'function' &&
+          !this.adapter.isTransportAvailable()) {
+        throw new Error('Group chat is unavailable on this connection');
+      }
+      await this.adapter.sendGroupChat(groupId, message, groupName);
+
+      const messageData = {
+        id: Utils.generateUUID(),
+        sender: typeof this.auth.getUserDisplayName === 'function'
+          ? this.auth.getUserDisplayName()
+          : (this.auth.user?.fullName || this.auth.user?.username || 'Me'),
+        senderId: this.auth.user?.id,
+        groupId,
+        groupName,
+        text: message,
+        timestamp: Date.now(),
+        type: 'group'
+      };
+
+      this.addMessage(messageData);
+      this.emit('message_sent', messageData);
+      return messageData;
+    } catch (error) {
+      console.error('Error sending group message:', error);
+      throw error;
+    }
+  }
+
+  getIMThreads(): Array<{ contactId: string; contactName: string; lastMessage: string; timestamp: number; unreadCount: number }> {
+    const threadMap = new Map<string, { contactId: string; contactName: string; lastMessage: string; timestamp: number; unreadCount: number }>();
+    const myId = this.auth?.user?.id;
+
+    for (const msg of this.messages) {
+      if (msg.type !== 'im') continue;
+      const isOutgoing = Boolean(myId && msg.senderId === myId);
+      const contactId = isOutgoing ? (msg.recipientId || msg.recipientName || 'unknown') : (msg.senderId || msg.sender || 'unknown');
+      const contactName = isOutgoing ? (msg.recipientName || 'Resident') : (msg.sender || 'Resident');
+      const key = contactName.toLowerCase().trim();
+
+      if (this.closedSessions.has(key)) continue;
+
+      const isUnread = Boolean(!isOutgoing && msg.unread);
+      const existing = threadMap.get(key);
+      if (!existing) {
+        threadMap.set(key, {
           contactId,
           contactName,
           lastMessage: msg.text || '',
@@ -329,11 +467,6 @@ export class ChatManager extends Utils.EventEmitter {
     this.messages.push(messageData);
     if (this.messages.length > this.maxMessages) this.messages.shift();
     this.saveChatHistory();
-  }
-
-  setHistoryLoggingEnabled(enabled: boolean) {
-    this.historyLoggingEnabled = Boolean(enabled);
-    if (!this.historyLoggingEnabled) Utils.storage.remove('linkpoint_chat_history');
   }
 
   saveChatHistory() {
