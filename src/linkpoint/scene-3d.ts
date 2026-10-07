@@ -66,7 +66,14 @@ export class Scene3D extends Utils.EventEmitter {
   public wallClock = () => Date.now() / 1000;
   /** Ambient light on objects: from the environment's ambient term when there is one. */
   private ambientColor: number[] = [0.2, 0.2, 0.2];
+  public windVector: number[] = [1, 0, 0];
   private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+
+  public setWindVector(wind: number[]) {
+    if (Array.isArray(wind) && wind.length >= 3) {
+      this.windVector = [Number(wind[0]) || 0, Number(wind[1]) || 0, Number(wind[2]) || 0];
+    }
+  }
 
   constructor(graphics: Graphics3D, camera: Camera3D) {
     super();
@@ -741,14 +748,26 @@ export class Scene3D extends Utils.EventEmitter {
     const normalMatrix = this.mat3FromMat4(modelMatrix);
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
     
+    const isFlexi = Boolean(object.flexi);
     const draws = object.meshes?.length ? object.meshes : [{ mesh: object.mesh, materialIndex: 0 }];
     for (const draw of draws) {
       const face = object.faces?.[draw.materialIndex];
       const pbr = face?.pbr || {};
       const alphaMode = this.faceBlendMode(object, face);
       const drawSkinned = skinned && this.graphics.isSkinnedMesh(draw.mesh);
-      this.graphics.drawMesh(draw.mesh, drawSkinned ? 'skinned' : object.material, {
+      const programMaterial = isFlexi ? 'prim_flexible' : (drawSkinned ? 'skinned' : object.material);
+      this.graphics.drawMesh(draw.mesh, programMaterial, {
         ...(drawSkinned ? { uJointRows: object.skin } : null),
+        ...(isFlexi ? {
+          uTime: this.now() % 1000,
+          uSoftness: object.flexi.softness ?? 0,
+          uGravity: object.flexi.gravity ?? 0,
+          uFriction: object.flexi.friction ?? 0,
+          uWind: object.flexi.wind ?? 0,
+          uTension: object.flexi.tension ?? 0,
+          uForce: new Float32Array(object.flexi.force || [0, 0, 0]),
+          uWindVec: new Float32Array(this.windVector || [1, 0, 0]),
+        } : null),
         uModelMatrix: modelMatrix,
         uViewMatrix: viewMatrix,
         uProjectionMatrix: projectionMatrix,
