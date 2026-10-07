@@ -3,6 +3,7 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
+import FormField from "../components/FormField.jsx";
 import { COMPASS } from "../data/content.js";
 
 export default function Radar() {
@@ -555,32 +556,36 @@ export default function Radar() {
           borderBottom: "1px solid " + V.outv,
         }}
       >
-        <div className="search-container" style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px", background: V.surf, border: "1px solid " + V.outv, borderRadius: V.rs, padding: "0 8px", height: "28px" }}>
-          <Icon name="search" size={13} style={{ color: V.ink2 }} />
-          <input
-            aria-label={activeMode === "person" ? "Filter residents by name or status" : "Filter radar items by name, parcel, or avatar"}
-            type="text"
-            className="search-input"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={activeMode === "person" ? "Filter residents by name, status..." : "Filter items by name, parcel, avatar..."}
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              color: V.ink,
-              fontSize: "11px",
-              fontFamily: t.font,
-            }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              style={{ background: "none", border: "none", color: V.ink2, cursor: "pointer", padding: "0 2px" }}
-            >
-              &times;
-            </button>
-          )}
+        <div style={{ flex: 1 }}>
+          <div className="search-container" style={{ display: "flex", alignItems: "center", gap: "6px", background: V.surf, border: "1px solid " + V.outv, borderRadius: V.rs, padding: "0 8px", minHeight: "28px" }}>
+            <Icon name="search" size={13} style={{ color: V.ink2 }} />
+            <FormField error={searchQuery.length === 1 ? "Filter query must be at least 2 characters." : null} style={{ flex: 1 }}>
+              <input
+                aria-label={activeMode === "person" ? "Filter residents by name or status" : "Filter radar items by name, parcel, or avatar"}
+                type="text"
+                className="search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={activeMode === "person" ? "Filter residents by name, status..." : "Filter items by name, parcel, avatar..."}
+                style={{
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  color: V.ink,
+                  fontSize: "11px",
+                  fontFamily: t.font,
+                }}
+              />
+            </FormField>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                style={{ background: "none", border: "none", color: V.ink2, cursor: "pointer", padding: "0 2px" }}
+              >
+                &times;
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Sort selector */}
