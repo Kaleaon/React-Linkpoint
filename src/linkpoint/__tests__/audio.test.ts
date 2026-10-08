@@ -199,4 +199,46 @@ describe('AudioManager', () => {
     emit('scene:object-remove', { id: 'obj' });
     expect(sources[0].stop).toHaveBeenCalled();
   });
+
+  it('does not start a sound that was stopped, cleared or removed while it was still downloading', async () => {
+    object('stopped'); object('cleared'); object('removed'); object('replaced');
+    for (const id of ['stopped', 'cleared', 'removed', 'replaced']) sound({ action: 'attached', soundId: SOUND, objectId: id, gain: 1, flags: id === 'cleared' ? 1 : 0 });
+    sound({ action: 'attached', soundId: '00000000-0000-0000-0000-000000000000', objectId: 'stopped', gain: 0, flags: 32 }); // STOP
+    sound({ action: 'attached', soundId: '00000000-0000-0000-0000-000000000000', objectId: 'cleared', gain: 0, flags: 0 });   // clears a loop
+    emit('scene:object-remove', { id: 'removed' });
+    sound({ action: 'attached', soundId: SOUND2, objectId: 'replaced', gain: 1, flags: 0 });                                  // replaces it
+    await asset(SOUND);
+    expect(sources).toHaveLength(0); // none of the four plays SOUND late
+    await asset(SOUND2);
+    expect(sources).toHaveLength(1); // only the replacement
+  });
+
+  it('keeps queued sounds that are still downloading', async () => {
+    object('obj');
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', gain: 1, flags: 16 });
+    sound({ action: 'attached', soundId: SOUND2, objectId: 'obj', gain: 1, flags: 16 });
+    await asset(SOUND); await asset(SOUND2);
+    expect(sources).toHaveLength(1);       // the first plays; the second waits its turn
+    sources[0].onended!();
+    expect(sources).toHaveLength(2);
+  });
+
+  it('frees waiting callbacks when a sound download fails, and asks again next time', async () => {
+    fetchSound.mockRejectedValueOnce(new Error('403'));
+    sound({ action: 'trigger', soundId: SOUND, objectId: 'o', ownerId: 'w', position: [1, 1, 1] });
+    await flush();
+    await asset(SOUND); // arrives later; nobody is waiting any more
+    expect(sources).toHaveLength(0);
+    sound({ action: 'trigger', soundId: SOUND, objectId: 'o', ownerId: 'w', position: [1, 1, 1] });
+    expect(sources).toHaveLength(1); // decoded now, so it plays
+  });
+
+  it('fades a mute in over a short ramp instead of cutting it', async () => {
+    audio.setListener({ position: [0, 0, 0] });
+    object('obj', [50, 0, 0]);
+    await asset(SOUND);
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', ownerId: 'w', gain: 1, flags: 1, radius: 10 });
+    const mute = (sources[0].connect.mock.calls[0][0] as FakeGain).connect.mock.calls[0][0] as FakeGain;
+    expect(mute.gain.setTargetAtTime).toHaveBeenCalledWith(0, expect.any(Number), 0.02);
+  });
 });

@@ -38,6 +38,11 @@ export class AudioManager extends Utils.EventEmitter {
   private positions = new Map<string, Vec3>();
   private radii = new Map<string, number>();
   private owners = new Map<string, string>();
+  /**
+   * Per object: advanced whenever a stop, removal or replacing sound supersedes what was asked for, so a
+   * sound still waiting on its download is dropped instead of playing late.
+   */
+  private epochs = new Map<string, number>();
   private attached: AttachedSounds;
   private levels: AudioLevels = { ...DEFAULT_AUDIO_LEVELS };
   private mutes: AudioMutes = { ...DEFAULT_AUDIO_MUTES };
@@ -170,7 +175,7 @@ export class AudioManager extends Utils.EventEmitter {
     this.waiting.set(soundId, [...(this.waiting.get(soundId) ?? []), play]);
     if (!this.requested.has(soundId)) {
       this.requested.add(soundId);
-      void this.protocol.fetchSound?.(soundId)?.catch?.(() => this.requested.delete(soundId));
+      void this.protocol.fetchSound?.(soundId)?.catch?.(() => { this.requested.delete(soundId); this.waiting.delete(soundId); });
     }
   }
 
@@ -255,11 +260,18 @@ export class AudioManager extends Utils.EventEmitter {
 
   // ---- attached sounds ---------------------------------------------------------------------------
 
+  private epoch(objectId: string) { return this.epochs.get(objectId) ?? 0; }
+  private supersede(objectId: string) { this.epochs.set(objectId, this.epoch(objectId) + 1); }
+
   private run(actions: AttachedSoundAction[]) {
     for (const action of actions) {
       if (action.type === 'cleanup') this.stopObject(action.objectId, true);
       else if (action.type === 'stop') this.stopObject(action.objectId);
-      else this.whenLoaded(action.soundId, () => this.startAttached(action));
+      else {
+        if (action.stopFirst) this.supersede(action.objectId); // a non-queued sound replaces any still downloading
+        const epoch = this.epoch(action.objectId);
+        this.whenLoaded(action.soundId, () => { if (this.epoch(action.objectId) === epoch) this.startAttached(action); });
+      }
     }
   }
 
@@ -285,8 +297,13 @@ export class AudioManager extends Utils.EventEmitter {
   }
 
   private playOn(live: Playing, soundId: string, gain: number, loop: boolean) {
+    if (this.playing.get(live.objectId) !== live) return; // the object was cleaned up while this waited
     const buffer = this.buffers.get(soundId);
-    if (!buffer) { this.whenLoaded(soundId, () => this.playOn(live, soundId, gain, loop)); return; }
+    if (!buffer) {
+      const epoch = this.epoch(live.objectId);
+      this.whenLoaded(soundId, () => { if (this.epoch(live.objectId) === epoch) this.playOn(live, soundId, gain, loop); });
+      return;
+    }
     const source = this.audioContext().createBufferSource();
     source.buffer = buffer;
     source.loop = loop;
@@ -310,6 +327,7 @@ export class AudioManager extends Utils.EventEmitter {
   }
 
   private stopObject(objectId: string, cleanup = false) {
+    this.supersede(objectId); // even with nothing playing yet: a sound still downloading must not start
     const live = this.playing.get(objectId);
     if (!live) return;
     live.queue.length = 0;
@@ -347,7 +365,7 @@ export class AudioManager extends Utils.EventEmitter {
         || !this.policy.canHearAt(global) || this.policy.isMuted(live.objectId) || this.policy.ownerSoundsMuted(this.owners.get(live.objectId) ?? '');
       if (muted !== live.muted) {
         live.muted = muted;
-        live.mute.gain.value = muted ? 0 : 1;
+        live.mute.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, 0.02); // a short ramp avoids a click
         this.attached.setMuted(live.objectId, muted);
       }
     }
