@@ -2,8 +2,15 @@
  * Second Life WebRTC voice protocol: capability bodies, the "SLData" data-channel messages, spatial
  * updates and SDP handling. Pure functions, so the wire format is testable without a browser.
  *
- * Source: `indra/newview/llvoicewebrtc.cpp` and `indra/llwebrtc/llwebrtc.cpp` in
- * github.com/secondlife/viewer (main), read 2026-10-05. Not exercised against a live voice server.
+ * Sources, all from the official viewer at github.com/secondlife/viewer @ 7dd6de6120ce (2026-10-07):
+ * `indra/newview/llvoicewebrtc.cpp` / `.h` (constants, capability bodies, data-channel messages,
+ * ear locations, STUN hosts) and `indra/llwebrtc/llwebrtc.cpp` (data channel label and ordering,
+ * Opus SDP parameters). Every constant below was compared with that source.
+ *
+ * Known inconsistency in the official viewer itself: a per-user volume change is sent as
+ * `volume * 220` (`PEER_GAIN_CONVERSION_FACTOR`, `setUserVolume`), but the value re-sent when a
+ * participant joins is `volume * 200`. This module uses 220 for both and exposes the constant.
+ * Not exercised against a live voice server.
  */
 
 export const VOICE_SERVER_TYPE = 'webrtc';

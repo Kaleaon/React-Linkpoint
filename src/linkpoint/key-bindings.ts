@@ -1,12 +1,12 @@
 /**
  * Default key bindings of the official Second Life viewer, by camera mode.
  *
- * Source: `indra/newview/app_settings/key_bindings.xml` in github.com/secondlife/viewer (main),
- * fetched 2026-10-05. Entries are [key, mask, command]. Mouse buttons use "LMB" / "MMB".
- * The viewer's own `llviewerkeyboard` source (command semantics, double-tap timing) could not be
- * fetched, so command behaviour is implemented in `agent-controls.ts` from the command names and
- * the documented behaviour of each, not copied from that source. "Run" has no binding in this
- * file; the viewer handles it separately.
+ * Source: `indra/newview/app_settings/key_bindings.xml` in github.com/secondlife/viewer
+ * @ 7dd6de6120ce (2026-10-07). All four modes (138 entries) were compared with the raw file entry
+ * by entry. Entries are [key, mask, command]; mouse buttons use "LMB" / "MMB".
+ * Command behaviour for the agent commands follows `indra/newview/llviewerinput.cpp` at the same
+ * commit (see `agent-controls.ts`); camera commands (spin_*, pan_*, move_*) are listed but not
+ * implemented here. The file has no run binding; the viewer runs on tap-tap-hold and `toggle_run`.
  */
 export type KeyMode = 'first_person' | 'third_person' | 'sitting' | 'edit_avatar';
 export type KeyMask = 'NONE' | 'SHIFT' | 'ALT' | 'CTL_ALT' | 'CTL_ALT_SHIFT';

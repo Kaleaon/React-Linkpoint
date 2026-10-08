@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ControlFlags } from '@caspertech/node-metaverse';
 import {
-  AGENT_CONTROL, AgentController, FLY_TIME_MS, NUDGE_TIME_MS, ONE_SHOT_FLAGS, SCRIPT_CONTROL,
-  intentToFlags, scriptControlsFromFlags,
+  AGENT_CONTROL, AgentController, FLY_TIME_MS, NUDGE_TIME_MS, ONE_SHOT_FLAGS,
+  intentToFlags,
 } from '../agent-controls';
 import { DEFAULT_KEY_BINDINGS, commandFor, commandsFor, keyNameFromCode, maskFromModifiers } from '../key-bindings';
 
@@ -43,14 +43,6 @@ describe('agent control flags', () => {
   it('keeps the top bit as an unsigned value', () => {
     expect(intentToFlags({ mouselookLeftButton: true })).toBe(AGENT_CONTROL.ML_LBUTTON_DOWN);
     expect(AGENT_CONTROL.ML_LBUTTON_UP).toBe(0x80000000);
-  });
-
-  it('derives the script controls a script would see', () => {
-    expect(scriptControlsFromFlags(AGENT_CONTROL.AT_POS | AGENT_CONTROL.FAST_AT)).toBe(SCRIPT_CONTROL.FWD);
-    expect(scriptControlsFromFlags(AGENT_CONTROL.LEFT_NEG)).toBe(SCRIPT_CONTROL.RIGHT);
-    expect(scriptControlsFromFlags(AGENT_CONTROL.TURN_LEFT)).toBe(SCRIPT_CONTROL.ROT_LEFT);
-    expect(scriptControlsFromFlags(AGENT_CONTROL.ML_LBUTTON_DOWN)).toBe(SCRIPT_CONTROL.ML_LBUTTON);
-    expect(scriptControlsFromFlags(AGENT_CONTROL.FLY)).toBe(0);
   });
 });
 

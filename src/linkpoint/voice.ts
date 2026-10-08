@@ -1,197 +1,160 @@
 import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
+import {
+  DATA_CHANNEL_LABEL, EarLocation, POSITION_UPDATE_THROTTLE_MS, earPose, iceServersForGrid, joinMessage, mungeOpusSdp,
+  muteMessage, parseVoiceData, provisionBody, signalingBody, spatialMessage, userGainMessage,
+  type ParticipantUpdate, type Quat, type Vec3, type VoiceChannel,
+} from './voice-protocol';
 
 export type VoiceState = 'off' | 'connecting' | 'connected' | 'error';
 
 export interface SpeakerInfo {
+  /** Avatar UUID, as reported by the voice server's data channel. */
   id: string;
   name?: string;
   speaking: boolean;
-  energy: number; // 0.0 to 1.0
+  /** Voice power 0..1 as reported by the server (`p` / 128). */
+  energy: number;
   position?: [number, number, number];
   distance?: number;
-  active: boolean; // whether currently in top 16 active spatial panners
+  moderatorMuted?: boolean;
+  active: boolean;
 }
 
-interface RemoteSpeakerNode {
+interface Participant {
   id: string;
-  stream: MediaStream;
-  sourceNode: MediaStreamAudioSourceNode;
-  gainNode: GainNode;
-  pannerNode: PannerNode;
-  analyserNode: AnalyserNode;
-  position: [number, number, number];
+  level: number;
   speaking: boolean;
-  energy: number;
-  connected: boolean;
+  moderatorMuted: boolean;
+}
+
+export interface VoiceConnectOptions {
+  /** Spatial voice for a parcel (default) or an ad-hoc P2P / group channel. */
+  channel?: VoiceChannel;
+  /** Shorthand for a spatial channel on a parcel. */
+  parcelLocalId?: number;
+  /** Grid login id, e.g. "agni" or "aditi", for the STUN hosts. Default "agni". */
+  grid?: string;
+  inputDeviceId?: string;
+  earLocation?: EarLocation;
 }
 
 /**
- * WebAudio 3D spatial voice engine with automatic region/parcel signaling,
- * HRTF panning, 16-speaker active panner capping, audio energy calculation,
- * and active speaker indicator events.
+ * Second Life WebRTC voice client, following the official viewer (`llvoicewebrtc.cpp`,
+ * `llwebrtc.cpp`, github.com/secondlife/viewer @ 7dd6de6120ce, 2026-10-07).
+ *
+ * The viewer is the WebRTC offerer. It opens one peer connection with a microphone track and an
+ * ordered data channel labelled "SLData", provisions it through the region's
+ * ProvisionVoiceAccountRequest capability, trickles ICE through VoiceSignalingRequest, and joins
+ * over the data channel. It sends its own and its listener's position over that channel; the voice
+ * server mixes everyone spatially and returns a single stereo stream, and reports who is speaking
+ * (keyed by avatar UUID) over the same channel. So this client does no panning of its own.
+ *
+ * What is not done: reconnect with back-off after a drop, cross-region (neighbouring) connections,
+ * push-to-talk, and the mute click-fade. Nothing here has been run against a live voice server.
  */
 export class VoiceManager extends Utils.EventEmitter {
   state: VoiceState = 'off';
   muted = true;
 
   private peer: RTCPeerConnection | null = null;
+  private dataChannel: RTCDataChannel | null = null;
   private stream: MediaStream | null = null;
-  private viewerSession = '';
   private remoteAudio: HTMLAudioElement | null = null;
+  private viewerSession = '';
+  private channel: VoiceChannel = { kind: 'local' };
+  private options: VoiceConnectOptions = {};
+  private joined = false;
+  private speakerVolume = 1;
 
   private audioContext: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private localAnalyser: AnalyserNode | null = null;
   private localSource: MediaStreamAudioSourceNode | null = null;
+  private localAnalyser: AnalyserNode | null = null;
+  private analysisTimer: ReturnType<typeof setInterval> | null = null;
 
-  private speakerNodes = new Map<string, RemoteSpeakerNode>();
-  private speakerPositions = new Map<string, [number, number, number]>();
-  private speakerNames = new Map<string, string>();
-  private listenerPosition: [number, number, number] = [128, 128, 25];
+  private selfId = '';
+  private participants = new Map<string, Participant>();
+  private names = new Map<string, string>();
+  private positions = new Map<string, [number, number, number]>();
+  private userGains = new Map<string, number>();
+  private userMutes = new Map<string, boolean>();
 
-  private voiceActivityThreshold = 0.08;
-  private maxActiveSpeakers = 16;
-  private analysisInterval: ReturnType<typeof setInterval> | null = null;
-  private currentParcelLocalId: number | undefined = undefined;
-
-  private gestureListenersAttached = false;
-
-  constructor() {
-    super();
-  }
+  private regionOrigin: [number, number] = [0, 0];
+  private avatar: { position?: Vec3; rotation?: Quat } = {};
+  private camera: { position?: Vec3; rotation?: Quat } = {};
+  private earLocation: EarLocation = EarLocation.Avatar;
+  private spatialDirty = false;
+  private lastSpatialSent = -Infinity;
+  private spatialTimer: ReturnType<typeof setInterval> | null = null;
 
   private setState(state: VoiceState, message = '') {
     this.state = state;
     this.emit('state', { state, message, muted: this.muted });
   }
 
-  /**
-   * Initialize and resume the WebAudio context within user gesture handlers to comply with autoplay policies.
-   */
-  public ensureAudioContext(): AudioContext {
-    if (!this.gestureListenersAttached && typeof window !== 'undefined') {
-      const unlock = () => {
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-          void this.audioContext.resume().catch(() => {});
-        }
-      };
-      window.addEventListener('pointerdown', unlock, { passive: true });
-      window.addEventListener('keydown', unlock, { passive: true });
-      window.addEventListener('touchstart', unlock, { passive: true });
-      this.gestureListenersAttached = true;
-    }
+  /** Identify the logged-in avatar, so its own entries on the data channel are recognised. */
+  setSelfId(id: string) { this.selfId = (id || '').toLowerCase(); }
 
-    if (!this.audioContext || this.audioContext.state === 'closed') {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        this.audioContext = new AudioContextClass({ latencyHint: 'interactive' });
-      } else {
-        throw new Error('WebAudio AudioContext is not supported by this browser');
-      }
-    }
+  // ---- connection ---------------------------------------------------------------------------------
 
-    if (!this.masterGain && this.audioContext) {
-      this.masterGain = this.audioContext.createGain();
-      this.masterGain.gain.value = 1.0;
-      this.masterGain.connect(this.audioContext.destination);
-    }
-
-    if (this.audioContext.state === 'suspended') {
-      void this.audioContext.resume().catch(() => {});
-    }
-
-    return this.audioContext;
-  }
-
-  /**
-   * Connect to WebRTC spatial voice session.
-   * Microphone permission is requested only upon explicit user invocation.
-   */
-  async connect(options?: { parcelLocalId?: number }) {
+  async connect(options: VoiceConnectOptions = {}) {
     if (this.peer) return;
-    this.currentParcelLocalId = options?.parcelLocalId;
+    this.options = options;
+    this.channel = options.channel ?? { kind: 'local', parcelLocalId: options.parcelLocalId };
+    if (options.earLocation !== undefined) this.earLocation = options.earLocation;
     this.setState('connecting');
-
     try {
-      const ctx = this.ensureAudioContext();
-
-      // Request microphone permissions only upon explicit user action
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        // The viewer's defaults: echo cancellation, automatic gain control and noise suppression on.
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(options.inputDeviceId ? { deviceId: { exact: options.inputDeviceId } } : {}) },
         video: false,
       });
+      this.startLocalMeter();
 
-      // Local mic energy analyser for local speaking indicator
-      if (ctx) {
-        try {
-          this.localSource = ctx.createMediaStreamSource(this.stream);
-          this.localAnalyser = ctx.createAnalyser();
-          this.localAnalyser.fftSize = 64;
-          this.localSource.connect(this.localAnalyser);
-        } catch (err) {
-          console.warn('[VoiceManager] Local mic audio graph setup warning:', err);
-        }
-      }
-
-      const peer = new RTCPeerConnection({
-        iceServers: [
-          { urls: ['stun:stun1.agni.secondlife.io:3478', 'stun:stun2.agni.secondlife.io:3478', 'stun:stun3.agni.secondlife.io:3478'] },
-        ],
-      });
+      const peer = new RTCPeerConnection({ iceServers: iceServersForGrid(options.grid) });
       this.peer = peer;
+      this.dataChannel = peer.createDataChannel(DATA_CHANNEL_LABEL, { ordered: true });
+      this.dataChannel.onopen = () => this.onDataChannelOpen();
+      this.dataChannel.onmessage = (event) => { if (typeof event.data === 'string') this.onData(event.data); };
 
-      this.stream.getAudioTracks().forEach((track) => {
-        track.enabled = !this.muted;
-        peer.addTrack(track, this.stream!);
-      });
+      // Like the viewer, the microphone stays muted until the join has completed.
+      this.stream.getAudioTracks().forEach((track) => { track.enabled = false; peer.addTrack(track, this.stream!); });
+      peer.ontrack = ({ track, streams }) => this.playRemote(streams[0] || new MediaStream([track]));
 
-      peer.ontrack = ({ track, streams }) => {
-        const stream = streams[0] || new MediaStream([track]);
-        this.addRemoteSpeaker(track.id || stream.id, stream);
+      const pending: RTCIceCandidateInit[] = [];
+      let gatheringDone = false;
+      const flush = async () => {
+        if (!this.viewerSession) return;
+        if (pending.length) {
+          const body = signalingBody(this.viewerSession, pending.splice(0), false);
+          if (body) await slBridge.voiceSignal(body).catch((e: unknown) => this.emit('error', e));
+        }
+        if (gatheringDone) {
+          gatheringDone = false;
+          const body = signalingBody(this.viewerSession, [], true);
+          if (body) await slBridge.voiceSignal(body).catch((e: unknown) => this.emit('error', e));
+        }
       };
-
-      const candidates: RTCIceCandidateInit[] = [];
       let flushTimer: ReturnType<typeof setTimeout> | undefined;
-      const flush = () => {
-        clearTimeout(flushTimer);
-        flushTimer = undefined;
-        if (this.viewerSession && candidates.length) {
-          void slBridge.voiceSignal(this.viewerSession, candidates.splice(0));
-        }
-      };
-
       peer.onicecandidate = ({ candidate }) => {
-        if (candidate) {
-          candidates.push(candidate.toJSON());
-          flushTimer ||= setTimeout(flush, 100);
-        } else if (this.viewerSession) {
-          flush();
-          void slBridge.voiceSignal(this.viewerSession, undefined, true);
-        }
+        if (candidate) { pending.push(candidate.toJSON()); flushTimer ||= setTimeout(() => { flushTimer = undefined; void flush(); }, 100); }
+        else { gatheringDone = true; void flush(); }
       };
-
       peer.onconnectionstatechange = () => {
-        if (peer.connectionState === 'connected') {
-          this.setState('connected');
-        } else if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
-          this.setState('error', `WebRTC ${peer.connectionState}`);
-        }
+        if (peer.connectionState === 'connected') this.setState('connected');
+        else if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') this.setState('error', `WebRTC ${peer.connectionState}`);
       };
 
-      await peer.setLocalDescription(await peer.createOffer({ offerToReceiveAudio: true }));
+      const offer = await peer.createOffer({ offerToReceiveAudio: true });
+      const sdp = mungeOpusSdp(offer.sdp || '');
+      await peer.setLocalDescription({ type: 'offer', sdp });
 
-      const response = await slBridge.voiceProvision(peer.localDescription!.sdp!, this.currentParcelLocalId);
+      const response = await slBridge.voiceProvision(provisionBody(sdp, this.channel));
       const answer = response?.jsep;
-      if (!response?.viewer_session || answer?.type !== 'answer' || !answer?.sdp) {
-        throw new Error('The voice server returned an invalid answer');
-      }
-
+      if (!response?.viewer_session || answer?.type !== 'answer' || !answer?.sdp) throw new Error('The voice server returned an invalid answer');
       this.viewerSession = String(response.viewer_session);
       await peer.setRemoteDescription(answer);
-      flush();
-
-      this.startAnalysis();
+      await flush();
     } catch (error) {
       await this.disconnect();
       this.setState('error', error instanceof Error ? error.message : 'Voice connection failed');
@@ -200,365 +163,238 @@ export class VoiceManager extends Utils.EventEmitter {
   }
 
   /**
-   * Re-provision WebRTC channel credentials when crossing region or parcel boundaries.
+   * The parcel or region changed. The viewer starts a new session on the new channel, so this tears
+   * the connection down and connects again with the same options, keeping the mute state.
    */
   async reprovision(parcelLocalId?: number) {
-    this.currentParcelLocalId = parcelLocalId;
     if (this.state !== 'connected' && this.state !== 'connecting') return;
-    if (!this.peer || !this.peer.localDescription?.sdp) return;
-
+    if (this.channel.kind === 'local' && this.channel.parcelLocalId === parcelLocalId) return;
+    const options = { ...this.options, channel: undefined, parcelLocalId };
+    await this.disconnect();
     try {
-      const response = await slBridge.voiceProvision(this.peer.localDescription.sdp, parcelLocalId);
-      if (response?.jsep && response.jsep.type === 'answer' && response.jsep.sdp) {
-        if (response.viewer_session) {
-          this.viewerSession = String(response.viewer_session);
-        }
-        await this.peer.setRemoteDescription(response.jsep);
-        this.emit('reprovisioned', { parcelLocalId, viewerSession: this.viewerSession });
-      }
+      await this.connect(options);
+      this.emit('reprovisioned', { parcelLocalId, viewerSession: this.viewerSession });
     } catch (error) {
-      console.warn('[VoiceManager] Automated re-provisioning notice:', error);
       this.emit('reprovision_error', error);
     }
   }
 
-  /**
-   * Add a remote WebRTC audio stream to the WebAudio spatial panner graph.
-   */
-  private addRemoteSpeaker(speakerId: string, stream: MediaStream) {
-    const ctx = this.ensureAudioContext();
-    if (!ctx || !this.masterGain) return;
-
-    // Remove existing node for this speakerId if re-added
-    if (this.speakerNodes.has(speakerId)) {
-      this.removeRemoteSpeaker(speakerId);
-    }
-
-    try {
-      const sourceNode = ctx.createMediaStreamSource(stream);
-      const gainNode = ctx.createGain();
-      const pannerNode = ctx.createPanner();
-      const analyserNode = ctx.createAnalyser();
-
-      analyserNode.fftSize = 64;
-
-      pannerNode.panningModel = 'HRTF';
-      pannerNode.distanceModel = 'inverse';
-      pannerNode.refDistance = 1;
-      pannerNode.maxDistance = 100;
-      pannerNode.rolloffFactor = 1;
-
-      const pos = this.speakerPositions.get(speakerId) || [128, 128, 25];
-      this.setNodePosition(pannerNode, pos);
-
-      // WebAudio Graph: Source -> Gain -> Panner -> Analyser -> Master Gain
-      sourceNode.connect(gainNode);
-      gainNode.connect(pannerNode);
-      pannerNode.connect(analyserNode);
-      analyserNode.connect(this.masterGain);
-
-      const speakerNode: RemoteSpeakerNode = {
-        id: speakerId,
-        stream,
-        sourceNode,
-        gainNode,
-        pannerNode,
-        analyserNode,
-        position: pos,
-        speaking: false,
-        energy: 0,
-        connected: true,
-      };
-
-      this.speakerNodes.set(speakerId, speakerNode);
-      this.updateActivePannerNodes();
-    } catch (err) {
-      console.warn('[VoiceManager] Failed to create WebAudio graph for speaker:', speakerId, err);
-      // Fallback HTMLAudioElement if WebAudio fails
-      if (!this.remoteAudio) {
-        this.remoteAudio = new Audio();
-        this.remoteAudio.autoplay = true;
-      }
-      this.remoteAudio.srcObject = stream;
-      void this.remoteAudio.play().catch(() => {});
-    }
+  async disconnect() {
+    this.stopTimers();
+    this.joined = false;
+    this.participants.clear();
+    if (this.dataChannel) { this.dataChannel.onopen = null; this.dataChannel.onmessage = null; try { this.dataChannel.close(); } catch { /* closed */ } }
+    this.dataChannel = null;
+    this.peer?.close(); this.peer = null;
+    if (this.localSource) { try { this.localSource.disconnect(); } catch { /* ignore */ } this.localSource = null; }
+    this.localAnalyser = null;
+    this.stream?.getTracks().forEach((track) => track.stop()); this.stream = null;
+    if (this.remoteAudio) { this.remoteAudio.srcObject = null; this.remoteAudio = null; }
+    const session = this.viewerSession; this.viewerSession = '';
+    if (session) await slBridge.voiceLogout(session).catch(() => {});
+    this.lastSpatialSent = -Infinity;
+    this.setState('off');
   }
 
-  private removeRemoteSpeaker(speakerId: string) {
-    const node = this.speakerNodes.get(speakerId);
-    if (node) {
-      try {
-        node.sourceNode.disconnect();
-        node.gainNode.disconnect();
-        node.pannerNode.disconnect();
-        node.analyserNode.disconnect();
-      } catch {
-        /* already disconnected */
-      }
-      this.speakerNodes.delete(speakerId);
-    }
+  // ---- data channel -------------------------------------------------------------------------------
+
+  private send(json: string) {
+    if (this.dataChannel?.readyState === 'open') this.dataChannel.send(json);
   }
 
-  private setNodePosition(panner: PannerNode, pos: [number, number, number]) {
-    const x = pos[0] || 0;
-    const y = pos[2] || 0;
-    const z = -(pos[1] || 0);
-
-    if (panner.positionX) {
-      panner.positionX.value = x;
-      panner.positionY.value = y;
-      panner.positionZ.value = z;
-    } else if ((panner as any).setPosition) {
-      (panner as any).setPosition(x, y, z);
-    }
+  private onDataChannelOpen() {
+    // As in the viewer: join, then declare the connection primary (it is for our own region).
+    this.send(joinMessage(false));
+    this.send(joinMessage(true));
+    this.joined = true;
+    this.applyMic();
+    if (this.channel.kind === 'local') { this.spatialDirty = true; this.sendSpatial(true); this.spatialTimer ||= setInterval(() => this.sendSpatial(false), POSITION_UPDATE_THROTTLE_MS); }
+    this.startAnalysis();
   }
 
-  /**
-   * Update 3D position of an avatar speaker.
-   */
-  setSpeakerPosition(speakerId: string, position: [number, number, number], name?: string) {
-    this.speakerPositions.set(speakerId, position);
-    if (name) this.speakerNames.set(speakerId, name);
-
-    const node = this.speakerNodes.get(speakerId);
-    if (node) {
-      node.position = position;
-      this.setNodePosition(node.pannerNode, position);
-    }
-
-    this.updateActivePannerNodes();
-  }
-
-  /**
-   * Update listener (camera / avatar) position in 3D audio space.
-   */
-  updateListenerPosition(position: [number, number, number], orientation?: [number, number, number]) {
-    this.listenerPosition = position;
-    if (this.audioContext && this.audioContext.listener) {
-      const listener = this.audioContext.listener;
-      const x = position[0] || 0;
-      const y = position[2] || 0;
-      const z = -(position[1] || 0);
-
-      if (listener.positionX) {
-        listener.positionX.value = x;
-        listener.positionY.value = y;
-        listener.positionZ.value = z;
-      } else if ((listener as any).setPosition) {
-        (listener as any).setPosition(x, y, z);
-      }
-    }
-
-    this.updateActivePannerNodes();
-  }
-
-  /**
-   * System CPU Guardrail: Cap spatial audio panner nodes at 16 nearest active speakers.
-   */
-  private updateActivePannerNodes() {
-    const speakers = Array.from(this.speakerNodes.values());
-    if (speakers.length === 0) return;
-
-    // Calculate distance from listener for each speaker
-    const sorted = speakers.map((node) => {
-      const pos = node.position || [128, 128, 25];
-      const dx = pos[0] - this.listenerPosition[0];
-      const dy = pos[1] - this.listenerPosition[1];
-      const dz = pos[2] - this.listenerPosition[2];
-      const distance = Math.hypot(dx, dy, dz);
-      return { node, distance };
-    }).sort((a, b) => a.distance - b.distance);
-
-    sorted.forEach((item, index) => {
-      const active = index < this.maxActiveSpeakers;
-      if (item.node.connected !== active) {
-        item.node.connected = active;
-        if (active) {
-          item.node.gainNode.gain.value = 1.0;
-        } else {
-          item.node.gainNode.gain.value = 0.0; // mute panners beyond top 16 to save CPU
-        }
-      }
-    });
-  }
-
-  /**
-   * Perform audio energy analysis on all active speaker AnalyserNodes.
-   */
-  public analyzeSpeakers() {
-    const dataArray = new Uint8Array(32);
+  private onData(raw: string) {
     let changed = false;
-    const speakerList: SpeakerInfo[] = [];
+    for (const update of parseVoiceData(raw)) changed = this.applyUpdate(update) || changed;
+    if (changed) this.emitSpeakers();
+  }
 
-    // Analyze remote speakers
-    this.speakerNodes.forEach((node, id) => {
-      node.analyserNode.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const energy = sum / (dataArray.length * 255);
-      const wasSpeaking = node.speaking;
-      node.energy = energy;
-      node.speaking = energy > this.voiceActivityThreshold;
-
-      if (wasSpeaking !== node.speaking) {
-        changed = true;
-      }
-
-      const pos = node.position || [128, 128, 25];
-      const dist = Math.hypot(
-        pos[0] - this.listenerPosition[0],
-        pos[1] - this.listenerPosition[1],
-        pos[2] - this.listenerPosition[2]
-      );
-
-      speakerList.push({
-        id,
-        name: this.speakerNames.get(id),
-        speaking: node.speaking,
-        energy,
-        position: pos,
-        distance: dist,
-        active: node.connected,
-      });
-    });
-
-    // Analyze local microphone if unmuted
-    if (this.localAnalyser && !this.muted) {
-      this.localAnalyser.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const localEnergy = sum / (dataArray.length * 255);
-      const localSpeaking = localEnergy > this.voiceActivityThreshold;
-
-      speakerList.push({
-        id: 'local_mic',
-        name: 'Me',
-        speaking: localSpeaking,
-        energy: localEnergy,
-        active: true,
-      });
+  private applyUpdate(update: ParticipantUpdate): boolean {
+    let participant = this.participants.get(update.id);
+    if (!participant && update.joined && (update.primary || this.channel.kind !== 'local')) {
+      participant = { id: update.id, level: 0, speaking: false, moderatorMuted: false };
+      this.participants.set(update.id, participant);
+      // Re-apply what the resident chose for this person (the viewer does the same on join).
+      if (this.userMutes.get(update.id)) this.send(muteMessage({ [update.id]: true }));
+      const gain = this.userGains.get(update.id);
+      if (gain !== undefined) this.send(userGainMessage({ [update.id]: gain }));
     }
-
-    if (changed || speakerList.some((s) => s.speaking)) {
-      this.emit('speaking', { speakers: speakerList });
-    }
+    if (!participant) return false;
+    if (update.left) { if (update.id !== this.selfId) this.participants.delete(update.id); return true; }
+    if (update.level !== undefined) participant.level = update.level;
+    if (update.speaking !== undefined) participant.speaking = update.speaking;
+    if (update.moderatorMuted !== undefined) participant.moderatorMuted = update.moderatorMuted;
+    return true;
   }
 
-  /**
-   * Start audio energy analysis timer for real-time speaking indicators.
-   */
-  private startAnalysis() {
-    if (this.analysisInterval) return;
-    this.analysisInterval = setInterval(() => this.analyzeSpeakers(), 50);
+  // ---- microphone and playback --------------------------------------------------------------------
+
+  private applyMic() {
+    const live = this.joined && !this.muted;
+    this.stream?.getAudioTracks().forEach((track) => { track.enabled = live; });
   }
 
-  private stopAnalysis() {
-    if (this.analysisInterval) {
-      clearInterval(this.analysisInterval);
-      this.analysisInterval = null;
-    }
-  }
-
-  /**
-   * Check if a specific speaker or avatar is currently speaking.
-   */
-  isSpeaking(speakerId: string): boolean {
-    const node = this.speakerNodes.get(speakerId);
-    if (node) return node.speaking;
-    if (speakerId === 'local_mic') {
-      if (this.localAnalyser && !this.muted) {
-        const data = new Uint8Array(32);
-        this.localAnalyser.getByteFrequencyData(data);
-        const sum = data.reduce((a, b) => a + b, 0);
-        return sum / (data.length * 255) > this.voiceActivityThreshold;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Get audio energy level for a speaker.
-   */
-  getSpeakerEnergy(speakerId: string): number {
-    const node = this.speakerNodes.get(speakerId);
-    return node ? node.energy : 0;
-  }
-
-  /**
-   * Get list of all currently tracked active speakers.
-   */
-  getActiveSpeakers(): SpeakerInfo[] {
-    const list: SpeakerInfo[] = [];
-    this.speakerNodes.forEach((node, id) => {
-      const pos = node.position || [128, 128, 25];
-      const dist = Math.hypot(
-        pos[0] - this.listenerPosition[0],
-        pos[1] - this.listenerPosition[1],
-        pos[2] - this.listenerPosition[2]
-      );
-      list.push({
-        id,
-        name: this.speakerNames.get(id),
-        speaking: node.speaking,
-        energy: node.energy,
-        position: pos,
-        distance: dist,
-        active: node.connected,
-      });
-    });
-    return list;
-  }
-
-  /**
-   * Set microphone muting state and synchronize local track state.
-   */
   setMuted(muted: boolean) {
     this.muted = muted;
-    this.stream?.getAudioTracks().forEach((track) => {
-      track.enabled = !muted;
-    });
+    this.applyMic();
     this.emit('state', { state: this.state, message: '', muted });
     this.emit('mute_changed', { muted });
   }
 
-  /**
-   * Disconnect WebRTC voice session and cleanup WebAudio nodes.
-   */
-  async disconnect() {
-    this.stopAnalysis();
+  /** Playback level of the whole voice stream, 0..1 (the viewer's `setReceiveVolume`). */
+  setSpeakerVolume(volume: number) {
+    this.speakerVolume = Math.max(0, Math.min(1, volume));
+    if (this.remoteAudio) this.remoteAudio.volume = this.speakerVolume;
+  }
 
-    // Clean up WebAudio speaker nodes
-    this.speakerNodes.forEach((_, id) => this.removeRemoteSpeaker(id));
-    this.speakerNodes.clear();
+  /** Per-person playback gain 0..1, applied by the voice server (`ug`). */
+  setUserVolume(id: string, volume: number) {
+    const key = id.toLowerCase();
+    this.userGains.set(key, volume);
+    this.send(userGainMessage({ [key]: volume }));
+  }
 
-    if (this.localSource) {
-      try { this.localSource.disconnect(); } catch { /* ignore */ }
-      this.localSource = null;
+  /** Mute one person for yourself (`m`). */
+  setUserMuted(id: string, muted: boolean) {
+    const key = id.toLowerCase();
+    this.userMutes.set(key, muted);
+    this.send(muteMessage({ [key]: muted }));
+  }
+
+  /** Send the output to a specific speaker, where the browser supports it. */
+  async setOutputDevice(deviceId: string) {
+    const audio = this.remoteAudio as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    if (audio?.setSinkId) await audio.setSinkId(deviceId);
+  }
+
+  private playRemote(stream: MediaStream) {
+    this.remoteAudio ||= new Audio();
+    this.remoteAudio.autoplay = true;
+    this.remoteAudio.volume = this.speakerVolume;
+    this.remoteAudio.srcObject = stream;
+    void this.remoteAudio.play().catch(() => {});
+  }
+
+  // ---- positions ----------------------------------------------------------------------------------
+
+  /** Global metres of the current region's south-west corner; positions below are region-local. */
+  setRegionOrigin(origin: [number, number]) { this.regionOrigin = origin; this.spatialDirty = true; }
+
+  setEarLocation(location: EarLocation) { this.earLocation = location; this.spatialDirty = true; }
+
+  /** Region-local poses. Rotations are SL-frame quaternions [x, y, z, w]. */
+  updateSpatial(pose: { avatarPosition?: Vec3; avatarRotation?: Quat; cameraPosition?: Vec3; cameraRotation?: Quat }) {
+    if (pose.avatarPosition) this.avatar.position = pose.avatarPosition;
+    if (pose.avatarRotation) this.avatar.rotation = pose.avatarRotation;
+    if (pose.cameraPosition) this.camera.position = pose.cameraPosition;
+    if (pose.cameraRotation) this.camera.rotation = pose.cameraRotation;
+    this.spatialDirty = true;
+  }
+
+  /** Kept for callers that only know the avatar's position. */
+  updateListenerPosition(position: [number, number, number]) { this.updateSpatial({ avatarPosition: position }); }
+
+  /** Where another avatar is, for distance in the speaker list. Not sent to the server. */
+  setSpeakerPosition(speakerId: string, position: [number, number, number], name?: string) {
+    const key = speakerId.toLowerCase();
+    this.positions.set(key, position);
+    if (name) this.names.set(key, name);
+  }
+
+  private sendSpatial(force: boolean) {
+    const now = performance.now();
+    if ((!this.spatialDirty && !force) || now - this.lastSpatialSent < POSITION_UPDATE_THROTTLE_MS) return;
+    const { position, rotation } = this.avatar;
+    // Never invent a pose: wait until both position and rotation have come from the simulator.
+    if (!position || !rotation) return;
+    const [ox, oy] = this.regionOrigin;
+    const global = (v: Vec3): Vec3 => [v[0] + ox, v[1] + oy, v[2]];
+    const head = global([position[0], position[1], position[2] + 1]); // the viewer sends head height
+    const wantsCamera = this.earLocation !== EarLocation.Avatar && this.camera.position && this.camera.rotation;
+    const ear = earPose(wantsCamera ? this.earLocation : EarLocation.Avatar, { position: head, rotation },
+      { position: global(this.camera.position ?? position), rotation: this.camera.rotation ?? rotation });
+    this.send(spatialMessage({ avatarPosition: head, avatarRotation: rotation, listenerPosition: ear.position, listenerRotation: ear.rotation }));
+    this.spatialDirty = false;
+    this.lastSpatialSent = now;
+  }
+
+  // ---- speakers -----------------------------------------------------------------------------------
+
+  private distanceTo(id: string): number | undefined {
+    const pos = this.positions.get(id);
+    const me = this.avatar.position;
+    return pos && me ? Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) : undefined;
+  }
+
+  getActiveSpeakers(): SpeakerInfo[] {
+    return [...this.participants.values()].map((p) => ({
+      id: p.id, name: this.names.get(p.id), speaking: p.speaking, energy: p.level,
+      position: this.positions.get(p.id), distance: this.distanceTo(p.id), moderatorMuted: p.moderatorMuted, active: true,
+    }));
+  }
+
+  isSpeaking(speakerId: string): boolean {
+    const key = speakerId.toLowerCase();
+    if (speakerId === 'local_mic') return Boolean(this.selfId && this.participants.get(this.selfId)?.speaking);
+    return Boolean(this.participants.get(key)?.speaking);
+  }
+
+  getSpeakerEnergy(speakerId: string): number {
+    return this.participants.get(speakerId.toLowerCase())?.level ?? 0;
+  }
+
+  private localEnergy = 0;
+
+  /** Emit the current speaker list, including the microphone meter when unmuted. */
+  analyzeSpeakers() {
+    if (this.localAnalyser && !this.muted) {
+      const data = new Uint8Array(this.localAnalyser.fftSize);
+      this.localAnalyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (const v of data) { const s = (v - 128) / 128; sum += s * s; }
+      this.localEnergy = Math.sqrt(sum / data.length);
+    } else this.localEnergy = 0;
+    this.emitSpeakers();
+  }
+
+  private emitSpeakers() {
+    const speakers = this.getActiveSpeakers();
+    if (!this.muted && this.localAnalyser) {
+      speakers.push({ id: 'local_mic', name: 'Me', speaking: this.isSpeaking('local_mic'), energy: this.localEnergy, active: true });
     }
-    this.localAnalyser = null;
+    this.emit('speaking', { speakers });
+  }
 
-    const session = this.viewerSession;
-    this.viewerSession = '';
-
-    this.peer?.close();
-    this.peer = null;
-
-    this.stream?.getTracks().forEach((track) => track.stop());
-    this.stream = null;
-
-    if (this.remoteAudio) {
-      this.remoteAudio.srcObject = null;
-      this.remoteAudio = null;
+  private startLocalMeter() {
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx || !this.stream) return;
+      this.audioContext ||= new Ctx({ latencyHint: 'interactive' });
+      this.localSource = this.audioContext.createMediaStreamSource(this.stream);
+      this.localAnalyser = this.audioContext.createAnalyser();
+      this.localAnalyser.fftSize = 256;
+      this.localSource.connect(this.localAnalyser);
+    } catch (error) {
+      console.warn('[VoiceManager] microphone meter unavailable:', error);
     }
+  }
 
-    if (session) {
-      await slBridge.voiceLogout(session).catch(() => {});
-    }
+  private startAnalysis() {
+    this.analysisTimer ||= setInterval(() => { if (this.localAnalyser) this.analyzeSpeakers(); }, 100);
+  }
 
-    this.setState('off');
+  private stopTimers() {
+    if (this.analysisTimer) clearInterval(this.analysisTimer);
+    if (this.spatialTimer) clearInterval(this.spatialTimer);
+    this.analysisTimer = null; this.spatialTimer = null;
   }
 }

@@ -1,10 +1,15 @@
 /**
- * Second Life agent control flags (the `ControlFlags` field of AgentUpdate) and the
- * translation from a movement intent to those flags.
+ * Second Life agent control flags (the `ControlFlags` field of AgentUpdate) and the translation
+ * from a movement intent to those flags.
  *
- * The bit values are the protocol's; they are checked against node-metaverse's
- * `ControlFlags` enum in the tests. The script-facing `CONTROL_*` constants
- * (llTakeControls) are a subset with different values and are mapped explicitly.
+ * Sources, all from the official viewer at github.com/secondlife/viewer @ 7dd6de6120ce (2026-10-07):
+ *  - flag values: `indra/llcommon/indra_constants.h` (`AGENT_CONTROL_*`); every value is compared
+ *    with that file when this module changes, and with node-metaverse in the tests;
+ *  - AgentUpdate flags: `indra/newview/llviewermessage.cpp` (`AU_FLAGS_*`);
+ *  - which flags persist between updates: `LLAgent::resetControlFlags` in `llagent.cpp` keeps only
+ *    AWAY, FLY and MOUSELOOK; STOP, STAND_UP, SIT_ON_GROUND, FINISH_ANIM and the nudges are transient;
+ *  - key handling, timings: `indra/newview/llviewerinput.cpp`.
+ * The LSL-facing `CONTROL_*` constants are not in the viewer source and are not defined here.
  */
 
 export const AGENT_CONTROL = {
@@ -24,34 +29,6 @@ export const AGENT_CONTROL = {
   LBUTTON_DOWN: 0x10000000, LBUTTON_UP: 0x20000000,
   ML_LBUTTON_DOWN: 0x40000000, ML_LBUTTON_UP: 0x80000000,
 } as const;
-
-/** Constants scripts pass to llTakeControls / see in the `control` event. */
-export const SCRIPT_CONTROL = {
-  FWD: 0x1, BACK: 0x2, LEFT: 0x4, RIGHT: 0x8, UP: 0x10, DOWN: 0x20,
-  ROT_LEFT: 0x100, ROT_RIGHT: 0x200,
-  LBUTTON: 0x10000000, ML_LBUTTON: 0x40000000,
-} as const;
-
-/** Which agent flags satisfy each script control (a script sees the OR of these). */
-const SCRIPT_TO_AGENT: ReadonlyArray<readonly [number, number]> = [
-  [SCRIPT_CONTROL.FWD, AGENT_CONTROL.AT_POS | AGENT_CONTROL.FAST_AT | AGENT_CONTROL.NUDGE_AT_POS],
-  [SCRIPT_CONTROL.BACK, AGENT_CONTROL.AT_NEG | AGENT_CONTROL.NUDGE_AT_NEG],
-  [SCRIPT_CONTROL.LEFT, AGENT_CONTROL.LEFT_POS | AGENT_CONTROL.FAST_LEFT | AGENT_CONTROL.NUDGE_LEFT_POS],
-  [SCRIPT_CONTROL.RIGHT, AGENT_CONTROL.LEFT_NEG | AGENT_CONTROL.NUDGE_LEFT_NEG],
-  [SCRIPT_CONTROL.UP, AGENT_CONTROL.UP_POS | AGENT_CONTROL.FAST_UP | AGENT_CONTROL.NUDGE_UP_POS],
-  [SCRIPT_CONTROL.DOWN, AGENT_CONTROL.UP_NEG | AGENT_CONTROL.NUDGE_UP_NEG],
-  [SCRIPT_CONTROL.ROT_LEFT, AGENT_CONTROL.TURN_LEFT | AGENT_CONTROL.YAW_POS],
-  [SCRIPT_CONTROL.ROT_RIGHT, AGENT_CONTROL.TURN_RIGHT | AGENT_CONTROL.YAW_NEG],
-  [SCRIPT_CONTROL.LBUTTON, AGENT_CONTROL.LBUTTON_DOWN],
-  [SCRIPT_CONTROL.ML_LBUTTON, AGENT_CONTROL.ML_LBUTTON_DOWN],
-];
-
-/** Script controls (CONTROL_* bits) that are active for a set of agent flags. */
-export function scriptControlsFromFlags(flags: number): number {
-  let result = 0;
-  for (const [script, agent] of SCRIPT_TO_AGENT) if (flags & agent) result |= script;
-  return result >>> 0;
-}
 
 /** What the resident is asking the avatar to do right now. Axes are -1..1. */
 export interface MovementIntent {
@@ -118,23 +95,10 @@ export const ONE_SHOT_FLAGS: number =
     AGENT_CONTROL.NUDGE_AT_POS | AGENT_CONTROL.NUDGE_AT_NEG | AGENT_CONTROL.NUDGE_LEFT_POS | AGENT_CONTROL.NUDGE_LEFT_NEG |
     AGENT_CONTROL.NUDGE_UP_POS | AGENT_CONTROL.NUDGE_UP_NEG) >>> 0;
 
-/** Camera and body state carried alongside the flags in AgentUpdate. */
-export interface AgentUpdateState {
-  bodyRotation: [number, number, number, number];
-  headRotation: [number, number, number, number];
-  cameraCenter: [number, number, number];
-  cameraAtAxis: [number, number, number];
-  cameraLeftAxis: [number, number, number];
-  cameraUpAxis: [number, number, number];
-  far: number;
-  controlFlags: number;
-  flags: number;
-}
-
-/** AgentUpdate `Flags` bits. */
+/** AgentUpdate `Flags` bits (`AU_FLAGS_HIDETITLE`, `AU_FLAGS_CLIENT_AUTOPILOT`). */
 export const AGENT_UPDATE_FLAGS = { HIDE_TITLE: 0x1, CLIENT_AUTOPILOT: 0x2 } as const;
 
-/** Timing constants from the official viewer's `llviewerinput.cpp`. */
+/** Timing constants from `llviewerinput.cpp` (`NUDGE_TIME` 0.25 s, `FLY_TIME` 0.5 s). */
 export const NUDGE_TIME_MS = 250;
 export const FLY_TIME_MS = 500;
 

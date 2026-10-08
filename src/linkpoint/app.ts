@@ -17,6 +17,7 @@ import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
+import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
 
 import { ChatProtocolAdapter } from './chat-protocol-adapter';
@@ -159,6 +160,7 @@ export class LinkpointApp {
     // The L$ balance is whatever the grid reports. It is requested after login and
     // refreshed periodically; until then it is null and shown as unknown.
     this.protocol.on('connected', () => {
+      this.voice.setSelfId(this.protocol.agentId || '');
       void this.protocol.refreshBalance();
       if (this.balanceTimer) clearInterval(this.balanceTimer);
       this.balanceTimer = setInterval(() => { void this.protocol.refreshBalance(); }, 60000);
@@ -197,6 +199,9 @@ export class LinkpointApp {
 
     // Automated WebRTC voice re-provisioning on region teleports & parcel transitions
     this.world.on('region_changed', (region: any) => {
+      if (region && Number.isFinite(Number(region.x)) && Number.isFinite(Number(region.y))) {
+        this.voice.setRegionOrigin(CoordinateNormalizer.getRegionOriginMeters(region));
+      }
       const parcelLocalId = region?.parcel?.LocalID || region?.parcel?.localId;
       if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
         void this.voice.reprovision(parcelLocalId);
@@ -219,7 +224,10 @@ export class LinkpointApp {
         });
       }
       if (this.world.avatarPosition) {
-        this.voice.updateListenerPosition(this.world.avatarPosition);
+        this.voice.updateSpatial({
+          avatarPosition: this.world.avatarPosition,
+          ...(this.world.avatarRotation ? { avatarRotation: this.world.avatarRotation } : {}),
+        });
       }
     });
   }

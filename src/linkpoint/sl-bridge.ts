@@ -269,8 +269,10 @@ export class SLBridge extends Utils.EventEmitter {
   }
 
   fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
-  voiceProvision(sdp: string, parcelLocalId?: number) { return this.call<any>('voiceProvision', { sdp, parcelLocalId }); }
-  voiceSignal(viewerSession: string, candidates?: RTCIceCandidateInit[], completed = false) { return this.call('voiceSignal', { viewerSession, candidates, completed }); }
+  /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
+  /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
+  voiceProvision(body: Record<string, unknown>) { return this.call<any>('voiceProvision', { body }); }
+  voiceSignal(body: Record<string, unknown>) { return this.call('voiceSignal', { body }); }
   voiceLogout(viewerSession: string) { return this.call('voiceLogout', { viewerSession }); }
 
   disconnect() {

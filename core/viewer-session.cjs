@@ -49,6 +49,16 @@ const NOT_CONNECTED = 'Not connected to Second Life';
 
 const newId = () => crypto.randomUUID();
 
+const VOICE_PROVISION_KEYS = ['jsep', 'parcel_local_id', 'channel_type', 'voice_server_type', 'credentials', 'channel'];
+const VOICE_SIGNAL_KEYS = ['viewer_session', 'voice_server_type', 'candidates', 'candidate'];
+
+/** Keep only the fields the voice capabilities take, and only for the WebRTC voice server. */
+function sanitizeVoiceBody(body, allowed) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('A voice request body is required');
+  if (body.voice_server_type !== 'webrtc') throw new Error('Only WebRTC voice is supported');
+  return Object.fromEntries(Object.entries(body).filter(([key]) => allowed.includes(key)));
+}
+
 class ViewerSession {
   /**
    * @param send host callback `(type, data) => void` that delivers an event to the client
@@ -656,24 +666,27 @@ class ViewerSession {
     return { id, data: await this.queueAssetDownload(() => downloadAnimation(bot, id)) };
   }
 
-  async voiceProvision({ sdp, parcelLocalId } = {}) {
-    if (!sdp) throw new Error('A WebRTC offer is required');
+  // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
+  // checks the shape and posts them to the region's capability.
+  // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
+  // checks the shape and posts them to the region's capability.
+  async voiceProvision({ body } = {}) {
+    const clean = sanitizeVoiceBody(body, VOICE_PROVISION_KEYS);
+    if (clean.jsep?.type !== 'offer' || typeof clean.jsep.sdp !== 'string' || !clean.jsep.sdp) throw new Error('A WebRTC offer is required');
     const caps = this.currentRegion()?.caps;
     const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
     if (!url) throw new Error('Voice is not available in this region');
-    return caps.capsPerformXMLPost(url, { jsep: { type: 'offer', sdp }, channel_type: 'local',
-      voice_server_type: 'webrtc', ...(Number.isInteger(parcelLocalId) ? { parcel_local_id: parcelLocalId } : {}) });
+    return caps.capsPerformXMLPost(url, clean);
   }
 
-  async voiceSignal({ viewerSession, candidates, completed } = {}) {
-    if (!viewerSession) throw new Error('Voice session is required');
+  async voiceSignal({ body } = {}) {
+    const clean = sanitizeVoiceBody(body, VOICE_SIGNAL_KEYS);
+    if (typeof clean.viewer_session !== 'string' || !clean.viewer_session) throw new Error('Voice session is required');
+    if (!clean.candidates && !clean.candidate) throw new Error('Voice signaling needs candidates or the completed marker');
     const caps = this.currentRegion()?.caps;
     const url = await caps?.getCapability?.('VoiceSignalingRequest');
     if (!url) throw new Error('Voice signaling is not available in this region');
-    const body = { viewer_session: viewerSession, voice_server_type: 'webrtc' };
-    if (Array.isArray(candidates) && candidates.length) body.candidates = candidates;
-    if (completed) body.candidate = { completed: true };
-    return caps.capsPerformXMLPost(url, body);
+    return caps.capsPerformXMLPost(url, clean);
   }
 
   async voiceLogout({ viewerSession } = {}) {

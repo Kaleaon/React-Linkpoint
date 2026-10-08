@@ -78,6 +78,8 @@ export class WorldViewer extends Utils.EventEmitter {
   public objects: any[] = [];
   public nearbyUsers: any[] = [];
   public avatarPosition: [number, number, number] | null = null;
+  /** The logged-in avatar's rotation from the simulator, an SL-frame quaternion [x, y, z, w]. */
+  public avatarRotation: [number, number, number, number] | null = null;
   public environment: any = null;
   public localEnvironmentHour: number | null = null;
 
@@ -123,6 +125,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('disconnected', () => {
       this.region = null;
       this.avatarPosition = null;
+      this.avatarRotation = null;
       this.nearbyUsers = [];
       this.environment = null;
       this.simSunHour = null;
@@ -810,6 +813,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const myName = this.protocol.authReply?.first_name;
     if (object.id !== this.protocol.agentId && !(myName && object.name?.includes(myName))) return false;
     this.avatarPosition = object.position;
+    if (Array.isArray(object.rotation) && object.rotation.length === 4 && object.rotation.every(Number.isFinite)) this.avatarRotation = object.rotation as [number, number, number, number];
     if (!this.camera3d || this.camera3d.preset === 'free') return true;
     this.camera3d.setOrbitTarget(object.position[0], object.position[1], object.position[2] + 1.2);
     if (this.camera3d.preset === 'rear' && Array.isArray(object.rotation)) {
