@@ -42,6 +42,7 @@ const {
 const { DirFindQueryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirFindQuery');
 const { DirPlacesQueryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirPlacesQuery');
 const { DirFindFlags } = require('@caspertech/node-metaverse/dist/lib/enums/DirFindFlags');
+const { TeleportLandmarkRequestMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/TeleportLandmarkRequest');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
@@ -590,6 +591,27 @@ class ViewerSession {
   touchObject(params) { return actions.touchObject(this.requireBot(), params); }
   sit(params = {}) { return actions.sit(this.requireBot(), params); }
   stand() { return actions.stand(this.requireBot()); }
+
+  /** Ask the simulator to teleport home: a landmark teleport with the null landmark, as the official viewer does. */
+  teleportHome() {
+    const bot = this.requireBot();
+    const circuit = this.currentRegion()?.circuit;
+    const agentId = bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error('Teleport home is unavailable until the region has loaded');
+    const message = new TeleportLandmarkRequestMessage();
+    message.Info = { AgentID: agentId, SessionID: circuit.sessionID, LandmarkID: UUID.zero() };
+    circuit.sendMessage(message, PacketFlags.Reliable);
+    return { requested: 'home' };
+  }
+
+  /** Join an open-enrollment group. A group that charges a fee is refused with the library's explanation. */
+  async joinGroup({ groupId } = {}) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || '')) throw new Error('Valid group ID required');
+    const groups = this.requireBot().clientCommands?.groups;
+    if (!groups?.joinGroup) throw new Error('Group interface unavailable');
+    const joined = await groups.joinGroup(groupId);
+    return { joined: Boolean(joined) };
+  }
   setMovement(params = {}) {
     const agent = this.requireBot().agent;
     if (!agent?.setControlFlag || !agent?.clearControlFlag || !agent?.sendAgentUpdate) throw new Error('Avatar movement unavailable');

@@ -29,6 +29,7 @@ describe('fabricated-data scanner rules', () => {
     ['invented-coordinates', ': { x: 128, y: 128, z: 24 };'],
     ['fake-data-phrase', '<p>Showing sample residents</p>'],
     ['fake-data-phrase', 'const mock chats = []'],
+    ['canned-measurement', 'actions.notify("RE-RUN PROBE — 48ms")'],
     ['default-item-list', 'const DEFAULT_OUTFITS: OutfitItem[] = ['],
     ['default-item-list', 'const DEMO_OUTFIT_ITEMS = ['],
     ['invented-statistic', '<div>Estimated Vertex Count: 14,280 vertices</div>'],

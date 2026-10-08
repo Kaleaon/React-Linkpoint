@@ -78,7 +78,7 @@ export default function FloatersDesktop() {
       if (app.auth.isLoggedIn()) {
         await app.chat.sendMessage(text, 0, 1);
       } else {
-        actions.notify("Local Chat (" + text + ")");
+        actions.notify("Connect to a grid to chat.");
       }
     } catch (err) {
       actions.notify("Chat error: " + (err.message || String(err)));

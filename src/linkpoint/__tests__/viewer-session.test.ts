@@ -437,6 +437,29 @@ describe('desktop session texture downloads', () => {
     expect(outfit.outfits).toEqual([{ id: 'beach', name: 'Beach day' }]);
   });
 
+  it('sends a null-landmark teleport request for teleport home, and only once the region has loaded', () => {
+    const session = new ViewerSession(() => undefined);
+    const sendMessage = vi.fn();
+    session.bot = { agent: { agentID: 'agent-1' }, currentRegion: { circuit: { sendMessage, sessionID: 'sess-1' } } };
+    expect(session.teleportHome()).toEqual({ requested: 'home' });
+    const message = sendMessage.mock.calls[0][0];
+    expect(message.Info.AgentID).toBe('agent-1');
+    expect(message.Info.LandmarkID.toString()).toBe('00000000-0000-0000-0000-000000000000');
+    session.bot = { agent: { agentID: 'agent-1' }, currentRegion: null };
+    expect(() => session.teleportHome()).toThrow(/region has loaded/);
+  });
+
+  it('joins a group through the library and reports a refusal instead of claiming success', async () => {
+    const session = new ViewerSession(() => undefined);
+    const joinGroup = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false).mockRejectedValueOnce(new Error('it charges a membership fee of L$50'));
+    session.bot = { clientCommands: { groups: { joinGroup } } };
+    const groupId = '11111111-2222-3333-4444-555555555555';
+    await expect(session.joinGroup({ groupId })).resolves.toEqual({ joined: true });
+    await expect(session.joinGroup({ groupId })).resolves.toEqual({ joined: false });
+    await expect(session.joinGroup({ groupId })).rejects.toThrow(/membership fee/);
+    await expect(session.joinGroup({ groupId: 'nope' })).rejects.toThrow(/Valid group ID/);
+  });
+
   it('limits concurrent simulator asset downloads so attachments are not rate-limited', async () => {
     const session = new ViewerSession(() => undefined);
     let active = 0;
