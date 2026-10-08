@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AvatarSkeleton } from '../avatar-skeleton';
 import { skinPoint } from '../avatar-skeleton';
 import { bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, parseBodyPart, type BodyPartMeta } from '../avatar-body';
@@ -96,5 +96,23 @@ describe('base avatar body meshes', () => {
     const parts = await loadBodyParts('/avatar/', fetcher);
     expect([...parts.keys()].sort()).toEqual(Object.keys(meta).sort());
     await expect(loadBodyParts('/avatar/', (async () => ({ ok: false, status: 404 })) as unknown as typeof fetch)).rejects.toThrow('404');
+  });
+
+  it('falls back to the published meshes when the app does not serve its own avatar folder', async () => {
+    const urls: string[] = [];
+    const fetcher = (async (url: string) => {
+      urls.push(url);
+      if (url.startsWith('/avatar/')) return { ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+      const file = url.split('/').pop()!;
+      if (file === 'meshes.json') return { ok: true, status: 200, json: async () => meta };
+      const b = readFileSync(`${dir}${file}`);
+      return { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) };
+    }) as unknown as typeof fetch;
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const parts = await loadBodyParts(undefined, fetcher, 'https://raw.githubusercontent.com/Kaleaon/React-Linkpoint/main/public/');
+    expect([...parts.keys()].sort()).toEqual(Object.keys(meta).sort());
+    expect(urls[0]).toBe('/avatar/meshes.json');
+    expect(urls.some((u) => u.includes('raw.githubusercontent.com') && u.endsWith('/avatar/head.bin'))).toBe(true);
+    vi.restoreAllMocks();
   });
 });

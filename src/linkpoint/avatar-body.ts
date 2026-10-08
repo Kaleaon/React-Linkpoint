@@ -7,7 +7,7 @@
  */
 import { AvatarSkeleton, compose, skinMatrices, type Mat4, type MeshSkin } from './avatar-skeleton';
 import { packJointRows } from './skinning';
-import { assetBase } from './avatar-animator';
+import { assetBase, staticFallbackBase } from './avatar-animator';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 export interface BodyPartMeta { vertexCount: number; faceCount: number; hasWeights: boolean; jointNames: string[] }
@@ -90,7 +90,25 @@ export function bodyPartRows(skeleton: AvatarSkeleton, skin: MeshSkin, world: Ma
   return packJointRows(skinMatrices(skeleton, skin, world), maxJoints);
 }
 
-export async function loadBodyParts(baseUrl = `${assetBase()}avatar/`, fetcher: typeof fetch = (input, init) => fetch(input, init)): Promise<Map<string, BodyPartGeometry>> {
+/**
+ * Load the avatar body meshes. Without an explicit base the app's own `avatar/` folder is tried first, then
+ * the fallback folder (see `staticFallbackBase`), so a deployment missing `public/avatar` still shows the real body.
+ */
+export async function loadBodyParts(baseUrl?: string, fetcher: typeof fetch = (input, init) => fetch(input, init), fallbackBase: string = staticFallbackBase()): Promise<Map<string, BodyPartGeometry>> {
+  if (baseUrl !== undefined) return loadBodyPartsFrom(baseUrl, fetcher);
+  const bases = [`${assetBase()}avatar/`, ...(fallbackBase ? [`${fallbackBase}avatar/`] : [])];
+  let failure: unknown;
+  for (const base of bases) {
+    try { return await loadBodyPartsFrom(base, fetcher); }
+    catch (error) {
+      failure = failure ?? error;
+      if (base !== bases[bases.length - 1]) console.warn(`[WorldViewer] avatar meshes not served from ${base}; trying the fallback source:`, (error as Error).message);
+    }
+  }
+  throw failure;
+}
+
+async function loadBodyPartsFrom(baseUrl: string, fetcher: typeof fetch): Promise<Map<string, BodyPartGeometry>> {
   const metaResponse = await rateLimitedFetch(`${baseUrl}meshes.json`, undefined, fetcher);
   if (!metaResponse.ok) throw new Error(`Avatar mesh index unavailable (HTTP ${metaResponse.status})`);
   let meta: Record<string, BodyPartMeta>;
