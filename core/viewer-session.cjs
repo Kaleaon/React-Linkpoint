@@ -248,6 +248,14 @@ class ViewerSession {
     });
   }
 
+  // Ask for a sound asset by id (UI sounds are not announced by the simulator). It arrives as a 'sound-asset' event.
+  fetchSound({ id } = {}) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) throw new Error('A sound asset id is required');
+    this.requireBot();
+    this.loadSound(String(id).toLowerCase());
+    return { requested: true };
+  }
+
   loadObjectAsset(object) {
     const appearance = primAppearance(object);
     if (!appearance.assetId) return;
@@ -308,12 +316,18 @@ class ViewerSession {
     const soundId = event.object?.Sound?.toString?.();
     const objectId = event.object?.FullID?.toString?.() || String(event.localID);
     const liveSound = soundId && soundId !== '00000000-0000-0000-0000-000000000000' ? soundId : '';
-    const signature = `${liveSound}:${Number(event.object?.SoundGain) || 0}:${Number(event.object?.SoundFlags) || 0}`;
+    const radius = Number(event.object?.SoundRadius) || 0;
+    const signature = `${liveSound}:${Number(event.object?.SoundGain) || 0}:${Number(event.object?.SoundFlags) || 0}:${radius}`;
     if (this.objectSounds.get(objectId) !== signature) {
+      // The sound fields of an object update are what start looping sounds on objects that were
+      // already playing when we arrived. A change to nothing is sent as a null sound with its flags.
+      const hadSound = this.objectSounds.has(objectId) && !this.objectSounds.get(objectId).startsWith(':');
       this.objectSounds.set(objectId, signature);
-      this.send('sound-event', liveSound ? { action: 'attached', soundId: liveSound, objectId,
-        position: vector(event.object?.Position), gain: Number(event.object?.SoundGain) || 0,
-        flags: Number(event.object?.SoundFlags) || 0 } : { action: 'stop', objectId });
+      if (liveSound || hadSound) {
+        this.send('sound-event', { action: 'attached', soundId: liveSound || '00000000-0000-0000-0000-000000000000', objectId,
+          ownerId: event.object?.OwnerID?.toString?.() || '', position: vector(event.object?.Position),
+          gain: Number(event.object?.SoundGain) || 0, flags: Number(event.object?.SoundFlags) || 0, radius });
+      }
       if (liveSound) this.loadSound(liveSound);
     }
   }

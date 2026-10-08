@@ -17,6 +17,7 @@ import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
+import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
 
@@ -115,6 +116,7 @@ export class LinkpointApp {
     await this.inventory.init();
     this.notifications.init(this.chat);
     this.audio.init();
+    this.wireSoundListener();
 
     this.setupEventListeners();
 
@@ -161,6 +163,7 @@ export class LinkpointApp {
     // refreshed periodically; until then it is null and shown as unknown.
     this.protocol.on('connected', () => {
       this.voice.setSelfId(this.protocol.agentId || '');
+      this.audio.setSelfId(this.protocol.agentId || '');
       void this.protocol.refreshBalance();
       if (this.balanceTimer) clearInterval(this.balanceTimer);
       this.balanceTimer = setInterval(() => { void this.protocol.refreshBalance(); }, 60000);
@@ -200,7 +203,9 @@ export class LinkpointApp {
     // Automated WebRTC voice re-provisioning on region teleports & parcel transitions
     this.world.on('region_changed', (region: any) => {
       if (region && Number.isFinite(Number(region.x)) && Number.isFinite(Number(region.y))) {
-        this.voice.setRegionOrigin(CoordinateNormalizer.getRegionOriginMeters(region));
+        const origin = CoordinateNormalizer.getRegionOriginMeters(region);
+        this.voice.setRegionOrigin(origin);
+        this.audio.setRegionOrigin(origin);
       }
       const parcelLocalId = region?.parcel?.LocalID || region?.parcel?.localId;
       if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
@@ -229,6 +234,23 @@ export class LinkpointApp {
           ...(this.world.avatarRotation ? { avatarRotation: this.world.avatarRotation } : {}),
         });
       }
+    });
+  }
+
+  /** The ear follows the camera, the viewer's default (`MediaSoundsEarLocation` 0). */
+  private wireSoundListener() {
+    this.world.on('camera_changed', () => {
+      const camera = this.world.camera3d;
+      if (camera) this.audio.setListener({ position: camera.position as [number, number, number], forward: camera.viewDirection() });
+    });
+    // UI sounds the viewer plays for L$ changes, with its threshold (UISndMoneyChangeThreshold).
+    let lastBalance: number | null = null;
+    this.protocol.on('balance_updated', (balance: number | null) => {
+      if (typeof balance === 'number' && lastBalance !== null) {
+        const sound = moneySoundFor(balance - lastBalance);
+        if (sound) this.audio.playUi(sound);
+      }
+      lastBalance = typeof balance === 'number' ? balance : null;
     });
   }
 

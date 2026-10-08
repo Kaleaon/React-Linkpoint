@@ -69,6 +69,14 @@ export class Camera3D extends Utils.EventEmitter {
     this.updateMatrices();
   }
 
+  /** Unit vector the camera looks along (the same look-at the view matrix is built from). */
+  viewDirection(): [number, number, number] {
+    const to = this.mode === 'orbit' ? this.orbitTarget : this.target;
+    const d = [to[0] - this.position[0], to[1] - this.position[1], to[2] - this.position[2]];
+    const length = Math.hypot(d[0], d[1], d[2]);
+    return length > 1e-6 ? [d[0] / length, d[1] / length, d[2] / length] : [0, 1, 0];
+  }
+
   /**
    * Unit horizontal direction the camera is looking along. In orbit mode the
    * rotation describes where the camera sits relative to its target, so the

@@ -440,6 +440,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Download an animation asset (custom/uploaded animations) as raw bytes. */
+  /** Request a sound asset; it arrives later as a `sound-asset` event. */
+  async fetchSound(id: string): Promise<void> {
+    this.requireConnected();
+    await slBridge.fetchSound(id);
+  }
+
   async fetchAnimation(id: string): Promise<Uint8Array> {
     if (!this.connected) throw new Error('Not connected to a grid');
     const reply = await slBridge.fetchAnimation(id);

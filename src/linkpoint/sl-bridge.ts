@@ -3,7 +3,7 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
+  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
   'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
 ]);
 
@@ -269,6 +269,7 @@ export class SLBridge extends Utils.EventEmitter {
   }
 
   fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
+  fetchSound(id: string): Promise<{ requested: boolean }> { return this.call('fetchSound', { id }); }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   voiceProvision(body: Record<string, unknown>) { return this.call<any>('voiceProvision', { body }); }
