@@ -11,6 +11,10 @@ FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git \
   && rm -rf /var/lib/apt/lists/*
 
+# Some dependencies use ssh:// git URLs; the repos are public, so rewrite to
+# https (no SSH keys available at build time).
+RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
 WORKDIR /app
 
 # Dependencies first for better layer caching.
