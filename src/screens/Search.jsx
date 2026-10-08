@@ -144,18 +144,22 @@ export default function Search() {
   };
 
   const joinGroup = (group) => {
-    if (typeof actions.notify === "function") {
-      actions.notify(`Joined group: ${group.name}`);
-    }
+    if (!slBridge.connected) { actions.notify("Connect to a grid to join a group."); return; }
+    slBridge.joinGroup({ groupId: group.id }).then(
+      (result) => {
+        actions.notify(result?.joined ? `Joined group: ${group.name}` : `Could not join ${group.name}: the group did not accept the request.`);
+        if (result?.joined) void app.loadGroups().catch(() => undefined);
+      },
+      (err) => actions.notify(err instanceof Error ? err.message : `Could not join ${group.name}`),
+    );
   };
 
   const teleportTo = (destination) => {
-    if (slBridge.connected) {
-      slBridge.teleport({ destination }).catch(() => {});
-    }
-    if (typeof actions.notify === "function") {
-      actions.notify(`Teleporting to ${destination}...`);
-    }
+    if (!slBridge.connected) { actions.notify("Connect to a grid to teleport."); return; }
+    slBridge.teleport({ destination }).then(
+      () => actions.notify(`Teleport to ${destination} requested`),
+      (err) => actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
+    );
   };
 
   const pillBtnStyle = (primary) => ({

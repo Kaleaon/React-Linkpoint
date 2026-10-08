@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import { app } from "../linkpoint/app.ts";
+import { slBridge } from "../linkpoint/sl-bridge.ts";
 import Icon from "../components/Icon.jsx";
 import FormField from "../components/FormField.jsx";
 import { COMPASS } from "../data/content.js";
@@ -105,6 +106,7 @@ export default function Radar() {
         speaking: isSpeaking,
         payment: u.payment || null,
         age: u.age || null,
+        position: Array.isArray(u.position) ? u.position : null,
         altitude: u.position?.[2] ? `${Math.round(u.position[2])}m` : null,
         coords: u.position ? `<${Math.round(u.position[0])}, ${Math.round(u.position[1])}, ${Math.round(u.position[2])}>` : null,
       });
@@ -261,22 +263,31 @@ export default function Radar() {
     }
 
     if (label === "TELEPORT TO" || label === "OFFER TP") {
-      actions.setScreen("Map");
-      actions.notify(`Teleport coordinate set to ${target.name} (${target.distance}m)`);
-      return;
-    }
-
-    if (label === "CAM TO" || label === "TRACK") {
-      if (app.world?.camera3d && target.distance != null) {
-        actions.notify(`Camera focused on ${target.name}`);
+      const region = app.world?.region?.name;
+      const position = target.position;
+      if (label === "TELEPORT TO" && region && Array.isArray(position) && position.slice(0, 3).every(Number.isFinite)) {
+        slBridge.teleport({ region, x: position[0], y: position[1], z: position[2] + 1 }).then(
+          () => actions.notify(`Teleport to ${target.name} requested`),
+          (err) => actions.notify(err instanceof Error ? err.message : "Teleport failed"),
+        );
       } else {
-        actions.notify(`Tracking ${target.name} (${target.distance}m, ${target.compass})`);
+        actions.notify(label === "OFFER TP" ? "Offering teleports is not available yet." : `Cannot teleport: the position of ${target.name} is unknown.`);
       }
       return;
     }
 
+    if (label === "CAM TO" || label === "TRACK" || label === "INSPECT") {
+      const ok = app.world?.focusObjectById?.(target.id);
+      if (ok) actions.setScreen("3D View");
+      actions.notify(ok ? `Camera focused on ${target.name}` : `${target.name} is not in view, so the camera cannot focus on it.`);
+      return;
+    }
+
     if (label === "TOUCH") {
-      actions.notify(`Touched object: ${target.name}`);
+      slBridge.touchObject({ id: target.id }).then(
+        () => actions.notify(`Touched ${target.name}`),
+        (err) => actions.notify(err instanceof Error ? err.message : `Could not touch ${target.name}`),
+      );
       return;
     }
 
@@ -286,16 +297,16 @@ export default function Radar() {
       } else {
         app.chatExtended?.muteObject?.(target.name);
       }
-      actions.notify(`Muted: ${target.name}`);
+      actions.notify(`Muted on this device: ${target.name}`);
       return;
     }
 
     if (label === "DETACH") {
-      actions.notify(`Detached worn item: ${target.name}`);
+      actions.notify("Detaching worn items is not available yet.");
       return;
     }
 
-    actions.notify(`${label}: ${target.name}`);
+    actions.notify(`${label} is not available yet.`);
   };
 
   const actionBtn = (primary) => ({
@@ -1151,22 +1162,7 @@ export default function Radar() {
                         >
                           FOCUS ATTACHMENT
                         </button>
-                        {entry.attachedTo === "you" ? (
-                          <button
-                            onClick={() => handleAction("DETACH", entry)}
-                            style={{
-                              padding: "5px 10px",
-                              borderRadius: V.rs,
-                              border: "1px solid " + V.err,
-                              background: "transparent",
-                              color: V.err,
-                              font: "700 10.5px/1 " + t.dfont,
-                              cursor: "pointer",
-                            }}
-                          >
-                            DETACH FROM AVATAR
-                          </button>
-                        ) : (
+                        {entry.attachedTo !== "you" ? (
                           <button
                             onClick={() => handleAction("MUTE OBJECT", entry)}
                             style={{
@@ -1182,7 +1178,7 @@ export default function Radar() {
                           >
                             MUTE SCRIPTS
                           </button>
-                        )}
+                        ) : null}
                       </>
                     )}
                   </div>

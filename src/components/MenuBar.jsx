@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { FMENU, FLOATERS } from "../theme/constants.js";
 import { app } from "../linkpoint/app.ts";
+import { slBridge } from "../linkpoint/sl-bridge.ts";
 import { deskKind } from "../theme/deskStyle.js";
 import Icon from "./Icon.jsx";
 import ViewModeSwitcher from "./ViewModeSwitcher.jsx";
@@ -47,8 +48,11 @@ export default function MenuBar() {
       actions.flFocus("Diagnostics");
       actions.setScreen("Diagnostics");
     } else if (itemLabel === "Teleport Home") {
-      actions.setScreen("Map");
-      actions.notify("Teleporting Home...");
+      if (!app.auth.isLoggedIn()) { actions.notify("Connect to a grid to teleport home."); return; }
+      slBridge.teleportHome().then(
+        () => actions.notify("Teleport home requested"),
+        (err) => actions.notify(err instanceof Error ? err.message : "Could not teleport home"),
+      );
     } else if (itemLabel === "Preferences…") {
       actions.flFocus("Settings");
       actions.setScreen("Settings");
@@ -64,7 +68,7 @@ export default function MenuBar() {
       if (app.auth.isLoggedIn()) await app.auth.logout();
       actions.setScreen("Login");
     } else {
-      actions.notify(menuLabel + " > " + itemLabel);
+      actions.notify(`${itemLabel.replace(/…$/, "")} is not available yet.`);
     }
   };
 

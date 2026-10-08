@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
+import { slBridge } from "../linkpoint/sl-bridge";
 import { sideBorder } from "../theme/look.js";
 import Icon from "./Icon.jsx";
 import { deskKind, deskGeometry, elbowPath, sweepSegmentFills } from "../theme/deskStyle.js";
@@ -43,7 +44,11 @@ export default function DesktopChrome() {
     event.preventDefault();
     const destination = location.trim();
     if (!destination) return;
-    actions.notify(`Location: ${destination}`);
+    if (!app.auth.isLoggedIn()) { actions.notify("Connect to a grid to teleport."); return; }
+    slBridge.teleport({ destination }).then(
+      () => actions.notify(`Teleport to ${destination} requested`),
+      (err) => actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
+    );
   };
 
   const iconButton = {
@@ -91,7 +96,13 @@ export default function DesktopChrome() {
         <div className="desktop-history-controls" aria-label="Navigation history">
           <button type="button" aria-label="Back" title="Back" style={iconButton} onClick={() => actions.notify("No previous location") }><Icon name="chevron-left" size={15} /></button>
           <button type="button" aria-label="Forward" title="Forward" style={iconButton} onClick={() => actions.notify("No next location") }><Icon name="chevron-right" size={15} /></button>
-          <button type="button" aria-label="Teleport home" title="Teleport home" style={iconButton} onClick={() => { actions.flFocus("Map"); actions.notify("Teleporting Home..."); }}><Icon name="house" size={14} /></button>
+          <button type="button" aria-label="Teleport home" title="Teleport home" style={iconButton} onClick={() => {
+            if (!app.auth.isLoggedIn()) { actions.notify("Connect to a grid to teleport home."); return; }
+            slBridge.teleportHome().then(
+              () => actions.notify("Teleport home requested"),
+              (err) => actions.notify(err instanceof Error ? err.message : "Could not teleport home"),
+            );
+          }}><Icon name="house" size={14} /></button>
         </div>
 
         <form className="desktop-location-form" onSubmit={goToLocation} style={formStyle || undefined}>

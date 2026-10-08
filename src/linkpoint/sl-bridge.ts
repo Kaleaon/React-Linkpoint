@@ -169,6 +169,8 @@ export class SLBridge extends Utils.EventEmitter {
   teleport(params: { destination?: string; region?: string; x?: number; y?: number; z?: number }) {
     return this.call<{ requested: { region: string; x: number; y: number; z: number }; message: string }>('teleport', params);
   }
+  teleportHome() { return this.call<{ requested: string }>('teleportHome'); }
+  joinGroup(params: { groupId: string }) { return this.call<{ joined: boolean }>('joinGroup', params); }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }

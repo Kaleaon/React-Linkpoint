@@ -1,5 +1,19 @@
 import { Camera3D } from './camera-3d';
 import { isMotionKey, isTypingTarget, resolveKeyMotion, TURN_RATE, type KeyMotion } from './keyboard-motion';
+import { cameraRates, heldCameraCommands, isCameraKey } from './camera-keyboard';
+import type { KeyMode } from './key-bindings';
+
+/** Hooks the viewer gives the controls for the standard Second Life camera shortcuts. */
+export interface CameraControlOptions {
+  /** Binding table in force (third person, first person, sitting). */
+  keyMode?: () => KeyMode;
+  /** Esc: put the camera back behind the avatar. */
+  resetView?: () => void;
+  /** M: switch between the third-person camera and mouselook. */
+  toggleMouselook?: () => void;
+  /** Alt+click: zoom the camera onto whatever is under the pointer. */
+  focusAt?: (x: number, y: number) => void;
+}
 
 type PointerSample = { x: number; y: number; time: number };
 
@@ -12,6 +26,9 @@ type PointerSample = { x: number; y: number; time: number };
 export class CameraControls {
   private pointers = new Map<number, PointerSample>();
   private keys = new Set<string>();
+  /** Held keys that drive camera commands (Alt+arrows, Ctrl+Alt+PgUp, ...), by key code. */
+  private cameraKeys = new Set<string>();
+  private mods = { ctrl: false, alt: false, shift: false };
   private pinchDistance = 0;
   private previousMidpoint: { x: number; y: number } | null = null;
   private lastFrame = 0;
@@ -21,7 +38,7 @@ export class CameraControls {
   private displacementThreshold = 3; // px
   private panMode = false;
 
-  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined, private avatarMotion: (motion: KeyMotion, run: boolean) => boolean = () => false) {
+  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined, private avatarMotion: (motion: KeyMotion, run: boolean) => boolean = () => false, private options: CameraControlOptions = {}) {
     canvas.style.touchAction = 'none';
     canvas.tabIndex = 0;
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -125,8 +142,8 @@ export class CameraControls {
       } else {
         this.previousMidpoint = currentMidpoint;
       }
-    } else if (this.panMode || event.shiftKey || event.button === 1 || event.buttons === 4) {
-      // Single-pointer Pan (Pan mode on mobile or Shift-drag / middle-drag on desktop)
+    } else if (this.panMode || event.shiftKey || (event.altKey && event.ctrlKey) || event.button === 1 || event.buttons === 4) {
+      // Single-pointer Pan: Pan mode on mobile, Shift-drag, Ctrl+Alt-drag (the viewer's pan) or middle-drag on desktop.
       this.camera.pan(-dx * 0.015, dy * 0.015);
     } else {
       // Single-pointer Orbit / Rotate
@@ -139,7 +156,11 @@ export class CameraControls {
     const start = this.pointerStart.get(event.pointerId);
     if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) {
       const bounds = this.canvas.getBoundingClientRect();
-      this.picked(event.clientX - bounds.left, event.clientY - bounds.top);
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+      // Alt+click zooms onto the object under the pointer instead of selecting it, as in the official viewer.
+      if (event.altKey && this.options.focusAt) this.options.focusAt(x, y);
+      else this.picked(x, y);
     }
     try { this.canvas.releasePointerCapture?.(event.pointerId); } catch { /* ignore */ }
     this.pointers.delete(event.pointerId);
@@ -159,11 +180,26 @@ export class CameraControls {
     this.changed();
   };
   private shift = false;
+  private keyMode(): KeyMode { return this.options.keyMode?.() ?? 'third_person'; }
   private onKeyDown = (event: KeyboardEvent) => {
     this.shift = event.shiftKey;
+    this.mods = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey };
+    if (event.metaKey || isTypingTarget(event.target)) return;
+    // Esc puts the camera back behind the avatar; M toggles mouselook. Neither fires with a modifier held.
+    if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.repeat) {
+      if (event.code === 'Escape' && this.options.resetView && !this.escapeBelongsToPage(event.target)) { this.options.resetView(); this.changed(); return; }
+      if (event.code === 'KeyM' && this.options.toggleMouselook) { event.preventDefault(); this.options.toggleMouselook(); this.changed(); return; }
+    }
+    // Camera commands from the official bindings (Alt+arrows orbit, Alt+W/S zoom, Ctrl+Alt+Shift pan...).
+    if ((event.altKey || event.ctrlKey) && isCameraKey(event.code, this.mods, this.keyMode())) {
+      event.preventDefault();
+      this.cameraKeys.add(event.code);
+      this.startKeys();
+      return;
+    }
     if (!isMotionKey(event.code)) return;
-    // Leave browser/OS shortcuts and text entry alone.
-    if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return;
+    // Leave browser/OS shortcuts alone.
+    if (event.ctrlKey || event.altKey) return;
     // A focused button or link would otherwise also activate on Space.
     event.preventDefault();
     this.keys.add(event.code);
@@ -171,9 +207,16 @@ export class CameraControls {
   };
   private onKeyUp = (event: KeyboardEvent) => {
     this.shift = event.shiftKey;
+    this.mods = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey };
     this.keys.delete(event.code);
+    this.cameraKeys.delete(event.code);
   };
-  private onBlur = () => { this.keys.clear(); this.shift = false; };
+  private onBlur = () => { this.keys.clear(); this.cameraKeys.clear(); this.shift = false; this.mods = { ctrl: false, alt: false, shift: false }; };
+  /** Esc closes dialogs and menus first; only a press that reaches the page itself resets the camera. */
+  private escapeBelongsToPage(target: EventTarget | null) {
+    const element = target as HTMLElement | null;
+    return Boolean(element?.closest?.('[role="dialog"], [role="menu"], [aria-modal="true"], dialog'));
+  }
 
   private distance(): number {
     const points = [...this.pointers.values()];
@@ -194,6 +237,13 @@ export class CameraControls {
     const tick = (time: number) => {
       const seconds = Math.min((time - (this.lastFrame || time)) / 1000, .05);
       this.lastFrame = time;
+      if (this.cameraKeys.size) {
+        const rates = cameraRates(heldCameraCommands(this.cameraKeys, this.mods, this.keyMode()));
+        if (rates.yaw || rates.pitch) this.camera.rotate(rates.pitch * seconds, rates.yaw * seconds);
+        if (rates.zoom) this.camera.zoom(rates.zoom * seconds);
+        if (rates.panX || rates.panY) this.camera.pan(rates.panX * seconds, rates.panY * seconds);
+        if (rates.yaw || rates.pitch || rates.zoom || rates.panX || rates.panY) this.changed();
+      }
       const motion = resolveKeyMotion(this.keys, this.shift);
       const avatarMoved = this.avatarMotion(motion, this.shift);
       const step = seconds * this.camera.moveSpeed;
@@ -204,7 +254,7 @@ export class CameraControls {
         moved = true;
       }
       if (moved) this.changed();
-      if (this.keys.size) this.frame = requestAnimationFrame(tick);
+      if (this.keys.size || this.cameraKeys.size) this.frame = requestAnimationFrame(tick);
       else { this.frame = null; this.lastFrame = 0; }
     };
     this.frame = requestAnimationFrame(tick);
@@ -226,6 +276,7 @@ export class CameraControls {
     window.removeEventListener('blur', this.onBlur);
     document.removeEventListener('visibilitychange', this.onBlur);
     this.keys.clear();
+    this.cameraKeys.clear();
     if (this.frame !== null) cancelAnimationFrame(this.frame);
   }
 }

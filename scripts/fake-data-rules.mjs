@@ -63,6 +63,11 @@ export const RULES = [
     message: 'Default region-centre coordinates presented as the avatar position. Use null when unknown.',
   },
   {
+    id: 'canned-measurement',
+    pattern: /notify\(\s*["'`][^"'`]*[—-]\s*\d+\s?ms["'`]/,
+    message: 'Toast with a hard-coded measurement. Report the measured value, or that none was returned.',
+  },
+  {
     id: 'default-item-list',
     pattern: /^\s*(export\s+)?const\s+(DEFAULT|DEMO|SAMPLE|MOCK|FALLBACK|SEED)_(OUTFIT|ITEM|FRIEND|INVENTORY|GROUP|CONTACT|RESIDENT|OBJECT)S?\w*\s*(:[^=]+)?=\s*\[/,
     message: 'Built-in list of items shown as if the grid sent them. Start empty and render what the session reports.',

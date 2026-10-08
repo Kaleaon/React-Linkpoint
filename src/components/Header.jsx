@@ -1,4 +1,6 @@
 import { useApp } from "../context/AppContext.jsx";
+import { app } from "../linkpoint/app.ts";
+import { describePing } from "../screens/diagnosticsView.js";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 import { HEAD } from "../data/content.js";
@@ -39,7 +41,7 @@ function StackHead({ title, subtitle, scr }) {
           { icon: "search", label: "SEARCH", pick: () => actions.openSearch("Friends", "SEARCH") },
         ]
       : scr === "Diagnostics"
-      ? [{ icon: "refresh-cw", label: "RE-RUN PROBE", pick: () => actions.notify("RE-RUN PROBE — 48ms") }]
+      ? [{ icon: "refresh-cw", label: "RE-RUN PROBE", pick: () => { void app.protocol.fetchDiagnostics().then((res) => actions.notify(describePing(res)), () => actions.notify("Ping probe error")); } }]
       : null;
   return (
     <header style={{ flex: "none", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px 8px" }}>
