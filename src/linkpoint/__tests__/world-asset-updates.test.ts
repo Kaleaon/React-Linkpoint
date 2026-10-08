@@ -108,4 +108,32 @@ describe('simulator asset replacement and material hydration', () => {
     expect(world.getDataStatus()).not.toContain('failed to load');
     warn.mockRestore();
   });
+
+  it('warns once when an update strips the mesh from an object, naming what it will draw instead', () => {
+    const { protocol } = setup();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    protocol.emit('scene:asset-ready', { assetId: 'm1', geometry });
+    protocol.emit('scene:object-add', { ...prim, name: 'Sword', assetId: 'm1', assetKind: 'mesh' });
+    protocol.emit('scene:object-update', { id: 'prim', position: [9, 9, 9] }); // terse: keeps the mesh, no warning
+    expect(warn).not.toHaveBeenCalled();
+    protocol.emit('scene:object-update', { id: 'prim', assetId: null, assetKind: null, shape: 'torus', shapeParams: {} });
+    protocol.emit('scene:object-update', { id: 'prim', assetId: null, assetKind: null, shape: 'torus', shapeParams: {} });
+    const lost = warn.mock.calls.filter((call) => String(call[0]).includes('lost its mesh asset'));
+    expect(lost).toHaveLength(1);
+    expect(String(lost[0][0])).toContain('"Sword"');
+    expect(String(lost[0][0])).toContain('m1');
+    expect(String(lost[0][0])).toContain('shape "torus"');
+    warn.mockRestore();
+  });
+
+  it('does not warn when a mesh is replaced by another mesh or an object never had one', () => {
+    const { protocol } = setup();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    protocol.emit('scene:object-add', { ...prim, assetId: 'a', assetKind: 'mesh' });
+    protocol.emit('scene:object-update', { id: 'prim', assetId: 'b', assetKind: 'mesh' });
+    protocol.emit('scene:object-add', { ...prim, id: 'plain', localId: 2, shape: 'cube' });
+    protocol.emit('scene:object-update', { id: 'plain', assetId: null, assetKind: null });
+    expect(warn.mock.calls.some((call) => String(call[0]).includes('lost its'))).toBe(false);
+    warn.mockRestore();
+  });
 });

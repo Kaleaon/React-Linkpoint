@@ -107,6 +107,21 @@ export class WorldViewer extends Utils.EventEmitter {
   /** Assets the host could not download or decode, newest last. A failed mesh leaves its placeholder on screen. */
   private assetErrors = new Map<string, string>();
 
+  /** Objects already reported as having lost their mesh or sculpt, so each is logged once. */
+  private lostAssetWarned = new Set<string>();
+
+  /**
+   * An update replaced a mesh or sculpt with nothing. The object is then drawn from its shape curves,
+   * which for a mesh prim means a torus or sphere stretched to the mesh's size. This is the symptom of
+   * an update that arrived without its mesh data, so say so once per object instead of failing silently.
+   */
+  private warnLostAsset(previous: any, merged: any) {
+    if (!previous?.assetId || merged.assetId || this.lostAssetWarned.has(previous.id)) return;
+    this.lostAssetWarned.add(previous.id);
+    console.warn(`[WorldViewer] object ${previous.id}${previous.name ? ` ("${previous.name}")` : ''} lost its ${previous.assetKind || 'mesh'} asset ${previous.assetId}: `
+      + `an update arrived without mesh data, so it is now drawn from its shape curves (shape "${merged.shape ?? 'unknown'}"), not the mesh`);
+  }
+
   private recordAssetError(error: any) {
     const id = String(error?.assetId || '').toLowerCase();
     if (!id) return;
@@ -161,6 +176,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.sceneObjects.clear();
       this.particles.clear();
       this.flexChains.clear();
+      this.lostAssetWarned.clear();
       this.renderedParticles.clear();
       this.avatarBakes.clear();
       this.localObjectIds.clear();
@@ -1026,6 +1042,7 @@ export class WorldViewer extends Utils.EventEmitter {
     if (previous && ('assetId' in object || 'assetKind' in object) &&
         (String(previous.assetId || '').toLowerCase() !== String(merged.assetId || '').toLowerCase() || previous.assetKind !== merged.assetKind)) {
       delete merged.decodedMeshes;
+      this.warnLostAsset(previous, merged);
     }
     if (previous && 'textureId' in object && !this.sameId(previous.textureId, merged.textureId)) {
       delete merged.decodedTexture;
@@ -1532,6 +1549,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.animator.remove(id);
     this.particles.removeEmitter(id);
     this.flexChains.delete(id);
+    this.lostAssetWarned.delete(id);
     for (const key of this.avatarBakes.keys()) if (key.startsWith(`${id}:`)) this.avatarBakes.delete(key);
     this.posedObjects.delete(id);
     this.scene3d?.removeObject(id);
