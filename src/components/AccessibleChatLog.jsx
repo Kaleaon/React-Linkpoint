@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
+import { useApp } from "../context/AppContext.jsx";
 import Icon from "./Icon.jsx";
 
 /**
@@ -35,6 +36,8 @@ export default function AccessibleChatLog({
   showFreezeToggle = true,
 }) {
   const { V, t } = useTheme();
+  const { state } = useApp();
+  const showTimestamps = state.toggles.timestamps;
   const containerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const [isFrozen, setIsFrozen] = useState(false);
@@ -42,11 +45,11 @@ export default function AccessibleChatLog({
   const formattedMessages = useMemo(() => {
     return (messages || []).map((message) => ({
       ...message,
-      time: message.timestamp
+      time: showTimestamps && message.timestamp
         ? new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "",
     }));
-  }, [messages]);
+  }, [messages, showTimestamps]);
 
   // Handle auto-scroll when new messages arrive and freeze is disabled
   useEffect(() => {

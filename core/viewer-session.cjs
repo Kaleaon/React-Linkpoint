@@ -31,6 +31,7 @@ const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = requi
 const actions = require('./sl-actions.cjs');
 const interactions = require('./sl-interactions.cjs');
 const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
+const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
@@ -59,6 +60,7 @@ class ViewerSession {
     this.replay = Boolean(options.replay);
     this.bot = null;
     this.subscriptions = [];
+    this.appearanceWatcher = null;
     this.assetRequests = new Map();
     this.assetFailures = new Map();
     this.assetDownloadQueue = [];
@@ -288,6 +290,7 @@ class ViewerSession {
   }
 
   streamObject(type, event) {
+    this.appearanceWatcher?.apply(event.object);
     this.send(type, serializeObject(event));
     this.loadObjectAsset(event.object);
     this.loadObjectTexture(event.object);
@@ -452,6 +455,8 @@ class ViewerSession {
       console.warn('[SL Session] connectToSim warning:', error);
     }
     const region = this.currentRegion();
+    this.appearanceWatcher = watchAvatarAppearance(() => this.currentRegion(), (event) => this.streamObject('object-update', event));
+    this.subscriptions.push(this.appearanceWatcher);
     const animations = watchAnimations(() => this.currentRegion(), (type, data) => this.send(type, data));
     if (animations) this.subscriptions.push(animations);
     this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
@@ -616,7 +621,10 @@ class ViewerSession {
   respondScriptDialog(params = {}) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params); }
   acceptLure(params = {}) { return interactions.acceptLure(this.requireBot(), this.pending, params); }
   acceptInventoryOffer(params = {}) { return interactions.acceptInventoryOffer(this.requireBot(), this.pending, params); }
+  declineInventoryOffer(params = {}) { return interactions.declineInventoryOffer(this.requireBot(), this.pending, params); }
   acceptGroupInvite(params = {}) { return interactions.acceptGroupInvite(this.requireBot(), this.pending, params); }
+  declineGroupInvite(params = {}) { return interactions.declineGroupInvite(this.requireBot(), this.pending, params); }
+  acceptGroupNoticeAttachment(params = {}) { return interactions.acceptGroupNoticeAttachment(this.requireBot(), this.pending, params); }
   dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }
 
   /**
@@ -743,9 +751,19 @@ class ViewerSession {
         powers: group.GroupPowers?.toString?.() || '',
       }));
     } catch (error) {
-      console.warn('[SL Session] getAvatarGroups warning:', error);
-      return [];
+      throw new Error('Group list could not be loaded', { cause: error });
     }
+  }
+
+  async getGroupDetails({ groupId, section = 'profile' } = {}) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || '')) throw new Error('Valid group ID required');
+    const groups = this.requireBot().clientCommands?.groups;
+    if (!groups) throw new Error('Group interface unavailable');
+    if (section === 'members') return (await groups.getMemberList(groupId)).map(m => ({ id: m.AgentID.toString(), title: m.Title, onlineStatus: m.OnlineStatus, isOwner: m.IsOwner, powers: m.AgentPowers?.toString() }));
+    if (section === 'roles') return (await groups.getGroupRoles(groupId)).map(r => ({ id: r.RoleID.toString(), name: r.Name, title: r.Title, description: r.Description, memberCount: r.Members, powers: r.Powers?.toString() }));
+    if (section !== 'profile') throw new Error('Unknown group detail section');
+    const g = await groups.getGroupProfile(groupId);
+    return { id: g.GroupID.toString(), name: g.Name, charter: g.Charter, title: g.MemberTitle, insignia: g.InsigniaID?.toString(), founderId: g.FounderID?.toString(), membershipFee: g.MembershipFee, openEnrollment: g.OpenEnrollment, members: g.GroupMembershipCount, roleCount: g.GroupRolesCount };
   }
 
   async getInventory({ folderId } = {}) {
@@ -806,6 +824,7 @@ class ViewerSession {
     if (!objects) return [];
     try {
       return (objects.getAllObjects({ includeAvatars: true }) || []).map((object) => {
+        this.appearanceWatcher?.apply(object);
         const localId = object.ID || object.localID;
         this.loadObjectAsset(object);
         this.loadObjectTexture(object);
@@ -938,6 +957,7 @@ class ViewerSession {
     for (const subscription of this.subscriptions.splice(0)) {
       try { subscription.unsubscribe(); } catch { /* already gone */ }
     }
+    this.appearanceWatcher = null;
     this.assetRequests.clear();
     this.assetFailures.clear();
     this.decodedAssets.clear();

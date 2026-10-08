@@ -21,6 +21,17 @@ describe('NoticeStore', () => {
     expect(store.get('n1')).toMatchObject({ subject: 'Dance Saturday 7pm', from: 'Officer', groupId: 'g1', calendar: null });
   });
 
+  it('receives both group_notice and group-notice events idempotently', () => {
+    const protocol = new Utils.EventEmitter();
+    const store = new NoticeStore(protocol as any);
+    store.init();
+    store.init(); // Test idempotency of init()
+    protocol.emit('group-notice', sent({ id: 'n3', subject: 'Hyphen Notice' }));
+    protocol.emit('group_notice', sent({ id: 'n4', subject: 'Snake Notice' }));
+    expect(store.get('n3')?.subject).toBe('Hyphen Notice');
+    expect(store.get('n4')?.subject).toBe('Snake Notice');
+  });
+
   it('gives a notice with no id its own id, and rejects non-objects', () => {
     const store = new NoticeStore();
     expect(store.receive(null)).toBeNull();
@@ -88,5 +99,40 @@ describe('NoticeStore', () => {
     expect(store.takeFocus()).toBeNull();
     store.focus('missing');
     expect(store.takeFocus()).toBeNull();
+  });
+
+  it('preserves attachment metadata and updates savedToInventoryAt', () => {
+    const store = new NoticeStore();
+    store.receive(sent({
+      id: 'att1',
+      hasAttachment: true,
+      attachmentName: 'Weekly Gift Landmark',
+      attachmentItemId: 'item-100',
+      attachmentType: 3,
+      attachmentOwnerId: 'owner-200',
+    }));
+    const notice = store.get('att1')!;
+    expect(notice.attachment).toMatchObject({
+      hasAttachment: true,
+      attachmentName: 'Weekly Gift Landmark',
+      attachmentItemId: 'item-100',
+      attachmentType: 3,
+      attachmentOwnerId: 'owner-200',
+      savedToInventoryAt: null,
+    });
+    expect(notice.hasAttachment).toBe(true);
+
+    store.markAttachmentSaved('att1', 5000);
+    expect(store.get('att1')!.attachment?.savedToInventoryAt).toBe(5000);
+    expect(new NoticeStore().get('att1')!.attachment?.savedToInventoryAt).toBe(5000);
+  });
+
+  it('sanitizes legacy saved notices without attachment fields cleanly to attachment: null', () => {
+    localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify({ notices: [
+      { id: 'legacy1', subject: 'Old Notice', message: 'Old message', from: 'Old Friend', timestamp: 100 },
+    ] }));
+    const notice = new NoticeStore().get('legacy1')!;
+    expect(notice.attachment).toBeNull();
+    expect(notice.hasAttachment).toBe(false);
   });
 });

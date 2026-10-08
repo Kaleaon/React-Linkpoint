@@ -208,6 +208,25 @@ export class GroupsManager {
     return Array.from(this.groups.values()).map(group => ({ ...group }));
   }
 
+  replaceGroups(groups: any[]) {
+    const ids = new Set(groups.map(group => group.id));
+    for (const id of this.groups.keys()) if (!ids.has(id)) {
+      this.groups.delete(id);
+      this.groupMembers.delete(id);
+      this.groupRoles.delete(id);
+      this.groupNotices.delete(id);
+    }
+    for (const group of groups) this.setGroupInfo(group.id, group);
+  }
+
+  replaceMembers(groupId: string, members: any[]) {
+    this.groupMembers.set(groupId, new Map(members.map(member => [member.id, member])));
+  }
+
+  replaceRoles(groupId: string, roles: any[]) {
+    this.groupRoles.set(groupId, new Map(roles.map(role => [role.id, role])));
+  }
+
   getStats() {
     let totalMembers = 0;
     for (const members of this.groupMembers.values()) {

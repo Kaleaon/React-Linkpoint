@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ChevronRight, ChevronDown, Folder, File, MoreVertical, ArrowUp, ArrowDown, FolderInput, X } from 'lucide-react';
 import { app } from '../linkpoint/app';
 import FocusTrap from './FocusTrap';
@@ -8,14 +8,24 @@ export interface InventoryTreeProps {
   selectedId?: string;
   onSelect?: (item: any) => void;
   className?: string;
+  filter?: string;
 }
 
-interface NodeProps {
+export interface FlatTreeNode {
   id: string;
   depth: number;
-  selectedId?: string;
+  isFolder: boolean;
+  isOpen: boolean;
+  isSelected: boolean;
+  node: any;
+}
+
+const ROW_HEIGHT = 36; // Fixed row height in pixels for efficient index calculations
+const OVERSCAN = 5;    // Buffer rows rendered above and below the viewport
+
+interface TreeNodeRowProps {
+  flatNode: FlatTreeNode;
   onSelect?: (item: any) => void;
-  expandedMap: Record<string, boolean>;
   toggleExpand: (id: string) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
@@ -35,31 +45,18 @@ const srOnlyStyle: React.CSSProperties = {
   border: 0,
 };
 
-const TreeNode: React.FC<NodeProps> = ({
-  id,
-  depth,
-  selectedId,
+const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(({
+  flatNode,
   onSelect,
-  expandedMap,
   toggleExpand,
   openMenuId,
   setOpenMenuId,
   openMoveModal,
   announce,
 }) => {
-  const folder = app.inventory.folders.get(id);
-  const item = app.inventory.items.get(id);
-  const node = folder || item;
-
-  if (!node) return null;
-
-  const isFolder = !!folder;
-  const isOpen = !!expandedMap[id];
-  const isSelected = selectedId === id;
+  const { id, depth, isFolder, isOpen, isSelected, node } = flatNode;
   const isMenuOpen = openMenuId === id;
   const labelId = `inventory-label-${id}`;
-
-  const children = isFolder ? Array.from(folder.children || []) : [];
 
   const handleSelect = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
@@ -118,217 +115,200 @@ const TreeNode: React.FC<NodeProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div
-        role="treeitem"
-        id={`inventory-node-${id}`}
-        aria-labelledby={labelId}
-        aria-expanded={isFolder ? isOpen : undefined}
-        aria-selected={isSelected}
-        tabIndex={isSelected ? 0 : -1}
-        onClick={handleSelect}
-        onKeyDown={handleKeyDown}
-        className={`inventory-node-row ${isSelected ? 'selected' : ''}`}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          paddingLeft: `${depth * 1.25 + 0.5}rem`,
-          paddingRight: '0.5rem',
-          paddingTop: '0.35rem',
-          paddingBottom: '0.35rem',
-          cursor: 'pointer',
-          borderRadius: '4px',
-          position: 'relative',
-          backgroundColor: isSelected ? 'rgba(52, 118, 255, 0.15)' : 'transparent',
-          color: isSelected ? '#ffffff' : '#e2e8f0',
-        }}
-      >
-        {isFolder ? (
-          <button
-            type="button"
-            aria-label={isOpen ? `Collapse ${node.name}` : `Expand ${node.name}`}
-            onClick={handleToggleExpand}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '2px',
-              marginRight: '4px',
-            }}
-          >
-            {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-        ) : (
-          <span style={{ width: '20px', display: 'inline-block' }} />
-        )}
-
-        {isFolder ? (
-          <Folder size={18} style={{ color: '#38bdf8', marginRight: '8px', flexShrink: 0 }} />
-        ) : (
-          <File size={16} style={{ color: '#4ade80', marginRight: '8px', flexShrink: 0 }} />
-        )}
-
-        <span
-          id={labelId}
+    <div
+      role="treeitem"
+      id={`inventory-node-${id}`}
+      aria-labelledby={labelId}
+      aria-expanded={isFolder ? isOpen : undefined}
+      aria-selected={isSelected}
+      aria-level={depth + 1}
+      tabIndex={isSelected ? 0 : -1}
+      onClick={handleSelect}
+      onKeyDown={handleKeyDown}
+      className={`inventory-node-row ${isSelected ? 'selected' : ''}`}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        paddingLeft: `${depth * 1.25 + 0.5}rem`,
+        paddingRight: '0.5rem',
+        height: `${ROW_HEIGHT}px`,
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+        borderRadius: '4px',
+        position: 'relative',
+        backgroundColor: isSelected ? 'rgba(52, 118, 255, 0.15)' : 'transparent',
+        color: isSelected ? '#ffffff' : '#e2e8f0',
+      }}
+    >
+      {isFolder ? (
+        <button
+          type="button"
+          aria-label={isOpen ? `Collapse ${node.name}` : `Expand ${node.name}`}
+          onClick={handleToggleExpand}
           style={{
-            flexGrow: 1,
-            fontSize: '0.875rem',
-            fontWeight: isFolder ? 600 : 400,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#94a3b8',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '2px',
+            marginRight: '4px',
           }}
         >
-          {node.name || 'Unnamed item'}
-        </span>
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </button>
+      ) : (
+        <span style={{ width: '20px', display: 'inline-block' }} />
+      )}
 
-        {/* Action Menu Trigger (Single-Pointer Alternative) */}
-        <div style={{ position: 'relative' }}>
-          <button
-            type="button"
-            aria-label={`Actions for ${node.name}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpenMenuId(isMenuOpen ? null : id);
-            }}
+      {isFolder ? (
+        <Folder size={18} style={{ color: '#38bdf8', marginRight: '8px', flexShrink: 0 }} />
+      ) : (
+        <File size={16} style={{ color: '#4ade80', marginRight: '8px', flexShrink: 0 }} />
+      )}
+
+      <span
+        id={labelId}
+        style={{
+          flexGrow: 1,
+          fontSize: '0.875rem',
+          fontWeight: isFolder ? 600 : 400,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {node.name || 'Unnamed item'}
+      </span>
+
+      {/* Action Menu Trigger (Single-Pointer Alternative) */}
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          aria-label={`Actions for ${node.name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuId(isMenuOpen ? null : id);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#94a3b8',
+            padding: '2px 4px',
+            display: 'flex',
+            alignItems: 'center',
+            borderRadius: '4px',
+          }}
+        >
+          <MoreVertical size={16} />
+        </button>
+
+        {/* Context Menu Popup */}
+        {isMenuOpen && (
+          <div
+            role="menu"
+            aria-label={`Actions menu for ${node.name}`}
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#94a3b8',
-              padding: '2px 4px',
+              position: 'absolute',
+              right: 0,
+              top: '100%',
+              zIndex: 50,
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+              minWidth: '150px',
+              padding: '4px 0',
               display: 'flex',
-              alignItems: 'center',
-              borderRadius: '4px',
+              flexDirection: 'column',
             }}
           >
-            <MoreVertical size={16} />
-          </button>
-
-          {/* Context Menu Popup */}
-          {isMenuOpen && (
-            <div
-              role="menu"
-              aria-label={`Actions menu for ${node.name}`}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleMoveUp}
               style={{
-                position: 'absolute',
-                right: 0,
-                top: '100%',
-                zIndex: 50,
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                minWidth: '150px',
-                padding: '4px 0',
+                background: 'none',
+                border: 'none',
+                color: '#f8fafc',
+                padding: '8px 12px',
+                textAlign: 'left',
+                cursor: 'pointer',
                 display: 'flex',
-                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.8125rem',
               }}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleMoveUp}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#f8fafc',
-                  padding: '8px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <ArrowUp size={14} />
-                Move Up
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleMoveDown}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#f8fafc',
-                  padding: '8px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <ArrowDown size={14} />
-                Move Down
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleOpenMoveModal}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#f8fafc',
-                  padding: '8px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <FolderInput size={14} />
-                Move to Folder
-              </button>
-            </div>
-          )}
-        </div>
+              <ArrowUp size={14} />
+              Move Up
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleMoveDown}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#f8fafc',
+                padding: '8px 12px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.8125rem',
+              }}
+            >
+              <ArrowDown size={14} />
+              Move Down
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleOpenMoveModal}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#f8fafc',
+                padding: '8px 12px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.8125rem',
+              }}
+            >
+              <FolderInput size={14} />
+              Move to Folder
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Expanded Child Nodes */}
-      {isFolder && isOpen && (
-        <div role="group">
-          {(children as string[]).map((childId) => (
-            <TreeNode
-              key={childId}
-              id={childId}
-              depth={depth + 1}
-              selectedId={selectedId}
-              onSelect={onSelect}
-              expandedMap={expandedMap}
-              toggleExpand={toggleExpand}
-              openMenuId={openMenuId}
-              setOpenMenuId={setOpenMenuId}
-              openMoveModal={openMoveModal}
-              announce={announce}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
-};
+});
 
 export const InventoryTree: React.FC<InventoryTreeProps> = ({
   rootFolderId,
   selectedId,
   onSelect,
   className,
+  filter,
 }) => {
-  const [, setRevision] = useState(0);
+  const [revision, setRevision] = useState(0);
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [moveTargetItem, setMoveTargetItem] = useState<any | null>(null);
   const [selectedTargetFolderId, setSelectedTargetFolderId] = useState<string>('');
   const [announcement, setAnnouncement] = useState<string>('');
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   useEffect(() => {
     const handleUpdate = () => setRevision((v) => v + 1);
@@ -351,7 +331,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
       (f: any) => !f.parent || f.parent === 'root'
     );
     return rootCandidate?.id || null;
-  }, [rootFolderId]);
+  }, [rootFolderId, revision]);
 
   // Expand root folder automatically on initial load
   useEffect(() => {
@@ -364,7 +344,73 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     setExpandedMap((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  // Helper to build candidate destination folders list with paths for deeply nested folders
+  // Measure viewport height for virtual window calculations
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      if (el.clientHeight > 0) {
+        setViewportHeight(el.clientHeight);
+      }
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  }, []);
+
+  // Construct flat linear array of expanded tree nodes for virtual rendering
+  const flatNodes = useMemo(() => {
+    if (!effectiveRootId) return [];
+
+    const filterQuery = (filter || '').trim().toLocaleLowerCase();
+    const result: FlatTreeNode[] = [];
+    const visited = new Set<string>();
+
+    const traverse = (nodeId: string, depth: number) => {
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      const folder = app.inventory.folders.get(nodeId);
+      const item = app.inventory.items.get(nodeId);
+      const node = folder || item;
+      if (!node) return;
+
+      const isFolder = !!folder;
+      const isOpen = !!expandedMap[nodeId];
+      const isSelected = selectedId === nodeId;
+
+      if (filterQuery) {
+        const nameMatches = String(node.name || '').toLocaleLowerCase().includes(filterQuery);
+        if (nameMatches) {
+          result.push({ id: nodeId, depth, isFolder, isOpen, isSelected, node });
+        }
+      } else {
+        result.push({ id: nodeId, depth, isFolder, isOpen, isSelected, node });
+      }
+
+      if (isFolder && (isOpen || filterQuery)) {
+        const children = Array.from(new Set((folder.children || []) as string[]));
+        for (const childId of children) {
+          traverse(childId, depth + 1);
+        }
+      }
+    };
+
+    traverse(effectiveRootId, 0);
+    return result;
+  }, [effectiveRootId, expandedMap, selectedId, revision, filter]);
+
+  // Candidate destination folders for Move Modal
   const candidateFolders = useMemo(() => {
     if (!moveTargetItem) return [];
 
@@ -390,7 +436,6 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     const foldersList: Array<{ id: string; name: string; path: string }> = [];
 
     app.inventory.folders.forEach((folder: any) => {
-      // Exclude self if item is a folder, and exclude its descendants
       if (moveTargetItem.type === 'folder' && isDescendant(folder.id, moveTargetItem.id)) {
         return;
       }
@@ -422,9 +467,26 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     setMoveTargetItem(null);
   };
 
+  // Compute virtual list window bounds
+  const effectiveViewportHeight = viewportHeight || (containerRef.current?.clientHeight ?? 0) || 800;
+  const totalCount = flatNodes.length;
+  const totalHeight = totalCount * ROW_HEIGHT;
+
+  const visibleCount = Math.ceil(effectiveViewportHeight / ROW_HEIGHT);
+  const rawStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
+
+  const startIndex = Math.max(0, Math.min(rawStartIndex - OVERSCAN, Math.max(0, totalCount - visibleCount)));
+  const endIndex = Math.min(totalCount, Math.max(startIndex + visibleCount + OVERSCAN * 2, rawStartIndex + visibleCount + OVERSCAN));
+
+  const visibleNodes = useMemo(() => {
+    return flatNodes.slice(startIndex, endIndex);
+  }, [flatNodes, startIndex, endIndex]);
+
   return (
     <div
+      ref={containerRef}
       className={`inventory-tree-container ${className || ''}`}
+      onScroll={handleScroll}
       style={{
         width: '100%',
         height: '100%',
@@ -432,6 +494,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
         backgroundColor: '#0f172a',
         padding: '0.5rem',
         boxSizing: 'border-box',
+        position: 'relative',
       }}
     >
       {/* Screen Reader Live Region for Dynamic Notifications */}
@@ -440,20 +503,38 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
       </div>
 
       {/* ARIA Tree */}
-      <div role="tree" aria-label="Inventory Tree">
+      <div
+        role="tree"
+        aria-label="Inventory Tree"
+        style={{
+          position: 'relative',
+          minHeight: effectiveRootId ? `${totalHeight}px` : 'auto',
+          width: '100%',
+        }}
+      >
         {effectiveRootId ? (
-          <TreeNode
-            id={effectiveRootId}
-            depth={0}
-            selectedId={selectedId}
-            onSelect={onSelect}
-            expandedMap={expandedMap}
-            toggleExpand={toggleExpand}
-            openMenuId={openMenuId}
-            setOpenMenuId={setOpenMenuId}
-            openMoveModal={openMoveModal}
-            announce={announce}
-          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              transform: `translateY(${startIndex * ROW_HEIGHT}px)`,
+            }}
+          >
+            {visibleNodes.map((flatNode) => (
+              <TreeNodeRow
+                key={flatNode.id}
+                flatNode={flatNode}
+                onSelect={onSelect}
+                toggleExpand={toggleExpand}
+                openMenuId={openMenuId}
+                setOpenMenuId={setOpenMenuId}
+                openMoveModal={openMoveModal}
+                announce={announce}
+              />
+            ))}
+          </div>
         ) : (
           <div style={{ color: '#94a3b8', padding: '1rem', textAlign: 'center', fontSize: '0.875rem' }}>
             No inventory loaded.

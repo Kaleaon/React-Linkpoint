@@ -138,4 +138,48 @@ describe('InteractionDialog', () => {
     await click(button(host, 'OK'));
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
+
+  it('renders inventory offer prompt and handles accept and decline actions', async () => {
+    const accept = vi.spyOn(app.protocol, 'acceptInventoryOffer').mockResolvedValue({ accepted: true } as any);
+    const decline = vi.spyOn(app.protocol, 'declineInventoryOffer').mockResolvedValue({ declined: true } as any);
+    vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
+    const host = await mount();
+
+    await emit('inventory_offer', { id: 'io1', fromName: 'Alice Resident', message: 'Take this object', type: 1 });
+    expect(host.textContent).toContain('INVENTORY OFFER');
+    expect(host.textContent).toContain('Alice Resident offered you an item');
+    expect(host.textContent).toContain('Take this object');
+
+    await click(button(host, 'ACCEPT'));
+    expect(accept).toHaveBeenCalledWith({ id: 'io1' });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+
+    await emit('inventory-offer', { id: 'io2', fromName: 'Bob Resident', message: 'Take another item', type: 1 });
+    expect(host.textContent).toContain('Bob Resident offered you an item');
+    await click(button(host, 'DECLINE'));
+    expect(decline).toHaveBeenCalledWith({ id: 'io2' });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('renders group invitation prompt and handles accept and decline actions', async () => {
+    const accept = vi.spyOn(app.protocol, 'acceptGroupInvite').mockResolvedValue({ accepted: true } as any);
+    const decline = vi.spyOn(app.protocol, 'declineGroupInvite').mockResolvedValue({ declined: true } as any);
+    vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
+    const host = await mount();
+
+    await emit('group_invite', { id: 'gi1', fromName: 'Carol Officer', message: 'Join Builders Group' });
+    expect(host.textContent).toContain('GROUP INVITATION');
+    expect(host.textContent).toContain('Carol Officer invited you to join a group');
+    expect(host.textContent).toContain('Join Builders Group');
+
+    await click(button(host, 'ACCEPT'));
+    expect(accept).toHaveBeenCalledWith({ id: 'gi1' });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+
+    await emit('group-invite', { id: 'gi2', fromName: 'Dave Officer', message: 'Join Explorers Group' });
+    expect(host.textContent).toContain('Dave Officer invited you to join a group');
+    await click(button(host, 'DECLINE'));
+    expect(decline).toHaveBeenCalledWith({ id: 'gi2' });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+  });
 });

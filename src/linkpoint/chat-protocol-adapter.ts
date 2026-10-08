@@ -6,6 +6,7 @@
  */
 
 import { Utils } from './utils';
+import { ChatType, InstantMessageDialog, type InstantMessageDialog as InstantMessageDialogValue } from './sl-message-types';
 
 export interface QueuedIM {
   recipientId: string;
@@ -23,7 +24,7 @@ export interface QueuedGroupMessage {
 }
 
 export interface ImprovedInstantMessagePayload {
-  dialog: number; // 17 for IM_SESSION_SEND (Group Chat)
+  dialog: InstantMessageDialogValue;
   id: string; // Group ID or Session ID
   groupId?: string;
   toAgentId: string;
@@ -81,34 +82,29 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
    * Spatial Chat Dispatcher
    * Maps spatial range inputs or channels to channel 0 ChatType enums (0=Whisper, 1=Say, 2=Shout).
    */
-  async sendSpatialChat(message: string, channelOrRange: number | string = 0, chatType: number = 1): Promise<void> {
+  async sendSpatialChat(message: string, channelOrRange: number | string = 0, chatType: ChatType = ChatType.NORMAL): Promise<void> {
     if (!message || !message.trim()) {
       throw new Error('Message cannot be empty');
     }
 
     let channel = 0;
-    let type = 1;
+    let type: ChatType = ChatType.NORMAL;
 
     if (typeof channelOrRange === 'string') {
       const range = channelOrRange.toLowerCase().trim();
       if (range === 'whisper') {
         channel = 0;
-        type = 0;
+        type = ChatType.WHISPER;
       } else if (range === 'shout') {
         channel = 0;
-        type = 2;
+        type = ChatType.SHOUT;
       } else {
         channel = 0;
-        type = 1;
+        type = ChatType.NORMAL;
       }
     } else {
       channel = channelOrRange;
       type = chatType;
-    }
-
-    // Forbid ChatType 4 (IM) on spatial chat calls
-    if (type === 4) {
-      type = 1;
     }
 
     if (!this.protocol || typeof this.protocol.sendChat !== 'function') {
@@ -132,7 +128,7 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
     }
 
     const payload: ImprovedInstantMessagePayload = {
-      dialog: 17, // IM_SESSION_SEND
+      dialog: InstantMessageDialog.SESSION_SEND,
       id: groupId,
       groupId: groupId,
       toAgentId: groupId,

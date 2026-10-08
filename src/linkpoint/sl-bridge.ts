@@ -3,7 +3,7 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getInventory',
+  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
   'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
 ]);
 
@@ -31,6 +31,27 @@ export class SLBridge extends Utils.EventEmitter {
   private eventSource: EventSource | null = null;
   private removeNativeListener: (() => void) | null = null;
   private pendingReads = new Map<string, Promise<any>>();
+  private emittingAlt = false;
+
+  override emit(event: string, ...args: any[]) {
+    super.emit(event, ...args);
+    if (!this.emittingAlt) {
+      let alt: string | null = null;
+      if (event.includes('-')) {
+        alt = event.replace(/-/g, '_');
+      } else if (event.includes('_')) {
+        alt = event.replace(/_/g, '-');
+      }
+      if (alt && alt !== event) {
+        this.emittingAlt = true;
+        try {
+          super.emit(alt, ...args);
+        } finally {
+          this.emittingAlt = false;
+        }
+      }
+    }
+  }
 
   private async failure(response: Response, fallback: string) {
     const err = await response.json().catch(() => ({ error: fallback }));
@@ -153,7 +174,10 @@ export class SLBridge extends Utils.EventEmitter {
   }
   acceptLure(params: { id: string }) { return this.call<{ accepted: boolean; message: string }>('acceptLure', params); }
   acceptInventoryOffer(params: { id: string }) { return this.call<{ accepted: boolean }>('acceptInventoryOffer', params); }
+  declineInventoryOffer(params: { id: string }) { return this.call<{ declined: boolean }>('declineInventoryOffer', params).catch(() => this.dismissInteraction(params) as any); }
   acceptGroupInvite(params: { id: string }) { return this.call<{ accepted: boolean }>('acceptGroupInvite', params); }
+  declineGroupInvite(params: { id: string }) { return this.call<{ declined: boolean }>('declineGroupInvite', params).catch(() => this.dismissInteraction(params) as any); }
+  acceptGroupNoticeAttachment(params: { id?: string; noticeId?: string; groupId?: string; attachmentItemId?: string; attachmentOwnerId?: string; folderId?: string }) { return this.call<{ accepted: boolean }>('acceptGroupNoticeAttachment', params); }
   dismissInteraction(params: { id: string }) { return this.call<{ dismissed: boolean }>('dismissInteraction', params); }
   touchObject(params: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
     return this.call<{ touched: string | number }>('touchObject', params);
@@ -192,6 +216,11 @@ export class SLBridge extends Utils.EventEmitter {
   }
 
   async fetchFriends() { return this.connected ? this.call<any[]>('getFriends') : []; }
+  async fetchGroupDetails(groupId: string, section: string = 'profile') {
+    if (!this.connected) throw new Error('Connect to a grid to load group details');
+    return this.call<any>('getGroupDetails', { groupId, section });
+  }
+
   async fetchGroups() { return this.connected ? this.call<any[]>('getGroups') : []; }
   async fetchInventory(folderId?: string) {
     return this.connected ? this.call('getInventory', folderId ? { folderId } : {}) : { folders: [], items: [] };

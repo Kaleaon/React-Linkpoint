@@ -47,6 +47,7 @@ export class Scene3D extends Utils.EventEmitter {
   public showSky = true;
   public showWater = true;
   public cullingEnabled = true;
+  public drawDistance = Infinity;
   public waterHeight = DEFAULT_WATER_HEIGHT;
   public underWater = false;
   /** Objects drawn / skipped by frustum culling in the most recent frame. */
@@ -416,7 +417,12 @@ export class Scene3D extends Utils.EventEmitter {
     let culled = 0;
     const visible = [...this.objects.values()].filter(object => {
       if (!object.visible || object.hud) return false;
-      if (this.isCulled(object, frustum)) { culled++; return false; }
+      const bounds = this.objectLocalBounds(object);
+      // Account for the whole scaled mesh, so large prims crossing the distance
+      // boundary stay visible even when their origin is beyond it.
+      const radius = bounds ? Math.hypot(...bounds.max.map((v, i) => Math.max(Math.abs(v), Math.abs(bounds.min[i])) * Math.abs(object.scale[i]))) : Infinity;
+      const distance = Math.hypot(...object.position.map((v: number, i: number) => v - this.camera.position[i]));
+      if (distance - radius > this.drawDistance || this.isCulled(object, frustum)) { culled++; return false; }
       return true;
     });
     this.frameStats = { drawn: visible.length, culled };

@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTheme } from "../context/ThemeContext.jsx";
+import { NAV_ALL } from "../data/content.js";
 import useGoogleEnabled from "../hooks/useGoogleEnabled.js";
 import Toggle from "../components/Toggle.jsx";
 import ThemeStudio from "../components/ThemeStudio.jsx";
@@ -9,19 +11,35 @@ import Icon from "../components/Icon.jsx";
 import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from "@linkpoint/design-system/tokens";
 
 function SwitchSetting({ id, title, description, on, onClick }) {
+  const unavailable = ["shadows", "voice-indicator", "media-auto", "chat-cmds", "typing", "push", "show-online", "rlv", "cache-exit"].includes(id);
   return (
     <div className="settings-switch-row">
       <div>
         <strong id={`${id}-label`}>{title}</strong>
-        {description ? <small>{description}</small> : null}
+        {unavailable ? <small>Not available yet — requires viewer backend support.</small> : description ? <small>{description}</small> : null}
       </div>
-      <span aria-labelledby={`${id}-label`}><Toggle on={on} onClick={onClick} /></span>
+      <span aria-labelledby={`${id}-label`}><Toggle on={on} onClick={onClick} disabled={unavailable} /></span>
     </div>
   );
 }
 
 export default function Settings() {
   const { state, actions } = useApp();
+  const { V, t } = useTheme();
+  const contentRef = useRef(null);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [matches, setMatches] = useState(11);
+  const categories = [["all", "All preferences"], ["session", "Connection"], ["appearance", "Appearance"], ["graphics", "Graphics"], ["sound-voice", "Sound & voice"], ["chat-im", "Chat & IM"], ["notifications", "Notifications"], ["privacy", "Privacy & RLV"], ["storage", "Storage & network"], ["integrations", "Integrations"], ["about", "About"]];
+  useEffect(() => {
+    let count = 0;
+    for (const section of contentRef.current?.querySelectorAll(":scope > section") || []) {
+      const id = section.getAttribute("aria-labelledby").replace("-heading", "");
+      section.hidden = (category !== "all" && id !== category) || !section.textContent.toLowerCase().includes(search.trim().toLowerCase());
+      if (!section.hidden) count++;
+    }
+    setMatches(count);
+  }, [category, search]);
   const [disconnecting, setDisconnecting] = useState(false);
   const googleEnabled = useGoogleEnabled();
   const [googleNote, setGoogleNote] = useState("");
@@ -60,7 +78,14 @@ export default function Settings() {
   };
 
   return (
-    <div className="tool-page">
+    <div className="settings-browser" style={{ color: V.ink, background: V.bg, fontFamily: t.font, "--settings-surface": V.surf, "--settings-border": V.outv, "--settings-radius": V.rs, "--settings-accent": V.pri }}>
+      <aside className="settings-categories">
+        <label>Search settings<input type="search" value={search} onChange={event => { setSearch(event.target.value); setCategory("all"); }} placeholder="Camera, chat, cache…" /></label>
+        <nav aria-label="Preference categories">{categories.map(([id, label]) => <button key={id} type="button" aria-pressed={category === id} onClick={() => setCategory(id)} style={{ color: category === id ? V.onpriC : V.ink, background: category === id ? V.priC : V.surf }}>{label}</button>)}</nav>
+      </aside>
+      <div className="tool-page settings-content" ref={contentRef}>
+      <nav aria-label="Viewer tools" className="settings-tools">{NAV_ALL.filter(item => !["Settings", "Screens"].includes(item.id)).map(item => <button key={item.id} type="button" onClick={() => actions.setScreen(item.id)}>{item.id}</button>)}</nav>
+      {!matches ? <p role="status">No settings match your search.</p> : null}
       {/* Current Session */}
       <section className="runtime-card" aria-labelledby="session-heading">
         <Icon name="plug" size={22} />
@@ -129,7 +154,8 @@ export default function Settings() {
             </select>
           </label>
           <label htmlFor="settings-density-select">Content density
-            <select id="settings-density-select" value={state.dense ? "compact" : "comfortable"} onChange={(event) => actions.setDense(event.target.value === "compact")}>
+            <select id="settings-density-select" value={state.customTheme.density} onChange={(event) => actions.setDensity(event.target.value)}>
+              <option value="standard">Standard</option>
               <option value="comfortable">Comfortable</option>
               <option value="compact">Compact</option>
             </select>
@@ -146,11 +172,14 @@ export default function Settings() {
         <div className="settings-field-grid">
           <label htmlFor="settings-draw-distance-select">Draw distance
             <select id="settings-draw-distance-select" value={state.prefs.draw} onChange={(event) => actions.setPref("draw", event.target.value)}>
-              {["64 m", "96 m", "128 m", "192 m", "256 m"].map((value) => <option key={value}>{value}</option>)}
+              {["20 m", "32 m", "64 m", "96 m", "128 m", "192 m", "256 m"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
+          <label htmlFor="settings-fov-select">Camera field of view
+            <select id="settings-fov-select" value={state.prefs.fov} onChange={event => actions.setPref("fov", Number(event.target.value))}>{[40, 60, 80, 100].map(value => <option key={value} value={value}>{value}°</option>)}</select>
+          </label>
           <label htmlFor="settings-graphics-quality-select">Graphics quality
-            <select id="settings-graphics-quality-select" value={state.prefs.quality} onChange={(event) => actions.setPref("quality", event.target.value)}>
+            <select id="settings-graphics-quality-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.quality} onChange={(event) => actions.setPref("quality", event.target.value)}>
               {["Low", "Balanced", "High", "Ultra"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
@@ -160,12 +189,12 @@ export default function Settings() {
             </select>
           </label>
           <label htmlFor="settings-avatar-complexity-select">Avatar complexity
-            <select id="settings-avatar-complexity-select" value={state.prefs.complexity} onChange={(event) => actions.setPref("complexity", event.target.value)}>
+            <select id="settings-avatar-complexity-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.complexity} onChange={(event) => actions.setPref("complexity", event.target.value)}>
               {["20 000", "40 000", "80 000", "160 000", "No limit"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
           <label htmlFor="settings-bandwidth-limit-select">Bandwidth limit
-            <select id="settings-bandwidth-limit-select" value={state.prefs.bandwidth} onChange={(event) => actions.setPref("bandwidth", event.target.value)}>
+            <select id="settings-bandwidth-limit-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.bandwidth} onChange={(event) => actions.setPref("bandwidth", event.target.value)}>
               {["500 kbps", "1 500 kbps", "3 000 kbps", "Unlimited"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
@@ -198,19 +227,19 @@ export default function Settings() {
         <h2 id="chat-im-heading">Chat, language &amp; privacy</h2>
         <div className="settings-field-grid">
           <label htmlFor="settings-translation-select">Translate incoming chat
-            <select id="settings-translation-select" value={state.prefs.translate} onChange={(event) => actions.setPref("translate", event.target.value)}>
+            <select id="settings-translation-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.translate} onChange={(event) => actions.setPref("translate", event.target.value)}>
               {["Off", "English", "Spanish", "French", "German", "Japanese", "Português"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
           <label htmlFor="settings-maturity-select">Maturity rating
-            <select id="settings-maturity-select" value={state.prefs.maturity} onChange={(event) => actions.setPref("maturity", event.target.value)}>
+            <select id="settings-maturity-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.maturity} onChange={(event) => actions.setPref("maturity", event.target.value)}>
               {["General", "Moderate", "Adult"].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
         </div>
         <SwitchSetting id="chat-cmds" title="Chat channel commands" description="Enable /1 gesture shortcuts and chat channel commands." on={state.toggles.chatCmds} onClick={() => actions.toggleSetting("chatCmds")} />
-        <SwitchSetting id="timestamps" title="Message timestamps" description="Prefix chat messages with local simulator time." on={state.toggles.timestamps} onClick={() => actions.toggleSetting("timestamps")} />
-        <SwitchSetting id="im-logs" title="Keep IM logs on device" description="Save conversation history locally in device storage." on={state.toggles.imLogs} onClick={() => actions.toggleSetting("imLogs")} />
+        <SwitchSetting id="timestamps" title="Message timestamps" description="Show the device’s local time alongside messages." on={state.toggles.timestamps} onClick={() => actions.toggleSetting("timestamps")} />
+        <SwitchSetting id="im-logs" title="Keep chat logs on device" description="Save conversation history locally in device storage." on={state.toggles.imLogs} onClick={() => actions.toggleSetting("imLogs")} />
         <SwitchSetting id="typing" title="Send typing status" description="Notify contacts when you are composing a reply." on={state.toggles.typingSent} onClick={() => actions.toggleSetting("typingSent")} />
         <SwitchSetting id="autoresponse" title="Autoresponse while away" description="Send auto-reply message on incoming IMs while away." on={state.toggles.autoresponse} onClick={() => actions.toggleSetting("autoresponse")} />
       </section>
@@ -219,6 +248,9 @@ export default function Settings() {
       <section className="runtime-card" aria-labelledby="notifications-heading">
         <Icon name="bell" size={22} />
         <h2 id="notifications-heading">Notifications</h2>
+        <SwitchSetting id="notify-local" title="Local notification popups" on={state.toggles.notifyLocal} onClick={() => actions.toggleSetting("notifyLocal")} />
+        <SwitchSetting id="notify-im" title="Private message notification popups" on={state.toggles.notifyIM} onClick={() => actions.toggleSetting("notifyIM")} />
+        <SwitchSetting id="notify-group" title="Group notice popups" description="Notices remain available in the notification list when popups are off." on={state.toggles.notifyGroup} onClick={() => actions.toggleSetting("notifyGroup")} />
         <SwitchSetting id="push" title="Push notifications" description="Receive IMs, group notices, and teleport offers in system shade." on={state.toggles.push} onClick={() => actions.toggleSetting("push")} />
       </section>
 
@@ -235,8 +267,8 @@ export default function Settings() {
           <strong>Scripted object permissions</strong>
           <p style={{ margin: "2px 0 10px", opacity: 0.8, fontSize: "12px" }}>Manage object animation, attachment, and control grants.</p>
           <div className="inline-tool" style={{ gap: "8px" }}>
-            <button type="button" onClick={() => actions.setDialog("Permissions")}>Review Grants</button>
-            <button type="button" onClick={() => actions.notify("All scripted object permissions revoked.")}>Revoke All Grants</button>
+            <button type="button" onClick={() => actions.setScreen("Notices")}>Review incoming requests</button>
+            <button type="button" disabled title="Simulator grant revocation is not implemented">Revoke All Grants</button>
           </div>
         </div>
       </section>
@@ -247,12 +279,12 @@ export default function Settings() {
         <h2 id="storage-heading">Storage &amp; network</h2>
         <div className="settings-field-grid">
           <label htmlFor="settings-cache-limit-select">Cache size
-            <select id="settings-cache-limit-select" value={state.prefs.cacheLimit} onChange={(event) => actions.setPref("cacheLimit", Number(event.target.value))}>
+            <select id="settings-cache-limit-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.cacheLimit} onChange={(event) => actions.setPref("cacheLimit", Number(event.target.value))}>
               {[256, 512, 1024, 2048].map((value) => <option key={value} value={value}>{value >= 1024 ? `${value / 1024} GB` : `${value} MB`}</option>)}
             </select>
           </label>
           <label htmlFor="settings-cache-location-select">Cache location
-            <select id="settings-cache-location-select" value={state.prefs.cacheLoc} onChange={(event) => actions.setPref("cacheLoc", event.target.value)}>
+            <select id="settings-cache-location-select" disabled title="Requires backend support; use the dedicated manager where available" value={state.prefs.cacheLoc} onChange={(event) => actions.setPref("cacheLoc", event.target.value)}>
               <option>Internal storage</option>
               <option>Removable storage</option>
             </select>
@@ -271,13 +303,14 @@ export default function Settings() {
         <Icon name="info" size={22} />
         <h2 id="about-heading">About Linkpoint</h2>
         <p style={{ margin: "0 0 12px", opacity: 0.85, fontSize: "13px" }}>
-          Linkpoint Mobile &amp; Desktop Viewer v2.0 (build 2026.09.21) · Open Source AGPL-3.0 License.
+          Linkpoint Mobile &amp; Desktop Viewer · Open Source AGPL-3.0 License.
         </p>
         <div className="inline-tool" style={{ gap: "8px" }}>
-          <button type="button" onClick={() => actions.notify("Release notes — v2.0 (2026.09.21)")}>Release Notes</button>
-          <button type="button" onClick={() => actions.notify("Opening issue tracker...")}>Report a Bug</button>
+          <a href="https://github.com/Kaleaon/React-Linkpoint/releases" target="_blank" rel="noreferrer">Release Notes</a>
+          <a href="https://github.com/Kaleaon/React-Linkpoint/issues/new" target="_blank" rel="noreferrer">Report a Bug</a>
         </div>
       </section>
+      </div>
     </div>
   );
 }

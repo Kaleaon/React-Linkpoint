@@ -456,9 +456,14 @@ async function startServer() {
       } else {
         // Forward binary WebSocket messages to UDP
         if (targetIp && targetPort) {
-          const datagram = typeof message === 'string' || Buffer.isBuffer(message)
-            ? message
-            : Buffer.from(message instanceof ArrayBuffer ? message : Buffer.concat(message));
+          let datagram: string | Buffer;
+          if (typeof message === 'string' || Buffer.isBuffer(message)) {
+            datagram = message;
+          } else if (message instanceof ArrayBuffer) {
+            datagram = Buffer.from(new Uint8Array(message));
+          } else {
+            datagram = Buffer.concat(message);
+          }
           udpSocket.send(datagram, targetPort, targetIp, (err) => {
              if (err) console.error("[UDP Proxy] Send error:", err);
           });

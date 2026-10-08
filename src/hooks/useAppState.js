@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
 import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
+import { readViewerSettings, saveViewerSettings } from "./viewerSettings.js";
+import { Utils } from "../linkpoint/utils";
+import { localCache } from "../linkpoint/local-cache";
 import { app } from "../linkpoint/app";
 
 // Ported from the mockup's `state = {...}` initializer and its instance
@@ -10,11 +13,13 @@ import { app } from "../linkpoint/app";
 // tick interval in componentDidMount). This hook is the state + actions layer;
 // theme/viewModel.js is the "renderVals()" computation layer that consumes it.
 export function useAppState() {
-  const [layout, setLayout] = useState("terminal");
-  const [palette, setPalette] = useState("ink");
+  const [savedSettings] = useState(readViewerSettings);
+  const [layout, setLayout] = useState(() => LAYOUTS[savedSettings.layout] ? savedSettings.layout : "terminal");
+  const [palette, setPalette] = useState(() => PALETTES[savedSettings.palette] ? savedSettings.palette : "ink");
   const [customTheme, setCustomTheme] = useState(() => {
     const shared = decodeSharedTheme(new URLSearchParams(window.location.search).get("theme") || "");
-    return shared || readSavedTheme() || themeFromPalette(PALETTES.ink);
+    const base = readSavedTheme() || themeFromPalette(PALETTES[savedSettings.palette] || PALETTES.ink);
+    return shared || { ...base, density: savedSettings.density || (savedSettings.dense ? "compact" : base.density) };
   });
   const [viewMode, setViewModeState] = useState(() => {
     try {
@@ -48,25 +53,31 @@ export function useAppState() {
   }, [viewMode, deviceForViewport]);
   const [screen, setScreen] = useState("Login");
   const [dialog, setDialog] = useState(/** @type {string | null} */ (null));
-  const [dense, setDense] = useState(false);
+  const [dense, setDense] = useState(customTheme.density === "compact");
   const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
   const [chip, setChip] = useState("");
   const [tileOk, setTileOk] = useState(true);
   const [invOpen, setInvOpen] = useState({ Objects: true });
   const [dismissed, setDismissed] = useState({});
   const [pinned, setPinned] = useState({});
-  const [toggles, setToggles] = useState({
-    largeType: false, push: true, voice: true, chatCmds: true, autoresponse: true,
+  const [toggles, setToggles] = useState(() => ({
+    largeType: false, push: true, voice: true, chatCmds: true,
     rlv: false, shadows: false, battery: true, timestamps: true, imLogs: true, mediaAuto: false,
     showOnline: true, typingSent: true, cacheOnExit: false,
-  });
+    notifyLocal: true, notifyIM: true, notifyGroup: true,
+    ...savedSettings.toggles,
+    autoresponse: typeof Utils.storage.get("linkpoint_auto_reply_config")?.enabled === "boolean"
+      ? Utils.storage.get("linkpoint_auto_reply_config").enabled
+      : savedSettings.toggles?.autoresponse ?? app.chat.isAutoReplyEnabled(),
+  }));
   // Everything the preferences screens expose as a <select>: one flat bag so a
   // new preference is one entry here plus one card, not a new state key each time.
-  const [prefs, setPrefs] = useState({
+  const [prefs, setPrefs] = useState(() => ({
     draw: "96 m", quality: "Balanced", fps: "60 fps", complexity: "80 000",
     volume: "70%", translate: "Off", maturity: "Moderate", bandwidth: "1 500 kbps",
-    cacheLimit: 512, cacheLoc: "Internal storage",
-  });
+    cacheLimit: 512, cacheLoc: "Internal storage", fov: 60,
+    ...savedSettings.prefs,
+  }));
   const [cacheCleared, setCacheCleared] = useState({});
   const [camPreset, setCamPreset] = useState("ORBIT");
   const [cond, setCond] = useState("normal");
@@ -116,14 +127,23 @@ export function useAppState() {
     return () => clearInterval(timer);
   }, [cHeld, cRun]);
 
-  // Form factor is an implementation concern in the real app. The design
-  // canvas exposes a manual device picker, but the React port follows its host
-  // viewport and changes navigation/layout at the same breakpoints instead.
   useEffect(() => {
-    const syncDevice = () => setDevice(deviceForViewport());
-    window.addEventListener("resize", syncDevice);
-    return () => window.removeEventListener("resize", syncDevice);
-  }, [deviceForViewport]);
+    saveViewerSettings({ layout, palette, dense, density: customTheme.density, toggles, prefs });
+  }, [layout, palette, dense, customTheme.density, toggles, prefs]);
+
+  useEffect(() => {
+    app.world.configureRendering({ drawDistance: Number.parseInt(prefs.draw, 10), fov: Number(prefs.fov), fps: prefs.fps === "Uncapped" ? 0 : Number.parseInt(prefs.fps, 10), batterySaver: toggles.battery });
+    app.audio.setVolume(Number.parseInt(prefs.volume, 10) / 100 || 0);
+    app.notifications.setFilters({ local: toggles.notifyLocal, im: toggles.notifyIM, group: toggles.notifyGroup });
+  }, [prefs.draw, prefs.fov, prefs.fps, prefs.volume, toggles.battery, toggles.notifyLocal, toggles.notifyIM, toggles.notifyGroup]);
+
+  useEffect(() => {
+    const syncAutoReply = ({ enabled }) => setToggles(current => current.autoresponse === enabled ? current : { ...current, autoresponse: enabled });
+    app.chat.on("auto_reply_changed", syncAutoReply);
+    return () => app.chat.off("auto_reply_changed", syncAutoReply);
+  }, []);
+  useEffect(() => { app.chat.setAutoReplyEnabled(toggles.autoresponse); }, [toggles.autoresponse]);
+  useEffect(() => { app.chat.setHistoryLoggingEnabled(toggles.imLogs); }, [toggles.imLogs]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout
@@ -166,7 +186,7 @@ export function useAppState() {
     setDense(density === "compact");
   }, []);
   const setBreakpoint = useCallback((breakpoint) => setCustomTheme((theme) => ({ ...theme, active: true, breakpoint })), []);
-  const selectPalette = useCallback((key) => { setPalette(key); setCustomTheme(themeFromPalette(PALETTES[key])); }, []);
+  const selectPalette = useCallback((key) => { setPalette(key); setCustomTheme(themeFromPalette(PALETTES[key])); localStorage.removeItem(THEME_STORAGE_KEY); }, []);
   const saveTheme = useCallback(() => { localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(customTheme)); notify("Theme saved to this device."); }, [customTheme, notify]);
   const resetTheme = useCallback(() => { setCustomTheme(themeFromPalette(PALETTES[palette])); localStorage.removeItem(THEME_STORAGE_KEY); notify("Theme reset to the selected colour pack."); }, [palette, notify]);
   const importTheme = useCallback(async (json) => {
@@ -312,17 +332,19 @@ export function useAppState() {
     },
     [notify]
   );
-  const clearAllCache = useCallback(() => {
-    setCacheCleared({});
-    notify("All caches cleared \u2014 assets refetch on demand");
+  const clearAllCache = useCallback(async () => {
+    try {
+      const result = await localCache.clearCache(app.auth.user?.id);
+      setCacheCleared({});
+      notify(result.serverCleared ? "Caches cleared — assets refetch on demand" : "Device cache cleared; server cache could not be cleared.");
+    } catch (error) { notify(error.message || "Cache could not be cleared."); }
   }, [notify]);
 
   // ---- settings: reconnect to grid ---------------------------------------
   const reconnect = useCallback(() => {
-    setReconnecting(true);
-    clearTimeout(reconnectTimerRef.current);
-    reconnectTimerRef.current = setTimeout(() => setReconnecting(false), 1200);
-  }, []);
+    setScreen("Login");
+    notify("Sign in again to reconnect to your grid.");
+  }, [notify]);
 
   // ---- desktop floater window model (flR/flDrag/flFocus/flToggle/flClose) --
   const flR = useCallback(

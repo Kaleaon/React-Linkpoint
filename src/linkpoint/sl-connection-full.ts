@@ -111,15 +111,36 @@ export class SLConnectionFull extends Utils.EventEmitter {
     forward('chat', 'ChatFromSimulator');
     forward('im', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'im' }));
     forward('group-chat', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'group', type: 'group' }));
-    forward('group-notice', 'group_notice');
+    
+    for (const name of ['group_notice', 'group-notice']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('group_notice', data);
+        this.emit('group-notice', data);
+      });
+    }
     forward('friend-status', 'friend_status');
     forward('friend-request', 'friend_request');
     forward('friend-response', 'friend_response');
     forward('friend-remove', 'friend_remove');
-    forward('script-dialog', 'script_dialog');
+    for (const name of ['script_dialog', 'script-dialog']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('script_dialog', data);
+        this.emit('script-dialog', data);
+      });
+    }
     forward('lure', 'lure');
-    forward('inventory-offer', 'inventory-offer');
-    forward('group-invite', 'group-invite');
+    for (const name of ['inventory_offer', 'inventory-offer']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('inventory_offer', data);
+        this.emit('inventory-offer', data);
+      });
+    }
+    for (const name of ['group_invite', 'group-invite']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('group_invite', data);
+        this.emit('group-invite', data);
+      });
+    }
     forward('parcel-properties', 'ParcelProperties', (data) => ({ parcelData: data }));
     forward('coarse-avatar', 'CoarseAvatarUpdate');
     for (const name of ['avatar_presence', 'avatar-presence']) {
@@ -340,10 +361,28 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.acceptInventoryOffer(request);
   }
 
+  /** Decline an inventory offer. */
+  async declineInventoryOffer(request: { id: string }) {
+    this.requireConnected();
+    return slBridge.declineInventoryOffer(request);
+  }
+
   /** Accept a group invite. */
   async acceptGroupInvite(request: { id: string }) {
     this.requireConnected();
     return slBridge.acceptGroupInvite(request);
+  }
+
+  /** Decline a group invite. */
+  async declineGroupInvite(request: { id: string }) {
+    this.requireConnected();
+    return slBridge.declineGroupInvite(request);
+  }
+
+  /** Accept a group notice attachment. */
+  async acceptGroupNoticeAttachment(request: { id?: string; noticeId?: string; groupId?: string; attachmentItemId?: string; attachmentOwnerId?: string; folderId?: string }) {
+    this.requireConnected();
+    return slBridge.acceptGroupNoticeAttachment(request);
   }
 
   /** Forget an interaction on the server. Nothing is sent to the grid. */

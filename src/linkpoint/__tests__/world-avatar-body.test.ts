@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { WorldViewer } from '../world';
 import { Utils } from '../utils';
 import { AvatarAnimator } from '../avatar-animator';
@@ -56,6 +56,27 @@ describe('avatar body in the world', () => {
     expect(bodyIds(scene)).toEqual([]);
     expect(scene.objects.has('av:legs')).toBe(false);
     expect(scene.objects.get('av').visible).toBe(false);
+  });
+
+  it('shows a marker after a body download fails, then replaces it when a retry succeeds', async () => {
+    const { protocol, world, scene } = setup(false);
+    vi.spyOn(world as any, 'loadBody').mockImplementation(async () => {});
+    protocol.emit('scene:object-add', avatar);
+    await Promise.resolve();
+    expect(scene.objects.get('av').visible).toBe(true);
+    (world as any).bodyParts = loadParts();
+    (world as any).installBodyMeshes(scene);
+    protocol.emit('scene:object-update', { id: 'av', position: [11, 20, 31] });
+    expect(scene.objects.get('av').visible).toBe(false);
+    expect(bodyIds(scene)).toHaveLength(7);
+    expect(scene.objects.get('av:body:head').position[0]).toBe(11);
+  });
+
+  it('resolves baked texture IDs to the same GPU name regardless of case', () => {
+    const { protocol, scene } = setup(true);
+    protocol.emit('scene:object-add', { ...avatar, faceTextures: faces({ 9: 'UPPER-BAKE' }) });
+    protocol.emit('scene:texture-ready', { assetId: 'Upper-Bake', width: 1, height: 1, rgba: btoa('\xff\xff\xff\xff') });
+    expect(scene.objects.get('av:body:upperBody').faces[0].texture).toBe('texture:upper-bake');
   });
 
   it('re-poses the body from running animations and removes every part with the avatar', async () => {

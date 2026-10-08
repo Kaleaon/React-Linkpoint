@@ -116,3 +116,20 @@ describe('Scene3D rendering state', () => {
     expect(graphics.drawMesh.mock.calls.map((call) => call[2].uModelMatrix[12])).toEqual([12, 20, 11]);
   });
 });
+
+describe('draw distance settings', () => {
+  it('hides distant meshes while retaining large prims crossing the boundary and rigs without safe bounds', () => {
+    const { scene, graphics } = makeScene();
+    scene.showGrid = false; scene.showSky = false; scene.cullingEnabled = false;
+    scene.drawDistance = 20;
+    (graphics as any).getMeshBounds = () => ({ min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] });
+    const renderObject = vi.spyOn(scene as any, 'renderObject').mockImplementation(() => {});
+    scene.addObject('near', { position: [11, 20, 30], mesh: 'cube' });
+    scene.addObject('far', { position: [100, 20, 30], mesh: 'cube' });
+    scene.addObject('large', { position: [40, 20, 30], scale: [30, 30, 30], mesh: 'cube' });
+    scene.addObject('rig', { position: [100, 20, 30], mesh: 'cube', skin: new Float32Array(12) });
+    scene.render();
+    expect(renderObject.mock.calls.map(call => (call[0] as { id: string }).id)).toEqual(expect.arrayContaining(['near', 'large', 'rig']));
+    expect(renderObject.mock.calls.map(call => (call[0] as { id: string }).id)).not.toContain('far');
+  });
+});

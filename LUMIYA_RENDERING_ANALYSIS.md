@@ -1,5 +1,11 @@
 # Lumiya rendering analysis and viewer improvements
 
+> Status review (2026-10-06): this document records an earlier development state.
+> Use [the consolidated follow-up audit](docs/followup-audit.md) for current implementation
+> status, remaining PRs and validation limits. Old statements about missing skinning,
+> animation, voice, search, PBR or simulator environment must not be treated as current.
+
+
 Lumiya (via `Kaleaon/Lumiya-Redux`) is used as a **behavioral reference only**, in
 line with `LUMIYA_FEATURE_AUDIT.md`: nothing here copies recovered code. The
 algorithms are re-implemented for WebGL, and the shaders and geometry are new.
