@@ -1,0 +1,33 @@
+---
+name: Deploy backend to Fly.io
+
+# Deploys server.ts (the Second Life backend: UDP protocol, sessions, API)
+# to Fly.io. Vercel cannot host this (no UDP, no long-lived connections),
+# so it runs on Fly.io while Vercel serves the frontend and proxies /api/*.
+#
+# Required repo secret: FLY_API_TOKEN (a Fly.io deploy token for the
+# linkpoint-backend app). Create with: fly tokens create deploy -a linkpoint-backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server.ts'
+      - 'src/server/**'
+      - 'Dockerfile'
+      - 'fly.toml'
+      - 'package.json'
+      - '.npmrc'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+---
