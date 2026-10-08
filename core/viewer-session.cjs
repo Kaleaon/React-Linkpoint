@@ -33,6 +33,7 @@ const interactions = require('./sl-interactions.cjs');
 const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
 const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
+const { watchWind } = require('./sl-wind.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
   finite, vector, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend,
@@ -484,6 +485,7 @@ class ViewerSession {
     const animations = watchAnimations(() => this.currentRegion(), (type, data) => this.send(type, data));
     if (animations) this.subscriptions.push(animations);
     this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
+    this.subscriptions.push(watchWind(() => this.currentRegion(), (type, data) => this.send(type, data)));
 
     let inventoryRootId = '';
     try { inventoryRootId = this.bot.clientCommands?.inventory?.getInventoryRoot()?.folderID?.toString() || ''; } catch { /* fetched on demand */ }
