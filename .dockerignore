@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+android
+android-kotlin
+ios
+electron
+materials
+*.html
+.env*
