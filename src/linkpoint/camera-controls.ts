@@ -191,7 +191,8 @@ export class CameraControls {
       if (event.code === 'KeyM' && this.options.toggleMouselook) { event.preventDefault(); this.options.toggleMouselook(); this.changed(); return; }
     }
     // Camera commands from the official bindings (Alt+arrows orbit, Alt+W/S zoom, Ctrl+Alt+Shift pan...).
-    if ((event.altKey || event.ctrlKey) && isCameraKey(event.code, this.mods, this.keyMode())) {
+    // While sitting the unmodified movement keys drive the camera (the sitting binding table), since the avatar cannot walk.
+    if ((event.altKey || event.ctrlKey || this.keyMode() === 'sitting') && isCameraKey(event.code, this.mods, this.keyMode())) {
       event.preventDefault();
       this.cameraKeys.add(event.code);
       this.startKeys();

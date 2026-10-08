@@ -27,7 +27,8 @@ describe('CameraControls with the standard viewer shortcuts', () => {
   let canvas: HTMLCanvasElement;
   let camera: Camera3D;
   let controls: CameraControls;
-  const hooks = { resetView: vi.fn(), toggleMouselook: vi.fn(), focusAt: vi.fn() };
+  let mode: 'third_person' | 'sitting' = 'third_person';
+  const hooks: any = { keyMode: () => mode, resetView: vi.fn(), toggleMouselook: vi.fn(), focusAt: vi.fn() };
   const picked = vi.fn();
   let frame = 0;
   let pending: Array<(t: number) => void> = [];
@@ -38,9 +39,10 @@ describe('CameraControls with the standard viewer shortcuts', () => {
     window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true, ...init }));
 
   beforeEach(() => {
+    mode = 'third_person';
     vi.stubGlobal('requestAnimationFrame', (f: (t: number) => void) => { pending.push(f); return pending.length; });
     vi.stubGlobal('cancelAnimationFrame', () => undefined);
-    Object.values(hooks).forEach((h) => h.mockClear());
+    Object.values(hooks).forEach((h: any) => h.mockClear?.());
     picked.mockClear();
     canvas = document.createElement('canvas');
     document.body.appendChild(canvas);
@@ -75,6 +77,19 @@ describe('CameraControls with the standard viewer shortcuts', () => {
     runFrames(3);
     key('keyup', 'PageUp');
     expect(camera.rotation[0]).not.toBeCloseTo(pitch, 3);
+  });
+
+  it('while sitting, plain movement keys drive the camera, and while standing they do not', () => {
+    const yaw = camera.rotation[1];
+    key('keydown', 'ArrowLeft');
+    runFrames(4);
+    key('keyup', 'ArrowLeft');
+    expect(camera.rotation[1]).toBeCloseTo(yaw, 5); // standing: left arrow turns the avatar, not the camera
+    mode = 'sitting';
+    key('keydown', 'ArrowLeft');
+    runFrames(4);
+    key('keyup', 'ArrowLeft');
+    expect(camera.rotation[1]).not.toBeCloseTo(yaw, 3);
   });
 
   it('Ctrl+Alt+Shift+arrows pan the camera target', () => {

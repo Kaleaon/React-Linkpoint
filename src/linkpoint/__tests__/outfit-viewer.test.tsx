@@ -2,6 +2,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import OutfitViewer from '../../screens/OutfitViewer.jsx';
 import { app } from '../app';
+import { slBridge } from '../sl-bridge';
 import { buttonByText, click, mountScreen, typeInto, unmount, type Mounted } from './ui-helpers';
 
 let mounted: Mounted | null = null;
@@ -68,16 +69,57 @@ describe('OutfitViewer screen', () => {
     expect(load.mock.calls.length).toBe(before + 1);
   });
 
-  it('offers no controls that only pretend to wear items or edit the shape', async () => {
-    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
+  it('takes off clothing but offers nothing for body parts, and changes go to the grid', async () => {
+    const items = [{ ...worn[0], linkedId: 'x' }, { ...worn[1], id: 'cccccccc-0000-0000-0000-000000000001', linkedId: 'y' }];
+    const load = vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items, outfits: [] });
+    const remove = vi.spyOn(slBridge, 'removeWorn').mockResolvedValue({ removed: 'Rain Jacket', baked: true });
     mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Outfit Items/)!);
-    const labels = [...mounted.host.querySelectorAll('button')].map((b) => b.textContent?.trim());
-    expect(labels).not.toContain('WEAR');
-    expect(labels).not.toContain('REPLACE OUTFIT');
+    const takeOff = [...mounted.host.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'TAKE OFF');
+    expect(takeOff).toHaveLength(1); // the shape has none
+    const before = load.mock.calls.length;
+    await click(takeOff[0]);
+    expect(remove).toHaveBeenCalledWith({ linkId: 'cccccccc-0000-0000-0000-000000000001' });
+    expect(load.mock.calls.length).toBeGreaterThan(before);
+    expect(mounted.host.textContent).toContain('Took off Rain Jacket.');
+  });
+
+  it('wears a saved outfit and reports when the appearance rebuild is not confirmed', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [{ id: 'o1', name: 'Beach day' }] });
+    const wear = vi.spyOn(slBridge, 'wearOutfit').mockResolvedValue({ worn: 3, baked: false, reason: 'Wrong COF version' });
+    mounted = await mountScreen(OutfitViewer);
+    await click(buttonByText(mounted.host, /Outfit Items/)!);
+    await click(buttonByText(mounted.host, 'WEAR OUTFIT')!);
+    expect(wear).toHaveBeenCalledWith({ folderId: 'o1' });
+    expect(mounted.host.textContent).toContain('appearance rebuild was not confirmed: Wrong COF version');
+  });
+
+  it('shows the real shape values and saves edits as a new shape', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
+    vi.spyOn(slBridge, 'fetchShape').mockResolvedValue({ itemId: 'i', name: 'Ada Shape', values: { 33: 0.5 } });
+    const save = vi.spyOn(slBridge, 'saveShape').mockResolvedValue({ saved: 'Ada Shape (edited)', baked: true });
+    mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Shape/)!);
+    const height = mounted.host.querySelector('input[aria-label="Height"]') as HTMLInputElement;
+    expect(height).toBeTruthy();
+    expect(Number(height.value)).toBeCloseTo(0.5);
+    expect(mounted.host.textContent).toContain('Ada Shape');
+    await click(buttonByText(mounted.host, /SAVE AS NEW SHAPE/)!);
+    expect(save).toHaveBeenCalledWith({ values: expect.objectContaining({ 33: 0.5 }) });
+  });
+
+  it('says so when the shape cannot be read, with no made-up sliders', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
+    vi.spyOn(slBridge, 'fetchShape').mockRejectedValue(new Error('No shape is worn'));
+    mounted = await mountScreen(OutfitViewer);
+    await click(buttonByText(mounted.host, /Shape/)!);
+    expect(mounted.host.textContent).toContain('Your shape could not be read: No shape is worn');
     expect(mounted.host.querySelector('input[type="range"]')).toBeNull();
-    expect(mounted.host.textContent).not.toContain('Shape saved & applied');
+  });
+
+  it('shows real counts in the mesh view and no invented statistics', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
+    mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Mesh View/)!);
     expect(mounted.host.textContent).toContain('Attachments: 1');
     expect(mounted.host.textContent).not.toContain('14,280');

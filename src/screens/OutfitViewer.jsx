@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app.ts";
 import Icon from "../components/Icon.jsx";
+import { slBridge } from "../linkpoint/sl-bridge.ts";
+import SHAPE_PARAMS from "../linkpoint/avatar-data/shape-params.json";
 
 const CAMERA_PRESETS = [
   ["front", "Front"],
@@ -29,6 +31,13 @@ export default function OutfitViewer() {
   const [viewportError, setViewportError] = useState("");
   const [hasAvatar, setHasAvatar] = useState(false);
 
+  const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [wearQuery, setWearQuery] = useState("");
+  // Shape: the real values of the worn Shape (parameter id -> weight), and the edited copy.
+  const [shape, setShape] = useState({ state: "idle", error: "", name: "", original: {}, edited: {} });
+  const [shapeGroup, setShapeGroup] = useState("shape_body");
+
   const canvasRef = useRef(null);
 
   const loadOutfit = useCallback(async () => {
@@ -41,6 +50,25 @@ export default function OutfitViewer() {
       setOutfitState((prev) => ({ ...prev, loading: false, error: error instanceof Error ? error.message : "The outfit could not be loaded." }));
     }
   }, []);
+
+  const say = useCallback((text) => {
+    setStatusMessage(text);
+    setTimeout(() => setStatusMessage(""), 6000);
+  }, []);
+
+  // Run a change on the grid, then read the outfit again. `baked: false` means the grid did not confirm the rebuild.
+  const change = useCallback(async (action, success) => {
+    setBusy(true);
+    try {
+      const result = await action();
+      say(result?.baked === false ? `${success} The appearance rebuild was not confirmed${result.reason ? `: ${result.reason}` : "."}` : success);
+    } catch (error) {
+      say(error instanceof Error ? error.message : "The change failed.");
+    } finally {
+      setBusy(false);
+      void loadOutfit();
+    }
+  }, [loadOutfit, say]);
 
   useEffect(() => {
     void loadOutfit();
@@ -130,6 +158,21 @@ export default function OutfitViewer() {
     };
   }, [focusSelf]);
 
+  const loadShape = useCallback(async () => {
+    setShape((prev) => ({ ...prev, state: "loading", error: "" }));
+    try {
+      const result = await slBridge.fetchShape();
+      const values = Object.fromEntries(Object.entries(result.values || {}).map(([id, weight]) => [id, Number(weight)]));
+      setShape({ state: "ready", error: "", name: result.name || "", original: values, edited: { ...values } });
+    } catch (error) {
+      setShape((prev) => ({ ...prev, state: "error", error: error instanceof Error ? error.message : "Your shape could not be read." }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activePanel === "shape" && shape.state === "idle" && app.auth.isLoggedIn()) void loadShape();
+  }, [activePanel, shape.state, loadShape]);
+
   // Pointer drag for 3D rotation
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
@@ -170,6 +213,17 @@ export default function OutfitViewer() {
     attachment: wornItems.filter((i) => i.category === "attachment").length,
   }), [wornItems]);
 
+  // Inventory items that can be worn and are not already: clothing and body parts (5, 13) and objects (6).
+  const wearCandidates = useMemo(() => {
+    const q = wearQuery.toLowerCase().trim();
+    if (q.length < 2) return [];
+    const worn = new Set(wornItems.map((item) => String(item.linkedId || "").toLowerCase()));
+    return Array.from(app.inventory.items.values())
+      .filter((it) => [5, 6, 13].includes(Number(it.assetType)) && !worn.has(String(it.id).toLowerCase()) && String(it.name || "").toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [wearQuery, wornItems]);
+
+  const meshStats = activePanel === "mesh" ? app.world.getAttachmentMeshStats() : { attachments: 0, meshes: 0, vertices: 0, triangles: 0 };
   const loggedIn = app.auth.isLoggedIn();
   const small = (extra) => ({ fontSize: 11, color: V.ink2, ...extra });
   const note = (text) => <div style={{ padding: 16, textAlign: "center", color: V.ink2, fontSize: 11 }}>{text}</div>;
@@ -226,6 +280,10 @@ export default function OutfitViewer() {
           ))}
         </div>
       </header>
+
+      {statusMessage ? (
+        <div role="status" style={{ padding: "6px 12px", background: "rgba(56, 189, 248, 0.15)", border: `1px solid ${V.pri}`, borderRadius: V.rs, fontSize: 12, color: V.pri, fontWeight: 600 }}>{statusMessage}</div>
+      ) : null}
 
       <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 420 }}>
         {/* 3D Viewport Panel */}
@@ -356,21 +414,53 @@ export default function OutfitViewer() {
                       style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "rgba(56, 189, 248, 0.08)", border: `1px solid ${V.pri}`, borderRadius: V.rs }}
                     >
                       <Icon name={item.category === "attachment" ? "paperclip" : item.category === "body" ? "user" : "shirt"} size={15} style={{ color: V.pri }} />
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: V.ink }}>{item.name}</div>
                         <div style={small({ fontSize: 10 })}>{item.typeName} · {item.category}</div>
                       </div>
+                      {item.category !== "body" && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void change(() => slBridge.removeWorn({ linkId: item.id }), `Took off ${item.name}.`)}
+                          title={item.category === "attachment" ? "Detach and take off" : "Take off"}
+                          style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700, borderRadius: V.rs, border: `1px solid ${V.err || V.outv}`, background: "transparent", color: V.err || V.ink, cursor: "pointer" }}
+                        >
+                          TAKE OFF
+                        </button>
+                      )}
                     </div>
                   ))
                 ) : note(emptyText)}
               </div>
-              <div style={small({ fontSize: 10 })}>Wearing and removing items from this screen is not available yet. Use your inventory in the Second Life viewer.</div>
+              <h2 style={{ margin: "6px 0 0", fontSize: 13, fontWeight: 700, color: V.pri }}>WEAR FROM INVENTORY</h2>
+              <input
+                type="text"
+                value={wearQuery}
+                onChange={(e) => setWearQuery(e.target.value)}
+                placeholder="Search your inventory (2+ letters)..."
+                aria-label="Search inventory to wear"
+                style={{ padding: "5px 8px", fontSize: 11, background: V.bg, color: V.ink, border: `1px solid ${V.outv}`, borderRadius: V.rs }}
+              />
+              {wearCandidates.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
+                  {wearCandidates.map((it) => (
+                    <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 10px", background: V.bg, border: `1px solid ${V.outv}`, borderRadius: V.rs }}>
+                      <span style={{ flex: 1, fontSize: 12, color: V.ink }}>{it.name}</span>
+                      <button type="button" disabled={busy || !loggedIn} onClick={() => void change(() => slBridge.wearItem({ itemId: it.id }), `Now wearing ${it.name}.`)} style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700, borderRadius: V.rs, border: `1px solid ${V.pri}`, background: V.pri, color: V.onpri || "#fff", cursor: "pointer" }}>WEAR</button>
+                    </div>
+                  ))}
+                </div>
+              ) : wearQuery.trim().length >= 2 ? note("Nothing wearable matches. Open the folder in Inventory first if it has not loaded.") : null}
 
               <h2 style={{ margin: "6px 0 0", fontSize: 13, fontWeight: 700, color: V.pri }}>SAVED OUTFITS ({outfitState.outfits.length})</h2>
               {outfitState.outfits.length ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {outfitState.outfits.map((outfit) => (
-                    <div key={outfit.id} style={{ padding: "5px 10px", fontSize: 12, color: V.ink, background: V.bg, border: `1px solid ${V.outv}`, borderRadius: V.rs }}>{outfit.name}</div>
+                    <div key={outfit.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", fontSize: 12, color: V.ink, background: V.bg, border: `1px solid ${V.outv}`, borderRadius: V.rs }}>
+                      <span style={{ flex: 1 }}>{outfit.name}</span>
+                      <button type="button" disabled={busy || !loggedIn} onClick={() => void change(() => slBridge.wearOutfit({ folderId: outfit.id }), `Now wearing the outfit ${outfit.name}.`)} style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700, borderRadius: V.rs, border: `1px solid ${V.pri}`, background: V.pri, color: V.onpri || "#fff", cursor: "pointer" }}>WEAR OUTFIT</button>
+                    </div>
                   ))}
                 </div>
               ) : note(outfitState.loaded ? "No saved outfits in My Outfits." : "—")}
@@ -380,9 +470,59 @@ export default function OutfitViewer() {
           {activePanel === "shape" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: V.pri, display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="sliders" size={16} /> AVATAR SHAPE
+                <Icon name="sliders" size={16} /> AVATAR SHAPE{shape.name ? ` — ${shape.name}` : ""}
               </h2>
-              {note("Your shape is not readable or editable from this screen yet, so no sliders are shown. Showing made-up values would misrepresent your avatar.")}
+              {!loggedIn ? note("Connect to a grid to see your shape.")
+                : shape.state === "loading" || shape.state === "idle" ? note("Reading your shape…")
+                : shape.state === "error" ? (
+                  <>
+                    {note(`Your shape could not be read: ${shape.error}`)}
+                    <button type="button" onClick={() => void loadShape()} style={{ alignSelf: "center", padding: "4px 10px", fontSize: 11, fontWeight: 700, background: V.pri, color: V.onpri || "#fff", border: "none", borderRadius: V.rs, cursor: "pointer" }}>TRY AGAIN</button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {[...new Set(SHAPE_PARAMS.map((param) => param.group))].map((group) => (
+                        <button key={group} type="button" onClick={() => setShapeGroup(group)} style={{ padding: "3px 8px", fontSize: 10, fontWeight: 700, borderRadius: V.rs, border: `1px solid ${shapeGroup === group ? V.pri : V.outv}`, background: shapeGroup === group ? V.pri : "transparent", color: shapeGroup === group ? (V.onpri || "#fff") : V.ink, cursor: "pointer" }}>
+                          {group.replace("shape_", "").toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                    {SHAPE_PARAMS.filter((param) => param.group === shapeGroup).map((param) => {
+                      const value = shape.edited[param.id] ?? param.default;
+                      return (
+                        <label key={param.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 2, fontSize: 11, color: V.ink }}>
+                          <span>{param.label}</span>
+                          <span style={small()}>{Number(value).toFixed(2)}</span>
+                          <input
+                            type="range"
+                            aria-label={param.label}
+                            min={param.min}
+                            max={param.max}
+                            step={(param.max - param.min) / 100}
+                            value={value}
+                            onChange={(e) => setShape((prev) => ({ ...prev, edited: { ...prev.edited, [param.id]: Number(e.target.value) } }))}
+                            style={{ gridColumn: "1 / span 2" }}
+                          />
+                          <span style={small({ fontSize: 9 })}>{param.labelMin}</span>
+                          <span style={small({ fontSize: 9, textAlign: "right" })}>{param.labelMax}</span>
+                        </label>
+                      );
+                    })}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" disabled={busy} onClick={() => setShape((prev) => ({ ...prev, edited: { ...prev.original } }))} style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700, background: "transparent", color: V.ink, border: `1px solid ${V.outv}`, borderRadius: V.rs, cursor: "pointer" }}>REVERT</button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void change(async () => { const result = await slBridge.saveShape({ values: shape.edited }); await loadShape(); return result; }, "Saved as a new shape and put it on.")}
+                        style={{ padding: "4px 10px", fontSize: 11, fontWeight: 700, background: V.pri, color: V.onpri || "#fff", border: "none", borderRadius: V.rs, cursor: "pointer" }}
+                      >
+                        SAVE AS NEW SHAPE &amp; WEAR
+                      </button>
+                    </div>
+                    <div style={small({ fontSize: 10 })}>Your current shape is never overwritten; wear it again to undo.</div>
+                  </>
+                )}
             </div>
           )}
 
@@ -396,7 +536,9 @@ export default function OutfitViewer() {
                 <div>Body parts: {outfitState.loaded ? counts.body : "—"}</div>
                 <div>Clothing layers: {outfitState.loaded ? counts.clothing : "—"}</div>
                 <div>Attachments: {outfitState.loaded ? counts.attachment : "—"}</div>
-                <div>Vertex, face and joint counts: — (the grid does not report them)</div>
+                <div>Attachment meshes decoded so far: {meshStats.meshes} of {meshStats.attachments} attachments</div>
+                <div>Vertices: {meshStats.meshes ? meshStats.vertices.toLocaleString() : "—"} · Triangles: {meshStats.meshes ? meshStats.triangles.toLocaleString() : "—"}</div>
+                <div style={small({ fontSize: 10 })}>Counts cover attachments only; the base avatar body is built by the viewer and not counted. Joint counts are not reported.</div>
               </div>
             </div>
           )}
