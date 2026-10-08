@@ -387,7 +387,9 @@ class ViewerSession {
     this.subscriptions.push(events.onFriendOnline.subscribe((event) => {
       const id = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString() || event.friend?.uuid?.toString();
       if (id) this.friendPresence.set(id.toLowerCase(), Boolean(event.online));
-      this.send('friend-status', { id, name: event.friend?.name || event.friend?.getName?.() || 'Resident', online: Boolean(event.online) });
+      // The name is sent only when the library knows it; the client keeps the one it already has otherwise.
+      const name = event.friend?.name || event.friend?.getName?.();
+      this.send('friend-status', { id, ...(name ? { name } : {}), online: Boolean(event.online) });
     }));
     this.subscribe(events.onFriendRequest, 'friend-request', (event) => ({
       requestId: event.requestID?.toString(),

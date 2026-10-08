@@ -32,16 +32,25 @@ blocked), so these were found by probing likely names. Other official repositori
 - Voice: the viewer's SDP rewrite appends its `fmtp` after the original on one line; we replace the line.
 - Voice: the default ear is the avatar, not the camera, because a camera quaternion in the SL frame
   is not available; set `EarLocation.Camera` once it is.
-- Particles: the distance and pixel-size throttles, HUD particles and the region wind layer are not
-  implemented (no wind is applied rather than an invented one). `ANGLE_CONE_EMPTY` emits nothing special,
+- Particles: the distance and pixel-size throttles and HUD particles are not implemented.
+  `ANGLE_CONE_EMPTY` emits nothing special,
   as in the viewer.
 - Flexible prims: the viewer's distance-based update throttling is not implemented; twist and taper are
   baked into the mesh, not applied per section.
 - Sound: the ear follows the camera (the viewer's default); Doppler is not available in Web Audio.
 
+- Wind: the viewer starts a region with a 0.5 grid before its wind layer arrives; here there is no wind
+  until a layer has been decoded (`RegionWind.loaded`). Only the current region's layer is used, and the
+  region width is assumed to be 256 m. The decoder and lookups are in `src/linkpoint/wind.ts` (from
+  `patch_code.cpp`, `patch_idct.cpp`, `llbitpack.h`, `llvlmanager.cpp`, `llwind.cpp`); the tests check it
+  against an independent evaluation of the inverse DCT, not against a layer from a live grid. Tree sway,
+  water motion (`gSky.setWind`) and the ambient wind sound do not use it yet.
+- Voice reconnect: the schedule is the viewer's (`RetryBackoff`), but the triggers are browser ones
+  (peer `failed`, data channel closed unasked) because a browser has no renegotiation callback.
+
 ## Not implemented
 
-- Voice: reconnect with back-off, neighbouring-region connections, push-to-talk, mute click-fade,
+- Voice: neighbouring-region connections, push-to-talk, mute click-fade,
   device settings UI.
 - Sound: `SYNC_MASTER` / `SYNC_SLAVE` alignment, wind and footsteps, attachments sounding from their
   avatar's position, the grid mute list (a hook exists: `AudioManager.setPolicy`), parcel
