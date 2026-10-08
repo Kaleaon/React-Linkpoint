@@ -451,9 +451,9 @@ export class VoiceManager extends Utils.EventEmitter {
       // Someone on the mute list with voice muted starts muted for us (`LLVoiceWebRTCConnection::OnDataReceivedImpl`).
       if (!this.userMutes.has(update.id) && this.isVoiceMuted?.(update.id)) this.userMutes.set(update.id, true);
       // Re-apply what the resident chose for this person (the viewer does the same on join).
-      if (this.userMutes.get(update.id)) this.send(muteMessage({ [update.id]: true }));
+      if (this.userMutes.get(update.id)) this.sendEverywhere(muteMessage({ [update.id]: true }));
       const gain = this.userGains.get(update.id);
-      if (gain !== undefined) this.send(userGainMessage({ [update.id]: gain }));
+      if (gain !== undefined) this.sendEverywhere(userGainMessage({ [update.id]: gain }));
     }
     if (!participant) return false;
     if (update.left) {
