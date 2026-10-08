@@ -203,6 +203,8 @@ export class LinkpointApp {
       this.eventQueue.stopPolling();
       this.chat.clearHistory();
       this.friends.clear();
+      if (this.friendsRetryTimer) { clearTimeout(this.friendsRetryTimer); this.friendsRetryTimer = null; }
+      this.friendsError = null;
       this.groups.replaceGroups([]);
     });
 
@@ -281,20 +283,49 @@ export class LinkpointApp {
     return data;
   }
 
-  async loadFriends() {
+  /** Why the last friends fetch failed, or null; shown by the Friends screen. */
+  public friendsError: string | null = null;
+  private friendsLoad: Promise<any[]> | null = null;
+  private friendsRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Fetch the friends list. The session's buddy list can still be empty or the request can fail right after
+   * login, so an empty or failed answer is retried with a growing delay (5 attempts) instead of leaving the
+   * list blank. A manual sync starts a fresh round.
+   */
+  async loadFriends({ attempts = 5 }: { attempts?: number } = {}) {
     if (!this.auth.isLoggedIn()) return [];
-    try {
-      if (typeof this.protocol.fetchFriends === 'function') {
-        const friends = await this.protocol.fetchFriends();
-        if (Array.isArray(friends)) {
-          this.protocol.emit('friends_loaded', friends);
-          return friends;
+    if (this.friendsLoad) return this.friendsLoad;
+    if (this.friendsRetryTimer) { clearTimeout(this.friendsRetryTimer); this.friendsRetryTimer = null; }
+    const run = async () => {
+      try {
+        if (typeof this.protocol.fetchFriends === 'function') {
+          const friends = await this.protocol.fetchFriends();
+          if (Array.isArray(friends)) {
+            this.friendsError = null;
+            if (friends.length) this.protocol.emit('friends_loaded', friends);
+            else if (attempts > 1) this.scheduleFriendsRetry(attempts - 1);
+            return friends.length ? friends : this.friends.getFriends();
+          }
         }
+        this.friendsError = 'The friends list response was invalid.';
+      } catch (err) {
+        console.warn('[LinkpointApp] loadFriends warning:', err);
+        this.friendsError = err instanceof Error ? err.message : 'Friends could not be loaded.';
+        if (attempts > 1) this.scheduleFriendsRetry(attempts - 1);
       }
-    } catch (err) {
-      console.warn('[LinkpointApp] loadFriends warning:', err);
-    }
-    return this.friends.getFriends();
+      return this.friends.getFriends();
+    };
+    this.friendsLoad = run().finally(() => { this.friendsLoad = null; });
+    return this.friendsLoad;
+  }
+
+  private scheduleFriendsRetry(attemptsLeft: number) {
+    const delay = Math.min(30000, 2000 * 2 ** (4 - attemptsLeft));
+    this.friendsRetryTimer = setTimeout(() => {
+      this.friendsRetryTimer = null;
+      void this.loadFriends({ attempts: attemptsLeft });
+    }, delay);
   }
 }
 

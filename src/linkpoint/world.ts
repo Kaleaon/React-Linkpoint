@@ -496,7 +496,7 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!asset?.assetId || !asset.geometry) return;
     const assetIdStr = String(asset.assetId).toLowerCase();
     this.decodedAssets.set(assetIdStr, asset.geometry);
-    this.assetErrors.delete(assetIdStr);
+    if (this.assetErrors.delete(assetIdStr)) this.emit('asset_errors_cleared');
     const meshes = this.scene3d?.addAssetMesh(assetIdStr, asset.geometry);
     const fallbackMeshes = asset.geometry.parts?.length
       ? asset.geometry.parts.map((part: any, index: number) => ({ mesh: `asset:${assetIdStr}:${index}`, materialIndex: part.materialIndex ?? index }))
@@ -624,11 +624,18 @@ export class WorldViewer extends Utils.EventEmitter {
     };
   }
 
-  public async loadScene() {
+  /** Forget the assets that failed and ask the session to download them again. */
+  public async retryFailedAssets() {
+    this.assetErrors.clear();
+    await this.loadScene({ retryFailed: true });
+    this.emit('asset_errors_cleared');
+  }
+
+  public async loadScene(options: { retryFailed?: boolean } = {}) {
     if (slBridge.connected) {
       try {
         const snapshot = typeof (slBridge as any).fetchSceneSnapshot === 'function'
-          ? await (slBridge as any).fetchSceneSnapshot()
+          ? await (slBridge as any).fetchSceneSnapshot(options)
           : null;
         if (snapshot?.assets && Array.isArray(snapshot.assets)) {
           for (const item of snapshot.assets) {

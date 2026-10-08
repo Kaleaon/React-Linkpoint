@@ -356,6 +356,34 @@ describe('desktop session texture downloads', () => {
     vi.useRealTimers();
   });
 
+  it('retries a malformed mesh on its own, then waits for a manual retry', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+    const session = new ViewerSession(() => undefined);
+    session.bot = { clientCommands: { asset: { downloadAsset: vi.fn() } } };
+    const download = vi.fn().mockResolvedValue(Buffer.from('bad'));
+    const ready = vi.fn().mockRejectedValueOnce(new Error('malformed mesh header')).mockResolvedValue(undefined);
+    session.streamAsset('mesh:bad', AssetType.Mesh, 'bad', download, ready);
+    await session.assetRequests.get('mesh:bad');
+    expect(ready).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(5001);
+    await session.assetRequests.get('mesh:bad');
+    expect(ready).toHaveBeenCalledTimes(2);
+
+    const alwaysBad = vi.fn().mockRejectedValue(new Error('malformed mesh header'));
+    session.streamAsset('mesh:worse', AssetType.Mesh, 'worse', download, alwaysBad);
+    await vi.advanceTimersByTimeAsync(5000 * 20);
+    const calls = alwaysBad.mock.calls.length;
+    expect(calls).toBeGreaterThan(1);
+    expect(calls).toBeLessThan(10);
+    session.resetAssetFailures();
+    session.streamAsset('mesh:worse', AssetType.Mesh, 'worse', download, alwaysBad);
+    await session.assetRequests.get('mesh:worse');
+    expect(alwaysBad.mock.calls.length).toBe(calls + 1);
+    session.resetAssetFailures();
+    vi.useRealTimers();
+  });
+
   it('limits concurrent simulator asset downloads so attachments are not rate-limited', async () => {
     const session = new ViewerSession(() => undefined);
     let active = 0;
