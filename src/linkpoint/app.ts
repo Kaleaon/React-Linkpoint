@@ -262,6 +262,12 @@ export class LinkpointApp {
     });
   }
 
+  /** What the avatar is wearing and its saved outfits, straight from the session. Throws when it cannot be read. */
+  async loadOutfit() {
+    if (!this.auth.isLoggedIn() || !slBridge.connected) return { items: [], outfits: [] };
+    return slBridge.fetchOutfit();
+  }
+
   async loadGroups() {
     if (!this.auth.isLoggedIn()) return [];
     if (!slBridge.connected) return this.groups.getGroups();

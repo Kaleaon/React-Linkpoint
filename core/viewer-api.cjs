@@ -9,7 +9,7 @@ const METHODS = new Set([
   'teleport', 'touchObject', 'sit', 'stand', 'setMovement', 'getBalance',
   'payObject', 'payAvatar', 'getTransactionHistory',
   'respondScriptDialog', 'acceptLure', 'acceptInventoryOffer', 'declineInventoryOffer', 'acceptGroupInvite', 'declineGroupInvite', 'acceptGroupNoticeAttachment', 'dismissInteraction',
-  'fetchAnimation', 'fetchSound', 'getMapBlocks', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getDiagnostics',
+  'fetchAnimation', 'fetchSound', 'getMapBlocks', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getOutfit', 'getDiagnostics',
   'getSceneObjects', 'getSceneSnapshot',
   'voiceProvision', 'voiceSignal', 'voiceLogout',
   'searchDir',

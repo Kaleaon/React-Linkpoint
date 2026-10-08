@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
-import OutfitViewer, { DEFAULT_SHAPE_VALUES, SHAPE_PRESETS } from '../../screens/OutfitViewer.jsx';
+import OutfitViewer from '../../screens/OutfitViewer.jsx';
 import { app } from '../app';
 import { buttonByText, click, mountScreen, typeInto, unmount, type Mounted } from './ui-helpers';
 
 let mounted: Mounted | null = null;
+
+const worn = [
+  { id: 'a', name: 'Ada Shape', assetType: 13, inventoryType: 18, category: 'body', typeName: 'Shape', worn: true },
+  { id: 'b', name: 'Rain Jacket', assetType: 5, inventoryType: 18, category: 'clothing', typeName: 'Jacket', worn: true },
+  { id: 'c', name: 'Left Wrist Watch', assetType: 6, inventoryType: 6, category: 'attachment', typeName: 'Attachment', worn: true },
+];
 
 beforeAll(() => {
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -13,6 +18,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   localStorage.clear();
+  vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
 });
 
 afterEach(async () => {
@@ -23,116 +29,65 @@ afterEach(async () => {
 });
 
 describe('OutfitViewer screen', () => {
-  it('renders the header and default 3D Viewport with panel switcher buttons', async () => {
+  it('renders the header and panel switcher', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [] });
     mounted = await mountScreen(OutfitViewer);
     expect(mounted.host.textContent).toContain('FULL OUTFIT VIEWER');
-    expect(mounted.host.textContent).toContain('Avatar 3D Viewport, Mesh Inspection & Shape Tuning');
-    
-    // Check panel buttons exist
-    expect(buttonByText(mounted.host, /3D View/)).toBeTruthy();
-    expect(buttonByText(mounted.host, /Outfit Items/)).toBeTruthy();
-    expect(buttonByText(mounted.host, /Shape Sliders/)).toBeTruthy();
-    expect(buttonByText(mounted.host, /Mesh View/)).toBeTruthy();
+    for (const label of [/3D View/, /Outfit Items/, /Shape/, /Mesh View/]) expect(buttonByText(mounted.host, label)).toBeTruthy();
   });
 
-  it('switches between panels (Outfit Items, Shape Sliders, Mesh View)', async () => {
+  it('shows only what the grid reports as worn, and no made-up items', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [{ id: 'o1', name: 'Beach day' }] });
     mounted = await mountScreen(OutfitViewer);
-    
-    // Switch to Outfit Items
     await click(buttonByText(mounted.host, /Outfit Items/)!);
-    expect(mounted.host.textContent).toContain('WORN OUTFIT ITEMS');
-
-    // Switch to Shape Sliders
-    await click(buttonByText(mounted.host, /Shape Sliders/)!);
-    expect(mounted.host.textContent).toContain('AVATAR SHAPE SLIDERS');
-    expect(mounted.host.textContent).toContain('PRESETS');
-
-    // Switch to Mesh View
-    await click(buttonByText(mounted.host, /Mesh View/)!);
-    expect(mounted.host.textContent).toContain('MESH & SKELETON INSPECTION');
-    expect(mounted.host.textContent).toContain('AVATAR MESH STATISTICS');
+    const text = mounted.host.textContent || '';
+    expect(text).toContain('WORN OUTFIT ITEMS (3)');
+    expect(text).toContain('Rain Jacket');
+    expect(text).toContain('Beach day');
+    expect(text).not.toContain('Urban Casual');
+    expect(text).not.toContain('Hazel Eyes');
   });
 
-  it('handles camera presets and 3D rotation controls', async () => {
+  it('says so when nothing is worn or the outfit cannot be loaded, instead of showing placeholders', async () => {
+    vi.spyOn(app, 'loadOutfit').mockRejectedValue(new Error('inventory unavailable'));
     mounted = await mountScreen(OutfitViewer);
-
-    // Click camera preset buttons
-    await click(buttonByText(mounted.host, 'Back')!);
-    await click(buttonByText(mounted.host, 'Face')!);
-    await click(buttonByText(mounted.host, 'Side')!);
-    await click(buttonByText(mounted.host, 'Full')!);
-    await click(buttonByText(mounted.host, 'Front')!);
-
-    // Toggle Auto-Spin button
-    const autoSpinBtn = buttonByText(mounted.host, /AUTO-SPIN/);
-    expect(autoSpinBtn).toBeTruthy();
-    await click(autoSpinBtn!);
-    expect(mounted.host.textContent).toContain('SPINNING');
-
-    // Toggle Mesh Wireframe button
-    const meshBtn = buttonByText(mounted.host, /MESH/);
-    expect(meshBtn).toBeTruthy();
-    await click(meshBtn!);
-    expect(mounted.host.textContent).toContain('WIREFRAME');
+    expect(mounted.host.textContent).toContain('Your outfit could not be loaded: inventory unavailable');
+    expect(mounted.host.textContent).toContain('WORN OUTFIT ITEMS (0)');
   });
 
-  it('applies shape presets, adjusts shape sliders, and saves shape', async () => {
+  it('filters the real items and reloads on REFRESH', async () => {
+    const load = vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
     mounted = await mountScreen(OutfitViewer);
-
-    // Switch to Shape Sliders
-    await click(buttonByText(mounted.host, /Shape Sliders/)!);
-
-    // Select Athletic preset
-    const athleticBtn = buttonByText(mounted.host, 'Athletic');
-    expect(athleticBtn).toBeTruthy();
-    await click(athleticBtn!);
-    expect(mounted.host.textContent).toContain('Applied Athletic shape preset');
-
-    // Select Petite preset
-    const petiteBtn = buttonByText(mounted.host, 'Petite');
-    expect(petiteBtn).toBeTruthy();
-    await click(petiteBtn!);
-    expect(mounted.host.textContent).toContain('Applied Petite shape preset');
-
-    // Reset Shape
-    const resetBtn = buttonByText(mounted.host, 'RESET SHAPE');
-    expect(resetBtn).toBeTruthy();
-    await click(resetBtn!);
-    expect(mounted.host.textContent).toContain('Reset shape sliders to default');
-
-    // Apply / Save Shape
-    const shapeUpdatedSpy = vi.fn();
-    app.inventory.on('shape_updated', shapeUpdatedSpy);
-
-    const applyBtn = buttonByText(mounted.host, 'APPLY SHAPE');
-    expect(applyBtn).toBeTruthy();
-    await click(applyBtn!);
-    expect(shapeUpdatedSpy).toHaveBeenCalledTimes(1);
-    expect(mounted.host.textContent).toContain('Shape saved & applied to avatar');
-  });
-
-  it('filters outfit items and toggles worn state', async () => {
-    mounted = await mountScreen(OutfitViewer);
-
-    // Switch to Outfit Items
     await click(buttonByText(mounted.host, /Outfit Items/)!);
-
-    // Search filter input
     const filterInput = mounted.host.querySelector('input[placeholder="Filter outfit items..."]') as HTMLInputElement;
-    expect(filterInput).toBeTruthy();
-    await typeInto(filterInput, 'Denim');
+    await typeInto(filterInput, 'Jacket');
+    expect(mounted.host.textContent).toContain('Rain Jacket');
+    expect(mounted.host.textContent).not.toContain('Left Wrist Watch');
+    const before = load.mock.calls.length;
+    await click(buttonByText(mounted.host, 'REFRESH')!);
+    expect(load.mock.calls.length).toBe(before + 1);
+  });
 
-    expect(mounted.host.textContent).toContain('Urban Casual Denim Jacket');
-    expect(mounted.host.textContent).not.toContain('Hazel Eyes');
+  it('offers no controls that only pretend to wear items or edit the shape', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
+    mounted = await mountScreen(OutfitViewer);
+    await click(buttonByText(mounted.host, /Outfit Items/)!);
+    const labels = [...mounted.host.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(labels).not.toContain('WEAR');
+    expect(labels).not.toContain('REPLACE OUTFIT');
+    await click(buttonByText(mounted.host, /Shape/)!);
+    expect(mounted.host.querySelector('input[type="range"]')).toBeNull();
+    expect(mounted.host.textContent).not.toContain('Shape saved & applied');
+    await click(buttonByText(mounted.host, /Mesh View/)!);
+    expect(mounted.host.textContent).toContain('Attachments: 1');
+    expect(mounted.host.textContent).not.toContain('14,280');
+  });
 
-    // Clear filter
-    await typeInto(filterInput, '');
-
-    // Toggle worn button for an item
-    const wornBtns = [...mounted.host.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'WORN' || b.textContent?.trim() === 'WEAR');
-    expect(wornBtns.length).toBeGreaterThan(0);
-    const initialText = wornBtns[0].textContent;
-    await click(wornBtns[0]);
-    expect(wornBtns[0].textContent).not.toBe(initialText);
+  it('handles camera presets and auto-spin without a renderer', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [] });
+    mounted = await mountScreen(OutfitViewer);
+    for (const label of ['Back', 'Face', 'Side', 'Full', 'Front']) await click(buttonByText(mounted.host, label)!);
+    await click(buttonByText(mounted.host, /AUTO-SPIN/)!);
+    expect(mounted.host.textContent).toContain('SPINNING');
   });
 });

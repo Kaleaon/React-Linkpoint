@@ -24,6 +24,7 @@ const {
   BotOptionFlags,
   PCode,
   AssetType,
+  FolderType,
   ControlFlags,
   UUID,
 } = require('@caspertech/node-metaverse');
@@ -82,6 +83,8 @@ class ViewerSession {
     this.activeAssetDownloads = 0;
     this.decodedAssets = new Map();
     this.friendPresence = new Map();
+    /** Friend names already resolved, by lowercase id, so a later list does not ask the grid again. */
+    this.friendNames = new Map();
     this.soundRequests = new Set();
     this.objectSounds = new Map();
     this.transactions = [];
@@ -753,40 +756,56 @@ class ViewerSession {
     });
     const online = (id, fallback = false) => ((this.friendPresence.get(String(id).toLowerCase()) ?? fallback) ? 'online' : 'offline');
 
+    // The library names a friend 'Unknown Friend' until its own background lookup succeeds, and that
+    // lookup is abandoned silently on any error. Placeholders are not names: look those up here.
+    const isPlaceholder = (name) => !name || /^(unknown\s+friend|friend|resident)$/i.test(String(name).trim());
     const unresolved = [];
     for (const buddy of buddyList) {
       const id = buddy.buddyID?.toString();
       const friend = friendCommands?.getFriend(buddy.buddyID);
-      if (friend) {
+      const known = this.friendNames.get(String(id).toLowerCase());
+      if (friend && !isPlaceholder(friend.getName?.())) {
+        this.friendNames.set(String(id).toLowerCase(), friend.getName());
         results.push({ ...serializeFriend(friend, { id }), onlineStatus: online(id, Boolean(friend.online)), ...rights(buddy) });
+      } else if (known) {
+        results.push({ id, name: known, onlineStatus: online(id, Boolean(friend?.online)), ...rights(buddy) });
       } else {
         unresolved.push(buddy.buddyID);
       }
     }
 
-    // Names for friends the library has not resolved yet, in batches.
-    if (unresolved.length && bot.clientCommands?.grid) {
+    const nameOf = (res) => res.getName?.() || `${res.getFirstName?.() || ''} ${res.getLastName?.() || ''}`.trim();
+    const names = new Map();
+    const grid = bot.clientCommands?.grid;
+    if (unresolved.length && grid) {
       const BATCH = 50;
       for (let i = 0; i < unresolved.length; i += BATCH) {
         const batch = unresolved.slice(i, i + BATCH);
         try {
-          const resolved = await bot.clientCommands.grid.avatarKey2Name(batch);
+          const resolved = await grid.avatarKey2Name(batch);
           for (const res of Array.isArray(resolved) ? resolved : [resolved]) {
-            if (!res) continue;
-            const id = res.getKey?.()?.toString();
-            const name = res.getName?.() || `${res.getFirstName?.() || ''} ${res.getLastName?.() || ''}`.trim() || 'Resident';
-            results.push({ id, name, onlineStatus: online(id), ...rights(buddyList.find((b) => b.buddyID?.toString() === id)) });
+            if (res) names.set(res.getKey().toString().toLowerCase(), nameOf(res));
           }
         } catch (error) {
-          console.warn('[SL Session] avatarKey2Name batch resolution warning:', error);
-          for (const key of batch) {
-            const id = key.toString();
-            if (!results.some((r) => r.id === id)) {
-              results.push({ id, name: `Resident (${id.slice(0, 8)})`, onlineStatus: online(id), ...rights(buddyList.find((b) => b.buddyID?.toString() === id)) });
-            }
-          }
+          // One unknown key fails the whole batch, so ask for each friend on its own.
+          console.warn('[SL Session] avatarKey2Name batch resolution warning:', error?.message || error);
+          const singles = await Promise.allSettled(batch.map((key) => grid.avatarKey2Name(key)));
+          singles.forEach((single, index) => {
+            if (single.status === 'fulfilled' && single.value) names.set(batch[index].toString().toLowerCase(), nameOf(single.value));
+          });
         }
       }
+    }
+    for (const key of unresolved) {
+      const id = key.toString();
+      const name = names.get(id.toLowerCase());
+      if (name) this.friendNames.set(id.toLowerCase(), name);
+      results.push({
+        id,
+        name: name || `Resident (${id.slice(0, 8)})`,
+        onlineStatus: online(id, Boolean(friendCommands?.getFriend(key)?.online)),
+        ...rights(buddyList.find((b) => b.buddyID?.toString() === id)),
+      });
     }
     return results;
   }
@@ -847,6 +866,44 @@ class ViewerSession {
       assetType: item.assetType, inventoryType: item.inventoryType, description: item.description || '', folder: false,
     }));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
+  }
+
+  /**
+   * What the avatar is wearing now (the Current Outfit folder) and the outfits saved in My Outfits.
+   * Current Outfit holds links; a link carries the name of what it points at, the inventory type, and
+   * for wearables the wearable type in the low byte of its flags.
+   */
+  async getOutfit() {
+    const bot = this.requireBot();
+    const agent = bot.clientCommands?.agent;
+    if (!agent?.getWearables) throw new Error('Second Life outfit interface unavailable');
+    const WEARABLE_TYPES = ['Shape', 'Skin', 'Hair', 'Eyes', 'Shirt', 'Pants', 'Shoes', 'Socks', 'Jacket', 'Gloves', 'Undershirt', 'Underpants', 'Skirt', 'Alpha', 'Tattoo', 'Physics', 'Universal'];
+    const BODY_PARTS = new Set(['Shape', 'Skin', 'Hair', 'Eyes']);
+    const folder = await agent.getWearables();
+    const worn = (folder.items || []).map((item) => {
+      const isWearable = item.inventoryType === 18;
+      const wearableType = isWearable ? WEARABLE_TYPES[Number(item.flags) & 0xff] : undefined;
+      const kind = isWearable ? (BODY_PARTS.has(wearableType) ? 'body' : 'clothing') : (item.inventoryType === 6 ? 'attachment' : 'other');
+      return {
+        id: item.itemID?.toString(),
+        name: item.name || 'Unnamed Item',
+        assetType: item.assetType,
+        inventoryType: item.inventoryType,
+        category: kind,
+        typeName: wearableType || (kind === 'attachment' ? 'Attachment' : 'Item'),
+        worn: true,
+      };
+    });
+
+    const outfits = [];
+    const skeleton = bot.agent?.inventory?.main?.skeleton;
+    const myOutfits = skeleton && Array.from(skeleton.values()).find((f) => f.typeDefault === FolderType.MyOutfits);
+    if (myOutfits) {
+      for (const f of skeleton.values()) {
+        if (f.parentID?.toString() === myOutfits.folderID?.toString()) outfits.push({ id: f.folderID?.toString(), name: f.name || 'Unnamed Outfit' });
+      }
+    }
+    return { folderId: folder.folderID?.toString(), items: worn, outfits };
   }
 
   // ---- diagnostics and scene catch-up -------------------------------------------------------------
@@ -1015,6 +1072,7 @@ class ViewerSession {
     this.appearanceWatcher = null;
     this.assetRequests.clear();
     this.resetAssetFailures();
+    this.friendNames.clear();
     this.decodedAssets.clear();
     this.pending.clear();
     if (!this.bot) return;

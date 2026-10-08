@@ -23,6 +23,29 @@ export default function World3D({ desktopBackdrop = false }) {
   const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
   const [showOutfitDrawer, setShowOutfitDrawer] = useState(false);
+  const [drawerOutfits, setDrawerOutfits] = useState({ outfits: [], message: "Loading your outfits…" });
+
+  // The outfit drawer lists what the grid says you wear plus your saved outfits; it is read when the drawer opens.
+  useEffect(() => {
+    if (!showOutfitDrawer) return;
+    let active = true;
+    if (!app.auth.isLoggedIn()) {
+      setDrawerOutfits({ outfits: [], message: "Connect to a grid to see your outfits." });
+      return;
+    }
+    setDrawerOutfits({ outfits: [], message: "Loading your outfits…" });
+    app.loadOutfit().then((result) => {
+      if (!active) return;
+      const saved = (result?.outfits || []).map((outfit) => ({ id: outfit.id, name: outfit.name, category: "Saved Outfit", worn: false }));
+      setDrawerOutfits({
+        outfits: [{ id: "current-outfit", name: "Current outfit", category: "Active Outfit", worn: true, itemCount: (result?.items || []).length }, ...saved],
+        message: "",
+      });
+    }).catch((error) => {
+      if (active) setDrawerOutfits({ outfits: [], message: `Your outfits could not be loaded: ${error instanceof Error ? error.message : "unknown error"}` });
+    });
+    return () => { active = false; };
+  }, [showOutfitDrawer]);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -826,6 +849,8 @@ export default function World3D({ desktopBackdrop = false }) {
           <OutfitCarouselDrawer
             isOpen={showOutfitDrawer}
             onClose={() => setShowOutfitDrawer(false)}
+            outfits={drawerOutfits.outfits}
+            emptyMessage={drawerOutfits.message}
           />
         </>
       )}

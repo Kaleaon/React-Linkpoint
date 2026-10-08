@@ -11,7 +11,7 @@
 import { Utils } from '../utils';
 
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
-const isRealName = (name: unknown): name is string => typeof name === 'string' && name.trim() !== '' && !['Resident', 'Friend'].includes(name.trim());
+const isRealName = (name: unknown): name is string => typeof name === 'string' && name.trim() !== '' && !['Resident', 'Friend', 'Unknown Friend'].includes(name.trim());
 
 export class FriendsExtended extends Utils.EventEmitter {
   private friends: Map<string, any> = new Map();

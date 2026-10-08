@@ -29,6 +29,10 @@ describe('fabricated-data scanner rules', () => {
     ['invented-coordinates', ': { x: 128, y: 128, z: 24 };'],
     ['fake-data-phrase', '<p>Showing sample residents</p>'],
     ['fake-data-phrase', 'const mock chats = []'],
+    ['default-item-list', 'const DEFAULT_OUTFITS: OutfitItem[] = ['],
+    ['default-item-list', 'const DEMO_OUTFIT_ITEMS = ['],
+    ['invented-statistic', '<div>Estimated Vertex Count: 14,280 vertices</div>'],
+    ['invented-statistic', '<div>Skeleton: 128 active joints</div>'],
     ['random-in-ui', 'const lag = Math.random() * 40;'],
   ];
   for (const [rule, text] of bad) {

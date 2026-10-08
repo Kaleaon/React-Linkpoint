@@ -3,7 +3,7 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
+  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getOutfit',
   'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
 ]);
 
@@ -221,6 +221,7 @@ export class SLBridge extends Utils.EventEmitter {
     return this.call<any>('getGroupDetails', { groupId, section });
   }
 
+  async fetchOutfit() { return this.connected ? this.call<{ items: any[]; outfits: any[] }>('getOutfit') : { items: [], outfits: [] }; }
   async fetchGroups() { return this.connected ? this.call<any[]>('getGroups') : []; }
   async fetchInventory(folderId?: string) {
     return this.connected ? this.call('getInventory', folderId ? { folderId } : {}) : { folders: [], items: [] };
