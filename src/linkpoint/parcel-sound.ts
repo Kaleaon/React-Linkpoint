@@ -20,6 +20,8 @@ export const PARCEL_OVERLAY_CHUNKS = 4;
 /** Sequence ids that are not the agent's parcel (`SELECTED_PARCEL_SEQ_ID` ...). */
 const NON_AGENT_SEQUENCES = new Set([-10000, -20000, -30000, -40000, -50000]);
 
+import { Utils } from './utils';
+
 const decode = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
 export interface ParcelSoundEvent {
@@ -32,7 +34,7 @@ export interface ParcelSoundEvent {
   bitmap?: string;
 }
 
-export class ParcelSoundMap {
+export class ParcelSoundMap extends Utils.EventEmitter {
   /** Cells per edge: region width over 4 m (64 for a 256 m region). */
   readonly cellsPerEdge: number;
   private readonly overlay: Uint8Array;
@@ -45,12 +47,20 @@ export class ParcelSoundMap {
   hasAgentParcel = false;
 
   constructor(public readonly regionWidth = 256) {
+    super();
     this.cellsPerEdge = Math.floor(regionWidth / PARCEL_GRID_STEP_METERS);
     this.overlay = new Uint8Array(this.cellsPerEdge * this.cellsPerEdge);
     this.agentCells = new Uint8Array(this.cellsPerEdge * this.cellsPerEdge);
   }
 
+  /** The avatar's parcel: its local id and flags, once known. */
+  get agentParcel(): { localId: number; flags: number } | null {
+    return this.hasAgentParcel ? { localId: this.agentLocalId, flags: this.agentFlags } : null;
+  }
+  private agentFlags = 0;
+
   reset() {
+    this.agentFlags = 0;
     this.overlay.fill(0); this.overlayChunks.clear(); this.agentCells.fill(0);
     this.agentSequence = 0; this.agentLocalId = -1; this.agentSoundLocal = false; this.hasAgentParcel = false;
   }
@@ -82,11 +92,14 @@ export class ParcelSoundMap {
       this.agentSequence = sequence;
       this.agentLocalId = event.localId ?? -1;
       this.agentSoundLocal = (flags & PF_SOUND_LOCAL) !== 0;
+      this.agentFlags = flags;
       this.writeAgentParcelFromBitmap(event.bitmap ? decode(event.bitmap) : null);
       this.hasAgentParcel = true;
+      this.emit('agent_parcel', this.agentParcel);
     } else if (this.hasAgentParcel && event.localId === this.agentLocalId) {
       // Another message about the agent's parcel (selected, hovered ...): its flags are current.
       this.agentSoundLocal = (flags & PF_SOUND_LOCAL) !== 0;
+      if (flags !== this.agentFlags) { this.agentFlags = flags; this.emit('agent_parcel', this.agentParcel); }
     }
   }
 

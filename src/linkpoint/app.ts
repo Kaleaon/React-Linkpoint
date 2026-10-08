@@ -21,6 +21,7 @@ import { RlvController } from './rlv';
 import { VoiceInput } from './voice-input';
 import { MuteFlag, MuteList, MuteType } from './mute-list';
 import { ParcelSoundMap } from './parcel-sound';
+import { chooseSpatialChannel, regionHandleFor } from './voice-protocol';
 import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
@@ -131,6 +132,13 @@ export class LinkpointApp {
     this.wireRlv();
   }
 
+  /** `voiceConnectionStateMachine`: pick the spatial voice channel from the avatar's parcel and apply it. */
+  private updateVoiceChannel() {
+    const parcel = this.parcelSound.agentParcel;
+    if (!parcel) return;
+    void this.voice.setSpatialChoice(chooseSpatialChannel(parcel), regionHandleFor(this.regionOriginMeters));
+  }
+
   /** A name for the mute list entry of an avatar or object we can see. */
   private nameOfObjectOrAvatar(id: string): string | undefined {
     const wanted = id.toLowerCase();
@@ -214,6 +222,7 @@ export class LinkpointApp {
 
   private setupEventListeners() {
     this.protocol.on('scene:parcel-sound', (data: any) => this.parcelSound.accept(data));
+    this.protocol.on('scene:voice-neighbors', (data: any) => this.voice.setNeighborRegions(data?.neighbors ?? []));
     this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
     this.protocol.on('connected', () => this.muteList.setSelfId(this.protocol.agentId || ''));
     this.protocol.on('friends_loaded', (friends: any[]) => {
@@ -308,18 +317,12 @@ export class LinkpointApp {
         this.audio.setRegionOrigin(origin);
         this.regionOriginMeters = [origin[0], origin[1]];
       }
-      const parcelLocalId = region?.parcel?.LocalID || region?.parcel?.localId;
-      if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
-        void this.voice.reprovision(parcelLocalId);
-      }
+      // A new region: its parcel is not known yet, so the voice channel is decided when the parcel arrives.
+      this.parcelSound.reset();
     });
 
-    this.world.on('parcel_changed', (parcel: any) => {
-      const parcelLocalId = parcel?.LocalID || parcel?.localId;
-      if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
-        void this.voice.reprovision(parcelLocalId);
-      }
-    });
+    // The voice channel follows the avatar's parcel: its own channel, the estate channel, or none (parcel flags).
+    this.parcelSound.on('agent_parcel', () => this.updateVoiceChannel());
 
     this.world.on('nearby_changed', (users: any[]) => {
       if (Array.isArray(users)) {

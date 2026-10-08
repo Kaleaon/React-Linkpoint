@@ -36,6 +36,7 @@ const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
 const { watchWind } = require('./sl-wind.cjs');
 const { watchParcelSound } = require('./sl-parcel-sound.cjs');
+const { NeighborRegions, observeEventQueue } = require('./sl-neighbors.cjs');
 const { MuteListLoader, MUTE_TYPE, sendMuteUpdate, sendMuteRemove } = require('./sl-mutelist.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
@@ -86,6 +87,7 @@ class ViewerSession {
     this.activeAssetDownloads = 0;
     this.decodedAssets = new Map();
     this.friendPresence = new Map();
+    this.voiceSessionCaps = new Map();
     /** Friend names already resolved, by lowercase id, so a later list does not ask the grid again. */
     this.friendNames = new Map();
     this.soundRequests = new Set();
@@ -522,6 +524,13 @@ class ViewerSession {
     this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
     this.subscriptions.push(watchWind(() => this.currentRegion(), (type, data) => this.send(type, data)));
     this.subscriptions.push(watchParcelSound(() => this.currentRegion(), (type, data) => this.send(type, data)));
+    // Neighbouring regions, for voice that carries across region borders
+    this.neighbors = new NeighborRegions({ onChange: (list) => this.send('voice-neighbors', { neighbors: list }) });
+    this.subscriptions.push({ unsubscribe: observeEventQueue((events) => this.neighbors.handleEvents(events)) });
+    this.syncNeighborCurrent();
+    const neighborTimer = setInterval(() => this.syncNeighborCurrent(), 2000);
+    neighborTimer.unref?.();
+    this.subscriptions.push({ unsubscribe: () => clearInterval(neighborTimer) });
     // The account's mute list lives on the grid; ask for it once the circuit is up, as the viewer does at login.
     this.muteLoader = new MuteListLoader(() => this.currentRegion()?.circuit, this.bot.agent?.agentID, (result) => this.send('mute-list', result));
     this.subscriptions.push({ unsubscribe: () => this.muteLoader?.cancel() });
@@ -782,20 +791,46 @@ class ViewerSession {
 
   // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
   // checks the shape and posts them to the region's capability.
-  async voiceProvision({ body } = {}) {
+  /** Keep the neighbour tracker's idea of the current region up to date (the previous one becomes a neighbour). */
+  syncNeighborCurrent() {
+    const region = this.currentRegion();
+    const handle = region?.regionHandle;
+    if (!region?.caps || handle === undefined || handle === null) return;
+    this.neighbors?.setCurrent(BigInt.asUintN(64, BigInt(handle.toString())).toString(), region.caps);
+  }
+
+  /**
+   * Capabilities for a voice request: the current region's, or a neighbour's when `regionHandle` names one
+   * (a handle is the region's south-west corner, x in the high 32 bits and y in the low).
+   */
+  voiceCaps(regionHandle) {
+    const current = this.currentRegion();
+    if (regionHandle === undefined || regionHandle === null || regionHandle === '') return current?.caps;
+    const handle = String(regionHandle);
+    if (!/^\d{1,20}$/.test(handle)) throw new Error('regionHandle must be a number');
+    this.syncNeighborCurrent();
+    const caps = this.neighbors?.capsFor(handle);
+    if (!caps) throw new Error('Voice is not available in that region');
+    return caps;
+  }
+
+  async voiceProvision({ body, regionHandle } = {}) {
     const clean = sanitizeVoiceBody(body, VOICE_PROVISION_KEYS);
     if (clean.jsep?.type !== 'offer' || typeof clean.jsep.sdp !== 'string' || !clean.jsep.sdp) throw new Error('A WebRTC offer is required');
-    const caps = this.currentRegion()?.caps;
+    const caps = this.voiceCaps(regionHandle);
     const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
     if (!url) throw new Error('Voice is not available in this region');
-    return caps.capsPerformXMLPost(url, clean);
+    const response = await caps.capsPerformXMLPost(url, clean);
+    // Signaling and logout for this session go to the region that provisioned it, even after the avatar has moved on.
+    if (response?.viewer_session) this.voiceSessionCaps.set(String(response.viewer_session), caps);
+    return response;
   }
 
   async voiceSignal({ body } = {}) {
     const clean = sanitizeVoiceBody(body, VOICE_SIGNAL_KEYS);
     if (typeof clean.viewer_session !== 'string' || !clean.viewer_session) throw new Error('Voice session is required');
     if (!clean.candidates && !clean.candidate) throw new Error('Voice signaling needs candidates or the completed marker');
-    const caps = this.currentRegion()?.caps;
+    const caps = this.voiceSessionCaps.get(clean.viewer_session) ?? this.currentRegion()?.caps;
     const url = await caps?.getCapability?.('VoiceSignalingRequest');
     if (!url) throw new Error('Voice signaling is not available in this region');
     return caps.capsPerformXMLPost(url, clean);
@@ -803,7 +838,8 @@ class ViewerSession {
 
   async voiceLogout({ viewerSession } = {}) {
     if (!viewerSession) return { loggedOut: true };
-    const caps = this.currentRegion()?.caps;
+    const caps = this.voiceSessionCaps.get(String(viewerSession)) ?? this.currentRegion()?.caps;
+    this.voiceSessionCaps.delete(String(viewerSession));
     const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
     if (url) await caps.capsPerformXMLPost(url, { logout: true, viewer_session: viewerSession, voice_server_type: 'webrtc' });
     return { loggedOut: true };

@@ -2,9 +2,10 @@ import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import {
   DATA_CHANNEL_LABEL, EarLocation, POSITION_UPDATE_THROTTLE_MS, RetryBackoff, earPose, iceServersForGrid, joinMessage, mungeOpusSdp,
-  muteMessage, parseVoiceData, provisionBody, signalingBody, spatialMessage, userGainMessage,
-  type ParticipantUpdate, type Quat, type Vec3, type VoiceChannel,
+  muteMessage, neighborsToJoin, parseVoiceData, provisionBody, regionHandleFor, signalingBody, spatialMessage, userGainMessage,
+  type NeighborRegion, type ParticipantUpdate, type Quat, type SpatialChoice, type Vec3, type VoiceChannel,
 } from './voice-protocol';
+import { VoiceNeighborConnection } from './voice-neighbor';
 
 /** A refused, missing or unusable microphone: retrying would only ask again. */
 const isMicrophoneError = (error: unknown) =>
@@ -27,6 +28,8 @@ export interface SpeakerInfo {
 
 interface Participant {
   id: string;
+  /** The connection whose server announced this person as its own ('primary' or a neighbour's region handle). */
+  source: string;
   level: number;
   speaking: boolean;
   moderatorMuted: boolean;
@@ -58,8 +61,12 @@ export interface VoiceConnectOptions {
  * when provisioning fails or the peer asks to renegotiate; a browser has no such callback, so a peer
  * that reports `failed` or a data channel that closes unasked is treated the same way.
  *
- * What is not done: cross-region (neighbouring) connections, push-to-talk, and the mute click-fade.
- * Nothing here has been run against a live voice server.
+ * Cross-region voice follows `updateNeighboringRegions`: while the avatar is on the estate channel, extra listen-only
+ * connections (`VoiceNeighborConnection`) are held to every neighbouring region within 100 m, and people are taken from a
+ * neighbour only when it says they belong to it (a join marked primary). When the avatar crosses a border the viewer
+ * promotes the neighbour's connection in place; here the connections are rebuilt for the new region instead.
+ *
+ * What is not done: the mute click-fade. Nothing here has been run against a live voice server.
  */
 export class VoiceManager extends Utils.EventEmitter {
   state: VoiceState = 'off';
@@ -95,6 +102,16 @@ export class VoiceManager extends Utils.EventEmitter {
   private userMutes = new Map<string, boolean>();
 
   private regionOrigin: [number, number] = [0, 0];
+  /** Handle of the region the avatar is in, from its origin. */
+  private regionHandle = regionHandleFor([0, 0]);
+  /** The region the primary connection was provisioned for. */
+  private connectedRegionHandle = '';
+  private spatialChoice: SpatialChoice = { enabled: true, estate: true };
+  private neighborRegions: NeighborRegion[] = [];
+  private neighbors = new Map<string, VoiceNeighborConnection>();
+  private neighborRetryAt = new Map<string, number>();
+  private neighborAudio = new Map<string, HTMLAudioElement>();
+  private lastNeighborSync = -Infinity;
   private avatar: { position?: Vec3; rotation?: Quat } = {};
   private camera: { position?: Vec3; rotation?: Quat } = {};
   private earLocation: EarLocation = EarLocation.Avatar;
@@ -117,7 +134,16 @@ export class VoiceManager extends Utils.EventEmitter {
     this.wanted = true;
     this.clearRetryTimer();
     this.options = options;
-    this.channel = options.channel ?? { kind: 'local', parcelLocalId: options.parcelLocalId };
+    const explicit = options.channel !== undefined || options.parcelLocalId !== undefined;
+    if (!explicit && !this.spatialChoice.enabled) {
+      const reason = this.spatialChoice.reason;
+      this.setState('error', reason);
+      throw new Error(reason);
+    }
+    this.channel = options.channel ?? (explicit
+      ? { kind: 'local', parcelLocalId: options.parcelLocalId }
+      : this.spatialChoice.enabled && !this.spatialChoice.estate ? { kind: 'local', parcelLocalId: this.spatialChoice.parcelLocalId } : { kind: 'local' });
+    this.connectedRegionHandle = this.regionHandle;
     if (options.earLocation !== undefined) this.earLocation = options.earLocation;
     this.setState('connecting');
     try {
@@ -214,17 +240,140 @@ export class VoiceManager extends Utils.EventEmitter {
    * the connection down and connects again with the same options, keeping the mute state.
    */
   async reprovision(parcelLocalId?: number) {
-    if (this.wanted && this.retryTimer) { this.options = { ...this.options, channel: undefined, parcelLocalId }; return; }
-    if (this.state !== 'connected' && this.state !== 'connecting') return;
-    if (this.channel.kind === 'local' && this.channel.parcelLocalId === parcelLocalId) return;
-    const options = { ...this.options, channel: undefined, parcelLocalId };
-    await this.disconnect();
+    await this.setSpatialChoice(parcelLocalId === undefined ? { enabled: true, estate: true } : { enabled: true, estate: false, parcelLocalId }, this.regionHandle);
+  }
+
+  /**
+   * Which spatial channel applies (see `chooseSpatialChannel`) in the region with this handle. Remembered for the next
+   * `connect()`; if voice is up on a different channel or region it is rebuilt, if the parcel forbids voice it is stopped
+   * (and starts again by itself when a parcel that allows it is entered).
+   */
+  async setSpatialChoice(choice: SpatialChoice, regionHandle: string = this.regionHandle) {
+    const sameRegion = regionHandle === this.regionHandle;
+    this.spatialChoice = choice;
+    if (!sameRegion) { this.regionHandle = regionHandle; this.spatialDirty = true; }
+    if (this.wanted && this.retryTimer) { this.options = { ...this.options, channel: undefined, parcelLocalId: undefined }; return; }
+    const live = this.state === 'connected' || this.state === 'connecting';
+    if (!choice.enabled) {
+      if (live && this.channel.kind === 'local') {
+        this.suspended = true;
+        await this.teardown();
+        this.setState('off', choice.reason);
+        this.emit('suspended', { reason: choice.reason });
+      }
+      return;
+    }
+    if (this.suspended && this.wanted) {
+      this.suspended = false;
+      try { await this.connect({ ...this.options, channel: undefined, parcelLocalId: undefined }); this.emit('reprovisioned', { viewerSession: this.viewerSession }); } catch (error) { this.emit('reprovision_error', error); }
+      return;
+    }
+    if (!live || this.channel.kind !== 'local') return;
+    const channelMatches = choice.estate ? this.channel.parcelLocalId === undefined : this.channel.parcelLocalId === choice.parcelLocalId;
+    if (channelMatches && this.connectedRegionHandle === this.regionHandle) return;
+    const options = { ...this.options, channel: undefined, parcelLocalId: undefined };
+    await this.teardown();
+    this.wanted = true;
     try {
       await this.connect(options);
-      this.emit('reprovisioned', { parcelLocalId, viewerSession: this.viewerSession });
+      this.emit('reprovisioned', { viewerSession: this.viewerSession });
     } catch (error) {
       this.emit('reprovision_error', error);
     }
+  }
+
+  /** True while voice is stopped because the parcel does not allow it. */
+  private suspended = false;
+
+  /** The neighbouring regions that offer WebRTC voice (from the core). */
+  setNeighborRegions(list: NeighborRegion[]) {
+    this.neighborRegions = Array.isArray(list) ? list : [];
+    this.lastNeighborSync = -Infinity;
+  }
+
+  /** Open and close the neighbour connections to match where the avatar is (`updateNeighboringRegions`). */
+  private syncNeighbors() {
+    const now = performance.now();
+    if (now - this.lastNeighborSync < 1000) return;
+    this.lastNeighborSync = now;
+    const estate = this.channel.kind === 'local' && this.channel.parcelLocalId === undefined;
+    const position = this.avatar.position;
+    const wanted = new Set(estate && this.joined && position
+      ? neighborsToJoin([position[0] + this.regionOrigin[0], position[1] + this.regionOrigin[1], position[2]], this.neighborRegions, this.connectedRegionHandle || this.regionHandle)
+      : []);
+    for (const [handle, connection] of [...this.neighbors]) {
+      if (!wanted.has(handle)) { this.neighbors.delete(handle); void connection.close(); this.dropNeighborAudio(handle); this.dropParticipantsFrom(handle); }
+    }
+    for (const handle of wanted) {
+      if (this.neighbors.has(handle) || (this.neighborRetryAt.get(handle) ?? 0) > now) continue;
+      const connection = new VoiceNeighborConnection(handle, {
+        grid: this.options.grid,
+        onData: (raw, source) => this.onNeighborData(raw, source),
+        onRemoteStream: (stream, source) => this.playNeighbor(stream, source),
+        onLost: (source) => this.neighborLost(source),
+      });
+      this.neighbors.set(handle, connection);
+      connection.connect().catch((error: unknown) => {
+        console.warn('[VoiceManager] neighbouring region voice unavailable:', error);
+        if (this.neighbors.get(handle) === connection) this.neighbors.delete(handle);
+        this.neighborRetryAt.set(handle, performance.now() + 15000);
+        this.emit('neighbor_error', { handle, error });
+      });
+    }
+    this.emit('neighbors', { connected: [...this.neighbors.keys()] });
+  }
+
+  private greeted = new Set<string>();
+
+  /** A neighbour that has just joined needs our position straight away. */
+  private greetNeighbors() {
+    for (const [handle, connection] of this.neighbors) {
+      if (connection.isOpen && !this.greeted.has(handle)) { this.greeted.add(handle); this.spatialDirty = true; }
+    }
+    for (const handle of [...this.greeted]) if (!this.neighbors.has(handle)) this.greeted.delete(handle);
+  }
+
+  private neighborLost(handle: string) {
+    const connection = this.neighbors.get(handle);
+    if (!connection) return;
+    this.neighbors.delete(handle);
+    void connection.close();
+    this.dropNeighborAudio(handle);
+    this.dropParticipantsFrom(handle);
+    this.neighborRetryAt.set(handle, performance.now() + 5000);
+  }
+
+  private dropParticipantsFrom(source: string) {
+    for (const [id, participant] of this.participants) if (participant.source === source) this.participants.delete(id);
+  }
+
+  private dropNeighborAudio(handle: string) {
+    const audio = this.neighborAudio.get(handle);
+    if (audio) { audio.srcObject = null; this.neighborAudio.delete(handle); }
+  }
+
+  private playNeighbor(stream: MediaStream, handle: string) {
+    let audio = this.neighborAudio.get(handle);
+    if (!audio) { audio = new Audio(); this.neighborAudio.set(handle, audio); }
+    audio.autoplay = true;
+    audio.volume = this.speakerVolume;
+    audio.srcObject = stream;
+    void audio.play().catch(() => {});
+  }
+
+  private onNeighborData(raw: string, source: string) {
+    let changed = false;
+    for (const update of parseVoiceData(raw)) changed = this.applyUpdate(update, source) || changed;
+    if (changed) this.emitSpeakers();
+  }
+
+  /** Close every neighbour connection (the avatar changed region, or voice stopped). */
+  private async closeNeighbors() {
+    const all = [...this.neighbors.values()];
+    this.neighbors.clear();
+    this.neighborRetryAt.clear();
+    for (const handle of [...this.neighborAudio.keys()]) this.dropNeighborAudio(handle);
+    await Promise.all(all.map((c) => c.close()));
   }
 
   async disconnect() {
@@ -240,6 +389,7 @@ export class VoiceManager extends Utils.EventEmitter {
     this.stopTimers();
     this.joined = false;
     this.participants.clear();
+    await this.closeNeighbors();
     if (this.peer) this.peer.onconnectionstatechange = null;
     if (this.dataChannel) { this.dataChannel.onopen = null; this.dataChannel.onmessage = null; this.dataChannel.onclose = null; try { this.dataChannel.close(); } catch { /* closed */ } }
     this.dataChannel = null;
@@ -259,6 +409,12 @@ export class VoiceManager extends Utils.EventEmitter {
     if (this.dataChannel?.readyState === 'open') this.dataChannel.send(json);
   }
 
+  /** To the primary connection and every neighbour. */
+  private sendEverywhere(json: string) {
+    this.send(json);
+    for (const connection of this.neighbors.values()) connection.send(json);
+  }
+
   private onDataChannelOpen() {
     // As in the viewer: join, then declare the connection primary (it is for our own region).
     this.send(joinMessage(false));
@@ -268,13 +424,13 @@ export class VoiceManager extends Utils.EventEmitter {
     this.retry.reset();
     this.retryAttempts = 0;
     this.applyMic();
-    if (this.channel.kind === 'local') { this.spatialDirty = true; this.sendSpatial(true); this.spatialTimer ||= setInterval(() => this.sendSpatial(false), POSITION_UPDATE_THROTTLE_MS); }
+    if (this.channel.kind === 'local') { this.spatialDirty = true; this.sendSpatial(true); this.spatialTimer ||= setInterval(() => { this.syncNeighbors(); this.greetNeighbors(); this.sendSpatial(false); }, POSITION_UPDATE_THROTTLE_MS); }
     this.startAnalysis();
   }
 
   private onData(raw: string) {
     let changed = false;
-    for (const update of parseVoiceData(raw)) changed = this.applyUpdate(update) || changed;
+    for (const update of parseVoiceData(raw)) changed = this.applyUpdate(update, 'primary') || changed;
     if (changed) this.emitSpeakers();
   }
 
@@ -282,10 +438,15 @@ export class VoiceManager extends Utils.EventEmitter {
   setVoiceMuteChecker(check: ((id: string) => boolean) | null) { this.isVoiceMuted = check ?? undefined; }
   private isVoiceMuted: ((id: string) => boolean) | undefined;
 
-  private applyUpdate(update: ParticipantUpdate): boolean {
+  /**
+   * `source` is the connection the message came from. People are added only when their own server says so (a join marked
+   * primary) or on non-spatial channels; levels and speaking come from whichever server reports them; moderator mutes and
+   * departures are believed only from the server that announced the person.
+   */
+  private applyUpdate(update: ParticipantUpdate, source = 'primary'): boolean {
     let participant = this.participants.get(update.id);
     if (!participant && update.joined && (update.primary || this.channel.kind !== 'local')) {
-      participant = { id: update.id, level: 0, speaking: false, moderatorMuted: false };
+      participant = { id: update.id, source, level: 0, speaking: false, moderatorMuted: false };
       this.participants.set(update.id, participant);
       // Someone on the mute list with voice muted starts muted for us (`LLVoiceWebRTCConnection::OnDataReceivedImpl`).
       if (!this.userMutes.has(update.id) && this.isVoiceMuted?.(update.id)) this.userMutes.set(update.id, true);
@@ -295,10 +456,14 @@ export class VoiceManager extends Utils.EventEmitter {
       if (gain !== undefined) this.send(userGainMessage({ [update.id]: gain }));
     }
     if (!participant) return false;
-    if (update.left) { if (update.id !== this.selfId) this.participants.delete(update.id); return true; }
+    if (update.left) {
+      if (participant.source !== source) return false; // a neighbour saying goodbye to someone who lives elsewhere
+      if (update.id !== this.selfId) this.participants.delete(update.id);
+      return true;
+    }
     if (update.level !== undefined) participant.level = update.level;
     if (update.speaking !== undefined) participant.speaking = update.speaking;
-    if (update.moderatorMuted !== undefined) participant.moderatorMuted = update.moderatorMuted;
+    if (update.moderatorMuted !== undefined && participant.source === source) participant.moderatorMuted = update.moderatorMuted;
     return true;
   }
 
@@ -375,26 +540,31 @@ export class VoiceManager extends Utils.EventEmitter {
   setSpeakerVolume(volume: number) {
     this.speakerVolume = Math.max(0, Math.min(1, volume));
     if (this.remoteAudio) this.remoteAudio.volume = this.speakerVolume;
+    for (const audio of this.neighborAudio.values()) audio.volume = this.speakerVolume;
   }
 
   /** Per-person playback gain 0..1, applied by the voice server (`ug`). */
   setUserVolume(id: string, volume: number) {
     const key = id.toLowerCase();
     this.userGains.set(key, volume);
-    this.send(userGainMessage({ [key]: volume }));
+    this.sendEverywhere(userGainMessage({ [key]: volume }));
   }
 
   /** Mute one person for yourself (`m`). */
   setUserMuted(id: string, muted: boolean) {
     const key = id.toLowerCase();
     this.userMutes.set(key, muted);
-    this.send(muteMessage({ [key]: muted }));
+    this.sendEverywhere(muteMessage({ [key]: muted }));
   }
 
   /** Send the output to a specific speaker, where the browser supports it. */
   async setOutputDevice(deviceId: string) {
     const audio = this.remoteAudio as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (audio?.setSinkId) await audio.setSinkId(deviceId);
+    for (const neighbor of this.neighborAudio.values()) {
+      const sink = neighbor as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+      if (sink.setSinkId) await sink.setSinkId(deviceId);
+    }
   }
 
   private playRemote(stream: MediaStream) {
@@ -408,7 +578,11 @@ export class VoiceManager extends Utils.EventEmitter {
   // ---- positions ----------------------------------------------------------------------------------
 
   /** Global metres of the current region's south-west corner; positions below are region-local. */
-  setRegionOrigin(origin: [number, number]) { this.regionOrigin = origin; this.spatialDirty = true; }
+  setRegionOrigin(origin: [number, number]) {
+    this.regionOrigin = origin;
+    this.regionHandle = regionHandleFor(origin);
+    this.spatialDirty = true;
+  }
 
   setEarLocation(location: EarLocation) { this.earLocation = location; this.spatialDirty = true; }
 
@@ -443,7 +617,8 @@ export class VoiceManager extends Utils.EventEmitter {
     const wantsCamera = this.earLocation !== EarLocation.Avatar && this.camera.position && this.camera.rotation;
     const ear = earPose(wantsCamera ? this.earLocation : EarLocation.Avatar, { position: head, rotation },
       { position: global(this.camera.position ?? position), rotation: this.camera.rotation ?? rotation });
-    this.send(spatialMessage({ avatarPosition: head, avatarRotation: rotation, listenerPosition: ear.position, listenerRotation: ear.rotation }));
+    const message = spatialMessage({ avatarPosition: head, avatarRotation: rotation, listenerPosition: ear.position, listenerRotation: ear.rotation });
+    this.sendEverywhere(message);
     this.spatialDirty = false;
     this.lastSpatialSent = now;
   }

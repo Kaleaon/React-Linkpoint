@@ -274,7 +274,8 @@ export class SLBridge extends Utils.EventEmitter {
   fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
   fetchSound(id: string): Promise<{ requested: boolean }> { return this.call('fetchSound', { id }); }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
-  voiceProvision(body: Record<string, unknown>) { return this.call<any>('voiceProvision', { body }); }
+  /** `regionHandle` provisions on a neighbouring region (cross-region voice) instead of the current one. */
+  voiceProvision(body: Record<string, unknown>, regionHandle?: string) { return this.call<any>('voiceProvision', regionHandle ? { body, regionHandle } : { body }); }
   voiceSignal(body: Record<string, unknown>) { return this.call('voiceSignal', { body }); }
   voiceLogout(viewerSession: string) { return this.call('voiceLogout', { viewerSession }); }
   requestMuteList() { return this.call<{ requested: boolean }>('requestMuteList'); }
