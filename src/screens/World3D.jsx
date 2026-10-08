@@ -120,6 +120,14 @@ export default function World3D({ desktopBackdrop = false }) {
     return chatMessages.filter((m) => m.type !== "im" && m.type !== "group").slice(-10);
   }, [chatMessages]);
 
+  const [, setAssetRevision] = useState(0);
+  useEffect(() => {
+    const bump = () => setAssetRevision((n) => n + 1);
+    app.world.on("asset_error", bump);
+    app.world.on("asset_errors_cleared", bump);
+    return () => { app.world.off("asset_error", bump); app.world.off("asset_errors_cleared", bump); };
+  }, []);
+
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
     let active = true;
@@ -143,7 +151,7 @@ export default function World3D({ desktopBackdrop = false }) {
 
   const handleRefreshScene = async () => {
     try {
-      await app.world.loadScene();
+      await app.world.retryFailedAssets();
       setObjectCount(app.world.objects.length);
       refresh();
     } catch (err) {
@@ -337,7 +345,11 @@ export default function World3D({ desktopBackdrop = false }) {
                   </div>
                 </div>
                 Pos: {position.join(", ")}<br />
-                {dataStatus}<br />
+                {dataStatus}
+                {app.world.getAssetErrors().length > 0 && (
+                  <button type="button" onClick={handleRefreshScene} title="Download the failed meshes and textures again" style={{ marginLeft: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: V.pri, background: "transparent", border: `1px solid ${V.outv}`, borderRadius: V.rs, padding: "1px 6px" }}>RETRY</button>
+                )}
+                <br />
                 {objectCount} simulator objects<br />
                 <span style={{ fontWeight: 700, color: interactionMode === "navigate" ? V.pri : V.ink }}>
                   MODE: {interactionMode.toUpperCase()} ({interactionMode === "navigate" ? "Raycast Disabled" : "Raycast Active"}) · {panMode ? "PAN" : "ORBIT"}

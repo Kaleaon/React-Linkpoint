@@ -116,7 +116,7 @@ export function FriendsScreen() {
       {!filtered.length ? (
         <Empty icon="users">
           {app.auth.isLoggedIn()
-            ? (filterTab === "ONLINE" ? "None of your friends are currently online." : "No friends loaded from the grid.")
+            ? (filterTab === "ONLINE" ? "None of your friends are currently online." : (app.friendsError ? `Friends could not be loaded: ${app.friendsError} Tap SYNC FRIENDS to try again.` : "No friends loaded from the grid. Retrying automatically; tap SYNC FRIENDS to try now."))
             : "Connect to a grid to see your friends."}
         </Empty>
       ) : (

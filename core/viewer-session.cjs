@@ -47,6 +47,8 @@ const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/Fi
 const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
 
 const NOT_CONNECTED = 'Not connected to Second Life';
+/** How many times a failed (non-permanent) asset is fetched again on its own before waiting for a manual retry. */
+const ASSET_AUTO_RETRIES = 4;
 
 const newId = () => crypto.randomUUID();
 
@@ -74,6 +76,8 @@ class ViewerSession {
     this.appearanceWatcher = null;
     this.assetRequests = new Map();
     this.assetFailures = new Map();
+    this.assetAttempts = new Map();
+    this.assetRetryTimers = new Map();
     this.assetDownloadQueue = [];
     this.activeAssetDownloads = 0;
     this.decodedAssets = new Map();
@@ -147,6 +151,7 @@ class ViewerSession {
         : this.bot.clientCommands.asset.downloadAsset(kind, assetId));
       await ready(buffer);
       this.assetFailures.delete(key);
+      this.assetAttempts.delete(key);
     })().catch((error) => {
       // A failed promise must not poison this asset for the rest of the session. Object updates can
       // retry it after a short backoff, which is important while region capabilities are settling.
@@ -158,8 +163,28 @@ class ViewerSession {
       const backoffMs = isPermanent ? 3600000 : 5000;
       this.assetFailures.set(key, Date.now() + backoffMs);
       this.send('asset-error', { assetId, message: msg });
+      // Nothing else re-announces an object, so a mesh that failed once (a truncated download, a
+      // malformed block, a stale capability) would stay a placeholder. Retry it a few times by itself.
+      const attempts = (this.assetAttempts.get(key) || 0) + 1;
+      this.assetAttempts.set(key, attempts);
+      if (!isPermanent && attempts < ASSET_AUTO_RETRIES && this.bot && !this.assetRetryTimers.has(key)) {
+        const timer = setTimeout(() => {
+          this.assetRetryTimers.delete(key);
+          if (this.bot) this.streamAsset(key, kind, assetId, download, ready);
+        }, backoffMs * attempts);
+        timer.unref?.();
+        this.assetRetryTimers.set(key, timer);
+      }
     });
     this.assetRequests.set(key, request);
+  }
+
+  /** Forget every failure so the next scene pass downloads those assets again. */
+  resetAssetFailures() {
+    this.assetFailures.clear();
+    this.assetAttempts.clear();
+    for (const timer of this.assetRetryTimers.values()) clearTimeout(timer);
+    this.assetRetryTimers.clear();
   }
 
   /** Download through ViewerAsset, matching the official viewer, and reacquire the current region
@@ -978,7 +1003,8 @@ class ViewerSession {
   }
 
   /** Objects and decoded assets, for a client that connected after they were first announced. */
-  getSceneSnapshot() {
+  getSceneSnapshot({ retryFailed = false } = {}) {
+    if (retryFailed) this.resetAssetFailures();
     return { objects: this.getSceneObjects(), assets: Array.from(this.decodedAssets.values()) };
   }
 
@@ -988,7 +1014,7 @@ class ViewerSession {
     }
     this.appearanceWatcher = null;
     this.assetRequests.clear();
-    this.assetFailures.clear();
+    this.resetAssetFailures();
     this.decodedAssets.clear();
     this.pending.clear();
     if (!this.bot) return;
