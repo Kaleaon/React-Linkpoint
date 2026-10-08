@@ -35,6 +35,7 @@ const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
 const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
 const { watchWind } = require('./sl-wind.cjs');
+const { MuteListLoader, MUTE_TYPE, sendMuteUpdate, sendMuteRemove } = require('./sl-mutelist.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
   finite, vector, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend,
@@ -519,6 +520,10 @@ class ViewerSession {
     if (animations) this.subscriptions.push(animations);
     this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
     this.subscriptions.push(watchWind(() => this.currentRegion(), (type, data) => this.send(type, data)));
+    // The account's mute list lives on the grid; ask for it once the circuit is up, as the viewer does at login.
+    this.muteLoader = new MuteListLoader(() => this.currentRegion()?.circuit, this.bot.agent?.agentID, (result) => this.send('mute-list', result));
+    this.subscriptions.push({ unsubscribe: () => this.muteLoader?.cancel() });
+    this.muteLoader.request();
 
     let inventoryRootId = '';
     try { inventoryRootId = this.bot.clientCommands?.inventory?.getInventoryRoot()?.folderID?.toString() || ''; } catch { /* fetched on demand */ }
@@ -570,6 +575,43 @@ class ViewerSession {
     const comms = this.requireBot().clientCommands?.comms;
     if (!comms) throw new Error('Second Life communications interface unavailable');
     await comms.sendInstantMessage(recipientId, message);
+  }
+
+  /** Ask the grid for the account's mute list again; it arrives as a 'mute-list' event. */
+  requestMuteList() {
+    if (!this.muteLoader) throw new Error(NOT_CONNECTED);
+    return { requested: this.muteLoader.request() };
+  }
+
+  /** Add or change a mute list entry on the grid (`UpdateMuteListEntry`). The client keeps the list and its flag rules. */
+  updateMuteEntry(params = {}) {
+    const entry = this.checkMuteEntry(params);
+    const circuit = this.currentRegion()?.circuit;
+    const agentId = this.bot?.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error(NOT_CONNECTED);
+    return { sent: sendMuteUpdate(circuit, agentId, entry) };
+  }
+
+  /** Remove a mute list entry on the grid (`RemoveMuteListEntry`). */
+  removeMuteEntry(params = {}) {
+    const entry = this.checkMuteEntry(params, { flags: false });
+    const circuit = this.currentRegion()?.circuit;
+    const agentId = this.bot?.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error(NOT_CONNECTED);
+    sendMuteRemove(circuit, agentId, entry);
+    return { sent: true };
+  }
+
+  checkMuteEntry(params, { flags = true } = {}) {
+    const type = Number(params.type);
+    if (![MUTE_TYPE.BY_NAME, MUTE_TYPE.AGENT, MUTE_TYPE.OBJECT, MUTE_TYPE.GROUP].includes(type)) throw new Error('Mute type must be 0 (name), 1 (resident), 2 (object) or 3 (group)');
+    const name = String(params.name ?? '');
+    if (name.length > 254) throw new Error('Mute name is too long');
+    if (type === MUTE_TYPE.BY_NAME && !name) throw new Error('A mute by name needs a name');
+    const id = type === MUTE_TYPE.BY_NAME ? '' : actions.requireUuid(params.id, 'Mute id').toLowerCase();
+    const mask = flags ? Number(params.flags ?? 0) : 0;
+    if (!Number.isInteger(mask) || mask < 0 || mask > 0xf) throw new Error('Mute flags must be 0 to 15');
+    return { id, name, type, flags: mask };
   }
 
   async sendGroupMessage({ groupId, message }) {

@@ -69,6 +69,12 @@ export class WorldViewer extends Utils.EventEmitter {
   private animationId: number | null = null;
   private cameraControls: CameraControls | null = null;
   private agentKeyboard: AgentKeyboard | null = null;
+  /** The name of a scene object by id, when it is loaded. */
+  public objectName(id: string): string | undefined {
+    const object = this.sceneObjects.get(id) ?? [...this.sceneObjects.values()].find((o: any) => this.sameId(o.id, id));
+    return object?.name ? String(object.name) : undefined;
+  }
+
   /** What the avatar may do right now (RLV sets these); applies to the keyboard controls. */
   public movementRestrictions: MovementRestrictions = {};
   private lastMovement = '';

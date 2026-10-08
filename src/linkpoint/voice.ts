@@ -278,11 +278,17 @@ export class VoiceManager extends Utils.EventEmitter {
     if (changed) this.emitSpeakers();
   }
 
+  /** Whether the mute list silences this person's voice. */
+  setVoiceMuteChecker(check: ((id: string) => boolean) | null) { this.isVoiceMuted = check ?? undefined; }
+  private isVoiceMuted: ((id: string) => boolean) | undefined;
+
   private applyUpdate(update: ParticipantUpdate): boolean {
     let participant = this.participants.get(update.id);
     if (!participant && update.joined && (update.primary || this.channel.kind !== 'local')) {
       participant = { id: update.id, level: 0, speaking: false, moderatorMuted: false };
       this.participants.set(update.id, participant);
+      // Someone on the mute list with voice muted starts muted for us (`LLVoiceWebRTCConnection::OnDataReceivedImpl`).
+      if (!this.userMutes.has(update.id) && this.isVoiceMuted?.(update.id)) this.userMutes.set(update.id, true);
       // Re-apply what the resident chose for this person (the viewer does the same on join).
       if (this.userMutes.get(update.id)) this.send(muteMessage({ [update.id]: true }));
       const gain = this.userGains.get(update.id);

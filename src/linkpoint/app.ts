@@ -19,6 +19,7 @@ import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
 import { RlvController } from './rlv';
 import { VoiceInput } from './voice-input';
+import { MuteFlag, MuteList, MuteType } from './mute-list';
 import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
@@ -70,6 +71,8 @@ export class LinkpointApp {
   /** RLV (off until the user turns it on). `rlv.handler` holds the restrictions. */
   public rlv: RlvController;
   private voiceInput: VoiceInput | null = null;
+  /** The account's mute list, kept on the grid. */
+  public muteList: MuteList;
 
   constructor() {
     this.protocol = new SLConnectionFull();
@@ -101,7 +104,27 @@ export class LinkpointApp {
     this.friends = new FriendsExtended(this.protocol);
     this.rlv = new RlvController(false, this.rlvEnvironment());
     this.chat.setRlv(this.rlv.handler);
+    this.muteList = new MuteList({
+      update: (entry) => slBridge.updateMuteEntry(entry),
+      remove: (entry) => slBridge.removeMuteEntry(entry),
+    });
+    this.chatExtended.attachGridMuteList(this.muteList, (id) => this.nameOfObjectOrAvatar(id));
+    this.audio.setPolicy({
+      isMuted: (id) => this.muteList.isMuted(id),
+      ownerSoundsMuted: (ownerId) => this.muteList.isMuted(ownerId, '', MuteFlag.OBJECT_SOUNDS),
+    });
+    this.voice.setVoiceMuteChecker((id) => this.muteList.isMuted(id, '', MuteFlag.VOICE_CHAT));
+    this.muteList.on('entry_changed', ({ entry, removed }: { entry: { id: string; type: number; flags: number }; removed: boolean }) => {
+      // LLWebRTCVoiceClient::onChangeDetailed: an agent's voice mute follows the mute list at once
+      if (entry.type === MuteType.AGENT) this.voice.setUserMuted(entry.id, !removed && (entry.flags & MuteFlag.VOICE_CHAT) === 0);
+    });
     this.wireRlv();
+  }
+
+  /** A name for the mute list entry of an avatar or object we can see. */
+  private nameOfObjectOrAvatar(id: string): string | undefined {
+    const wanted = id.toLowerCase();
+    return this.world.objectName(id) ?? this.world.nearbyUsers.find((u: any) => String(u.id).toLowerCase() === wanted)?.name;
   }
 
   /** What RLV needs from the viewer. Missing pieces make the commands that use them fail rather than guess. */
@@ -144,7 +167,7 @@ export class LinkpointApp {
       }
     };
     // Restrictions belong to the session: forget them on logout.
-    this.auth.on('logout', () => rlv.reset());
+    this.auth.on('logout', () => { rlv.reset(); this.muteList.clear(); });
   }
 
   async init() {
@@ -180,6 +203,8 @@ export class LinkpointApp {
   }
 
   private setupEventListeners() {
+    this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
+    this.protocol.on('connected', () => this.muteList.setSelfId(this.protocol.agentId || ''));
     this.protocol.on('friends_loaded', (friends: any[]) => {
       console.log('Real friends loaded from Second Life:', friends.length);
       this.friends.replaceFriends(friends.map((f) => ({

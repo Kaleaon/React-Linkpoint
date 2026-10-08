@@ -424,6 +424,7 @@ export class ChatManager extends Utils.EventEmitter {
       id: data.id || Utils.generateUUID(),
       sender: rlvName,
       senderId,
+      ownerId: data.ownerId,
       groupId: data.groupId,
       groupName: data.groupName,
       text: rlvText,
