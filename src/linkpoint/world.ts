@@ -9,6 +9,7 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { AgentKeyboard } from './agent-keyboard';
+import { GamepadInput } from './gamepad';
 import type { MovementRestrictions } from './agent-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
@@ -69,6 +70,9 @@ export class WorldViewer extends Utils.EventEmitter {
   private animationId: number | null = null;
   private cameraControls: CameraControls | null = null;
   private agentKeyboard: AgentKeyboard | null = null;
+  private gamepad: GamepadInput | null = null;
+  /** `JoystickEnabled`: gamepad control of the avatar, off until the user turns it on. */
+  public gamepadEnabled = false;
   /** The name of a scene object by id, when it is loaded. */
   public objectName(id: string): string | undefined {
     const object = this.sceneObjects.get(id) ?? [...this.sceneObjects.values()].find((o: any) => this.sameId(o.id, id));
@@ -721,6 +725,12 @@ export class WorldViewer extends Utils.EventEmitter {
         },
       });
 
+      const keyboard = this.agentKeyboard;
+      this.gamepad = new GamepadInput(
+        { setAnalog: (a) => keyboard.setAnalog(a), setFlying: (f) => keyboard.setFlying(f), isFlying: () => keyboard.controller.flying },
+        { enabled: () => this.gamepadEnabled, active: () => this.agentControlsActive(), canFly: () => this.movementRestrictions.canFly?.() ?? true },
+      );
+      this.gamepad.start();
       this.agentKeyboard.controller.restrictions = {
         canFly: () => this.movementRestrictions.canFly?.() ?? true,
         canJump: () => this.movementRestrictions.canJump?.() ?? true,
@@ -864,6 +874,8 @@ export class WorldViewer extends Utils.EventEmitter {
     this.resizeObserver = null;
     this.cameraControls?.destroy();
     this.cameraControls = null;
+    this.gamepad?.stop();
+    this.gamepad = null;
     this.agentKeyboard?.destroy();
     this.agentKeyboard = null;
     if (this.lastMovement && this.protocol.connected) {

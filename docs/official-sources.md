@@ -43,19 +43,40 @@ blocked), so these were found by probing likely names. Other official repositori
   until a layer has been decoded (`RegionWind.loaded`). Only the current region's layer is used, and the
   region width is assumed to be 256 m. The decoder and lookups are in `src/linkpoint/wind.ts` (from
   `patch_code.cpp`, `patch_idct.cpp`, `llbitpack.h`, `llvlmanager.cpp`, `llwind.cpp`); the tests check it
-  against an independent evaluation of the inverse DCT, not against a layer from a live grid. Tree sway,
-  water motion (`gSky.setWind`) and the ambient wind sound do not use it yet.
+  against an independent evaluation of the inverse DCT, not against a layer from a live grid.
+- Wind effects the viewers do not have: water, trees and ambient sound are **not** wind-driven in the viewer source. `gSky.setWind`
+  only stores the wind's length and nothing reads it (`llvosky.cpp`); `LLVOTree` reads the wind into `mWind` but never uses it and
+  never changes its trunk bend (`llvotree.cpp`); the ambient wind sound (`audio_update_wind`) is inside `#ifdef kAUDIO_ENABLE_WIND`,
+  which nothing defines. So there is no official behaviour to port, and none was invented. Particles and flexible prims do use the wind.
 - Voice reconnect: the schedule is the viewer's (`RetryBackoff`), but the triggers are browser ones
   (peer `failed`, data channel closed unasked) because a browser has no renegotiation callback.
+- Voice channel: chosen from the parcel as `voiceConnectionStateMachine` does (own channel, estate channel, or none from
+  `PF_ALLOW_VOICE_CHAT` / `PF_USE_ESTATE_VOICE_CHAN`). The region-wide "voice enabled" flag is not consulted.
+- Cross-region voice: on the estate channel only, as in the viewer, listen-only connections to the neighbouring regions within 100 m.
+  The viewer promotes a neighbour's connection when the avatar crosses a border; here the connections are rebuilt for the new
+  region (a short gap). Neighbours are found from the event queue (`EnableSimulator`, `EstablishAgentCommunication`) by wrapping
+  the library's event-queue function, and a neighbour is never forgotten before logout (the viewer drops one on
+  `DisableSimulator`). Neighbour regions are assumed to be 256 m wide.
+- Push-to-talk: the viewer's logic (`LLVoiceClient::updateMicMuteLogic`, `inputUserControlState`, `toggle_voice`, `voice_follow_key`).
+  Middle mouse toggles; no key is bound to `voice_follow_key` by default (the viewer's key table has none either). The Firestorm-only
+  mic-toggle click sound is not played.
+- Grid mute list: `MuteListRequest`, the Xfer download (`llxfermanager.cpp`), `UpdateMuteListEntry`/`RemoveMuteListEntry`, and the flag rules of
+  `LLMuteList`. No on-disk cache is kept, so the CRC sent is 0 and the simulator always sends the list; it sends nothing when the account has none,
+  which shows as a failed load after 15 s. Muting particles by owner is not applied (the particle data carries no owner).
+- Sound-local parcels: `ParcelOverlay` and the agent parcel's bitmap and flags (`canHearSound`). Only the current region's overlay is known, so
+  a sound in another region is treated as being in an ordinary parcel.
+- Gamepad: the viewer has no gamepad support, only six-axis joystick support (`LLViewerJoystick`). `moveAvatar` is ported (`joystick.ts`);
+  the browser gamepad's mapping onto its six axes is ours, and the rotation scales are the viewer's SpaceNavigator defaults for macOS/Linux
+  (`setSNDefaults`) because the plain `settings.xml` values make a full-stick turn fall inside the dead zone it applies while walking. Pitch is
+  computed but not applied; turning is the on/off turn flag; `mPerfScale` is 1. Off until enabled in Settings.
+- Camera key commands and mouselook were added in the same session by another change (`camera-keyboard.ts`).
 
 ## Not implemented
 
-- Voice: neighbouring-region connections, push-to-talk, mute click-fade,
-  device settings UI.
-- Sound: `SYNC_MASTER` / `SYNC_SLAVE` alignment, wind and footsteps, attachments sounding from their
-  avatar's position, the grid mute list (a hook exists: `AudioManager.setPolicy`), parcel
-  "local sound" data (the hook exists; nothing supplies it yet), collision-sound list.
-- Controls: camera commands (`spin_*`, `pan_*`, `move_*`) from the key table, gamepad, mouselook.
+- Voice: mute click-fade, device settings UI.
+- Sound: `SYNC_MASTER` / `SYNC_SLAVE` alignment, footsteps, attachments sounding from their
+  avatar's position, collision-sound list.
+- Controls: 6-axis joystick (SpaceNavigator) hardware, flycam and build-mode joystick modes.
 - RLV: not part of the official viewer; implemented from Firestorm's RLVa instead, see [rlv.md](rlv.md).
 
 ## Not verified

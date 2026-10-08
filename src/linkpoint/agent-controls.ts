@@ -151,6 +151,10 @@ export class AgentController {
   private tempRunAxis: string | null = null;
   private stopHeld = false;
   private pendingOneShots = 0;
+  /** An analog source (a gamepad) layered over the keys: it fills any axis the keys leave idle. */
+  private analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null = null;
+
+  setAnalog(analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null): void { this.analog = analog; }
 
   command(command: string, down: boolean, time: number): boolean {
     if (!AGENT_COMMANDS.has(command)) return false;
@@ -214,6 +218,14 @@ export class AgentController {
     walk('right', 'left', 'right', 'nudgeRight');
     intent.up = Number(held('up')) - Number(held('down'));
     intent.turn = Number(held('turnRight')) - Number(held('turnLeft'));
+    const analog = this.analog;
+    if (analog) {
+      if (!intent.forward && !intent.nudgeForward && analog.forward) intent.forward = analog.forward;
+      if (!intent.right && !intent.nudgeRight && analog.right) intent.right = analog.right;
+      if (!intent.up && analog.up) intent.up = analog.up;
+      if (!intent.turn && analog.turn) intent.turn = analog.turn;
+      if (analog.run) intent.run = true;
+    }
     if (held('up') && !this.flying && this.automaticFly && this.canFly() && age('up') >= FLY_TIME_MS) { this.flying = true; intent.fly = true; }
     const flags = (intentToFlags(intent) | this.pendingOneShots) >>> 0;
     this.pendingOneShots = 0;

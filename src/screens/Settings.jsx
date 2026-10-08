@@ -218,6 +218,7 @@ export default function Settings() {
           </FormField>
         </div>
         <SwitchSetting id="voice-indicator" title="Voice indicator" description="Show speaking rings in radar and chat logs." on={state.toggles.voice} onClick={() => actions.toggleSetting("voice")} />
+        <SwitchSetting id="gamepad" title="Gamepad movement" description="Move with a connected gamepad: left stick walks and strafes, right stick turns, triggers fly up and down, A jumps. The stick processing is the viewer's joystick code; the gamepad layout is Linkpoint's." on={state.toggles.gamepad} onClick={() => actions.toggleSetting("gamepad")} />
         <SwitchSetting id="ptt-use" title="Push-to-talk" description="The microphone is open only while you hold the talk key, or after you press it in toggle mode. The microphone button and the middle mouse button toggle it." on={state.toggles.pttUse} onClick={() => actions.toggleSetting("pttUse")} />
         <SwitchSetting id="ptt-toggle" title="Push-to-talk toggle mode" description="Press once to open the microphone and again to close it, instead of holding." on={state.toggles.pttToggle} onClick={() => actions.toggleSetting("pttToggle")} />
         <SwitchSetting id="media-auto" title="Autoplay parcel media" description="Automatically start parcel audio streams and MOAP media." on={state.toggles.mediaAuto} onClick={() => actions.toggleSetting("mediaAuto")} />
