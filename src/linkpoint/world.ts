@@ -912,7 +912,8 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   /** Which of the official key-binding tables applies: mouselook uses the first-person one. */
-  private keyMode(): 'first_person' | 'third_person' {
+  /** Which key-binding table applies: first person in mouselook, otherwise third person. */
+  public keyMode(): 'first_person' | 'third_person' {
     return this.camera3d?.preset === 'first-person' ? 'first_person' : 'third_person';
   }
 

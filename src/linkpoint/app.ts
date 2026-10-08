@@ -18,6 +18,7 @@ import { slBridge } from './sl-bridge';
 import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
 import { RlvController } from './rlv';
+import { VoiceInput } from './voice-input';
 import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
@@ -68,6 +69,7 @@ export class LinkpointApp {
   public friends: FriendsExtended;
   /** RLV (off until the user turns it on). `rlv.handler` holds the restrictions. */
   public rlv: RlvController;
+  private voiceInput: VoiceInput | null = null;
 
   constructor() {
     this.protocol = new SLConnectionFull();
@@ -167,6 +169,10 @@ export class LinkpointApp {
     this.notifications.init(this.chat);
     this.audio.init();
     this.wireSoundListener();
+    // Push-to-talk keys (middle mouse toggles the mic; voice_follow_key holds it open)
+    if (typeof window !== 'undefined') {
+      this.voiceInput ??= new VoiceInput(this.voice, { mode: () => this.world.keyMode(), enabled: () => this.voice.state === 'connected' });
+    }
 
     this.setupEventListeners();
 

@@ -303,11 +303,66 @@ export class VoiceManager extends Utils.EventEmitter {
     this.stream?.getAudioTracks().forEach((track) => { track.enabled = live; });
   }
 
+  /**
+   * The microphone button. With push-to-talk on (the viewer's default) it is the viewer's mic toggle: it sets the
+   * push-to-talk state. With push-to-talk off it is the plain mute switch.
+   */
   setMuted(muted: boolean) {
+    if (this.usePtt) this.pttState = !muted;
+    else this.muteMic = muted;
+    this.updateMicMuteLogic();
+  }
+
+  // ---- push-to-talk (`LLVoiceClient::updateMicMuteLogic`, `inputUserControlState`, ...) -----------------
+
+  private muteMic = false;
+  private usePtt = true;
+  private pttToggle = false;
+  private pttState = false;
+
+  /** `LLVoiceClient::updateMicMuteLogic`: with push-to-talk the mic is open only while the user state is on; a mute always wins. */
+  private updateMicMuteLogic() {
+    const muted = this.muteMic || (this.usePtt && !this.pttState);
+    const changed = muted !== this.muted;
     this.muted = muted;
     this.applyMic();
     this.emit('state', { state: this.state, message: '', muted });
-    this.emit('mute_changed', { muted });
+    if (changed) this.emit('mute_changed', { muted });
+    this.emit('ptt_changed', { usePtt: this.usePtt, toggle: this.pttToggle, talking: this.pttState });
+  }
+
+  /** `setUsePTT`: turning push-to-talk on closes the mic. */
+  setUsePtt(use: boolean) {
+    if (use && !this.usePtt) this.pttState = false;
+    this.usePtt = use;
+    this.updateMicMuteLogic();
+  }
+
+  /** `setPTTIsToggle`: switching toggle mode off closes the mic. */
+  setPttToggle(toggle: boolean) {
+    if (!toggle && this.pttToggle) this.pttState = false;
+    this.pttToggle = toggle;
+    this.updateMicMuteLogic();
+  }
+
+  getUsePtt() { return this.usePtt; }
+  getPttToggle() { return this.pttToggle; }
+  getUserPttState() { return this.pttState; }
+
+  setUserPttState(talking: boolean) {
+    this.pttState = talking;
+    this.updateMicMuteLogic();
+  }
+
+  toggleUserPttState() { this.setUserPttState(!this.pttState); }
+
+  /** `inputUserControlState`: the push-to-talk key or button went down or up. Toggle mode flips on press; otherwise the state follows the key. */
+  inputUserControlState(down: boolean) {
+    if (this.pttToggle) {
+      if (down) this.toggleUserPttState();
+    } else {
+      this.setUserPttState(down);
+    }
   }
 
   /** Playback level of the whole voice stream, 0..1 (the viewer's `setReceiveVolume`). */

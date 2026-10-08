@@ -218,6 +218,8 @@ export default function Settings() {
           </FormField>
         </div>
         <SwitchSetting id="voice-indicator" title="Voice indicator" description="Show speaking rings in radar and chat logs." on={state.toggles.voice} onClick={() => actions.toggleSetting("voice")} />
+        <SwitchSetting id="ptt-use" title="Push-to-talk" description="The microphone is open only while you hold the talk key, or after you press it in toggle mode. The microphone button and the middle mouse button toggle it." on={state.toggles.pttUse} onClick={() => actions.toggleSetting("pttUse")} />
+        <SwitchSetting id="ptt-toggle" title="Push-to-talk toggle mode" description="Press once to open the microphone and again to close it, instead of holding." on={state.toggles.pttToggle} onClick={() => actions.toggleSetting("pttToggle")} />
         <SwitchSetting id="media-auto" title="Autoplay parcel media" description="Automatically start parcel audio streams and MOAP media." on={state.toggles.mediaAuto} onClick={() => actions.toggleSetting("mediaAuto")} />
         <p style={{ fontSize: "12px", opacity: 0.8, marginTop: "8px" }}>
           Simulator audio uses positional HRTF sound. Live microphone and voice call controls are located directly in the 3D World View and IM Calls.
