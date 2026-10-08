@@ -148,7 +148,13 @@ export class VoiceManager extends Utils.EventEmitter {
 
       peer.ontrack = ({ track, streams }) => {
         const stream = streams[0] || new MediaStream([track]);
-        this.addRemoteSpeaker(track.id || stream.id, stream);
+        const speakerId = track.id || stream.id;
+        if (typeof track?.addEventListener === 'function') {
+          track.addEventListener('ended', () => {
+            this.removeRemoteSpeaker(speakerId);
+          }, { once: true });
+        }
+        this.addRemoteSpeaker(speakerId, stream);
       };
 
       const candidates: RTCIceCandidateInit[] = [];
@@ -205,10 +211,12 @@ export class VoiceManager extends Utils.EventEmitter {
   async reprovision(parcelLocalId?: number) {
     this.currentParcelLocalId = parcelLocalId;
     if (this.state !== 'connected' && this.state !== 'connecting') return;
-    if (!this.peer || !this.peer.localDescription?.sdp) return;
+    if (!this.peer) return;
 
     try {
-      const response = await slBridge.voiceProvision(this.peer.localDescription.sdp, parcelLocalId);
+      const offer = await this.peer.createOffer({ offerToReceiveAudio: true });
+      await this.peer.setLocalDescription(offer);
+      const response = await slBridge.voiceProvision(offer.sdp!, parcelLocalId);
       if (response?.jsep && response.jsep.type === 'answer' && response.jsep.sdp) {
         if (response.viewer_session) {
           this.viewerSession = String(response.viewer_session);
