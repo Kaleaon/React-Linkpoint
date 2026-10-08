@@ -20,6 +20,37 @@ import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 import { ParticleEngine } from './particles';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 
+export interface FlexiParams {
+  softness: number;
+  gravity: number;
+  friction: number;
+  wind: number;
+  tension: number;
+  force: [number, number, number];
+}
+
+export function parseFlexibleParams(data: any): FlexiParams | null {
+  if (!data) return null;
+  const src = data.flexible || data.flexi || data.extraParams?.flexible || data.extraParams?.flexi || data.ExtraParams?.flexibleData || data.ExtraParams?.flexible || (data.softness !== undefined || data.gravity !== undefined ? data : null);
+  if (!src) return null;
+
+  const softness = typeof src.softness === 'number' ? src.softness : (typeof src.Softness === 'number' ? src.Softness : 0);
+  const gravity = typeof src.gravity === 'number' ? src.gravity : (typeof src.Gravity === 'number' ? src.Gravity : 0);
+  const friction = typeof src.friction === 'number' ? src.friction : (typeof src.Friction === 'number' ? src.Friction : 0);
+  const wind = typeof src.wind === 'number' ? src.wind : (typeof src.Wind === 'number' ? src.Wind : 0);
+  const tension = typeof src.tension === 'number' ? src.tension : (typeof src.Tension === 'number' ? src.Tension : 0);
+
+  let force: [number, number, number] = [0, 0, 0];
+  const rawForce = src.force ?? src.Force;
+  if (Array.isArray(rawForce) && rawForce.length >= 3) {
+    force = [Number(rawForce[0]) || 0, Number(rawForce[1]) || 0, Number(rawForce[2]) || 0];
+  } else if (rawForce && typeof rawForce === 'object') {
+    force = [Number(rawForce.x) || 0, Number(rawForce.y) || 0, Number(rawForce.z) || 0];
+  }
+
+  return { softness, gravity, friction, wind, tension, force };
+}
+
 export class WorldViewer extends Utils.EventEmitter {
   /**
    * Live simulator scene stream is active when protocol or bridge is connected.
@@ -957,6 +988,8 @@ export class WorldViewer extends Utils.EventEmitter {
     // material and link metadata learned from the full ObjectUpdate packet.
     const previous = this.sceneObjects.get(object.id);
     const merged = previous ? { ...previous, ...object } : { ...object };
+    const flexi = parseFlexibleParams(object) || previous?.flexi;
+    if (flexi) merged.flexi = flexi;
     // A full update can replace an asset; terse motion updates must retain it.
     if (previous && ('assetId' in object || 'assetKind' in object) &&
         (String(previous.assetId || '').toLowerCase() !== String(merged.assetId || '').toLowerCase() || previous.assetKind !== merged.assetKind)) {
@@ -1226,6 +1259,7 @@ export class WorldViewer extends Utils.EventEmitter {
       faces: object.decodedFaceTextures,
       reflectionProbe: object.reflectionProbe,
       skin,
+      flexi: object.flexi || parseFlexibleParams(object) || null,
       // HUD prims belong to the HUD pass, never the world.
       hud: Boolean(hudRoot),
       hudRoot: hudRoot ? hudRoot.id : null,
@@ -1240,17 +1274,27 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!this.scene3d || !this.camera3d) return;
     const positions = new Map<string, number[]>();
     for (const object of this.sceneObjects.values()) positions.set(object.id, this.worldTransform(object).position);
-    const frames = this.particles.update(now, positions);
+    const windVector = (this.scene3d as any).windVector || [1, 0, 0];
+    const frames = this.particles.update(now, positions, windVector);
     const live = new Set<string>();
     // A plane starts in XY. Match its normal to the view direction with the camera pitch/yaw.
-    const rotation = [Math.PI / 2 + this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
+    const defaultRotation = [Math.PI / 2 + this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
     for (const particle of frames) {
       const id = `particle:${particle.id}`;
       live.add(id);
       const texture = particle.textureId && this.decodedTextures.has(particle.textureId) ? `texture:${particle.textureId}` : undefined;
+      const alphaMode = particle.blendMode || (particle.emissive ? 'ADD' : 'BLEND');
+      const particleRotation = particle.rotation !== undefined
+        ? [defaultRotation[0], defaultRotation[1], particle.rotation]
+        : defaultRotation;
       const config = {
-        mesh: 'particle-sprite', position: particle.position, rotation, scale: [particle.scale[0], particle.scale[1], 1],
-        color: particle.color, texture, faces: [{ texture, color: particle.color, fullBright: particle.emissive, pbr: { alphaMode: 'BLEND' } }],
+        mesh: 'particle-sprite',
+        position: particle.position,
+        rotation: particleRotation,
+        scale: [particle.scale[0], particle.scale[1], 1],
+        color: particle.color,
+        texture,
+        faces: [{ texture, color: particle.color, fullBright: particle.emissive, pbr: { alphaMode } }],
       };
       if (this.scene3d.objects.has(id)) this.scene3d.updateObject(id, config); else this.scene3d.addObject(id, config);
     }
