@@ -50,6 +50,70 @@ export class ChatManager extends Utils.EventEmitter {
     this.loadAutoReplyConfig();
   }
 
+  async sendMessage(message: string, channel = 0, chatType: ChatType | number = ChatType.NORMAL): Promise<void> {
+    if (this.auth && typeof this.auth.isLoggedIn === 'function' && !this.auth.isLoggedIn()) {
+      throw new Error('Not connected');
+    }
+    this.pendingEchoes.push({ text: message, until: Date.now() + 5000 });
+    await this.adapter.sendSpatialChat(message, channel, chatType as ChatType);
+    const senderName = typeof this.auth?.getUserDisplayName === 'function'
+      ? this.auth.getUserDisplayName()
+      : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me');
+    const senderId = this.auth?.user?.id;
+    this.addMessage({
+      id: Utils.generateUUID(),
+      sender: senderName,
+      senderId,
+      text: message,
+      timestamp: Date.now(),
+      type: 'local',
+      channel,
+      chatType,
+    });
+  }
+
+  async sendInstantMessage(recipientId: string, text: string, recipientName: string = 'Resident'): Promise<void> {
+    if (this.auth && typeof this.auth.isLoggedIn === 'function' && !this.auth.isLoggedIn()) {
+      throw new Error('Not connected');
+    }
+    await this.adapter.sendDirectIM(recipientId, text, recipientName);
+    const senderName = typeof this.auth?.getUserDisplayName === 'function'
+      ? this.auth.getUserDisplayName()
+      : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me');
+    const senderId = this.auth?.user?.id;
+    this.addMessage({
+      id: Utils.generateUUID(),
+      sender: senderName,
+      senderId,
+      recipientId,
+      recipientName,
+      text,
+      timestamp: Date.now(),
+      type: 'im',
+    });
+  }
+
+  async sendGroupMessage(groupId: string, text: string, groupName: string = 'Group'): Promise<void> {
+    if (this.auth && typeof this.auth.isLoggedIn === 'function' && !this.auth.isLoggedIn()) {
+      throw new Error('Not connected');
+    }
+    await this.adapter.sendGroupChat(groupId, text, groupName);
+    const senderName = typeof this.auth?.getUserDisplayName === 'function'
+      ? this.auth.getUserDisplayName()
+      : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me');
+    const senderId = this.auth?.user?.id;
+    this.addMessage({
+      id: Utils.generateUUID(),
+      sender: senderName,
+      senderId,
+      groupId,
+      groupName,
+      text,
+      timestamp: Date.now(),
+      type: 'group',
+    });
+  }
+
   loadSessions() {
     try {
       const savedOpen = Utils.storage.get('linkpoint_open_im_sessions', null);
@@ -164,7 +228,48 @@ export class ChatManager extends Utils.EventEmitter {
     this.autoReplyRecipients.clear();
   }
 
-  …1304 tokens truncated… {
+  hasAutoRepliedTo(id: string): boolean {
+    return this.autoReplyRecipients.has(id);
+  }
+
+  loadAutoReplyConfig() {
+    try {
+      const config = Utils.storage.get('linkpoint_auto_reply_config', null);
+      if (config && typeof config === 'object') {
+        if (typeof config.enabled === 'boolean') this.autoReplyEnabled = config.enabled;
+        if (typeof config.awayMessage === 'string' && config.awayMessage) this.awayMessage = config.awayMessage;
+      }
+    } catch {
+      // Storage error ignored
+    }
+  }
+
+  saveAutoReplyConfig() {
+    try {
+      Utils.storage.set('linkpoint_auto_reply_config', {
+        enabled: this.autoReplyEnabled,
+        awayMessage: this.awayMessage,
+      });
+    } catch {
+      // Storage error ignored
+    }
+  }
+
+  getIMThreads(): any[] {
+    return this.getConversations();
+  }
+
+  getConversations(): any[] {
+    const threadMap = new Map<string, any>();
+    for (const msg of this.messages) {
+      if (msg.type !== 'im') continue;
+      const contactId = msg.senderId === this.auth?.user?.id ? msg.recipientId : msg.senderId;
+      const contactName = msg.senderId === this.auth?.user?.id ? msg.recipientName : msg.sender;
+      if (!contactId) continue;
+      const isUnread = !msg.read && msg.senderId !== this.auth?.user?.id;
+      const existing = threadMap.get(contactId);
+      if (!existing) {
+        threadMap.set(contactId, {
           contactId,
           contactName,
           lastMessage: msg.text || '',
