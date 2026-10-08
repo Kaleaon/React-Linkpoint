@@ -17,22 +17,18 @@ export interface OutfitCarouselDrawerProps {
   onClose: () => void;
   onSelectOutfit?: (outfit: OutfitItem) => void;
   outfits?: OutfitItem[];
+  /** Shown when there are no outfits (not loaded, not logged in, or none saved). */
+  emptyMessage?: string;
   className?: string;
   style?: React.CSSProperties;
 }
-
-const DEFAULT_OUTFITS: OutfitItem[] = [
-  { id: "outfit-1", name: "Urban Casual v2", category: "Active Outfit", worn: true, itemCount: 12 },
-  { id: "outfit-2", name: "Cyberpunk Tactical", category: "Saved Outfit", worn: false, itemCount: 15 },
-  { id: "outfit-3", name: "Formal Eveningwear", category: "Saved Outfit", worn: false, itemCount: 8 },
-  { id: "outfit-4", name: "Beach & Swimwear", category: "Saved Outfit", worn: false, itemCount: 5 },
-];
 
 export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
   isOpen,
   onClose,
   onSelectOutfit,
-  outfits = DEFAULT_OUTFITS,
+  outfits = [],
+  emptyMessage = "No outfits to show.",
   className = "",
   style,
 }) => {
@@ -41,9 +37,7 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const currentOutfit = outfits[activeIdx] || outfits[0];
-
-  if (!currentOutfit) return null;
+  const currentOutfit: OutfitItem | undefined = outfits[activeIdx] || outfits[0];
 
   const handleNext = () => {
     setActiveIdx((prev) => (prev + 1) % outfits.length);
@@ -119,6 +113,9 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
         </TouchTarget>
       </div>
 
+      {!currentOutfit ? (
+        <div role="status" style={{ padding: 12, textAlign: "center", color: V.ink2 }}>{emptyMessage}</div>
+      ) : (<>
       {/* Carousel Body */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flex: 1 }}>
         <TouchTarget
@@ -145,7 +142,7 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
         >
           <strong style={{ fontSize: "12px", color: V.ink }}>{currentOutfit.name}</strong>
           <span style={{ fontSize: "10px", opacity: 0.8, color: currentOutfit.worn ? V.pri : V.ink2 }}>
-            {currentOutfit.worn ? "WORN · " : ""}{currentOutfit.category || "Outfit"} ({currentOutfit.itemCount ?? 0} items)
+            {currentOutfit.worn ? "WORN · " : ""}{currentOutfit.category || "Outfit"}{currentOutfit.itemCount !== undefined ? ` (${currentOutfit.itemCount} items)` : ""}
           </span>
         </div>
 
@@ -159,8 +156,8 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
         </TouchTarget>
       </div>
 
-      {/* Action Bar */}
-      <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+      {/* Action Bar: only offered when the host can actually wear an outfit */}
+      {onSelectOutfit && (<div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
         <TouchTarget
           minSize={44}
           aria-label={`Wear ${currentOutfit.name}`}
@@ -177,7 +174,8 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
         >
           {currentOutfit.worn ? "ACTIVE" : "WEAR OUTFIT"}
         </TouchTarget>
-      </div>
+      </div>)}
+      </>)}
     </aside>
   </FocusTrap>
 );

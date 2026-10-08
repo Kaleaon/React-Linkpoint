@@ -24,6 +24,7 @@ const {
   BotOptionFlags,
   PCode,
   AssetType,
+  FolderType,
   ControlFlags,
   UUID,
 } = require('@caspertech/node-metaverse');
@@ -865,6 +866,44 @@ class ViewerSession {
       assetType: item.assetType, inventoryType: item.inventoryType, description: item.description || '', folder: false,
     }));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
+  }
+
+  /**
+   * What the avatar is wearing now (the Current Outfit folder) and the outfits saved in My Outfits.
+   * Current Outfit holds links; a link carries the name of what it points at, the inventory type, and
+   * for wearables the wearable type in the low byte of its flags.
+   */
+  async getOutfit() {
+    const bot = this.requireBot();
+    const agent = bot.clientCommands?.agent;
+    if (!agent?.getWearables) throw new Error('Second Life outfit interface unavailable');
+    const WEARABLE_TYPES = ['Shape', 'Skin', 'Hair', 'Eyes', 'Shirt', 'Pants', 'Shoes', 'Socks', 'Jacket', 'Gloves', 'Undershirt', 'Underpants', 'Skirt', 'Alpha', 'Tattoo', 'Physics', 'Universal'];
+    const BODY_PARTS = new Set(['Shape', 'Skin', 'Hair', 'Eyes']);
+    const folder = await agent.getWearables();
+    const worn = (folder.items || []).map((item) => {
+      const isWearable = item.inventoryType === 18;
+      const wearableType = isWearable ? WEARABLE_TYPES[Number(item.flags) & 0xff] : undefined;
+      const kind = isWearable ? (BODY_PARTS.has(wearableType) ? 'body' : 'clothing') : (item.inventoryType === 6 ? 'attachment' : 'other');
+      return {
+        id: item.itemID?.toString(),
+        name: item.name || 'Unnamed Item',
+        assetType: item.assetType,
+        inventoryType: item.inventoryType,
+        category: kind,
+        typeName: wearableType || (kind === 'attachment' ? 'Attachment' : 'Item'),
+        worn: true,
+      };
+    });
+
+    const outfits = [];
+    const skeleton = bot.agent?.inventory?.main?.skeleton;
+    const myOutfits = skeleton && Array.from(skeleton.values()).find((f) => f.typeDefault === FolderType.MyOutfits);
+    if (myOutfits) {
+      for (const f of skeleton.values()) {
+        if (f.parentID?.toString() === myOutfits.folderID?.toString()) outfits.push({ id: f.folderID?.toString(), name: f.name || 'Unnamed Outfit' });
+      }
+    }
+    return { folderId: folder.folderID?.toString(), items: worn, outfits };
   }
 
   // ---- diagnostics and scene catch-up -------------------------------------------------------------

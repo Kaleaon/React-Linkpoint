@@ -63,6 +63,16 @@ export const RULES = [
     message: 'Default region-centre coordinates presented as the avatar position. Use null when unknown.',
   },
   {
+    id: 'default-item-list',
+    pattern: /^\s*(export\s+)?const\s+(DEFAULT|DEMO|SAMPLE|MOCK|FALLBACK|SEED)_(OUTFIT|ITEM|FRIEND|INVENTORY|GROUP|CONTACT|RESIDENT|OBJECT)S?\w*\s*(:[^=]+)?=\s*\[/,
+    message: 'Built-in list of items shown as if the grid sent them. Start empty and render what the session reports.',
+  },
+  {
+    id: 'invented-statistic',
+    pattern: /(Estimated|Approx\.?)\s+(Vertex|Face|Triangle|Joint|Poly)\w*\s*(Count)?:\s*[\d,]+|\b\d[\d,]*\s+(vertices|triangles|active joints)\b/i,
+    message: 'Hard-coded mesh statistic. Show the measured value, or "—" when the grid does not report it.',
+  },
+  {
     id: 'fake-data-phrase',
     pattern: /\b(sample|fake|dummy|demo|mock)\s+(data|residents?|chats?|messages?|avatars?|objects?|inventory|friends?)\b|lorem ipsum/i,
     message: 'Sample-data wording in shipped source.',

@@ -1,3 +1,4 @@
+import { FolderType } from '@caspertech/node-metaverse';
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -409,6 +410,31 @@ describe('desktop session texture downloads', () => {
     await session.getFriends();
     const asked = avatarKey2Name.mock.calls.flatMap(([arg]: any[]) => (Array.isArray(arg) ? arg : [arg]).map((k: any) => k.toString()));
     expect(new Set(asked)).toEqual(new Set(['gone']));
+  });
+
+  it('reads the current outfit from the grid and lists saved outfits', async () => {
+    const session = new ViewerSession(() => undefined);
+    const id = (v: string) => ({ toString: () => v });
+    session.bot = {
+      agent: { inventory: { main: { skeleton: new Map([
+        ['mo', { folderID: id('mo'), parentID: id('root'), name: 'My Outfits', typeDefault: FolderType.MyOutfits }],
+        ['beach', { folderID: id('beach'), parentID: id('mo'), name: 'Beach day', typeDefault: -1 }],
+        ['other', { folderID: id('other'), parentID: id('root'), name: 'Elsewhere', typeDefault: -1 }],
+      ]) } } },
+      clientCommands: { agent: { getWearables: async () => ({
+        folderID: id('cof'),
+        items: [
+          { itemID: id('i1'), name: 'Ada Shape', assetType: 24, inventoryType: 18, flags: 0 },
+          { itemID: id('i2'), name: 'Rain Jacket', assetType: 24, inventoryType: 18, flags: 8 },
+          { itemID: id('i3'), name: 'Watch', assetType: 24, inventoryType: 6, flags: 0 },
+        ],
+      }) } },
+    };
+    const outfit = await session.getOutfit();
+    expect(outfit.items.map((i: any) => [i.name, i.typeName, i.category])).toEqual([
+      ['Ada Shape', 'Shape', 'body'], ['Rain Jacket', 'Jacket', 'clothing'], ['Watch', 'Attachment', 'attachment'],
+    ]);
+    expect(outfit.outfits).toEqual([{ id: 'beach', name: 'Beach day' }]);
   });
 
   it('limits concurrent simulator asset downloads so attachments are not rate-limited', async () => {
