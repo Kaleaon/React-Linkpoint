@@ -1,0 +1,19 @@
+# Fly.io config for the Linkpoint backend (server.ts).
+# Deploy with: fly launch  (accept the detected settings)
+# Then: fly secrets set APP_URL=https://<your-vercel-url> PROXY_PERMIT_SECRET=<random>
+app = "linkpoint-backend"
+primary_region = "ord"
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Keep one machine always on: SL sessions hold UDP circuits and SSE streams
+  # that must survive. Do not let this suspend.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
