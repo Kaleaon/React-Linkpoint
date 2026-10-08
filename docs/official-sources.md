@@ -56,7 +56,7 @@ blocked), so these were found by probing likely names. Other official repositori
   avatar's position, the grid mute list (a hook exists: `AudioManager.setPolicy`), parcel
   "local sound" data (the hook exists; nothing supplies it yet), collision-sound list.
 - Controls: camera commands (`spin_*`, `pan_*`, `move_*`) from the key table, gamepad, mouselook.
-- RLV: not part of the official viewer, so no official specification exists to follow.
+- RLV: not part of the official viewer; implemented from Firestorm's RLVa instead, see [rlv.md](rlv.md).
 
 ## Not verified
 

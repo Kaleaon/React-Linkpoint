@@ -127,6 +127,9 @@ export function useAppState() {
     return () => clearInterval(timer);
   }, [cHeld, cRun]);
 
+  // The Settings switch is the only place RLV is turned on; turning it off forgets every restriction.
+  useEffect(() => { app.rlv.setEnabled(Boolean(toggles.rlv)); }, [toggles.rlv]);
+
   useEffect(() => {
     saveViewerSettings({ layout, palette, dense, density: customTheme.density, toggles, prefs });
   }, [layout, palette, dense, customTheme.density, toggles, prefs]);

@@ -17,6 +17,8 @@ import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
+import { RlvController } from './rlv';
+import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
@@ -64,6 +66,8 @@ export class LinkpointApp {
   public chatExtended: ChatExtended;
   public groups: GroupsManager;
   public friends: FriendsExtended;
+  /** RLV (off until the user turns it on). `rlv.handler` holds the restrictions. */
+  public rlv: RlvController;
 
   constructor() {
     this.protocol = new SLConnectionFull();
@@ -93,6 +97,52 @@ export class LinkpointApp {
     this.chat.setMessageFilter(message => this.chatExtended.shouldDisplayMessage(message));
     this.groups = new GroupsManager(this.chatAdapter);
     this.friends = new FriendsExtended(this.protocol);
+    this.rlv = new RlvController(false, this.rlvEnvironment());
+    this.chat.setRlv(this.rlv.handler);
+    this.wireRlv();
+  }
+
+  /** What RLV needs from the viewer. Missing pieces make the commands that use them fail rather than guess. */
+  private rlvEnvironment() {
+    return {
+      selfId: () => String(this.protocol.agentId || ''),
+      sendChat: (text: string, channel: number, type: number) => {
+        void this.protocol.sendChat(text, channel, type).catch((error: unknown) => console.warn('[RLV] reply not sent:', error));
+      },
+      avatarDistanceSquared: (id: string) => {
+        const me = this.world.avatarPosition;
+        const other = this.world.nearbyUsers.find((user: any) => String(user.id).toLowerCase() === id.toLowerCase())?.position;
+        if (!me || !other) return null;
+        return (me[0] - other[0]) ** 2 + (me[1] - other[1]) ** 2 + (me[2] - other[2]) ** 2;
+      },
+      nearbyAvatars: () => this.world.nearbyUsers
+        .filter((user: any) => user.id && user.name)
+        .map((user: any) => ({ id: String(user.id), displayName: String(user.name), legacyName: String(user.name) })),
+      locationNames: () => ({ regions: [this.world.region?.name].filter(Boolean) as string[], parcel: this.world.region?.parcel?.Name ?? this.world.region?.parcel?.name ?? null }),
+      sendInstantMessage: (recipientId: string, text: string) => { void this.protocol.sendInstantMessage(recipientId, text).catch(() => {}); },
+    };
+  }
+
+  private wireRlv() {
+    const rlv = this.rlv.handler;
+    this.world.movementRestrictions = {
+      canFly: () => !rlv.isEnabled() || rlv.canFly(),
+      canJump: () => !rlv.isEnabled() || rlv.canJump(),
+      canAlwaysRun: () => !rlv.isEnabled() || !rlv.hasBehaviour('alwaysrun'),
+      canTempRun: () => !rlv.isEnabled() || !rlv.hasBehaviour('temprun'),
+    };
+    this.protocol.actionGuard = (action, detail) => {
+      if (!rlv.isEnabled()) return null;
+      switch (action) {
+        case 'teleport': return rlv.canTeleportToLocation('') ? null : RLV_STRINGS.blockedTeleport;
+        case 'acceptLure': return detail?.senderId ? (rlv.canAcceptTpOffer(detail.senderId) ? null : RLV_STRINGS.blockedTeleport) : (rlv.hasBehaviour('tplure') ? RLV_STRINGS.blockedTeleport : null);
+        case 'sit': return rlv.canGroundSit() ? null : RLV_STRINGS.blockedGeneric;
+        case 'stand': return rlv.canStand() ? null : RLV_STRINGS.blockedGeneric;
+        default: return null;
+      }
+    };
+    // Restrictions belong to the session: forget them on logout.
+    this.auth.on('logout', () => rlv.reset());
   }
 
   async init() {

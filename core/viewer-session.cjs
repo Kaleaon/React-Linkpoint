@@ -385,6 +385,8 @@ class ViewerSession {
       fromName: event.fromName || 'Unknown',
       message: event.message,
       chatType: event.chatType ?? 1,
+      sourceType: event.sourceType,
+      ownerId: event.ownerID?.toString(),
       channel: event.channel ?? 0,
       position: vector(event.position),
       timestamp: Date.now(),

@@ -6,7 +6,8 @@ describe('RlvController', () => {
     const rlv = new RlvController(true);
     const replies = rlv.processMessage('object-uuid-1', '@version=22200');
     expect(replies).toHaveLength(1);
-    expect(replies[0]).toEqual({ channel: 22200, message: 'Linkpoint RLV v2.0.0' });
+    // RLVa's own reply (RLV 3.4.3 / RLVa 2.4.2), not a made-up string
+    expect(replies[0]).toEqual({ channel: 22200, message: 'RestrainedLife viewer v3.4.3 (RLVa 2.4.2)' });
   });
 
   it('should set and query detach restriction', () => {

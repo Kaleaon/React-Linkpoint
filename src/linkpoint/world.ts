@@ -9,6 +9,7 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { AgentKeyboard } from './agent-keyboard';
+import type { MovementRestrictions } from './agent-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
 import { AvatarSkeleton, jointPositionOverrides, skinMatrices, type MeshSkin } from './avatar-skeleton';
 import { parseAnimation, type JointPose } from './avatar-animation';
@@ -68,6 +69,8 @@ export class WorldViewer extends Utils.EventEmitter {
   private animationId: number | null = null;
   private cameraControls: CameraControls | null = null;
   private agentKeyboard: AgentKeyboard | null = null;
+  /** What the avatar may do right now (RLV sets these); applies to the keyboard controls. */
+  public movementRestrictions: MovementRestrictions = {};
   private lastMovement = '';
   private resizeAttached = false;
   private readonly handleResize = () => this.resizeCanvas();
@@ -711,6 +714,13 @@ export class WorldViewer extends Utils.EventEmitter {
           });
         },
       });
+
+      this.agentKeyboard.controller.restrictions = {
+        canFly: () => this.movementRestrictions.canFly?.() ?? true,
+        canJump: () => this.movementRestrictions.canJump?.() ?? true,
+        canAlwaysRun: () => this.movementRestrictions.canAlwaysRun?.() ?? true,
+        canTempRun: () => this.movementRestrictions.canTempRun?.() ?? true,
+      };
 
       const scene = new Scene3D(graphics, this.camera3d);
       this.scene3d = scene;

@@ -265,7 +265,7 @@ export default function Settings() {
           <button type="button" onClick={() => actions.setScreen("Mute List")}>Open Mute &amp; Block List</button>
         </div>
         <SwitchSetting id="show-online" title="Show me as online" description="When off, friends see you offline and map position is hidden." on={state.toggles.showOnline} onClick={() => actions.toggleSetting("showOnline")} />
-        <SwitchSetting id="rlv" title="RestrainedLove (RLV)" description="Enable RLV script commands for viewer interactions." on={state.toggles.rlv} onClick={() => actions.toggleSetting("rlv")} />
+        <SwitchSetting id="rlv" title="RestrainedLove (RLV)" description="Lets worn scripted items restrict you (chat, IMs, names, flying, teleports) as in RLV viewers. Outfit and attachment locks are not supported yet. Turning this off clears every restriction." on={state.toggles.rlv} onClick={() => actions.toggleSetting("rlv")} />
         <div style={{ marginTop: "8px" }}>
           <strong>Scripted object permissions</strong>
           <p style={{ margin: "2px 0 10px", opacity: 0.8, fontSize: "12px" }}>Manage object animation, attachment, and control grants.</p>

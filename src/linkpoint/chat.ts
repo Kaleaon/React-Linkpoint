@@ -6,6 +6,8 @@ import { Utils } from './utils';
 import { isFabricatedContact, purgeFabricatedMessages } from './fabricated-data';
 import { ChatProtocolAdapter } from './chat-protocol-adapter';
 import { ChatType } from './sl-message-types';
+import { CHAT_SOURCE, type RlvHandler } from './rlv-handler';
+import { RLV_STRINGS } from './rlv-data';
 
 export interface AutoReplyConfig {
   enabled: boolean;
@@ -24,6 +26,10 @@ export class ChatManager extends Utils.EventEmitter {
   private messageFilter: ((message: any) => boolean) | null = null;
 
   setMessageFilter(filter: (message: any) => boolean) { this.messageFilter = filter; }
+
+  /** RLV: object commands are consumed, restricted chat and IMs are filtered, and what is said is limited. Null turns it off. */
+  setRlv(rlv: RlvHandler | null) { this.rlv = rlv; }
+  private rlv: RlvHandler | null = null;
   public autoReplyEnabled: boolean = false;
   public awayMessage: string = 'I am currently away. Your message has been received and I will reply as soon as possible.';
   private autoReplyRecipients: Set<string> = new Set();
@@ -191,6 +197,15 @@ export class ChatManager extends Utils.EventEmitter {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
+    // RLV decides what actually leaves the avatar: filtered, redirected to a channel, or not at all
+    if (this.rlv?.isEnabled() && type !== ChatType.START && type !== ChatType.STOP) {
+      const prepared = this.rlv.prepareOutgoingChat(message, type, channel);
+      if (!prepared) return;
+      message = prepared.text;
+      type = prepared.type as ChatType;
+      if (!message.trim() && channel === 0) return;
+    }
+
     const echo = type === ChatType.START ? null : { text: message, until: Date.now() + 15000 };
     if (echo) this.pendingEchoes.push(echo);
     try {
@@ -220,6 +235,7 @@ export class ChatManager extends Utils.EventEmitter {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!recipientId) throw new Error('Recipient ID required');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
+    if (this.rlv?.isEnabled() && !this.rlv.canSendIM(recipientId)) throw new Error(RLV_STRINGS.blockedGeneric);
 
     try {
       const result = await this.adapter.sendDirectIM(recipientId, message, recipientName);
@@ -374,6 +390,24 @@ export class ChatManager extends Utils.EventEmitter {
       senderName === 'av'
     );
 
+    // RLV: object commands (llOwnerSay "@...") are never shown, and restricted chat is filtered before it is displayed
+    let rlvText = msgText;
+    let rlvName = senderName;
+    if (this.rlv?.isEnabled()) {
+      const chatType = Number(data.chatType);
+      if (!isIM && !isGroup && this.rlv.handleObjectChat(String(senderId || ''), msgText, chatType)) return;
+      if (isIM) rlvText = this.rlv.filterIncomingIM(String(senderId || ''), msgText);
+      else if (!isGroup) {
+        const filtered = this.rlv.filterIncomingChat({
+          fromId: String(senderId || ''), fromName: senderName, text: msgText, chatType: Number.isFinite(chatType) ? chatType : 1,
+          sourceType: isObject ? CHAT_SOURCE.OBJECT : (typeof data.sourceType === 'number' ? data.sourceType : CHAT_SOURCE.AGENT),
+        });
+        if (filtered.text === null) return;
+        rlvText = filtered.text;
+        rlvName = filtered.fromName ?? senderName;
+      }
+    }
+
     // The simulator echoes our own local chat back, possibly before sendMessage has returned.
     const myId = this.auth?.user?.id;
     if (!isIM && !isGroup && myId && senderId === myId) {
@@ -388,11 +422,11 @@ export class ChatManager extends Utils.EventEmitter {
 
     const messageData = {
       id: data.id || Utils.generateUUID(),
-      sender: senderName,
+      sender: rlvName,
       senderId,
       groupId: data.groupId,
       groupName: data.groupName,
-      text: msgText,
+      text: rlvText,
       timestamp: data.timestamp || Date.now(),
       type: isGroup ? 'group' : isIM ? 'im' : (data.chatType || data.type || 'local'),
       isObject,
