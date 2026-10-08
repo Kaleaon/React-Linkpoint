@@ -35,6 +35,7 @@ const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
 const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
 const { watchWind } = require('./sl-wind.cjs');
+const { watchParcelSound } = require('./sl-parcel-sound.cjs');
 const { MuteListLoader, MUTE_TYPE, sendMuteUpdate, sendMuteRemove } = require('./sl-mutelist.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
@@ -520,6 +521,7 @@ class ViewerSession {
     if (animations) this.subscriptions.push(animations);
     this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
     this.subscriptions.push(watchWind(() => this.currentRegion(), (type, data) => this.send(type, data)));
+    this.subscriptions.push(watchParcelSound(() => this.currentRegion(), (type, data) => this.send(type, data)));
     // The account's mute list lives on the grid; ask for it once the circuit is up, as the viewer does at login.
     this.muteLoader = new MuteListLoader(() => this.currentRegion()?.circuit, this.bot.agent?.agentID, (result) => this.send('mute-list', result));
     this.subscriptions.push({ unsubscribe: () => this.muteLoader?.cancel() });

@@ -20,6 +20,7 @@ import { VoiceManager } from './voice';
 import { RlvController } from './rlv';
 import { VoiceInput } from './voice-input';
 import { MuteFlag, MuteList, MuteType } from './mute-list';
+import { ParcelSoundMap } from './parcel-sound';
 import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
@@ -73,6 +74,9 @@ export class LinkpointApp {
   private voiceInput: VoiceInput | null = null;
   /** The account's mute list, kept on the grid. */
   public muteList: MuteList;
+  /** Which parcels only hear their own sounds. */
+  public parcelSound = new ParcelSoundMap();
+  private regionOriginMeters: [number, number] = [0, 0];
 
   constructor() {
     this.protocol = new SLConnectionFull();
@@ -110,6 +114,12 @@ export class LinkpointApp {
     });
     this.chatExtended.attachGridMuteList(this.muteList, (id) => this.nameOfObjectOrAvatar(id));
     this.audio.setPolicy({
+      // LLViewerParcelMgr::canHearSound; a position outside the current region is in a parcel we know nothing about
+      canHearAt: (global) => {
+        const x = global[0] - this.regionOriginMeters[0], y = global[1] - this.regionOriginMeters[1];
+        const inside = x >= 0 && y >= 0 && x < this.parcelSound.regionWidth && y < this.parcelSound.regionWidth;
+        return this.parcelSound.canHear(inside ? [x, y, global[2]] : null);
+      },
       isMuted: (id) => this.muteList.isMuted(id),
       ownerSoundsMuted: (ownerId) => this.muteList.isMuted(ownerId, '', MuteFlag.OBJECT_SOUNDS),
     });
@@ -203,6 +213,7 @@ export class LinkpointApp {
   }
 
   private setupEventListeners() {
+    this.protocol.on('scene:parcel-sound', (data: any) => this.parcelSound.accept(data));
     this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
     this.protocol.on('connected', () => this.muteList.setSelfId(this.protocol.agentId || ''));
     this.protocol.on('friends_loaded', (friends: any[]) => {
@@ -295,6 +306,7 @@ export class LinkpointApp {
         const origin = CoordinateNormalizer.getRegionOriginMeters(region);
         this.voice.setRegionOrigin(origin);
         this.audio.setRegionOrigin(origin);
+        this.regionOriginMeters = [origin[0], origin[1]];
       }
       const parcelLocalId = region?.parcel?.LocalID || region?.parcel?.localId;
       if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
