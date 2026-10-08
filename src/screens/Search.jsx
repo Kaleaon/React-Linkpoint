@@ -4,6 +4,7 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app.ts";
 import { slBridge } from "../linkpoint/sl-bridge.ts";
 import Icon from "../components/Icon.jsx";
+import FormField from "../components/FormField.jsx";
 
 const TABS = [
   { id: "PEOPLE", category: "people", label: "People", icon: "users" },
@@ -256,30 +257,34 @@ export default function Search() {
       </div>
 
       {/* Query Input */}
-      <div className="search-container" style={{ flex: "none", margin: "0 16px 10px", height: "44px", display: "flex", alignItems: "center", gap: "8px", padding: "0 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf }}>
-        <Icon name="search" size={16} style={{ color: V.ink2 }} />
-        <input
-          className="search-input"
-          aria-label={activeTabId === "SEARCH" ? "Search resident by name" : "Filter search results by name"}
-          value={state.searchQuery || ""}
-          onChange={(e) => {
-            actions.setSearchQuery(e.target.value);
-            setPage(0);
-          }}
-          placeholder={
-            activeTabId === "PEOPLE" || activeTabId === "SEARCH"
-              ? "Search residents grid-wide (min 2 chars)"
-              : activeTabId === "GROUPS"
-              ? "Search groups by keyword"
-              : "Search places or destinations"
-          }
-          style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", font: "400 13px/1 " + t.font, color: V.ink }}
-        />
-        {state.searchQuery ? (
-          <div onClick={() => actions.setSearchQuery("")} style={{ cursor: "pointer", color: V.ink2, display: "flex", alignItems: "center" }}>
-            <Icon name="x" size={16} />
-          </div>
-        ) : null}
+      <div style={{ flex: "none", margin: "0 16px 10px" }}>
+        <div className="search-container" style={{ minHeight: "44px", display: "flex", alignItems: "center", gap: "8px", padding: "0 12px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf }}>
+          <Icon name="search" size={16} style={{ color: V.ink2 }} />
+          <FormField error={query.length === 1 ? "Enter at least 2 characters to search." : null} style={{ flex: 1 }}>
+            <input
+              className="search-input"
+              aria-label={activeTabId === "SEARCH" ? "Search resident by name" : "Filter search results by name"}
+              value={state.searchQuery || ""}
+              onChange={(e) => {
+                actions.setSearchQuery(e.target.value);
+                setPage(0);
+              }}
+              placeholder={
+                activeTabId === "PEOPLE" || activeTabId === "SEARCH"
+                  ? "Search residents grid-wide (min 2 chars)"
+                  : activeTabId === "GROUPS"
+                  ? "Search groups by keyword"
+                  : "Search places or destinations"
+              }
+              style={{ width: "100%", border: "none", background: "transparent", font: "400 13px/1 " + t.font, color: V.ink }}
+            />
+          </FormField>
+          {state.searchQuery ? (
+            <div onClick={() => actions.setSearchQuery("")} style={{ cursor: "pointer", color: V.ink2, display: "flex", alignItems: "center" }}>
+              <Icon name="x" size={16} />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Error alert banner if network error occurs */}

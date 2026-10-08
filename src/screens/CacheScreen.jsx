@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { app } from "../linkpoint/app";
 import { localCache } from "../linkpoint/local-cache";
 import Icon from "../components/Icon.jsx";
+import FormField from "../components/FormField.jsx";
 
 export default function CacheScreen() {
   const { V, t } = useTheme();
@@ -351,27 +352,31 @@ export default function CacheScreen() {
               <div style={{ fontSize: 11, color: V.ink2, marginTop: 2 }}>
                 Specify an exact mount point or drive letter (e.g. <code>E:\SL_Cache</code> or <code>/media/usb/sl-cache</code>).
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input
-                  aria-label="Custom cache mount path"
-                  type="text"
-                  value={customPath}
-                  onChange={(e) => setCustomPath(e.target.value)}
-                  placeholder="/media/usb/sl-cache"
-                  style={{
-                    flex: 1,
-                    minHeight: 34,
-                    padding: "0 10px",
-                    border: `1px solid ${V.outv}`,
-                    borderRadius: V.rs,
-                    background: V.bg,
-                    color: V.ink,
-                    font: `400 13px ${t.font}`,
-                  }}
-                />
-                <button type="button" onClick={handleSaveCustomPath} style={{ ...btnStyle(false), minHeight: 34, fontSize: 11 }}>
-                  SAVE PATH
-                </button>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                  <FormField label="Flashdrive Mount Path" error={error} style={{ flex: 1 }}>
+                    <input
+                      aria-label="Custom cache mount path"
+                      type="text"
+                      value={customPath}
+                      onChange={(e) => setCustomPath(e.target.value)}
+                      placeholder="/media/usb/sl-cache"
+                      style={{
+                        width: "100%",
+                        minHeight: 34,
+                        padding: "0 10px",
+                        border: `1px solid ${V.outv}`,
+                        borderRadius: V.rs,
+                        background: V.bg,
+                        color: V.ink,
+                        font: `400 13px ${t.font}`,
+                      }}
+                    />
+                  </FormField>
+                  <button type="button" onClick={handleSaveCustomPath} style={{ ...btnStyle(false), minHeight: 34, fontSize: 11 }}>
+                    SAVE PATH
+                  </button>
+                </div>
               </div>
             </div>
           </label>
