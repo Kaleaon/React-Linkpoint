@@ -7,15 +7,19 @@
 # and proxies /api/* to it (see vercel.json rewrites).
 FROM node:22-slim
 
+
 # git is required: at least one dependency installs from a git URL.
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+
 
 # Some dependencies use ssh:// git URLs; the repos are public, so rewrite to
 # https (no SSH keys available at build time).
 RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 
+
 WORKDIR /app
+
 
 # Dependencies first for better layer caching.
 # The repo has no package-lock.json; .npmrc sets legacy-peer-deps so the
@@ -24,13 +28,16 @@ WORKDIR /app
 COPY package.json .npmrc ./
 RUN npm install
 
+
 # Copy the rest and build the frontend; server.ts serves dist/ itself.
 COPY . .
 RUN npm run build
 
+
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
+
 
 # Serves the frontend, the /api/* HTTP endpoints, SSE events, and the
 # WebSocket UDP bridge at /api/udp-proxy.
