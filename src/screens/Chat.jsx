@@ -21,11 +21,26 @@ export default function Chat() {
   const [showAwaySettings, setShowAwaySettings] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
+  const [activeSpeakers, setActiveSpeakers] = useState({});
 
   useEffect(() => {
     const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
+    const updateSpeaking = (data) => {
+      const map = {};
+      if (Array.isArray(data?.speakers)) {
+        data.speakers.forEach((s) => {
+          if (s.speaking) map[s.id] = s;
+        });
+      }
+      setActiveSpeakers(map);
+    };
+
     app.voice.on("state", updateVoice);
-    return () => app.voice.off("state", updateVoice);
+    app.voice.on("speaking", updateSpeaking);
+    return () => {
+      app.voice.off("state", updateVoice);
+      app.voice.off("speaking", updateSpeaking);
+    };
   }, []);
 
   // Active sub-tab from navigation (LOCAL, IM, GROUP)

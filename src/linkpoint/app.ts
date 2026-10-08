@@ -194,6 +194,34 @@ export class LinkpointApp {
       this.friends.clear();
       this.groups.replaceGroups([]);
     });
+
+    // Automated WebRTC voice re-provisioning on region teleports & parcel transitions
+    this.world.on('region_changed', (region: any) => {
+      const parcelLocalId = region?.parcel?.LocalID || region?.parcel?.localId;
+      if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
+        void this.voice.reprovision(parcelLocalId);
+      }
+    });
+
+    this.world.on('parcel_changed', (parcel: any) => {
+      const parcelLocalId = parcel?.LocalID || parcel?.localId;
+      if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
+        void this.voice.reprovision(parcelLocalId);
+      }
+    });
+
+    this.world.on('nearby_changed', (users: any[]) => {
+      if (Array.isArray(users)) {
+        users.forEach((u) => {
+          if (u.id && Array.isArray(u.position)) {
+            this.voice.setSpeakerPosition(u.id, u.position, u.name);
+          }
+        });
+      }
+      if (this.world.avatarPosition) {
+        this.voice.updateListenerPosition(this.world.avatarPosition);
+      }
+    });
   }
 
   async loadGroups() {

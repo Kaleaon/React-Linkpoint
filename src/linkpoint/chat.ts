@@ -24,6 +24,10 @@ export class ChatManager extends Utils.EventEmitter {
   private messageFilter: ((message: any) => boolean) | null = null;
 
   setMessageFilter(filter: (message: any) => boolean) { this.messageFilter = filter; }
+  setHistoryLoggingEnabled(enabled: boolean) {
+    this.historyLoggingEnabled = Boolean(enabled);
+    if (!this.historyLoggingEnabled) Utils.storage.remove('linkpoint_chat_history');
+  }
   public autoReplyEnabled: boolean = false;
   public awayMessage: string = 'I am currently away. Your message has been received and I will reply as soon as possible.';
   private autoReplyRecipients: Set<string> = new Set();
@@ -467,11 +471,6 @@ export class ChatManager extends Utils.EventEmitter {
     this.messages.push(messageData);
     if (this.messages.length > this.maxMessages) this.messages.shift();
     this.saveChatHistory();
-  }
-
-  setHistoryLoggingEnabled(enabled: boolean) {
-    this.historyLoggingEnabled = Boolean(enabled);
-    if (!this.historyLoggingEnabled) Utils.storage.remove('linkpoint_chat_history');
   }
 
   saveChatHistory() {
