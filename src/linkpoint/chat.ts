@@ -24,10 +24,6 @@ export class ChatManager extends Utils.EventEmitter {
   private messageFilter: ((message: any) => boolean) | null = null;
 
   setMessageFilter(filter: (message: any) => boolean) { this.messageFilter = filter; }
-  setHistoryLoggingEnabled(enabled: boolean) {
-    this.historyLoggingEnabled = Boolean(enabled);
-    if (!this.historyLoggingEnabled) Utils.storage.remove('linkpoint_chat_history');
-  }
   public autoReplyEnabled: boolean = false;
   public awayMessage: string = 'I am currently away. Your message has been received and I will reply as soon as possible.';
   private autoReplyRecipients: Set<string> = new Set();
@@ -52,70 +48,6 @@ export class ChatManager extends Utils.EventEmitter {
     this.loadSessions();
     this.loadChatHistory();
     this.loadAutoReplyConfig();
-  }
-
-  async sendMessage(message: string, channel = 0, chatType: ChatType | number = ChatType.NORMAL): Promise<void> {
-    if (this.auth && typeof this.auth.isLoggedIn === 'function' && !this.auth.isLoggedIn()) {
-      throw new Error('Not connected');
-    }
-    this.pendingEchoes.push({ text: message, until: Date.now() + 5000 });
-    await this.adapter.sendSpatialChat(message, channel, chatType as ChatType);
-    const senderName = typeof this.auth?.getUserDisplayName === 'function'
-      ? this.auth.getUserDisplayName()
-      : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me');
-    const senderId = this.auth?.user?.id;
-    this.addMessage({
-      id: Utils.generateUUID(),
-      sender: senderName,
-      senderId,
-      text: message,
-      timestamp: Date.now(),
-      type: 'local',
-      channel,
-      chatType,
-    });
-  }
-
-  async sendInstantMessage(recipientId: string, text: string, recipientName: string = 'Resident'): Promise<void> {
-    if (this.auth && typeof this.auth.isLoggedIn === 'function' && !this.auth.isLoggedIn()) {
-      throw new Error('Not connected');
-    }
-    await this.adapter.sendDirectIM(recipientId, text, recipientName);
-    const senderName = typeof this.auth?.getUserDisplayName === 'function'
-      ? this.auth.getUserDisplayName()
-      : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me');
-    const senderId = this.auth?.user?.id;
-    this.addMessage({
-      id: Utils.generateUUID(),
-      sender: senderName,
-      senderId,
-      recipientId,
-      recipientName,
-      text,
-      timestamp: Date.now(),
-      type: 'im',
-    });
-  }
-
-  async sendGroupMessage(groupId: string, text: string, groupName: string = 'Group'): Promise<void> {
-    if (this.auth && typeof this.auth.isLoggedIn === 'function' && !this.auth.isLoggedIn()) {
-      throw new Error('Not connected');
-    }
-    await this.adapter.sendGroupChat(groupId, text, groupName);
-    const senderName = typeof this.auth?.getUserDisplayName === 'function'
-      ? this.auth.getUserDisplayName()
-      : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me');
-    const senderId = this.auth?.user?.id;
-    this.addMessage({
-      id: Utils.generateUUID(),
-      sender: senderName,
-      senderId,
-      groupId,
-      groupName,
-      text,
-      timestamp: Date.now(),
-      type: 'group',
-    });
   }
 
   loadSessions() {
@@ -367,48 +299,6 @@ export class ChatManager extends Utils.EventEmitter {
       const existing = threadMap.get(key);
       if (!existing) {
         threadMap.set(key, {
-  hasAutoRepliedTo(id: string): boolean {
-    return this.autoReplyRecipients.has(id);
-  }
-
-  loadAutoReplyConfig() {
-    try {
-      const config = Utils.storage.get('linkpoint_auto_reply_config', null);
-      if (config && typeof config === 'object') {
-        if (typeof config.enabled === 'boolean') this.autoReplyEnabled = config.enabled;
-        if (typeof config.awayMessage === 'string' && config.awayMessage) this.awayMessage = config.awayMessage;
-      }
-    } catch {
-      // Storage error ignored
-    }
-  }
-
-  saveAutoReplyConfig() {
-    try {
-      Utils.storage.set('linkpoint_auto_reply_config', {
-        enabled: this.autoReplyEnabled,
-        awayMessage: this.awayMessage,
-      });
-    } catch {
-      // Storage error ignored
-    }
-  }
-
-  getIMThreads(): any[] {
-    return this.getConversations();
-  }
-
-  getConversations(): any[] {
-    const threadMap = new Map<string, any>();
-    for (const msg of this.messages) {
-      if (msg.type !== 'im') continue;
-      const contactId = msg.senderId === this.auth?.user?.id ? msg.recipientId : msg.senderId;
-      const contactName = msg.senderId === this.auth?.user?.id ? msg.recipientName : msg.sender;
-      if (!contactId) continue;
-      const isUnread = !msg.read && msg.senderId !== this.auth?.user?.id;
-      const existing = threadMap.get(contactId);
-      if (!existing) {
-        threadMap.set(contactId, {
           contactId,
           contactName,
           lastMessage: msg.text || '',
@@ -573,6 +463,11 @@ export class ChatManager extends Utils.EventEmitter {
     this.messages.push(messageData);
     if (this.messages.length > this.maxMessages) this.messages.shift();
     this.saveChatHistory();
+  }
+
+  setHistoryLoggingEnabled(enabled: boolean) {
+    this.historyLoggingEnabled = Boolean(enabled);
+    if (!this.historyLoggingEnabled) Utils.storage.remove('linkpoint_chat_history');
   }
 
   saveChatHistory() {
