@@ -333,6 +333,10 @@ export class ChatManager extends Utils.EventEmitter {
     return Array.from(threadMap.values()).sort((a, b) => b.timestamp - a.timestamp);
   }
 
+  getConversations(): any[] {
+    return this.getIMThreads();
+  }
+
   getIMMessages(contactId?: string): any[] {
     const myId = this.auth?.user?.id;
     return this.messages.filter((m) => {
