@@ -384,6 +384,33 @@ describe('desktop session texture downloads', () => {
     vi.useRealTimers();
   });
 
+  it('names friends the library left as "Unknown Friend", falling back to one lookup each when a batch fails', async () => {
+    const session = new ViewerSession(() => undefined);
+    const key = (id: string) => ({ toString: () => id });
+    const result = (id: string, name: string) => ({ getKey: () => key(id), getName: () => name });
+    const avatarKey2Name = vi.fn(async (arg: any) => {
+      if (Array.isArray(arg)) throw new Error('Avatar not found');
+      const id = arg.toString();
+      if (id === 'gone') throw new Error('Avatar not found');
+      return result(id, `Name ${id}`);
+    });
+    session.bot = {
+      agent: { buddyList: [{ buddyID: key('aaa') }, { buddyID: key('bbb') }, { buddyID: key('gone') }, { buddyID: key('ccc') }] },
+      clientCommands: {
+        friends: { getFriend: (k: any) => (k.toString() === 'ccc' ? { getName: () => 'Real Name', getKey: () => k, online: true } : { getName: () => 'Unknown Friend', online: false }) },
+        grid: { avatarKey2Name },
+      },
+    };
+    const friends = await session.getFriends();
+    const byId = Object.fromEntries(friends.map((f: any) => [f.id, f.name]));
+    expect(byId).toMatchObject({ aaa: 'Name aaa', bbb: 'Name bbb', ccc: 'Real Name' });
+    expect(byId.gone).toMatch(/^Resident \(/);
+    avatarKey2Name.mockClear();
+    await session.getFriends();
+    const asked = avatarKey2Name.mock.calls.flatMap(([arg]: any[]) => (Array.isArray(arg) ? arg : [arg]).map((k: any) => k.toString()));
+    expect(new Set(asked)).toEqual(new Set(['gone']));
+  });
+
   it('limits concurrent simulator asset downloads so attachments are not rate-limited', async () => {
     const session = new ViewerSession(() => undefined);
     let active = 0;
