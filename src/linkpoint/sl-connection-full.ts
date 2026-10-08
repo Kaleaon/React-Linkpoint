@@ -408,7 +408,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Update the logged-in avatar's directional control flags. */
-  async setMovement(movement: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean }) {
+  async setMovement(movement: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean; controlFlags?: number }) {
     this.requireConnected();
     return slBridge.setMovement(movement);
   }
@@ -440,6 +440,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Download an animation asset (custom/uploaded animations) as raw bytes. */
+  /** Request a sound asset; it arrives later as a `sound-asset` event. */
+  async fetchSound(id: string): Promise<void> {
+    this.requireConnected();
+    await slBridge.fetchSound(id);
+  }
+
   async fetchAnimation(id: string): Promise<Uint8Array> {
     if (!this.connected) throw new Error('Not connected to a grid');
     const reply = await slBridge.fetchAnimation(id);

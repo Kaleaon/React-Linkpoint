@@ -22,6 +22,19 @@ describe('desktop simulator object bridge', () => {
     ]));
   });
 
+  it('sends the flexible-prim block with node-metaverse field names mapped to ours', () => {
+    const result = serializeObject({
+      localID: 5,
+      object: {
+        FullID: { toString: () => '00000000-0000-0000-0000-000000000005' },
+        Position: { x: 0, y: 0, z: 0 }, Scale: { x: 1, y: 1, z: 3 }, Rotation: { x: 0, y: 0, z: 0, w: 1 },
+        extraParams: { flexibleData: { Softness: 3, Tension: 1.5, Drag: 0.7, Gravity: -2.5, Wind: 1.2, Force: { x: 0.5, y: -1, z: 2 } } },
+      },
+    });
+    expect(result.flexible).toEqual({ softness: 3, tension: 1.5, friction: 0.7, gravity: -2.5, wind: 1.2, force: [0.5, -1, 2] });
+    expect(() => structuredClone(result)).not.toThrow();
+  });
+
   it('serializes native friends for the renderer process', () => {
     expect(serializeFriend({
       getKey: () => ({ toString: () => 'friend-id' }),
@@ -91,6 +104,7 @@ describe('desktop simulator object bridge', () => {
       })),
       reflectionProbe: null,
       particles: null,
+      flexible: null,
       color: [1, 1, 1, 1],
       shapeParams: {
         pathCurve: undefined, profileCurve: undefined,

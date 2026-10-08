@@ -66,7 +66,8 @@ export class Scene3D extends Utils.EventEmitter {
   public wallClock = () => Date.now() / 1000;
   /** Ambient light on objects: from the environment's ambient term when there is one. */
   private ambientColor: number[] = [0.2, 0.2, 0.2];
-  public windVector: number[] = [1, 0, 0];
+  /** Region wind, when the simulator's wind layer has been decoded; null means there is no wind data. */
+  public windVector: number[] | null = null;
   private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 
   public setWindVector(wind: number[]) {
@@ -343,6 +344,9 @@ export class Scene3D extends Utils.EventEmitter {
       hudRoot: config.hudRoot ?? null,
       // Packed joint matrices (see skinning.ts packJointRows) for rigged meshes.
       skin: config.skin || null,
+      // Flexible prim parameters, and the chain pose the world updates each frame (see flexible.ts).
+      flexi: config.flexi || null,
+      flexiSections: config.flexiSections || null,
     };
     
     this.objects.set(id, object);
@@ -748,7 +752,8 @@ export class Scene3D extends Utils.EventEmitter {
     const normalMatrix = this.mat3FromMat4(modelMatrix);
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
     
-    const isFlexi = Boolean(object.flexi);
+    // A flexible prim draws straight until its chain has a pose (flexiSections), like any other prim.
+    const isFlexi = Boolean(object.flexi && object.flexiSections);
     const draws = object.meshes?.length ? object.meshes : [{ mesh: object.mesh, materialIndex: 0 }];
     for (const draw of draws) {
       const face = object.faces?.[draw.materialIndex];
@@ -759,14 +764,9 @@ export class Scene3D extends Utils.EventEmitter {
       this.graphics.drawMesh(draw.mesh, programMaterial, {
         ...(drawSkinned ? { uJointRows: object.skin } : null),
         ...(isFlexi ? {
-          uTime: this.now() % 1000,
-          uSoftness: object.flexi.softness ?? 0,
-          uGravity: object.flexi.gravity ?? 0,
-          uFriction: object.flexi.friction ?? 0,
-          uWind: object.flexi.wind ?? 0,
-          uTension: object.flexi.tension ?? 0,
-          uForce: new Float32Array(object.flexi.force || [0, 0, 0]),
-          uWindVec: new Float32Array(this.windVector || [1, 0, 0]),
+          uFlexPos: object.flexiSections.positions,
+          uFlexRot: object.flexiSections.rotations,
+          uScale: new Float32Array(object.scale || [1, 1, 1]),
         } : null),
         uModelMatrix: modelMatrix,
         uViewMatrix: viewMatrix,

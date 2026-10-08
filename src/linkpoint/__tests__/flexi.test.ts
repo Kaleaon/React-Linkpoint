@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseFlexibleParams, WorldViewer } from '../world';
-import { deformFlexibleVertices, type FlexiParams } from '../graphics-3d';
+import { Scene3D } from '../scene-3d';
+import { Camera3D } from '../camera-3d';
 
 describe('Flexible Prim Dynamics', () => {
   describe('parseFlexibleParams', () => {
@@ -32,6 +33,12 @@ describe('Flexible Prim Dynamics', () => {
       });
     });
 
+    it('reads the field names node-metaverse produces: Drag is the air friction', () => {
+      expect(parseFlexibleParams({ flexible: { Softness: 2, Tension: 1.5, Drag: 0.7, Gravity: -9, Wind: 1.2, Force: { x: 1, y: 2, z: 3 } } })).toEqual({
+        softness: 2, tension: 1.5, friction: 0.7, gravity: -9, wind: 1.2, force: [1, 2, 3],
+      });
+    });
+
     it('parses flexi parameters from extraParams.flexible and object force', () => {
       const data = {
         extraParams: {
@@ -54,85 +61,6 @@ describe('Flexible Prim Dynamics', () => {
         tension: 2.0,
         force: [0.5, -0.5, 0],
       });
-    });
-  });
-
-  describe('deformFlexibleVertices', () => {
-    const unitCubeVertices = new Float32Array([
-      // Base vertices (z = -0.5)
-      -0.5, -0.5, -0.5,
-       0.5, -0.5, -0.5,
-       0.5,  0.5, -0.5,
-      -0.5,  0.5, -0.5,
-      // Top vertices (z = 0.5)
-      -0.5, -0.5,  0.5,
-       0.5, -0.5,  0.5,
-       0.5,  0.5,  0.5,
-      -0.5,  0.5,  0.5,
-    ]);
-
-    it('keeps base vertices fixed at h = 0', () => {
-      const flexi: FlexiParams = {
-        softness: 2,
-        gravity: 5.0,
-        friction: 0.0,
-        wind: 3.0,
-        tension: 1.0,
-        force: [2, 0, 0],
-      };
-      const deformed = deformFlexibleVertices(unitCubeVertices, flexi, { minZ: -0.5, maxZ: 0.5 });
-      // Base x, y, z should match original
-      expect(deformed[0]).toBeCloseTo(-0.5);
-      expect(deformed[1]).toBeCloseTo(-0.5);
-      expect(deformed[2]).toBeCloseTo(-0.5);
-
-      expect(deformed[3]).toBeCloseTo(0.5);
-      expect(deformed[4]).toBeCloseTo(-0.5);
-      expect(deformed[5]).toBeCloseTo(-0.5);
-    });
-
-    it('deforms top vertices (h = 1) under force, gravity, and wind', () => {
-      const flexi: FlexiParams = {
-        softness: 1,
-        gravity: 1.0,
-        friction: 0.0,
-        wind: 0.0,
-        tension: 1.0,
-        force: [2, 0, 0],
-      };
-      const deformed = deformFlexibleVertices(unitCubeVertices, flexi, { minZ: -0.5, maxZ: 0.5 });
-      // Top vertex 4 (-0.5, -0.5, 0.5) x should be shifted by force
-      expect(deformed[12]).toBeGreaterThan(-0.5);
-    });
-
-    it('increases deformation with higher softness and decreases with higher tension', () => {
-      const lowSoftness: FlexiParams = { softness: 0, gravity: 0, friction: 0, wind: 0, tension: 1, force: [1, 0, 0] };
-      const highSoftness: FlexiParams = { softness: 3, gravity: 0, friction: 0, wind: 0, tension: 1, force: [1, 0, 0] };
-      const highTension: FlexiParams = { softness: 3, gravity: 0, friction: 0, wind: 0, tension: 10, force: [1, 0, 0] };
-
-      const defLow = deformFlexibleVertices(unitCubeVertices, lowSoftness, { minZ: -0.5, maxZ: 0.5 });
-      const defHigh = deformFlexibleVertices(unitCubeVertices, highSoftness, { minZ: -0.5, maxZ: 0.5 });
-      const defStiff = deformFlexibleVertices(unitCubeVertices, highTension, { minZ: -0.5, maxZ: 0.5 });
-
-      const dispLow = defLow[12] - unitCubeVertices[12];
-      const dispHigh = defHigh[12] - unitCubeVertices[12];
-      const dispStiff = defStiff[12] - unitCubeVertices[12];
-
-      expect(dispHigh).toBeGreaterThan(dispLow);
-      expect(dispStiff).toBeLessThan(dispHigh);
-    });
-
-    it('dampens displacement with higher friction', () => {
-      const lowFriction: FlexiParams = { softness: 2, gravity: 2, friction: 0, wind: 0, tension: 1, force: [1, 0, 0] };
-      const highFriction: FlexiParams = { softness: 2, gravity: 2, friction: 5, wind: 0, tension: 1, force: [1, 0, 0] };
-
-      const defLow = deformFlexibleVertices(unitCubeVertices, lowFriction, { minZ: -0.5, maxZ: 0.5 });
-      const defHigh = deformFlexibleVertices(unitCubeVertices, highFriction, { minZ: -0.5, maxZ: 0.5 });
-
-      const dispLow = defLow[12] - unitCubeVertices[12];
-      const dispHigh = defHigh[12] - unitCubeVertices[12];
-
-      expect(dispHigh).toBeLessThan(dispLow);
     });
   });
 
@@ -196,6 +124,58 @@ describe('Flexible Prim Dynamics', () => {
           },
         })
       );
+    });
+  });
+
+  describe('scene and per-frame step', () => {
+    const makeWorld = () => {
+      const listeners = new Map<string, Function[]>();
+      const protocol = {
+        connected: true,
+        on: (event: string, fn: Function) => { listeners.set(event, [...(listeners.get(event) || []), fn]); },
+        emit: (event: string, data: any) => { for (const fn of listeners.get(event) || []) fn(data); },
+      };
+      const world = new WorldViewer(protocol);
+      const updateObject = vi.fn();
+      const objects = new Map<string, any>();
+      world.scene3d = { addObject: (id: string, c: any) => objects.set(id, c), updateObject, removeObject: (id: string) => objects.delete(id), objects } as any;
+      return { world, protocol, updateObject, objects };
+    };
+    const flexible = { softness: 2, gravity: 4, friction: 0.5, wind: 0, tension: 1, force: [0, 0, 0] };
+
+    it('keeps flexi parameters when an object is first added to the scene', () => {
+      const scene = new Scene3D({ createMesh: vi.fn() } as any, new Camera3D());
+      const object = scene.addObject('a', { mesh: 'cube', flexi: flexible });
+      expect(object.flexi).toEqual(flexible);
+      expect(object.flexiSections).toBeNull();
+    });
+
+    it('gives the scene nine section transforms per frame, in the prim frame, once the chain has run', () => {
+      const { world, protocol, updateObject, objects } = makeWorld();
+      protocol.emit('ObjectUpdate', { id: 'flag', position: [10, 10, 20], rotation: [0, 0, 0, 1], scale: [0.2, 1, 4], flexible });
+      expect(objects.get('flag')).toBeDefined();
+      objects.set('flag', { ...objects.get('flag') });
+      (world as any).updateFlexibles(1);
+      (world as any).updateFlexibles(1.016);
+      const call = updateObject.mock.calls.filter((c) => c[0] === 'flag' && c[1].flexiSections).at(-1)!;
+      const { positions, rotations } = call[1].flexiSections;
+      expect(positions).toHaveLength(27);
+      expect(rotations).toHaveLength(36);
+      // base at the bottom of the prim, tip near the top; gravity pulls along the chain so it stays straight
+      expect(Array.from(positions.slice(0, 3))).toEqual([0, 0, -2].map((v) => expect.closeTo(v, 4)));
+      expect(positions[26]).toBeCloseTo(2, 3);
+    });
+
+    it('does nothing for objects that are not flexible, and forgets a removed object', () => {
+      const { world, protocol, updateObject } = makeWorld();
+      protocol.emit('ObjectUpdate', { id: 'plain', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
+      (world as any).updateFlexibles(1);
+      expect(updateObject.mock.calls.some((c) => c[1]?.flexiSections)).toBe(false);
+      protocol.emit('ObjectUpdate', { id: 'flag', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 3], flexible });
+      (world as any).updateFlexibles(2);
+      expect((world as any).flexChains.has('flag')).toBe(true);
+      (world as any).removeSceneObject({ id: 'flag' });
+      expect((world as any).flexChains.has('flag')).toBe(false);
     });
   });
 });

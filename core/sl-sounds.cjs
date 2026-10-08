@@ -12,12 +12,16 @@ function serializeSoundPacket(packet) {
   if (!message) return null;
   if (message.id === Message.SoundTrigger) {
     const data = message.SoundData;
-    return { action: 'trigger', soundId: id(data.SoundID), objectId: id(data.ObjectID), ownerId: id(data.OwnerID),
+    const payload = { action: 'trigger', soundId: id(data.SoundID), objectId: id(data.ObjectID), ownerId: id(data.OwnerID),
       parentId: id(data.ParentID), position: position(data.Position), gain: Number(data.Gain) || 0, flags: 0 };
+    // The region handle turns the region-local position into a global one (high word x, low word y).
+    if (data.Handle !== undefined && data.Handle !== null) payload.handle = BigInt.asUintN(64, BigInt(data.Handle.toString())).toString();
+    return payload;
   }
   if (message.id === Message.AttachedSound) {
+    // A null sound id is not always a stop: the viewer's setAttachedSound decides from the flags (see sound-standards.ts).
     const data = message.DataBlock;
-    return { action: id(data.SoundID) === ZERO ? 'stop' : 'attached', soundId: id(data.SoundID), objectId: id(data.ObjectID),
+    return { action: 'attached', soundId: id(data.SoundID), objectId: id(data.ObjectID),
       ownerId: id(data.OwnerID), gain: Number(data.Gain) || 0, flags: Number(data.Flags) || 0 };
   }
   if (message.id === Message.AttachedSoundGainChange) {

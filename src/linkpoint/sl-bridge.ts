@@ -3,7 +3,7 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
+  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory',
   'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
 ]);
 
@@ -184,8 +184,8 @@ export class SLBridge extends Utils.EventEmitter {
   }
   sit(params: { id?: string } = {}) { return this.call<{ sitting: string }>('sit', params); }
   stand() { return this.call<{ standing: boolean }>('stand'); }
-  setMovement(params: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean }) {
-    return this.call<{ moving: boolean }>('setMovement', params);
+  setMovement(params: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean; controlFlags?: number }) {
+    return this.call<{ moving: boolean; flags?: number }>('setMovement', params);
   }
   getBalance() { return this.call<{ balance: number; currencySymbol?: string; currency_symbol?: string; isZeroCurrency?: boolean; is_zero_currency?: boolean }>('getBalance'); }
   payObject(params: { targetId?: string; id?: string; objectId?: string; amount: number; description?: string; targetName?: string; currencySymbol?: string; isZeroCurrency?: boolean }) {
@@ -269,8 +269,11 @@ export class SLBridge extends Utils.EventEmitter {
   }
 
   fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
-  voiceProvision(sdp: string, parcelLocalId?: number) { return this.call<any>('voiceProvision', { sdp, parcelLocalId }); }
-  voiceSignal(viewerSession: string, candidates?: RTCIceCandidateInit[], completed = false) { return this.call('voiceSignal', { viewerSession, candidates, completed }); }
+  fetchSound(id: string): Promise<{ requested: boolean }> { return this.call('fetchSound', { id }); }
+  /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
+  /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
+  voiceProvision(body: Record<string, unknown>) { return this.call<any>('voiceProvision', { body }); }
+  voiceSignal(body: Record<string, unknown>) { return this.call('voiceSignal', { body }); }
   voiceLogout(viewerSession: string) { return this.call('voiceLogout', { viewerSession }); }
 
   disconnect() {

@@ -49,6 +49,16 @@ const NOT_CONNECTED = 'Not connected to Second Life';
 
 const newId = () => crypto.randomUUID();
 
+const VOICE_PROVISION_KEYS = ['jsep', 'parcel_local_id', 'channel_type', 'voice_server_type', 'credentials', 'channel'];
+const VOICE_SIGNAL_KEYS = ['viewer_session', 'voice_server_type', 'candidates', 'candidate'];
+
+/** Keep only the fields the voice capabilities take, and only for the WebRTC voice server. */
+function sanitizeVoiceBody(body, allowed) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('A voice request body is required');
+  if (body.voice_server_type !== 'webrtc') throw new Error('Only WebRTC voice is supported');
+  return Object.fromEntries(Object.entries(body).filter(([key]) => allowed.includes(key)));
+}
+
 class ViewerSession {
   /**
    * @param send host callback `(type, data) => void` that delivers an event to the client
@@ -238,6 +248,14 @@ class ViewerSession {
     });
   }
 
+  // Ask for a sound asset by id (UI sounds are not announced by the simulator). It arrives as a 'sound-asset' event.
+  fetchSound({ id } = {}) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) throw new Error('A sound asset id is required');
+    this.requireBot();
+    this.loadSound(String(id).toLowerCase());
+    return { requested: true };
+  }
+
   loadObjectAsset(object) {
     const appearance = primAppearance(object);
     if (!appearance.assetId) return;
@@ -298,12 +316,18 @@ class ViewerSession {
     const soundId = event.object?.Sound?.toString?.();
     const objectId = event.object?.FullID?.toString?.() || String(event.localID);
     const liveSound = soundId && soundId !== '00000000-0000-0000-0000-000000000000' ? soundId : '';
-    const signature = `${liveSound}:${Number(event.object?.SoundGain) || 0}:${Number(event.object?.SoundFlags) || 0}`;
+    const radius = Number(event.object?.SoundRadius) || 0;
+    const signature = `${liveSound}:${Number(event.object?.SoundGain) || 0}:${Number(event.object?.SoundFlags) || 0}:${radius}`;
     if (this.objectSounds.get(objectId) !== signature) {
+      // The sound fields of an object update are what start looping sounds on objects that were
+      // already playing when we arrived. A change to nothing is sent as a null sound with its flags.
+      const hadSound = this.objectSounds.has(objectId) && !this.objectSounds.get(objectId).startsWith(':');
       this.objectSounds.set(objectId, signature);
-      this.send('sound-event', liveSound ? { action: 'attached', soundId: liveSound, objectId,
-        position: vector(event.object?.Position), gain: Number(event.object?.SoundGain) || 0,
-        flags: Number(event.object?.SoundFlags) || 0 } : { action: 'stop', objectId });
+      if (liveSound || hadSound) {
+        this.send('sound-event', { action: 'attached', soundId: liveSound || '00000000-0000-0000-0000-000000000000', objectId,
+          ownerId: event.object?.OwnerID?.toString?.() || '', position: vector(event.object?.Position),
+          gain: Number(event.object?.SoundGain) || 0, flags: Number(event.object?.SoundFlags) || 0, radius });
+      }
       if (liveSound) this.loadSound(liveSound);
     }
   }
@@ -537,6 +561,7 @@ class ViewerSession {
   setMovement(params = {}) {
     const agent = this.requireBot().agent;
     if (!agent?.setControlFlag || !agent?.clearControlFlag || !agent?.sendAgentUpdate) throw new Error('Avatar movement unavailable');
+    if (params.controlFlags !== undefined) return this.setControlFlags(agent, params.controlFlags);
     const directional = [
       ControlFlags.AGENT_CONTROL_AT_POS, ControlFlags.AGENT_CONTROL_AT_NEG,
       ControlFlags.AGENT_CONTROL_LEFT_POS, ControlFlags.AGENT_CONTROL_LEFT_NEG,
@@ -559,6 +584,20 @@ class ViewerSession {
     if (params.run && params.up) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_UP);
     agent.sendAgentUpdate();
     return { moving: Boolean(params.forward || params.right || params.up || params.turn) };
+  }
+  // Flags the client owns when it sends a full flag word: everything except what the library sets itself.
+  // One-shot flags (stop, stand up, sit on ground, nudges) are cleared right after the update that carries them.
+  setControlFlags(agent, requested) {
+    const flags = Number(requested);
+    if (!Number.isInteger(flags) || flags < 0 || flags > 0xFFFFFFFF) throw new Error('controlFlags must be an unsigned 32-bit integer');
+    const oneShot = 0x4000 | 0x10000 | 0x20000 | 0x80000 | 0x100000 | 0x200000 | 0x400000 | 0x800000 | 0x1000000;
+    for (let bit = 0; bit < 32; bit++) {
+      const flag = (1 << bit) | 0;
+      if ((flags >>> bit) & 1) agent.setControlFlag(flag); else agent.clearControlFlag(flag);
+    }
+    agent.sendAgentUpdate();
+    for (let bit = 0; bit < 32; bit++) if ((oneShot >>> bit) & 1) agent.clearControlFlag((1 << bit) | 0);
+    return { moving: Boolean(flags & 0x0600003F), flags };
   }
   getBalance() { return actions.getBalance(this.requireBot()); }
   async payObject(params = {}) {
@@ -641,24 +680,25 @@ class ViewerSession {
     return { id, data: await this.queueAssetDownload(() => downloadAnimation(bot, id)) };
   }
 
-  async voiceProvision({ sdp, parcelLocalId } = {}) {
-    if (!sdp) throw new Error('A WebRTC offer is required');
+  // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
+  // checks the shape and posts them to the region's capability.
+  async voiceProvision({ body } = {}) {
+    const clean = sanitizeVoiceBody(body, VOICE_PROVISION_KEYS);
+    if (clean.jsep?.type !== 'offer' || typeof clean.jsep.sdp !== 'string' || !clean.jsep.sdp) throw new Error('A WebRTC offer is required');
     const caps = this.currentRegion()?.caps;
     const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
     if (!url) throw new Error('Voice is not available in this region');
-    return caps.capsPerformXMLPost(url, { jsep: { type: 'offer', sdp }, channel_type: 'local',
-      voice_server_type: 'webrtc', ...(Number.isInteger(parcelLocalId) ? { parcel_local_id: parcelLocalId } : {}) });
+    return caps.capsPerformXMLPost(url, clean);
   }
 
-  async voiceSignal({ viewerSession, candidates, completed } = {}) {
-    if (!viewerSession) throw new Error('Voice session is required');
+  async voiceSignal({ body } = {}) {
+    const clean = sanitizeVoiceBody(body, VOICE_SIGNAL_KEYS);
+    if (typeof clean.viewer_session !== 'string' || !clean.viewer_session) throw new Error('Voice session is required');
+    if (!clean.candidates && !clean.candidate) throw new Error('Voice signaling needs candidates or the completed marker');
     const caps = this.currentRegion()?.caps;
     const url = await caps?.getCapability?.('VoiceSignalingRequest');
     if (!url) throw new Error('Voice signaling is not available in this region');
-    const body = { viewer_session: viewerSession, voice_server_type: 'webrtc' };
-    if (Array.isArray(candidates) && candidates.length) body.candidates = candidates;
-    if (completed) body.candidate = { completed: true };
-    return caps.capsPerformXMLPost(url, body);
+    return caps.capsPerformXMLPost(url, clean);
   }
 
   async voiceLogout({ viewerSession } = {}) {
