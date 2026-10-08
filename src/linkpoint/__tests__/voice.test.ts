@@ -195,6 +195,87 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
   });
 });
 
+describe('VoiceManager reconnecting', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('RTCPeerConnection', FakePeer);
+    vi.stubGlobal('MediaStream', FakeStream);
+    vi.stubGlobal('Audio', class { autoplay = false; volume = 1; srcObject: unknown = null; play = vi.fn(async () => {}); });
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn(async () => new FakeStream()) } });
+    (slBridge.voiceProvision as any).mockReset().mockResolvedValue({ viewer_session: 'vs-1', jsep: { type: 'answer', sdp: 'answer-sdp' } });
+    (slBridge.voiceSignal as any).mockReset().mockResolvedValue({});
+    (slBridge.voiceLogout as any).mockReset().mockResolvedValue({});
+  });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('retries a failed provisioning on the viewer schedule and joins when it works', async () => {
+    const voice = new VoiceManager();
+    voice.setRandom(() => 0.25); // 0.75 s, then 1.5 s
+    const retrying: Array<{ attempt: number; delaySeconds: number }> = [];
+    voice.on('retrying', (e: any) => retrying.push(e));
+    (slBridge.voiceProvision as any).mockRejectedValueOnce(new Error('503')).mockRejectedValueOnce(new Error('503'));
+    await expect(voice.connect({ parcelLocalId: 5 })).rejects.toThrow('503');
+    expect(voice.state).toBe('error');
+    expect(retrying).toEqual([{ attempt: 1, delaySeconds: 0.75 }]);
+
+    await vi.advanceTimersByTimeAsync(700);
+    expect(slBridge.voiceProvision).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(slBridge.voiceProvision).toHaveBeenCalledTimes(2);
+    expect(retrying.at(-1)).toEqual({ attempt: 2, delaySeconds: 1.5 });
+
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(slBridge.voiceProvision).toHaveBeenCalledTimes(3);
+    expect(voice.state).toBe('connected');
+    lastPeer.channel.onopen?.(); // session up: the schedule starts over
+    await voice.disconnect();
+  });
+
+  it('reconnects after the peer fails, and leaves the old session', async () => {
+    const voice = new VoiceManager();
+    voice.setRandom(() => 0);
+    await voice.connect({ parcelLocalId: 5 });
+    lastPeer.channel.onopen?.();
+    const first = lastPeer;
+    first.connectionState = 'failed';
+    first.onconnectionstatechange?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(first.close).toHaveBeenCalled();
+    expect(slBridge.voiceLogout).toHaveBeenCalledWith('vs-1');
+    expect(voice.state).toBe('error');
+    await vi.advanceTimersByTimeAsync(600);
+    expect(lastPeer).not.toBe(first);
+    expect(voice.state).toBe('connected');
+    await voice.disconnect();
+  });
+
+  it('does not retry after disconnect() or when the microphone is refused', async () => {
+    const voice = new VoiceManager();
+    voice.setRandom(() => 0);
+    (slBridge.voiceProvision as any).mockRejectedValueOnce(new Error('503'));
+    await expect(voice.connect({})).rejects.toThrow();
+    await voice.disconnect();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(slBridge.voiceProvision).toHaveBeenCalledTimes(1);
+
+    (navigator.mediaDevices.getUserMedia as any).mockRejectedValueOnce(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+    await expect(voice.connect({})).rejects.toThrow('denied');
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the parcel it is told about while waiting to retry', async () => {
+    const voice = new VoiceManager();
+    voice.setRandom(() => 0);
+    (slBridge.voiceProvision as any).mockRejectedValueOnce(new Error('503'));
+    await expect(voice.connect({ parcelLocalId: 1 })).rejects.toThrow();
+    await voice.reprovision(9);
+    await vi.advanceTimersByTimeAsync(600);
+    expect((slBridge.voiceProvision as any).mock.calls.at(-1)[0]).toMatchObject({ parcel_local_id: 9 });
+    await voice.disconnect();
+  });
+});
+
 describe('ViewerSession voice capabilities', () => {
   const { ViewerSession } = require('../../../core/viewer-session.cjs');
   const session = (post: ReturnType<typeof vi.fn>) => {

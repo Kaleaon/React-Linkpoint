@@ -1,10 +1,14 @@
 import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import {
-  DATA_CHANNEL_LABEL, EarLocation, POSITION_UPDATE_THROTTLE_MS, earPose, iceServersForGrid, joinMessage, mungeOpusSdp,
+  DATA_CHANNEL_LABEL, EarLocation, POSITION_UPDATE_THROTTLE_MS, RetryBackoff, earPose, iceServersForGrid, joinMessage, mungeOpusSdp,
   muteMessage, parseVoiceData, provisionBody, signalingBody, spatialMessage, userGainMessage,
   type ParticipantUpdate, type Quat, type Vec3, type VoiceChannel,
 } from './voice-protocol';
+
+/** A refused, missing or unusable microphone: retrying would only ask again. */
+const isMicrophoneError = (error: unknown) =>
+  typeof error === 'object' && error !== null && ['NotAllowedError', 'NotFoundError', 'NotReadableError', 'SecurityError', 'OverconstrainedError'].includes((error as { name?: string }).name || '');
 
 export type VoiceState = 'off' | 'connecting' | 'connected' | 'error';
 
@@ -50,14 +54,25 @@ export interface VoiceConnectOptions {
  * server mixes everyone spatially and returns a single stereo stream, and reports who is speaking
  * (keyed by avatar UUID) over the same channel. So this client does no panning of its own.
  *
- * What is not done: reconnect with back-off after a drop, cross-region (neighbouring) connections,
- * push-to-talk, and the mute click-fade. Nothing here has been run against a live voice server.
+ * After a failed connection the viewer's retry schedule applies (`RetryBackoff`). The viewer retries
+ * when provisioning fails or the peer asks to renegotiate; a browser has no such callback, so a peer
+ * that reports `failed` or a data channel that closes unasked is treated the same way.
+ *
+ * What is not done: cross-region (neighbouring) connections, push-to-talk, and the mute click-fade.
+ * Nothing here has been run against a live voice server.
  */
 export class VoiceManager extends Utils.EventEmitter {
   state: VoiceState = 'off';
   muted = true;
 
   private peer: RTCPeerConnection | null = null;
+  /** The caller wants voice on: set by connect, cleared by disconnect. Only then are failures retried. */
+  private wanted = false;
+  private retry = new RetryBackoff();
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryAttempts = 0;
+  /** Replaceable for tests; the backoff draws from it. */
+  setRandom(random: () => number) { this.retry = new RetryBackoff(random); }
   private dataChannel: RTCDataChannel | null = null;
   private stream: MediaStream | null = null;
   private remoteAudio: HTMLAudioElement | null = null;
@@ -99,6 +114,8 @@ export class VoiceManager extends Utils.EventEmitter {
 
   async connect(options: VoiceConnectOptions = {}) {
     if (this.peer) return;
+    this.wanted = true;
+    this.clearRetryTimer();
     this.options = options;
     this.channel = options.channel ?? { kind: 'local', parcelLocalId: options.parcelLocalId };
     if (options.earLocation !== undefined) this.earLocation = options.earLocation;
@@ -116,6 +133,8 @@ export class VoiceManager extends Utils.EventEmitter {
       this.dataChannel = peer.createDataChannel(DATA_CHANNEL_LABEL, { ordered: true });
       this.dataChannel.onopen = () => this.onDataChannelOpen();
       this.dataChannel.onmessage = (event) => { if (typeof event.data === 'string') this.onData(event.data); };
+      const channel = this.dataChannel;
+      channel.onclose = () => { if (this.dataChannel === channel && this.joined) void this.connectionLost('The voice data channel closed'); };
 
       // Like the viewer, the microphone stays muted until the join has completed.
       this.stream.getAudioTracks().forEach((track) => { track.enabled = false; peer.addTrack(track, this.stream!); });
@@ -142,7 +161,8 @@ export class VoiceManager extends Utils.EventEmitter {
       };
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === 'connected') this.setState('connected');
-        else if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') this.setState('error', `WebRTC ${peer.connectionState}`);
+        else if (peer.connectionState === 'failed') void this.connectionLost(`WebRTC ${peer.connectionState}`);
+        else if (peer.connectionState === 'disconnected') this.setState('error', `WebRTC ${peer.connectionState}`);
       };
 
       const offer = await peer.createOffer({ offerToReceiveAudio: true });
@@ -156,10 +176,37 @@ export class VoiceManager extends Utils.EventEmitter {
       await peer.setRemoteDescription(answer);
       await flush();
     } catch (error) {
-      await this.disconnect();
+      await this.teardown();
       this.setState('error', error instanceof Error ? error.message : 'Voice connection failed');
+      // A refused microphone will not be fixed by trying again; anything else follows the viewer's retry schedule.
+      if (isMicrophoneError(error)) this.wanted = false;
+      else this.scheduleRetry();
       throw error;
     }
+  }
+
+  private clearRetryTimer() {
+    if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
+  }
+
+  /** The connection dropped after it was up: tear it down and come back on the retry schedule. */
+  private async connectionLost(message: string) {
+    if (!this.wanted || this.retryTimer) return;
+    await this.teardown();
+    this.setState('error', message);
+    this.scheduleRetry();
+  }
+
+  /** `VOICE_STATE_SESSION_RETRY`: wait `random + 0.5` s growing by the same each time to 10 s, then connect again. */
+  private scheduleRetry() {
+    if (!this.wanted || this.retryTimer) return;
+    const delaySeconds = this.retry.next();
+    this.retryAttempts++;
+    this.emit('retrying', { attempt: this.retryAttempts, delaySeconds });
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.connect(this.options).catch(() => { /* connect has scheduled the next attempt, or given up */ });
+    }, delaySeconds * 1000);
   }
 
   /**
@@ -167,6 +214,7 @@ export class VoiceManager extends Utils.EventEmitter {
    * the connection down and connects again with the same options, keeping the mute state.
    */
   async reprovision(parcelLocalId?: number) {
+    if (this.wanted && this.retryTimer) { this.options = { ...this.options, channel: undefined, parcelLocalId }; return; }
     if (this.state !== 'connected' && this.state !== 'connecting') return;
     if (this.channel.kind === 'local' && this.channel.parcelLocalId === parcelLocalId) return;
     const options = { ...this.options, channel: undefined, parcelLocalId };
@@ -180,10 +228,20 @@ export class VoiceManager extends Utils.EventEmitter {
   }
 
   async disconnect() {
+    this.wanted = false;
+    this.clearRetryTimer();
+    this.retryAttempts = 0;
+    this.retry.reset();
+    await this.teardown();
+    this.setState('off');
+  }
+
+  private async teardown() {
     this.stopTimers();
     this.joined = false;
     this.participants.clear();
-    if (this.dataChannel) { this.dataChannel.onopen = null; this.dataChannel.onmessage = null; try { this.dataChannel.close(); } catch { /* closed */ } }
+    if (this.peer) this.peer.onconnectionstatechange = null;
+    if (this.dataChannel) { this.dataChannel.onopen = null; this.dataChannel.onmessage = null; this.dataChannel.onclose = null; try { this.dataChannel.close(); } catch { /* closed */ } }
     this.dataChannel = null;
     this.peer?.close(); this.peer = null;
     if (this.localSource) { try { this.localSource.disconnect(); } catch { /* ignore */ } this.localSource = null; }
@@ -193,7 +251,6 @@ export class VoiceManager extends Utils.EventEmitter {
     const session = this.viewerSession; this.viewerSession = '';
     if (session) await slBridge.voiceLogout(session).catch(() => {});
     this.lastSpatialSent = -Infinity;
-    this.setState('off');
   }
 
   // ---- data channel -------------------------------------------------------------------------------
@@ -207,6 +264,9 @@ export class VoiceManager extends Utils.EventEmitter {
     this.send(joinMessage(false));
     this.send(joinMessage(true));
     this.joined = true;
+    // VOICE_STATE_SESSION_UP: a working session starts the retry schedule over.
+    this.retry.reset();
+    this.retryAttempts = 0;
     this.applyMic();
     if (this.channel.kind === 'local') { this.spatialDirty = true; this.sendSpatial(true); this.spatialTimer ||= setInterval(() => this.sendSpatial(false), POSITION_UPDATE_THROTTLE_MS); }
     this.startAnalysis();

@@ -190,3 +190,26 @@ export function parseVoiceData(raw: string): ParticipantUpdate[] {
 
 /** Map a raw 0..1 microphone level to the viewer's "speaking" decision. */
 export const isSpeakingLevel = (level: number) => level > SPEAKING_AUDIO_LEVEL;
+
+/** `MAX_RETRY_WAIT_SECONDS` in `llvoicewebrtc.cpp`: the wait stops growing once it reaches this. */
+export const MAX_RETRY_WAIT_SECONDS = 10;
+
+/**
+ * The viewer's reconnect schedule (`LLVoiceWebRTCConnection`, `VOICE_STATE_SESSION_RETRY`). The first
+ * wait is `random + 0.5` seconds; after each retry the wait grows by another `random + 0.5` until it
+ * has reached 10 seconds, so clients that dropped together do not all come back at once. A session that
+ * comes up resets it.
+ */
+export class RetryBackoff {
+  private waitSeconds: number;
+  constructor(private readonly random: () => number = Math.random) { this.waitSeconds = random() + 0.5; }
+
+  /** Seconds to wait before this retry; the next one will wait longer (unless the cap has been reached). */
+  next(): number {
+    const wait = this.waitSeconds;
+    if (this.waitSeconds < MAX_RETRY_WAIT_SECONDS) this.waitSeconds += this.random() + 0.5;
+    return wait;
+  }
+
+  reset() { this.waitSeconds = this.random() + 0.5; }
+}

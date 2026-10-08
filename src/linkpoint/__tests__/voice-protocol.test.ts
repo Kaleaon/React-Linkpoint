@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_RETRY_WAIT_SECONDS, RetryBackoff } from '../voice-protocol';
 import {
   EarLocation, PEER_GAIN_CONVERSION_FACTOR, earPose, iceServersForGrid, isSpeakingLevel, joinMessage, logoutBody,
   mungeOpusSdp, muteMessage, parseVoiceData, provisionBody, signalingBody, spatialMessage, tetherListener, userGainMessage,
@@ -93,5 +94,31 @@ describe('data channel messages', () => {
   it('applies the viewer speaking threshold', () => {
     expect(isSpeakingLevel(0.31)).toBe(true);
     expect(isSpeakingLevel(0.3)).toBe(false);
+  });
+});
+
+describe('RetryBackoff (the viewer\'s SESSION_RETRY schedule)', () => {
+  it('starts at random + 0.5 s and adds random + 0.5 s per retry', () => {
+    const backoff = new RetryBackoff(() => 0.25); // every draw is 0.75 s
+    expect([backoff.next(), backoff.next(), backoff.next()]).toEqual([0.75, 1.5, 2.25]);
+  });
+
+  it('stops growing once the wait has reached 10 s', () => {
+    const backoff = new RetryBackoff(() => 0.5); // 1 s steps: 1, 2, ... 10, then it stays at 10
+    const waits = Array.from({ length: 14 }, () => backoff.next());
+    expect(waits.slice(0, 3)).toEqual([1, 2, 3]);
+    expect(waits[9]).toBe(MAX_RETRY_WAIT_SECONDS);
+    expect(waits.slice(9)).toEqual([10, 10, 10, 10, 10]);
+    // A step that overshoots the cap is allowed once (the check happens before adding), as in the viewer.
+    const coarse = new RetryBackoff(() => 1); // 1.5 s steps: ..., 9, 10.5, 10.5
+    const seen = Array.from({ length: 9 }, () => coarse.next());
+    expect(seen.slice(-2)).toEqual([10.5, 10.5]);
+  });
+
+  it('starts over after a session comes up', () => {
+    const backoff = new RetryBackoff(() => 0);
+    backoff.next(); backoff.next();
+    backoff.reset();
+    expect(backoff.next()).toBe(0.5);
   });
 });

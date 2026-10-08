@@ -10,6 +10,9 @@
 
 import { Utils } from '../utils';
 
+/** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
+const isRealName = (name: unknown): name is string => typeof name === 'string' && name.trim() !== '' && !['Resident', 'Friend'].includes(name.trim());
+
 export class FriendsExtended extends Utils.EventEmitter {
   private friends: Map<string, any> = new Map();
   private friendRequests: Map<string, any> = new Map();
@@ -101,21 +104,25 @@ export class FriendsExtended extends Utils.EventEmitter {
     
     const normalizedId = this.normalizeId(friendId);
     const existing = this.friends.get(normalizedId);
+    // A presence packet can carry no name, or the placeholder the session uses when it has none yet;
+    // neither may replace a name we already know.
+    const { name: givenName, ...otherData } = friendData;
+    const realName = isRealName(givenName) ? givenName : undefined;
     const friend = {
       ...existing,
-      name: friendData.name ?? existing?.name ?? 'Friend',
+      name: realName ?? existing?.name ?? 'Friend',
       permissions: friendData.permissions ?? existing?.permissions ?? {},
       group: friendData.group ?? existing?.group ?? null,
       notes: friendData.notes ?? existing?.notes ?? '',
       timestamp: friendData.timestamp ?? existing?.timestamp ?? Date.now(),
-      ...friendData,
+      ...otherData,
       id: normalizedId,
       onlineStatus: this.normalizeStatus(friendData.onlineStatus ?? friendData.online ?? existing?.onlineStatus),
     };
     
     this.friends.set(normalizedId, friend);
     this.emit(existing ? 'friend_updated' : 'friend_added', { ...friend });
-    console.log(`[FriendsExtended] Added friend: ${friend.name}`);
+    console.log(`[FriendsExtended] ${existing ? 'Updated' : 'Added'} friend: ${friend.name}`);
   }
 
   /** Replace a server snapshot and remove contacts that are no longer friends. */
@@ -173,7 +180,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (friend) {
       const oldStatus = friend.onlineStatus;
       friend.onlineStatus = normalizedStatus;
-      if (friendData.name) friend.name = friendData.name;
+      if (isRealName(friendData.name)) friend.name = friendData.name;
       
       // Notify listeners
       if (oldStatus !== normalizedStatus) {

@@ -33,6 +33,7 @@ const interactions = require('./sl-interactions.cjs');
 const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
 const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
+const { watchWind } = require('./sl-wind.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
   finite, vector, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend,
@@ -386,7 +387,9 @@ class ViewerSession {
     this.subscriptions.push(events.onFriendOnline.subscribe((event) => {
       const id = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString() || event.friend?.uuid?.toString();
       if (id) this.friendPresence.set(id.toLowerCase(), Boolean(event.online));
-      this.send('friend-status', { id, name: event.friend?.name || event.friend?.getName?.() || 'Resident', online: Boolean(event.online) });
+      // The name is sent only when the library knows it; the client keeps the one it already has otherwise.
+      const name = event.friend?.name || event.friend?.getName?.();
+      this.send('friend-status', { id, ...(name ? { name } : {}), online: Boolean(event.online) });
     }));
     this.subscribe(events.onFriendRequest, 'friend-request', (event) => ({
       requestId: event.requestID?.toString(),
@@ -484,6 +487,7 @@ class ViewerSession {
     const animations = watchAnimations(() => this.currentRegion(), (type, data) => this.send(type, data));
     if (animations) this.subscriptions.push(animations);
     this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
+    this.subscriptions.push(watchWind(() => this.currentRegion(), (type, data) => this.send(type, data)));
 
     let inventoryRootId = '';
     try { inventoryRootId = this.bot.clientCommands?.inventory?.getInventoryRoot()?.folderID?.toString() || ''; } catch { /* fetched on demand */ }

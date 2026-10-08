@@ -19,6 +19,7 @@ import { BODY_PARTS, bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyPar
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 import { ParticleEngine } from './particles';
 import { FlexibleChain } from './flexible';
+import { RegionWind } from './wind';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 
 export interface FlexiParams {
@@ -170,6 +171,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.simSunHour = null;
       this.terrain = null;
       this.terrainMaterials = null;
+      this.wind = null;
       this.selectedObject = null;
       this.displayedHud = null;
       this.hudSignature = '';
@@ -245,6 +247,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:world-data', (data: any) => this.applyWorldData(data));
     this.protocol.on('scene:environment', (data: any) => this.applyWorldData({ environment: data }));
     this.protocol.on('scene:terrain', (data: any) => this.applyWorldData({ terrain: data }));
+    this.protocol.on('scene:wind-layer', (data: any) => this.applyWindLayer(data));
     const handleSunHour = (data: any) => {
       const hour = typeof data === 'number' ? data : data?.sunHour;
       if (typeof hour === 'number' && Number.isFinite(hour)) {
@@ -292,6 +295,23 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   private terrainMaterials: any = null;
+
+  /** The region's wind grid once its layer has been decoded; null until then, so no wind is invented. */
+  public wind: RegionWind | null = null;
+
+  private applyWindLayer(data: any) {
+    if (data?.action === 'reset') { this.wind = null; return; }
+    if (typeof data?.data !== 'string') return;
+    const bytes = Uint8Array.from(atob(data.data), (c) => c.charCodeAt(0));
+    const wind = this.wind ?? new RegionWind();
+    if (wind.decompress(bytes)) this.wind = wind;
+  }
+
+  /** Wind at a region-local position for flexible prims and particles; undefined while there is no wind data. */
+  private windAt(): ((position: number[]) => [number, number, number]) | undefined {
+    const wind = this.wind;
+    return wind?.loaded ? (position) => wind.velocity(position) : undefined;
+  }
 
   /** Hand the region's terrain textures, blend ranges and water height to the scene. */
   private applyTerrainMaterials() {
@@ -1334,8 +1354,7 @@ export class WorldViewer extends Utils.EventEmitter {
       entry.last = now;
       const transform = this.worldTransform(object);
       const scale = Array.isArray(object.scale) && object.scale.length >= 3 ? object.scale : [1, 1, 1];
-      // The simulator's wind layer is not decoded yet, so there is no wind to pass; none is invented.
-      entry.chain.step(dt, { position: transform.position, rotation: transform.rotation as [number, number, number, number], scale });
+      entry.chain.step(dt, { position: transform.position, rotation: transform.rotation as [number, number, number, number], scale }, this.windAt());
       const sections = entry.chain.localSections(3);
       if (sections.length !== 9) continue;
       const positions = new Float32Array(27), rotations = new Float32Array(36);
@@ -1354,9 +1373,8 @@ export class WorldViewer extends Utils.EventEmitter {
       positions.set(object.id, transform.position);
       rotations.set(object.id, transform.rotation);
     }
-    // The simulator's wind layer is not decoded yet, so there is no wind to apply; none is invented.
     const windVector = this.scene3d.windVector ?? undefined;
-    const frames = this.particles.update(now, positions, windVector, { rotations });
+    const frames = this.particles.update(now, positions, windVector, { rotations, windAt: this.windAt() });
     const live = new Set<string>();
     // A plane starts in XY. Match its normal to the view direction with the camera pitch/yaw.
     const defaultRotation = [Math.PI / 2 + this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];

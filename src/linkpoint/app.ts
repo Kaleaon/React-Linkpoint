@@ -140,9 +140,15 @@ export class LinkpointApp {
 
     this.protocol.on('friend_status', (data: any) => {
       if (data?.id) {
+        const known = this.friends.getFriends().some((f: any) => String(f.id).toLowerCase() === String(data.id).toLowerCase());
         this.friends.updateFriendStatus(data.id, data.online ? 'online' : 'offline', data);
+        // Presence for someone not in the list yet: fetch the list so they appear with their name.
+        if (!known && !data.name) void this.loadFriends();
       }
     });
+
+    // Accepting an offer adds a friend; the list (with names and rights) comes from the session.
+    this.protocol.on('friend_response', (data: any) => { if (data?.accepted) void this.loadFriends(); });
 
     this.protocol.on('friend_request', (data: any) => {
       this.notifications.handleNotification({

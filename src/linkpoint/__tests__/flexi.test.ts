@@ -166,6 +166,61 @@ describe('Flexible Prim Dynamics', () => {
       expect(positions[26]).toBeCloseTo(2, 3);
     });
 
+    // A wind layer whose X grid is a constant (DC-only patch) and whose Y grid is zero, built the way the simulator packs it.
+    const windLayer = (dcX: number) => {
+      const bits: number[] = [];
+      const write = (value: number, count: number) => {
+        for (let remaining = count, v = value; remaining > 0;) {
+          const chunk = Math.min(8, remaining); remaining -= chunk;
+          const byte = v % 256; v = Math.floor(v / 256);
+          for (let i = chunk - 1; i >= 0; i--) bits.push((byte >> i) & 1);
+        }
+      };
+      const float = new DataView(new ArrayBuffer(4));
+      const patch = (dc: number, coefficient: number) => {
+        write(0x38, 8); float.setFloat32(0, dc, true); write(float.getUint32(0, true), 32); write(32, 16); write(0, 10);
+        if (coefficient) { write(0b11, 2); write(0, 1); write(coefficient, 10); }
+        else write(0, 1);
+        write(0b10, 2);
+      };
+      write(16, 16); write(16, 8); write(0x37, 8);
+      patch(dcX, 0); patch(0, 0);
+      const bytes = new Uint8Array(Math.ceil(bits.length / 8));
+      bits.forEach((b, i) => { if (b) bytes[i >> 3] |= 0x80 >> (i & 7); });
+      return { action: 'layer', data: btoa(String.fromCharCode(...bytes)) };
+    };
+
+    it('has no wind until the simulator sends its wind layer, then blows flexible prims with it', () => {
+      const { world, protocol, updateObject } = makeWorld();
+      const tipX = () => updateObject.mock.calls.filter((c) => c[0] === 'flag' && c[1].flexiSections).at(-1)![1].flexiSections.positions[24];
+      const windy = { ...flexible, gravity: 0, wind: 10, softness: 0 };
+      protocol.emit('ObjectUpdate', { id: 'flag', position: [0, 0, 20], rotation: [0, 0, 0, 1], scale: [0.2, 1, 3], flexible: windy });
+      for (let t = 1; t < 1.5; t += 1 / 30) (world as any).updateFlexibles(t);
+      expect(world.wind).toBeNull();
+      const calm = tipX();
+
+      // DC-only patch: every cell is mult*(0/16) + mult*2^(prequant-1) + dc = 1*16 + 4 = 20 -> 20 * 2 (scale hack) = 40 m/s.
+      protocol.emit('scene:wind-layer', windLayer(4));
+      expect(world.wind?.loaded).toBe(true);
+      expect(world.wind!.velocity([10, 10, 20])[0]).toBeCloseTo(40, 3);
+      (world as any).flexChains.clear();
+      for (let t = 2; t < 3; t += 1 / 30) (world as any).updateFlexibles(t);
+      expect(tipX()).toBeGreaterThan(calm + 0.05);
+    });
+
+    it('drops the wind on a region change or disconnect, and ignores damaged data', () => {
+      const { world, protocol } = makeWorld();
+      protocol.emit('scene:wind-layer', windLayer(0));
+      expect(world.wind?.loaded).toBe(true);
+      protocol.emit('scene:wind-layer', { action: 'reset' });
+      expect(world.wind).toBeNull();
+      protocol.emit('scene:wind-layer', { action: 'layer', data: btoa('xx') });
+      expect(world.wind).toBeNull();
+      protocol.emit('scene:wind-layer', windLayer(0));
+      protocol.emit('disconnected', {});
+      expect(world.wind).toBeNull();
+    });
+
     it('does nothing for objects that are not flexible, and forgets a removed object', () => {
       const { world, protocol, updateObject } = makeWorld();
       protocol.emit('ObjectUpdate', { id: 'plain', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
