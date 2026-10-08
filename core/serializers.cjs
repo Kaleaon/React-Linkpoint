@@ -62,6 +62,12 @@ function primAppearance(object) {
   const sculptData = object.SculptData || object.extraParams?.sculptData;
   const renderMaterials = object.RenderMaterialData || object.extraParams?.renderMaterialData;
   const reflection = object.ReflectionProbeData || object.extraParams?.reflectionProbeData;
+  const flexibleData = object.extraParams?.flexibleData;
+  // `Drag` is the air friction; `Softness` (0-3) sets how many segments the chain has.
+  const flexible = flexibleData ? {
+    softness: finite(flexibleData.Softness), tension: finite(flexibleData.Tension), friction: finite(flexibleData.Drag),
+    gravity: finite(flexibleData.Gravity), wind: finite(flexibleData.Wind), force: vector(flexibleData.Force),
+  } : null;
   const ps = object.Particles;
   const particleColor = (color, fallback) => color ? [color.getRed?.() ?? color.red, color.getGreen?.() ?? color.green, color.getBlue?.() ?? color.blue, color.getAlpha?.() ?? color.alpha].map((v, i) => finite(Number(v), fallback[i])) : fallback;
   const particles = ps ? {
@@ -70,6 +76,9 @@ function primAppearance(object) {
     acceleration: vector(ps.acceleration), targetId: ps.target?.toString?.() || null, textureId: ps.texture?.toString?.() || null,
     dataFlags: finite(ps.dataFlags), partMaxAge: finite(ps.partMaxAge, 1), startColor: particleColor(ps.startColor, [1, 1, 1, 1]), endColor: particleColor(ps.endColor, [1, 1, 1, 0]),
     startScale: [finite(ps.startScaleX, 1), finite(ps.startScaleY, 1)], endScale: [finite(ps.endScaleX, 1), finite(ps.endScaleY, 1)],
+    crc: finite(ps.crc), flags: finite(ps.flags), startAge: finite(ps.startAge), innerAngle: finite(ps.innerAngle), outerAngle: finite(ps.outerAngle),
+    angularVelocity: vector(ps.angularVelocity), startGlow: finite(ps.startGlow), endGlow: finite(ps.endGlow),
+    blendSource: finite(ps.blendFuncSource), blendDest: finite(ps.blendFuncDest),
   } : null;
   // The simulator sends meshes as sculpt parameters whose type is 5 (the mesh asset id sits where a
   // sculpt's texture id would); the separate mesh parameter is the same payload. A sculpt is type 1-4.
@@ -131,6 +140,7 @@ function primAppearance(object) {
       box: Boolean(reflection.flags & 1), dynamic: Boolean(reflection.flags & 2), mirror: Boolean(reflection.flags & 4),
     } : null,
     particles,
+    flexible,
     color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
     shapeParams: {
       pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,

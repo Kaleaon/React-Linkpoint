@@ -31,58 +31,13 @@ export interface FlexiParams {
   force: [number, number, number];
 }
 
-export function deformFlexibleVertices(
-  vertices: Float32Array | number[],
-  flexi: FlexiParams,
-  options?: { time?: number; windVec?: [number, number, number]; minZ?: number; maxZ?: number }
-): Float32Array {
-  const time = options?.time ?? 0;
-  const windVec = options?.windVec ?? [1, 0, 0];
-  const count = vertices.length;
-  const output = new Float32Array(vertices);
-
-  let minZ = options?.minZ;
-  let maxZ = options?.maxZ;
-  if (minZ === undefined || maxZ === undefined) {
-    minZ = Infinity;
-    maxZ = -Infinity;
-    for (let i = 2; i < count; i += 3) {
-      if (output[i] < minZ) minZ = output[i];
-      if (output[i] > maxZ) maxZ = output[i];
-    }
-  }
-  const heightSpan = Math.max(0.001, (maxZ as number) - (minZ as number));
-
-  const stiffness = Math.max(0.1, flexi.tension || 1.0);
-  const softMult = ((flexi.softness || 0) + 1.0) * 0.1 / stiffness;
-  const frictionDamp = 1.0 / (1.0 + (flexi.friction || 0) * 0.1);
-
-  const gravityZ = (flexi.gravity || 0) * 0.98;
-  const windWave = Math.sin(time * 3.0) * 0.3 + 0.7;
-  const windFactor = (flexi.wind || 0) * windWave;
-
-  const totalForce = [
-    (flexi.force?.[0] || 0) + windVec[0] * windFactor,
-    (flexi.force?.[1] || 0) + windVec[1] * windFactor,
-    (flexi.force?.[2] || 0) + windVec[2] * windFactor + gravityZ,
-  ];
-
-  for (let i = 0; i < count; i += 3) {
-    const x = output[i];
-    const y = output[i + 1];
-    const z = output[i + 2];
-
-    const h = Math.max(0, Math.min(1, (z - (minZ as number)) / heightSpan));
-    const h2 = h * h;
-
-    output[i] = x + totalForce[0] * softMult * h2 * frictionDamp;
-    output[i + 1] = y + totalForce[1] * softMult * h2 * frictionDamp;
-    output[i + 2] = z + totalForce[2] * softMult * h2 * frictionDamp;
-  }
-
-  return output;
-}
-
+/**
+ * Flexible prims. The chain simulation (flexible.ts, from the official viewer) runs on the CPU and
+ * gives nine section transforms in the prim's own frame: 8 equal segments from the base (t = 0) to
+ * the tip (t = 1). A vertex at unit-space height z sits at t = z + 0.5; it is placed in the section
+ * frame at that point, with its unit-space x and y scaled to metres. A straight chain reproduces the
+ * ordinary mesh exactly.
+ */
 const FLEXIBLE_VERTEX_SHADER = `
   attribute vec3 aPosition;
   attribute vec3 aNormal;
@@ -93,39 +48,40 @@ const FLEXIBLE_VERTEX_SHADER = `
   uniform mat4 uProjectionMatrix;
   uniform mat3 uNormalMatrix;
 
-  uniform float uTime;
-  uniform float uSoftness;
-  uniform float uGravity;
-  uniform float uFriction;
-  uniform float uWind;
-  uniform float uTension;
-  uniform vec3 uForce;
-  uniform vec3 uWindVec;
+  uniform vec3 uFlexPos[9];
+  uniform vec4 uFlexRot[9];
+  uniform vec3 uScale;
 
   varying vec3 vNormal;
   varying vec2 vTexCoord;
   varying vec3 vPosition;
 
+  vec3 quatRotate(vec4 q, vec3 v) {
+    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+  }
+
   void main() {
-    vec3 pos = aPosition;
-    float h = clamp(pos.z + 0.5, 0.0, 1.0);
-    float h2 = h * h;
+    float t = clamp(aPosition.z + 0.5, 0.0, 1.0) * 8.0;
+    float segment = min(floor(t), 7.0);
+    float f = t - segment;
+    int i = int(segment);
 
-    float stiffness = max(0.1, uTension);
-    float softMult = (uSoftness + 1.0) * 0.1 / stiffness;
+    vec3 p0 = uFlexPos[i];
+    vec3 p1 = uFlexPos[i + 1];
+    vec4 q0 = uFlexRot[i];
+    vec4 q1 = uFlexRot[i + 1];
+    if (dot(q0, q1) < 0.0) q1 = -q1;
+    vec4 q = normalize(mix(q0, q1, f));
 
-    vec3 gravityVec = vec3(0.0, 0.0, uGravity * 0.98);
-    float windWave = sin(uTime * 3.0 + pos.z * 2.0) * 0.3 + 0.7;
-    vec3 windForce = uWindVec * (uWind * windWave);
-
-    vec3 totalForce = gravityVec + windForce + uForce;
-    float frictionDamp = 1.0 / (1.0 + uFriction * 0.1);
-
-    pos += totalForce * softMult * h2 * frictionDamp;
+    vec3 center = mix(p0, p1, f);
+    vec3 offset = vec3(aPosition.x * uScale.x, aPosition.y * uScale.y, 0.0);
+    vec3 meters = center + quatRotate(q, offset);
+    // back to the unit space the model matrix expects (it applies the object scale)
+    vec3 pos = meters / max(abs(uScale), vec3(0.0001));
 
     vec4 worldPos = uModelMatrix * vec4(pos, 1.0);
     vPosition = worldPos.xyz;
-    vNormal = normalize(uNormalMatrix * aNormal);
+    vNormal = normalize(uNormalMatrix * quatRotate(q, aNormal));
     vTexCoord = aTexCoord;
     gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
   }

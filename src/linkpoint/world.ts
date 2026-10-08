@@ -18,6 +18,7 @@ import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
 import { BODY_PARTS, bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, type BodyPartGeometry } from './avatar-body';
 import { HUD_POINTS, HUD_SIZE, isHudPoint, type HudInfo } from './hud';
 import { ParticleEngine } from './particles';
+import { FlexibleChain } from './flexible';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 
 export interface FlexiParams {
@@ -36,7 +37,7 @@ export function parseFlexibleParams(data: any): FlexiParams | null {
 
   const softness = typeof src.softness === 'number' ? src.softness : (typeof src.Softness === 'number' ? src.Softness : 0);
   const gravity = typeof src.gravity === 'number' ? src.gravity : (typeof src.Gravity === 'number' ? src.Gravity : 0);
-  const friction = typeof src.friction === 'number' ? src.friction : (typeof src.Friction === 'number' ? src.Friction : 0);
+  const friction = typeof src.friction === 'number' ? src.friction : (typeof src.Friction === 'number' ? src.Friction : (typeof src.Drag === 'number' ? src.Drag : 0));
   const wind = typeof src.wind === 'number' ? src.wind : (typeof src.Wind === 'number' ? src.Wind : 0);
   const tension = typeof src.tension === 'number' ? src.tension : (typeof src.Tension === 'number' ? src.Tension : 0);
 
@@ -99,12 +100,35 @@ export class WorldViewer extends Utils.EventEmitter {
   private decodedTextures = new Map<string, any>();
   private decodedMaterials = new Map<string, any>();
   private particles = new ParticleEngine();
+  /** One chain simulation per flexible prim (see flexible.ts). */
+  private flexChains = new Map<string, { chain: FlexibleChain; last: number }>();
   private renderedParticles = new Set<string>();
+
+  /** Assets the host could not download or decode, newest last. A failed mesh leaves its placeholder on screen. */
+  private assetErrors = new Map<string, string>();
+
+  private recordAssetError(error: any) {
+    const id = String(error?.assetId || '').toLowerCase();
+    if (!id) return;
+    const message = String(error?.message || 'unknown error');
+    const fresh = this.assetErrors.get(id) !== message;
+    this.assetErrors.delete(id);
+    this.assetErrors.set(id, message);
+    while (this.assetErrors.size > 50) this.assetErrors.delete(this.assetErrors.keys().next().value as string);
+    if (fresh) console.warn(`[WorldViewer] asset ${id} failed: ${message}`);
+    this.emit('asset_error', { assetId: id, message });
+  }
+
+  /** The assets that failed, so a placeholder shape can be explained. */
+  public getAssetErrors(): Array<{ assetId: string; message: string }> {
+    return [...this.assetErrors].map(([assetId, message]) => ({ assetId, message }));
+  }
 
   public getDataStatus() {
     if (!this.protocol.connected) return 'Disconnected';
+    const failed = this.assetErrors.size ? `; ${this.assetErrors.size} asset${this.assetErrors.size === 1 ? '' : 's'} failed to load` : '';
     return this.objects.length > 0
-      ? `Live simulator scene: ${this.objects.length} objects loaded`
+      ? `Live simulator scene: ${this.objects.length} objects loaded${failed}`
       : 'Live simulator scene: streaming from grid…';
   }
 
@@ -136,6 +160,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.hudSignature = '';
       this.sceneObjects.clear();
       this.particles.clear();
+      this.flexChains.clear();
       this.renderedParticles.clear();
       this.avatarBakes.clear();
       this.localObjectIds.clear();
@@ -195,6 +220,7 @@ export class WorldViewer extends Utils.EventEmitter {
     });
     this.protocol.on('scene:object-remove', (object: any) => this.removeSceneObject(object));
     this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
+    this.protocol.on('scene:asset-error', (error: any) => this.recordAssetError(error));
     this.protocol.on('scene:animations', (data: any) => {
       if (data?.id && Array.isArray(data.animations)) this.animator.setAnimations(String(data.id), data.animations);
     });
@@ -434,6 +460,7 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!asset?.assetId || !asset.geometry) return;
     const assetIdStr = String(asset.assetId).toLowerCase();
     this.decodedAssets.set(assetIdStr, asset.geometry);
+    this.assetErrors.delete(assetIdStr);
     const meshes = this.scene3d?.addAssetMesh(assetIdStr, asset.geometry);
     const fallbackMeshes = asset.geometry.parts?.length
       ? asset.geometry.parts.map((part: any, index: number) => ({ mesh: `asset:${assetIdStr}:${index}`, materialIndex: part.materialIndex ?? index }))
@@ -746,6 +773,7 @@ export class WorldViewer extends Utils.EventEmitter {
         this.camera3d.updateMatrices();
         this.updateAnimatedSkins();
         this.updateAnimatedAvatars();
+        this.updateFlexibles(time / 1000);
         this.updateParticles(time / 1000);
         this.scene3d.render();
       }
@@ -1273,13 +1301,45 @@ export class WorldViewer extends Utils.EventEmitter {
     if (object.avatar) this.applyAvatarParts(object.id, config, object);
   }
 
+  /**
+   * Step every flexible prim's chain in world space and hand its section transforms (in the prim's own
+   * frame) to the scene. Until a chain has run, the prim renders straight, as any other prim does.
+   */
+  private updateFlexibles(now: number) {
+    if (!this.scene3d) return;
+    for (const object of this.sceneObjects.values()) {
+      const params = object.flexi as FlexiParams | undefined;
+      if (!params || !this.scene3d.objects.has(object.id)) continue;
+      let entry = this.flexChains.get(object.id);
+      if (!entry) { entry = { chain: new FlexibleChain(params), last: now }; this.flexChains.set(object.id, entry); }
+      entry.chain.params = params;
+      const dt = Math.max(0, now - entry.last);
+      entry.last = now;
+      const transform = this.worldTransform(object);
+      const scale = Array.isArray(object.scale) && object.scale.length >= 3 ? object.scale : [1, 1, 1];
+      // The simulator's wind layer is not decoded yet, so there is no wind to pass; none is invented.
+      entry.chain.step(dt, { position: transform.position, rotation: transform.rotation as [number, number, number, number], scale });
+      const sections = entry.chain.localSections(3);
+      if (sections.length !== 9) continue;
+      const positions = new Float32Array(27), rotations = new Float32Array(36);
+      sections.forEach((section, i) => { positions.set(section.position, i * 3); rotations.set(section.rotation, i * 4); });
+      this.scene3d.updateObject(object.id, { flexiSections: { positions, rotations } });
+    }
+  }
+
   /** Advance simulator particle sources and draw camera-facing, textured translucent sprites. */
   private updateParticles(now: number) {
     if (!this.scene3d || !this.camera3d) return;
     const positions = new Map<string, number[]>();
-    for (const object of this.sceneObjects.values()) positions.set(object.id, this.worldTransform(object).position);
-    const windVector = (this.scene3d as any).windVector || [1, 0, 0];
-    const frames = this.particles.update(now, positions, windVector);
+    const rotations = new Map<string, number[]>();
+    for (const object of this.sceneObjects.values()) {
+      const transform = this.worldTransform(object);
+      positions.set(object.id, transform.position);
+      rotations.set(object.id, transform.rotation);
+    }
+    // The simulator's wind layer is not decoded yet, so there is no wind to apply; none is invented.
+    const windVector = this.scene3d.windVector ?? undefined;
+    const frames = this.particles.update(now, positions, windVector, { rotations });
     const live = new Set<string>();
     // A plane starts in XY. Match its normal to the view direction with the camera pitch/yaw.
     const defaultRotation = [Math.PI / 2 + this.camera3d.rotation[0], 0, -this.camera3d.rotation[1]];
@@ -1471,6 +1531,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
     this.particles.removeEmitter(id);
+    this.flexChains.delete(id);
     for (const key of this.avatarBakes.keys()) if (key.startsWith(`${id}:`)) this.avatarBakes.delete(key);
     this.posedObjects.delete(id);
     this.scene3d?.removeObject(id);

@@ -93,4 +93,19 @@ describe('simulator asset replacement and material hydration', () => {
     protocol.emit('scene:object-update', { id: 'prim', assetId: 'static' });
     expect(rebuild).toHaveBeenCalledWith('avatar');
   });
+
+  it('records assets that failed to load, shows them in the status, and clears one when it later decodes', () => {
+    const { protocol, world } = setup();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    protocol.emit('scene:object-add', { ...prim, assetId: 'BAD', assetKind: 'mesh' });
+    protocol.emit('scene:asset-error', { assetId: 'BAD', message: 'GetMesh returned 403' });
+    protocol.emit('scene:asset-error', { assetId: 'BAD', message: 'GetMesh returned 403' });
+    expect(world.getAssetErrors()).toEqual([{ assetId: 'bad', message: 'GetMesh returned 403' }]);
+    expect(warn).toHaveBeenCalledTimes(1); // logged once per distinct failure
+    expect(world.getDataStatus()).toContain('1 asset failed to load');
+    protocol.emit('scene:asset-ready', { assetId: 'BAD', geometry });
+    expect(world.getAssetErrors()).toEqual([]);
+    expect(world.getDataStatus()).not.toContain('failed to load');
+    warn.mockRestore();
+  });
 });

@@ -21,6 +21,8 @@ blocked), so these were found by probing likely names. Other official repositori
 | `src/linkpoint/agent-controls.ts` | `indra/llcommon/indra_constants.h` (all 32 `AGENT_CONTROL_*` values), `indra/newview/llviewermessage.cpp` (`AU_FLAGS_*`), `llagent.cpp` (`resetControlFlags`), `llviewerinput.cpp` (nudge 0.25 s, fly 0.5 s, tap-tap-hold run, `toggle_run`, `toggle_fly`, `stop_moving`) |
 | `src/linkpoint/key-bindings.ts` | `indra/newview/app_settings/key_bindings.xml`: all four modes, 138 entries, compared entry by entry |
 | `src/linkpoint/voice-protocol.ts`, `voice.ts` | `indra/newview/llvoicewebrtc.cpp` / `.h`, `indra/llwebrtc/llwebrtc.cpp`: capabilities, `SLData` channel, spatial message, join, mute and gain, STUN hosts, Opus SDP, ear locations, 50 m tether |
+| `src/linkpoint/particles.ts` | `indra/llmessage/llpartdata.h` / `.cpp` (flag and pattern bit values, block layout), `indra/newview/llviewerpartsource.cpp` (`LLViewerPartSourceScript::update`: burst timing, patterns, rotation), `llviewerpartsim.cpp` (`LLViewerPartGroup::updateParticles`: wind, target, motion, bounce, interpolation), `app_settings/settings.xml` (`RenderMaxPartCount` 4096) |
+| `src/linkpoint/flexible.ts`, `sl-math.ts` | `indra/newview/llflexibleobject.cpp` (`doFlexibleUpdate`, `remapSections`), `indra/llprimitive/llprimitive.cpp` (`LLFlexibleObjectData::unpack`, tension cap 0.99), `indra/llmath/llquaternion.cpp` / `v3math.cpp` (quaternion conventions) |
 | `src/linkpoint/sound-standards.ts`, `audio.ts` | `indra/llcommon/lldefs.h` (sound flags), `llviewermessage.cpp` (`process_sound_trigger`, attached-sound handlers, postponed sounds), `llviewerobject.cpp` (`setAttachedSound`), `llaudiosourcevo.cpp` (cut-off radius, parcel and mute rules), `llviewerparcelmgr.cpp` (`canHearSound`), `llmessage/llregionhandle.h`, `llvieweraudio.cpp` (levels, rolloff), `app_settings/settings.xml` (`AudioLevel*`, `Mute*`, `UISnd*`) |
 
 ## Known differences from the official viewer
@@ -30,6 +32,11 @@ blocked), so these were found by probing likely names. Other official repositori
 - Voice: the viewer's SDP rewrite appends its `fmtp` after the original on one line; we replace the line.
 - Voice: the default ear is the avatar, not the camera, because a camera quaternion in the SL frame
   is not available; set `EarLocation.Camera` once it is.
+- Particles: the distance and pixel-size throttles, HUD particles and the region wind layer are not
+  implemented (no wind is applied rather than an invented one). `ANGLE_CONE_EMPTY` emits nothing special,
+  as in the viewer.
+- Flexible prims: the viewer's distance-based update throttling is not implemented; twist and taper are
+  baked into the mesh, not applied per section.
 - Sound: the ear follows the camera (the viewer's default); Doppler is not available in Web Audio.
 
 ## Not implemented

@@ -682,8 +682,6 @@ class ViewerSession {
 
   // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
   // checks the shape and posts them to the region's capability.
-  // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
-  // checks the shape and posts them to the region's capability.
   async voiceProvision({ body } = {}) {
     const clean = sanitizeVoiceBody(body, VOICE_PROVISION_KEYS);
     if (clean.jsep?.type !== 'offer' || typeof clean.jsep.sdp !== 'string' || !clean.jsep.sdp) throw new Error('A WebRTC offer is required');
