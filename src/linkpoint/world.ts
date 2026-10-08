@@ -694,10 +694,16 @@ export class WorldViewer extends Utils.EventEmitter {
       this.cameraControls = new CameraControls(canvas, this.camera3d, () => {
         this.updateLocationDisplay();
         this.emit('camera_changed', this.getCameraState());
-      }, (x, y) => this.pickObject(x, y), (motion, run) => this.controlAvatar(motion, run));
+      }, (x, y) => this.pickObject(x, y), (motion, run) => this.controlAvatar(motion, run), {
+        keyMode: () => this.keyMode(),
+        resetView: () => this.resetCamera(),
+        toggleMouselook: () => this.toggleCameraMode(),
+        focusAt: (x, y) => this.focusAt(x, y),
+      });
       this.cameraControls.setVelocityThreshold(this.dragVelocityThreshold);
       this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
       this.agentKeyboard = new AgentKeyboard({
+        mode: () => this.keyMode(),
         enabled: () => this.agentControlsActive(),
         send: (controlFlags) => {
           void this.protocol.setMovement({ controlFlags }).catch((error: unknown) => {
@@ -893,6 +899,20 @@ export class WorldViewer extends Utils.EventEmitter {
       this.camera3d.setRotation(-0.28, -Math.PI / 2 - heading, 0);
     }
     return true;
+  }
+
+  /** Which of the official key-binding tables applies: mouselook uses the first-person one. */
+  private keyMode(): 'first_person' | 'third_person' {
+    return this.camera3d?.preset === 'first-person' ? 'first_person' : 'third_person';
+  }
+
+  /** Alt+click: zoom the orbit camera onto the avatar or object under the pointer. */
+  public focusAt(x: number, y: number) {
+    if (!this.canvas || !this.scene3d) return false;
+    const bounds = this.canvas.getBoundingClientRect();
+    const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
+    const id = hit?.id.replace(/:(body|head|legs)$/, '');
+    return id ? this.focusObjectById(id) : false;
   }
 
   /** The avatar, not the free camera, owns the movement keys. */
