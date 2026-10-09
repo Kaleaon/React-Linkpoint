@@ -62,7 +62,9 @@ describe('Integrated Atomic Folder Reconciler and Snapshot Engine', () => {
 
       // Folder's children array updated atomically
       const outfitsFolder = invManager.folders.get(folderId);
-      expect(outfitsFolder.children.sort()).toEqual(['item-sneakers', 'item-suit', 'sub-formal', 'sub-sporty'].sort());
+      expect(outfitsFolder.children.sort()).toEqual(
+        ['item-sneakers', 'item-suit', 'sub-formal', 'sub-sporty'].sort(),
+      );
     });
 
     it('recursively purges nested subfolders and items in deep subtrees', () => {
