@@ -106,7 +106,7 @@ export class LinkpointApp {
     this.inventoryTypes = new InventorySpecialTypes();
     this.chatExtended = new ChatExtended(this.chatAdapter);
     this.chat.setMessageFilter(message => this.chatExtended.shouldDisplayMessage(message));
-    this.groups = new GroupsManager(this.chatAdapter);
+    this.groups = new GroupsManager(this.chatAdapter, this.capabilities, this.notices);
     this.friends = new FriendsExtended(this.protocol);
     this.rlv = new RlvController(false, this.rlvEnvironment());
     this.chat.setRlv(this.rlv.handler);
