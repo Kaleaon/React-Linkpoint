@@ -3,7 +3,7 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getOutfit',
+  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getOutfit', 'getShape',
   'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
 ]);
 
@@ -170,6 +170,13 @@ export class SLBridge extends Utils.EventEmitter {
     return this.call<{ requested: { region: string; x: number; y: number; z: number }; message: string }>('teleport', params);
   }
   teleportHome() { return this.call<{ requested: string }>('teleportHome'); }
+  wearItem(params: { itemId: string }) { return this.call<{ worn: string; baked: boolean; reason?: string }>('wearItem', params); }
+  removeWorn(params: { linkId: string }) { return this.call<{ removed: string; baked: boolean; reason?: string }>('removeWorn', params); }
+  wearOutfit(params: { folderId: string }) { return this.call<{ worn: number; baked: boolean; reason?: string }>('wearOutfit', params); }
+  detachAttachment(params: { id: string }) { return this.call<{ detached: string }>('detachAttachment', params); }
+  offerTeleport(params: { id: string; message?: string }) { return this.call<{ offered: string }>('offerTeleport', params); }
+  fetchShape() { return this.call<{ itemId: string; name: string; values: Record<string, number> }>('getShape'); }
+  saveShape(params: { values: Record<string, number>; name?: string }) { return this.call<{ saved: string; baked: boolean; reason?: string }>('saveShape', params); }
   joinGroup(params: { groupId: string }) { return this.call<{ joined: boolean }>('joinGroup', params); }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);

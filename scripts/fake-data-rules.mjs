@@ -74,7 +74,7 @@ export const RULES = [
   },
   {
     id: 'invented-statistic',
-    pattern: /(Estimated|Approx\.?)\s+(Vertex|Face|Triangle|Joint|Poly)\w*\s*(Count)?:\s*[\d,]+|\b\d[\d,]*\s+(vertices|triangles|active joints)\b/i,
+    pattern: /(Estimated|Approx\.?)\s+(Vertex|Face|Triangle|Joint|Poly)\w*\s*(Count)?:\s*[\d,]+|\b\d+(?:,\d{3})*\s+(vertices|triangles|active joints)\b/i,
     message: 'Hard-coded mesh statistic. Show the measured value, or "—" when the grid does not report it.',
   },
   {

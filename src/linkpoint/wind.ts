@@ -13,8 +13,8 @@
  * wind. Only 16x16 patches are decoded (the wind layer is always 16x16).
  */
 
-/** `WIND_SCALE_HACK` in `llwind.h`: "hack to make wind speeds more realistic". */
-export const WIND_SCALE_HACK = 2;
+/** Default wind scale factor (1.0 = physical velocity in m/s). Legacy viewer WIND_SCALE_HACK was 2. */
+export const WIND_SCALE_HACK = 1.0;
 /** `LLWind::mSize`. */
 export const WIND_GRID_SIZE = 16;
 /** `WIND_LAYER_CODE` in `llvlmanager.cpp`: the character '7'. */
@@ -150,7 +150,7 @@ export class RegionWind {
   /** True once a wind layer has been decoded. */
   loaded = false;
 
-  constructor(public regionWidth = DEFAULT_REGION_WIDTH) {}
+  constructor(public regionWidth = DEFAULT_REGION_WIDTH, public windScaleHack = WIND_SCALE_HACK) {}
 
   /**
    * `LLVLManager::unpackData` + `LLWind::decompress`: decode the data of a layer-'7' message.
@@ -184,7 +184,7 @@ export class RegionWind {
   average(): Vec3 {
     let x = 0, y = 0;
     for (let i = 0; i < this.velX.length; i++) { x += this.velX[i]; y += this.velY[i]; }
-    const scale = (1 / this.velX.length) * WIND_SCALE_HACK;
+    const scale = (1 / this.velX.length) * this.windScaleHack;
     return [x * scale, y * scale, 0];
   }
 
@@ -205,7 +205,7 @@ export class RegionWind {
     } else {
       x = this.velX[k]; y = this.velY[k];
     }
-    return [x * WIND_SCALE_HACK, y * WIND_SCALE_HACK, 0];
+    return [x * this.windScaleHack, y * this.windScaleHack, 0];
   }
 
   /** `LLWind::getVelocityNoisy`: fractal sum of the grid at `dim`, `dim/2`, ... down to 1. */
@@ -216,7 +216,7 @@ export class RegionWind {
       const v = this.velocity([position[0] * d, position[1] * d, position[2] * d]);
       sum[0] += v[0] / d; sum[1] += v[1] / d; sum[2] += v[2] / d;
     }
-    const scale = (1 / norm) * WIND_SCALE_HACK;
+    const scale = 1 / norm;
     return [sum[0] * scale, sum[1] * scale, sum[2] * scale];
   }
 }

@@ -92,8 +92,7 @@ export class LumiyaLLSDUtils {
             timestamp: timestamp,
             from_agent_name: fromAgentName,
             message: message,
-            binary_bucket: binaryBucket,
-            lumiya_version: '3.4.2'
+            binary_bucket: binaryBucket
         };
     }
 
@@ -145,8 +144,7 @@ export class LumiyaLLSDUtils {
             pitch,
             yaw,
             target,
-            distance,
-            lumiya_camera: true
+            distance
         };
     }
 

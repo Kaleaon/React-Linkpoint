@@ -199,10 +199,10 @@ describe('Flexible Prim Dynamics', () => {
       expect(world.wind).toBeNull();
       const calm = tipX();
 
-      // DC-only patch: every cell is mult*(0/16) + mult*2^(prequant-1) + dc = 1*16 + 4 = 20 -> 20 * 2 (scale hack) = 40 m/s.
+      // DC-only patch: every cell is mult*(0/16) + mult*2^(prequant-1) + dc = 1*16 + 4 = 20 m/s physical wind vector.
       protocol.emit('scene:wind-layer', windLayer(4));
       expect(world.wind?.loaded).toBe(true);
-      expect(world.wind!.velocity([10, 10, 20])[0]).toBeCloseTo(40, 3);
+      expect(world.wind!.velocity([10, 10, 20])[0]).toBeCloseTo(20, 3);
       (world as any).flexChains.clear();
       for (let t = 2; t < 3; t += 1 / 30) (world as any).updateFlexibles(t);
       expect(tipX()).toBeGreaterThan(calm + 0.05);

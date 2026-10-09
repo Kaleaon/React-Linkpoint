@@ -459,6 +459,28 @@ export class WorldViewer extends Utils.EventEmitter {
     return object.id;
   }
 
+  /**
+   * Geometry of the meshes your attachments have decoded so far. The base avatar body is built in the
+   * viewer, so only attachments are counted; an attachment whose mesh is still downloading is not.
+   */
+  public getAttachmentMeshStats(): { attachments: number; meshes: number; vertices: number; triangles: number } {
+    const self = this.protocol.agentId;
+    const stats = { attachments: 0, meshes: 0, vertices: 0, triangles: 0 };
+    if (!self) return stats;
+    for (const object of this.sceneObjects.values()) {
+      if (object.avatar || this.animationSubject(object) !== self) continue;
+      stats.attachments++;
+      const geometry = object.assetId ? this.decodedAssets.get(String(object.assetId).toLowerCase()) : undefined;
+      if (!geometry) continue;
+      stats.meshes++;
+      for (const part of geometry.parts || [geometry]) {
+        stats.vertices += Math.floor((part.vertices?.length || 0) / 3);
+        stats.triangles += Math.floor((part.indices?.length || 0) / 3);
+      }
+    }
+    return stats;
+  }
+
   private reapplyAvatarSubject(subject: string) {
     for (const object of this.sceneObjects.values()) {
       const objectSubject = object.avatar ? object.id : this.animationSubject(object);
@@ -930,9 +952,17 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   /** Which of the official key-binding tables applies: mouselook uses the first-person one. */
+  private keyMode(): 'first_person' | 'third_person' | 'sitting' {
+    if (this.isSitting()) return 'sitting';
   /** Which key-binding table applies: first person in mouselook, otherwise third person. */
   public keyMode(): 'first_person' | 'third_person' {
     return this.camera3d?.preset === 'first-person' ? 'first_person' : 'third_person';
+  }
+
+  /** Sitting on an object: the avatar's object has a parent. Sitting on the ground has none, and is not detected. */
+  public isSitting(): boolean {
+    const me = this.protocol.agentId ? this.sceneObjects.get(this.protocol.agentId) : undefined;
+    return Number(me?.parentId) > 0;
   }
 
   /** Alt+click: zoom the orbit camera onto the avatar or object under the pointer. */
