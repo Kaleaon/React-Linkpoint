@@ -3,6 +3,7 @@ import { app } from '../linkpoint/app.ts';
 import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -441,7 +442,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                 >
                   {loading ? (
                     <>
-                      <Icon name="loader" size={16} className="animate-spin" />
+                      <CrystalLoader size={16} variant="inline" />
                       <span>Sending {currencySymbol}...</span>
                     </>
                   ) : (

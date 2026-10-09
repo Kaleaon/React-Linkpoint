@@ -9,9 +9,20 @@ import { useId } from 'react';
 // the device frame), so it re-skins with every colour pack like the login logo.
 // Keyframes live in index.css next to `spin`.
 /**
- * @param {{ size?: number, idPrefix?: string }} props
+ * @param {Object} props
+ * @param {number} [props.size]
+ * @param {"block" | "inline"} [props.variant]
+ * @param {string} [props.className]
+ * @param {Object} [props.style]
+ * @param {string} [props.idPrefix]
  */
-export default function CrystalLoader({ size = 88, idPrefix }) {
+export default function CrystalLoader({
+  size = undefined,
+  variant = 'block',
+  className = '',
+  style = {},
+  idPrefix,
+}) {
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lpld-${cleanId}`;
@@ -19,18 +30,27 @@ export default function CrystalLoader({ size = 88, idPrefix }) {
   const gradB = `${prefix}-b`;
   const gradCore = `${prefix}-core`;
 
+  const finalSize = size ?? (variant === 'inline' ? 16 : 88);
+
+  const containerStyle = {
+    width: finalSize,
+    height: finalSize,
+    flex: 'none',
+    display: variant === 'inline' ? 'inline-flex' : 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    verticalAlign: variant === 'inline' ? 'middle' : undefined,
+    ...style,
+  };
+
   return (
     <div
-      style={{
-        width: size,
-        height: size,
-        flex: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      className={className}
+      style={containerStyle}
       role="img"
       aria-label="Loading"
+      data-testid="crystal-loader"
+      data-variant={variant}
     >
       <svg
         viewBox="0 0 120 120"

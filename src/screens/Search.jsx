@@ -5,6 +5,7 @@ import { app } from '../linkpoint/app.ts';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 
 const TABS = [
   { id: 'PEOPLE', category: 'people', label: 'People', icon: 'users' },
@@ -385,7 +386,7 @@ export default function Search() {
             gap: '8px',
           }}
         >
-          <Icon name="loader-2" size={16} className="animate-spin" />
+          <CrystalLoader size={16} variant="inline" />
           <span>Searching Second Life grid directory...</span>
         </div>
       ) : null}

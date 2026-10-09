@@ -315,7 +315,9 @@ a:focus-visible,
   background: linear-gradient(
     90deg,
     var(--surf2, rgba(255, 255, 255, 0.08)) 25%,
-    var(--outv, rgba(255, 255, 255, 0.22)) 50%,
+    var(--priC, rgba(18, 59, 39, 0.4)) 40%,
+    var(--pri, rgba(108, 255, 154, 0.35)) 50%,
+    var(--priC, rgba(18, 59, 39, 0.4)) 60%,
     var(--surf2, rgba(255, 255, 255, 0.08)) 75%
   );
   background-size: 200% 100%;
