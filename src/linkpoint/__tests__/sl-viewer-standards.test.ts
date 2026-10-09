@@ -141,8 +141,31 @@ describe('Lumiya Viewer Standards', () => {
     );
 
     expect(im.agent_id).toBe('agent-1');
+    expect(im.session_id).toBe('session-1');
+    expect(im.from_group).toBe(false);
+    expect(im.to_agent_id).toBe('agent-2');
+    expect(im.parent_estate_id).toBe(0);
+    expect(im.region_id).toBe('region-1');
+    expect(im.position).toEqual([128, 128, 20]);
+    expect(im.offline).toBe(0);
+    expect(im.dialog).toBe(0);
+    expect(im.id).toBe('msg-1');
+    expect(im.timestamp).toBe(1700000000);
+    expect(im.from_agent_name).toBe('Sender Resident');
     expect(im.message).toBe('Instant message text');
-    expect(im.lumiya_version).toBe('3.4.2');
+    expect(im.lumiya_version).toBeUndefined();
+    expect('lumiya_version' in im).toBe(false);
+  });
+
+  test('createCameraState formats camera state map without lumiya_camera', () => {
+    const cam = LumiyaLLSDUtils.createCameraState(1.5, 0.2, 1.1, [10, 20, 30], 10.0);
+    expect(cam.zoom).toBe(1.5);
+    expect(cam.pitch).toBe(0.2);
+    expect(cam.yaw).toBe(1.1);
+    expect(cam.target).toEqual([10, 20, 30]);
+    expect(cam.distance).toBe(10.0);
+    expect(cam.lumiya_camera).toBeUndefined();
+    expect('lumiya_camera' in cam).toBe(false);
   });
 
   test('parseSunPhase calculates time of day', () => {
@@ -155,6 +178,9 @@ describe('Lumiya Viewer Standards', () => {
     const rules = new LumiyaValidationRules().requireLumiyaVersion('3.4.0');
     const valid = LumiyaLLSDUtils.validateLumiyaStructure({ lumiya_version: '3.4.2' }, rules);
     expect(valid.isValid()).toBe(true);
+
+    const validStandard = LumiyaLLSDUtils.validateLumiyaStructure({ version: '3.4.2' }, rules);
+    expect(validStandard.isValid()).toBe(true);
   });
 });
 
