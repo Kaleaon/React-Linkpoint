@@ -52,9 +52,9 @@ WORKDIR /app
 COPY . .
 RUN npm install
 RUN npm run build
-# Bundle server.ts to plain JS at build time: tsx compiles TypeScript at
-# runtime and gets OOM-killed on the 256MB machine. Plain node uses far less RAM.
-RUN npx esbuild server.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist-server/server.cjs
+# ESM format: server.ts uses import.meta.url (via createRequire), which only
+# exists in ESM. .mjs runs as ESM regardless of package.json type.
+RUN npx esbuild server.ts --bundle --platform=node --packages=external --format=esm --outfile=dist-server/server.mjs
 
 
 
@@ -76,4 +76,4 @@ EXPOSE 3000
 
 # Serves the frontend, the /api/* HTTP endpoints, SSE events, and the
 # WebSocket UDP bridge at /api/udp-proxy.
-CMD ["node", "dist-server/server.cjs"]
+CMD ["node", "dist-server/server.mjs"]
