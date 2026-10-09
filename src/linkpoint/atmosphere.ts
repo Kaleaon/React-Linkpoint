@@ -98,10 +98,19 @@ export interface AtmosphereUniforms {
 export function atmosphereUniforms(sky: SkySettings, state: SkyState): AtmosphereUniforms {
   const f3 = (v: Vec3) => new Float32Array(v);
   return {
-    uBlueHorizon: f3(sky.blueHorizon), uBlueDensity: f3(sky.blueDensity), uAmbient: f3(sky.ambient),
-    uSunlight: f3(sky.sunlightColor), uGlow: f3(sky.glow), uLightNorm: f3(state.lightDirection),
-    uHazeHorizon: sky.hazeHorizon, uHazeDensity: sky.hazeDensity, uDensityMultiplier: sky.densityMultiplier,
-    uMaxY: sky.maxY, uCloudShadow: sky.cloudShadow, uSunUp: state.sunUp ? 1 : 0, uSunMoonGlow: state.sunMoonGlowFactor,
+    uBlueHorizon: f3(sky.blueHorizon),
+    uBlueDensity: f3(sky.blueDensity),
+    uAmbient: f3(sky.ambient),
+    uSunlight: f3(sky.sunlightColor),
+    uGlow: f3(sky.glow),
+    uLightNorm: f3(state.lightDirection),
+    uHazeHorizon: sky.hazeHorizon,
+    uHazeDensity: sky.hazeDensity,
+    uDensityMultiplier: sky.densityMultiplier,
+    uMaxY: sky.maxY,
+    uCloudShadow: sky.cloudShadow,
+    uSunUp: state.sunUp ? 1 : 0,
+    uSunMoonGlow: state.sunMoonGlowFactor,
   };
 }
 
@@ -121,24 +130,37 @@ export function atmosphereColor(sky: SkySettings, state: SkyState, dir: Vec3): V
   const lightDot = relNorm[0] * light[0] + relNorm[1] * light[1] + relNorm[2] * light[2];
 
   const sunScale = state.sunUp ? 1 : 0.7;
-  const blue = sky.blueDensity, haze = sky.hazeDensity;
+  const blue = sky.blueDensity,
+    haze = sky.hazeDensity;
   const combined = blue.map((b) => Math.max(Math.abs(b) + Math.abs(haze), 1e-6));
   const blueWeight = blue.map((b, i) => b / combined[i]);
   const hazeWeight = combined.map((c) => haze / c);
   const offAxis = 1 / Math.max(1e-6, Math.max(0, relNorm[2]) + light[2]);
-  const sunlight = sky.sunlightColor.map((s, i) => s * sunScale * Math.exp(-((blue[i] + haze * 0.25) * sky.densityMultiplier * sky.maxY) * offAxis));
+  const sunlight = sky.sunlightColor.map(
+    (s, i) =>
+      s *
+      sunScale *
+      Math.exp(-((blue[i] + haze * 0.25) * sky.densityMultiplier * sky.maxY) * offAxis),
+  );
   const transmittance = combined.map((c) => Math.exp(-c * relLen * sky.densityMultiplier));
 
   let glow = Math.max(1 - lightDot, 0.001) * sky.glow[0];
   glow = Math.pow(glow, sky.glow[2]);
   glow = state.sunMoonGlowFactor < 1 ? 0 : state.sunMoonGlowFactor * (glow + 0.25);
 
-  const above = [0, 1, 2].map((i) => (sky.blueHorizon[i] * blueWeight[i] * (sunlight[i] + sky.ambient[i])
-    + sky.hazeHorizon * hazeWeight[i] * (sunlight[i] * glow + sky.ambient[i])) * (1 - transmittance[i]));
+  const above = [0, 1, 2].map(
+    (i) =>
+      (sky.blueHorizon[i] * blueWeight[i] * (sunlight[i] + sky.ambient[i]) +
+        sky.hazeHorizon * hazeWeight[i] * (sunlight[i] * glow + sky.ambient[i])) *
+      (1 - transmittance[i]),
+  );
   const ambient = sky.ambient.map((a) => a + Math.max(0, 1 - a) * sky.cloudShadow * 0.5);
   const dimmed = sunlight.map((s) => s * Math.max(0, 1 - sky.cloudShadow));
-  const below = [0, 1, 2].map((i) => sky.blueHorizon[i] * blueWeight[i] * (dimmed[i] + ambient[i])
-    + sky.hazeHorizon * hazeWeight[i] * (dimmed[i] * glow + ambient[i]));
+  const below = [0, 1, 2].map(
+    (i) =>
+      sky.blueHorizon[i] * blueWeight[i] * (dimmed[i] + ambient[i]) +
+      sky.hazeHorizon * hazeWeight[i] * (dimmed[i] * glow + ambient[i]),
+  );
   // combinedHaze = sqrt(T); the below-cloud blend uses 1 - sqrt(combinedHaze) = 1 - T^(1/4), per channel
   return [0, 1, 2].map((i) => {
     const blend = 1 - Math.pow(transmittance[i], 0.25);

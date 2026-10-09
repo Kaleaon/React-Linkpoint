@@ -28,20 +28,20 @@ export class SLProtocol extends Utils.EventEmitter {
   static GRIDS: Record<string, any> = {
     agni: {
       name: 'Second Life (Main Grid)',
-      loginUrl: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi'
+      loginUrl: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi',
     },
     aditi: {
       name: 'Second Life Beta (Aditi)',
-      loginUrl: 'https://login.aditi.lindenlab.com/cgi-bin/login.cgi'
+      loginUrl: 'https://login.aditi.lindenlab.com/cgi-bin/login.cgi',
     },
     osgrid: {
       name: 'OSGrid',
-      loginUrl: 'http://login.osgrid.org/'
+      loginUrl: 'http://login.osgrid.org/',
     },
     kitely: {
       name: 'Kitely',
-      loginUrl: 'https://grid.kitely.com:8002/'
-    }
+      loginUrl: 'https://grid.kitely.com:8002/',
+    },
   };
 
   static getLoginUrl(gridId: string) {
@@ -75,7 +75,7 @@ export class SLProtocol extends Utils.EventEmitter {
         startLocation,
         channel: VIEWER_CHANNEL,
         version: VIEWER_VERSION,
-        loginUri: grid.loginUrl
+        loginUri: grid.loginUrl,
       };
 
       let loginUrl = grid.loginUrl;
@@ -110,11 +110,11 @@ export class SLProtocol extends Utils.EventEmitter {
       this.simPort = parseInt(response.sim_port);
       this.seedCapability = response.seed_capability;
       this.inventoryRoot = response['inventory-root']?.[0]?.folder_id;
-      
+
       this.region = {
         name: response['sim_name'] || 'Unknown',
         x: CoordinateNormalizer.normalizeRegionTileCoordinate(response.region_x),
-        y: CoordinateNormalizer.normalizeRegionTileCoordinate(response.region_y)
+        y: CoordinateNormalizer.normalizeRegionTileCoordinate(response.region_y),
       };
 
       this.circuitContext.updateCircuit({
@@ -130,7 +130,6 @@ export class SLProtocol extends Utils.EventEmitter {
 
       this.emit('login_success', response);
       return response;
-
     } catch (error) {
       console.error('Login error:', error);
       this.emit('login_failed', error);
@@ -158,7 +157,7 @@ export class SLProtocol extends Utils.EventEmitter {
       const response = await corsHandler.makeRequest(this.seedCapability, {
         method: 'POST',
         headers: { 'Content-Type': 'application/llsd+xml' },
-        body: LLSD.buildXML(capsRequest)
+        body: LLSD.buildXML(capsRequest),
       });
 
       if (response && response.ok) {

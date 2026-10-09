@@ -5,7 +5,6 @@
 > status, remaining PRs and validation limits. Old statements about missing skinning,
 > animation, voice, search, PBR or simulator environment must not be treated as current.
 
-
 Lumiya (via `Kaleaon/Lumiya-Redux`) is used as a **behavioral reference only**, in
 line with `LUMIYA_FEATURE_AUDIT.md`: nothing here copies recovered code. The
 algorithms are re-implemented for WebGL, and the shaders and geometry are new.
@@ -24,12 +23,12 @@ algorithms are re-implemented for WebGL, and the shaders and geometry are new.
 
 Findings that were checked this way:
 
-| Item | Source | Result |
-| --- | --- | --- |
-| Sky colour `(blue_horizon + sunlight + ambient) * blue_density`, haze `haze_density * ambient` | `SkyProgram.ApplyWindlight` | Smali matches the Kotlin, including field order |
-| Water wave tables (frequency, phase, amplitude, direction) | `TerrainPatchGeometry` `array-data` | Match the Kotlin. A naive parse drops the sign on negative hex floats and gives `8.0`/`14.4` instead of `-0.5`/`-0.3`, so parse smali literals with their sign |
-| Sky dome icosahedron index table | `WindlightSky.<clinit>` | Matches. It is a closed, watertight icosahedron, wound inward |
-| Bounding boxes from `worldMatrix * ±size/2` | `DrawListObjectEntry.updateBoundingBox` | Same method as the AABB transform now used for culling |
+| Item                                                                                           | Source                                  | Result                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sky colour `(blue_horizon + sunlight + ambient) * blue_density`, haze `haze_density * ambient` | `SkyProgram.ApplyWindlight`             | Smali matches the Kotlin, including field order                                                                                                                |
+| Water wave tables (frequency, phase, amplitude, direction)                                     | `TerrainPatchGeometry` `array-data`     | Match the Kotlin. A naive parse drops the sign on negative hex floats and gives `8.0`/`14.4` instead of `-0.5`/`-0.3`, so parse smali literals with their sign |
+| Sky dome icosahedron index table                                                               | `WindlightSky.<clinit>`                 | Matches. It is a closed, watertight icosahedron, wound inward                                                                                                  |
+| Bounding boxes from `worldMatrix * ±size/2`                                                    | `DrawListObjectEntry.updateBoundingBox` | Same method as the AABB transform now used for culling                                                                                                         |
 
 ## What Linkpoint now does with it
 

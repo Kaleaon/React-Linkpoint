@@ -21,18 +21,18 @@ source:
     dc-runtime/src/*.ts — not checked into this repo, don't hand-edit
     support.js) turns into a real React component.
   sections:
-    template: "everything between <x-dc> and </x-dc>"
-    script: "the <script type=\"text/x-dc\" data-dc-script ...> block, near the end of the file"
+    template: 'everything between <x-dc> and </x-dc>'
+    script: 'the <script type="text/x-dc" data-dc-script ...> block, near the end of the file'
   script_layout:
-    - "top-level `const` tables before `class Component`: SCREENS, GRIDS, LAYOUTS, PALETTES, DEVICES, CBTN, CSUB, CPAD/CPADR, DIALOGS, FLOATERS, FMENU, HUDS, TARGETS, STATES"
-    - "`class Component extends DCLogic`: `state = {...}` initializer, then instance methods (set/setTab/cycle/notify/openSearch/connectLogin/reconnect/cf/cTap/cHold/cPress/flR/flDrag/...)"
+    - 'top-level `const` tables before `class Component`: SCREENS, GRIDS, LAYOUTS, PALETTES, DEVICES, CBTN, CSUB, CPAD/CPADR, DIALOGS, FLOATERS, FMENU, HUDS, TARGETS, STATES'
+    - '`class Component extends DCLogic`: `state = {...}` initializer, then instance methods (set/setTab/cycle/notify/openSearch/connectLogin/reconnect/cf/cTap/cHold/cPress/flR/flDrag/...)'
     - "`renderVals()`: one large method that reads `this.state`/`this.props`, computes everything, and returns the flat object the template's {{ }} bindings read from"
 
 target:
   root: docs/react/
   entry: src/App.jsx
   install: npm install
-  build: npm run build   # Vite; catches JSX/import errors
+  build: npm run build # Vite; catches JSX/import errors
   dev: npm run dev
   production_boundary: >
     Port the in-app design, content, tokens and behavior only. The outer
@@ -52,17 +52,17 @@ target:
 # `undefined` instead of throwing.
 # ---------------------------------------------------------------------
 dsl_binding_rules:
-  syntax: "{{ expression }}"
+  syntax: '{{ expression }}'
   supported:
-    - "dotted / bracket property paths against the renderVals() object, e.g. {{ x.pick }}, {{ items[0].label }}, {{ c.rights }}"
-    - "top-level equality only: ===, !==, ==, !="
-    - "leading negation: {{ !x }}"
-    - "literals: true, false, null, undefined, bare numbers, single- or double-quoted strings"
-    - "one level of wrapping parens: {{ (x) }}"
+    - 'dotted / bracket property paths against the renderVals() object, e.g. {{ x.pick }}, {{ items[0].label }}, {{ c.rights }}'
+    - 'top-level equality only: ===, !==, ==, !='
+    - 'leading negation: {{ !x }}'
+    - 'literals: true, false, null, undefined, bare numbers, single- or double-quoted strings'
+    - 'one level of wrapping parens: {{ (x) }}'
   not_supported:
     - "arrow functions — {{ () => this.set('screen','Settings') }} or {{ e => c.onChange(e.target.value) }} resolve to `undefined`. React then gets `onClick={undefined}` / `onChange={undefined}`: no error, no crash, just an inert control."
     - "ternaries — {{ a ? b : c }}. resolvePath() stops at the first character it doesn't understand (the '?'), so the WHOLE right-hand side collapses to whatever the path resolved to before the '?', silently. It never throws either."
-    - "any other general JS: method calls, template literals, `&&`/`||`, arithmetic, etc."
+    - 'any other general JS: method calls, template literals, `&&`/`||`, arithmetic, etc.'
   the_rule: >
     Every event handler and every non-trivial computed value used in a
     template attribute MUST be a named property already computed in
@@ -81,22 +81,22 @@ dsl_binding_rules:
     in new markup for consistency with everything else in the file.
 
 binding_translation_table:
-  - dc: "{{ x }}"
-    react: "{x}"
-  - dc: "<sc-for list=\"{{ list }}\" as=\"item\" hint-placeholder-count=\"N\">...</sc-for>"
-    react: "{list.map((item, i) => (<Fragment key={i}>...</Fragment>))}"
-  - dc: "<sc-if value=\"{{ cond }}\" hint-placeholder-val=\"{{ false }}\">...</sc-if>"
-    react: "{cond ? (...) : null}"
-  - dc: "onClick=\"{{ x.pick }}\""
-    react: "onClick={x.pick}"
-  - dc: "onChange=\"{{ x.onChange }}\" (or onKeyDown/onMouseDown/etc.)"
-    react: "onChange={x.onChange}"
-  - dc: "sc-camel-on-input=\"{{ x.onInput }}\""
+  - dc: '{{ x }}'
+    react: '{x}'
+  - dc: '<sc-for list="{{ list }}" as="item" hint-placeholder-count="N">...</sc-for>'
+    react: '{list.map((item, i) => (<Fragment key={i}>...</Fragment>))}'
+  - dc: '<sc-if value="{{ cond }}" hint-placeholder-val="{{ false }}">...</sc-if>'
+    react: '{cond ? (...) : null}'
+  - dc: 'onClick="{{ x.pick }}"'
+    react: 'onClick={x.pick}'
+  - dc: 'onChange="{{ x.onChange }}" (or onKeyDown/onMouseDown/etc.)'
+    react: 'onChange={x.onChange}'
+  - dc: 'sc-camel-on-input="{{ x.onInput }}"'
     react: "onChange={x.onInput}   # React's onChange already fires per-keystroke for text inputs"
-  - dc: "style=\"{{ x.style }}\"  (x.style is already a JS object literal from renderVals())"
-    react: "style={x.style}"
-  - dc: "data-lucide=\"{{ x.icon }}\""
-    react: "<Icon name={x.icon} size={N} />   # src/components/Icon.jsx wraps lucide"
+  - dc: 'style="{{ x.style }}"  (x.style is already a JS object literal from renderVals())'
+    react: 'style={x.style}'
+  - dc: 'data-lucide="{{ x.icon }}"'
+    react: '<Icon name={x.icon} size={N} />   # src/components/Icon.jsx wraps lucide'
 
 # ---------------------------------------------------------------------
 # Where a change to one part of index.html's script/template needs a
@@ -105,57 +105,57 @@ binding_translation_table:
 file_map:
   state_init:
     dc: "Component's `state = {...}` initializer"
-    react: "src/hooks/useAppState.js — one useState() call per field, near the top of useAppState()"
+    react: 'src/hooks/useAppState.js — one useState() call per field, near the top of useAppState()'
   methods:
     dc: "Component's instance methods"
-    react: "src/hooks/useAppState.js — useCallback()-wrapped functions, each re-exported by name in the returned `actions` object"
+    react: 'src/hooks/useAppState.js — useCallback()-wrapped functions, each re-exported by name in the returned `actions` object'
   top_level_constants:
-    dc: "const tables declared before `class Component` (SCREENS, GRIDS, LAYOUTS, PALETTES, DEVICES, CBTN, CSUB, CPAD/CPADR, DIALOGS, FLOATERS, FMENU, HUDS, TARGETS, STATES)"
-    react: "src/theme/constants.js (most tables), layouts.js, palettes.js, dialogs.js — same names, same shape, ported near-verbatim"
+    dc: 'const tables declared before `class Component` (SCREENS, GRIDS, LAYOUTS, PALETTES, DEVICES, CBTN, CSUB, CPAD/CPADR, DIALOGS, FLOATERS, FMENU, HUDS, TARGETS, STATES)'
+    react: 'src/theme/constants.js (most tables), layouts.js, palettes.js, dialogs.js — same names, same shape, ported near-verbatim'
   sub_views:
     dc: "CSUB + the subView()/setSub() methods on the component class; segTabs and the console rail's `sub` list both read them; card lists filter on the `sub` tag"
-    react: "src/theme/constants.js exports CSUB plus subView(state, scr) / setSub(actions, scr, label) / inSub(card, curSub); consumed by components/SegmentedTabs.jsx, components/ConsoleFrame.jsx, components/ScreenBody.jsx and screens/{Map,Inventory,Profile,World3D}.jsx"
+    react: 'src/theme/constants.js exports CSUB plus subView(state, scr) / setSub(actions, scr, label) / inSub(card, curSub); consumed by components/SegmentedTabs.jsx, components/ConsoleFrame.jsx, components/ScreenBody.jsx and screens/{Map,Inventory,Profile,World3D}.jsx'
     note: "CSUB is the model, not LCARS decoration — a screen gains sub-views by appearing in the table. Radar's sub-view lives in rMode and Settings/Cache navigate instead of switching tabs; both are special-cased inside subView/setSub, nowhere else."
   render_vals_theme_head:
-    dc: "the top of renderVals(): T()/D()/navMode()/cf() and turning layout+palette into V (colour tokens), t (font tokens), C (console geometry)"
+    dc: 'the top of renderVals(): T()/D()/navMode()/cf() and turning layout+palette into V (colour tokens), t (font tokens), C (console geometry)'
     react: "src/theme/computeTheme.js, src/theme/color.js (ink()/contrast), src/hooks/useAppState.js's T()/D()/navMode()/cf()"
   render_vals_screen_content:
-    dc: "the per-screen branches of renderVals() (isChat/isFriends/isRadar/... blocks, and the CARDS table)"
+    dc: 'the per-screen branches of renderVals() (isChat/isFriends/isRadar/... blocks, and the CARDS table)'
     react: "src/screens/*.jsx for the screens with bespoke layouts; src/data/content.js's buildCards() + src/components/CardList.jsx for the card-list screens (see screens map below)"
   screens:
     Chat: docs/react/src/screens/Chat.jsx
     Radar: docs/react/src/screens/Radar.jsx
     Map: docs/react/src/screens/Map.jsx
-    "3D View": docs/react/src/screens/World3D.jsx
+    '3D View': docs/react/src/screens/World3D.jsx
     Inventory: docs/react/src/screens/Inventory.jsx
     Profile: docs/react/src/screens/Profile.jsx
     Login: docs/react/src/screens/Login.jsx
     Search: docs/react/src/screens/Search.jsx
-    Friends: "generic card list — data/content.js buildCards() + components/CardList.jsx + components/Card.jsx"
-    Groups: "same generic card list as Friends"
-    Notices: "same generic card list as Friends"
-    Teleport: "same generic card list as Friends"
-    Outfits: "same generic card list as Friends"
-    Objects: "same generic card list as Friends"
-    Parcel: "same generic card list as Friends"
-    Transactions: "same generic card list as Friends"
-    "Mute List": "same generic card list as Friends"
-    Settings: "same generic card list as Friends"
-    Cache: "same generic card list as Friends"
-    Diagnostics: "same generic card list as Friends"
+    Friends: 'generic card list — data/content.js buildCards() + components/CardList.jsx + components/Card.jsx'
+    Groups: 'same generic card list as Friends'
+    Notices: 'same generic card list as Friends'
+    Teleport: 'same generic card list as Friends'
+    Outfits: 'same generic card list as Friends'
+    Objects: 'same generic card list as Friends'
+    Parcel: 'same generic card list as Friends'
+    Transactions: 'same generic card list as Friends'
+    'Mute List': 'same generic card list as Friends'
+    Settings: 'same generic card list as Friends'
+    Cache: 'same generic card list as Friends'
+    Diagnostics: 'same generic card list as Friends'
   shell_chrome:
     sweep_console_frame: docs/react/src/components/ConsoleFrame.jsx
     desktop_floaters: docs/react/src/components/FloatersDesktop.jsx
     bottom_tabs_nav: docs/react/src/components/BottomTabs.jsx
     rail_nav: docs/react/src/components/RailNav.jsx
     tile_nav: docs/react/src/components/TileNav.jsx
-    header_looks: "docs/react/src/components/Header.jsx (5 looks: stack/sweep/pivot/rule/editorial)"
+    header_looks: 'docs/react/src/components/Header.jsx (5 looks: stack/sweep/pivot/rule/editorial)'
     segmented_tabs_and_chips: docs/react/src/components/SegmentedTabs.jsx, docs/react/src/components/ChipRow.jsx
     system_dialogs: docs/react/src/components/SystemDialog.jsx
     toast: docs/react/src/components/Toast.jsx
-    application_viewport: "docs/react/src/components/DeviceFrame.jsx — port frame contents only; omit the mock device bezel"
-    preview_only_status_bar: "docs/index.html only — do not import docs/react/src/components/StatusBar.jsx from the React app"
-    loading_crystal: "docs/react/src/components/CrystalLoader.jsx (dc: the inline <svg> under stateBlock.pyramid in index.html; keyframes in src/index.css / the <style> block mirror each other)"
+    application_viewport: 'docs/react/src/components/DeviceFrame.jsx — port frame contents only; omit the mock device bezel'
+    preview_only_status_bar: 'docs/index.html only — do not import docs/react/src/components/StatusBar.jsx from the React app'
+    loading_crystal: 'docs/react/src/components/CrystalLoader.jsx (dc: the inline <svg> under stateBlock.pyramid in index.html; keyframes in src/index.css / the <style> block mirror each other)'
     desktop_menu_bar: docs/react/src/components/MenuBar.jsx
 
 # ---------------------------------------------------------------------
@@ -173,7 +173,7 @@ workflow:
       a button is usually a new renderVals() field AND a new template
       line).
   - step: 3
-    do: "Find the matching React file(s) and apply the equivalent change, translating {{ }} bindings per binding_translation_table."
+    do: 'Find the matching React file(s) and apply the equivalent change, translating {{ }} bindings per binding_translation_table.'
   - step: 4
     do: >
       If the change adds or touches an event handler or a computed value
@@ -184,7 +184,7 @@ workflow:
       expression" discipline anyway for consistency between the two
       files.
   - step: 5
-    do: "cd docs/react && npm run build — catches JSX/import/type errors before you run anything."
+    do: 'cd docs/react && npm run build — catches JSX/import/type errors before you run anything.'
   - step: 6
     do: >
       Smoke test both docs/index.html and docs/react (npm run dev or the

@@ -10,8 +10,12 @@ describe('CoordinateNormalizer', () => {
   });
 
   it('calculates region origin in meters accurately', () => {
-    expect(CoordinateNormalizer.getRegionOriginMeters({ x: 1000, y: 1000 })).toEqual([256000, 256000]);
-    expect(CoordinateNormalizer.getRegionOriginMeters({ x: 256000, y: 256000 })).toEqual([256000, 256000]);
+    expect(CoordinateNormalizer.getRegionOriginMeters({ x: 1000, y: 1000 })).toEqual([
+      256000, 256000,
+    ]);
+    expect(CoordinateNormalizer.getRegionOriginMeters({ x: 256000, y: 256000 })).toEqual([
+      256000, 256000,
+    ]);
     expect(CoordinateNormalizer.getRegionOriginMeters(null)).toEqual([0, 0]);
   });
 

@@ -87,7 +87,18 @@ export const ViewerProvider: React.FC<{ children: React.ReactNode; initialScreen
   }, []);
 
   const value = useMemo<ViewerContextValue>(
-    () => ({ screen, setScreen: goto, condition, setCondition, dialog, setDialog, drawDistance, setDrawDistance, prefs, setPref }),
+    () => ({
+      screen,
+      setScreen: goto,
+      condition,
+      setCondition,
+      dialog,
+      setDialog,
+      drawDistance,
+      setDrawDistance,
+      prefs,
+      setPref,
+    }),
     [screen, goto, condition, dialog, drawDistance, prefs, setPref],
   );
 

@@ -60,13 +60,15 @@ describe('Typed LLSD Sentinel Nodes & Unified Inventory Reconciler Store', () =>
       const ownerId = '00000000-0000-0000-0000-000000000002';
 
       const requestData = {
-        folders: [{
-          folder_id: new LLSDUUID(folderId),
-          owner_id: new LLSDUUID(ownerId),
-          fetch_folders: true,
-          fetch_items: true,
-          sort_order: 1,
-        }]
+        folders: [
+          {
+            folder_id: new LLSDUUID(folderId),
+            owner_id: new LLSDUUID(ownerId),
+            fetch_folders: true,
+            fetch_items: true,
+            sort_order: 1,
+          },
+        ],
       };
 
       const xml = LLSD.buildXML(requestData);
@@ -96,28 +98,34 @@ describe('Typed LLSD Sentinel Nodes & Unified Inventory Reconciler Store', () =>
 
     it('normalizes incoming capability HTTP responses (FetchInventoryDescendents2 format)', () => {
       const capResponseData = {
-        folders: [{
-          folder_id: 'folder-1-uuid',
-          categories: [{
-            category_id: 'subfolder-1-uuid',
-            name: 'Textures Folder',
-            parent_id: 'folder-1-uuid',
-            type_default: 0,
-            version: 1,
-          }],
-          items: [{
-            item_id: 'item-1-uuid',
-            name: 'Sample Texture',
-            parent_id: 'folder-1-uuid',
-            type_default: 0,
-            asset_id: 'asset-1-uuid',
-            desc: 'A high res texture',
-            inv_type: 0,
-            flags: 0,
-            creation_date: 1672531199,
-            owner_id: 'agent-owner-uuid',
-          }]
-        }]
+        folders: [
+          {
+            folder_id: 'folder-1-uuid',
+            categories: [
+              {
+                category_id: 'subfolder-1-uuid',
+                name: 'Textures Folder',
+                parent_id: 'folder-1-uuid',
+                type_default: 0,
+                version: 1,
+              },
+            ],
+            items: [
+              {
+                item_id: 'item-1-uuid',
+                name: 'Sample Texture',
+                parent_id: 'folder-1-uuid',
+                type_default: 0,
+                asset_id: 'asset-1-uuid',
+                desc: 'A high res texture',
+                inv_type: 0,
+                flags: 0,
+                creation_date: 1672531199,
+                owner_id: 'agent-owner-uuid',
+              },
+            ],
+          },
+        ],
       };
 
       invManager.handleInventoryResponse(capResponseData);
@@ -173,13 +181,25 @@ describe('Typed LLSD Sentinel Nodes & Unified Inventory Reconciler Store', () =>
       const folderWithStr = invManager.normalizeFolder({ id: 'f-1', name: 'Trash', type: 'Trash' });
       expect(folderWithStr.folderType).toBe(13); // LLFolderType.Trash
 
-      const itemWithStrType = invManager.normalizeItem({ id: 'i-1', name: 'My Texture', asset_type: 'texture' });
+      const itemWithStrType = invManager.normalizeItem({
+        id: 'i-1',
+        name: 'My Texture',
+        asset_type: 'texture',
+      });
       expect(itemWithStrType.assetType).toBe(0); // LLAssetType.Texture
 
-      const itemWithMeshStr = invManager.normalizeItem({ id: 'i-2', name: 'Mesh Prim', asset_type: 'mesh' });
+      const itemWithMeshStr = invManager.normalizeItem({
+        id: 'i-2',
+        name: 'Mesh Prim',
+        asset_type: 'mesh',
+      });
       expect(itemWithMeshStr.assetType).toBe(49); // LLAssetType.Mesh
 
-      const itemWithUnknownType = invManager.normalizeItem({ id: 'i-3', name: 'Unknown Asset', asset_type: 'invalid_custom_type' });
+      const itemWithUnknownType = invManager.normalizeItem({
+        id: 'i-3',
+        name: 'Unknown Asset',
+        asset_type: 'invalid_custom_type',
+      });
       expect(itemWithUnknownType.assetType).toBe(-1); // LLAssetType.Unknown
     });
   });
@@ -193,8 +213,22 @@ describe('Typed LLSD Sentinel Nodes & Unified Inventory Reconciler Store', () =>
           { id: 'f-clothing', name: 'Clothing', parent: 'f-root', folderType: 5 },
         ],
         items: [
-          { id: 'i-shirt', name: 'Blue Shirt', parent: 'f-clothing', assetType: 5, assetId: 'asset-shirt-uuid', description: 'Casual shirt' },
-          { id: 'i-pants', name: 'Jeans', parent: 'f-clothing', assetType: 5, assetId: 'asset-pants-uuid', description: 'Denim jeans' },
+          {
+            id: 'i-shirt',
+            name: 'Blue Shirt',
+            parent: 'f-clothing',
+            assetType: 5,
+            assetId: 'asset-shirt-uuid',
+            description: 'Casual shirt',
+          },
+          {
+            id: 'i-pants',
+            name: 'Jeans',
+            parent: 'f-clothing',
+            assetType: 5,
+            assetId: 'asset-pants-uuid',
+            description: 'Denim jeans',
+          },
         ],
         rootId: 'f-root',
         rootName: 'My Inventory',

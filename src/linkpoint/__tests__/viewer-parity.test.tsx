@@ -9,10 +9,25 @@ import { FLOATERS } from '../../theme/constants.js';
 import { app } from '../app';
 import { GroupsManager } from '../phase2/groups';
 import { VIEWER_SETTINGS_KEY } from '../../hooks/viewerSettings.js';
-import { mountScreen, unmount, click, typeInto, flush, buttonByText, type Mounted } from './ui-helpers';
+import {
+  mountScreen,
+  unmount,
+  click,
+  typeInto,
+  flush,
+  buttonByText,
+  type Mounted,
+} from './ui-helpers';
 let mounted: Mounted | null = null;
-beforeEach(() => { localStorage.clear(); app.groups.replaceGroups([]); });
-afterEach(async () => { await unmount(mounted); mounted = null; vi.restoreAllMocks(); });
+beforeEach(() => {
+  localStorage.clear();
+  app.groups.replaceGroups([]);
+});
+afterEach(async () => {
+  await unmount(mounted);
+  mounted = null;
+  vi.restoreAllMocks();
+});
 
 describe('viewer navigation and preferences', () => {
   it('makes every registered screen available from the phone directory and desktop windows', async () => {
@@ -27,14 +42,22 @@ describe('viewer navigation and preferences', () => {
   it('filters settings and remembers preferences after remount, preserving explicit device mode on resize', async () => {
     mounted = await mountScreen(Settings);
     await typeInto(mounted.host.querySelector('#settings-fov-select') as HTMLSelectElement, '80');
-    await typeInto(mounted.host.querySelector('#settings-format-select') as HTMLSelectElement, 'mobile');
+    await typeInto(
+      mounted.host.querySelector('#settings-format-select') as HTMLSelectElement,
+      'mobile',
+    );
     await click(buttonByText(mounted.host, 'Graphics'));
-    expect((mounted.host.querySelector('[aria-labelledby="chat-im-heading"]') as HTMLElement).hidden).toBe(true);
-    expect((mounted.host.querySelector('[aria-labelledby="graphics-heading"]') as HTMLElement).hidden).toBe(false);
+    expect(
+      (mounted.host.querySelector('[aria-labelledby="chat-im-heading"]') as HTMLElement).hidden,
+    ).toBe(true);
+    expect(
+      (mounted.host.querySelector('[aria-labelledby="graphics-heading"]') as HTMLElement).hidden,
+    ).toBe(false);
     expect(JSON.parse(localStorage.getItem(VIEWER_SETTINGS_KEY)!).prefs.fov).toBe(80);
     await act(async () => window.dispatchEvent(new Event('resize')));
     expect(mounted.ctx.current.state.device).toBe('and');
-    await unmount(mounted); mounted = await mountScreen(Settings);
+    await unmount(mounted);
+    mounted = await mountScreen(Settings);
     expect(mounted.ctx.current.state.prefs.fov).toBe(80);
     expect(mounted.ctx.current.state.viewMode).toBe('mobile');
   });
@@ -53,17 +76,21 @@ describe('group list and details', () => {
     app.groups.setGroupInfo('g1', { name: 'Builders' });
     vi.spyOn(app, 'loadGroups').mockResolvedValue(app.groups.getGroups());
     const load = vi.spyOn(app, 'loadGroupDetails').mockImplementation(async (id, section) => {
-      if (section === 'members') app.groups.replaceMembers(id, [{ id: 'resident', title: 'Owner' }]);
+      if (section === 'members')
+        app.groups.replaceMembers(id, [{ id: 'resident', title: 'Owner' }]);
       return {};
     });
-    mounted = await mountScreen(GroupsScreen); await flush();
+    mounted = await mountScreen(GroupsScreen);
+    await flush();
     expect(load).toHaveBeenCalledWith('g1', 'profile');
     await click(buttonByText(mounted.host, /Builders/));
     expect(mounted.host.querySelector('.group-browser-detail')).toBeTruthy();
-    await click(buttonByText(mounted.host, /Members/i)); await flush();
+    await click(buttonByText(mounted.host, /Members/i));
+    await flush();
     expect(load).toHaveBeenCalledWith('g1', 'members');
     expect(mounted.host.textContent).toContain('Owner');
-    await click(buttonByText(mounted.host, /Roles/i)); await flush();
+    await click(buttonByText(mounted.host, /Roles/i));
+    await flush();
     expect(load).toHaveBeenCalledWith('g1', 'roles');
     await click(mounted.host.querySelector('[aria-label="Back to groups"]'));
     expect(mounted.host.querySelector('.group-browser-detail')).toBeNull();

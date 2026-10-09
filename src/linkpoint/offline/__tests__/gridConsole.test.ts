@@ -4,7 +4,7 @@ import {
   LOG_COMPONENTS,
   formatLogEntry,
   formatLogTime,
-  LogEntry
+  LogEntry,
 } from '../GridConsole';
 import { LocalGridManager } from '../LocalGridManager';
 import { LocalAssetManager } from '../LocalAssetManager';
@@ -49,7 +49,7 @@ describe('GridConsole', () => {
     for (let i = 1; i <= 5; i++) {
       bounded.info(LOG_COMPONENTS.REGION, `entry ${i}`);
     }
-    const messages = bounded.getEntries().map(e => e.message);
+    const messages = bounded.getEntries().map((e) => e.message);
     expect(messages).toEqual(['entry 3', 'entry 4', 'entry 5']);
     expect(bounded.getEntryCount()).toBe(3);
   });
@@ -57,7 +57,7 @@ describe('GridConsole', () => {
   it('trims existing entries when the limit is lowered', () => {
     for (let i = 1; i <= 6; i++) log.info(LOG_COMPONENTS.REGION, `entry ${i}`);
     log.setMaxEntries(2);
-    expect(log.getEntries().map(e => e.message)).toEqual(['entry 5', 'entry 6']);
+    expect(log.getEntries().map((e) => e.message)).toEqual(['entry 5', 'entry 6']);
   });
 
   it('suppresses entries below the minimum level', () => {
@@ -77,7 +77,9 @@ describe('GridConsole', () => {
     expect(log.getEntries({ level: 'error' })).toHaveLength(1);
     expect(log.getEntries({ component: 'ASSET SERVICE' })).toHaveLength(2);
     expect(log.getEntries({ search: 'FAILED' })).toHaveLength(1);
-    expect(log.getEntries({ level: 'info', component: 'ASSET SERVICE', search: 'stored' })).toHaveLength(1);
+    expect(
+      log.getEntries({ level: 'info', component: 'ASSET SERVICE', search: 'stored' }),
+    ).toHaveLength(1);
   });
 
   it('counts entries by level and lists components', () => {
@@ -99,7 +101,9 @@ describe('GridConsole', () => {
 
   it('captures non-Error throws without losing information', () => {
     expect(log.captureError(LOG_COMPONENTS.GRID, 'string throw', 'boom')?.detail).toBe('boom');
-    expect(log.captureError(LOG_COMPONENTS.GRID, 'object throw', { code: 42 })?.detail).toContain('42');
+    expect(log.captureError(LOG_COMPONENTS.GRID, 'object throw', { code: 42 })?.detail).toContain(
+      '42',
+    );
   });
 
   it('formats entries in OpenSim console style', () => {
@@ -121,12 +125,14 @@ describe('GridConsole', () => {
 
   it('routes uncaught window errors into the log', () => {
     const detach = log.attachGlobalErrorHandlers();
-    window.dispatchEvent(new ErrorEvent('error', { message: 'kaboom', error: new Error('kaboom') }));
-    expect(log.getEntries({ level: 'error' }).some(e => e.message.includes('kaboom'))).toBe(true);
+    window.dispatchEvent(
+      new ErrorEvent('error', { message: 'kaboom', error: new Error('kaboom') }),
+    );
+    expect(log.getEntries({ level: 'error' }).some((e) => e.message.includes('kaboom'))).toBe(true);
 
     detach();
     window.dispatchEvent(new ErrorEvent('error', { message: 'after detach' }));
-    expect(log.getEntries().some(e => e.message.includes('after detach'))).toBe(false);
+    expect(log.getEntries().some((e) => e.message.includes('after detach'))).toBe(false);
   });
 });
 
@@ -161,7 +167,9 @@ describe('offline services write to the console', () => {
 
     const res = await manager.getServer().processLogin('Ada', 'Lovelace', 'analytical');
     expect(res.login).toBe('false');
-    expect(log.getEntries({ level: 'error' }).some(e => e.message.includes('local grid is offline'))).toBe(true);
+    expect(
+      log.getEntries({ level: 'error' }).some((e) => e.message.includes('local grid is offline')),
+    ).toBe(true);
   });
 
   it('logs asset, cache and archiver activity', async () => {
@@ -181,6 +189,8 @@ describe('offline services write to the console', () => {
     const log = new GridConsole();
     const parsed = await new OARParser(log).parseOAR('not xml at all');
     expect(parsed.region.prims).toHaveLength(0);
-    expect(log.getEntries({ level: 'warn' }).some(e => e.message.includes('No <SceneObjectGroup>'))).toBe(true);
+    expect(
+      log.getEntries({ level: 'warn' }).some((e) => e.message.includes('No <SceneObjectGroup>')),
+    ).toBe(true);
   });
 });

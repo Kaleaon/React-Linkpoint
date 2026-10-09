@@ -20,7 +20,9 @@ describe('Dual-transport Group Notices & TTL Caching', () => {
     });
 
     expect(caps.hasCapability('GroupNoticesList')).toBe(true);
-    expect(caps.getGroupNoticesListUrl()).toBe('https://sim.example.com/cap/group_notices_list_123');
+    expect(caps.getGroupNoticesListUrl()).toBe(
+      'https://sim.example.com/cap/group_notices_list_123',
+    );
   });
 
   it('Requirement 2: GroupsManager queries HTTP capability when available and updates NoticeStore', async () => {
@@ -55,7 +57,7 @@ describe('Dual-transport Group Notices & TTL Caching', () => {
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/llsd+xml' },
-      })
+      }),
     );
 
     expect(notices).toHaveLength(1);
@@ -107,7 +109,9 @@ describe('Dual-transport Group Notices & TTL Caching', () => {
 
     const notices = await groups.requestGroupNotices('group-200');
 
-    expect(protocol.send).toHaveBeenCalledWith('GroupNoticesListRequest', { GroupData: { GroupID: 'group-200' } });
+    expect(protocol.send).toHaveBeenCalledWith('GroupNoticesListRequest', {
+      GroupData: { GroupID: 'group-200' },
+    });
     expect(notices).toHaveLength(1);
     expect(notices[0].subject).toBe('UDP Notice');
     expect(store.isGroupCacheValid('group-200')).toBe(true);
@@ -146,7 +150,22 @@ describe('Dual-transport Group Notices & TTL Caching', () => {
 
     // Seed store with expired cache (6 minutes ago)
     const oldTimestamp = Date.now() - 6 * 60 * 1000;
-    store.setGroupCache('group-400', [{ id: 'n-old', groupId: 'group-400', subject: 'Stale Notice', message: 'Old', from: 'System', timestamp: oldTimestamp, calendar: null, attachment: null }], oldTimestamp);
+    store.setGroupCache(
+      'group-400',
+      [
+        {
+          id: 'n-old',
+          groupId: 'group-400',
+          subject: 'Stale Notice',
+          message: 'Old',
+          from: 'System',
+          timestamp: oldTimestamp,
+          calendar: null,
+          attachment: null,
+        },
+      ],
+      oldTimestamp,
+    );
 
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
@@ -167,9 +186,9 @@ describe('Dual-transport Group Notices & TTL Caching', () => {
     const store = new NoticeStore(protocol);
     const groups = new GroupsManager(protocol, undefined, store);
 
-    await expect(
-      groups.requestGroupNotices('group-500', { timeoutMs: 50 })
-    ).rejects.toThrow('Notice history unavailable');
+    await expect(groups.requestGroupNotices('group-500', { timeoutMs: 50 })).rejects.toThrow(
+      'Notice history unavailable',
+    );
 
     expect(store.isHistoryUnavailable('group-500')).toBe(true);
   });

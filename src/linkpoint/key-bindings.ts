@@ -162,8 +162,17 @@ export const DEFAULT_KEY_BINDINGS: Readonly<Record<KeyMode, readonly KeyBinding[
 };
 
 const CODE_TO_KEY: Record<string, string> = {
-  ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', ArrowUp: 'UP', ArrowDown: 'DOWN',
-  PageUp: 'PGUP', PageDown: 'PGDN', Home: 'HOME', Space: 'SPACE', Enter: 'ENTER', NumpadEnter: 'ENTER', NumpadDivide: 'DIVIDE',
+  ArrowLeft: 'LEFT',
+  ArrowRight: 'RIGHT',
+  ArrowUp: 'UP',
+  ArrowDown: 'DOWN',
+  PageUp: 'PGUP',
+  PageDown: 'PGDN',
+  Home: 'HOME',
+  Space: 'SPACE',
+  Enter: 'ENTER',
+  NumpadEnter: 'ENTER',
+  NumpadDivide: 'DIVIDE',
 };
 
 /** Map a DOM `KeyboardEvent.code` to the binding table's key name, or null for keys it never binds. */
@@ -174,7 +183,11 @@ export function keyNameFromCode(code: string): string | null {
 }
 
 /** Reduce modifier state to the table's mask names (Ctrl+Alt+Shift, Ctrl+Alt, Alt, Shift or none). */
-export function maskFromModifiers(mod: { ctrl?: boolean; alt?: boolean; shift?: boolean }): KeyMask | null {
+export function maskFromModifiers(mod: {
+  ctrl?: boolean;
+  alt?: boolean;
+  shift?: boolean;
+}): KeyMask | null {
   const { ctrl, alt, shift } = mod;
   if (ctrl && alt && shift) return 'CTL_ALT_SHIFT';
   if (ctrl && alt && !shift) return 'CTL_ALT';
@@ -187,7 +200,12 @@ export function maskFromModifiers(mod: { ctrl?: boolean; alt?: boolean; shift?: 
 export type KeyOverrides = Partial<Record<KeyMode, readonly KeyBinding[]>>;
 
 /** Look up the command for a key press. Overrides replace a mode's table wholesale. */
-export function commandFor(mode: KeyMode, key: string, mask: KeyMask, overrides: KeyOverrides = {}): string | null {
+export function commandFor(
+  mode: KeyMode,
+  key: string,
+  mask: KeyMask,
+  overrides: KeyOverrides = {},
+): string | null {
   const table = overrides[mode] ?? DEFAULT_KEY_BINDINGS[mode];
   return table.find(([k, m]) => k === key && m === mask)?.[2] ?? null;
 }

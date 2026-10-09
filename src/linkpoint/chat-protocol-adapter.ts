@@ -6,7 +6,11 @@
  */
 
 import { Utils } from './utils';
-import { ChatType, InstantMessageDialog, type InstantMessageDialog as InstantMessageDialogValue } from './sl-message-types';
+import {
+  ChatType,
+  InstantMessageDialog,
+  type InstantMessageDialog as InstantMessageDialogValue,
+} from './sl-message-types';
 
 export interface QueuedIM {
   recipientId: string;
@@ -62,10 +66,14 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
   private attachProtocol(protocol: any) {
     if (typeof protocol.on === 'function') {
       protocol.on('connected', () => {
-        this.flushAll().catch((err) => console.warn('[ChatProtocolAdapter] Auto-flush failed on connected:', err));
+        this.flushAll().catch((err) =>
+          console.warn('[ChatProtocolAdapter] Auto-flush failed on connected:', err),
+        );
       });
       protocol.on('ready', () => {
-        this.flushAll().catch((err) => console.warn('[ChatProtocolAdapter] Auto-flush failed on ready:', err));
+        this.flushAll().catch((err) =>
+          console.warn('[ChatProtocolAdapter] Auto-flush failed on ready:', err),
+        );
       });
     }
   }
@@ -82,7 +90,11 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
    * Spatial Chat Dispatcher
    * Maps spatial range inputs or channels to channel 0 ChatType enums (0=Whisper, 1=Say, 2=Shout).
    */
-  async sendSpatialChat(message: string, channelOrRange: number | string = 0, chatType: ChatType = ChatType.NORMAL): Promise<void> {
+  async sendSpatialChat(
+    message: string,
+    channelOrRange: number | string = 0,
+    chatType: ChatType = ChatType.NORMAL,
+  ): Promise<void> {
     if (!message || !message.trim()) {
       throw new Error('Message cannot be empty');
     }
@@ -119,7 +131,11 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
    * Formats group messages as ImprovedInstantMessage session payloads (Dialog=17).
    * Buffers unnegotiated group messages in pending queue.
    */
-  async sendGroupChat(groupId: string, message: string, groupName: string = 'Group'): Promise<ImprovedInstantMessagePayload> {
+  async sendGroupChat(
+    groupId: string,
+    message: string,
+    groupName: string = 'Group',
+  ): Promise<ImprovedInstantMessagePayload> {
     if (!message || !message.trim()) {
       throw new Error('Message cannot be empty');
     }
@@ -147,7 +163,10 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
         await this.protocol.sendImprovedInstantMessage(payload);
         return payload;
       } catch (error) {
-        console.warn(`[ChatProtocolAdapter] Group chat dispatch failed, queueing message for group ${groupId}:`, error);
+        console.warn(
+          `[ChatProtocolAdapter] Group chat dispatch failed, queueing message for group ${groupId}:`,
+          error,
+        );
         this.queueGroupMessage(groupId, message, groupName, payload);
         return payload;
       }
@@ -156,7 +175,10 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
         await this.protocol.sendGroupMessage(groupId, message);
         return payload;
       } catch (error) {
-        console.warn(`[ChatProtocolAdapter] Group chat dispatch failed, queueing message for group ${groupId}:`, error);
+        console.warn(
+          `[ChatProtocolAdapter] Group chat dispatch failed, queueing message for group ${groupId}:`,
+          error,
+        );
         this.queueGroupMessage(groupId, message, groupName, payload);
         return payload;
       }
@@ -170,7 +192,11 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
    * Tries direct IM dispatch, buffering undelivered messages in offline queue when transport is unavailable.
    * Suppresses sendChat(text, 0, 4) fallback calls.
    */
-  async sendDirectIM(recipientId: string, message: string, recipientName: string = 'Resident'): Promise<{ sent: boolean; queued: boolean }> {
+  async sendDirectIM(
+    recipientId: string,
+    message: string,
+    recipientName: string = 'Resident',
+  ): Promise<{ sent: boolean; queued: boolean }> {
     if (!message || !message.trim()) {
       throw new Error('Message cannot be empty');
     }
@@ -200,7 +226,10 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
           return { sent: false, queued: true };
         }
       } catch (error) {
-        console.warn(`[ChatProtocolAdapter] Direct IM dispatch failed, buffering offline for ${recipientId}:`, error);
+        console.warn(
+          `[ChatProtocolAdapter] Direct IM dispatch failed, buffering offline for ${recipientId}:`,
+          error,
+        );
         this.queueOfflineIM(recipientId, recipientName, message);
         return { sent: false, queued: true };
       }
@@ -233,7 +262,12 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
     this.emit('offline_queue_updated', { recipientId, queueSize: queue.length });
   }
 
-  private queueGroupMessage(groupId: string, message: string, groupName: string, payload: ImprovedInstantMessagePayload) {
+  private queueGroupMessage(
+    groupId: string,
+    message: string,
+    groupName: string,
+    payload: ImprovedInstantMessagePayload,
+  ) {
     let queue = this.pendingGroupQueue.get(groupId);
     if (!queue) {
       queue = [];

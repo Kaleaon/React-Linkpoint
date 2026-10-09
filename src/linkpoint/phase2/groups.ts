@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Groups System (Features 41-45)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 3
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 83-88)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/modules/groups/
- * 
+ *
  * Manages group information, members, roles, chat, and notices.
  */
 
@@ -25,11 +25,12 @@ export class GroupsManager {
   constructor(
     protocolManager?: any,
     capabilitiesManager?: CapabilitiesManager,
-    noticeStore?: NoticeStore
+    noticeStore?: NoticeStore,
   ) {
-    this.adapter = protocolManager instanceof ChatProtocolAdapter
-      ? protocolManager
-      : new ChatProtocolAdapter(protocolManager);
+    this.adapter =
+      protocolManager instanceof ChatProtocolAdapter
+        ? protocolManager
+        : new ChatProtocolAdapter(protocolManager);
     this.protocol = this.adapter.protocol || protocolManager;
     this.capabilitiesManager = capabilitiesManager;
     this.noticeStore = noticeStore;
@@ -54,7 +55,7 @@ export class GroupsManager {
     if (!groupInfo || typeof groupInfo !== 'object') {
       throw new Error('Valid group info required');
     }
-    
+
     const group = {
       id: groupId,
       name: groupInfo.name || 'Group',
@@ -63,9 +64,9 @@ export class GroupsManager {
       founderId: groupInfo.founderId || null,
       membershipFee: groupInfo.membershipFee || 0,
       openEnrollment: groupInfo.openEnrollment || false,
-      ...groupInfo
+      ...groupInfo,
     };
-    
+
     this.groups.set(groupId, group);
     console.log(`[Groups] Updated group info: ${group.name}`);
   }
@@ -85,20 +86,20 @@ export class GroupsManager {
     if (!groupId || !memberId) {
       throw new Error('Valid group ID and member ID required');
     }
-    
+
     if (!this.groupMembers.has(groupId)) {
       this.groupMembers.set(groupId, new Map());
     }
-    
+
     const member = {
       id: memberId,
       title: memberData.title || '',
       contribution: memberData.contribution || 0,
       onlineStatus: memberData.onlineStatus || 'unknown',
       powers: memberData.powers || 0,
-      ...memberData
+      ...memberData,
     };
-    
+
     this.groupMembers.get(groupId)!.set(memberId, member);
     console.log(`[Groups] Added member ${memberId} to group ${groupId}`);
   }
@@ -121,11 +122,11 @@ export class GroupsManager {
     if (!roleData || typeof roleData !== 'object') {
       throw new Error('Valid role data required');
     }
-    
+
     if (!this.groupRoles.has(groupId)) {
       this.groupRoles.set(groupId, new Map());
     }
-    
+
     const role = {
       id: roleId,
       name: roleData.name || 'Role',
@@ -133,9 +134,9 @@ export class GroupsManager {
       description: roleData.description || '',
       powers: roleData.powers || 0,
       members: roleData.members || [],
-      ...roleData
+      ...roleData,
     };
-    
+
     this.groupRoles.get(groupId)!.set(roleId, role);
     console.log(`[Groups] Added role ${role.name} to group ${groupId}`);
   }
@@ -155,7 +156,7 @@ export class GroupsManager {
     if (!groupId || !message) {
       throw new Error('Valid group ID and message required');
     }
-    
+
     console.log(`[Groups] Sending group chat to ${groupId}: ${message}`);
     const payload = await this.adapter.sendGroupChat(groupId, message);
 
@@ -163,9 +164,9 @@ export class GroupsManager {
       groupId: groupId,
       message: message,
       timestamp: payload.timestamp || Date.now(),
-      type: 'group'
+      type: 'group',
     };
-    
+
     return chatMsg;
   }
 
@@ -177,11 +178,11 @@ export class GroupsManager {
     if (!groupId || !noticeData) {
       throw new Error('Valid group ID and notice data required');
     }
-    
+
     if (!this.groupNotices.has(groupId)) {
       this.groupNotices.set(groupId, []);
     }
-    
+
     const notice = {
       id: noticeData.id || `notice-${Date.now()}`,
       subject: noticeData.subject || 'Notice',
@@ -190,9 +191,9 @@ export class GroupsManager {
       timestamp: noticeData.timestamp || Date.now(),
       hasAttachment: noticeData.hasAttachment || false,
       attachment: noticeData.attachment || null,
-      ...noticeData
+      ...noticeData,
     };
-    
+
     this.groupNotices.get(groupId)!.push(notice);
     console.log(`[Groups] Added notice to group ${groupId}: ${notice.subject}`);
   }
@@ -216,7 +217,7 @@ export class GroupsManager {
       capabilitiesManager?: CapabilitiesManager;
       noticeStore?: NoticeStore;
       timeoutMs?: number;
-    } = {}
+    } = {},
   ): Promise<SavedNotice[]> {
     if (!groupId || typeof groupId !== 'string') {
       throw new Error('Valid group ID required');
@@ -234,10 +235,15 @@ export class GroupsManager {
         return cache.notices;
       }
       if (cache && !cache.valid) {
-        console.log(`[Groups] TTL expired for group ${groupId}. Triggering background re-validation.`);
+        console.log(
+          `[Groups] TTL expired for group ${groupId}. Triggering background re-validation.`,
+        );
         // Background re-validation request
         this.fetchGroupNoticesNetwork(groupId, capMgr, store, timeoutMs).catch((err) => {
-          console.warn(`[Groups] Background notice re-validation failed for group ${groupId}:`, err);
+          console.warn(
+            `[Groups] Background notice re-validation failed for group ${groupId}:`,
+            err,
+          );
         });
         return cache.notices;
       }
@@ -250,9 +256,10 @@ export class GroupsManager {
     groupId: string,
     capMgr?: CapabilitiesManager,
     store?: NoticeStore,
-    timeoutMs: number = 10000
+    timeoutMs: number = 10000,
   ): Promise<SavedNotice[]> {
-    const capUrl = capMgr?.getGroupNoticesListUrl?.() || capMgr?.resolveCapability('GroupNoticesList');
+    const capUrl =
+      capMgr?.getGroupNoticesListUrl?.() || capMgr?.resolveCapability('GroupNoticesList');
 
     // 1. Try HTTP Capability query first if URL is present
     if (capUrl) {
@@ -268,7 +275,10 @@ export class GroupsManager {
         }
         return notices;
       } catch (err) {
-        console.warn(`[Groups] HTTP GroupNoticesList query failed or timed out. Falling back to UDP:`, err);
+        console.warn(
+          `[Groups] HTTP GroupNoticesList query failed or timed out. Falling back to UDP:`,
+          err,
+        );
       }
     }
 
@@ -285,7 +295,10 @@ export class GroupsManager {
       }
       return notices;
     } catch (udpErr) {
-      console.error(`[Groups] Both HTTP capability and UDP packet retries failed for group ${groupId}:`, udpErr);
+      console.error(
+        `[Groups] Both HTTP capability and UDP packet retries failed for group ${groupId}:`,
+        udpErr,
+      );
       if (store) {
         store.setHistoryUnavailable(groupId, true);
       }
@@ -296,7 +309,7 @@ export class GroupsManager {
   private async queryGroupNoticesHttpCap(
     capUrl: string,
     groupId: string,
-    timeoutMs: number
+    timeoutMs: number,
   ): Promise<SavedNotice[]> {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
@@ -337,12 +350,20 @@ export class GroupsManager {
       } else {
         const noticeMatches = rawText.match(/<map>[\s\S]*?<\/map>/g) || [];
         for (const mapXml of noticeMatches) {
-          const id = this.extractXmlTag(mapXml, 'notice_id') || this.extractXmlTag(mapXml, 'id') || `notice-${Date.now()}-${Math.random()}`;
+          const id =
+            this.extractXmlTag(mapXml, 'notice_id') ||
+            this.extractXmlTag(mapXml, 'id') ||
+            `notice-${Date.now()}-${Math.random()}`;
           const subject = this.extractXmlTag(mapXml, 'subject') || 'Group Notice';
           const message = this.extractXmlTag(mapXml, 'message') || '';
-          const from = this.extractXmlTag(mapXml, 'from_name') || this.extractXmlTag(mapXml, 'from') || 'Group Admin';
+          const from =
+            this.extractXmlTag(mapXml, 'from_name') ||
+            this.extractXmlTag(mapXml, 'from') ||
+            'Group Admin';
           const timestamp = Number(this.extractXmlTag(mapXml, 'timestamp')) || Date.now();
-          const hasAtt = mapXml.includes('<key>has_attachment</key><boolean>1</boolean>') || mapXml.includes('<key>has_attachment</key><boolean>true</boolean>');
+          const hasAtt =
+            mapXml.includes('<key>has_attachment</key><boolean>1</boolean>') ||
+            mapXml.includes('<key>has_attachment</key><boolean>true</boolean>');
 
           notices.push({
             id,
@@ -352,14 +373,16 @@ export class GroupsManager {
             from,
             timestamp,
             calendar: null,
-            attachment: hasAtt ? {
-              hasAttachment: true,
-              attachmentName: this.extractXmlTag(mapXml, 'attachment_name') || 'Attached Item',
-              attachmentItemId: this.extractXmlTag(mapXml, 'attachment_item_id') || null,
-              attachmentType: Number(this.extractXmlTag(mapXml, 'attachment_type')) || null,
-              attachmentOwnerId: this.extractXmlTag(mapXml, 'attachment_owner_id') || null,
-              savedToInventoryAt: null,
-            } : null,
+            attachment: hasAtt
+              ? {
+                  hasAttachment: true,
+                  attachmentName: this.extractXmlTag(mapXml, 'attachment_name') || 'Attached Item',
+                  attachmentItemId: this.extractXmlTag(mapXml, 'attachment_item_id') || null,
+                  attachmentType: Number(this.extractXmlTag(mapXml, 'attachment_type')) || null,
+                  attachmentOwnerId: this.extractXmlTag(mapXml, 'attachment_owner_id') || null,
+                  savedToInventoryAt: null,
+                }
+              : null,
             hasAttachment: hasAtt,
           });
         }
@@ -371,7 +394,10 @@ export class GroupsManager {
   }
 
   private extractXmlTag(xml: string, tag: string): string | null {
-    const regex = new RegExp(`<key>${tag}<\/key>\\s*<(?:string|uuid|integer|real|boolean)>([^<]*)<\/(?:string|uuid|integer|real|boolean)>`, 'i');
+    const regex = new RegExp(
+      `<key>${tag}<\/key>\\s*<(?:string|uuid|integer|real|boolean)>([^<]*)<\/(?:string|uuid|integer|real|boolean)>`,
+      'i',
+    );
     const match = xml.match(regex);
     return match ? match[1] : null;
   }
@@ -385,14 +411,19 @@ export class GroupsManager {
       from: item.from_name || item.from || 'Group Admin',
       timestamp: Number(item.timestamp) || Date.now(),
       calendar: null,
-      attachment: item.has_attachment || item.attachment ? {
-        hasAttachment: true,
-        attachmentName: item.attachment_name || item.attachment?.attachmentName || null,
-        attachmentItemId: item.attachment_item_id || item.attachment?.attachmentItemId || null,
-        attachmentType: item.attachment_type ?? item.attachment?.attachmentType ?? null,
-        attachmentOwnerId: item.attachment_owner_id || item.attachment?.attachmentOwnerId || null,
-        savedToInventoryAt: null,
-      } : null,
+      attachment:
+        item.has_attachment || item.attachment
+          ? {
+              hasAttachment: true,
+              attachmentName: item.attachment_name || item.attachment?.attachmentName || null,
+              attachmentItemId:
+                item.attachment_item_id || item.attachment?.attachmentItemId || null,
+              attachmentType: item.attachment_type ?? item.attachment?.attachmentType ?? null,
+              attachmentOwnerId:
+                item.attachment_owner_id || item.attachment?.attachmentOwnerId || null,
+              savedToInventoryAt: null,
+            }
+          : null,
       hasAttachment: Boolean(item.has_attachment || item.attachment),
     };
   }
@@ -416,7 +447,11 @@ export class GroupsManager {
               this.protocol.off('GroupNoticesListReply', handleReply);
               this.protocol.off('group_notices_list_reply', handleReply);
             }
-            const items = Array.isArray(data.notices) ? data.notices : Array.isArray(data) ? data : [data];
+            const items = Array.isArray(data.notices)
+              ? data.notices
+              : Array.isArray(data)
+                ? data
+                : [data];
             resolve(items.map((i: any) => this.mapNoticeItem(i, groupId)));
           }
         }
@@ -456,26 +491,27 @@ export class GroupsManager {
 
   /** Snapshot of group records received during this session. */
   getGroups() {
-    return Array.from(this.groups.values()).map(group => ({ ...group }));
+    return Array.from(this.groups.values()).map((group) => ({ ...group }));
   }
 
   replaceGroups(groups: any[]) {
-    const ids = new Set(groups.map(group => group.id));
-    for (const id of this.groups.keys()) if (!ids.has(id)) {
-      this.groups.delete(id);
-      this.groupMembers.delete(id);
-      this.groupRoles.delete(id);
-      this.groupNotices.delete(id);
-    }
+    const ids = new Set(groups.map((group) => group.id));
+    for (const id of this.groups.keys())
+      if (!ids.has(id)) {
+        this.groups.delete(id);
+        this.groupMembers.delete(id);
+        this.groupRoles.delete(id);
+        this.groupNotices.delete(id);
+      }
     for (const group of groups) this.setGroupInfo(group.id, group);
   }
 
   replaceMembers(groupId: string, members: any[]) {
-    this.groupMembers.set(groupId, new Map(members.map(member => [member.id, member])));
+    this.groupMembers.set(groupId, new Map(members.map((member) => [member.id, member])));
   }
 
   replaceRoles(groupId: string, roles: any[]) {
-    this.groupRoles.set(groupId, new Map(roles.map(role => [role.id, role])));
+    this.groupRoles.set(groupId, new Map(roles.map((role) => [role.id, role])));
   }
 
   getStats() {
@@ -498,7 +534,7 @@ export class GroupsManager {
       totalGroups: this.groups.size,
       totalMembers,
       totalRoles,
-      totalNotices
+      totalNotices,
     };
   }
 }

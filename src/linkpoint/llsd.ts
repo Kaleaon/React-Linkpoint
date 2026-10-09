@@ -100,7 +100,7 @@ export class LLSD {
     }
 
     // Get the first child element (should be the root value)
-    const firstChild = Array.from(llsdElement.children).find(el => el.nodeType === 1) as Element;
+    const firstChild = Array.from(llsdElement.children).find((el) => el.nodeType === 1) as Element;
     if (!firstChild) {
       return null;
     }
@@ -220,22 +220,41 @@ export class LLSD {
    * @private
    */
   private static _buildElement(data: any): string {
-    if (data === null || data === undefined || data instanceof LLSDUndef || (typeof data === 'object' && data !== null && data.type === 'undef')) {
+    if (
+      data === null ||
+      data === undefined ||
+      data instanceof LLSDUndef ||
+      (typeof data === 'object' && data !== null && data.type === 'undef')
+    ) {
       return '<undef />';
     }
 
-    if (data instanceof LLSDUUID || (typeof data === 'object' && data !== null && data.type === 'uuid')) {
+    if (
+      data instanceof LLSDUUID ||
+      (typeof data === 'object' && data !== null && data.type === 'uuid')
+    ) {
       const val = data.value !== undefined ? data.value : String(data);
       return `<uuid>${this._escapeXML(val)}</uuid>`;
     }
 
-    if (data instanceof LLSDURI || (typeof data === 'object' && data !== null && data.type === 'uri')) {
+    if (
+      data instanceof LLSDURI ||
+      (typeof data === 'object' && data !== null && data.type === 'uri')
+    ) {
       const val = data.value !== undefined ? data.value : String(data);
       return `<uri>${this._escapeXML(val)}</uri>`;
     }
 
-    if (data instanceof LLSDBinary || (typeof data === 'object' && data !== null && data.type === 'binary')) {
-      const val = typeof data.value === 'string' ? data.value : (data.value instanceof Uint8Array ? String(data) : String(data.value || ''));
+    if (
+      data instanceof LLSDBinary ||
+      (typeof data === 'object' && data !== null && data.type === 'binary')
+    ) {
+      const val =
+        typeof data.value === 'string'
+          ? data.value
+          : data.value instanceof Uint8Array
+            ? String(data)
+            : String(data.value || '');
       return `<binary>${val}</binary>`;
     }
 

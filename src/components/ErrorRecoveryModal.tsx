@@ -39,7 +39,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
         telemetry: telemetryLogs.slice(0, 20),
       },
       null,
-      2
+      2,
     );
     void navigator.clipboard.writeText(payload);
     setCopied(true);
@@ -77,148 +77,164 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-          <div
-            style={{
-              backgroundColor: '#ef4444',
-              color: '#fff',
-              borderRadius: '50%',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-            }}
-          >
-            !
-          </div>
-          <div>
-            <h2 id="recovery-modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-              Service Recovery Gateway
-            </h2>
-            <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>
-              Code: <code style={{ color: '#fca5a5' }}>{activeError.code}</code> ({activeError.category})
-            </p>
-          </div>
+        <div
+          style={{
+            backgroundColor: '#ef4444',
+            color: '#fff',
+            borderRadius: '50%',
+            width: '36px',
+            height: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'bold',
+          }}
+        >
+          !
         </div>
-
-        <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
-          <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6' }}>{activeError.message}</p>
-          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
-            Automated retries attempted: {activeError.attempts} / 3
+        <div>
+          <h2 id="recovery-modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
+            Service Recovery Gateway
+          </h2>
+          <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>
+            Code: <code style={{ color: '#fca5a5' }}>{activeError.code}</code> (
+            {activeError.category})
           </p>
         </div>
+      </div>
 
-        <div style={{ marginBottom: '16px' }}>
-          <button
-            onClick={() => setShowLogs(!showLogs)}
+      <div
+        style={{
+          backgroundColor: '#111827',
+          padding: '12px',
+          borderRadius: '6px',
+          marginBottom: '16px',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6' }}>{activeError.message}</p>
+        <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+          Automated retries attempted: {activeError.attempts} / 3
+        </p>
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <button
+          onClick={() => setShowLogs(!showLogs)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#60a5fa',
+            cursor: 'pointer',
+            fontSize: '13px',
+            padding: 0,
+            textDecoration: 'underline',
+          }}
+        >
+          {showLogs ? 'Hide Diagnostic Telemetry' : 'View Diagnostic Telemetry'}
+        </button>
+
+        {showLogs && (
+          <div
             style={{
-              background: 'none',
+              marginTop: '8px',
+              backgroundColor: '#000',
+              color: '#10b981',
+              padding: '12px',
+              borderRadius: '4px',
+              maxHeight: '160px',
+              overflowY: 'auto',
+              fontFamily: 'monospace',
+              fontSize: '11px',
+              whiteSpace: 'pre-wrap',
+            }}
+            data-testid="telemetry-log-viewer"
+          >
+            {telemetryLogs.map((log) => (
+              <div key={log.id} style={{ marginBottom: '4px', borderBottom: '1px solid #1f2937' }}>
+                [{log.timestamp.slice(11, 19)}] [{log.code}] {log.message}
+                {log.details && <div>Details: {JSON.stringify(log.details)}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => {
+              clearError();
+              void processRetryQueue();
+            }}
+            style={{
+              flex: 1,
+              backgroundColor: '#2563eb',
+              color: '#fff',
               border: 'none',
-              color: '#60a5fa',
+              padding: '10px',
+              borderRadius: '6px',
+              fontWeight: 600,
               cursor: 'pointer',
-              fontSize: '13px',
-              padding: 0,
-              textDecoration: 'underline',
             }}
           >
-            {showLogs ? 'Hide Diagnostic Telemetry' : 'View Diagnostic Telemetry'}
+            Retry Operation
           </button>
-
-          {showLogs && (
-            <div
-              style={{
-                marginTop: '8px',
-                backgroundColor: '#000',
-                color: '#10b981',
-                padding: '12px',
-                borderRadius: '4px',
-                maxHeight: '160px',
-                overflowY: 'auto',
-                fontFamily: 'monospace',
-                fontSize: '11px',
-                whiteSpace: 'pre-wrap',
-              }}
-              data-testid="telemetry-log-viewer"
-            >
-              {telemetryLogs.map((log) => (
-                <div key={log.id} style={{ marginBottom: '4px', borderBottom: '1px solid #1f2937' }}>
-                  [{log.timestamp.slice(11, 19)}] [{log.code}] {log.message}
-                  {log.details && <div>Details: {JSON.stringify(log.details)}</div>}
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            onClick={handleCopyTelemetry}
+            style={{
+              backgroundColor: '#374151',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+          >
+            {copied ? 'Copied Log!' : 'Copy Telemetry'}
+          </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => {
-                clearError();
-                void processRetryQueue();
-              }}
-              style={{
-                flex: 1,
-                backgroundColor: '#2563eb',
-                color: '#fff',
-                border: 'none',
-                padding: '10px',
-                borderRadius: '6px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Retry Operation
-            </button>
-            <button
-              onClick={handleCopyTelemetry}
-              style={{
-                backgroundColor: '#374151',
-                color: '#fff',
-                border: 'none',
-                padding: '10px 14px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              {copied ? 'Copied Log!' : 'Copy Telemetry'}
-            </button>
-          </div>
-
-          <div style={{ borderTop: '1px solid #374151', paddingTop: '8px', marginTop: '4px', display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => handleFallback('Chat')}
-              style={{
-                flex: 1,
-                backgroundColor: '#10b981',
-                color: '#fff',
-                border: 'none',
-                padding: '8px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              Return to Safe Home (Chat)
-            </button>
-            <button
-              onClick={() => handleFallback('Login')}
-              style={{
-                backgroundColor: '#4b5563',
-                color: '#fff',
-                border: 'none',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              Return to Login
-            </button>
-          </div>
+        <div
+          style={{
+            borderTop: '1px solid #374151',
+            paddingTop: '8px',
+            marginTop: '4px',
+            display: 'flex',
+            gap: '8px',
+          }}
+        >
+          <button
+            onClick={() => handleFallback('Chat')}
+            style={{
+              flex: 1,
+              backgroundColor: '#10b981',
+              color: '#fff',
+              border: 'none',
+              padding: '8px',
+              borderRadius: '6px',
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+          >
+            Return to Safe Home (Chat)
+          </button>
+          <button
+            onClick={() => handleFallback('Login')}
+            style={{
+              backgroundColor: '#4b5563',
+              color: '#fff',
+              border: 'none',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+          >
+            Return to Login
+          </button>
         </div>
+      </div>
     </dialog>
   );
 };

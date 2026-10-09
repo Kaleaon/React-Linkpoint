@@ -79,7 +79,10 @@ export function packJointRows(matrices: ArrayLike<number>[], maxJoints: number):
     for (let row = 0; row < 3; row++) {
       const o = j * 12 + row * 4;
       if (m && m.length === 16) {
-        out[o] = m[row]; out[o + 1] = m[4 + row]; out[o + 2] = m[8 + row]; out[o + 3] = m[12 + row];
+        out[o] = m[row];
+        out[o + 1] = m[4 + row];
+        out[o + 2] = m[8 + row];
+        out[o + 3] = m[12 + row];
       } else {
         out[o + row] = 1;
       }

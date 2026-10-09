@@ -12,7 +12,8 @@
 export const RULES = [
   {
     id: 'invented-resident',
-    pattern: /\b(Jane Doe|Ruth Resident|Nyx Vaher|Kit Sandalwood|Sable Ashgrove|Test User|Example Avatar)\b/,
+    pattern:
+      /\b(Jane Doe|Ruth Resident|Nyx Vaher|Kit Sandalwood|Sable Ashgrove|Test User|Example Avatar)\b/,
     message: 'Invented resident name. Show the real resident, or nothing.',
   },
   {
@@ -22,17 +23,20 @@ export const RULES = [
   },
   {
     id: 'placeholder-id',
-    pattern: /['"`](nyx|kit|sable|ruth)-uuid['"`]|f496d6bf-8235-4ebf-bd56-4f7f0464a27a|216\.82\.52\.24/,
+    pattern:
+      /['"`](nyx|kit|sable|ruth)-uuid['"`]|f496d6bf-8235-4ebf-bd56-4f7f0464a27a|216\.82\.52\.24/,
     message: 'Placeholder agent id or address. Use the session value, or show "—".',
   },
   {
     id: 'seeded-record',
     pattern: /['"`]seed-[a-z]|timestamp:\s*now\s*-\s*\d+/,
-    message: 'Seeded record (made-up message or history). Never write generated data into real state.',
+    message:
+      'Seeded record (made-up message or history). Never write generated data into real state.',
   },
   {
     id: 'simulated-session',
-    pattern: /simulating a resident|synthesi[sz]es? an authentic|generateGeminiLoginResponse|generateSimulatedChat|Virtual Resident|Synthetic grid/i,
+    pattern:
+      /simulating a resident|synthesi[sz]es? an authentic|generateGeminiLoginResponse|generateSimulatedChat|Virtual Resident|Synthetic grid/i,
     message: 'Simulated grid/resident. A failed connection must be reported as a failure.',
     // The client message that says synthetic sessions were removed is the opposite of the problem.
     ignoreLine: /have been removed/i,
@@ -44,7 +48,8 @@ export const RULES = [
   },
   {
     id: 'unknown-to-number',
-    pattern: /(latency|ping|fps|packet\w*|circuit\w*|simPort|capabilit\w+)\w*\)?\s*(\|\||\?\?)\s*(\d+|["'][^"']+["'])/i,
+    pattern:
+      /(latency|ping|fps|packet\w*|circuit\w*|simPort|capabilit\w+)\w*\)?\s*(\|\||\?\?)\s*(\d+|["'][^"']+["'])/i,
     message: 'Fallback turns an unknown measurement into a plausible one. Use null and render "—".',
   },
   {
@@ -60,26 +65,33 @@ export const RULES = [
   {
     id: 'invented-coordinates',
     pattern: /x:\s*128,\s*y:\s*128/,
-    message: 'Default region-centre coordinates presented as the avatar position. Use null when unknown.',
+    message:
+      'Default region-centre coordinates presented as the avatar position. Use null when unknown.',
   },
   {
     id: 'canned-measurement',
     pattern: /notify\(\s*["'`][^"'`]*[—-]\s*\d+\s?ms["'`]/,
-    message: 'Toast with a hard-coded measurement. Report the measured value, or that none was returned.',
+    message:
+      'Toast with a hard-coded measurement. Report the measured value, or that none was returned.',
   },
   {
     id: 'default-item-list',
-    pattern: /^\s*(export\s+)?const\s+(DEFAULT|DEMO|SAMPLE|MOCK|FALLBACK|SEED)_(OUTFIT|ITEM|FRIEND|INVENTORY|GROUP|CONTACT|RESIDENT|OBJECT)S?\w*\s*(:[^=]+)?=\s*\[/,
-    message: 'Built-in list of items shown as if the grid sent them. Start empty and render what the session reports.',
+    pattern:
+      /^\s*(export\s+)?const\s+(DEFAULT|DEMO|SAMPLE|MOCK|FALLBACK|SEED)_(OUTFIT|ITEM|FRIEND|INVENTORY|GROUP|CONTACT|RESIDENT|OBJECT)S?\w*\s*(:[^=]+)?=\s*\[/,
+    message:
+      'Built-in list of items shown as if the grid sent them. Start empty and render what the session reports.',
   },
   {
     id: 'invented-statistic',
-    pattern: /(Estimated|Approx\.?)\s+(Vertex|Face|Triangle|Joint|Poly)\w*\s*(Count)?:\s*[\d,]+|\b\d+(?:,\d{3})*\s+(vertices|triangles|active joints)\b/i,
-    message: 'Hard-coded mesh statistic. Show the measured value, or "—" when the grid does not report it.',
+    pattern:
+      /(Estimated|Approx\.?)\s+(Vertex|Face|Triangle|Joint|Poly)\w*\s*(Count)?:\s*[\d,]+|\b\d+(?:,\d{3})*\s+(vertices|triangles|active joints)\b/i,
+    message:
+      'Hard-coded mesh statistic. Show the measured value, or "—" when the grid does not report it.',
   },
   {
     id: 'fake-data-phrase',
-    pattern: /\b(sample|fake|dummy|demo|mock)\s+(data|residents?|chats?|messages?|avatars?|objects?|inventory|friends?)\b|lorem ipsum/i,
+    pattern:
+      /\b(sample|fake|dummy|demo|mock)\s+(data|residents?|chats?|messages?|avatars?|objects?|inventory|friends?)\b|lorem ipsum/i,
     message: 'Sample-data wording in shipped source.',
   },
   {
@@ -114,7 +126,13 @@ export function scanText(text, file, rules = RULES) {
       if (rule.scope && !rule.scope.some((prefix) => file.startsWith(prefix))) continue;
       if (!rule.pattern.test(line)) continue;
       if (rule.ignoreLine && rule.ignoreLine.test(line)) continue;
-      findings.push({ file, line: index + 1, rule: rule.id, message: rule.message, text: line.trim().slice(0, 160) });
+      findings.push({
+        file,
+        line: index + 1,
+        rule: rule.id,
+        message: rule.message,
+        text: line.trim().slice(0, 160),
+      });
     }
   });
   return findings;
@@ -124,9 +142,14 @@ export function scanText(text, file, rules = RULES) {
 export function applyAllowlist(findings, allowlist) {
   const problems = [];
   for (const entry of allowlist) {
-    if (!entry.reason || !String(entry.reason).trim()) problems.push(`allowlist entry for ${entry.file} (${entry.rule}) has no reason`);
+    if (!entry.reason || !String(entry.reason).trim())
+      problems.push(`allowlist entry for ${entry.file} (${entry.rule}) has no reason`);
   }
   const hasReason = (entry) => Boolean(entry.reason && String(entry.reason).trim());
-  const allowed = (finding) => allowlist.some((entry) => entry.rule === finding.rule && finding.file.startsWith(entry.file) && hasReason(entry));
+  const allowed = (finding) =>
+    allowlist.some(
+      (entry) =>
+        entry.rule === finding.rule && finding.file.startsWith(entry.file) && hasReason(entry),
+    );
   return { findings: findings.filter((finding) => !allowed(finding)), problems };
 }

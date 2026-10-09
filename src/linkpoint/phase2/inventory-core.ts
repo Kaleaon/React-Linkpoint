@@ -1,6 +1,6 @@
 /**
  * Linkpoint PWA - Inventory Core (Features 21-25)
- * 
+ *
  * Consolidated into InventoryManager so all UI components, network handlers,
  * and operations share a single unified inventory store.
  */

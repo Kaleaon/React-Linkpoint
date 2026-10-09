@@ -29,13 +29,13 @@ describe('EconomyManager Subsystem', () => {
     economy.setGridCurrency('', true);
     expect(economy.isZeroCurrency).toBe(true);
 
-    await expect(
-      economy.payObject({ targetId: 'obj-123', amount: 50 })
-    ).rejects.toThrow('Payments are disabled on zero-currency grids');
+    await expect(economy.payObject({ targetId: 'obj-123', amount: 50 })).rejects.toThrow(
+      'Payments are disabled on zero-currency grids',
+    );
 
-    await expect(
-      economy.payAvatar({ targetId: 'avatar-123', amount: 50 })
-    ).rejects.toThrow('Payments are disabled on zero-currency grids');
+    await expect(economy.payAvatar({ targetId: 'avatar-123', amount: 50 })).rejects.toThrow(
+      'Payments are disabled on zero-currency grids',
+    );
   });
 
   it('provides standard quick-tip presets', () => {
@@ -177,26 +177,28 @@ describe('EconomyManager Subsystem', () => {
       economy.payObject({
         targetId: 'obj-uuid-1',
         amount: 0,
-      })
+      }),
     ).rejects.toThrow('Payment amount must be a positive integer');
 
     await expect(
       economy.payAvatar({
         targetId: 'avatar-uuid-1',
         amount: -10,
-      })
+      }),
     ).rejects.toThrow('Payment amount must be a positive integer');
   });
 
   it('handles RPC errors for declined payments', async () => {
-    vi.spyOn(slBridge, 'payAvatar').mockRejectedValueOnce(new Error('Insufficient funds to complete payment'));
+    vi.spyOn(slBridge, 'payAvatar').mockRejectedValueOnce(
+      new Error('Insufficient funds to complete payment'),
+    );
 
     await expect(
       economy.payAvatar({
         targetId: 'avatar-uuid-fail',
         targetName: 'Declined Resident',
         amount: 1000,
-      })
+      }),
     ).rejects.toThrow('Insufficient funds to complete payment');
 
     // Verify failed transaction was logged in history

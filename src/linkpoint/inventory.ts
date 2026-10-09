@@ -138,7 +138,10 @@ export class InventoryManager extends Utils.EventEmitter {
   public folders: Map<string, any> = new Map();
   public loadedFromCache: boolean = false;
   public isLoading: boolean = false;
-  private folderBuffers: Map<string, { categories: any[]; items: any[]; expectedDescendents: number | null }> = new Map();
+  private folderBuffers: Map<
+    string,
+    { categories: any[]; items: any[]; expectedDescendents: number | null }
+  > = new Map();
 
   constructor(protocolManager: SLConnectionFull, authManager: AuthManager) {
     super();
@@ -164,10 +167,17 @@ export class InventoryManager extends Utils.EventEmitter {
 
   normalizeFolder(rawFolder: any, defaultParentId: string = ''): any {
     if (!rawFolder || typeof rawFolder !== 'object') return null;
-    const id = String(rawFolder.id || rawFolder.folder_id || rawFolder.category_id || Utils.generateUUID());
+    const id = String(
+      rawFolder.id || rawFolder.folder_id || rawFolder.category_id || Utils.generateUUID(),
+    );
     const name = String(rawFolder.name || rawFolder.folder_name || 'New Folder');
     const parent = String(rawFolder.parent || rawFolder.parent_id || defaultParentId || '');
-    const rawFolderType = rawFolder.folderType ?? rawFolder.preferred_type ?? rawFolder.type_default ?? rawFolder.type ?? -1;
+    const rawFolderType =
+      rawFolder.folderType ??
+      rawFolder.preferred_type ??
+      rawFolder.type_default ??
+      rawFolder.type ??
+      -1;
     const folderType = parseLLFolderType(rawFolderType);
     const version = Number(rawFolder.version ?? 0);
     const children = Array.isArray(rawFolder.children) ? [...rawFolder.children] : [];
@@ -189,7 +199,8 @@ export class InventoryManager extends Utils.EventEmitter {
     const id = String(rawItem.id || rawItem.item_id || Utils.generateUUID());
     const name = String(rawItem.name || rawItem.item_name || 'New Item');
     const parent = String(rawItem.parent || rawItem.parent_id || defaultParentId || '');
-    const rawAssetType = rawItem.assetType ?? rawItem.asset_type ?? rawItem.type_default ?? rawItem.type ?? 0;
+    const rawAssetType =
+      rawItem.assetType ?? rawItem.asset_type ?? rawItem.type_default ?? rawItem.type ?? 0;
     const assetType = parseLLAssetType(rawAssetType);
     const assetId = String(rawItem.assetId || rawItem.asset_id || rawItem.asset_uuid || '');
     const description = String(rawItem.description || rawItem.desc || '');
@@ -220,7 +231,11 @@ export class InventoryManager extends Utils.EventEmitter {
     };
   }
 
-  private _addNormalizedFolder(rawFolder: any, defaultParentId: string = '', mergeChildren: boolean = true) {
+  private _addNormalizedFolder(
+    rawFolder: any,
+    defaultParentId: string = '',
+    mergeChildren: boolean = true,
+  ) {
     const folder = this.normalizeFolder(rawFolder, defaultParentId);
     if (!folder) return null;
     const existing = this.folders.get(folder.id);
@@ -292,7 +307,11 @@ export class InventoryManager extends Utils.EventEmitter {
           const cached = await localCache.loadInventory(agentId);
           if (cached && Array.isArray(cached.folders) && cached.folders.length > 0) {
             const rootId = cached.rootId || this.protocol.inventoryRoot || 'root';
-            this.rootFolder = this._addNormalizedFolder({ id: rootId, name: cached.rootName || 'My Inventory', parent: '' });
+            this.rootFolder = this._addNormalizedFolder({
+              id: rootId,
+              name: cached.rootName || 'My Inventory',
+              parent: '',
+            });
 
             for (const f of cached.folders) {
               this._addNormalizedFolder(f, rootId);
@@ -323,7 +342,11 @@ export class InventoryManager extends Utils.EventEmitter {
           const inv = await slBridge.fetchInventory();
           if (inv) {
             const rootId = inv.folderId || this.protocol.inventoryRoot || 'root';
-            this.rootFolder = this._addNormalizedFolder({ id: rootId, name: inv.folderName || 'My Inventory', parent: '' });
+            this.rootFolder = this._addNormalizedFolder({
+              id: rootId,
+              name: inv.folderName || 'My Inventory',
+              parent: '',
+            });
             if (Array.isArray(inv.folders)) {
               for (const f of inv.folders) {
                 this._addNormalizedFolder(f, rootId);
@@ -361,7 +384,11 @@ export class InventoryManager extends Utils.EventEmitter {
         return;
       }
 
-      this.rootFolder = this._addNormalizedFolder({ id: inventoryRoot, name: 'My Inventory', parent: '' });
+      this.rootFolder = this._addNormalizedFolder({
+        id: inventoryRoot,
+        name: 'My Inventory',
+        parent: '',
+      });
       await this.fetchFolderContents(inventoryRoot);
       this.isLoading = false;
       this.emit('inventory_loaded');
@@ -392,21 +419,24 @@ export class InventoryManager extends Utils.EventEmitter {
     if (!url) return;
 
     try {
-      const ownerId = this.auth.user?.id || this.protocol.agentId || '00000000-0000-0000-0000-000000000000';
+      const ownerId =
+        this.auth.user?.id || this.protocol.agentId || '00000000-0000-0000-0000-000000000000';
       const requestData = {
-        folders: [{
-          folder_id: new LLSDUUID(folderId),
-          owner_id: new LLSDUUID(ownerId),
-          fetch_folders: true,
-          fetch_items: true,
-          sort_order: 1
-        }]
+        folders: [
+          {
+            folder_id: new LLSDUUID(folderId),
+            owner_id: new LLSDUUID(ownerId),
+            fetch_folders: true,
+            fetch_items: true,
+            sort_order: 1,
+          },
+        ],
       };
 
       const response = await corsHandler.makeRequest(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/llsd+xml' },
-        body: LLSD.buildXML(requestData)
+        body: LLSD.buildXML(requestData),
       });
 
       if (response && response.ok) {
@@ -419,7 +449,11 @@ export class InventoryManager extends Utils.EventEmitter {
     }
   }
 
-  public reconcileFolder(folderId: string, incomingFolders: any[] = [], incomingItems: any[] = []): void {
+  public reconcileFolder(
+    folderId: string,
+    incomingFolders: any[] = [],
+    incomingItems: any[] = [],
+  ): void {
     if (!folderId) return;
 
     let parentFolder = this.folders.get(folderId);
@@ -435,8 +469,12 @@ export class InventoryManager extends Utils.EventEmitter {
     const safeFolders = Array.isArray(incomingFolders) ? incomingFolders : [];
     const safeItems = Array.isArray(incomingItems) ? incomingItems : [];
 
-    const normalizedFolders = safeFolders.map((f: any) => this.normalizeFolder(f, folderId)).filter(Boolean);
-    const normalizedItems = safeItems.map((i: any) => this.normalizeItem(i, folderId)).filter(Boolean);
+    const normalizedFolders = safeFolders
+      .map((f: any) => this.normalizeFolder(f, folderId))
+      .filter(Boolean);
+    const normalizedItems = safeItems
+      .map((i: any) => this.normalizeItem(i, folderId))
+      .filter(Boolean);
 
     const incomingFolderIds = new Set(normalizedFolders.map((f: any) => f.id));
     const incomingItemIds = new Set(normalizedItems.map((i: any) => i.id));
@@ -493,26 +531,52 @@ export class InventoryManager extends Utils.EventEmitter {
   handleInventoryResponse(data: any, targetFolderId?: string) {
     if (!data) return;
 
-    const foldersList = Array.isArray(data.folders) ? data.folders : (data.categories || data.items ? [data] : []);
+    const foldersList = Array.isArray(data.folders)
+      ? data.folders
+      : data.categories || data.items
+        ? [data]
+        : [];
 
     foldersList.forEach((folderData: any) => {
-      const defaultParent = folderData.folder_id || folderData.category_id || folderData.id || targetFolderId || '';
-      const categories = Array.isArray(folderData.categories) ? folderData.categories : (Array.isArray(folderData.folders) ? folderData.folders : []);
+      const defaultParent =
+        folderData.folder_id || folderData.category_id || folderData.id || targetFolderId || '';
+      const categories = Array.isArray(folderData.categories)
+        ? folderData.categories
+        : Array.isArray(folderData.folders)
+          ? folderData.folders
+          : [];
       const items = Array.isArray(folderData.items) ? folderData.items : [];
-      const expectedDescendents = typeof folderData.descendents === 'number' ? folderData.descendents : null;
+      const expectedDescendents =
+        typeof folderData.descendents === 'number' ? folderData.descendents : null;
 
       if (defaultParent) {
         if (expectedDescendents !== null) {
-          const buffer = this.folderBuffers.get(defaultParent) || { categories: [], items: [], expectedDescendents };
+          const buffer = this.folderBuffers.get(defaultParent) || {
+            categories: [],
+            items: [],
+            expectedDescendents,
+          };
 
           const catMap = new Map<string, any>();
-          buffer.categories.forEach((cat: any) => { const id = cat.id || cat.category_id || cat.folder_id; if (id) catMap.set(id, cat); });
-          categories.forEach((cat: any) => { const id = cat.id || cat.category_id || cat.folder_id; if (id) catMap.set(id, cat); });
+          buffer.categories.forEach((cat: any) => {
+            const id = cat.id || cat.category_id || cat.folder_id;
+            if (id) catMap.set(id, cat);
+          });
+          categories.forEach((cat: any) => {
+            const id = cat.id || cat.category_id || cat.folder_id;
+            if (id) catMap.set(id, cat);
+          });
           buffer.categories = Array.from(catMap.values());
 
           const itemMap = new Map<string, any>();
-          buffer.items.forEach((item: any) => { const id = item.id || item.item_id; if (id) itemMap.set(id, item); });
-          items.forEach((item: any) => { const id = item.id || item.item_id; if (id) itemMap.set(id, item); });
+          buffer.items.forEach((item: any) => {
+            const id = item.id || item.item_id;
+            if (id) itemMap.set(id, item);
+          });
+          items.forEach((item: any) => {
+            const id = item.id || item.item_id;
+            if (id) itemMap.set(id, item);
+          });
           buffer.items = Array.from(itemMap.values());
 
           buffer.expectedDescendents = expectedDescendents;
@@ -717,7 +781,9 @@ export class InventoryManager extends Utils.EventEmitter {
       } else if (sortBy === 'date') {
         return (a.created || a.creationDate || 0) - (b.created || b.creationDate || 0);
       } else if (sortBy === 'type') {
-        return String(a.type || a.assetType || '').localeCompare(String(b.type || b.assetType || ''));
+        return String(a.type || a.assetType || '').localeCompare(
+          String(b.type || b.assetType || ''),
+        );
       }
       return 0;
     };
@@ -746,7 +812,12 @@ export class InventoryManager extends Utils.EventEmitter {
   }
 
   setRootFolder(folderId: string) {
-    const folder = this.folders.get(folderId) || { id: folderId, name: 'My Inventory', type: 'folder', parent: '' };
+    const folder = this.folders.get(folderId) || {
+      id: folderId,
+      name: 'My Inventory',
+      type: 'folder',
+      parent: '',
+    };
     if (!this.folders.has(folderId)) {
       this.folders.set(folderId, folder);
     }

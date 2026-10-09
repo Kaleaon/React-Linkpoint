@@ -23,9 +23,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -54,17 +52,21 @@ describe('FocusTrap Component', () => {
 
     await act(async () => {
       root.render(
-        createElement(FocusTrap, { active: true },
+        createElement(
+          FocusTrap,
+          { active: true },
           createElement('button', { id: 'btn1' }, 'Button 1'),
-          createElement('button', { id: 'btn2' }, 'Button 2')
-        )
+          createElement('button', { id: 'btn2' }, 'Button 2'),
+        ),
       );
     });
 
     const btn1 = host.querySelector('#btn1') as HTMLButtonElement;
     expect(document.activeElement).toBe(btn1);
 
-    await act(async () => { root.unmount(); });
+    await act(async () => {
+      root.unmount();
+    });
     host.remove();
     trigger.remove();
   });
@@ -83,9 +85,11 @@ describe('FocusTrap Component', () => {
 
     await act(async () => {
       root.render(
-        createElement(FocusTrap, { active: true },
-          createElement('button', { id: 'inner-btn' }, 'Inner')
-        )
+        createElement(
+          FocusTrap,
+          { active: true },
+          createElement('button', { id: 'inner-btn' }, 'Inner'),
+        ),
       );
     });
 
@@ -110,9 +114,11 @@ describe('FocusTrap Component', () => {
 
     await act(async () => {
       root.render(
-        createElement(FocusTrap, { active: true, onEscape },
-          createElement('button', null, 'Inside')
-        )
+        createElement(
+          FocusTrap,
+          { active: true, onEscape },
+          createElement('button', null, 'Inside'),
+        ),
       );
     });
 
@@ -121,7 +127,9 @@ describe('FocusTrap Component', () => {
 
     expect(onEscape).toHaveBeenCalledTimes(1);
 
-    await act(async () => { root.unmount(); });
+    await act(async () => {
+      root.unmount();
+    });
     host.remove();
   });
 
@@ -132,10 +140,12 @@ describe('FocusTrap Component', () => {
 
     await act(async () => {
       root.render(
-        createElement(FocusTrap, { active: true },
+        createElement(
+          FocusTrap,
+          { active: true },
           createElement('button', { id: 'first' }, 'First'),
-          createElement('button', { id: 'second' }, 'Second')
-        )
+          createElement('button', { id: 'second' }, 'Second'),
+        ),
       );
     });
 
@@ -154,11 +164,17 @@ describe('FocusTrap Component', () => {
     expect(document.activeElement).toBe(first);
 
     // Shift+Tab from first element wraps to last element (second)
-    const shiftTabEvent = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true });
+    const shiftTabEvent = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+    });
     window.dispatchEvent(shiftTabEvent);
     expect(document.activeElement).toBe(second);
 
-    await act(async () => { root.unmount(); });
+    await act(async () => {
+      root.unmount();
+    });
     host.remove();
   });
 });
@@ -172,7 +188,7 @@ describe('Modal ARIA Semantics and Focus Trap Integration', () => {
         onClose,
         onSuccess: vi.fn(),
         target: { id: '123', name: 'Test Resident', type: 'avatar' },
-      })
+      }),
     );
 
     const dialog = host.querySelector('[role="dialog"]');
@@ -278,7 +294,10 @@ describe('Modal ARIA Semantics and Focus Trap Integration', () => {
 
     await act(async () => {
       root.render(
-        createElement(ErrorRecoveryProvider, { customService: mockService, children: createElement(ErrorRecoveryModal) })
+        createElement(ErrorRecoveryProvider, {
+          customService: mockService,
+          children: createElement(ErrorRecoveryModal),
+        }),
       );
     });
 
@@ -287,7 +306,9 @@ describe('Modal ARIA Semantics and Focus Trap Integration', () => {
     expect(modal?.getAttribute('aria-modal')).toBe('true');
     expect(modal?.getAttribute('aria-labelledby')).toBe('recovery-modal-title');
 
-    await act(async () => { root.unmount(); });
+    await act(async () => {
+      root.unmount();
+    });
     host.remove();
   });
 
@@ -307,15 +328,17 @@ describe('Modal ARIA Semantics and Focus Trap Integration', () => {
     const host = await mount(createElement(InventoryTree, { rootFolderId: 'folder-1' }));
 
     // Open context menu for item-1 and click "Move to Folder"
-    const actionsBtn = host.querySelector('button[aria-label="Actions for My Object"]') as HTMLButtonElement;
+    const actionsBtn = host.querySelector(
+      'button[aria-label="Actions for My Object"]',
+    ) as HTMLButtonElement;
     expect(actionsBtn).not.toBeNull();
 
     await act(async () => {
       actionsBtn.click();
     });
 
-    const moveMenuItem = Array.from(host.querySelectorAll('button[role="menuitem"]')).find(
-      (btn) => btn.textContent?.includes('Move to Folder')
+    const moveMenuItem = Array.from(host.querySelectorAll('button[role="menuitem"]')).find((btn) =>
+      btn.textContent?.includes('Move to Folder'),
     ) as HTMLButtonElement;
     expect(moveMenuItem).not.toBeNull();
 
@@ -331,7 +354,9 @@ describe('Modal ARIA Semantics and Focus Trap Integration', () => {
 
   it('renders OutfitCarouselDrawer with role="dialog", aria-modal="true", and FocusTrap wrapper', async () => {
     const handleClose = vi.fn();
-    const host = await mount(createElement(OutfitCarouselDrawer, { isOpen: true, onClose: handleClose }));
+    const host = await mount(
+      createElement(OutfitCarouselDrawer, { isOpen: true, onClose: handleClose }),
+    );
 
     const dialog = host.querySelector('[role="dialog"]');
     expect(dialog).not.toBeNull();

@@ -79,7 +79,11 @@ export class JoystickAvatar {
 
   constructor(public settings: JoystickSettings = DEFAULT_JOYSTICK_SETTINGS) {}
 
-  reset() { this.sDelta.fill(0); this.runCounter = 0; this.buttonHeld = false; }
+  reset() {
+    this.sDelta.fill(0);
+    this.runCounter = 0;
+    this.buttonHeld = false;
+  }
 
   /** `handleRun`: run above a threshold, with one frame of hysteresis each way. */
   private handleRun(inc: number): boolean {
@@ -94,14 +98,27 @@ export class JoystickAvatar {
 
   step(input: JoystickInput): JoystickOutput {
     const s = this.settings;
-    const out: JoystickOutput = { push: 0, slide: 0, fly: 0, pitch: 0, yaw: 0, run: false, jump: false, setFlying: null, idle: true };
+    const out: JoystickOutput = {
+      push: 0,
+      slide: 0,
+      fly: 0,
+      pitch: 0,
+      yaw: 0,
+      run: false,
+      jump: false,
+      setFlying: null,
+      idle: true,
+    };
     let isZero = true;
 
     // Button 1: with automatic flying it jumps on the ground and lands when flying; otherwise it toggles flying.
     if (input.button1) {
       if (s.automaticFly) {
         if (!input.flying) out.jump = true;
-        else if (!this.buttonHeld) { this.buttonHeld = true; out.setFlying = false; }
+        else if (!this.buttonHeld) {
+          this.buttonHeld = true;
+          out.setFlying = false;
+        }
       } else if (!this.buttonHeld) {
         this.buttonHeld = true;
         out.setFlying = !input.flying;
@@ -119,11 +136,15 @@ export class JoystickAvatar {
     let domAxis: number = AXIS.Z;
     for (let i = 0; i < 6; i++) {
       cur[i] = -(input.hardwareAxes[s.axis[i]] ?? 0);
-      cur[i] = cur[i] > 0 ? Math.max(cur[i] - s.deadZone[i], 0) : Math.min(cur[i] + s.deadZone[i], 0);
+      cur[i] =
+        cur[i] > 0 ? Math.max(cur[i] - s.deadZone[i], 0) : Math.min(cur[i] + s.deadZone[i], 0);
       // we don't care about Roll (RZ) and Z is calculated after the loop
       if (i !== AXIS.Z && i !== AXIS.RZ) {
         const value = Math.abs(cur[i]);
-        if (value > domMov) { domAxis = i; domMov = value; }
+        if (value > domMov) {
+          domAxis = i;
+          domMov = value;
+        }
       }
       isZero = isZero && cur[i] === 0;
     }
@@ -131,7 +152,10 @@ export class JoystickAvatar {
 
     // forward|backward movements overrule the real dominant movement if they're bigger than its 20%; walking while
     // pitching and turning is allowed with an even more lenient 5%
-    if (Math.abs(cur[AXIS.Z]) > 0.2 * domMov || ((domAxis === AXIS.RX || domAxis === AXIS.RY) && Math.abs(cur[AXIS.Z]) > 0.05 * domMov)) {
+    if (
+      Math.abs(cur[AXIS.Z]) > 0.2 * domMov ||
+      ((domAxis === AXIS.RX || domAxis === AXIS.RY) && Math.abs(cur[AXIS.Z]) > 0.05 * domMov)
+    ) {
       domAxis = AXIS.Z;
     }
 
@@ -182,8 +206,15 @@ export class JoystickAvatar {
  * The six hardware axes from a browser gamepad with the "standard" mapping. This mapping is ours, not the viewer's (it has
  * no gamepad support): left stick slides and pushes, the triggers go up (right) and down (left), the right stick yaws and pitches.
  */
-export function hardwareAxesFromStandardGamepad(axes: ArrayLike<number>, buttons: ArrayLike<{ value: number }>): number[] {
-  const leftX = axes[0] ?? 0, leftY = axes[1] ?? 0, rightX = axes[2] ?? 0, rightY = axes[3] ?? 0;
-  const leftTrigger = buttons[6]?.value ?? 0, rightTrigger = buttons[7]?.value ?? 0;
+export function hardwareAxesFromStandardGamepad(
+  axes: ArrayLike<number>,
+  buttons: ArrayLike<{ value: number }>,
+): number[] {
+  const leftX = axes[0] ?? 0,
+    leftY = axes[1] ?? 0,
+    rightX = axes[2] ?? 0,
+    rightY = axes[3] ?? 0;
+  const leftTrigger = buttons[6]?.value ?? 0,
+    rightTrigger = buttons[7]?.value ?? 0;
   return [leftX, leftY, leftTrigger - rightTrigger, 0, rightY, rightX];
 }

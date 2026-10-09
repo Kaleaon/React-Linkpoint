@@ -8,9 +8,33 @@ import { buttonByText, click, mountScreen, typeInto, unmount, type Mounted } fro
 let mounted: Mounted | null = null;
 
 const worn = [
-  { id: 'a', name: 'Ada Shape', assetType: 13, inventoryType: 18, category: 'body', typeName: 'Shape', worn: true },
-  { id: 'b', name: 'Rain Jacket', assetType: 5, inventoryType: 18, category: 'clothing', typeName: 'Jacket', worn: true },
-  { id: 'c', name: 'Left Wrist Watch', assetType: 6, inventoryType: 6, category: 'attachment', typeName: 'Attachment', worn: true },
+  {
+    id: 'a',
+    name: 'Ada Shape',
+    assetType: 13,
+    inventoryType: 18,
+    category: 'body',
+    typeName: 'Shape',
+    worn: true,
+  },
+  {
+    id: 'b',
+    name: 'Rain Jacket',
+    assetType: 5,
+    inventoryType: 18,
+    category: 'clothing',
+    typeName: 'Jacket',
+    worn: true,
+  },
+  {
+    id: 'c',
+    name: 'Left Wrist Watch',
+    assetType: 6,
+    inventoryType: 6,
+    category: 'attachment',
+    typeName: 'Attachment',
+    worn: true,
+  },
 ];
 
 beforeAll(() => {
@@ -34,11 +58,15 @@ describe('OutfitViewer screen', () => {
     vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [] });
     mounted = await mountScreen(OutfitViewer);
     expect(mounted.host.textContent).toContain('FULL OUTFIT VIEWER');
-    for (const label of [/3D View/, /Outfit Items/, /Shape/, /Mesh View/]) expect(buttonByText(mounted.host, label)).toBeTruthy();
+    for (const label of [/3D View/, /Outfit Items/, /Shape/, /Mesh View/])
+      expect(buttonByText(mounted.host, label)).toBeTruthy();
   });
 
   it('shows only what the grid reports as worn, and no made-up items', async () => {
-    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [{ id: 'o1', name: 'Beach day' }] });
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({
+      items: worn,
+      outfits: [{ id: 'o1', name: 'Beach day' }],
+    });
     mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Outfit Items/)!);
     const text = mounted.host.textContent || '';
@@ -52,7 +80,9 @@ describe('OutfitViewer screen', () => {
   it('says so when nothing is worn or the outfit cannot be loaded, instead of showing placeholders', async () => {
     vi.spyOn(app, 'loadOutfit').mockRejectedValue(new Error('inventory unavailable'));
     mounted = await mountScreen(OutfitViewer);
-    expect(mounted.host.textContent).toContain('Your outfit could not be loaded: inventory unavailable');
+    expect(mounted.host.textContent).toContain(
+      'Your outfit could not be loaded: inventory unavailable',
+    );
     expect(mounted.host.textContent).toContain('WORN OUTFIT ITEMS (0)');
   });
 
@@ -60,7 +90,9 @@ describe('OutfitViewer screen', () => {
     const load = vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
     mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Outfit Items/)!);
-    const filterInput = mounted.host.querySelector('input[placeholder="Filter outfit items..."]') as HTMLInputElement;
+    const filterInput = mounted.host.querySelector(
+      'input[placeholder="Filter outfit items..."]',
+    ) as HTMLInputElement;
     await typeInto(filterInput, 'Jacket');
     expect(mounted.host.textContent).toContain('Rain Jacket');
     expect(mounted.host.textContent).not.toContain('Left Wrist Watch');
@@ -70,12 +102,19 @@ describe('OutfitViewer screen', () => {
   });
 
   it('takes off clothing but offers nothing for body parts, and changes go to the grid', async () => {
-    const items = [{ ...worn[0], linkedId: 'x' }, { ...worn[1], id: 'cccccccc-0000-0000-0000-000000000001', linkedId: 'y' }];
+    const items = [
+      { ...worn[0], linkedId: 'x' },
+      { ...worn[1], id: 'cccccccc-0000-0000-0000-000000000001', linkedId: 'y' },
+    ];
     const load = vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items, outfits: [] });
-    const remove = vi.spyOn(slBridge, 'removeWorn').mockResolvedValue({ removed: 'Rain Jacket', baked: true });
+    const remove = vi
+      .spyOn(slBridge, 'removeWorn')
+      .mockResolvedValue({ removed: 'Rain Jacket', baked: true });
     mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Outfit Items/)!);
-    const takeOff = [...mounted.host.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'TAKE OFF');
+    const takeOff = [...mounted.host.querySelectorAll('button')].filter(
+      (b) => b.textContent?.trim() === 'TAKE OFF',
+    );
     expect(takeOff).toHaveLength(1); // the shape has none
     const before = load.mock.calls.length;
     await click(takeOff[0]);
@@ -85,19 +124,32 @@ describe('OutfitViewer screen', () => {
   });
 
   it('wears a saved outfit and reports when the appearance rebuild is not confirmed', async () => {
-    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [{ id: 'o1', name: 'Beach day' }] });
-    const wear = vi.spyOn(slBridge, 'wearOutfit').mockResolvedValue({ worn: 3, baked: false, reason: 'Wrong COF version' });
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({
+      items: [],
+      outfits: [{ id: 'o1', name: 'Beach day' }],
+    });
+    const wear = vi
+      .spyOn(slBridge, 'wearOutfit')
+      .mockResolvedValue({ worn: 3, baked: false, reason: 'Wrong COF version' });
     mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Outfit Items/)!);
     await click(buttonByText(mounted.host, 'WEAR OUTFIT')!);
     expect(wear).toHaveBeenCalledWith({ folderId: 'o1' });
-    expect(mounted.host.textContent).toContain('appearance rebuild was not confirmed: Wrong COF version');
+    expect(mounted.host.textContent).toContain(
+      'appearance rebuild was not confirmed: Wrong COF version',
+    );
   });
 
   it('shows the real shape values and saves edits as a new shape', async () => {
     vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: worn, outfits: [] });
-    vi.spyOn(slBridge, 'fetchShape').mockResolvedValue({ itemId: 'i', name: 'Ada Shape', values: { 33: 0.5 } });
-    const save = vi.spyOn(slBridge, 'saveShape').mockResolvedValue({ saved: 'Ada Shape (edited)', baked: true });
+    vi.spyOn(slBridge, 'fetchShape').mockResolvedValue({
+      itemId: 'i',
+      name: 'Ada Shape',
+      values: { 33: 0.5 },
+    });
+    const save = vi
+      .spyOn(slBridge, 'saveShape')
+      .mockResolvedValue({ saved: 'Ada Shape (edited)', baked: true });
     mounted = await mountScreen(OutfitViewer);
     await click(buttonByText(mounted.host, /Shape/)!);
     const height = mounted.host.querySelector('input[aria-label="Height"]') as HTMLInputElement;
@@ -128,7 +180,8 @@ describe('OutfitViewer screen', () => {
   it('handles camera presets and auto-spin without a renderer', async () => {
     vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [] });
     mounted = await mountScreen(OutfitViewer);
-    for (const label of ['Back', 'Face', 'Side', 'Full', 'Front']) await click(buttonByText(mounted.host, label)!);
+    for (const label of ['Back', 'Face', 'Side', 'Full', 'Front'])
+      await click(buttonByText(mounted.host, label)!);
     await click(buttonByText(mounted.host, /AUTO-SPIN/)!);
     expect(mounted.host.textContent).toContain('SPINNING');
   });

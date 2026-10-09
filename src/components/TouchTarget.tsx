@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 export interface TouchTargetProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children?: React.ReactNode;
@@ -27,31 +27,60 @@ export const TouchTarget = React.forwardRef<HTMLButtonElement, TouchTargetProps>
       children,
       minSize,
       enhanced = false,
-      padding = "4px",
-      className = "",
+      padding = '4px',
+      className = '',
       style,
-      type = "button",
+      type = 'button',
       disabled = false,
       ...restProps
     },
-    ref
+    ref,
   ) => {
     const defaultMin = enhanced ? 44 : 24;
     const effectiveMinSize = Math.max(minSize ?? defaultMin, enhanced ? 44 : 24);
 
+    const userMinWidth = style?.minWidth;
+    const userMinHeight = style?.minHeight;
+
+    let computedMinWidth = `${effectiveMinSize}px`;
+    if (userMinWidth !== undefined) {
+      if (typeof userMinWidth === 'number') {
+        computedMinWidth = `${Math.max(effectiveMinSize, userMinWidth)}px`;
+      } else {
+        const parsed = parseInt(String(userMinWidth), 10);
+        computedMinWidth =
+          !isNaN(parsed) && parsed < effectiveMinSize
+            ? `${effectiveMinSize}px`
+            : String(userMinWidth);
+      }
+    }
+
+    let computedMinHeight = `${effectiveMinSize}px`;
+    if (userMinHeight !== undefined) {
+      if (typeof userMinHeight === 'number') {
+        computedMinHeight = `${Math.max(effectiveMinSize, userMinHeight)}px`;
+      } else {
+        const parsed = parseInt(String(userMinHeight), 10);
+        computedMinHeight =
+          !isNaN(parsed) && parsed < effectiveMinSize
+            ? `${effectiveMinSize}px`
+            : String(userMinHeight);
+      }
+    }
+
     const baseStyle: React.CSSProperties = {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      minWidth: `${effectiveMinSize}px`,
-      minHeight: `${effectiveMinSize}px`,
-      padding: typeof padding === "number" ? `${padding}px` : padding,
-      boxSizing: "border-box",
-      touchAction: "manipulation",
-      cursor: disabled ? "not-allowed" : "pointer",
-      position: "relative",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: typeof padding === 'number' ? `${padding}px` : padding,
+      boxSizing: 'border-box',
+      touchAction: 'manipulation',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      position: 'relative',
       flexShrink: 0,
       ...style,
+      minWidth: computedMinWidth,
+      minHeight: computedMinHeight,
     };
 
     return (
@@ -66,9 +95,9 @@ export const TouchTarget = React.forwardRef<HTMLButtonElement, TouchTargetProps>
         {children}
       </button>
     );
-  }
+  },
 );
 
-TouchTarget.displayName = "TouchTarget";
+TouchTarget.displayName = 'TouchTarget';
 
 export default TouchTarget;

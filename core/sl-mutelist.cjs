@@ -8,11 +8,21 @@ const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message')
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { UUID } = require('@caspertech/node-metaverse/dist/lib/classes/UUID');
 const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
-const { MuteListRequestMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/MuteListRequest');
-const { RequestXferMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RequestXfer');
-const { ConfirmXferPacketMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/ConfirmXferPacket');
-const { UpdateMuteListEntryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/UpdateMuteListEntry');
-const { RemoveMuteListEntryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveMuteListEntry');
+const {
+  MuteListRequestMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/MuteListRequest');
+const {
+  RequestXferMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RequestXfer');
+const {
+  ConfirmXferPacketMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/ConfirmXferPacket');
+const {
+  UpdateMuteListEntryMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/UpdateMuteListEntry');
+const {
+  RemoveMuteListEntryMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveMuteListEntry');
 
 /** `LLMute::EType`. */
 const MUTE_TYPE = { BY_NAME: 0, AGENT: 1, OBJECT: 2, GROUP: 3, EXTERNAL: 4 };
@@ -25,7 +35,8 @@ const isLastPacket = (packet) => (packet & 0x80000000) !== 0;
 /** How long to wait for the simulator to answer a request: it sends nothing at all when the account has no list. */
 const MUTE_LIST_TIMEOUT_MS = 15000;
 
-const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const isUuid = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 /**
  * `LLMuteList::loadFromFile`: lines of " %d %254s %254[^|]| %u". An entry with a null id, or of type BY_NAME, is a
@@ -50,19 +61,28 @@ function parseMuteList(text) {
 /** `LLMuteList::saveToFile` (what the simulator's file looks like), used by tests and for a future cache. */
 function formatMuteList({ mutes = [], legacy = [] }) {
   const lines = legacy.map((name) => `${MUTE_TYPE.BY_NAME} ${NULL_UUID} ${name}|\n`);
-  for (const m of mutes) if (m.type !== MUTE_TYPE.EXTERNAL) lines.push(`${m.type} ${m.id} ${m.name}|${m.flags >>> 0}\n`);
+  for (const m of mutes)
+    if (m.type !== MUTE_TYPE.EXTERNAL) lines.push(`${m.type} ${m.id} ${m.name}|${m.flags >>> 0}\n`);
   return lines.join('');
 }
 
 const randomXferId = () => Long.fromBytesLE([...crypto.randomBytes(8)], true);
-const bufferText = (buffer) => Buffer.from(buffer || []).toString('utf8').replace(/\0+$/, '');
+const bufferText = (buffer) =>
+  Buffer.from(buffer || [])
+    .toString('utf8')
+    .replace(/\0+$/, '');
 
 /**
  * Requests the mute list and receives it. One request at a time. `onList({ state, mutes, legacy })` gets
  * `state: 'loaded'` with the entries, or `state: 'failed'` (nothing arrived in time, or the transfer was aborted).
  */
 class MuteListLoader {
-  constructor(getCircuit, agentId, onList, { timeoutMs = MUTE_LIST_TIMEOUT_MS, random = randomXferId } = {}) {
+  constructor(
+    getCircuit,
+    agentId,
+    onList,
+    { timeoutMs = MUTE_LIST_TIMEOUT_MS, random = randomXferId } = {},
+  ) {
     this.getCircuit = getCircuit;
     this.agentId = agentId;
     this.onList = onList;
@@ -77,10 +97,21 @@ class MuteListLoader {
   /** `LLMuteList::requestFromServer`. The CRC is 0: there is no cached copy, so the simulator always sends the list. */
   request() {
     const circuit = this.getCircuit();
-    if (!circuit?.sendMessage) { this.finish({ state: 'failed' }); return false; }
+    if (!circuit?.sendMessage) {
+      this.finish({ state: 'failed' });
+      return false;
+    }
     this.cancel();
     this.circuit = circuit;
-    this.subscription = circuit.subscribeToMessages([Message.MuteListUpdate, Message.UseCachedMuteList, Message.SendXferPacket, Message.AbortXfer], (packet) => this.onPacket(packet));
+    this.subscription = circuit.subscribeToMessages(
+      [
+        Message.MuteListUpdate,
+        Message.UseCachedMuteList,
+        Message.SendXferPacket,
+        Message.AbortXfer,
+      ],
+      (packet) => this.onPacket(packet),
+    );
     const message = new MuteListRequestMessage();
     message.AgentData = { AgentID: this.agentId, SessionID: circuit.sessionID };
     message.MuteData = { MuteCRC: 0 };
@@ -91,8 +122,10 @@ class MuteListLoader {
   }
 
   cancel() {
-    clearTimeout(this.timer); this.timer = null;
-    this.subscription?.unsubscribe?.(); this.subscription = null;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.subscription?.unsubscribe?.();
+    this.subscription = null;
     this.xfer = null;
   }
 
@@ -105,15 +138,19 @@ class MuteListLoader {
     const message = packet?.message;
     if (!message) return;
     switch (message.id) {
-      case Message.MuteListUpdate: return this.onUpdate(message);
+      case Message.MuteListUpdate:
+        return this.onUpdate(message);
       case Message.UseCachedMuteList:
         // We never keep a cache, so the simulator should not send this; treat it as an empty answer rather than hang.
         return this.finish({ state: 'loaded', mutes: [], legacy: [] });
-      case Message.SendXferPacket: return this.onData(message);
+      case Message.SendXferPacket:
+        return this.onData(message);
       case Message.AbortXfer:
-        if (this.xfer && message.XferID?.ID?.equals?.(this.xfer.id)) this.finish({ state: 'failed' });
+        if (this.xfer && message.XferID?.ID?.equals?.(this.xfer.id))
+          this.finish({ state: 'failed' });
         return undefined;
-      default: return undefined;
+      default:
+        return undefined;
     }
   }
 
@@ -125,8 +162,13 @@ class MuteListLoader {
     this.xfer = { id: this.random(), expected: 0, chunks: [], size: null };
     const request = new RequestXferMessage();
     request.XferID = {
-      ID: this.xfer.id, Filename: Utils.StringToBuffer(filename), FilePath: LL_PATH_CACHE, DeleteOnCompletion: true,
-      UseBigPackets: false, VFileID: UUID.zero(), VFileType: -1,
+      ID: this.xfer.id,
+      Filename: Utils.StringToBuffer(filename),
+      FilePath: LL_PATH_CACHE,
+      DeleteOnCompletion: true,
+      UseBigPackets: false,
+      VFileID: UUID.zero(),
+      VFileType: -1,
     };
     this.circuit.sendMessage(request, PacketFlags.Reliable);
   }
@@ -173,7 +215,9 @@ function sendMuteUpdate(circuit, agentId, entry) {
   message.AgentData = { AgentID: agentId, SessionID: circuit.sessionID };
   message.MuteData = {
     MuteID: entry.type === MUTE_TYPE.BY_NAME ? UUID.zero() : new UUID(entry.id),
-    MuteName: Utils.StringToBuffer(entry.name || ''), MuteType: entry.type, MuteFlags: entry.flags >>> 0,
+    MuteName: Utils.StringToBuffer(entry.name || ''),
+    MuteType: entry.type,
+    MuteFlags: entry.flags >>> 0,
   };
   circuit.sendMessage(message, PacketFlags.Reliable);
   return true;
@@ -190,4 +234,14 @@ function sendMuteRemove(circuit, agentId, entry) {
   circuit.sendMessage(message, PacketFlags.Reliable);
 }
 
-module.exports = { MUTE_TYPE, MuteListLoader, parseMuteList, formatMuteList, sendMuteUpdate, sendMuteRemove, decodePacketNum, isLastPacket, MUTE_LIST_TIMEOUT_MS };
+module.exports = {
+  MUTE_TYPE,
+  MuteListLoader,
+  parseMuteList,
+  formatMuteList,
+  sendMuteUpdate,
+  sendMuteRemove,
+  decodePacketNum,
+  isLastPacket,
+  MUTE_LIST_TIMEOUT_MS,
+};

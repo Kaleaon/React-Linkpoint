@@ -77,18 +77,29 @@ export function readVec3(value: unknown, fallback: Vec3): Vec3 {
 export function readScalar(value: unknown, fallback: number): number {
   const candidate = Array.isArray(value) ? value[0] : value;
   const number = Number(candidate);
-  return candidate !== null && candidate !== undefined && candidate !== '' && Number.isFinite(number) ? number : fallback;
+  return candidate !== null &&
+    candidate !== undefined &&
+    candidate !== '' &&
+    Number.isFinite(number)
+    ? number
+    : fallback;
 }
 
 /** Pick the first defined property, since EEP/Windlight exports use both camelCase and snake_case. */
 function pick(source: any, ...names: string[]) {
-  for (const name of names) if (source && source[name] !== undefined && source[name] !== null) return source[name];
+  for (const name of names)
+    if (source && source[name] !== undefined && source[name] !== null) return source[name];
   return undefined;
 }
 
 /** Derive sky-shader inputs from a simulator sky settings frame. */
 export function computeSkyUniforms(sky: any): SkyUniforms {
-  if (!sky || typeof sky !== 'object') return { ...FALLBACK_SKY, skyColor: [...FALLBACK_SKY.skyColor], hazeColor: [...FALLBACK_SKY.hazeColor] };
+  if (!sky || typeof sky !== 'object')
+    return {
+      ...FALLBACK_SKY,
+      skyColor: [...FALLBACK_SKY.skyColor],
+      hazeColor: [...FALLBACK_SKY.hazeColor],
+    };
   const blueHorizon = pick(sky, 'blueHorizon', 'blue_horizon');
   const blueDensity = pick(sky, 'blueDensity', 'blue_density');
   const sunlight = pick(sky, 'sunlightColor', 'sunlight_color');
@@ -96,7 +107,12 @@ export function computeSkyUniforms(sky: any): SkyUniforms {
   const hazeDensity = pick(sky, 'hazeDensity', 'haze_density');
   // Without the colour terms the formula is meaningless; keep the fallback sky.
   if (blueHorizon === undefined || blueDensity === undefined) {
-    return { ...FALLBACK_SKY, skyColor: [...FALLBACK_SKY.skyColor], hazeColor: [...FALLBACK_SKY.hazeColor], starBrightness: clamp01(readScalar(pick(sky, 'starBrightness', 'star_brightness'), 0)) };
+    return {
+      ...FALLBACK_SKY,
+      skyColor: [...FALLBACK_SKY.skyColor],
+      hazeColor: [...FALLBACK_SKY.hazeColor],
+      starBrightness: clamp01(readScalar(pick(sky, 'starBrightness', 'star_brightness'), 0)),
+    };
   }
   const horizon = readVec3(blueHorizon, FALLBACK_SKY.skyColor);
   const density = readVec3(blueDensity, [1, 1, 1]);
@@ -113,9 +129,14 @@ export function computeSkyUniforms(sky: any): SkyUniforms {
 
 /** Derive the water tint. EEP fog colours are very dark, so they are lightened toward the default. */
 export function computeWaterUniforms(water: any, height = DEFAULT_WATER_HEIGHT): WaterUniforms {
-  const fog = water && typeof water === 'object' ? pick(water, 'waterFogColor', 'water_fog_color') : undefined;
+  const fog =
+    water && typeof water === 'object'
+      ? pick(water, 'waterFogColor', 'water_fog_color')
+      : undefined;
   const base = readVec3(fog, FALLBACK_WATER_COLOR);
-  const color = base.map((value, i) => clamp01(value * 0.5 + FALLBACK_WATER_COLOR[i] * 0.5)) as Vec3;
+  const color = base.map((value, i) =>
+    clamp01(value * 0.5 + FALLBACK_WATER_COLOR[i] * 0.5),
+  ) as Vec3;
   return { color, height: Number.isFinite(height) ? height : DEFAULT_WATER_HEIGHT };
 }
 
@@ -133,9 +154,18 @@ export interface RawGeometry {
 export function createSkyDome(subdivisions = 2): RawGeometry {
   const t = (1 + Math.sqrt(5)) / 2;
   const seed: Vec3[] = [
-    [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
-    [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
-    [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
+    [-1, t, 0],
+    [1, t, 0],
+    [-1, -t, 0],
+    [1, -t, 0],
+    [0, -1, t],
+    [0, 1, t],
+    [0, -1, -t],
+    [0, 1, -t],
+    [t, 0, -1],
+    [t, 0, 1],
+    [-t, 0, -1],
+    [-t, 0, 1],
   ];
   const normalize = (v: Vec3): Vec3 => {
     const length = Math.hypot(v[0], v[1], v[2]);
@@ -143,10 +173,26 @@ export function createSkyDome(subdivisions = 2): RawGeometry {
   };
   const vertices = seed.map(normalize);
   let faces: number[][] = [
-    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-    [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-    [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-    [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+    [0, 11, 5],
+    [0, 5, 1],
+    [0, 1, 7],
+    [0, 7, 10],
+    [0, 10, 11],
+    [1, 5, 9],
+    [5, 11, 4],
+    [11, 10, 2],
+    [10, 7, 6],
+    [7, 1, 8],
+    [3, 9, 4],
+    [3, 4, 2],
+    [3, 2, 6],
+    [3, 6, 8],
+    [3, 8, 9],
+    [4, 9, 5],
+    [2, 4, 11],
+    [6, 2, 10],
+    [8, 6, 7],
+    [9, 8, 1],
   ];
   for (let level = 0; level < Math.max(0, Math.floor(subdivisions)); level++) {
     const cache = new Map<string, number>();
@@ -154,17 +200,22 @@ export function createSkyDome(subdivisions = 2): RawGeometry {
       const key = a < b ? `${a}:${b}` : `${b}:${a}`;
       const cached = cache.get(key);
       if (cached !== undefined) return cached;
-      const index = vertices.push(normalize([
-        (vertices[a][0] + vertices[b][0]) / 2,
-        (vertices[a][1] + vertices[b][1]) / 2,
-        (vertices[a][2] + vertices[b][2]) / 2,
-      ])) - 1;
+      const index =
+        vertices.push(
+          normalize([
+            (vertices[a][0] + vertices[b][0]) / 2,
+            (vertices[a][1] + vertices[b][1]) / 2,
+            (vertices[a][2] + vertices[b][2]) / 2,
+          ]),
+        ) - 1;
       cache.set(key, index);
       return index;
     };
     const next: number[][] = [];
     for (const [a, b, c] of faces) {
-      const ab = midpoint(a, b), bc = midpoint(b, c), ca = midpoint(c, a);
+      const ab = midpoint(a, b),
+        bc = midpoint(b, c),
+        ca = midpoint(c, a);
       next.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]);
     }
     faces = next;
@@ -203,7 +254,8 @@ export function createStarField(count = 500, seed = 0x5eed): RawGeometry {
 
 /** Large horizontal quad (z = 0) centred on a region; the shader supplies the real height. */
 export function createWaterPlane(centre = 128, halfExtent = 1536): RawGeometry {
-  const lo = centre - halfExtent, hi = centre + halfExtent;
+  const lo = centre - halfExtent,
+    hi = centre + halfExtent;
   return { vertices: [lo, lo, 0, hi, lo, 0, hi, hi, 0, lo, hi, 0], indices: [0, 1, 2, 0, 2, 3] };
 }
 

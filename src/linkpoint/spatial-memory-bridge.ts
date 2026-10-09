@@ -1,6 +1,6 @@
 /**
  * Zero-Copy SharedArrayBuffer & SOA (Structure of Arrays) Memory Bridge
- * 
+ *
  * Manages pre-allocated linear memory views over SharedArrayBuffer (or ArrayBuffer fallback)
  * for WASM SIMD spatial operations, guaranteeing zero main-thread GC allocations during
  * active rendering loops.
@@ -52,7 +52,7 @@ export class SpatialMemoryBridge {
       // Allocate WASM memory pages (64KB per page)
       const bytesNeeded = this.calculateRequiredBytes(initialCount);
       const initialPages = Math.max(16, Math.ceil(bytesNeeded / 65536));
-      
+
       try {
         if (this.isSharedBuffer) {
           this.memory = new WebAssembly.Memory({
@@ -111,21 +111,32 @@ export class SpatialMemoryBridge {
 
     let offset = 1024; // Align starting offset past base stack header
 
-    const minXOff = offset; offset += count * 4;
-    const minYOff = offset; offset += count * 4;
-    const minZOff = offset; offset += count * 4;
-    const maxXOff = offset; offset += count * 4;
-    const maxYOff = offset; offset += count * 4;
-    const maxZOff = offset; offset += count * 4;
+    const minXOff = offset;
+    offset += count * 4;
+    const minYOff = offset;
+    offset += count * 4;
+    const minZOff = offset;
+    offset += count * 4;
+    const maxXOff = offset;
+    offset += count * 4;
+    const maxYOff = offset;
+    offset += count * 4;
+    const maxZOff = offset;
+    offset += count * 4;
 
-    const visOff = offset; offset += count;
+    const visOff = offset;
+    offset += count;
     // Align to 4-byte boundary
     offset = (offset + 3) & ~3;
 
-    const frustumOff = offset; offset += 24 * 4;
-    const matrixOff = offset; offset += 16 * 4;
-    const vecTempOff = offset; offset += 3 * 4;
-    const vecOutOff = offset; offset += 3 * 4;
+    const frustumOff = offset;
+    offset += 24 * 4;
+    const matrixOff = offset;
+    offset += 16 * 4;
+    const vecTempOff = offset;
+    offset += 3 * 4;
+    const vecOutOff = offset;
+    offset += 3 * 4;
 
     this.layout = {
       minXOffset: minXOff,
@@ -182,7 +193,7 @@ export class SpatialMemoryBridge {
    */
   public ensureCapacity(requiredCount: number): void {
     if (requiredCount <= this.maxCount) return;
-    
+
     this.maxCount = Math.max(requiredCount, this.maxCount * 2);
     const requiredBytes = this.calculateRequiredBytes(this.maxCount);
     const currentBytes = this.memory.buffer.byteLength;

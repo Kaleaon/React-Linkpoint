@@ -21,17 +21,27 @@ interface BoneData {
   scale?: number[];
 }
 
-const DATA = skeletonData as unknown as { root: string; aliases: Record<string, string>; bones: Record<string, BoneData> };
+const DATA = skeletonData as unknown as {
+  root: string;
+  aliases: Record<string, string>;
+  bones: Record<string, BoneData>;
+};
 
-export const identity = (): Mat4 => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+export const identity = (): Mat4 =>
+  new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
-export function multiply(a: ArrayLike<number>, b: ArrayLike<number>, out: Mat4 = new Float32Array(16)): Mat4 {
+export function multiply(
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  out: Mat4 = new Float32Array(16),
+): Mat4 {
   const r = new Float32Array(16);
-  for (let col = 0; col < 4; col++) for (let row = 0; row < 4; row++) {
-    let sum = 0;
-    for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
-    r[col * 4 + row] = sum;
-  }
+  for (let col = 0; col < 4; col++)
+    for (let row = 0; row < 4; row++) {
+      let sum = 0;
+      for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
+      r[col * 4 + row] = sum;
+    }
   out.set(r);
   return out;
 }
@@ -42,33 +52,66 @@ export function compose(t: Vec3, q: Quat = [0, 0, 0, 1], s: Vec3 = [1, 1, 1]): M
   const m = identity();
   const [sx, sy, sz] = s;
   m[0] = (1 - 2 * (y * y + z * z)) * sx;
-  m[1] = (2 * (x * y + z * w)) * sx;
-  m[2] = (2 * (x * z - y * w)) * sx;
-  m[4] = (2 * (x * y - z * w)) * sy;
+  m[1] = 2 * (x * y + z * w) * sx;
+  m[2] = 2 * (x * z - y * w) * sx;
+  m[4] = 2 * (x * y - z * w) * sy;
   m[5] = (1 - 2 * (x * x + z * z)) * sy;
-  m[6] = (2 * (y * z + x * w)) * sy;
-  m[8] = (2 * (x * z + y * w)) * sz;
-  m[9] = (2 * (y * z - x * w)) * sz;
+  m[6] = 2 * (y * z + x * w) * sy;
+  m[8] = 2 * (x * z + y * w) * sz;
+  m[9] = 2 * (y * z - x * w) * sz;
   m[10] = (1 - 2 * (x * x + y * y)) * sz;
-  m[12] = t[0]; m[13] = t[1]; m[14] = t[2];
+  m[12] = t[0];
+  m[13] = t[1];
+  m[14] = t[2];
   return m;
 }
 
 const ATTACHMENT_POINT_JOINTS: Record<string, string> = {
-  ATTACH_CHEST: 'mChest', ATTACH_SKULL: 'mSkull', ATTACH_LSHOULDER: 'mCollarLeft', ATTACH_RSHOULDER: 'mCollarRight',
-  ATTACH_LHAND: 'mWristLeft', ATTACH_RHAND: 'mWristRight', ATTACH_LFOOT: 'mAnkleLeft', ATTACH_RFOOT: 'mAnkleRight',
-  ATTACH_SPINE: 'mTorso', ATTACH_PELVIS: 'mPelvis', ATTACH_MOUTH: 'mHead', ATTACH_CHIN: 'mHead',
-  ATTACH_LEAR: 'mHead', ATTACH_REAR: 'mHead', ATTACH_LEYEBALL: 'mEyeLeft', ATTACH_REYEBALL: 'mEyeRight',
-  ATTACH_NOSE: 'mHead', ATTACH_RUARM: 'mShoulderRight', ATTACH_RLARM: 'mElbowRight', ATTACH_LUARM: 'mShoulderLeft',
-  ATTACH_LLARM: 'mElbowLeft', ATTACH_RHIP: 'mHipRight', ATTACH_RLLEG: 'mKneeRight', ATTACH_LHIP: 'mHipLeft',
-  ATTACH_LLLEG: 'mKneeLeft', ATTACH_STOMACH: 'mTorso', ATTACH_LEFT_PEC: 'mChest', ATTACH_RIGHT_PEC: 'mChest',
-  ATTACH_NECK: 'mNeck', ATTACH_AVATAR_CENTER: 'mPelvis',
-  ATTACH_LHAND_RING1: 'mHandRing1Left', ATTACH_RHAND_RING1: 'mHandRing1Right',
-  ATTACH_TAIL_BASE: 'mTail1', ATTACH_TAIL_TIP: 'mTail6',
-  ATTACH_LWING: 'mWing1Left', ATTACH_RWING: 'mWing1Right',
-  ATTACH_FACE_JAW: 'mFaceJaw', ATTACH_FACE_EAR_LEFT: 'mFaceEar1Left', ATTACH_FACE_EAR_RIGHT: 'mFaceEar1Right',
-  ATTACH_FACE_EYE_LEFT: 'mFaceEyeAltLeft', ATTACH_FACE_EYE_RIGHT: 'mFaceEyeAltRight', ATTACH_FACE_TONGUE: 'mFaceTongueBase',
-  ATTACH_GROIN: 'mGroin', ATTACH_HIND_LFOOT: 'mHindLimb4Left', ATTACH_HIND_RFOOT: 'mHindLimb4Right',
+  ATTACH_CHEST: 'mChest',
+  ATTACH_SKULL: 'mSkull',
+  ATTACH_LSHOULDER: 'mCollarLeft',
+  ATTACH_RSHOULDER: 'mCollarRight',
+  ATTACH_LHAND: 'mWristLeft',
+  ATTACH_RHAND: 'mWristRight',
+  ATTACH_LFOOT: 'mAnkleLeft',
+  ATTACH_RFOOT: 'mAnkleRight',
+  ATTACH_SPINE: 'mTorso',
+  ATTACH_PELVIS: 'mPelvis',
+  ATTACH_MOUTH: 'mHead',
+  ATTACH_CHIN: 'mHead',
+  ATTACH_LEAR: 'mHead',
+  ATTACH_REAR: 'mHead',
+  ATTACH_LEYEBALL: 'mEyeLeft',
+  ATTACH_REYEBALL: 'mEyeRight',
+  ATTACH_NOSE: 'mHead',
+  ATTACH_RUARM: 'mShoulderRight',
+  ATTACH_RLARM: 'mElbowRight',
+  ATTACH_LUARM: 'mShoulderLeft',
+  ATTACH_LLARM: 'mElbowLeft',
+  ATTACH_RHIP: 'mHipRight',
+  ATTACH_RLLEG: 'mKneeRight',
+  ATTACH_LHIP: 'mHipLeft',
+  ATTACH_LLLEG: 'mKneeLeft',
+  ATTACH_STOMACH: 'mTorso',
+  ATTACH_LEFT_PEC: 'mChest',
+  ATTACH_RIGHT_PEC: 'mChest',
+  ATTACH_NECK: 'mNeck',
+  ATTACH_AVATAR_CENTER: 'mPelvis',
+  ATTACH_LHAND_RING1: 'mHandRing1Left',
+  ATTACH_RHAND_RING1: 'mHandRing1Right',
+  ATTACH_TAIL_BASE: 'mTail1',
+  ATTACH_TAIL_TIP: 'mTail6',
+  ATTACH_LWING: 'mWing1Left',
+  ATTACH_RWING: 'mWing1Right',
+  ATTACH_FACE_JAW: 'mFaceJaw',
+  ATTACH_FACE_EAR_LEFT: 'mFaceEar1Left',
+  ATTACH_FACE_EAR_RIGHT: 'mFaceEar1Right',
+  ATTACH_FACE_EYE_LEFT: 'mFaceEyeAltLeft',
+  ATTACH_FACE_EYE_RIGHT: 'mFaceEyeAltRight',
+  ATTACH_FACE_TONGUE: 'mFaceTongueBase',
+  ATTACH_GROIN: 'mGroin',
+  ATTACH_HIND_LFOOT: 'mHindLimb4Left',
+  ATTACH_HIND_RFOOT: 'mHindLimb4Right',
 };
 
 export interface SkeletonBone {
@@ -85,7 +128,9 @@ export interface SkeletonBone {
 }
 
 export class AvatarSkeleton {
-  static readonly BONES: string[] = Object.keys(DATA.bones).filter((name) => DATA.bones[name].isJoint);
+  static readonly BONES: string[] = Object.keys(DATA.bones).filter(
+    (name) => DATA.bones[name].isJoint,
+  );
   readonly bones: SkeletonBone[] = [];
   private readonly byName = new Map<string, number>();
 
@@ -94,7 +139,10 @@ export class AvatarSkeleton {
       const data = DATA.bones[name];
       if (!data) return;
       const bone: SkeletonBone = {
-        name, parent, parentIndex, index: this.bones.length,
+        name,
+        parent,
+        parentIndex,
+        index: this.bones.length,
         rest: (data.isJoint ? data.basePosition : data.position) as Vec3,
         joint: data.isJoint,
         scale: (data.scale || [1, 1, 1]) as Vec3,
@@ -116,7 +164,9 @@ export class AvatarSkeleton {
     const out: Vec3 = [0, 0, 0];
     while (index >= 0) {
       const data = DATA.bones[this.bones[index].name];
-      out[0] += data.position[0]; out[1] += data.position[1]; out[2] += data.position[2];
+      out[0] += data.position[0];
+      out[1] += data.position[1];
+      out[2] += data.position[2];
       index = this.bones[index].parentIndex;
     }
     return out;
@@ -131,7 +181,8 @@ export class AvatarSkeleton {
     if (name.startsWith('avatar_')) {
       const stripped = name.slice(7);
       if (this.byName.has(stripped)) return stripped;
-      if (DATA.aliases[stripped] && this.byName.has(DATA.aliases[stripped])) return DATA.aliases[stripped];
+      if (DATA.aliases[stripped] && this.byName.has(DATA.aliases[stripped]))
+        return DATA.aliases[stripped];
     }
 
     const attachMapped = ATTACHMENT_POINT_JOINTS[name];
@@ -160,7 +211,7 @@ export class AvatarSkeleton {
     pose: Map<string, JointPose> = new Map(),
     positionOverrides: Map<string, Vec3> = new Map(),
     pelvisOffset: Vec3 = [0, 0, 0],
-    scaleOverrides: Map<string, Vec3> = new Map()
+    scaleOverrides: Map<string, Vec3> = new Map(),
   ): Mat4[] {
     const resolved = new Map<number, JointPose>();
     for (const [name, joint] of pose) {
@@ -171,11 +222,21 @@ export class AvatarSkeleton {
     for (const bone of this.bones) {
       const joint = resolved.get(bone.index);
       let position: Vec3 = positionOverrides.get(bone.name) || bone.rest;
-      if (bone.parent === null) position = [position[0] + pelvisOffset[0], position[1] + pelvisOffset[1], position[2] + pelvisOffset[2]];
+      if (bone.parent === null)
+        position = [
+          position[0] + pelvisOffset[0],
+          position[1] + pelvisOffset[1],
+          position[2] + pelvisOffset[2],
+        ];
       if (joint?.position) {
-        position = bone.parent === null
-          ? [position[0] + joint.position[0], position[1] + joint.position[1], position[2] + joint.position[2]]
-          : joint.position;
+        position =
+          bone.parent === null
+            ? [
+                position[0] + joint.position[0],
+                position[1] + joint.position[1],
+                position[2] + joint.position[2],
+              ]
+            : joint.position;
       }
       const scale: Vec3 = scaleOverrides.get(bone.name) || bone.scale || [1, 1, 1];
       const local = compose(position, joint?.rotation, scale);
@@ -213,7 +274,10 @@ export const JOINT_POSITION_THRESHOLD = 0.0001;
  * Mirrors Lumiya's MeshData parser: consume the pairs which are present and ignore malformed or
  * unknown entries. Tiny changes are discarded to avoid rebuilding a skeleton for exporter noise.
  */
-export function jointPositionOverrides(skeleton: AvatarSkeleton, skin: MeshSkin): Map<string, Vec3> {
+export function jointPositionOverrides(
+  skeleton: AvatarSkeleton,
+  skin: MeshSkin,
+): Map<string, Vec3> {
   const overrides = new Map<string, Vec3>();
   if (!hasJointOverrides(skin)) return overrides;
   const alternates = skin.alternateInverseBindMatrices!;
@@ -224,7 +288,11 @@ export function jointPositionOverrides(skeleton: AvatarSkeleton, skin: MeshSkin)
     const position: Vec3 = [m[12], m[13], m[14]];
     if (!position.every((v) => Number.isFinite(v))) return;
     const rest = skeleton.bones[skeleton.indexOf(bone)].rest;
-    if (Math.hypot(position[0] - rest[0], position[1] - rest[1], position[2] - rest[2]) > JOINT_POSITION_THRESHOLD) overrides.set(bone, position);
+    if (
+      Math.hypot(position[0] - rest[0], position[1] - rest[1], position[2] - rest[2]) >
+      JOINT_POSITION_THRESHOLD
+    )
+      overrides.set(bone, position);
   });
   return overrides;
 }
@@ -236,7 +304,10 @@ export function jointPositionOverrides(skeleton: AvatarSkeleton, skin: MeshSkin)
  * is needed. Joints the skeleton does not know are treated as mPelvis, as the viewer does.
  */
 export function skinMatrices(skeleton: AvatarSkeleton, skin: MeshSkin, world: Mat4[]): Mat4[] {
-  const bind = skin.bindShapeMatrix && skin.bindShapeMatrix.length === 16 ? Float32Array.from(skin.bindShapeMatrix) : identity();
+  const bind =
+    skin.bindShapeMatrix && skin.bindShapeMatrix.length === 16
+      ? Float32Array.from(skin.bindShapeMatrix)
+      : identity();
   return skin.jointNames.map((name, i) => {
     // The viewer rewrites joints it does not know to mPelvis (LLSkinningUtil::scrubInvalidJoints).
     const found = skeleton.indexOf(name);
@@ -248,7 +319,12 @@ export function skinMatrices(skeleton: AvatarSkeleton, skin: MeshSkin, world: Ma
 }
 
 /** CPU skinning of one vertex by up to four weighted joints (reference implementation / tests / fallback). */
-export function skinPoint(point: Vec3, joints: ArrayLike<number>, weights: ArrayLike<number>, matrices: Mat4[]): Vec3 {
+export function skinPoint(
+  point: Vec3,
+  joints: ArrayLike<number>,
+  weights: ArrayLike<number>,
+  matrices: Mat4[],
+): Vec3 {
   const out: Vec3 = [0, 0, 0];
   let total = 0;
   for (let i = 0; i < 4; i++) {

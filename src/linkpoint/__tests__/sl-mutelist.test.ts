@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { MuteListLoader, parseMuteList, formatMuteList, sendMuteUpdate, sendMuteRemove, MUTE_TYPE } = require('../../../core/sl-mutelist.cjs');
+const {
+  MuteListLoader,
+  parseMuteList,
+  formatMuteList,
+  sendMuteUpdate,
+  sendMuteRemove,
+  MUTE_TYPE,
+} = require('../../../core/sl-mutelist.cjs');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const Long = require('long');
 
@@ -32,17 +39,28 @@ describe('mute list file (LLMuteList::loadFromFile / saveToFile)', () => {
   });
 
   it('treats an unparsable id or a BY_NAME type as a legacy mute, and a missing flags field as 0', () => {
-    expect(parseMuteList('1 not-a-uuid Someone|3\n0 ' + BOB + ' Named|\n2 ' + OBJ + ' NoBar\n')).toEqual({
+    expect(
+      parseMuteList('1 not-a-uuid Someone|3\n0 ' + BOB + ' Named|\n2 ' + OBJ + ' NoBar\n'),
+    ).toEqual({
       mutes: [{ id: OBJ, name: 'NoBar', type: 2, flags: 0 }],
       legacy: ['Someone', 'Named'],
     });
   });
 
-  it('round-trips through the viewer\'s own file format, leaving external mutes out', () => {
-    const list = { mutes: [{ id: BOB, name: 'Bob Resident', type: 1, flags: 5 }, { id: OBJ, name: 'x', type: 4, flags: 0 }], legacy: ['Old Name'] };
+  it("round-trips through the viewer's own file format, leaving external mutes out", () => {
+    const list = {
+      mutes: [
+        { id: BOB, name: 'Bob Resident', type: 1, flags: 5 },
+        { id: OBJ, name: 'x', type: 4, flags: 0 },
+      ],
+      legacy: ['Old Name'],
+    };
     const text = formatMuteList(list);
     expect(text).toBe(`0 ${NULL} Old Name|\n1 ${BOB} Bob Resident|5\n`);
-    expect(parseMuteList(text)).toEqual({ mutes: [{ id: BOB, name: 'Bob Resident', type: 1, flags: 5 }], legacy: ['Old Name'] });
+    expect(parseMuteList(text)).toEqual({
+      mutes: [{ id: BOB, name: 'Bob Resident', type: 1, flags: 5 }],
+      legacy: ['Old Name'],
+    });
   });
 });
 
@@ -54,15 +72,32 @@ function fakeCircuit() {
     sessionID: uuid('session'),
     sent,
     unsubscribe,
-    sendMessage: (message: any) => { sent.push(message); },
-    subscribeToMessages: (_ids: number[], cb: (p: any) => void) => { handler = cb; return { unsubscribe }; },
+    sendMessage: (message: any) => {
+      sent.push(message);
+    },
+    subscribeToMessages: (_ids: number[], cb: (p: any) => void) => {
+      handler = cb;
+      return { unsubscribe };
+    },
     deliver: (message: any) => handler({ message }),
   };
 }
 
-const updateMessage = (filename: string, agent = AGENT) => ({ id: Message.MuteListUpdate, MuteData: { AgentID: uuid(agent), Filename: Buffer.from(filename + '\0') } });
-const dataPacket = (id: any, packet: number, data: Buffer) => ({ id: Message.SendXferPacket, XferID: { ID: id, Packet: packet }, DataPacket: { Data: data } });
-const withSize = (text: string) => { const body = Buffer.from(text); const head = Buffer.alloc(4); head.writeInt32LE(body.length, 0); return { head, body }; };
+const updateMessage = (filename: string, agent = AGENT) => ({
+  id: Message.MuteListUpdate,
+  MuteData: { AgentID: uuid(agent), Filename: Buffer.from(filename + '\0') },
+});
+const dataPacket = (id: any, packet: number, data: Buffer) => ({
+  id: Message.SendXferPacket,
+  XferID: { ID: id, Packet: packet },
+  DataPacket: { Data: data },
+});
+const withSize = (text: string) => {
+  const body = Buffer.from(text);
+  const head = Buffer.alloc(4);
+  head.writeInt32LE(body.length, 0);
+  return { head, body };
+};
 
 describe('MuteListLoader (Xfer receive)', () => {
   const xferId = Long.fromNumber(12345, true);
@@ -70,7 +105,12 @@ describe('MuteListLoader (Xfer receive)', () => {
   it('requests the list, asks for the named file, confirms each packet and parses the result', () => {
     const circuit = fakeCircuit();
     const results: any[] = [];
-    const loader = new MuteListLoader(() => circuit, uuid(AGENT), (r: any) => results.push(r), { random: () => xferId });
+    const loader = new MuteListLoader(
+      () => circuit,
+      uuid(AGENT),
+      (r: any) => results.push(r),
+      { random: () => xferId },
+    );
     expect(loader.request()).toBe(true);
     expect(circuit.sent[0].MuteData).toEqual({ MuteCRC: 0 });
 
@@ -78,7 +118,12 @@ describe('MuteListLoader (Xfer receive)', () => {
     const request = circuit.sent[1];
     expect(request.XferID.ID.equals(xferId)).toBe(true);
     expect(Buffer.from(request.XferID.Filename).toString().replace(/\0/g, '')).toBe('abc.mute');
-    expect(request.XferID).toMatchObject({ FilePath: 4, DeleteOnCompletion: true, UseBigPackets: false, VFileType: -1 });
+    expect(request.XferID).toMatchObject({
+      FilePath: 4,
+      DeleteOnCompletion: true,
+      UseBigPackets: false,
+      VFileType: -1,
+    });
 
     const text = `1 ${BOB} Bob Resident|0\n2 ${OBJ} Box|8\n`;
     const { head, body } = withSize(text);
@@ -86,7 +131,16 @@ describe('MuteListLoader (Xfer receive)', () => {
     circuit.deliver(dataPacket(xferId, 0, Buffer.concat([head, body.subarray(0, half)])));
     expect(results).toEqual([]);
     circuit.deliver(dataPacket(xferId, 1 | 0x80000000, body.subarray(half)));
-    expect(results).toEqual([{ state: 'loaded', mutes: [{ id: BOB, name: 'Bob Resident', type: 1, flags: 0 }, { id: OBJ, name: 'Box', type: 2, flags: 8 }], legacy: [] }]);
+    expect(results).toEqual([
+      {
+        state: 'loaded',
+        mutes: [
+          { id: BOB, name: 'Bob Resident', type: 1, flags: 0 },
+          { id: OBJ, name: 'Box', type: 2, flags: 8 },
+        ],
+        legacy: [],
+      },
+    ]);
     expect(circuit.sent.slice(2).map((m: any) => m.XferID.Packet)).toEqual([0, 1]); // the EOF bit is not echoed back
     expect(circuit.unsubscribe).toHaveBeenCalled();
   });
@@ -94,7 +148,12 @@ describe('MuteListLoader (Xfer receive)', () => {
   it('reconfirms a resent packet without storing it twice, and ignores out-of-order packets', () => {
     const circuit = fakeCircuit();
     const results: any[] = [];
-    new MuteListLoader(() => circuit, uuid(AGENT), (r: any) => results.push(r), { random: () => xferId }).request();
+    new MuteListLoader(
+      () => circuit,
+      uuid(AGENT),
+      (r: any) => results.push(r),
+      { random: () => xferId },
+    ).request();
     circuit.deliver(updateMessage('f'));
     const { head, body } = withSize(`1 ${BOB} Bob|0\n`);
     circuit.deliver(dataPacket(xferId, 0, Buffer.concat([head, body.subarray(0, 5)])));
@@ -108,7 +167,12 @@ describe('MuteListLoader (Xfer receive)', () => {
   it('ignores updates for another agent and packets of other transfers', () => {
     const circuit = fakeCircuit();
     const results: any[] = [];
-    new MuteListLoader(() => circuit, uuid(AGENT), (r: any) => results.push(r), { random: () => xferId }).request();
+    new MuteListLoader(
+      () => circuit,
+      uuid(AGENT),
+      (r: any) => results.push(r),
+      { random: () => xferId },
+    ).request();
     circuit.deliver(updateMessage('f', 'dddddddd-dddd-dddd-dddd-dddddddddddd'));
     expect(circuit.sent).toHaveLength(1);
     circuit.deliver(updateMessage('f'));
@@ -120,7 +184,12 @@ describe('MuteListLoader (Xfer receive)', () => {
     vi.useFakeTimers();
     const circuit = fakeCircuit();
     const results: any[] = [];
-    const loader = new MuteListLoader(() => circuit, uuid(AGENT), (r: any) => results.push(r), { random: () => xferId, timeoutMs: 1000 });
+    const loader = new MuteListLoader(
+      () => circuit,
+      uuid(AGENT),
+      (r: any) => results.push(r),
+      { random: () => xferId, timeoutMs: 1000 },
+    );
     loader.request();
     circuit.deliver(updateMessage('../../etc/passwd'));
     expect(results).toEqual([{ state: 'failed' }]);
@@ -139,7 +208,13 @@ describe('MuteListLoader (Xfer receive)', () => {
 
   it('fails at once when there is no circuit yet', () => {
     const results: any[] = [];
-    expect(new MuteListLoader(() => null, uuid(AGENT), (r: any) => results.push(r)).request()).toBe(false);
+    expect(
+      new MuteListLoader(
+        () => null,
+        uuid(AGENT),
+        (r: any) => results.push(r),
+      ).request(),
+    ).toBe(false);
     expect(results).toEqual([{ state: 'failed' }]);
   });
 });
@@ -147,11 +222,30 @@ describe('MuteListLoader (Xfer receive)', () => {
 describe('mute list updates on the wire', () => {
   it('sends UpdateMuteListEntry and RemoveMuteListEntry as the viewer does', () => {
     const circuit = fakeCircuit();
-    expect(sendMuteUpdate(circuit, uuid(AGENT), { id: BOB, name: 'Bob', type: MUTE_TYPE.AGENT, flags: 3 })).toBe(true);
+    expect(
+      sendMuteUpdate(circuit, uuid(AGENT), {
+        id: BOB,
+        name: 'Bob',
+        type: MUTE_TYPE.AGENT,
+        flags: 3,
+      }),
+    ).toBe(true);
     expect(circuit.sent[0].MuteData).toMatchObject({ MuteType: 1, MuteFlags: 3 });
     expect(String(circuit.sent[0].MuteData.MuteID)).toBe(BOB);
-    expect(sendMuteUpdate(circuit, uuid(AGENT), { id: BOB, name: 'x', type: MUTE_TYPE.EXTERNAL, flags: 0 })).toBe(false);
-    sendMuteUpdate(circuit, uuid(AGENT), { id: '', name: 'Legacy', type: MUTE_TYPE.BY_NAME, flags: 0 });
+    expect(
+      sendMuteUpdate(circuit, uuid(AGENT), {
+        id: BOB,
+        name: 'x',
+        type: MUTE_TYPE.EXTERNAL,
+        flags: 0,
+      }),
+    ).toBe(false);
+    sendMuteUpdate(circuit, uuid(AGENT), {
+      id: '',
+      name: 'Legacy',
+      type: MUTE_TYPE.BY_NAME,
+      flags: 0,
+    });
     expect(String(circuit.sent[1].MuteData.MuteID)).toBe(NULL);
     sendMuteRemove(circuit, uuid(AGENT), { id: BOB, name: 'Bob', type: MUTE_TYPE.AGENT, flags: 0 });
     expect(String(circuit.sent[2].MuteData.MuteID)).toBe(BOB);
@@ -170,7 +264,9 @@ describe('ViewerSession mute entry methods', () => {
 
   it('sends an update for a valid entry and refuses bad types, ids and flags', () => {
     const { s, circuit } = session();
-    expect(s.updateMuteEntry({ id: BOB.toUpperCase(), name: 'Bob', type: 1, flags: 3 })).toEqual({ sent: true });
+    expect(s.updateMuteEntry({ id: BOB.toUpperCase(), name: 'Bob', type: 1, flags: 3 })).toEqual({
+      sent: true,
+    });
     expect(String(circuit.sent[0].MuteData.MuteID)).toBe(BOB);
     expect(() => s.updateMuteEntry({ id: BOB, name: 'x', type: 4, flags: 0 })).toThrow(/Mute type/);
     expect(() => s.updateMuteEntry({ id: 'nope', name: 'x', type: 1, flags: 0 })).toThrow(/UUID/);

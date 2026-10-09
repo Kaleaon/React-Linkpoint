@@ -25,9 +25,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -154,8 +152,9 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       const host = await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'single',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas Surface'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas Surface'),
+        }),
       );
 
       const toolbar = host.querySelector('[role="toolbar"]');
@@ -168,12 +167,15 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       const host = await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'single',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
       // Click Dual / Split preset button
-      const dualBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('Dual / Split'));
+      const dualBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Dual / Split'),
+      );
       expect(dualBtn).not.toBeNull();
 
       await act(async () => {
@@ -183,7 +185,9 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       expect(host.textContent).toContain('OBJECT INSPECTOR');
 
       // Click Quad Viewport preset button
-      const quadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('Quad Viewport'));
+      const quadBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Quad Viewport'),
+      );
       expect(quadBtn).not.toBeNull();
 
       await act(async () => {
@@ -198,11 +202,14 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       const host = await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'single',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
-      const splitHBtn = host.querySelector('button[aria-label="Split panel horizontally"]') as HTMLButtonElement;
+      const splitHBtn = host.querySelector(
+        'button[aria-label="Split panel horizontally"]',
+      ) as HTMLButtonElement;
       expect(splitHBtn).not.toBeNull();
 
       await act(async () => {
@@ -216,11 +223,14 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       const host = await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'single',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
-      const viewSelect = host.querySelector('select[aria-label^="Tile tool view selector"]') as HTMLSelectElement;
+      const viewSelect = host.querySelector(
+        'select[aria-label^="Tile tool view selector"]',
+      ) as HTMLSelectElement;
       expect(viewSelect).not.toBeNull();
 
       await act(async () => {
@@ -235,8 +245,9 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'dual',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
       const savedTree = localStorage.getItem('linkpoint_split_pane_tree');
@@ -247,8 +258,9 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       // Re-mount component without initialPreset, should recover saved tree
       const host2 = await mount(
         createElement(SplitPaneCompositor, {
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
       expect(host2.textContent).toContain('OBJECT INSPECTOR');
@@ -258,8 +270,9 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
       const host = await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'dual',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
       const separator = host.querySelector('[role="separator"]') as HTMLElement;
@@ -276,18 +289,25 @@ describe('SplitPaneCompositor Engine & Workstation Splitter', () => {
     });
 
     it('falls back to single-pane stacked/tabbed layout on non-desktop viewports (< 768px)', async () => {
-      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 500,
+      });
 
       const host = await mount(
         createElement(SplitPaneCompositor, {
           initialPreset: 'quad',
-          renderViewport: (paneId: string) => createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
-        })
+          renderViewport: (paneId: string) =>
+            createElement('div', { 'data-testid': `viewport-${paneId}` }, '3D Canvas'),
+        }),
       );
 
       expect(host.textContent).toContain('MOBILE STACKED FALLBACK');
 
-      const inspectorTab = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Inspector');
+      const inspectorTab = Array.from(host.querySelectorAll('button')).find(
+        (b) => b.textContent === 'Inspector',
+      );
       expect(inspectorTab).not.toBeNull();
 
       await act(async () => {

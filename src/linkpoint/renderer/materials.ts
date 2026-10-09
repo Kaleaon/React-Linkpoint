@@ -42,32 +42,83 @@ export interface LoadedMaterials<I extends MaterialInstanceLike = MaterialInstan
   dispose(): void;
 }
 
-export const MATERIAL_URLS: Record<MaterialName, string> = { sky: skyUrl, water: waterUrl, terrain: terrainUrl };
+export const MATERIAL_URLS: Record<MaterialName, string> = {
+  sky: skyUrl,
+  water: waterUrl,
+  terrain: terrainUrl,
+};
 
 /** The atmosphere parameters shared by sky and water, named as AtmosphereUniforms. */
 export const ATMOSPHERE_PARAMETERS = [
-  'uBlueHorizon', 'uBlueDensity', 'uAmbient', 'uSunlight', 'uGlow', 'uLightNorm',
-  'uHazeHorizon', 'uHazeDensity', 'uDensityMultiplier', 'uMaxY', 'uCloudShadow', 'uSunUp', 'uSunMoonGlow',
+  'uBlueHorizon',
+  'uBlueDensity',
+  'uAmbient',
+  'uSunlight',
+  'uGlow',
+  'uLightNorm',
+  'uHazeHorizon',
+  'uHazeDensity',
+  'uDensityMultiplier',
+  'uMaxY',
+  'uCloudShadow',
+  'uSunUp',
+  'uSunMoonGlow',
 ] as const;
 
 export const SKY_PARAMETERS = [
-  ...ATMOSPHERE_PARAMETERS, 'uSunDir', 'uMoonDir', 'uSunRadius', 'uMoonRadius', 'uMoonBrightness', 'uMoonUp',
+  ...ATMOSPHERE_PARAMETERS,
+  'uSunDir',
+  'uMoonDir',
+  'uSunRadius',
+  'uMoonRadius',
+  'uMoonBrightness',
+  'uMoonUp',
 ] as const;
 
 export const WATER_PARAMETERS = [
-  ...ATMOSPHERE_PARAMETERS, 'uCameraPos', 'uFogColor', 'uFogDensity', 'uFresnelScale', 'uFresnelOffset',
-  'uLightDir', 'uLightColor', 'uSurfaceAmbient', 'uTime', 'uPixelAngle', 'uNormalScale', 'uWaterHeight',
-  'uFrequency', 'uPhase', 'uAmplitude', 'uDirection01', 'uDirection23',
+  ...ATMOSPHERE_PARAMETERS,
+  'uCameraPos',
+  'uFogColor',
+  'uFogDensity',
+  'uFresnelScale',
+  'uFresnelOffset',
+  'uLightDir',
+  'uLightColor',
+  'uSurfaceAmbient',
+  'uTime',
+  'uPixelAngle',
+  'uNormalScale',
+  'uWaterHeight',
+  'uFrequency',
+  'uPhase',
+  'uAmplitude',
+  'uDirection01',
+  'uDirection23',
 ] as const;
 
 export const TERRAIN_PARAMETERS = [
-  'uComposition', 'uDetail0', 'uDetail1', 'uDetail2', 'uDetail3', 'uDetailUse',
-  'uFallback0', 'uFallback1', 'uFallback2', 'uFallback3', 'uLightPos', 'uLightColor', 'uAmbientColor', 'uTileScale',
+  'uComposition',
+  'uDetail0',
+  'uDetail1',
+  'uDetail2',
+  'uDetail3',
+  'uDetailUse',
+  'uFallback0',
+  'uFallback1',
+  'uFallback2',
+  'uFallback3',
+  'uLightPos',
+  'uLightColor',
+  'uAmbientColor',
+  'uTileScale',
 ] as const;
 
 async function fetchPackage(name: MaterialName, url: string): Promise<Uint8Array> {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load the ${name} material (${response.status} ${response.statusText})`);
+  if (!response.ok)
+    throw new Error(
+      `Could not load the ${name} material (${response.status} ${response.statusText})`,
+    );
   return new Uint8Array(await response.arrayBuffer());
 }
 
@@ -85,11 +136,17 @@ export async function loadMaterials<I extends MaterialInstanceLike, M extends Ma
     const materials = {} as Record<MaterialName, M>;
     names.forEach((name, i) => {
       const material = engine.createMaterial(packages[i]);
-      if (!material) throw new Error(`Filament rejected the ${name} material; rebuild it with npm run build:materials`);
+      if (!material)
+        throw new Error(
+          `Filament rejected the ${name} material; rebuild it with npm run build:materials`,
+        );
       built.push(material);
       materials[name] = material;
     });
-    const factory = (name: MaterialName): MaterialFactory<I> => ({ name, createInstance: () => materials[name].createInstance() });
+    const factory = (name: MaterialName): MaterialFactory<I> => ({
+      name,
+      createInstance: () => materials[name].createInstance(),
+    });
     return {
       sky: factory('sky'),
       water: factory('water'),

@@ -26,7 +26,10 @@ describe('Google integration preference', () => {
   });
 
   it('stays off for preferences saved before the setting existed, and for any non-true value', () => {
-    localStorage.setItem('linkpoint_preferences', JSON.stringify({ graphics: { quality: 'high' }, interface: {}, notifications: {} }));
+    localStorage.setItem(
+      'linkpoint_preferences',
+      JSON.stringify({ graphics: { quality: 'high' }, interface: {}, notifications: {} }),
+    );
     const prefs = new PreferencesManager();
     prefs.init();
     expect(prefs.isGoogleEnabled()).toBe(false);

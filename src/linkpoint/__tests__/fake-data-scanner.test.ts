@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { RULES, scanText, applyAllowlist } from '../../../scripts/fake-data-rules.mjs';
 import { scanRepository } from '../../../scripts/check-fake-data.mjs';
 
-const hits = (text: string, file = 'src/screens/X.jsx') => scanText(text, file).map((f: any) => f.rule);
+const hits = (text: string, file = 'src/screens/X.jsx') =>
+  scanText(text, file).map((f: any) => f.rule);
 
 describe('fabricated-data scanner rules', () => {
   const bad: Array<[string, string]> = [
@@ -69,12 +70,23 @@ describe('fabricated-data scanner rules', () => {
 describe('allowlist', () => {
   const finding = { file: 'src/a.ts', line: 1, rule: 'seeded-record', message: '', text: '' };
   it('suppresses a finding only when rule and file match and a reason is given', () => {
-    expect(applyAllowlist([finding], [{ rule: 'seeded-record', file: 'src/a.ts', reason: 'why' }]).findings).toEqual([]);
-    expect(applyAllowlist([finding], [{ rule: 'other', file: 'src/a.ts', reason: 'why' }]).findings).toHaveLength(1);
-    expect(applyAllowlist([finding], [{ rule: 'seeded-record', file: 'src/b.ts', reason: 'why' }]).findings).toHaveLength(1);
+    expect(
+      applyAllowlist([finding], [{ rule: 'seeded-record', file: 'src/a.ts', reason: 'why' }])
+        .findings,
+    ).toEqual([]);
+    expect(
+      applyAllowlist([finding], [{ rule: 'other', file: 'src/a.ts', reason: 'why' }]).findings,
+    ).toHaveLength(1);
+    expect(
+      applyAllowlist([finding], [{ rule: 'seeded-record', file: 'src/b.ts', reason: 'why' }])
+        .findings,
+    ).toHaveLength(1);
   });
   it('rejects entries without a reason and does not honour them', () => {
-    const result = applyAllowlist([finding], [{ rule: 'seeded-record', file: 'src/a.ts', reason: ' ' }]);
+    const result = applyAllowlist(
+      [finding],
+      [{ rule: 'seeded-record', file: 'src/a.ts', reason: ' ' }],
+    );
     expect(result.problems).toHaveLength(1);
     expect(result.findings).toHaveLength(1);
   });

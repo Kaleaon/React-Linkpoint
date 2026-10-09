@@ -15,7 +15,10 @@ const LOGIN_HOSTS = new Set([
   'login.aditi.lindenlab.com',
   'login.osgrid.org',
   'grid.kitely.com',
-  ...String(process.env.SL_ALLOWED_LOGIN_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean),
+  ...String(process.env.SL_ALLOWED_LOGIN_HOSTS || '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
 ]);
 const permittedOrigins = new Set();
 const viewerSessions = new Map();
@@ -23,32 +26,56 @@ const viewerSessions = new Map();
 function isPrivateAddress(address) {
   if (net.isIPv4(address)) {
     const [a, b] = address.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+    return (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    );
   }
   const value = address.toLowerCase();
-  return value === '::1' || value === '::' || value.startsWith('fc') || value.startsWith('fd') || value.startsWith('fe8') || value.startsWith('fe9') || value.startsWith('fea') || value.startsWith('feb');
+  return (
+    value === '::1' ||
+    value === '::' ||
+    value.startsWith('fc') ||
+    value.startsWith('fd') ||
+    value.startsWith('fe8') ||
+    value.startsWith('fe9') ||
+    value.startsWith('fea') ||
+    value.startsWith('feb')
+  );
 }
 
 async function assertSafeTarget(rawUrl) {
   const target = new URL(rawUrl);
-  if (target.protocol !== 'https:' || target.username || target.password) throw new Error('Only credential-free HTTPS grid endpoints are allowed');
+  if (target.protocol !== 'https:' || target.username || target.password)
+    throw new Error('Only credential-free HTTPS grid endpoints are allowed');
   const host = target.hostname.toLowerCase();
-  if (!LOGIN_HOSTS.has(host) && !permittedOrigins.has(target.origin)) throw new Error('Grid endpoint is not authorized for this session');
+  if (!LOGIN_HOSTS.has(host) && !permittedOrigins.has(target.origin))
+    throw new Error('Grid endpoint is not authorized for this session');
   return target;
 }
 
 ipcMain.handle('linkpoint:allow-login', async (_event, rawUrl) => {
   const target = new URL(rawUrl);
-  if (target.protocol !== 'https:' || target.username || target.password) throw new Error('Only credential-free HTTPS grid endpoints are allowed');
+  if (target.protocol !== 'https:' || target.username || target.password)
+    throw new Error('Only credential-free HTTPS grid endpoints are allowed');
   const addresses = await dns.lookup(target.hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address))) throw new Error('Private or unresolved grid endpoints are not allowed');
+  if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address)))
+    throw new Error('Private or unresolved grid endpoints are not allowed');
   LOGIN_HOSTS.add(target.hostname.toLowerCase());
   return true;
 });
 
 function learnCapabilityOrigins(text) {
   for (const match of text.matchAll(/https:\/\/[^\s<"']+/g)) {
-    try { permittedOrigins.add(new URL(match[0].replace(/&amp;/g, '&')).origin); } catch { /* ignore malformed response text */ }
+    try {
+      permittedOrigins.add(new URL(match[0].replace(/&amp;/g, '&')).origin);
+    } catch {
+      /* ignore malformed response text */
+    }
   }
 }
 
@@ -63,7 +90,13 @@ ipcMain.handle('linkpoint:request', async (_event, request) => {
   });
   const text = await response.text();
   if (response.ok) learnCapabilityOrigins(text);
-  return { ok: response.ok, status: response.status, statusText: response.statusText, text, headers: Object.fromEntries(response.headers.entries()) };
+  return {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    text,
+    headers: Object.fromEntries(response.headers.entries()),
+  };
 });
 
 function sessionFor(event) {
@@ -88,11 +121,17 @@ ipcMain.handle('linkpoint:viewer-connect', async (event, request) => {
   return { ...result, native_scene: true };
 });
 // Every other session operation goes through the shared method table.
-ipcMain.handle('linkpoint:viewer-call', (event, method, params) => callViewer(sessionFor(event), method, params));
+ipcMain.handle('linkpoint:viewer-call', (event, method, params) =>
+  callViewer(sessionFor(event), method, params),
+);
 ipcMain.handle('linkpoint:viewer-profile-photo', async (event, request) => {
   sessionFor(event).requireBot(); // only while connected, like the web endpoint
-  const photo = await fetchProfilePhoto(String((request && request.name) || ''), { thumbnail: !(request && request.full) });
-  return photo ? { photoBytes: photo.base64, contentType: photo.contentType } : { photoBytes: null };
+  const photo = await fetchProfilePhoto(String((request && request.name) || ''), {
+    thumbnail: !(request && request.full),
+  });
+  return photo
+    ? { photoBytes: photo.base64, contentType: photo.contentType }
+    : { photoBytes: null };
 });
 ipcMain.handle('linkpoint:viewer-disconnect', async (event) => {
   const session = viewerSessions.get(event.sender.id);
@@ -122,6 +161,10 @@ function createWindow() {
 app.whenReady().then(() => {
   registerAppProtocol({ protocol, net: electronNet }, path.join(__dirname, '../dist'));
   createWindow();
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
