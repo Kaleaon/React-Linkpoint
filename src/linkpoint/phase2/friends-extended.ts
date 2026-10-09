@@ -15,9 +15,37 @@ import { indexedDBStore } from '../indexeddb-store';
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
 const isRealName = (name: unknown): name is string => typeof name === 'string' && name.trim() !== '' && !['Resident', 'Friend', 'Unknown Friend'].includes(name.trim());
 
+class FriendRequestsMap extends Map<string, any> {
+  constructor(private pendingRequestIds: Set<string>) {
+    super();
+  }
+
+  override set(key: string, value: any): this {
+    super.set(key, value);
+    if (value && value.status === 'pending') {
+      this.pendingRequestIds.add(key);
+    } else {
+      this.pendingRequestIds.delete(key);
+    }
+    return this;
+  }
+
+  override delete(key: string): boolean {
+    this.pendingRequestIds.delete(key);
+    return super.delete(key);
+  }
+
+  override clear(): void {
+    this.pendingRequestIds.clear();
+    super.clear();
+  }
+}
+
 export class FriendsExtended extends Utils.EventEmitter {
   private friends: Map<string, any> = new Map();
-  private friendRequests: Map<string, any> = new Map();
+  private onlineFriendIds: Set<string> = new Set();
+  private pendingRequestIds: Set<string> = new Set();
+  private friendRequests: Map<string, any> = new FriendRequestsMap(this.pendingRequestIds);
   private friendGroups: Map<string, any> = new Map();
   private onlineStatusListeners: Set<Function> = new Set();
   private authoritativePresence: Set<string> = new Set();
@@ -51,7 +79,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     }
     await this.protocol.sendFriendRequest(userId, message);
     const request = {
-      id: `req-${Date.now()}`,
+      id: `req-${Date.now()}-${userId}`,
       targetUserId: userId,
       message: message,
       status: 'pending',
@@ -74,6 +102,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     }
     
     request.status = 'accepted';
+    this.pendingRequestIds.delete(requestId);
     
     // Add to friends list
     this.addFriend(request.targetUserId, {
@@ -92,6 +121,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     const request = this.friendRequests.get(requestId);
     if (request) {
       request.status = 'declined';
+      this.pendingRequestIds.delete(requestId);
       console.log(`[FriendsExtended] Declined friend request: ${requestId}`);
     }
   }
@@ -123,6 +153,11 @@ export class FriendsExtended extends Utils.EventEmitter {
     };
     
     this.friends.set(normalizedId, friend);
+    if (friend.onlineStatus === 'online') {
+      this.onlineFriendIds.add(normalizedId);
+    } else {
+      this.onlineFriendIds.delete(normalizedId);
+    }
     deltaSelectorStore.emitDelta('contact', normalizedId, existing ? 'update' : 'add', friend, existing);
     this.emit(existing ? 'friend_updated' : 'friend_added', { ...friend });
     console.log(`[FriendsExtended] ${existing ? 'Updated' : 'Added'} friend: ${friend.name}`);
@@ -148,6 +183,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     const friend = this.friends.get(normalizedId);
     if (!friend) return false;
     this.friends.delete(normalizedId);
+    this.onlineFriendIds.delete(normalizedId);
     this.authoritativePresence.delete(normalizedId);
     for (const group of this.friendGroups.values()) {
       group.members = group.members.filter((id: string) => this.normalizeId(id) !== normalizedId);
@@ -159,6 +195,8 @@ export class FriendsExtended extends Utils.EventEmitter {
   clear() {
     for (const id of [...this.friends.keys()]) this.removeFriend(id);
     this.friendRequests.clear();
+    this.onlineFriendIds.clear();
+    this.pendingRequestIds.clear();
   }
 
   /**
@@ -183,6 +221,11 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (friend) {
       const oldStatus = friend.onlineStatus;
       friend.onlineStatus = normalizedStatus;
+      if (normalizedStatus === 'online') {
+        this.onlineFriendIds.add(normalizedId);
+      } else {
+        this.onlineFriendIds.delete(normalizedId);
+      }
       if (isRealName(friendData.name)) friend.name = friendData.name;
       
       // Notify listeners
@@ -329,7 +372,14 @@ export class FriendsExtended extends Utils.EventEmitter {
    * Get online friends
    */
   getOnlineFriends() {
-    return Array.from(this.friends.values()).filter(f => f.onlineStatus === 'online');
+    const online: any[] = [];
+    for (const id of this.onlineFriendIds) {
+      const friend = this.friends.get(id);
+      if (friend) {
+        online.push(friend);
+      }
+    }
+    return online;
   }
 
   /** Snapshot for UI rendering; callers cannot mutate the backing map. */
@@ -343,24 +393,10 @@ export class FriendsExtended extends Utils.EventEmitter {
   }
 
   getStats() {
-    let onlineFriends = 0;
-    for (const f of this.friends.values()) {
-      if (f.onlineStatus === 'online') {
-        onlineFriends++;
-      }
-    }
-
-    let pendingRequests = 0;
-    for (const r of this.friendRequests.values()) {
-      if (r.status === 'pending') {
-        pendingRequests++;
-      }
-    }
-
     return {
       totalFriends: this.friends.size,
-      onlineFriends,
-      pendingRequests,
+      onlineFriends: this.onlineFriendIds.size,
+      pendingRequests: this.pendingRequestIds.size,
       friendGroups: this.friendGroups.size
     };
   }
