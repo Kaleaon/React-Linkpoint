@@ -39,7 +39,7 @@ jobs:
             files="$(git diff --name-only "$BASE" HEAD)"
             expo=false
             kotlin=false
-            if grep -qE '^(src/|public/|android/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
+            if grep -qE '^(src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
             if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
           fi
           echo "expo=$expo" >> "$GITHUB_OUTPUT"
@@ -57,6 +57,7 @@ jobs:
       - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
+          cache: 'bun'
       - run: bun install --frozen-lockfile
       - name: TypeScript type check
         run: npm run lint
@@ -81,6 +82,7 @@ jobs:
       - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
+          cache: 'bun'
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
         with:
           distribution: temurin
@@ -114,16 +116,16 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-      - name: Unit and end-to-end tests (core)
-        run: ./gradlew :core:test --no-daemon
+      - name: Unit and end-to-end tests
+        run: ./gradlew test --no-daemon
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --no-daemon
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: kotlin-core-test-reports
-          path: android-kotlin/core/build/reports/tests/test
+          name: kotlin-test-reports
+          path: android-kotlin/*/build/reports/tests/
           retention-days: 7
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
