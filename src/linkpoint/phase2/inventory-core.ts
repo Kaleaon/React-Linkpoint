@@ -8,6 +8,8 @@
  * Manages inventory folder structure and item properties.
  */
 
+import { indexedDBStore } from '../indexeddb-store';
+
 export class InventoryCore {
   private folders: Map<string, any> = new Map();
   private items: Map<string, any> = new Map();
@@ -123,6 +125,13 @@ export class InventoryCore {
       folders: (Array.from(new Set(folder.children || [])) as string[]).map((id: string) => this.folders.get(id)).filter(Boolean),
       items: (Array.from(new Set(folder.items || [])) as string[]).map((id: string) => this.items.get(id)).filter(Boolean)
     };
+  }
+
+  /**
+   * Paged folder contents query directly from IndexedDB transactional store.
+   */
+  async getFolderContentsPage(folderId: string, page = 1, pageSize = 50, agentId = 'current') {
+    return indexedDBStore.getFolderContentsPage(agentId, folderId, page, pageSize);
   }
 
   /**

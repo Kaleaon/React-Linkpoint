@@ -3,6 +3,7 @@
  */
 
 import { purgeFabricatedStorage } from './fabricated-data';
+import { migrationUtility } from './migration';
 import { SLConnectionFull } from './sl-connection-full';
 import { AuthManager } from './auth';
 import { WorldViewer } from './world';
@@ -199,6 +200,7 @@ export class LinkpointApp {
 
     // Remove invented data left in storage by earlier builds before anything reads it.
     purgeFabricatedStorage();
+    await migrationUtility.migrateLegacyStorage().catch(() => {});
     this.preferences.init();
     this.auth.init();
     // Wired before anything that can fail or wait: a script dialog must never be dropped for want of a listener.

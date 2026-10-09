@@ -11,6 +11,9 @@
  */
 
 import { Utils } from './utils';
+import { indexedDBStore } from './indexeddb-store';
+import { idbWorkerBridge } from './idb-worker';
+import { deltaSelectorStore } from './delta-selectors';
 
 export const CONTACTS_STORAGE_KEY = 'linkpoint.contacts.v1';
 export const MAX_CONTACTS = 2000;
@@ -154,7 +157,31 @@ export class ContactsStore extends Utils.EventEmitter {
       this.contacts = previous;
       throw new Error('This device has no room left to save contacts. Remove a photo or a contact and try again.');
     }
+
+    // Persist to transactional IndexedDB store off the main thread
+    idbWorkerBridge.saveContacts('current', [...this.contacts.values()]).catch(() => {});
+
+    // Emit reactive delta events for changed contact IDs
+    for (const [id, currentContact] of this.contacts.entries()) {
+      const prevContact = previous.get(id);
+      if (!prevContact) {
+        deltaSelectorStore.emitDelta('contact', id, 'add', currentContact);
+      } else if (JSON.stringify(currentContact) !== JSON.stringify(prevContact)) {
+        deltaSelectorStore.emitDelta('contact', id, 'update', currentContact, prevContact);
+      }
+    }
+    for (const [id, prevContact] of previous.entries()) {
+      if (!this.contacts.has(id)) {
+        deltaSelectorStore.emitDelta('contact', id, 'delete', { id }, prevContact);
+      }
+    }
+
     this.emit('contacts_changed', this.list());
+  }
+
+  /** Paged friends / contacts query directly from IndexedDB without full array allocations. */
+  async getFriendsPage(page = 1, pageSize = 50, filter?: string, agentId = 'current') {
+    return indexedDBStore.getFriendsPage(agentId, page, pageSize, filter);
   }
 
   private mutate(change: () => void) {
