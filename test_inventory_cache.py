@@ -169,6 +169,94 @@ class TestInventoryCache(unittest.TestCase):
         self.assertIsNone(self.cache.get_item("i_2"))  # Cascaded deletion
         self.assertIsNotNone(self.cache.get_item("i_1"))  # Preserved in f_root
 
+    def test_chunked_full_inventory_reload(self):
+        # 1. Dataset spanning multiple chunks (250 items, chunk_size=100)
+        folders = [{"folder_id": f"f_{i}", "parent_id": None, "name": f"Folder {i}"} for i in range(250)]
+        items = [{"item_id": f"i_{i}", "folder_id": f"f_{i}", "name": f"Item {i}", "asset_id": f"a_{i}"} for i in range(250)]
+        full_data = {"folders": folders, "items": items}
+
+        success = self.cache.reload_full_inventory(full_data, new_token="token_chunk_250", chunk_size=100)
+        self.assertTrue(success)
+
+        loaded = self.cache.load_cached_inventory()
+        self.assertEqual(loaded["folder_count"], 250)
+        self.assertEqual(loaded["item_count"], 250)
+        self.assertEqual(loaded["update_token"], "token_chunk_250")
+        self.assertEqual(self.cache.get_item("i_249")["name"], "Item 249")
+
+        # 2. Dataset exact multiple of chunk size (200 items, chunk_size=100)
+        folders_200 = [{"folder_id": f"f_{i}", "parent_id": None, "name": f"Folder {i}"} for i in range(200)]
+        items_200 = [{"item_id": f"i_{i}", "folder_id": f"f_{i}", "name": f"Item {i}", "asset_id": f"a_{i}"} for i in range(200)]
+        full_data_200 = {"folders": folders_200, "items": items_200}
+
+        success_200 = self.cache.reload_full_inventory(full_data_200, new_token="token_chunk_200", chunk_size=100)
+        self.assertTrue(success_200)
+
+        loaded_200 = self.cache.load_cached_inventory()
+        self.assertEqual(loaded_200["folder_count"], 200)
+        self.assertEqual(loaded_200["item_count"], 200)
+
+        # 3. Small dataset smaller than chunk size (5 items, chunk_size=100)
+        folders_5 = [{"folder_id": f"f_{i}", "parent_id": None, "name": f"Folder {i}"} for i in range(5)]
+        items_5 = [{"item_id": f"i_{i}", "folder_id": f"f_{i}", "name": f"Item {i}", "asset_id": f"a_{i}"} for i in range(5)]
+        full_data_5 = {"folders": folders_5, "items": items_5}
+
+        success_5 = self.cache.reload_full_inventory(full_data_5, new_token="token_chunk_5", chunk_size=100)
+        self.assertTrue(success_5)
+
+        loaded_5 = self.cache.load_cached_inventory()
+        self.assertEqual(loaded_5["folder_count"], 5)
+        self.assertEqual(loaded_5["item_count"], 5)
+
+        # 4. Empty dataset
+        success_empty = self.cache.reload_full_inventory({"folders": [], "items": []}, new_token="token_empty", chunk_size=100)
+        self.assertTrue(success_empty)
+        loaded_empty = self.cache.load_cached_inventory()
+        self.assertEqual(loaded_empty["folder_count"], 0)
+        self.assertEqual(loaded_empty["item_count"], 0)
+
+    def test_chunked_delta_updates_across_boundaries(self):
+        # Populate initial inventory
+        initial_folders = [{"folder_id": f"f_{i}", "parent_id": None, "name": f"Folder {i}"} for i in range(150)]
+        initial_items = [{"item_id": f"i_{i}", "folder_id": f"f_{i}", "name": f"Item {i}", "asset_id": f"a_{i}"} for i in range(150)]
+        self.cache.reload_full_inventory({"folders": initial_folders, "items": initial_items}, new_token="token_v1")
+
+        # Apply delta: update existing 150 items, add 100 new items (total 250), remove 100 items
+        delta = {
+            "folders_to_add_or_update": [{"folder_id": f"f_{i}", "parent_id": None, "name": f"Updated Folder {i}"} for i in range(150, 250)],
+            "items_to_add_or_update": [{"item_id": f"i_{i}", "folder_id": f"f_0", "name": f"Updated Item {i}", "asset_id": f"a_{i}"} for i in range(150, 250)],
+            "items_to_remove": [f"i_{i}" for i in range(100)]
+        }
+
+        success = self.cache.apply_delta_update(delta, new_token="token_v2", chunk_size=30)
+        self.assertTrue(success)
+
+        # Verify removals
+        for i in range(100):
+            self.assertIsNone(self.cache.get_item(f"i_{i}"))
+
+        # Verify additions
+        for i in range(150, 250):
+            item = self.cache.get_item(f"i_{i}")
+            self.assertIsNotNone(item)
+            self.assertEqual(item["name"], f"Updated Item {i}")
+
+    def test_chunk_size_invalid_fallback(self):
+        folders = [{"folder_id": "f_1", "parent_id": None, "name": "Folder 1"}]
+        items = [{"item_id": "i_1", "folder_id": "f_1", "name": "Item 1", "asset_id": "a_1"}]
+        
+        # Test chunk_size <= 0
+        success_reload = self.cache.reload_full_inventory({"folders": folders, "items": items}, new_token="token_invalid", chunk_size=0)
+        self.assertTrue(success_reload)
+        self.assertEqual(self.cache.load_cached_inventory()["item_count"], 1)
+
+        delta = {
+            "items_to_add_or_update": [{"item_id": "i_2", "folder_id": "f_1", "name": "Item 2", "asset_id": "a_2"}]
+        }
+        success_delta = self.cache.apply_delta_update(delta, new_token="token_invalid_2", chunk_size=-10)
+        self.assertTrue(success_delta)
+        self.assertEqual(self.cache.load_cached_inventory()["item_count"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
