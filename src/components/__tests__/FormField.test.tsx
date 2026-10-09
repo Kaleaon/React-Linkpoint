@@ -14,9 +14,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -37,7 +35,7 @@ describe('<FormField /> Component', () => {
     const host = await mount(
       <FormField label="Username">
         <input type="text" placeholder="Enter username" />
-      </FormField>
+      </FormField>,
     );
 
     const label = host.querySelector('label');
@@ -60,7 +58,7 @@ describe('<FormField /> Component', () => {
     const host = await mount(
       <FormField label="Password">
         <input id="custom-pass-id" type="password" />
-      </FormField>
+      </FormField>,
     );
 
     const label = host.querySelector('label');
@@ -74,7 +72,7 @@ describe('<FormField /> Component', () => {
     const host = await mount(
       <FormField label="Avatar Name" error="Avatar name is required.">
         <input type="text" />
-      </FormField>
+      </FormField>,
     );
 
     const input = host.querySelector('input');
@@ -94,7 +92,7 @@ describe('<FormField /> Component', () => {
     const host = await mount(
       <FormField label="Mount Path" helpText="Enter flashdrive directory" error="Invalid path">
         <input type="text" />
-      </FormField>
+      </FormField>,
     );
 
     const input = host.querySelector('input');

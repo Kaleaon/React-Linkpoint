@@ -32,7 +32,13 @@ function watchWind(getRegion, send, intervalMs = 2000) {
   attach();
   const timer = setInterval(attach, intervalMs);
   timer.unref?.();
-  return { unsubscribe() { clearInterval(timer); subscription?.unsubscribe(); subscription = null; } };
+  return {
+    unsubscribe() {
+      clearInterval(timer);
+      subscription?.unsubscribe();
+      subscription = null;
+    },
+  };
 }
 
 module.exports = { serializeWindPacket, watchWind, WIND_LAYER_TYPE };

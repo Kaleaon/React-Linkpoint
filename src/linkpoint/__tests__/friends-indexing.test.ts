@@ -105,7 +105,7 @@ describe('FriendsExtended secondary set indexing', () => {
     // replace with f-2 (online) and f-3 (offline)
     friends.replaceFriends([
       { id: 'f-2', onlineStatus: 'online' },
-      { id: 'f-3', onlineStatus: 'offline' }
+      { id: 'f-3', onlineStatus: 'offline' },
     ]);
 
     expect(friends.getStats().totalFriends).toBe(2);
@@ -117,7 +117,7 @@ describe('FriendsExtended secondary set indexing', () => {
     const friends = new FriendsExtended();
     for (let i = 0; i < 50000; i++) {
       friends.addFriend(`friend-${i}`, {
-        onlineStatus: i % 2 === 0 ? 'online' : 'offline'
+        onlineStatus: i % 2 === 0 ? 'online' : 'offline',
       });
     }
 

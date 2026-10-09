@@ -60,10 +60,14 @@ describe('Second Life UDP message template compatibility', () => {
     payload.set(fixed);
     const view = new DataView(payload.buffer);
     let offset = fixed.length;
-    view.setFloat32(offset, 128, true); offset += 4;
-    view.setFloat32(offset, 64, true); offset += 4;
-    view.setFloat32(offset, 25, true); offset += 4;
-    view.setUint16(offset, message.length, true); offset += 2;
+    view.setFloat32(offset, 128, true);
+    offset += 4;
+    view.setFloat32(offset, 64, true);
+    offset += 4;
+    view.setFloat32(offset, 25, true);
+    offset += 4;
+    view.setUint16(offset, message.length, true);
+    offset += 2;
     payload.set(message, offset);
 
     const decoded = new ChatFromSimulatorMessage();

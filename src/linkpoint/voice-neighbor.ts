@@ -1,5 +1,12 @@
 import { slBridge } from './sl-bridge';
-import { DATA_CHANNEL_LABEL, iceServersForGrid, joinMessage, mungeOpusSdp, provisionBody, signalingBody } from './voice-protocol';
+import {
+  DATA_CHANNEL_LABEL,
+  iceServersForGrid,
+  joinMessage,
+  mungeOpusSdp,
+  provisionBody,
+  signalingBody,
+} from './voice-protocol';
 
 export interface NeighborConnectionOptions {
   grid?: string;
@@ -23,9 +30,14 @@ export class VoiceNeighborConnection {
   private closed = false;
   joined = false;
 
-  constructor(readonly handle: string, private readonly options: NeighborConnectionOptions) {}
+  constructor(
+    readonly handle: string,
+    private readonly options: NeighborConnectionOptions,
+  ) {}
 
-  get isOpen() { return this.dataChannel?.readyState === 'open' && this.joined; }
+  get isOpen() {
+    return this.dataChannel?.readyState === 'open' && this.joined;
+  }
 
   async connect() {
     const peer = new RTCPeerConnection({ iceServers: iceServersForGrid(this.options.grid) });
@@ -38,11 +50,16 @@ export class VoiceNeighborConnection {
         channel.send(joinMessage(false)); // non-primary: a join without `p`
         this.joined = true;
       };
-      channel.onmessage = (event) => { if (typeof event.data === 'string') this.options.onData(event.data, this.handle); };
-      channel.onclose = () => { if (!this.closed && this.joined) this.options.onLost(this.handle); };
+      channel.onmessage = (event) => {
+        if (typeof event.data === 'string') this.options.onData(event.data, this.handle);
+      };
+      channel.onclose = () => {
+        if (!this.closed && this.joined) this.options.onLost(this.handle);
+      };
       // An audio line that sends nothing: the connection has no microphone.
       peer.addTransceiver('audio', { direction: 'sendrecv' });
-      peer.ontrack = ({ track, streams }) => this.options.onRemoteStream(streams[0] || new MediaStream([track]), this.handle);
+      peer.ontrack = ({ track, streams }) =>
+        this.options.onRemoteStream(streams[0] || new MediaStream([track]), this.handle);
 
       const pending: RTCIceCandidateInit[] = [];
       let gatheringDone = false;
@@ -60,20 +77,37 @@ export class VoiceNeighborConnection {
       };
       let flushTimer: ReturnType<typeof setTimeout> | undefined;
       peer.onicecandidate = ({ candidate }) => {
-        if (candidate) { pending.push(candidate.toJSON()); flushTimer ||= setTimeout(() => { flushTimer = undefined; void flush(); }, 100); }
-        else { gatheringDone = true; void flush(); }
+        if (candidate) {
+          pending.push(candidate.toJSON());
+          flushTimer ||= setTimeout(() => {
+            flushTimer = undefined;
+            void flush();
+          }, 100);
+        } else {
+          gatheringDone = true;
+          void flush();
+        }
       };
-      peer.onconnectionstatechange = () => { if (peer.connectionState === 'failed' && !this.closed) this.options.onLost(this.handle); };
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === 'failed' && !this.closed) this.options.onLost(this.handle);
+      };
 
       const offer = await peer.createOffer({ offerToReceiveAudio: true });
       const sdp = mungeOpusSdp(offer.sdp || '');
       await peer.setLocalDescription({ type: 'offer', sdp });
       // Estate channel: provisioned on the neighbour without a parcel id.
-      const response = await slBridge.voiceProvision(provisionBody(sdp, { kind: 'local' }), this.handle);
+      const response = await slBridge.voiceProvision(
+        provisionBody(sdp, { kind: 'local' }),
+        this.handle,
+      );
       const answer = response?.jsep;
-      if (!response?.viewer_session || answer?.type !== 'answer' || !answer?.sdp) throw new Error('The neighbouring voice server returned an invalid answer');
+      if (!response?.viewer_session || answer?.type !== 'answer' || !answer?.sdp)
+        throw new Error('The neighbouring voice server returned an invalid answer');
       this.viewerSession = String(response.viewer_session);
-      if (this.closed) { await this.close(); return; }
+      if (this.closed) {
+        await this.close();
+        return;
+      }
       await peer.setRemoteDescription(answer);
       await flush();
     } catch (error) {
@@ -90,10 +124,21 @@ export class VoiceNeighborConnection {
     this.closed = true;
     this.joined = false;
     if (this.peer) this.peer.onconnectionstatechange = null;
-    if (this.dataChannel) { this.dataChannel.onopen = null; this.dataChannel.onmessage = null; this.dataChannel.onclose = null; try { this.dataChannel.close(); } catch { /* closed */ } }
+    if (this.dataChannel) {
+      this.dataChannel.onopen = null;
+      this.dataChannel.onmessage = null;
+      this.dataChannel.onclose = null;
+      try {
+        this.dataChannel.close();
+      } catch {
+        /* closed */
+      }
+    }
     this.dataChannel = null;
-    this.peer?.close(); this.peer = null;
-    const session = this.viewerSession; this.viewerSession = '';
+    this.peer?.close();
+    this.peer = null;
+    const session = this.viewerSession;
+    this.viewerSession = '';
     if (session) await slBridge.voiceLogout(session).catch(() => {});
   }
 }

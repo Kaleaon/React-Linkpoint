@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeTheme, themeFromPalette, encodeSharedTheme, decodeSharedTheme } from '../../theme/customTheme';
+import {
+  sanitizeTheme,
+  themeFromPalette,
+  encodeSharedTheme,
+  decodeSharedTheme,
+} from '../../theme/customTheme';
 import { PALETTES } from '../../theme/palettes';
 import { computeTheme } from '../../theme/computeTheme';
 
@@ -17,7 +22,7 @@ describe('Unified Layout Control State & Preferences', () => {
       colors: PALETTES.aero.c,
       layoutMode: 'rail',
       density: 'compact',
-      breakpoint: 'mobile'
+      breakpoint: 'mobile',
     };
     const sanitized = sanitizeTheme(input);
     expect(sanitized).not.toBeNull();
@@ -32,7 +37,7 @@ describe('Unified Layout Control State & Preferences', () => {
       colors: PALETTES.ink.c,
       layoutMode: 'invalid_mode',
       density: 'invalid_density',
-      breakpoint: 'invalid_bp'
+      breakpoint: 'invalid_bp',
     };
     const sanitized = sanitizeTheme(input);
     expect(sanitized?.layoutMode).toBe('grid');
@@ -48,7 +53,7 @@ describe('Unified Layout Control State & Preferences', () => {
       colors: PALETTES.lcars.c,
       layoutMode: 'split',
       density: 'comfortable',
-      breakpoint: 'tablet'
+      breakpoint: 'tablet',
     };
     const encoded = encodeSharedTheme(theme);
     const decoded = decodeSharedTheme(encoded);
@@ -61,9 +66,39 @@ describe('Unified Layout Control State & Preferences', () => {
 
   it('computes spacing tokens according to density selection', () => {
     const dummyCf = () => ({ dock: [] });
-    const compactTheme = computeTheme({ layout: 'terminal', palette: 'ink', device: 'desk', screen: 'Login', cond: 'normal', customTheme: { active: true, density: 'compact', colors: PALETTES.ink.c } }, dummyCf);
-    const standardTheme = computeTheme({ layout: 'terminal', palette: 'ink', device: 'desk', screen: 'Login', cond: 'normal', customTheme: { active: true, density: 'standard', colors: PALETTES.ink.c } }, dummyCf);
-    const comfyTheme = computeTheme({ layout: 'terminal', palette: 'ink', device: 'desk', screen: 'Login', cond: 'normal', customTheme: { active: true, density: 'comfortable', colors: PALETTES.ink.c } }, dummyCf);
+    const compactTheme = computeTheme(
+      {
+        layout: 'terminal',
+        palette: 'ink',
+        device: 'desk',
+        screen: 'Login',
+        cond: 'normal',
+        customTheme: { active: true, density: 'compact', colors: PALETTES.ink.c },
+      },
+      dummyCf,
+    );
+    const standardTheme = computeTheme(
+      {
+        layout: 'terminal',
+        palette: 'ink',
+        device: 'desk',
+        screen: 'Login',
+        cond: 'normal',
+        customTheme: { active: true, density: 'standard', colors: PALETTES.ink.c },
+      },
+      dummyCf,
+    );
+    const comfyTheme = computeTheme(
+      {
+        layout: 'terminal',
+        palette: 'ink',
+        device: 'desk',
+        screen: 'Login',
+        cond: 'normal',
+        customTheme: { active: true, density: 'comfortable', colors: PALETTES.ink.c },
+      },
+      dummyCf,
+    );
 
     expect(compactTheme.pad).toBe('6px');
     expect(standardTheme.pad).toBe('12px');

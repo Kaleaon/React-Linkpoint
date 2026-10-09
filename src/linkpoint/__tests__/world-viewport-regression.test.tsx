@@ -19,7 +19,9 @@ describe('world viewport visibility and navigation regression', () => {
     const canvas = mounted.host.querySelector('canvas');
     expect(init).toHaveBeenCalledWith(canvas);
     expect(canvas).not.toBeNull();
-    await act(async () => { app.world.emit('toggle_overlays'); });
+    await act(async () => {
+      app.world.emit('toggle_overlays');
+    });
     await act(async () => {
       Object.defineProperty(window, 'innerWidth', { value: 412, configurable: true });
       window.dispatchEvent(new Event('resize'));
@@ -41,7 +43,10 @@ describe('world viewport visibility and navigation regression', () => {
     const interaction = vi.spyOn(app.world, 'setInteractionMode').mockImplementation(() => {});
     const pan = vi.spyOn(app.world, 'setPanMode').mockImplementation(() => {});
     mounted = await mountScreen(World3D);
-    for (const [label, mode] of [['Interact Mode', 'interact'], ['Navigate Mode', 'navigate']]) {
+    for (const [label, mode] of [
+      ['Interact Mode', 'interact'],
+      ['Navigate Mode', 'navigate'],
+    ]) {
       await click(mounted.host.querySelector(`[aria-label="${label}"]`));
       expect(interaction).toHaveBeenLastCalledWith(mode);
     }

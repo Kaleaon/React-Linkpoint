@@ -1,13 +1,23 @@
 /** Layout and labelling for the world map, following the official viewer's map floater. */
 
 export interface MapBlock {
-  x: number; y: number; name: string;
+  x: number;
+  y: number;
+  name: string;
   /** SimAccess: 13 PG, 21 Mature, 42 Adult. */
   access: number;
-  waterHeight?: number; regionFlags?: number; mapImage?: string | null;
+  waterHeight?: number;
+  regionFlags?: number;
+  mapImage?: string | null;
 }
 
-export interface MapTile { x: number; y: number; column: number; row: number; center: boolean }
+export interface MapTile {
+  x: number;
+  y: number;
+  column: number;
+  row: number;
+  center: boolean;
+}
 
 /** The tiles of a (2r+1) square around a region, north at the top (row 0). */
 export function mapTiles(center: { x: number; y: number }, radius: number): MapTile[] {
@@ -15,7 +25,10 @@ export function mapTiles(center: { x: number; y: number }, radius: number): MapT
   for (let row = 0; row <= radius * 2; row++) {
     for (let column = 0; column <= radius * 2; column++) {
       tiles.push({
-        x: center.x + column - radius, y: center.y + radius - row, column, row,
+        x: center.x + column - radius,
+        y: center.y + radius - row,
+        column,
+        row,
         center: column === radius && row === radius,
       });
     }
@@ -26,8 +39,10 @@ export function mapTiles(center: { x: number; y: number }, radius: number): MapT
 /** Region-grid range covering the tiles, for one map block request. */
 export function mapRange(center: { x: number; y: number }, radius: number) {
   return {
-    minX: Math.max(0, center.x - radius), maxX: center.x + radius,
-    minY: Math.max(0, center.y - radius), maxY: center.y + radius,
+    minX: Math.max(0, center.x - radius),
+    maxX: center.x + radius,
+    minY: Math.max(0, center.y - radius),
+    maxY: center.y + radius,
   };
 }
 

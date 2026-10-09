@@ -20,9 +20,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -41,7 +39,7 @@ afterEach(async () => {
 function fireInput(element: HTMLInputElement, value: string) {
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     window.HTMLInputElement.prototype,
-    'value'
+    'value',
   )?.set;
   nativeInputValueSetter?.call(element, value);
   element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -137,14 +135,20 @@ describe('FormField Screen Integration', () => {
   });
 
   it('PayDialog inputs integrate FormField wrapper and associate labels with controls', async () => {
-    const host = await mount(<PayDialog isOpen={true} onClose={() => {}} target={{ name: 'Test Avatar' }} />);
+    const host = await mount(
+      <PayDialog isOpen={true} onClose={() => {}} target={{ name: 'Test Avatar' }} />,
+    );
 
-    const customAmountInput = host.querySelector('input[placeholder="Custom amount"]') as HTMLInputElement;
+    const customAmountInput = host.querySelector(
+      'input[placeholder="Custom amount"]',
+    ) as HTMLInputElement;
     expect(customAmountInput).not.toBeNull();
     const customLabel = host.querySelector(`label[for="${customAmountInput?.id}"]`);
     expect(customLabel?.textContent).toBe('Or enter custom amount');
 
-    const descInput = host.querySelector('input[placeholder="Note to recipient"]') as HTMLInputElement;
+    const descInput = host.querySelector(
+      'input[placeholder="Note to recipient"]',
+    ) as HTMLInputElement;
     expect(descInput).not.toBeNull();
     const descLabel = host.querySelector(`label[for="${descInput?.id}"]`);
     expect(descLabel?.textContent).toBe('Description / Note');

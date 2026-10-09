@@ -36,7 +36,9 @@ export function scanRepository(roots = DEFAULT_ROOTS) {
       findings.push(...scanText(fs.readFileSync(path.join(repoRoot, file), 'utf8'), file, RULES));
     }
   }
-  const allowlist = JSON.parse(fs.readFileSync(path.join(here, 'fake-data-allowlist.json'), 'utf8'));
+  const allowlist = JSON.parse(
+    fs.readFileSync(path.join(here, 'fake-data-allowlist.json'), 'utf8'),
+  );
   return applyAllowlist(findings, allowlist);
 }
 
@@ -48,9 +50,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (json) {
     console.log(JSON.stringify({ findings, problems }, null, 2));
   } else {
-    for (const f of findings) console.error(`${f.file}:${f.line}  [${f.rule}]  ${f.message}\n    ${f.text}`);
+    for (const f of findings)
+      console.error(`${f.file}:${f.line}  [${f.rule}]  ${f.message}\n    ${f.text}`);
     for (const p of problems) console.error(`allowlist: ${p}`);
-    console.error(findings.length || problems.length ? `\n${findings.length} fabricated-data finding(s), ${problems.length} allowlist problem(s).` : 'No fabricated data found.');
+    console.error(
+      findings.length || problems.length
+        ? `\n${findings.length} fabricated-data finding(s), ${problems.length} allowlist problem(s).`
+        : 'No fabricated data found.',
+    );
   }
   process.exit(findings.length || problems.length ? 1 : 0);
 }

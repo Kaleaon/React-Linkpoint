@@ -40,9 +40,14 @@ async function mount() {
         createElement(
           ThemeProvider as any,
           null,
-          createElement('div', null, createElement(SystemDialog as any), createElement(InteractionDialog as any))
-        )
-      )
+          createElement(
+            'div',
+            null,
+            createElement(SystemDialog as any),
+            createElement(InteractionDialog as any),
+          ),
+        ),
+      ),
     );
   });
   mounted = { host, root: r };
@@ -56,7 +61,8 @@ const emit = async (type: string, data: any) => {
 };
 
 const button = (host: HTMLElement, label: string) =>
-  [...host.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === label) as HTMLButtonElement | undefined;
+  [...host.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === label) as
+    HTMLButtonElement | undefined;
 
 const click = async (el: Element | null | undefined) => {
   await act(async () => {
@@ -107,7 +113,11 @@ describe('SystemDialog Teleport Sheet', () => {
       app.interactions.startTeleportSession('Da Boom');
     });
 
-    await emit('teleport_progress', { phase: 'preparing', percent: 65, statusText: 'Transferring avatar session...' });
+    await emit('teleport_progress', {
+      phase: 'preparing',
+      percent: 65,
+      statusText: 'Transferring avatar session...',
+    });
 
     expect(host.textContent).toContain('65%');
     expect(host.textContent).toContain('Transferring avatar session...');
@@ -158,7 +168,9 @@ describe('SystemDialog Teleport Sheet', () => {
   });
 
   it('triggers retry home on RETRY HOME button click', async () => {
-    const teleportSpy = vi.spyOn(app.protocol, 'teleportTo').mockResolvedValue({ requested: { region: 'home', x: 128, y: 128, z: 30 }, message: 'ok' });
+    const teleportSpy = vi
+      .spyOn(app.protocol, 'teleportTo')
+      .mockResolvedValue({ requested: { region: 'home', x: 128, y: 128, z: 30 }, message: 'ok' });
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
 
     const host = await mount();

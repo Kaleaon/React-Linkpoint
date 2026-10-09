@@ -16,11 +16,7 @@ async function mount(ui: React.ReactElement) {
   const r = createRoot(host);
   await act(async () => {
     r.render(
-      createElement(
-        AppProvider as any,
-        null,
-        createElement(ThemeProvider as any, null, ui)
-      )
+      createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, ui)),
     );
   });
   mounted = { host, root: r };
@@ -43,9 +39,7 @@ afterEach(async () => {
 
 describe('TouchTarget component (WCAG 2.5.8 & 2.5.5)', () => {
   it('renders a button with minimum 24x24 CSS pixel dimensions by default (WCAG 2.5.8 AA)', async () => {
-    const host = await mount(
-      createElement(TouchTarget, { 'aria-label': 'Test button' }, 'Tap')
-    );
+    const host = await mount(createElement(TouchTarget, { 'aria-label': 'Test button' }, 'Tap'));
 
     const button = host.querySelector('button');
     expect(button).not.toBeNull();
@@ -59,7 +53,7 @@ describe('TouchTarget component (WCAG 2.5.8 & 2.5.5)', () => {
 
   it('applies minimum 44x44 CSS pixel dimensions when enhanced prop is true (WCAG 2.5.5 AAA)', async () => {
     const host = await mount(
-      createElement(TouchTarget, { enhanced: true, 'aria-label': 'Enhanced button' }, 'Tap')
+      createElement(TouchTarget, { enhanced: true, 'aria-label': 'Enhanced button' }, 'Tap'),
     );
 
     const button = host.querySelector('button');
@@ -73,8 +67,8 @@ describe('TouchTarget component (WCAG 2.5.8 & 2.5.5)', () => {
       createElement(
         TouchTarget,
         { minSize: 24, padding: '8px', 'aria-label': 'Compact Icon' },
-        createElement('span', { style: { width: '12px', height: '12px' } }, '*')
-      )
+        createElement('span', { style: { width: '12px', height: '12px' } }, '*'),
+      ),
     );
 
     const button = host.querySelector('button');
@@ -86,7 +80,7 @@ describe('TouchTarget component (WCAG 2.5.8 & 2.5.5)', () => {
   it('triggers onClick handler when tapped', async () => {
     const handleClick = vi.fn();
     const host = await mount(
-      createElement(TouchTarget, { onClick: handleClick, 'aria-label': 'Click me' }, 'Action')
+      createElement(TouchTarget, { onClick: handleClick, 'aria-label': 'Click me' }, 'Action'),
     );
 
     const button = host.querySelector('button');
@@ -135,25 +129,25 @@ describe('MobileOverlayControls component (WCAG 2.5.8 & Layout Rules)', () => {
         onCameraChange,
         onMove,
         onOpenChat,
-      })
+      }),
     );
 
     const frontBtn = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.getAttribute('aria-label') === 'Camera view FRONT'
+      (b) => b.getAttribute('aria-label') === 'Camera view FRONT',
     );
     expect(frontBtn).not.toBeNull();
     await click(frontBtn!);
     expect(onCameraChange).toHaveBeenCalledWith('front');
 
     const moveForwardBtn = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.getAttribute('aria-label') === 'Move forward'
+      (b) => b.getAttribute('aria-label') === 'Move forward',
     );
     expect(moveForwardBtn).not.toBeNull();
     await click(moveForwardBtn!);
     expect(onMove).toHaveBeenCalledWith(1, 0);
 
     const chatBtn = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.getAttribute('aria-label') === 'Open Chat'
+      (b) => b.getAttribute('aria-label') === 'Open Chat',
     );
     expect(chatBtn).not.toBeNull();
     await click(chatBtn!);
@@ -162,7 +156,9 @@ describe('MobileOverlayControls component (WCAG 2.5.8 & Layout Rules)', () => {
 
   it('passes automated WCAG 2.5.8 Target Size checks across mobile viewports down to 320px width', async () => {
     const host = await mount(
-      createElement('div', { style: { width: '320px', height: '568px', position: 'relative' } },
+      createElement(
+        'div',
+        { style: { width: '320px', height: '568px', position: 'relative' } },
         createElement(MobileOverlayControls, {
           cameraPreset: 'rear',
           onCameraChange: () => {},
@@ -175,8 +171,8 @@ describe('MobileOverlayControls component (WCAG 2.5.8 & Layout Rules)', () => {
           onZoomIn: () => {},
           onZoomOut: () => {},
           onRefreshScene: () => {},
-        })
-      )
+        }),
+      ),
     );
 
     const buttons = Array.from(host.querySelectorAll('button'));

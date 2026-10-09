@@ -11,7 +11,12 @@ export class CORSHandler {
 
   constructor() {
     this.environment = this.detectEnvironment();
-    this.customProxyUrl = ((import.meta as any)?.env?.VITE_SL_PROXY_URL || (typeof process !== 'undefined' && process.env?.VITE_SL_PROXY_URL) || '').trim() || null;
+    this.customProxyUrl =
+      (
+        (import.meta as any)?.env?.VITE_SL_PROXY_URL ||
+        (typeof process !== 'undefined' && process.env?.VITE_SL_PROXY_URL) ||
+        ''
+      ).trim() || null;
     this.checkLocalProxy();
     this.corsProxies = this.buildProxyList();
   }
@@ -23,7 +28,7 @@ export class CORSHandler {
       proxies.unshift({
         url: this.customProxyUrl,
         name: 'Custom Proxy',
-        encode: true
+        encode: true,
       });
     }
 
@@ -31,7 +36,7 @@ export class CORSHandler {
     proxies.push({
       url: '/api/proxy?url=',
       name: 'Local Server Proxy',
-      encode: true
+      encode: true,
     });
 
     return proxies;
@@ -42,11 +47,16 @@ export class CORSHandler {
    */
   async checkLocalProxy() {
     // Unit tests do not run the Express development proxy.
-    if (((import.meta as any)?.env?.MODE || (typeof process !== 'undefined' && process.env?.NODE_ENV) || '') === 'test') return;
+    if (
+      ((import.meta as any)?.env?.MODE ||
+        (typeof process !== 'undefined' && process.env?.NODE_ENV) ||
+        '') === 'test'
+    )
+      return;
 
     try {
       if (typeof window === 'undefined') return;
-    const response = await fetch('/api/health');
+      const response = await fetch('/api/health');
       if (response.ok) {
         const data = await response.json();
         console.log('[CORS] Server proxy is reachable:', data);
@@ -63,10 +73,20 @@ export class CORSHandler {
    */
   detectEnvironment() {
     if (typeof window === 'undefined') {
-      return { type: 'node', name: 'Node.js Environment', corsSupport: 'native', needsProxy: false };
+      return {
+        type: 'node',
+        name: 'Node.js Environment',
+        corsSupport: 'native',
+        needsProxy: false,
+      };
     }
     if ((window as any).linkpointDesktop?.request) {
-      return { type: 'electron', name: 'Linkpoint Desktop', corsSupport: 'native', needsProxy: false };
+      return {
+        type: 'electron',
+        name: 'Linkpoint Desktop',
+        corsSupport: 'native',
+        needsProxy: false,
+      };
     }
     // Capacitor mobile app
     if ((window as any).Capacitor && (window as any).Capacitor.Plugins.CapacitorHttp) {
@@ -74,30 +94,32 @@ export class CORSHandler {
         type: 'capacitor',
         name: 'Capacitor Mobile App',
         corsSupport: 'native',
-        needsProxy: false
+        needsProxy: false,
       };
     }
-    
+
     // Check if installed as PWA
-    const isInstalled = (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) ||
-                        Boolean((window.navigator as any)?.standalone) ||
-                        Boolean(typeof document !== 'undefined' && document.referrer?.includes('android-app://'));
-    
+    const isInstalled =
+      (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+      Boolean((window.navigator as any)?.standalone) ||
+      Boolean(typeof document !== 'undefined' && document.referrer?.includes('android-app://'));
+
     if (isInstalled) {
       return {
         type: 'pwa-installed',
         name: 'Installed Progressive Web App',
         corsSupport: 'server-or-custom-proxy',
-        needsProxy: true
+        needsProxy: true,
       };
     }
-    
+
     // Regular web browser
     return {
       type: 'browser',
       name: 'Web Browser',
       corsSupport: 'server-or-custom-proxy',
-      needsProxy: true
+      needsProxy: true,
     };
   }
 
@@ -113,7 +135,7 @@ export class CORSHandler {
    */
   async makeRequest(url: string, options: any = {}) {
     const env = this.environment;
-    
+
     try {
       if (env.type === 'electron') {
         const result = await (window as any).linkpointDesktop.request({
@@ -136,35 +158,37 @@ export class CORSHandler {
       if (env.type === 'capacitor') {
         console.log('[CORS] Using Capacitor native HTTP');
         const { CapacitorHttp } = (window as any).Capacitor.Plugins;
-        
+
         const response = await CapacitorHttp.request({
           url: url,
           method: options.method || 'GET',
           headers: options.headers || {},
-          data: options.body
+          data: options.body,
         });
-        
+
         return {
           ok: response.status >= 200 && response.status < 300,
           status: response.status,
           statusText: response.statusText || '',
           data: response.data,
-          text: async () => typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
-          json: async () => typeof response.data === 'object' ? response.data : JSON.parse(response.data)
+          text: async () =>
+            typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+          json: async () =>
+            typeof response.data === 'object' ? response.data : JSON.parse(response.data),
         };
       }
-      
+
       // 2. Browser/PWA - Try direct first (might work for some endpoints)
       if (env.type === 'pwa-installed' || env.type === 'browser') {
         let requestUrl = url;
         if (typeof window !== 'undefined' && requestUrl.includes(window.location.host)) {
           requestUrl = requestUrl.replace(/^https?:/, window.location.protocol);
         }
-        const isSameOrigin = typeof window !== 'undefined' && (
-          requestUrl.startsWith('/') ||
-          requestUrl.startsWith(window.location.origin) ||
-          requestUrl.includes(window.location.host)
-        );
+        const isSameOrigin =
+          typeof window !== 'undefined' &&
+          (requestUrl.startsWith('/') ||
+            requestUrl.startsWith(window.location.origin) ||
+            requestUrl.includes(window.location.host));
 
         // Try direct connection first
         try {
@@ -172,9 +196,9 @@ export class CORSHandler {
             method: options.method || 'GET',
             headers: options.headers || {},
             body: options.body,
-            mode: 'cors'
+            mode: 'cors',
           });
-          
+
           console.log('[CORS] Direct connection succeeded');
           this.capturePermit(response);
           return response;
@@ -188,7 +212,6 @@ export class CORSHandler {
           return await this.useTrustedProxy(url, options);
         }
       }
-      
     } catch (error: any) {
       console.error('[CORS] Request failed:', error);
       throw this.enhanceError(error);
@@ -201,17 +224,15 @@ export class CORSHandler {
    */
   async useTrustedProxy(url: string, options: any) {
     const errors: string[] = [];
-    
+
     // Never send login credentials or capability traffic through public proxy
     // services.  A configured proxy must be operated by the viewer provider.
     for (const proxy of this.corsProxies) {
-      const proxiedUrl = proxy.encode ? 
-        proxy.url + encodeURIComponent(url) : 
-        proxy.url + url;
-      
+      const proxiedUrl = proxy.encode ? proxy.url + encodeURIComponent(url) : proxy.url + url;
+
       try {
         console.log(`[CORS] Trying ${proxy.name} proxy: ${proxiedUrl}`);
-        
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s
 
@@ -219,12 +240,14 @@ export class CORSHandler {
           method: options.method || 'GET',
           headers: {
             ...(options.headers || {}),
-            ...(this.capabilityPermit ? { 'X-Linkpoint-Capability-Permit': this.capabilityPermit } : {}),
+            ...(this.capabilityPermit
+              ? { 'X-Linkpoint-Capability-Permit': this.capabilityPermit }
+              : {}),
           },
           body: options.body,
-          signal: controller.signal
+          signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
 
         if (response.ok) {
@@ -240,16 +263,18 @@ export class CORSHandler {
         errors.push(`${proxy.name}: ${error.message}`);
         console.warn(`[CORS] ${proxy.name} failed:`, error.message);
       }
-      
     }
-    
+
     // All proxies failed
-    const errorMessage = this.corsProxies.length === 0
-      ? 'No trusted Second Life proxy is configured.'
-      : `All trusted Second Life proxies failed:\n${errors.join('\n')}`;
+    const errorMessage =
+      this.corsProxies.length === 0
+        ? 'No trusted Second Life proxy is configured.'
+        : `All trusted Second Life proxies failed:\n${errors.join('\n')}`;
     console.error('[CORS]', errorMessage);
-    
-    throw new Error(errorMessage + '\n\n💡 Provide VITE_SL_PROXY_URL for a dedicated Linkpoint proxy.');
+
+    throw new Error(
+      errorMessage + '\n\n💡 Provide VITE_SL_PROXY_URL for a dedicated Linkpoint proxy.',
+    );
   }
 
   private capturePermit(response: Response) {
@@ -261,10 +286,15 @@ export class CORSHandler {
    * Enhance error with helpful message
    */
   enhanceError(error: any) {
-    if (error.message.includes('CORS') || error.message.includes('Failed to fetch') || error.message.includes('502') || error.message.includes('403')) {
+    if (
+      error.message.includes('CORS') ||
+      error.message.includes('Failed to fetch') ||
+      error.message.includes('502') ||
+      error.message.includes('403')
+    ) {
       const env = this.environment;
       let helpMessage = '🚫 Connection Error\n\n';
-      
+
       if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
         helpMessage += '⚠️ HTTP 502 Error (Bad Gateway)\n\n';
         helpMessage += 'This often happens when:\n';
@@ -279,7 +309,7 @@ export class CORSHandler {
         helpMessage += '• VPN/proxy is detected and blocked\n';
         helpMessage += '• IP address is temporarily banned\n\n';
       }
-      
+
       if (env.type === 'browser' || env.type === 'pwa-installed') {
         helpMessage += '💡 Solutions:\n';
         helpMessage += '1. **Try without VPN** - Most VPNs cause CORS proxy issues\n';
@@ -289,11 +319,11 @@ export class CORSHandler {
         helpMessage += '5. **Wait and retry** - Proxy may be temporarily unavailable\n\n';
         helpMessage += '📱 Best Solution: Use Electron/Tauri desktop app for direct connections\n';
       }
-      
+
       error.helpMessage = helpMessage;
       error.isNetworkError = true;
     }
-    
+
     return error;
   }
 
@@ -302,25 +332,26 @@ export class CORSHandler {
    */
   getRecommendedSolution() {
     const env = this.environment;
-    
+
     const solutions: Record<string, any> = {
       browser: {
         primary: 'Configure dedicated proxy',
         alternatives: ['Install as PWA', 'Download Desktop App', 'Use Mobile App'],
-        instructions: 'Set VITE_SL_PROXY_URL for reliable Second Life access, then deploy.'
+        instructions: 'Set VITE_SL_PROXY_URL for reliable Second Life access, then deploy.',
       },
       'pwa-installed': {
         primary: 'Using CORS proxy',
         alternatives: ['Upgrade to Desktop App'],
-        instructions: 'If available, configure VITE_SL_PROXY_URL for better reliability than public proxies.'
+        instructions:
+          'If available, configure VITE_SL_PROXY_URL for better reliability than public proxies.',
       },
       capacitor: {
         primary: 'Using native HTTP (optimal)',
         alternatives: [],
-        instructions: 'You are using the optimal setup with native mobile HTTP.'
-      }
+        instructions: 'You are using the optimal setup with native mobile HTTP.',
+      },
     };
-    
+
     return solutions[env.type] || solutions.browser;
   }
 
@@ -330,7 +361,7 @@ export class CORSHandler {
   displayStatus() {
     const env = this.environment;
     const solution = this.getRecommendedSolution();
-    
+
     console.log('═══════════════════════════════════════════════');
     console.log('🌐 CORS Handler Status');
     console.log('═══════════════════════════════════════════════');
@@ -341,10 +372,10 @@ export class CORSHandler {
     console.log(`\nRecommendation: ${solution.primary}`);
     console.log(`Instructions: ${solution.instructions}`);
     console.log('═══════════════════════════════════════════════');
-    
+
     return {
       environment: env,
-      solution: solution
+      solution: solution,
     };
   }
 }

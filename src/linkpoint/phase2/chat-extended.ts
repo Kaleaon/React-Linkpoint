@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Enhanced Chat (Features 36-40)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 3
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 76-81)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/users/chatsrc/
- * 
+ *
  * Extends chat functionality with history, filtering, mute list, range, and typing indicators.
  */
 
@@ -25,9 +25,10 @@ export class ChatExtended {
   private typingTimeout: number = 5000; // milliseconds
 
   constructor(protocolManager?: any) {
-    this.adapter = protocolManager instanceof ChatProtocolAdapter
-      ? protocolManager
-      : new ChatProtocolAdapter(protocolManager);
+    this.adapter =
+      protocolManager instanceof ChatProtocolAdapter
+        ? protocolManager
+        : new ChatProtocolAdapter(protocolManager);
     this.protocol = this.adapter.protocol || protocolManager;
   }
 
@@ -39,7 +40,7 @@ export class ChatExtended {
     if (!message || typeof message !== 'object') {
       throw new Error('Valid message object required');
     }
-    
+
     const chatMsg = {
       id: message.id || `msg-${Date.now()}`,
       from: message.from || 'Unknown',
@@ -47,17 +48,19 @@ export class ChatExtended {
       type: message.type || 'local', // local, whisper, shout, system
       channel: message.channel || 0,
       timestamp: message.timestamp || Date.now(),
-      ...message
+      ...message,
     };
-    
+
     this.chatHistory.push(chatMsg);
-    
+
     // Trim history if exceeds max size
     if (this.chatHistory.length > this.maxHistorySize) {
       this.chatHistory.shift();
     }
-    
-    console.log(`[ChatExtended] Added to history: ${chatMsg.from}: ${chatMsg.text.substring(0, 50)}`);
+
+    console.log(
+      `[ChatExtended] Added to history: ${chatMsg.from}: ${chatMsg.text.substring(0, 50)}`,
+    );
   }
 
   /**
@@ -75,7 +78,7 @@ export class ChatExtended {
     if (!filterName || typeof filterFn !== 'function') {
       throw new Error('Valid filter name and function required');
     }
-    
+
     this.filters.set(filterName, filterFn);
     console.log(`[ChatExtended] Added filter: ${filterName}`);
   }
@@ -117,7 +120,8 @@ export class ChatExtended {
     if (this.grid) {
       // The account's mute list lives on the grid: a UUID mutes that resident, anything else is a legacy mute by name.
       const clean = userId.trim();
-      if (UUID_PATTERN.test(clean)) this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.AGENT });
+      if (UUID_PATTERN.test(clean))
+        this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.AGENT });
       else this.grid.add({ name: clean, type: MuteType.BY_NAME });
       return;
     }
@@ -160,8 +164,10 @@ export class ChatExtended {
     if (this.grid) {
       // `process_chat_from_simulator` / IM handling: muted speakers, muted owners of objects, muted groups.
       const name = typeof fromName === 'string' ? fromName : '';
-      if (fromId && this.grid.isMuted(fromId, name, MuteFlag.TEXT_CHAT) && !isLinden(name)) return false;
-      if (message.ownerId && this.grid.isMuted(message.ownerId, '', MuteFlag.TEXT_CHAT)) return false;
+      if (fromId && this.grid.isMuted(fromId, name, MuteFlag.TEXT_CHAT) && !isLinden(name))
+        return false;
+      if (message.ownerId && this.grid.isMuted(message.ownerId, '', MuteFlag.TEXT_CHAT))
+        return false;
       if (message.groupId && this.grid.isMuted(message.groupId)) return false;
       return this.applyFilters(message);
     }
@@ -173,13 +179,21 @@ export class ChatExtended {
   getMutedUsers() {
     if (this.grid) {
       const { mutes, legacy } = this.grid.snapshot();
-      return [...mutes.filter((m) => m.type === MuteType.AGENT || m.type === MuteType.GROUP).map((m) => m.id), ...legacy];
+      return [
+        ...mutes
+          .filter((m) => m.type === MuteType.AGENT || m.type === MuteType.GROUP)
+          .map((m) => m.id),
+        ...legacy,
+      ];
     }
     return Array.from(this.muteList);
   }
 
   /** Use the account's grid-backed mute list instead of the in-memory sets. `resolveName` gives the stored name for an id. */
-  attachGridMuteList(list: MuteList | null, resolveName: (id: string) => string | undefined = () => undefined) {
+  attachGridMuteList(
+    list: MuteList | null,
+    resolveName: (id: string) => string | undefined = () => undefined,
+  ) {
     this.grid = list;
     this.resolveName = resolveName;
   }
@@ -190,7 +204,8 @@ export class ChatExtended {
     if (!nameOrId || typeof nameOrId !== 'string') return;
     if (this.grid) {
       const clean = nameOrId.trim();
-      if (UUID_PATTERN.test(clean)) this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.OBJECT });
+      if (UUID_PATTERN.test(clean))
+        this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.OBJECT });
       else this.grid.add({ name: clean, type: MuteType.BY_NAME });
       return;
     }
@@ -212,11 +227,18 @@ export class ChatExtended {
     if (!nameOrId) return false;
     if (this.grid) return this.grid.isMuted(nameOrId, nameOrId);
     const clean = nameOrId.trim();
-    return this.mutedObjects.has(clean) || Array.from(this.mutedObjects).some(m => clean.toLowerCase() === m.toLowerCase());
+    return (
+      this.mutedObjects.has(clean) ||
+      Array.from(this.mutedObjects).some((m) => clean.toLowerCase() === m.toLowerCase())
+    );
   }
 
   getMutedObjects() {
-    if (this.grid) return this.grid.snapshot().mutes.filter((m) => m.type === MuteType.OBJECT).map((m) => m.id);
+    if (this.grid)
+      return this.grid
+        .snapshot()
+        .mutes.filter((m) => m.type === MuteType.OBJECT)
+        .map((m) => m.id);
     return Array.from(this.mutedObjects);
   }
 
@@ -228,21 +250,21 @@ export class ChatExtended {
     if (!text || typeof text !== 'string') {
       throw new Error('Valid message text required');
     }
-    
+
     const validRanges = ['whisper', 'normal', 'shout'];
     if (!validRanges.includes(range)) {
       throw new Error(`Invalid range. Must be one of: ${validRanges.join(', ')}`);
     }
-    
+
     const chatType = range === 'whisper' ? 0 : range === 'shout' ? 2 : 1;
     const message = {
       text: text,
       range: range,
       channel: 0,
       chatType: chatType,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    
+
     console.log(`[ChatExtended] Sending ${range} message: ${text}`);
     try {
       await this.adapter.sendSpatialChat(text, range);
@@ -250,7 +272,7 @@ export class ChatExtended {
       console.error('[ChatExtended] Failed to send message:', error);
       throw error;
     }
-    
+
     return Promise.resolve(message);
   }
 
@@ -262,11 +284,11 @@ export class ChatExtended {
     if (!userId || typeof userId !== 'string') {
       throw new Error('Valid user ID required');
     }
-    
+
     if (isTyping) {
       this.typingUsers.set(userId, Date.now());
       console.log(`[ChatExtended] User typing: ${userId}`);
-      
+
       // Auto-clear after timeout
       setTimeout(() => {
         const lastUpdate = this.typingUsers.get(userId);
@@ -292,7 +314,7 @@ export class ChatExtended {
         this.typingUsers.delete(userId);
       }
     }
-    
+
     return Array.from(this.typingUsers.keys());
   }
 
@@ -306,7 +328,7 @@ export class ChatExtended {
       maxHistorySize: this.maxHistorySize,
       activeFilters: this.filters.size,
       mutedUsers: this.muteList.size,
-      typingUsers: this.typingUsers.size
+      typingUsers: this.typingUsers.size,
     };
   }
 }

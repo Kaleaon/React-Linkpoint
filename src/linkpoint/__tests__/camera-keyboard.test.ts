@@ -28,19 +28,34 @@ describe('CameraControls with the standard viewer shortcuts', () => {
   let camera: Camera3D;
   let controls: CameraControls;
   let mode: 'third_person' | 'sitting' = 'third_person';
-  const hooks: any = { keyMode: () => mode, resetView: vi.fn(), toggleMouselook: vi.fn(), focusAt: vi.fn() };
+  const hooks: any = {
+    keyMode: () => mode,
+    resetView: vi.fn(),
+    toggleMouselook: vi.fn(),
+    focusAt: vi.fn(),
+  };
   const picked = vi.fn();
   let frame = 0;
   let pending: Array<(t: number) => void> = [];
   const runFrames = (count: number, step = 100) => {
-    for (let i = 0; i < count; i++) { const run = pending; pending = []; frame += step; run.forEach((f) => f(frame)); }
+    for (let i = 0; i < count; i++) {
+      const run = pending;
+      pending = [];
+      frame += step;
+      run.forEach((f) => f(frame));
+    }
   };
   const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) =>
-    window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true, cancelable: true, ...init }));
+    window.dispatchEvent(
+      new KeyboardEvent(type, { code, bubbles: true, cancelable: true, ...init }),
+    );
 
   beforeEach(() => {
     mode = 'third_person';
-    vi.stubGlobal('requestAnimationFrame', (f: (t: number) => void) => { pending.push(f); return pending.length; });
+    vi.stubGlobal('requestAnimationFrame', (f: (t: number) => void) => {
+      pending.push(f);
+      return pending.length;
+    });
     vi.stubGlobal('cancelAnimationFrame', () => undefined);
     Object.values(hooks).forEach((h: any) => h.mockClear?.());
     picked.mockClear();
@@ -49,9 +64,21 @@ describe('CameraControls with the standard viewer shortcuts', () => {
     camera = new Camera3D();
     camera.setMode('orbit');
     camera.setOrbitTarget(10, 10, 20);
-    controls = new CameraControls(canvas, camera, () => undefined, picked, () => true, hooks);
+    controls = new CameraControls(
+      canvas,
+      camera,
+      () => undefined,
+      picked,
+      () => true,
+      hooks,
+    );
   });
-  afterEach(() => { controls.destroy(); canvas.remove(); pending = []; vi.unstubAllGlobals(); });
+  afterEach(() => {
+    controls.destroy();
+    canvas.remove();
+    pending = [];
+    vi.unstubAllGlobals();
+  });
 
   it('Alt+Left/Right orbit the camera around the avatar', () => {
     const yaw = camera.rotation[1];
@@ -124,7 +151,18 @@ describe('CameraControls with the standard viewer shortcuts', () => {
 
   const pointer = (type: string, init: any) => {
     const e: any = new Event(type, { bubbles: true, cancelable: true });
-    Object.assign(e, { pointerId: 1, clientX: 0, clientY: 0, button: 0, buttons: 1, altKey: false, ctrlKey: false, shiftKey: false, timeStampOverride: 0, ...init });
+    Object.assign(e, {
+      pointerId: 1,
+      clientX: 0,
+      clientY: 0,
+      button: 0,
+      buttons: 1,
+      altKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      timeStampOverride: 0,
+      ...init,
+    });
     canvas.dispatchEvent(e);
   };
 
@@ -142,7 +180,13 @@ describe('CameraControls with the standard viewer shortcuts', () => {
     const target = [...camera.orbitTarget];
     const yaw = camera.rotation[1];
     pointer('pointerdown', { clientX: 0, clientY: 0, ctrlKey: true, altKey: true });
-    pointer('pointermove', { clientX: 40, clientY: 0, ctrlKey: true, altKey: true, timeStampOverride: 10 });
+    pointer('pointermove', {
+      clientX: 40,
+      clientY: 0,
+      ctrlKey: true,
+      altKey: true,
+      timeStampOverride: 10,
+    });
     pointer('pointerup', { clientX: 40, clientY: 0, ctrlKey: true, altKey: true });
     expect(camera.orbitTarget).not.toEqual(target);
     expect(camera.rotation[1]).toBeCloseTo(yaw, 5);

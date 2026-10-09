@@ -14,17 +14,17 @@ This document serves as the canonical dictionary and contract mapping between **
 
 ## 2. Core Concepts & Terminology
 
-| Term | Design Definition (`linkpoint-design`) | Second Life Backend Equivalent (`React-linkpoint`) |
-| :--- | :--- | :--- |
-| **Grid / Grid URL** | Selected SL grid target (e.g., Main Grid / Agni, Beta Grid / Aditi, OpenSim) | `AuthManager.login()` grid parameter / XML-RPC login URL |
-| **Login Screen** | First/Last name, password, start location input, grid picker | `AuthManager.login(firstName, lastName, password, startLocation)` |
-| **Chat Screen** | Local chat, Group IMs, and Direct Instant Messages | `ChatManager`, `SLConnectionFull` chat packet handlers, `ChatMessage` interface |
-| **Radar Screen** | Nearby avatars list with distances, heights, and positions | `WorldManager`, simulator circuit avatar tracking (`CoarseLocationUpdate` / `ObjectUpdate`) |
-| **Map Screen** | Region map, grid coordinates, teleport targets | `WorldManager` region map, grid map tiles, teleport capability |
-| **Inventory Screen** | Hierarchical inventory folders and items | `InventoryManager` / `InventoryCore` tree structure |
-| **Profile Screen** | Avatar bio, picture, groups, payment info | `SLConnectionFull` avatar profile capability / XML-RPC response |
-| **World 3D Screen** | 3D canvas viewport rendering 3D scene / primitives | `Scene3D`, `Primitives3D`, `Camera3D`, WebGL rendering context |
-| **System Dialogs** | Permission requests, teleport lures, pay requests, group notices | `NotificationsManager`, SL modal notification system |
+| Term                 | Design Definition (`linkpoint-design`)                                       | Second Life Backend Equivalent (`React-linkpoint`)                                          |
+| :------------------- | :--------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------ |
+| **Grid / Grid URL**  | Selected SL grid target (e.g., Main Grid / Agni, Beta Grid / Aditi, OpenSim) | `AuthManager.login()` grid parameter / XML-RPC login URL                                    |
+| **Login Screen**     | First/Last name, password, start location input, grid picker                 | `AuthManager.login(firstName, lastName, password, startLocation)`                           |
+| **Chat Screen**      | Local chat, Group IMs, and Direct Instant Messages                           | `ChatManager`, `SLConnectionFull` chat packet handlers, `ChatMessage` interface             |
+| **Radar Screen**     | Nearby avatars list with distances, heights, and positions                   | `WorldManager`, simulator circuit avatar tracking (`CoarseLocationUpdate` / `ObjectUpdate`) |
+| **Map Screen**       | Region map, grid coordinates, teleport targets                               | `WorldManager` region map, grid map tiles, teleport capability                              |
+| **Inventory Screen** | Hierarchical inventory folders and items                                     | `InventoryManager` / `InventoryCore` tree structure                                         |
+| **Profile Screen**   | Avatar bio, picture, groups, payment info                                    | `SLConnectionFull` avatar profile capability / XML-RPC response                             |
+| **World 3D Screen**  | 3D canvas viewport rendering 3D scene / primitives                           | `Scene3D`, `Primitives3D`, `Camera3D`, WebGL rendering context                              |
+| **System Dialogs**   | Permission requests, teleport lures, pay requests, group notices             | `NotificationsManager`, SL modal notification system                                        |
 
 ---
 

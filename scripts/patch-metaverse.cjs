@@ -9,7 +9,8 @@ function readViewerIdentity(root = path.join(__dirname, '..')) {
   const text = fs.readFileSync(path.join(root, 'src/linkpoint/viewer-identity.ts'), 'utf8');
   const channel = (text.match(/export const VIEWER_CHANNEL\s*=\s*'([^']+)'/) || [])[1];
   const version = (text.match(/export const VIEWER_VERSION\s*=\s*'([^']+)'/) || [])[1];
-  if (!channel || !version) throw new Error('Could not read VIEWER_CHANNEL / VIEWER_VERSION from viewer-identity.ts');
+  if (!channel || !version)
+    throw new Error('Could not read VIEWER_CHANNEL / VIEWER_VERSION from viewer-identity.ts');
   return { channel, version };
 }
 
@@ -22,9 +23,15 @@ function readViewerIdentity(root = path.join(__dirname, '..')) {
 function patchLoginIdentity(content, channel, version) {
   const channelLiteral = "channel: 'libnmv'";
   const versionLine = 'const version = packageJson.version;';
-  if (content.includes(`channel: ${JSON.stringify(channel)}`) && content.includes(`const version = ${JSON.stringify(version)};`)) return content; // already patched
+  if (
+    content.includes(`channel: ${JSON.stringify(channel)}`) &&
+    content.includes(`const version = ${JSON.stringify(version)};`)
+  )
+    return content; // already patched
   if (!content.includes(channelLiteral) || !content.includes(versionLine)) return null;
-  return content.replace(channelLiteral, `channel: ${JSON.stringify(channel)}`).replace(versionLine, `const version = ${JSON.stringify(version)};`);
+  return content
+    .replace(channelLiteral, `channel: ${JSON.stringify(channel)}`)
+    .replace(versionLine, `const version = ${JSON.stringify(version)};`);
 }
 
 /**
@@ -89,43 +96,53 @@ function applyPatches(options = {}) {
   const { strict = require.main === module } = options;
 
   // 1. Packet.js: ignore harmless packet padding / newer unparsed fields
-  const packetPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/classes/Packet.js');
+  const packetPath = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/classes/Packet.js',
+  );
   if (fs.existsSync(packetPath)) {
     let content = fs.readFileSync(packetPath, 'utf8');
-    const target = "console.error('WARNING: Finished reading ' + (0, MessageClasses_1.nameFromID)(messageID) + ' but we\\'re not at the end of the packet (' + pos + ' < ' + buf.length + ', seq ' + this.sequenceNumber + ')');";
+    const target =
+      "console.error('WARNING: Finished reading ' + (0, MessageClasses_1.nameFromID)(messageID) + ' but we\\'re not at the end of the packet (' + pos + ' < ' + buf.length + ', seq ' + this.sequenceNumber + ')');";
     if (content.includes(target)) {
-      content = content.replace(target, "// Second Life simulator packets frequently contain extra padding or newer unparsed fields; ignore gracefully");
+      content = content.replace(
+        target,
+        '// Second Life simulator packets frequently contain extra padding or newer unparsed fields; ignore gracefully',
+      );
       fs.writeFileSync(packetPath, content, 'utf8');
       console.log('[patch-metaverse] Patched Packet.js successfully.');
     }
   }
-  
+
   // 2. FriendCommands.js: online status fixes
-  const friendCommandsPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/classes/commands/FriendCommands.js');
+  const friendCommandsPath = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/classes/commands/FriendCommands.js',
+  );
   if (fs.existsSync(friendCommandsPath)) {
     let fcContent = fs.readFileSync(friendCommandsPath, 'utf8');
     let modified = false;
-  
-    const onlineTarget = "if (this.friendsList.has(uuidStr) === undefined)";
+
+    const onlineTarget = 'if (this.friendsList.has(uuidStr) === undefined)';
     if (fcContent.includes(onlineTarget)) {
-      fcContent = fcContent.replaceAll(onlineTarget, "if (!this.friendsList.has(uuidStr))");
+      fcContent = fcContent.replaceAll(onlineTarget, 'if (!this.friendsList.has(uuidStr))');
       modified = true;
     }
-  
-    const onlineCheckTarget = "if (friend && !friend.online) {";
-    const onlineCheckReplacement = "if (friend) {";
+
+    const onlineCheckTarget = 'if (friend && !friend.online) {';
+    const onlineCheckReplacement = 'if (friend) {';
     if (fcContent.includes(onlineCheckTarget)) {
       fcContent = fcContent.replace(onlineCheckTarget, onlineCheckReplacement);
       modified = true;
     }
-  
-    const offlineCheckTarget = "if (friend !== undefined && friend.online) {";
-    const offlineCheckReplacement = "if (friend !== undefined) {";
+
+    const offlineCheckTarget = 'if (friend !== undefined && friend.online) {';
+    const offlineCheckReplacement = 'if (friend !== undefined) {';
     if (fcContent.includes(offlineCheckTarget)) {
       fcContent = fcContent.replace(offlineCheckTarget, offlineCheckReplacement);
       modified = true;
     }
-  
+
     if (modified) {
       fs.writeFileSync(friendCommandsPath, fcContent, 'utf8');
       console.log('[patch-metaverse] Patched FriendCommands.js successfully for online status.');
@@ -133,13 +150,19 @@ function applyPatches(options = {}) {
   }
 
   // 3. LoginHandler.js: viewer identity
-  const loginPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/LoginHandler.js');
+  const loginPath = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/LoginHandler.js',
+  );
   if (fs.existsSync(loginPath)) {
     const { channel, version } = readViewerIdentity();
     const original = fs.readFileSync(loginPath, 'utf8');
     const patched = patchLoginIdentity(original, channel, version);
     if (patched === null) {
-      const message = '[patch-metaverse] LoginHandler.js has an unexpected shape; the login would not identify as ' + channel + '.';
+      const message =
+        '[patch-metaverse] LoginHandler.js has an unexpected shape; the login would not identify as ' +
+        channel +
+        '.';
       if (strict) throw new Error(message);
       console.error(message);
     } else if (patched !== original) {
@@ -149,14 +172,18 @@ function applyPatches(options = {}) {
   }
 
   // 4. Caps.js: texture capability headers (Accept: image/x-j2c) and error suppression
-  const capsPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/classes/Caps.js');
+  const capsPath = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/classes/Caps.js',
+  );
   if (fs.existsSync(capsPath)) {
     let capsContent = fs.readFileSync(capsPath, 'utf8');
     let modified = false;
 
     const seedRetryPatched = patchCapsSeedRetry(capsContent);
     if (seedRetryPatched === null) {
-      const message = '[patch-metaverse] Caps.js has an unexpected seed capability request shape; retries were not installed.';
+      const message =
+        '[patch-metaverse] Caps.js has an unexpected seed capability request shape; retries were not installed.';
       if (strict) throw new Error(message);
       console.error(message);
     } else if (seedRetryPatched !== capsContent) {
@@ -219,21 +246,27 @@ function applyPatches(options = {}) {
 
     if (modified) {
       fs.writeFileSync(capsPath, capsContent, 'utf8');
-      console.log('[patch-metaverse] Patched Caps.js successfully for GetTexture and safe error logging.');
+      console.log(
+        '[patch-metaverse] Patched Caps.js successfully for GetTexture and safe error logging.',
+      );
     }
   }
 
   // 5. EventQueueClient.js: proper UUID formatting for ChatSessionRequest accept invitation
-  const eqPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/classes/EventQueueClient.js');
+  const eqPath = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/classes/EventQueueClient.js',
+  );
   if (fs.existsSync(eqPath)) {
     let eqContent = fs.readFileSync(eqPath, 'utf8');
     let modified = false;
 
-    const chatReqRegex = /const requested = \{\s*['"]method['"]:\s*['"]accept invitation['"],\s*['"]session-id['"]:\s*imSessionID\s*\};/;
+    const chatReqRegex =
+      /const requested = \{\s*['"]method['"]:\s*['"]accept invitation['"],\s*['"]session-id['"]:\s*imSessionID\s*\};/;
     if (chatReqRegex.test(eqContent)) {
       eqContent = eqContent.replace(
         chatReqRegex,
-        "const requested = {\n                                                    'method': 'accept invitation',\n                                                    'session-id': (imSessionID && typeof imSessionID === 'object' && imSessionID.constructor && imSessionID.constructor.name === 'UUID') ? new LLSD.UUID(imSessionID.toString()) : (typeof imSessionID === 'string' ? new LLSD.UUID(imSessionID) : imSessionID)\n                                                };"
+        "const requested = {\n                                                    'method': 'accept invitation',\n                                                    'session-id': (imSessionID && typeof imSessionID === 'object' && imSessionID.constructor && imSessionID.constructor.name === 'UUID') ? new LLSD.UUID(imSessionID.toString()) : (typeof imSessionID === 'string' ? new LLSD.UUID(imSessionID) : imSessionID)\n                                                };",
       );
       modified = true;
     }
@@ -242,14 +275,16 @@ function applyPatches(options = {}) {
     if (eqCatchRegex.test(eqContent)) {
       eqContent = eqContent.replace(
         eqCatchRegex,
-        '}).catch((err) => {\n                                                    console.warn("[ChatterBoxInvitation] ChatSessionRequest failed:", err.message || err);\n                                                });'
+        '}).catch((err) => {\n                                                    console.warn("[ChatterBoxInvitation] ChatSessionRequest failed:", err.message || err);\n                                                });',
       );
       modified = true;
     }
 
     if (modified) {
       fs.writeFileSync(eqPath, eqContent, 'utf8');
-      console.log('[patch-metaverse] Patched EventQueueClient.js successfully for ChatSessionRequest.');
+      console.log(
+        '[patch-metaverse] Patched EventQueueClient.js successfully for ChatSessionRequest.',
+      );
     }
   }
 
@@ -269,19 +304,30 @@ function applyPatches(options = {}) {
     if (llsdContent.includes(uuidCheckTarget)) {
       llsdContent = llsdContent.replace(uuidCheckTarget, uuidCheckReplacement);
       fs.writeFileSync(llsdPath, llsdContent, 'utf8');
-      console.log('[patch-metaverse] Patched @caspertech/llsd index.js successfully for UUID interoperability.');
+      console.log(
+        '[patch-metaverse] Patched @caspertech/llsd index.js successfully for UUID interoperability.',
+      );
     }
   }
 
   // 7. ObjectStoreLite.js: gracefully handle missing objects without error log pollution
-  const oslPath = path.join(__dirname, '../node_modules/@caspertech/node-metaverse/dist/lib/classes/ObjectStoreLite.js');
+  const oslPath = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/classes/ObjectStoreLite.js',
+  );
   if (fs.existsSync(oslPath)) {
     let oslContent = fs.readFileSync(oslPath, 'utf8');
-    const missingObjError = "console.error('Error retrieving missing object after 5 attempts: ' + localID);";
+    const missingObjError =
+      "console.error('Error retrieving missing object after 5 attempts: ' + localID);";
     if (oslContent.includes(missingObjError)) {
-      oslContent = oslContent.replace(missingObjError, "// Missing object after 5 attempts blacklisted gracefully");
+      oslContent = oslContent.replace(
+        missingObjError,
+        '// Missing object after 5 attempts blacklisted gracefully',
+      );
       fs.writeFileSync(oslPath, oslContent, 'utf8');
-      console.log('[patch-metaverse] Patched ObjectStoreLite.js successfully for missing object handling.');
+      console.log(
+        '[patch-metaverse] Patched ObjectStoreLite.js successfully for missing object handling.',
+      );
     }
   }
 }

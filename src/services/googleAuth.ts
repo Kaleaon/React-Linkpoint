@@ -10,15 +10,15 @@
  * Access tokens are kept in memory only and are gone when the page closes.
  */
 
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, type User } from "firebase/auth";
-import firebaseConfig from "../../firebase-applet-config.json";
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, type User } from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-export type GoogleFeature = "contacts" | "calendar";
+export type GoogleFeature = 'contacts' | 'calendar';
 
 export const GOOGLE_SCOPES: Record<GoogleFeature, string> = {
-  contacts: "https://www.googleapis.com/auth/contacts",
-  calendar: "https://www.googleapis.com/auth/calendar.events",
+  contacts: 'https://www.googleapis.com/auth/contacts',
+  calendar: 'https://www.googleapis.com/auth/calendar.events',
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -33,7 +33,9 @@ export interface GoogleAccount {
 
 export function getGoogleAccount(): GoogleAccount | null {
   const user = auth.currentUser;
-  return user ? { email: user.email || "", name: user.displayName || user.email || "Google account" } : null;
+  return user
+    ? { email: user.email || '', name: user.displayName || user.email || 'Google account' }
+    : null;
 }
 
 /** The in-memory access token for a feature, or null if the user has not signed in for it this session. */
@@ -52,10 +54,10 @@ export async function signInWithGoogle(feature: GoogleFeature): Promise<GoogleAc
   provider.addScope(GOOGLE_SCOPES[feature]);
   const result = await signInWithPopup(auth, provider);
   const credential = GoogleAuthProvider.credentialFromResult(result);
-  if (!credential?.accessToken) throw new Error("Google did not grant access. Try again.");
+  if (!credential?.accessToken) throw new Error('Google did not grant access. Try again.');
   tokens[feature] = credential.accessToken;
   const user: User = result.user;
-  return { email: user.email || "", name: user.displayName || user.email || "Google account" };
+  return { email: user.email || '', name: user.displayName || user.email || 'Google account' };
 }
 
 export async function signOutGoogle(): Promise<void> {

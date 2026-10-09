@@ -11,56 +11,152 @@ export class Primitives3D {
 
     const vertices = [
       // Front face
-      -s, -s,  s,  s, -s,  s,  s,  s,  s, -s,  s,  s,
+      -s,
+      -s,
+      s,
+      s,
+      -s,
+      s,
+      s,
+      s,
+      s,
+      -s,
+      s,
+      s,
       // Back face
-      -s, -s, -s, -s,  s, -s,  s,  s, -s,  s, -s, -s,
+      -s,
+      -s,
+      -s,
+      -s,
+      s,
+      -s,
+      s,
+      s,
+      -s,
+      s,
+      -s,
+      -s,
       // Top face
-      -s,  s, -s, -s,  s,  s,  s,  s,  s,  s,  s, -s,
+      -s,
+      s,
+      -s,
+      -s,
+      s,
+      s,
+      s,
+      s,
+      s,
+      s,
+      s,
+      -s,
       // Bottom face
-      -s, -s, -s,  s, -s, -s,  s, -s,  s, -s, -s,  s,
+      -s,
+      -s,
+      -s,
+      s,
+      -s,
+      -s,
+      s,
+      -s,
+      s,
+      -s,
+      -s,
+      s,
       // Right face
-       s, -s, -s,  s,  s, -s,  s,  s,  s,  s, -s,  s,
+      s,
+      -s,
+      -s,
+      s,
+      s,
+      -s,
+      s,
+      s,
+      s,
+      s,
+      -s,
+      s,
       // Left face
-      -s, -s, -s, -s, -s,  s, -s,  s,  s, -s,  s, -s
+      -s,
+      -s,
+      -s,
+      -s,
+      -s,
+      s,
+      -s,
+      s,
+      s,
+      -s,
+      s,
+      -s,
     ];
 
     const normals = [
       // Front
-      0, 0, 1,  0, 0, 1,  0, 0, 1,  0, 0, 1,
+      0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
       // Back
       0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
       // Top
-      0, 1, 0,  0, 1, 0,  0, 1, 0,  0, 1, 0,
+      0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
       // Bottom
       0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0,
       // Right
-      1, 0, 0,  1, 0, 0,  1, 0, 0,  1, 0, 0,
+      1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
       // Left
-      -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0
+      -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
     ];
 
     const texCoords = [
       // Front
-      0, 0,  1, 0,  1, 1,  0, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
       // Back
-      0, 0,  1, 0,  1, 1,  0, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
       // Top
-      0, 0,  1, 0,  1, 1,  0, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
       // Bottom
-      0, 0,  1, 0,  1, 1,  0, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
       // Right
-      0, 0,  1, 0,  1, 1,  0, 1,
+      0, 0, 1, 0, 1, 1, 0, 1,
       // Left
-      0, 0,  1, 0,  1, 1,  0, 1
+      0, 0, 1, 0, 1, 1, 0, 1,
     ];
 
     const indices = [
-      0, 1, 2,  0, 2, 3,    // Front
-      4, 5, 6,  4, 6, 7,    // Back
-      8, 9, 10, 8, 10, 11,  // Top
-      12, 13, 14, 12, 14, 15, // Bottom
-      16, 17, 18, 16, 18, 19, // Right
-      20, 21, 22, 20, 22, 23  // Left
+      0,
+      1,
+      2,
+      0,
+      2,
+      3, // Front
+      4,
+      5,
+      6,
+      4,
+      6,
+      7, // Back
+      8,
+      9,
+      10,
+      8,
+      10,
+      11, // Top
+      12,
+      13,
+      14,
+      12,
+      14,
+      15, // Bottom
+      16,
+      17,
+      18,
+      16,
+      18,
+      19, // Right
+      20,
+      21,
+      22,
+      20,
+      22,
+      23, // Left
     ];
 
     return { vertices, normals, texCoords, indices };
@@ -77,12 +173,12 @@ export class Primitives3D {
     const indices: number[] = [];
 
     for (let ring = 0; ring <= rings; ring++) {
-      const theta = ring * Math.PI / rings;
+      const theta = (ring * Math.PI) / rings;
       const sinTheta = Math.sin(theta);
       const cosTheta = Math.cos(theta);
 
       for (let seg = 0; seg <= segments; seg++) {
-        const phi = seg * 2 * Math.PI / segments;
+        const phi = (seg * 2 * Math.PI) / segments;
         const x = Math.cos(phi) * sinTheta;
         const y = Math.sin(phi) * sinTheta;
         const z = cosTheta;
@@ -109,7 +205,12 @@ export class Primitives3D {
   /**
    * Create plane mesh
    */
-  static createPlane(width: number = 1, height: number = 1, widthSegments: number = 1, heightSegments: number = 1) {
+  static createPlane(
+    width: number = 1,
+    height: number = 1,
+    widthSegments: number = 1,
+    heightSegments: number = 1,
+  ) {
     const vertices: number[] = [];
     const normals: number[] = [];
     const texCoords: number[] = [];
@@ -119,11 +220,11 @@ export class Primitives3D {
     const h = height / 2;
 
     for (let iy = 0; iy <= heightSegments; iy++) {
-      const y = iy * height / heightSegments - h;
+      const y = (iy * height) / heightSegments - h;
       const v = iy / heightSegments;
 
       for (let ix = 0; ix <= widthSegments; ix++) {
-        const x = ix * width / widthSegments - w;
+        const x = (ix * width) / widthSegments - w;
         const u = ix / widthSegments;
 
         vertices.push(x, y, 0);
@@ -136,8 +237,8 @@ export class Primitives3D {
       for (let ix = 0; ix < widthSegments; ix++) {
         const a = ix + (widthSegments + 1) * iy;
         const b = ix + (widthSegments + 1) * (iy + 1);
-        const c = (ix + 1) + (widthSegments + 1) * (iy + 1);
-        const d = (ix + 1) + (widthSegments + 1) * iy;
+        const c = ix + 1 + (widthSegments + 1) * (iy + 1);
+        const d = ix + 1 + (widthSegments + 1) * iy;
 
         indices.push(a, b, d);
         indices.push(b, c, d);
@@ -151,7 +252,12 @@ export class Primitives3D {
    * Create cylinder mesh. Second Life convention: the default fills the unit
    * box (radius 0.5, height 1) with its axis on Z. Both ends are capped.
    */
-  static createCylinder(radiusTop: number = 0.5, radiusBottom: number = 0.5, height: number = 1, segments: number = 32) {
+  static createCylinder(
+    radiusTop: number = 0.5,
+    radiusBottom: number = 0.5,
+    height: number = 1,
+    segments: number = 32,
+  ) {
     const vertices: number[] = [];
     const normals: number[] = [];
     const texCoords: number[] = [];
@@ -165,15 +271,17 @@ export class Primitives3D {
       const radius = ring === 0 ? radiusBottom : radiusTop;
       const z = ring * height - halfHeight;
       for (let seg = 0; seg <= segments; seg++) {
-        const theta = seg * 2 * Math.PI / segments;
-        const cos = Math.cos(theta), sin = Math.sin(theta);
+        const theta = (seg * 2 * Math.PI) / segments;
+        const cos = Math.cos(theta),
+          sin = Math.sin(theta);
         vertices.push(radius * cos, radius * sin, z);
         normals.push(cos / normalLength, sin / normalLength, slope / normalLength);
         texCoords.push(seg / segments, ring);
       }
     }
     for (let seg = 0; seg < segments; seg++) {
-      const first = seg, second = first + segments + 1;
+      const first = seg,
+        second = first + segments + 1;
       indices.push(first, first + 1, second);
       indices.push(second, first + 1, second + 1);
     }
@@ -184,7 +292,7 @@ export class Primitives3D {
       normals.push(0, 0, nz);
       texCoords.push(0.5, 0.5);
       for (let seg = 0; seg <= segments; seg++) {
-        const theta = seg * 2 * Math.PI / segments;
+        const theta = (seg * 2 * Math.PI) / segments;
         vertices.push(radius * Math.cos(theta), radius * Math.sin(theta), z);
         normals.push(0, 0, nz);
         texCoords.push(0.5 + 0.5 * Math.cos(theta), 0.5 + 0.5 * Math.sin(theta));
@@ -206,7 +314,11 @@ export class Primitives3D {
     const normals: number[] = [];
     const texCoords: number[] = [];
     const indices: number[] = [];
-    const triangle = [[-0.5, -0.5], [0.5, -0.5], [0, 0.5]];
+    const triangle = [
+      [-0.5, -0.5],
+      [0.5, -0.5],
+      [0, 0.5],
+    ];
     const addFace = (points: number[][], normal: number[]) => {
       const base = vertices.length / 3;
       points.forEach((point, index) => {
@@ -217,36 +329,68 @@ export class Primitives3D {
       if (points.length === 3) indices.push(base, base + 1, base + 2);
       else indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     };
-    addFace(triangle.map(([x, y]) => [x, y, 0.5]), [0, 0, 1]);
-    addFace([...triangle].reverse().map(([x, y]) => [x, y, -0.5]), [0, 0, -1]);
+    addFace(
+      triangle.map(([x, y]) => [x, y, 0.5]),
+      [0, 0, 1],
+    );
+    addFace(
+      [...triangle].reverse().map(([x, y]) => [x, y, -0.5]),
+      [0, 0, -1],
+    );
     for (let edge = 0; edge < 3; edge++) {
       const a = triangle[edge];
       const b = triangle[(edge + 1) % 3];
-      const nx = b[1] - a[1], ny = a[0] - b[0];
+      const nx = b[1] - a[1],
+        ny = a[0] - b[0];
       const length = Math.hypot(nx, ny) || 1;
-      addFace([[a[0], a[1], -0.5], [b[0], b[1], -0.5], [b[0], b[1], 0.5], [a[0], a[1], 0.5]], [nx / length, ny / length, 0]);
+      addFace(
+        [
+          [a[0], a[1], -0.5],
+          [b[0], b[1], -0.5],
+          [b[0], b[1], 0.5],
+          [a[0], a[1], 0.5],
+        ],
+        [nx / length, ny / length, 0],
+      );
     }
     return { vertices, normals, texCoords, indices };
   }
 
   /** Create a torus used by curved-path SL prims and as a visible mesh proxy. */
-  static createTorus(majorRadius = 0.34, tubeRadius = 0.16, radialSegments = 24, tubularSegments = 12) {
-    const vertices: number[] = [], normals: number[] = [], texCoords: number[] = [], indices: number[] = [];
+  static createTorus(
+    majorRadius = 0.34,
+    tubeRadius = 0.16,
+    radialSegments = 24,
+    tubularSegments = 12,
+  ) {
+    const vertices: number[] = [],
+      normals: number[] = [],
+      texCoords: number[] = [],
+      indices: number[] = [];
     for (let radial = 0; radial <= radialSegments; radial++) {
-      const u = radial / radialSegments * Math.PI * 2;
+      const u = (radial / radialSegments) * Math.PI * 2;
       for (let tubular = 0; tubular <= tubularSegments; tubular++) {
-        const v = tubular / tubularSegments * Math.PI * 2;
-        const cosU = Math.cos(u), sinU = Math.sin(u), cosV = Math.cos(v), sinV = Math.sin(v);
-        vertices.push((majorRadius + tubeRadius * cosV) * cosU, (majorRadius + tubeRadius * cosV) * sinU, tubeRadius * sinV);
+        const v = (tubular / tubularSegments) * Math.PI * 2;
+        const cosU = Math.cos(u),
+          sinU = Math.sin(u),
+          cosV = Math.cos(v),
+          sinV = Math.sin(v);
+        vertices.push(
+          (majorRadius + tubeRadius * cosV) * cosU,
+          (majorRadius + tubeRadius * cosV) * sinU,
+          tubeRadius * sinV,
+        );
         normals.push(cosV * cosU, cosV * sinU, sinV);
         texCoords.push(radial / radialSegments, tubular / tubularSegments);
       }
     }
     const row = tubularSegments + 1;
-    for (let radial = 0; radial < radialSegments; radial++) for (let tubular = 0; tubular < tubularSegments; tubular++) {
-      const a = radial * row + tubular, b = (radial + 1) * row + tubular;
-      indices.push(a, b, a + 1, b, b + 1, a + 1);
-    }
+    for (let radial = 0; radial < radialSegments; radial++)
+      for (let tubular = 0; tubular < tubularSegments; tubular++) {
+        const a = radial * row + tubular,
+          b = (radial + 1) * row + tubular;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
     return { vertices, normals, texCoords, indices };
   }
 
@@ -291,7 +435,12 @@ export class Primitives3D {
   /**
    * Calculate tangents for normal mapping
    */
-  static calculateTangents(vertices: number[], normals: number[], texCoords: number[], indices: number[]) {
+  static calculateTangents(
+    vertices: number[],
+    normals: number[],
+    texCoords: number[],
+    indices: number[],
+  ) {
     const tangents = new Array(vertices.length).fill(0);
 
     for (let i = 0; i < indices.length; i += 3) {
@@ -318,7 +467,7 @@ export class Primitives3D {
       const tangent = [
         f * (deltaUV2[1] * edge1[0] - deltaUV1[1] * edge2[0]),
         f * (deltaUV2[1] * edge1[1] - deltaUV1[1] * edge2[1]),
-        f * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2])
+        f * (deltaUV2[1] * edge1[2] - deltaUV1[1] * edge2[2]),
       ];
 
       tangents[i0] += tangent[0];

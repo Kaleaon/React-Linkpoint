@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Camera3D } from '../camera-3d';
-import { extractFrustum, testAABB, transformAABB, multiplyMat4, INSIDE, INTERSECT, OUTSIDE } from '../frustum';
+import {
+  extractFrustum,
+  testAABB,
+  transformAABB,
+  multiplyMat4,
+  INSIDE,
+  INTERSECT,
+  OUTSIDE,
+} from '../frustum';
 
 /** First-person camera at the origin looking along +Y (yaw 0), Z up. */
 function cameraAtOrigin() {
@@ -11,7 +19,8 @@ function cameraAtOrigin() {
   camera.updateMatrices();
   return camera;
 }
-const frustumOf = (camera: Camera3D) => extractFrustum(multiplyMat4(camera.getProjectionMatrix(), camera.getViewMatrix()))!;
+const frustumOf = (camera: Camera3D) =>
+  extractFrustum(multiplyMat4(camera.getProjectionMatrix(), camera.getViewMatrix()))!;
 
 describe('frustum', () => {
   it('classifies boxes in front of, straddling and behind the camera', () => {
@@ -37,7 +46,8 @@ describe('frustum', () => {
   });
 
   it('multiplies column-major matrices as a * b', () => {
-    const translate = (x: number) => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, 0, 0, 1]);
+    const translate = (x: number) =>
+      new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, 0, 0, 1]);
     const scale2 = new Float32Array([2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1]);
     // translate(5) * scale(2) scales first, then translates: origin stays at x=5, unit x maps to 7.
     const m = multiplyMat4(translate(5), scale2);
@@ -50,10 +60,22 @@ describe('frustum', () => {
   it('encloses a rotated, scaled box with its world-space AABB', () => {
     // 90 degrees about Z then scale (2,4,6) then translate (10,0,0), column-major.
     const m = new Float32Array([
-      0, 2, 0, 0, // x axis -> +y, scaled by 2
-      -4, 0, 0, 0, // y axis -> -x, scaled by 4
-      0, 0, 6, 0,
-      10, 0, 0, 1,
+      0,
+      2,
+      0,
+      0, // x axis -> +y, scaled by 2
+      -4,
+      0,
+      0,
+      0, // y axis -> -x, scaled by 4
+      0,
+      0,
+      6,
+      0,
+      10,
+      0,
+      0,
+      1,
     ]);
     const { min, max } = transformAABB(m, [-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]);
     expect(min).toEqual([8, -1, -3]);

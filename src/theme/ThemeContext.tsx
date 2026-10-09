@@ -145,7 +145,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setPalette = useCallback((palette: PaletteKey) => setState((s) => ({ ...s, palette })), []);
   const setDevice = useCallback((device: DeviceKey) => setState((s) => ({ ...s, device })), []);
   const setDense = useCallback((dense: boolean) => setState((s) => ({ ...s, dense })), []);
-  const setLargeType = useCallback((largeType: boolean) => setState((s) => ({ ...s, largeType })), []);
+  const setLargeType = useCallback(
+    (largeType: boolean) => setState((s) => ({ ...s, largeType })),
+    [],
+  );
 
   const value = useMemo<ThemeContextValue>(
     () => ({ ...state, theme, cssVars, setLayout, setPalette, setDevice, setDense, setLargeType }),

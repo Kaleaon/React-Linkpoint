@@ -31,10 +31,14 @@ type JpxInput = Uint8Array & {
 function decoderInput(bytes: Uint8Array): JpxInput {
   const input = bytes as JpxInput;
   const nativeSubarray = input.subarray.bind(input);
-  input.readInt8 = offset => new DataView(input.buffer, input.byteOffset, input.byteLength).getInt8(offset);
-  input.readUInt16BE = offset => new DataView(input.buffer, input.byteOffset, input.byteLength).getUint16(offset, false);
-  input.readUInt32BE = offset => new DataView(input.buffer, input.byteOffset, input.byteLength).getUint32(offset, false);
-  input.subarray = ((start?: number, end?: number) => decoderInput(nativeSubarray(start, end))) as typeof input.subarray;
+  input.readInt8 = (offset) =>
+    new DataView(input.buffer, input.byteOffset, input.byteLength).getInt8(offset);
+  input.readUInt16BE = (offset) =>
+    new DataView(input.buffer, input.byteOffset, input.byteLength).getUint16(offset, false);
+  input.readUInt32BE = (offset) =>
+    new DataView(input.buffer, input.byteOffset, input.byteLength).getUint32(offset, false);
+  input.subarray = ((start?: number, end?: number) =>
+    decoderInput(nativeSubarray(start, end))) as typeof input.subarray;
   return input;
 }
 
@@ -50,7 +54,11 @@ export function expandJpxTiles(image: JpxRaster): DecodedTexture {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
     throw new RangeError('JPEG2000 returned invalid texture dimensions');
   }
-  if (width > MAX_TEXTURE_DIMENSION || height > MAX_TEXTURE_DIMENSION || width * height > MAX_TEXTURE_PIXELS) {
+  if (
+    width > MAX_TEXTURE_DIMENSION ||
+    height > MAX_TEXTURE_DIMENSION ||
+    width * height > MAX_TEXTURE_PIXELS
+  ) {
     throw new RangeError(`JPEG2000 texture ${width}x${height} exceeds viewer limits`);
   }
   if (!Number.isInteger(componentsCount) || componentsCount < 1 || componentsCount > 4) {
@@ -61,15 +69,22 @@ export function expandJpxTiles(image: JpxRaster): DecodedTexture {
   let hasAlpha = false;
   for (const tile of tiles) {
     if (
-      !Number.isInteger(tile.left) || !Number.isInteger(tile.top) ||
-      !Number.isInteger(tile.width) || !Number.isInteger(tile.height) ||
-      tile.left < 0 || tile.top < 0 || tile.width < 0 || tile.height < 0 ||
-      tile.left + tile.width > width || tile.top + tile.height > height
+      !Number.isInteger(tile.left) ||
+      !Number.isInteger(tile.top) ||
+      !Number.isInteger(tile.width) ||
+      !Number.isInteger(tile.height) ||
+      tile.left < 0 ||
+      tile.top < 0 ||
+      tile.width < 0 ||
+      tile.height < 0 ||
+      tile.left + tile.width > width ||
+      tile.top + tile.height > height
     ) {
       throw new RangeError('JPEG2000 tile lies outside the texture canvas');
     }
     const required = tile.width * tile.height * componentsCount;
-    if (tile.items.length < required) throw new RangeError('JPEG2000 tile has truncated component data');
+    if (tile.items.length < required)
+      throw new RangeError('JPEG2000 tile has truncated component data');
 
     for (let y = 0; y < tile.height; y++) {
       for (let x = 0; x < tile.width; x++) {
@@ -79,9 +94,12 @@ export function expandJpxTiles(image: JpxRaster): DecodedTexture {
         rgba[target] = luminance;
         rgba[target + 1] = componentsCount >= 3 ? tile.items[source + 1] : luminance;
         rgba[target + 2] = componentsCount >= 3 ? tile.items[source + 2] : luminance;
-        const alpha = componentsCount === 2 ? tile.items[source + 1]
-          : componentsCount === 4 ? tile.items[source + 3]
-            : 255;
+        const alpha =
+          componentsCount === 2
+            ? tile.items[source + 1]
+            : componentsCount === 4
+              ? tile.items[source + 3]
+              : 255;
         rgba[target + 3] = alpha;
         hasAlpha ||= alpha !== 255;
       }

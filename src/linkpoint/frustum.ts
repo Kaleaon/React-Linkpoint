@@ -40,11 +40,18 @@ export function extractFrustumJS(viewProjection: ArrayLike<number>): Frustum | n
 /**
  * Pure JS AABB classification helper.
  */
-export function testAABBJS(frustum: Frustum, min: ArrayLike<number>, max: ArrayLike<number>): FrustumResult {
+export function testAABBJS(
+  frustum: Frustum,
+  min: ArrayLike<number>,
+  max: ArrayLike<number>,
+): FrustumResult {
   let result: FrustumResult = INSIDE;
   for (let plane = 0; plane < PLANE_COUNT; plane++) {
     const base = plane * 4;
-    const nx = frustum[base], ny = frustum[base + 1], nz = frustum[base + 2], d = frustum[base + 3];
+    const nx = frustum[base],
+      ny = frustum[base + 1],
+      nz = frustum[base + 2],
+      d = frustum[base + 3];
     // Positive vertex: the corner furthest along the plane normal.
     const px = nx >= 0 ? max[0] : min[0];
     const py = ny >= 0 ? max[1] : min[1];
@@ -62,7 +69,11 @@ export function testAABBJS(frustum: Frustum, min: ArrayLike<number>, max: ArrayL
 /**
  * Pure JS transform AABB helper (Arvo's method).
  */
-export function transformAABBJS(matrix: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>) {
+export function transformAABBJS(
+  matrix: ArrayLike<number>,
+  min: ArrayLike<number>,
+  max: ArrayLike<number>,
+) {
   const outMin = [matrix[12], matrix[13], matrix[14]];
   const outMax = [matrix[12], matrix[13], matrix[14]];
   for (let row = 0; row < 3; row++) {
@@ -70,7 +81,13 @@ export function transformAABBJS(matrix: ArrayLike<number>, min: ArrayLike<number
       const element = matrix[column * 4 + row];
       const a = element * min[column];
       const b = element * max[column];
-      if (a < b) { outMin[row] += a; outMax[row] += b; } else { outMin[row] += b; outMax[row] += a; }
+      if (a < b) {
+        outMin[row] += a;
+        outMax[row] += b;
+      } else {
+        outMin[row] += b;
+        outMax[row] += a;
+      }
     }
   }
   return { min: outMin, max: outMax };
@@ -99,14 +116,22 @@ export function extractFrustum(viewProjection: ArrayLike<number>): Frustum | nul
 }
 
 /** Classify an axis-aligned box against the frustum. */
-export function testAABB(frustum: Frustum, min: ArrayLike<number>, max: ArrayLike<number>): FrustumResult {
+export function testAABB(
+  frustum: Frustum,
+  min: ArrayLike<number>,
+  max: ArrayLike<number>,
+): FrustumResult {
   return testAABBJS(frustum, min, max);
 }
 
 /**
  * Transform a local-space box by an affine column-major matrix (Arvo's method).
  */
-export function transformAABB(matrix: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>) {
+export function transformAABB(
+  matrix: ArrayLike<number>,
+  min: ArrayLike<number>,
+  max: ArrayLike<number>,
+) {
   return transformAABBJS(matrix, min, max);
 }
 

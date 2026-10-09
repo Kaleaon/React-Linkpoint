@@ -42,10 +42,20 @@ export class AuthManager extends Utils.EventEmitter {
     Utils.storage.remove(SESSION_KEY);
   }
 
-  async login(grid: string, username: string, password: string, rememberMe: boolean, startLocation: string = 'last', mfaToken: string = '') {
+  async login(
+    grid: string,
+    username: string,
+    password: string,
+    rememberMe: boolean,
+    startLocation: string = 'last',
+    mfaToken: string = '',
+  ) {
     try {
       // A remembered device hash lets the grid skip the multi-factor prompt.
-      const response = await this.protocol.connect(grid, username, password, startLocation, { token: mfaToken || undefined, hash: getMfaHash(grid, username) || undefined });
+      const response = await this.protocol.connect(grid, username, password, startLocation, {
+        token: mfaToken || undefined,
+        hash: getMfaHash(grid, username) || undefined,
+      });
       if (rememberMe && response?.mfa_hash) saveMfaHash(grid, username, String(response.mfa_hash));
 
       if (rememberMe) {
@@ -61,7 +71,7 @@ export class AuthManager extends Utils.EventEmitter {
         firstName: response.first_name || username.split(' ')[0],
         lastName: response.last_name || username.split(' ')[1] || 'Resident',
         fullName: `${response.first_name || username.split(' ')[0]} ${response.last_name || username.split(' ')[1] || 'Resident'}`,
-        grid
+        grid,
       };
 
       this.sessionSnapshot = {
@@ -93,7 +103,7 @@ export class AuthManager extends Utils.EventEmitter {
         firstName,
         lastName,
         fullName,
-        grid: 'agni'
+        grid: 'agni',
       };
 
       this.credentials = { username: fullName, grid: 'agni', rememberMe: true };
@@ -133,7 +143,13 @@ export class AuthManager extends Utils.EventEmitter {
     if (!savedCreds?.username || !savedCreds?.grid) {
       throw new Error('No saved credentials to reconnect with');
     }
-    return this.login(savedCreds.grid, savedCreds.username, password, savedCreds.rememberMe === true, startLocation);
+    return this.login(
+      savedCreds.grid,
+      savedCreds.username,
+      password,
+      savedCreds.rememberMe === true,
+      startLocation,
+    );
   }
 
   hasSavedSession() {

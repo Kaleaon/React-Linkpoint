@@ -50,14 +50,18 @@ describe('ErrorRecovery UI Components', () => {
 
     const banner = mounted.host.querySelector('[data-testid="error-recovery-banner"]');
     expect(banner).not.toBeNull();
-    expect(banner?.textContent).toContain('Network disconnected. Auto-reconnecting when signal restores…');
+    expect(banner?.textContent).toContain(
+      'Network disconnected. Auto-reconnecting when signal restores…',
+    );
   });
 
   it('renders recovery modal when active error is set after retries fail', async () => {
     mounted = await mountScreen(() => <TestApp />);
 
     await act(async () => {
-      service.logTelemetry('api', 'HTTP_500', 'Internal Server Error', { password: 'secretPassword' });
+      service.logTelemetry('api', 'HTTP_500', 'Internal Server Error', {
+        password: 'secretPassword',
+      });
       // Trigger active error
       try {
         await service.enqueueRetry({

@@ -8,16 +8,23 @@ const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message')
 function serializeAnimationMessage(packet) {
   const message = packet?.message;
   if (!message) return null;
-  const kind = message.id === Message.ObjectAnimation ? 'object' : message.id === Message.AvatarAnimation ? 'avatar' : null;
+  const kind =
+    message.id === Message.ObjectAnimation
+      ? 'object'
+      : message.id === Message.AvatarAnimation
+        ? 'avatar'
+        : null;
   const id = message.Sender?.ID?.toString?.();
   if (!kind || !id) return null;
   return {
     kind,
     id,
-    animations: (message.AnimationList || []).map((entry) => ({
-      id: entry.AnimID?.toString?.() || '',
-      seq: Number(entry.AnimSequenceID) || 0,
-    })).filter((entry) => entry.id),
+    animations: (message.AnimationList || [])
+      .map((entry) => ({
+        id: entry.AnimID?.toString?.() || '',
+        seq: Number(entry.AnimSequenceID) || 0,
+      }))
+      .filter((entry) => entry.id),
   };
 }
 
@@ -28,10 +35,13 @@ function serializeAnimationMessage(packet) {
 function subscribeAnimations(region, send) {
   const circuit = region?.circuit;
   if (!circuit || typeof circuit.subscribeToMessages !== 'function') return null;
-  return circuit.subscribeToMessages([Message.AvatarAnimation, Message.ObjectAnimation], (packet) => {
-    const payload = serializeAnimationMessage(packet);
-    if (payload) send('animations', payload);
-  });
+  return circuit.subscribeToMessages(
+    [Message.AvatarAnimation, Message.ObjectAnimation],
+    (packet) => {
+      const payload = serializeAnimationMessage(packet);
+      if (payload) send('animations', payload);
+    },
+  );
 }
 
 /**
@@ -43,7 +53,7 @@ function watchAnimations(getRegion, send, intervalMs = 2000) {
   let subscription = subscribeAnimations(region, send);
   const timer = setInterval(() => {
     const current = getRegion();
-    if (!current || current === region && current.circuit === (region && region.circuit)) return;
+    if (!current || (current === region && current.circuit === (region && region.circuit))) return;
     if (subscription) subscription.unsubscribe();
     region = current;
     subscription = subscribeAnimations(region, send);
@@ -74,16 +84,30 @@ async function downloadAnimation(bot, id) {
     // Agni can reject otherwise readable animations at ViewerAsset with HTTP 403. The original
     // simulator TransferRequest path remains valid, so retry there before declaring the pose lost.
     if (typeof asset.transfer !== 'function') throw viewerAssetError;
-    const { TransferChannelType } = require('@caspertech/node-metaverse/dist/lib/enums/TransferChannelType');
-    const { TransferSourceType } = require('@caspertech/node-metaverse/dist/lib/enums/TransferSourceTypes');
+    const {
+      TransferChannelType,
+    } = require('@caspertech/node-metaverse/dist/lib/enums/TransferChannelType');
+    const {
+      TransferSourceType,
+    } = require('@caspertech/node-metaverse/dist/lib/enums/TransferSourceTypes');
     const params = Buffer.alloc(20);
     new UUID(id).writeToBuffer(params, 0);
     params.writeInt32LE(AssetType.Animation, 16);
-    buffer = await asset.transfer(TransferChannelType.Asset, TransferSourceType.Asset, false, params);
+    buffer = await asset.transfer(
+      TransferChannelType.Asset,
+      TransferSourceType.Asset,
+      false,
+      params,
+    );
   }
   if (!buffer || buffer.length === 0) throw new Error('Animation asset is empty');
   if (buffer.length > MAX_ANIMATION_BYTES) throw new Error('Animation asset is too large');
   return Buffer.from(buffer).toString('base64');
 }
 
-module.exports = { serializeAnimationMessage, subscribeAnimations, watchAnimations, downloadAnimation };
+module.exports = {
+  serializeAnimationMessage,
+  subscribeAnimations,
+  watchAnimations,
+  downloadAnimation,
+};

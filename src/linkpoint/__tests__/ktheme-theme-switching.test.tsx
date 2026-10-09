@@ -7,10 +7,30 @@ describe('Ktheme Theme System Centralization', () => {
     expect(paletteKeys.length).toBeGreaterThanOrEqual(24);
 
     const expectedPalettes = [
-      'ink', 'lcars', 'metro', 'aero', 'navy', 'paper', 'deco', 'noir',
-      'emerald', 'amber', 'crimson', 'nouveau', 'aurora', 'burgundy',
-      'calm', 'charcoal', 'deep', 'forest', 'rose', 'royalb', 'royals',
-      'slatec', 'slateg', 'solarpunk'
+      'ink',
+      'lcars',
+      'metro',
+      'aero',
+      'navy',
+      'paper',
+      'deco',
+      'noir',
+      'emerald',
+      'amber',
+      'crimson',
+      'nouveau',
+      'aurora',
+      'burgundy',
+      'calm',
+      'charcoal',
+      'deep',
+      'forest',
+      'rose',
+      'royalb',
+      'royals',
+      'slatec',
+      'slateg',
+      'solarpunk',
     ];
 
     for (const key of expectedPalettes) {
@@ -22,8 +42,14 @@ describe('Ktheme Theme System Centralization', () => {
 
   it('defines all 8 structural layout variations', () => {
     const expectedLayouts = [
-      'metro', 'lcars', 'frutiger_aero', 'art_deco', 'terminal',
-      'modernglass', 'material3', 'cyberpunk'
+      'metro',
+      'lcars',
+      'frutiger_aero',
+      'art_deco',
+      'terminal',
+      'modernglass',
+      'material3',
+      'cyberpunk',
     ];
 
     for (const layoutKey of expectedLayouts) {

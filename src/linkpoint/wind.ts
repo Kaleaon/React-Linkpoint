@@ -44,7 +44,10 @@ export class BitReader {
       for (let i = 0; i < chunk; i++) {
         if (this.index >= this.bytes.length) throw new RangeError('wind layer data ended early');
         byte = ((byte << 1) | ((this.bytes[this.index] >> (7 - this.bit)) & 1)) & 0xff;
-        if (++this.bit === 8) { this.bit = 0; this.index++; }
+        if (++this.bit === 8) {
+          this.bit = 0;
+          this.index++;
+        }
       }
       value += byte * 2 ** shift;
       shift += 8;
@@ -53,8 +56,17 @@ export class BitReader {
   }
 }
 
-export interface GroupHeader { stride: number; patchSize: number; layerType: number }
-export interface PatchHeader { dcOffset: number; range: number; quantWbits: number; patchIds: number }
+export interface GroupHeader {
+  stride: number;
+  patchSize: number;
+  layerType: number;
+}
+export interface PatchHeader {
+  dcOffset: number;
+  range: number;
+  quantWbits: number;
+  patchIds: number;
+}
 
 /** `decode_patch_group_header`. */
 export function decodeGroupHeader(bits: BitReader): GroupHeader {
@@ -89,17 +101,32 @@ export function decodePatch(bits: BitReader, patchSize: number, wordBits: number
 /** `build_decopy_matrix`: where each position of the block sits in the zig-zag scan. */
 export function buildDecopyMatrix(size: number): Int32Array {
   const matrix = new Int32Array(size * size);
-  let i = 0, j = 0, count = 0, diag = false, right = true;
+  let i = 0,
+    j = 0,
+    count = 0,
+    diag = false,
+    right = true;
   while (i < size && j < size) {
     matrix[j * size + i] = count++;
     if (!diag) {
-      if (right) { if (i < size - 1) i++; else j++; right = false; diag = true; }
-      else { if (j < size - 1) j++; else i++; right = true; diag = true; }
+      if (right) {
+        if (i < size - 1) i++;
+        else j++;
+        right = false;
+        diag = true;
+      } else {
+        if (j < size - 1) j++;
+        else i++;
+        right = true;
+        diag = true;
+      }
     } else if (right) {
-      i++; j--;
+      i++;
+      j--;
       if (i === size - 1 || j === 0) diag = false;
     } else {
-      i--; j++;
+      i--;
+      j++;
       if (i === 0 || j === size - 1) diag = false;
     }
   }
@@ -107,10 +134,16 @@ export function buildDecopyMatrix(size: number): Int32Array {
 }
 
 /** `decompress_patch` for a 16x16 patch: dequantise, inverse DCT, scale to the header's range. */
-export function decompressPatch(coefficients: Int32Array, header: PatchHeader, size: number): Float32Array {
+export function decompressPatch(
+  coefficients: Int32Array,
+  header: PatchHeader,
+  size: number,
+): Float32Array {
   const decopy = buildDecopyMatrix(size);
   const cosines = new Float64Array(size * size); // [u*size+n] = cos((2n+1) u pi / 2size)
-  for (let u = 0; u < size; u++) for (let n = 0; n < size; n++) cosines[u * size + n] = Math.cos(((2 * n + 1) * u * Math.PI) / (2 * size));
+  for (let u = 0; u < size; u++)
+    for (let n = 0; n < size; n++)
+      cosines[u * size + n] = Math.cos(((2 * n + 1) * u * Math.PI) / (2 * size));
 
   const block = new Float64Array(size * size);
   for (let k = 0; k < block.length; k++) {
@@ -150,7 +183,10 @@ export class RegionWind {
   /** True once a wind layer has been decoded. */
   loaded = false;
 
-  constructor(public regionWidth = DEFAULT_REGION_WIDTH, public windScaleHack = WIND_SCALE_HACK) {}
+  constructor(
+    public regionWidth = DEFAULT_REGION_WIDTH,
+    public windScaleHack = WIND_SCALE_HACK,
+  ) {}
 
   /**
    * `LLVLManager::unpackData` + `LLWind::decompress`: decode the data of a layer-'7' message.
@@ -182,8 +218,12 @@ export class RegionWind {
 
   /** `LLWind::getAverage`. */
   average(): Vec3 {
-    let x = 0, y = 0;
-    for (let i = 0; i < this.velX.length; i++) { x += this.velX[i]; y += this.velY[i]; }
+    let x = 0,
+      y = 0;
+    for (let i = 0; i < this.velX.length; i++) {
+      x += this.velX[i];
+      y += this.velY[i];
+    }
     const scale = (1 / this.velX.length) * this.windScaleHack;
     return [x * scale, y * scale, 0];
   }
@@ -192,18 +232,28 @@ export class RegionWind {
   velocity(position: ArrayLike<number>): Vec3 {
     const width = this.regionWidth;
     const clamp = (v: number) => (v < 0 ? 0 : v >= width ? v % width : v);
-    const px = clamp(position[0]), py = clamp(position[1]);
-    const gx = (px * this.size) / width, gy = (py * this.size) / width;
-    const i = Math.floor(gx), j = Math.floor(gy);
+    const px = clamp(position[0]),
+      py = clamp(position[1]);
+    const gx = (px * this.size) / width,
+      gy = (py * this.size) / width;
+    const i = Math.floor(gx),
+      j = Math.floor(gy);
     const k = i + j * this.size;
-    const dx = gx - i, dy = gy - j;
+    const dx = gx - i,
+      dy = gy - j;
     let x: number, y: number;
     if (i < this.size - 1 && j < this.size - 1) {
       const s = this.size;
-      const lerp = (a: Float32Array) => a[k] * (1 - dx) * (1 - dy) + a[k + 1] * dx * (1 - dy) + a[k + s] * dy * (1 - dx) + a[k + s + 1] * dx * dy;
-      x = lerp(this.velX); y = lerp(this.velY);
+      const lerp = (a: Float32Array) =>
+        a[k] * (1 - dx) * (1 - dy) +
+        a[k + 1] * dx * (1 - dy) +
+        a[k + s] * dy * (1 - dx) +
+        a[k + s + 1] * dx * dy;
+      x = lerp(this.velX);
+      y = lerp(this.velY);
     } else {
-      x = this.velX[k]; y = this.velY[k];
+      x = this.velX[k];
+      y = this.velY[k];
     }
     return [x * this.windScaleHack, y * this.windScaleHack, 0];
   }
@@ -214,7 +264,9 @@ export class RegionWind {
     const sum: Vec3 = [0, 0, 0];
     for (let d = dim; d >= 1; d /= 2) {
       const v = this.velocity([position[0] * d, position[1] * d, position[2] * d]);
-      sum[0] += v[0] / d; sum[1] += v[1] / d; sum[2] += v[2] / d;
+      sum[0] += v[0] / d;
+      sum[1] += v[1] / d;
+      sum[2] += v[2] / d;
     }
     const scale = 1 / norm;
     return [sum[0] * scale, sum[1] * scale, sum[2] * scale];

@@ -4,25 +4,25 @@ Everything in the viewer standards modules comes from Linden Lab's own repositor
 commits below. Nothing is taken from memory, third-party viewers or community wikis. Where a fact
 could not be found in an official source it is left out and listed under "Not verified".
 
-| Repository | Commit read | Used for |
-| --- | --- | --- |
-| [secondlife/viewer](https://github.com/secondlife/viewer) | `7dd6de6120ce` (2026-10-07) | controls, key bindings, voice, sound |
-| [secondlife/slua](https://github.com/secondlife/slua) | `444f8e4bd1ae` (2026-10-05) | LSL constants and function signatures (`builtins.txt`) |
-| [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions) | `995b8829f5e5` (2026-10-08) | the canonical LSL/SLua definitions (not yet mined) |
-| [secondlife/python-llsd](https://github.com/secondlife/python-llsd) | `7730e2ea69dd` (2026-07-23) | LLSD reference (not yet used) |
+| Repository                                                                  | Commit read                 | Used for                                               |
+| --------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------ |
+| [secondlife/viewer](https://github.com/secondlife/viewer)                   | `7dd6de6120ce` (2026-10-07) | controls, key bindings, voice, sound                   |
+| [secondlife/slua](https://github.com/secondlife/slua)                       | `444f8e4bd1ae` (2026-10-05) | LSL constants and function signatures (`builtins.txt`) |
+| [secondlife/lsl-definitions](https://github.com/secondlife/lsl-definitions) | `995b8829f5e5` (2026-10-08) | the canonical LSL/SLua definitions (not yet mined)     |
+| [secondlife/python-llsd](https://github.com/secondlife/python-llsd)         | `7730e2ea69dd` (2026-07-23) | LLSD reference (not yet used)                          |
 
 The organisation's repository list could not be fetched from here (the API and web listing are
 blocked), so these were found by probing likely names. Other official repositories may exist.
 
 ## What came from where
 
-| Module | Source file(s) in `secondlife/viewer` |
-| --- | --- |
-| `src/linkpoint/agent-controls.ts` | `indra/llcommon/indra_constants.h` (all 32 `AGENT_CONTROL_*` values), `indra/newview/llviewermessage.cpp` (`AU_FLAGS_*`), `llagent.cpp` (`resetControlFlags`), `llviewerinput.cpp` (nudge 0.25 s, fly 0.5 s, tap-tap-hold run, `toggle_run`, `toggle_fly`, `stop_moving`) |
-| `src/linkpoint/key-bindings.ts` | `indra/newview/app_settings/key_bindings.xml`: all four modes, 138 entries, compared entry by entry |
-| `src/linkpoint/voice-protocol.ts`, `voice.ts` | `indra/newview/llvoicewebrtc.cpp` / `.h`, `indra/llwebrtc/llwebrtc.cpp`: capabilities, `SLData` channel, spatial message, join, mute and gain, STUN hosts, Opus SDP, ear locations, 50 m tether |
-| `src/linkpoint/particles.ts` | `indra/llmessage/llpartdata.h` / `.cpp` (flag and pattern bit values, block layout), `indra/newview/llviewerpartsource.cpp` (`LLViewerPartSourceScript::update`: burst timing, patterns, rotation), `llviewerpartsim.cpp` (`LLViewerPartGroup::updateParticles`: wind, target, motion, bounce, interpolation), `app_settings/settings.xml` (`RenderMaxPartCount` 4096) |
-| `src/linkpoint/flexible.ts`, `sl-math.ts` | `indra/newview/llflexibleobject.cpp` (`doFlexibleUpdate`, `remapSections`), `indra/llprimitive/llprimitive.cpp` (`LLFlexibleObjectData::unpack`, tension cap 0.99), `indra/llmath/llquaternion.cpp` / `v3math.cpp` (quaternion conventions) |
+| Module                                         | Source file(s) in `secondlife/viewer`                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/linkpoint/agent-controls.ts`              | `indra/llcommon/indra_constants.h` (all 32 `AGENT_CONTROL_*` values), `indra/newview/llviewermessage.cpp` (`AU_FLAGS_*`), `llagent.cpp` (`resetControlFlags`), `llviewerinput.cpp` (nudge 0.25 s, fly 0.5 s, tap-tap-hold run, `toggle_run`, `toggle_fly`, `stop_moving`)                                                                                                                                                    |
+| `src/linkpoint/key-bindings.ts`                | `indra/newview/app_settings/key_bindings.xml`: all four modes, 138 entries, compared entry by entry                                                                                                                                                                                                                                                                                                                          |
+| `src/linkpoint/voice-protocol.ts`, `voice.ts`  | `indra/newview/llvoicewebrtc.cpp` / `.h`, `indra/llwebrtc/llwebrtc.cpp`: capabilities, `SLData` channel, spatial message, join, mute and gain, STUN hosts, Opus SDP, ear locations, 50 m tether                                                                                                                                                                                                                              |
+| `src/linkpoint/particles.ts`                   | `indra/llmessage/llpartdata.h` / `.cpp` (flag and pattern bit values, block layout), `indra/newview/llviewerpartsource.cpp` (`LLViewerPartSourceScript::update`: burst timing, patterns, rotation), `llviewerpartsim.cpp` (`LLViewerPartGroup::updateParticles`: wind, target, motion, bounce, interpolation), `app_settings/settings.xml` (`RenderMaxPartCount` 4096)                                                       |
+| `src/linkpoint/flexible.ts`, `sl-math.ts`      | `indra/newview/llflexibleobject.cpp` (`doFlexibleUpdate`, `remapSections`), `indra/llprimitive/llprimitive.cpp` (`LLFlexibleObjectData::unpack`, tension cap 0.99), `indra/llmath/llquaternion.cpp` / `v3math.cpp` (quaternion conventions)                                                                                                                                                                                  |
 | `src/linkpoint/sound-standards.ts`, `audio.ts` | `indra/llcommon/lldefs.h` (sound flags), `llviewermessage.cpp` (`process_sound_trigger`, attached-sound handlers, postponed sounds), `llviewerobject.cpp` (`setAttachedSound`), `llaudiosourcevo.cpp` (cut-off radius, parcel and mute rules), `llviewerparcelmgr.cpp` (`canHearSound`), `llmessage/llregionhandle.h`, `llvieweraudio.cpp` (levels, rolloff), `app_settings/settings.xml` (`AudioLevel*`, `Mute*`, `UISnd*`) |
 
 ## Known differences from the official viewer

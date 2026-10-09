@@ -55,11 +55,18 @@ describe('Bento Attachment Points & Face Texture Hydration', () => {
       const jointIndex = skeleton.indexOf(item.joint);
       expect(jointIndex).toBeGreaterThanOrEqual(0);
 
-      const expectedJointPos = [worldMatrices[jointIndex][12], worldMatrices[jointIndex][13], worldMatrices[jointIndex][14]];
+      const expectedJointPos = [
+        worldMatrices[jointIndex][12],
+        worldMatrices[jointIndex][13],
+        worldMatrices[jointIndex][14],
+      ];
       const heightOffset = avatar.scale[2] / 2;
       expect(transform.position[0]).toBeCloseTo(avatar.position[0] + expectedJointPos[0], 2);
       expect(transform.position[1]).toBeCloseTo(avatar.position[1] + expectedJointPos[1], 2);
-      expect(transform.position[2]).toBeCloseTo(avatar.position[2] - heightOffset + expectedJointPos[2], 2);
+      expect(transform.position[2]).toBeCloseTo(
+        avatar.position[2] - heightOffset + expectedJointPos[2],
+        2,
+      );
     }
   });
 
@@ -89,9 +96,19 @@ describe('Bento Attachment Points & Face Texture Hydration', () => {
 
     // Apply downloaded texture asset
     const rgbaBase64 = btoa('RGBAdata4bytes!!');
-    (world as any).applyTexture({ assetId: 'face-tex-12345678', width: 2, height: 2, rgba: rgbaBase64 });
+    (world as any).applyTexture({
+      assetId: 'face-tex-12345678',
+      width: 2,
+      height: 2,
+      rgba: rgbaBase64,
+    });
 
-    expect(mockScene3d.addAssetTexture).toHaveBeenCalledWith('face-tex-12345678', 2, 2, expect.any(Uint8Array));
+    expect(mockScene3d.addAssetTexture).toHaveBeenCalledWith(
+      'face-tex-12345678',
+      2,
+      2,
+      expect.any(Uint8Array),
+    );
     const sceneObj = (world as any).sceneObjects.get('prim-1');
     expect(sceneObj.decodedFaceTextures[0].texture).toBe('texture:face-tex-12345678');
   });

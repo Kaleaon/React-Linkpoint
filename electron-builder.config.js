@@ -30,7 +30,8 @@ function mainProcessDeps(rootDir) {
       const source = fs.readFileSync(path.join(directory, file), 'utf8');
       for (const match of source.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) {
         const request = match[1];
-        if (request.startsWith('.') || request.startsWith('node:') || request === 'electron') continue;
+        if (request.startsWith('.') || request.startsWith('node:') || request === 'electron')
+          continue;
         const segments = request.split('/');
         deps.add(request.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]);
       }
@@ -75,7 +76,8 @@ function dependencyClosure(rootDir) {
 
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
     // Optional dependencies matter: sharp ships its native binary as a platform-specific optional package.
-    for (const dep of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })) stack.push([dep, dir]);
+    for (const dep of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies }))
+      stack.push([dep, dir]);
   }
 
   return found;
@@ -88,7 +90,9 @@ function topLevelPackages(rootDir) {
   for (const entry of fs.readdirSync(modulesDir, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
     if (entry.name.startsWith('@')) {
-      for (const scoped of fs.readdirSync(path.join(modulesDir, entry.name), { withFileTypes: true })) {
+      for (const scoped of fs.readdirSync(path.join(modulesDir, entry.name), {
+        withFileTypes: true,
+      })) {
         if (scoped.isDirectory()) names.push(`${entry.name}/${scoped.name}`);
       }
     } else {

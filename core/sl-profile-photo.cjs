@@ -32,7 +32,9 @@ function profileUsername(name) {
 
 function profilePhotoUrl(name, thumbnail = true) {
   const username = profileUsername(name);
-  return username ? `${BASE}/${username}/${thumbnail ? 'thumb_sl_image.png' : 'sl_image.png'}` : null;
+  return username
+    ? `${BASE}/${username}/${thumbnail ? 'thumb_sl_image.png' : 'sl_image.png'}`
+    : null;
 }
 
 /**
@@ -40,7 +42,10 @@ function profilePhotoUrl(name, thumbnail = true) {
  * Resolves `{ contentType, base64 }`, or `null` when the resident has no public
  * picture. Throws only for a bad name, an oversize response or a network error.
  */
-async function fetchProfilePhoto(name, { thumbnail = true, fetchImpl = globalThis.fetch, timeoutMs = 8000 } = {}) {
+async function fetchProfilePhoto(
+  name,
+  { thumbnail = true, fetchImpl = globalThis.fetch, timeoutMs = 8000 } = {},
+) {
   const url = profilePhotoUrl(name, thumbnail);
   if (!url) throw new Error('That is not a valid resident name');
   const controller = new AbortController();
@@ -49,7 +54,10 @@ async function fetchProfilePhoto(name, { thumbnail = true, fetchImpl = globalThi
     const response = await fetchImpl(url, { signal: controller.signal, redirect: 'error' });
     if (response.status === 403 || response.status === 404) return null;
     if (!response.ok) throw new Error(`The profile picture service answered ${response.status}`);
-    const contentType = String(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const contentType = String(response.headers.get('content-type') || '')
+      .split(';')[0]
+      .trim()
+      .toLowerCase();
     if (!/^image\/(png|jpeg|gif|webp)$/.test(contentType)) return null;
     const bytes = Buffer.from(await response.arrayBuffer());
     if (bytes.length === 0) return null;

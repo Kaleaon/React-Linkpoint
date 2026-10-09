@@ -19,7 +19,8 @@ function relativeSpecifiers(source) {
   // Static imports, re-exports, dynamic imports and CommonJS require calls all need to resolve in
   // the Linux deployment checkout. Restrict matches to quoted relative paths so package imports
   // and computed runtime URLs are deliberately ignored.
-  const pattern = /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?|\brequire\s*\()\s*['"](\.{1,2}\/[^'"?#]+)['"]/g;
+  const pattern =
+    /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?|\brequire\s*\()\s*['"](\.{1,2}\/[^'"?#]+)['"]/g;
   for (const match of source.matchAll(pattern)) results.push(match[1]);
   return results;
 }
@@ -49,7 +50,9 @@ for (const importer of sourceFiles(sourceRoot)) {
   const source = readFileSync(importer, 'utf8');
   for (const specifier of relativeSpecifiers(source)) {
     checked += 1;
-    const found = candidates(importer, specifier).some((path) => existsSync(path) && statSync(path).isFile());
+    const found = candidates(importer, specifier).some(
+      (path) => existsSync(path) && statSync(path).isFile(),
+    );
     if (!found) missing.push(`${relative(root, importer)} -> ${specifier}`);
   }
 }
@@ -57,12 +60,16 @@ for (const importer of sourceFiles(sourceRoot)) {
 if (missing.length) {
   console.error('[source-imports] Missing local modules in this checkout:');
   for (const item of missing) console.error(`  - ${item}`);
-  const deploymentRevision = process.env.RENDER_GIT_COMMIT
-    ?? process.env.VERCEL_GIT_COMMIT_SHA
-    ?? process.env.COMMIT_REF
-    ?? process.env.GITHUB_SHA;
-  if (deploymentRevision) console.error(`[source-imports] Deployment revision: ${deploymentRevision}`);
-  console.error('[source-imports] The repository contains these modules. Verify the deployment revision, clear its build cache, and redeploy the latest commit.');
+  const deploymentRevision =
+    process.env.RENDER_GIT_COMMIT ??
+    process.env.VERCEL_GIT_COMMIT_SHA ??
+    process.env.COMMIT_REF ??
+    process.env.GITHUB_SHA;
+  if (deploymentRevision)
+    console.error(`[source-imports] Deployment revision: ${deploymentRevision}`);
+  console.error(
+    '[source-imports] The repository contains these modules. Verify the deployment revision, clear its build cache, and redeploy the latest commit.',
+  );
   process.exit(1);
 }
 

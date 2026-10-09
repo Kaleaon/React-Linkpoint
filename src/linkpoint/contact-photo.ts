@@ -13,14 +13,20 @@ export const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 /** The centred square of a width x height image, as a source rectangle. */
-export function squareCrop(width: number, height: number): { sx: number; sy: number; size: number } {
-  if (!(width > 0) || !(height > 0) || !Number.isFinite(width) || !Number.isFinite(height)) throw new Error('That image has no size.');
+export function squareCrop(
+  width: number,
+  height: number,
+): { sx: number; sy: number; size: number } {
+  if (!(width > 0) || !(height > 0) || !Number.isFinite(width) || !Number.isFinite(height))
+    throw new Error('That image has no size.');
   const size = Math.min(width, height);
   return { sx: Math.floor((width - size) / 2), sy: Math.floor((height - size) / 2), size };
 }
 
 /** Check a picked file before doing any work on it. Returns an error message, or null if it is acceptable. */
-export function checkPhotoFile(file: { type: string; size: number } | null | undefined): string | null {
+export function checkPhotoFile(
+  file: { type: string; size: number } | null | undefined,
+): string | null {
   if (!file) return 'Choose an image.';
   if (!ACCEPTED_TYPES.includes(file.type)) return 'Choose a JPEG, PNG, WebP or GIF image.';
   if (file.size > MAX_SOURCE_BYTES) return 'That image is too large (10 MB at most).';
@@ -28,15 +34,42 @@ export function checkPhotoFile(file: { type: string; size: number } | null | und
   return null;
 }
 
-async function decode(file: Blob): Promise<{ width: number; height: number; draw: (ctx: CanvasRenderingContext2D, sx: number, sy: number, size: number, target: number) => void; close: () => void }> {
+async function decode(file: Blob): Promise<{
+  width: number;
+  height: number;
+  draw: (
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    size: number,
+    target: number,
+  ) => void;
+  close: () => void;
+}> {
   if (typeof createImageBitmap === 'function') {
     const bitmap = await createImageBitmap(file);
-    return { width: bitmap.width, height: bitmap.height, draw: (ctx, sx, sy, size, target) => ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, target, target), close: () => bitmap.close() };
+    return {
+      width: bitmap.width,
+      height: bitmap.height,
+      draw: (ctx, sx, sy, size, target) =>
+        ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, target, target),
+      close: () => bitmap.close(),
+    };
   }
   const url = URL.createObjectURL(file);
   const image = new Image();
-  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('That image could not be read.')); image.src = url; });
-  return { width: image.naturalWidth, height: image.naturalHeight, draw: (ctx, sx, sy, size, target) => ctx.drawImage(image, sx, sy, size, size, 0, 0, target, target), close: () => URL.revokeObjectURL(url) };
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('That image could not be read.'));
+    image.src = url;
+  });
+  return {
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    draw: (ctx, sx, sy, size, target) =>
+      ctx.drawImage(image, sx, sy, size, size, 0, 0, target, target),
+    close: () => URL.revokeObjectURL(url),
+  };
 }
 
 /** Resize `file` to a centred square JPEG data URL small enough to store. */

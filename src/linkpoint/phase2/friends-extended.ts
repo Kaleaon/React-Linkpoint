@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Friends Extensions (Features 46-50)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 3
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 90-95)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/users/
- * 
+ *
  * Extends friend functionality with requests, notifications, permissions, calling cards, and groups.
  */
 
@@ -13,7 +13,10 @@ import { deltaSelectorStore } from '../delta-selectors';
 import { indexedDBStore } from '../indexeddb-store';
 
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
-const isRealName = (name: unknown): name is string => typeof name === 'string' && name.trim() !== '' && !['Resident', 'Friend', 'Unknown Friend'].includes(name.trim());
+const isRealName = (name: unknown): name is string =>
+  typeof name === 'string' &&
+  name.trim() !== '' &&
+  !['Resident', 'Friend', 'Unknown Friend'].includes(name.trim());
 
 class FriendRequestsMap extends Map<string, any> {
   constructor(private pendingRequestIds: Set<string>) {
@@ -55,11 +58,20 @@ export class FriendsExtended extends Utils.EventEmitter {
   }
 
   private normalizeId(friendId: string) {
-    return String(friendId).trim().replace(/^\{(.+)\}$/, '$1').toLowerCase();
+    return String(friendId)
+      .trim()
+      .replace(/^\{(.+)\}$/, '$1')
+      .toLowerCase();
   }
 
   private normalizeStatus(status: unknown): 'online' | 'offline' {
-    if (status === true || status === 1 || status === '1' || String(status).toLowerCase() === 'online' || String(status).toLowerCase() === 'true') {
+    if (
+      status === true ||
+      status === 1 ||
+      status === '1' ||
+      String(status).toLowerCase() === 'online' ||
+      String(status).toLowerCase() === 'true'
+    ) {
       return 'online';
     }
     return 'offline';
@@ -73,7 +85,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!userId || typeof userId !== 'string') {
       throw new Error('Valid user ID required');
     }
-    
+
     if (typeof this.protocol?.sendFriendRequest !== 'function') {
       throw new Error('Friend requests are unavailable on this connection');
     }
@@ -83,12 +95,12 @@ export class FriendsExtended extends Utils.EventEmitter {
       targetUserId: userId,
       message: message,
       status: 'pending',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    
+
     this.friendRequests.set(request.id, request);
     console.log(`[FriendsExtended] Sent friend request to: ${userId}`);
-    
+
     return Promise.resolve(request);
   }
 
@@ -100,16 +112,15 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!request) {
       throw new Error(`Friend request not found: ${requestId}`);
     }
-    
+
     request.status = 'accepted';
     this.pendingRequestIds.delete(requestId);
-    
     // Add to friends list
     this.addFriend(request.targetUserId, {
       accepted: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
-    
+
     console.log(`[FriendsExtended] Accepted friend request: ${requestId}`);
     return Promise.resolve();
   }
@@ -133,7 +144,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!friendId || typeof friendId !== 'string') {
       throw new Error('Valid friend ID required');
     }
-    
+
     const normalizedId = this.normalizeId(friendId);
     const existing = this.friends.get(normalizedId);
     // A presence packet can carry no name, or the placeholder the session uses when it has none yet;
@@ -149,16 +160,24 @@ export class FriendsExtended extends Utils.EventEmitter {
       timestamp: friendData.timestamp ?? existing?.timestamp ?? Date.now(),
       ...otherData,
       id: normalizedId,
-      onlineStatus: this.normalizeStatus(friendData.onlineStatus ?? friendData.online ?? existing?.onlineStatus),
+      onlineStatus: this.normalizeStatus(
+        friendData.onlineStatus ?? friendData.online ?? existing?.onlineStatus,
+      ),
     };
-    
+
     this.friends.set(normalizedId, friend);
     if (friend.onlineStatus === 'online') {
       this.onlineFriendIds.add(normalizedId);
     } else {
       this.onlineFriendIds.delete(normalizedId);
     }
-    deltaSelectorStore.emitDelta('contact', normalizedId, existing ? 'update' : 'add', friend, existing);
+    deltaSelectorStore.emitDelta(
+      'contact',
+      normalizedId,
+      existing ? 'update' : 'add',
+      friend,
+      existing,
+    );
     this.emit(existing ? 'friend_updated' : 'friend_added', { ...friend });
     console.log(`[FriendsExtended] ${existing ? 'Updated' : 'Added'} friend: ${friend.name}`);
   }
@@ -170,7 +189,9 @@ export class FriendsExtended extends Utils.EventEmitter {
       if (!friend?.id) continue;
       const id = this.normalizeId(String(friend.id));
       currentIds.add(id);
-      const liveStatus = this.authoritativePresence.has(id) ? this.friends.get(id)?.onlineStatus : undefined;
+      const liveStatus = this.authoritativePresence.has(id)
+        ? this.friends.get(id)?.onlineStatus
+        : undefined;
       this.addFriend(id, liveStatus ? { ...friend, onlineStatus: liveStatus } : friend);
     }
     for (const id of [...this.friends.keys()]) {
@@ -207,7 +228,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!friendId || !status) {
       throw new Error('Valid friend ID and status required');
     }
-    
+
     const normalizedId = this.normalizeId(friendId);
     const normalizedStatus = this.normalizeStatus(status);
     this.authoritativePresence.add(normalizedId);
@@ -227,14 +248,20 @@ export class FriendsExtended extends Utils.EventEmitter {
         this.onlineFriendIds.delete(normalizedId);
       }
       if (isRealName(friendData.name)) friend.name = friendData.name;
-      
+
       // Notify listeners
       if (oldStatus !== normalizedStatus) {
         this.notifyStatusChange(normalizedId, normalizedStatus, oldStatus);
-        deltaSelectorStore.emitDelta('contact', normalizedId, 'presence', { ...friend, onlineStatus: normalizedStatus }, { ...friend, onlineStatus: oldStatus });
+        deltaSelectorStore.emitDelta(
+          'contact',
+          normalizedId,
+          'presence',
+          { ...friend, onlineStatus: normalizedStatus },
+          { ...friend, onlineStatus: oldStatus },
+        );
         this.emit('friend_updated', { ...friend });
       }
-      
+
       console.log(`[FriendsExtended] Friend ${normalizedId} status: ${normalizedStatus}`);
     }
   }
@@ -273,14 +300,14 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!friendId || !permissions) {
       throw new Error('Valid friend ID and permissions required');
     }
-    
+
     const friend = this.friends.get(friendId);
     if (friend) {
       friend.permissions = {
         canSeeOnline: permissions.canSeeOnline || false,
         canSeeOnMap: permissions.canSeeOnMap || false,
         canModifyObjects: permissions.canModifyObjects || false,
-        ...permissions
+        ...permissions,
       };
       console.log(`[FriendsExtended] Updated permissions for: ${friendId}`);
     }
@@ -302,15 +329,15 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!friend) {
       throw new Error(`Friend not found: ${friendId}`);
     }
-    
+
     const callingCard = {
       id: `card-${friendId}`,
       targetId: friendId,
       targetName: friend.name,
       created: Date.now(),
-      type: 'calling_card'
+      type: 'calling_card',
     };
-    
+
     console.log(`[FriendsExtended] Created calling card for: ${friend.name}`);
     return callingCard;
   }
@@ -323,18 +350,18 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!groupName || typeof groupName !== 'string') {
       throw new Error('Valid group name required');
     }
-    
+
     const groupId = `group-${Date.now()}`;
     const group = {
       id: groupId,
       name: groupName,
       members: [],
-      created: Date.now()
+      created: Date.now(),
     };
-    
+
     this.friendGroups.set(groupId, group);
     console.log(`[FriendsExtended] Created friend group: ${groupName}`);
-    
+
     return group;
   }
 
@@ -344,11 +371,11 @@ export class FriendsExtended extends Utils.EventEmitter {
   addFriendToGroup(friendId: string, groupId: string) {
     const friend = this.friends.get(friendId);
     const group = this.friendGroups.get(groupId);
-    
+
     if (!friend || !group) {
       throw new Error('Friend or group not found');
     }
-    
+
     if (!group.members.includes(friendId)) {
       group.members.push(friendId);
       friend.group = groupId;
@@ -364,7 +391,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     if (!group) {
       return [];
     }
-    
+
     return group.members.map((id: string) => this.friends.get(id)).filter(Boolean);
   }
 
@@ -384,7 +411,7 @@ export class FriendsExtended extends Utils.EventEmitter {
 
   /** Snapshot for UI rendering; callers cannot mutate the backing map. */
   getFriends() {
-    return Array.from(this.friends.values()).map(friend => ({ ...friend }));
+    return Array.from(this.friends.values()).map((friend) => ({ ...friend }));
   }
 
   /** Paged friends query method directly from IndexedDB transactional store */
@@ -397,7 +424,7 @@ export class FriendsExtended extends Utils.EventEmitter {
       totalFriends: this.friends.size,
       onlineFriends: this.onlineFriendIds.size,
       pendingRequests: this.pendingRequestIds.size,
-      friendGroups: this.friendGroups.size
+      friendGroups: this.friendGroups.size,
     };
   }
 }

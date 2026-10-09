@@ -8,15 +8,26 @@ import { Utils } from './utils';
 
 /** `LLMute::EType`. */
 export const MuteType = { BY_NAME: 0, AGENT: 1, OBJECT: 2, GROUP: 3, EXTERNAL: 4 } as const;
-export type MuteTypeValue = typeof MuteType[keyof typeof MuteType];
+export type MuteTypeValue = (typeof MuteType)[keyof typeof MuteType];
 
 /**
  * `LLMute` flag bits. A set bit means "this property is NOT muted" (older entries have flags 0 = everything muted), so a
  * lookup that passes a flag treats an entry with that bit set as not muted.
  */
-export const MuteFlag = { TEXT_CHAT: 0x1, VOICE_CHAT: 0x2, PARTICLES: 0x4, OBJECT_SOUNDS: 0x8, ALL: 0xf } as const;
+export const MuteFlag = {
+  TEXT_CHAT: 0x1,
+  VOICE_CHAT: 0x2,
+  PARTICLES: 0x4,
+  OBJECT_SOUNDS: 0x8,
+  ALL: 0xf,
+} as const;
 
-export interface MuteEntry { id: string; name: string; type: MuteTypeValue; flags: number }
+export interface MuteEntry {
+  id: string;
+  name: string;
+  type: MuteTypeValue;
+  flags: number;
+}
 
 /** The default limit of `MuteListLimit` in the viewer's settings. */
 export const MUTE_LIST_LIMIT = 1000;
@@ -45,10 +56,16 @@ export class MuteList extends Utils.EventEmitter {
   /** Our own id: a mute by name never silences ourselves (FIRE-8540). */
   selfId = '';
 
-  constructor(private transport: MuteTransport | null = null) { super(); }
+  constructor(private transport: MuteTransport | null = null) {
+    super();
+  }
 
-  setTransport(transport: MuteTransport | null) { this.transport = transport; }
-  setSelfId(id: string) { this.selfId = lc(id); }
+  setTransport(transport: MuteTransport | null) {
+    this.transport = transport;
+  }
+  setSelfId(id: string) {
+    this.selfId = lc(id);
+  }
 
   /** Replace the list with what the grid sent (`loadFromFile`). */
   load(result: { state: 'loaded' | 'failed'; mutes?: MuteEntry[]; legacy?: string[] }) {
@@ -57,7 +74,8 @@ export class MuteList extends Utils.EventEmitter {
       this.emit('changed', this.snapshot());
       return;
     }
-    this.mutes.clear(); this.legacy.clear();
+    this.mutes.clear();
+    this.legacy.clear();
     for (const m of result.mutes ?? []) this.mutes.set(lc(m.id), { ...m, id: lc(m.id) });
     for (const name of result.legacy ?? []) this.legacy.add(name);
     this.state = 'loaded';
@@ -66,12 +84,22 @@ export class MuteList extends Utils.EventEmitter {
 
   /** Forget everything (logout). */
   clear() {
-    this.mutes.clear(); this.legacy.clear(); this.state = 'unloaded';
+    this.mutes.clear();
+    this.legacy.clear();
+    this.state = 'unloaded';
     this.emit('changed', this.snapshot());
   }
 
-  snapshot() { return { state: this.state, mutes: [...this.mutes.values()].map((m) => ({ ...m })), legacy: [...this.legacy] }; }
-  get count() { return this.mutes.size + this.legacy.size; }
+  snapshot() {
+    return {
+      state: this.state,
+      mutes: [...this.mutes.values()].map((m) => ({ ...m })),
+      legacy: [...this.legacy],
+    };
+  }
+  get count() {
+    return this.mutes.size + this.legacy.size;
+  }
 
   /** `LLMuteList::isMuted(id, name, flags)`. */
   isMuted(id: string, name = '', flags = 0): boolean {
@@ -87,7 +115,8 @@ export class MuteList extends Utils.EventEmitter {
   /** `LLMuteList::isMuted(username)`: by account name, ignoring case. */
   isMutedByName(name: string): boolean {
     const wanted = (name || '').toLowerCase();
-    for (const m of this.mutes.values()) if (m.type === MuteType.AGENT && m.name.toLowerCase() === wanted) return true;
+    for (const m of this.mutes.values())
+      if (m.type === MuteType.AGENT && m.name.toLowerCase() === wanted) return true;
     return this.legacy.has(name);
   }
 
@@ -97,7 +126,12 @@ export class MuteList extends Utils.EventEmitter {
    */
   add(mute: { id?: string; name: string; type: MuteTypeValue }, flags = 0): boolean {
     const id = lc(mute.id || '');
-    if (mute.type === MuteType.AGENT && isLinden(mute.name) && ((flags & MuteFlag.TEXT_CHAT) || flags === 0)) return false;
+    if (
+      mute.type === MuteType.AGENT &&
+      isLinden(mute.name) &&
+      (flags & MuteFlag.TEXT_CHAT || flags === 0)
+    )
+      return false;
     if (mute.type === MuteType.AGENT && id === this.selfId && id) return false;
     if (this.count >= MUTE_LIST_LIMIT) return false;
 
@@ -107,7 +141,10 @@ export class MuteList extends Utils.EventEmitter {
       if (this.legacy.has(mute.name)) return false; // duplicate
       this.legacy.add(mute.name);
       this.send('update', { id: NULL_UUID, name: mute.name, type: MuteType.BY_NAME, flags: 0 });
-      this.emit('entry_changed', { entry: { id: NULL_UUID, name: mute.name, type: MuteType.BY_NAME, flags: 0 }, removed: false });
+      this.emit('entry_changed', {
+        entry: { id: NULL_UUID, name: mute.name, type: MuteType.BY_NAME, flags: 0 },
+        removed: false,
+      });
       this.emit('changed', this.snapshot());
       return true;
     }
@@ -143,7 +180,10 @@ export class MuteList extends Utils.EventEmitter {
       }
       this.mutes.delete(id);
       if (drop) this.send('remove', local);
-      else { this.mutes.set(id, local); this.send('update', local); }
+      else {
+        this.mutes.set(id, local);
+        this.send('update', local);
+      }
       this.emit('entry_changed', { entry: { ...local }, removed: drop });
       this.emit('changed', this.snapshot());
       return true;
@@ -151,7 +191,10 @@ export class MuteList extends Utils.EventEmitter {
     const name = mute.name ?? '';
     if (this.legacy.delete(name)) {
       this.send('remove', { id: NULL_UUID, name, type: MuteType.BY_NAME, flags: 0 });
-      this.emit('entry_changed', { entry: { id: NULL_UUID, name, type: MuteType.BY_NAME, flags: 0 }, removed: true });
+      this.emit('entry_changed', {
+        entry: { id: NULL_UUID, name, type: MuteType.BY_NAME, flags: 0 },
+        removed: true,
+      });
       this.emit('changed', this.snapshot());
       return true;
     }

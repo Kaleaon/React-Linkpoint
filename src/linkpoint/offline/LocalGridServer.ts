@@ -76,31 +76,37 @@ export class LocalGridServer {
       simIp: '127.0.0.1',
       simPort: 9000,
       terrainHeightmap: new Float32Array(256 * 256).fill(21),
-      prims: []
+      prims: [],
     };
     this.regions.set(defaultRegionId, defaultRegion);
     this.console.info(
       LOG_COMPONENTS.REGION,
-      `Initialised default region "${defaultRegion.name}" at ${defaultRegion.locX},${defaultRegion.locY}`
+      `Initialised default region "${defaultRegion.name}" at ${defaultRegion.locX},${defaultRegion.locY}`,
     );
   }
 
   public start(): boolean {
     if (this.isRunning) {
-      this.console.warn(LOG_COMPONENTS.GRID, 'Start requested but the local grid is already running.');
+      this.console.warn(
+        LOG_COMPONENTS.GRID,
+        'Start requested but the local grid is already running.',
+      );
       return true;
     }
     this.isRunning = true;
     this.console.info(
       LOG_COMPONENTS.GRID,
-      `Local grid started on 127.0.0.1:9000 with ${this.regions.size} region(s) and ${this.users.size} account(s).`
+      `Local grid started on 127.0.0.1:9000 with ${this.regions.size} region(s) and ${this.users.size} account(s).`,
     );
     return true;
   }
 
   public stop(): boolean {
     if (!this.isRunning) {
-      this.console.warn(LOG_COMPONENTS.GRID, 'Shutdown requested but the local grid is already stopped.');
+      this.console.warn(
+        LOG_COMPONENTS.GRID,
+        'Shutdown requested but the local grid is already stopped.',
+      );
       return true;
     }
     this.isRunning = false;
@@ -116,7 +122,11 @@ export class LocalGridServer {
     return `${firstName} ${lastName}`.trim().toLowerCase();
   }
 
-  private buildUser(firstName: string, lastName: string, passwordRecord: PasswordRecord): LocalUser {
+  private buildUser(
+    firstName: string,
+    lastName: string,
+    passwordRecord: PasswordRecord,
+  ): LocalUser {
     const defaultRegion = Array.from(this.regions.values())[0];
     return {
       id: Utils.generateUUID(),
@@ -125,25 +135,33 @@ export class LocalGridServer {
       passwordRecord,
       homeRegionId: defaultRegion ? defaultRegion.id : Utils.generateUUID(),
       homePosition: { x: 128, y: 128, z: 22 },
-      inventoryRootId: Utils.generateUUID()
+      inventoryRootId: Utils.generateUUID(),
     };
   }
 
   /** Register an account from a plaintext password, which is hashed before storage. */
-  public async registerUser(firstName: string, lastName: string, password: string): Promise<LocalUser> {
+  public async registerUser(
+    firstName: string,
+    lastName: string,
+    password: string,
+  ): Promise<LocalUser> {
     const passwordRecord = await hashPassword(password);
     const user = this.buildUser(firstName, lastName, passwordRecord);
     this.users.set(this.userKey(firstName, lastName), user);
     this.console.info(
       LOG_COMPONENTS.USER,
       `Created local account "${user.firstName} ${user.lastName}" (${user.id})`,
-      `Credentials stored as ${passwordRecord.algo} with ${passwordRecord.iterations} iterations.`
+      `Credentials stored as ${passwordRecord.algo} with ${passwordRecord.iterations} iterations.`,
     );
     return user;
   }
 
   /** Rehydrate an account from an already-derived record, without re-hashing. */
-  public restoreUser(firstName: string, lastName: string, passwordRecord: PasswordRecord): LocalUser {
+  public restoreUser(
+    firstName: string,
+    lastName: string,
+    passwordRecord: PasswordRecord,
+  ): LocalUser {
     if (!isPasswordRecord(passwordRecord)) {
       throw new Error('Cannot restore a local account without a valid password record.');
     }
@@ -151,7 +169,7 @@ export class LocalGridServer {
     this.users.set(this.userKey(firstName, lastName), user);
     this.console.debug(
       LOG_COMPONENTS.USER,
-      `Restored local account "${user.firstName} ${user.lastName}" from saved configuration.`
+      `Restored local account "${user.firstName} ${user.lastName}" from saved configuration.`,
     );
     return user;
   }
@@ -160,22 +178,33 @@ export class LocalGridServer {
     return this.users.get(this.userKey(firstName, lastName));
   }
 
-  public async authenticate(firstName: string, lastName: string, password: string): Promise<boolean> {
+  public async authenticate(
+    firstName: string,
+    lastName: string,
+    password: string,
+  ): Promise<boolean> {
     if (!this.isRunning) return false;
     const user = this.getUser(firstName, lastName);
     if (!user) return false;
     return verifyPassword(password, user.passwordRecord);
   }
 
-  public async processLogin(firstName: string, lastName: string, password: string): Promise<Record<string, any>> {
+  public async processLogin(
+    firstName: string,
+    lastName: string,
+    password: string,
+  ): Promise<Record<string, any>> {
     const displayName = `${firstName} ${lastName}`.trim();
     this.console.info(LOG_COMPONENTS.LOGIN, `Login request for "${displayName}".`);
 
     if (!this.isRunning) {
-      this.console.error(LOG_COMPONENTS.LOGIN, `Login denied for "${displayName}": local grid is offline.`);
+      this.console.error(
+        LOG_COMPONENTS.LOGIN,
+        `Login denied for "${displayName}": local grid is offline.`,
+      );
       return {
         login: 'false',
-        reason: 'Local Grid Server is offline/shutdown.'
+        reason: 'Local Grid Server is offline/shutdown.',
       };
     }
 
@@ -184,11 +213,11 @@ export class LocalGridServer {
     if (!user || !authenticated) {
       this.console.warn(
         LOG_COMPONENTS.LOGIN,
-        `Login failed for "${displayName}": ${user ? 'incorrect password' : 'no such local account'}.`
+        `Login failed for "${displayName}": ${user ? 'incorrect password' : 'no such local account'}.`,
       );
       return {
         login: 'false',
-        reason: 'Invalid username or password for local grid.'
+        reason: 'Invalid username or password for local grid.',
       };
     }
 
@@ -199,7 +228,7 @@ export class LocalGridServer {
     this.console.info(
       LOG_COMPONENTS.LOGIN,
       `Login succeeded for "${displayName}" into region "${region.name}".`,
-      `agent_id=${user.id} session_id=${sessionToken}`
+      `agent_id=${user.id} session_id=${sessionToken}`,
     );
 
     return {
@@ -217,7 +246,7 @@ export class LocalGridServer {
       seed_capability: `${region.serverURI}CAPS/${sessionToken}/`,
       look_at: '[r0,g0,b0]',
       inventory_root: [{ folder_id: user.inventoryRootId }],
-      message: 'Welcome to your Offline Local OpenSim Grid!'
+      message: 'Welcome to your Offline Local OpenSim Grid!',
     };
   }
 
@@ -240,7 +269,7 @@ export class LocalGridServer {
         this.console.captureError(
           LOG_COMPONENTS.HYPERGRID,
           `Could not parse Hypergrid URL "${identifier}"; falling back to the local grid URI.`,
-          e
+          e,
         );
       }
     }
@@ -249,11 +278,14 @@ export class LocalGridServer {
       gridURI,
       userId,
       displayName,
-      homeGrid: gridURI
+      homeGrid: gridURI,
     };
 
     this.hypergridUsers.set(identifier, hgId);
-    this.console.info(LOG_COMPONENTS.HYPERGRID, `Resolved "${identifier}" to ${displayName} @ ${gridURI}`);
+    this.console.info(
+      LOG_COMPONENTS.HYPERGRID,
+      `Resolved "${identifier}" to ${displayName} @ ${gridURI}`,
+    );
     return hgId;
   }
 
@@ -265,7 +297,7 @@ export class LocalGridServer {
     this.regions.set(region.id, region);
     this.console.info(
       LOG_COMPONENTS.REGION,
-      `Added region "${region.name}" at ${region.locX},${region.locY} with ${region.prims.length} object(s).`
+      `Added region "${region.name}" at ${region.locX},${region.locY} with ${region.prims.length} object(s).`,
     );
   }
 }
