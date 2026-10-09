@@ -9,9 +9,9 @@ export function SkeletonBox({
   className = '',
 }) {
   const { V } = useTheme?.() || { V: {} };
-  const surf2 = V?.surf2 || "var(--surf2, rgba(255, 255, 255, 0.08))";
-  const priC = V?.priC || "var(--priC, rgba(18, 59, 39, 0.4))";
-  const pri = V?.pri || "var(--pri, rgba(108, 255, 154, 0.35))";
+  const surf2 = V?.surf2 || 'var(--surf2, rgba(255, 255, 255, 0.08))';
+  const priC = V?.priC || 'var(--priC, rgba(18, 59, 39, 0.4))';
+  const pri = V?.pri || 'var(--pri, rgba(108, 255, 154, 0.35))';
   return (
     <div
       className={`skeleton-box ${className}`}
