@@ -9,6 +9,8 @@
  */
 
 import { Utils } from '../utils';
+import { deltaSelectorStore } from '../delta-selectors';
+import { indexedDBStore } from '../indexeddb-store';
 
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
 const isRealName = (name: unknown): name is string => typeof name === 'string' && name.trim() !== '' && !['Resident', 'Friend', 'Unknown Friend'].includes(name.trim());
@@ -121,6 +123,7 @@ export class FriendsExtended extends Utils.EventEmitter {
     };
     
     this.friends.set(normalizedId, friend);
+    deltaSelectorStore.emitDelta('contact', normalizedId, existing ? 'update' : 'add', friend, existing);
     this.emit(existing ? 'friend_updated' : 'friend_added', { ...friend });
     console.log(`[FriendsExtended] ${existing ? 'Updated' : 'Added'} friend: ${friend.name}`);
   }
@@ -185,6 +188,7 @@ export class FriendsExtended extends Utils.EventEmitter {
       // Notify listeners
       if (oldStatus !== normalizedStatus) {
         this.notifyStatusChange(normalizedId, normalizedStatus, oldStatus);
+        deltaSelectorStore.emitDelta('contact', normalizedId, 'presence', { ...friend, onlineStatus: normalizedStatus }, { ...friend, onlineStatus: oldStatus });
         this.emit('friend_updated', { ...friend });
       }
       
@@ -331,6 +335,11 @@ export class FriendsExtended extends Utils.EventEmitter {
   /** Snapshot for UI rendering; callers cannot mutate the backing map. */
   getFriends() {
     return Array.from(this.friends.values()).map(friend => ({ ...friend }));
+  }
+
+  /** Paged friends query method directly from IndexedDB transactional store */
+  async getFriendsPage(page = 1, pageSize = 50, filter?: string, agentId = 'current') {
+    return indexedDBStore.getFriendsPage(agentId, page, pageSize, filter);
   }
 
   getStats() {

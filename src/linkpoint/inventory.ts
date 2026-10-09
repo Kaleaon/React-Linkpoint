@@ -579,4 +579,12 @@ export class InventoryManager extends Utils.EventEmitter {
     this.emit('inventory_updated');
     return true;
   }
+
+  /**
+   * Paged folder contents query directly from IndexedDB without full tree traversals.
+   */
+  async getFolderContentsPage(folderId: string, page = 1, pageSize = 50) {
+    const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
+    return localCache.getFolderContentsPage(agentId, folderId, page, pageSize);
+  }
 }

@@ -7,6 +7,9 @@
  */
 
 import { Utils } from './utils';
+import { indexedDBStore } from './indexeddb-store';
+import { idbWorkerBridge } from './idb-worker';
+import { migrationUtility } from './migration';
 
 export type CacheLocationType = 'internal' | 'flashdrive_fs' | 'flashdrive_path' | 'indexeddb';
 
@@ -223,12 +226,18 @@ class LocalCacheManager extends Utils.EventEmitter {
       // Backend may be offline or in desktop mode
     }
 
-    // 4. Save to IndexedDB as browser backup
+    // 4. Save to IndexedDB as browser backup (monolithic & normalized tables via Web Worker)
     try {
       const db = await this.initIDB();
       if (db) {
         const tx = db.transaction([STORE_INVENTORY], 'readwrite');
         tx.objectStore(STORE_INVENTORY).put(payload);
+      }
+      if (stdData.folders && stdData.folders.length > 0) {
+        await idbWorkerBridge.saveFolders(agentId, stdData.folders);
+      }
+      if (stdData.items && stdData.items.length > 0) {
+        await idbWorkerBridge.saveItems(agentId, stdData.items);
       }
     } catch {
       // IDB error fallback
@@ -645,6 +654,27 @@ class LocalCacheManager extends Utils.EventEmitter {
       lastUpdated: foldersCount > 0 ? new Date().toLocaleTimeString() : null,
       flashdriveReady: Boolean(this.locationType === 'flashdrive_path' || this.dirHandle),
     };
+  }
+
+  /**
+   * Paged inventory folder contents query without full tree traversals.
+   */
+  public async getFolderContentsPage(agentId: string, folderId: string, page = 1, pageSize = 50) {
+    return indexedDBStore.getFolderContentsPage(agentId, folderId, page, pageSize);
+  }
+
+  /**
+   * Paged friends / contacts query directly from IndexedDB.
+   */
+  public async getFriendsPage(agentId: string, page = 1, pageSize = 50, filter?: string) {
+    return indexedDBStore.getFriendsPage(agentId, page, pageSize, filter);
+  }
+
+  /**
+   * Run client database migration from legacy JSON files/localStorage to IndexedDB tables.
+   */
+  public async migrateLegacyStorage(agentId: string = 'current') {
+    return migrationUtility.migrateLegacyStorage(agentId);
   }
 }
 
