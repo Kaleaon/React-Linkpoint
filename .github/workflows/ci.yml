@@ -58,6 +58,8 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: TypeScript type check
         run: npm run typecheck
       - name: ESLint check
