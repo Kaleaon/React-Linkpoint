@@ -5,6 +5,8 @@ import { PALETTES } from "../tokens";
 import { contrastRatio, ensureMinContrast, luminance } from "../contrast";
 import { computeTheme } from "../computeTheme";
 
+import { sanitizeTheme, themeFromPalette } from "../customTheme.js";
+
 describe("Theme Token Contrast Engine (WCAG 2.2 SC 1.4.3 & SC 1.4.11)", () => {
   it("ensureMinContrast returns original color when contrast is already >= 4.5", () => {
     const white = "#FFFFFF";
@@ -31,7 +33,7 @@ describe("Theme Token Contrast Engine (WCAG 2.2 SC 1.4.3 & SC 1.4.11)", () => {
     expect(contrastRatio(adjusted, lightBg)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("all 24 palette skins pass 4.5:1 contrast for secondary text and status tokens after theme resolution", () => {
+  it("all 24 palette skins pass 4.5:1 contrast for secondary text, badges, outlines and status tokens after theme resolution", () => {
     const mockState = {
       layout: "terminal",
       palette: "ink",
@@ -42,7 +44,7 @@ describe("Theme Token Contrast Engine (WCAG 2.2 SC 1.4.3 & SC 1.4.11)", () => {
     };
     const mockCf = () => ({});
 
-    const targetTokens = ["ink2", "sec", "sec2", "ok", "err", "warn", "info"];
+    const targetTokens = ["ink2", "sec", "sec2", "bdg", "outv", "ok", "err", "warn", "info"];
 
     for (const paletteKey of Object.keys(PALETTES)) {
       const { V } = computeTheme({ ...mockState, palette: paletteKey }, mockCf);
@@ -64,6 +66,34 @@ describe("Theme Token Contrast Engine (WCAG 2.2 SC 1.4.3 & SC 1.4.11)", () => {
           `Palette [${paletteKey}] token [${tokenKey}] (${tokenValue}) vs surf (${V.surf}) contrast ratio ${ratioSurf.toFixed(2)} must be >= 4.5`
         ).toBeGreaterThanOrEqual(4.5);
       }
+    }
+  });
+
+  it("custom theme sanitization and themeFromPalette enforce minimum contrast for low-contrast tokens", () => {
+    const lowContrastColors = {
+      pri: "#6CFF9A",
+      sec: "#3E4E5E",
+      sec2: "#3E4E5E",
+      bg: "#0A1112",
+      surf: "#0A1112",
+      surf2: "#182224",
+      ink: "#FFFFFF",
+      ink2: "#3E4E5E",
+      ok: "#1A3D1A",
+      warn: "#3D3D1A",
+      err: "#3D1A1A",
+    };
+
+    const sanitized = sanitizeTheme({
+      name: "Test Low Contrast",
+      colors: lowContrastColors,
+    });
+
+    expect(sanitized).not.toBeNull();
+    if (sanitized) {
+      const colors = sanitized.colors as Record<string, string>;
+      expect(contrastRatio(colors.ink2, colors.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(colors.sec2, colors.bg)).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
