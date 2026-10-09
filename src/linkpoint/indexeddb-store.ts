@@ -48,6 +48,20 @@ export interface ContactRecord {
   onlineStatus?: 'online' | 'offline';
 }
 
+export interface GroupNoticeRecord {
+  agentId: string;
+  id: string;
+  groupId: string;
+  subject: string;
+  message: string;
+  from: string;
+  timestamp: number;
+  hasAttachment?: boolean;
+  attachment?: any;
+  calendar?: any;
+  updatedAt?: number;
+}
+
 export interface PagedFolderContents {
   folders: InventoryFolderRecord[];
   items: InventoryItemRecord[];
@@ -67,11 +81,12 @@ export interface PagedFriends {
 }
 
 const DB_NAME = 'linkpoint_sl_cache_db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const STORE_INVENTORY_FOLDERS = 'inventory_folders';
 export const STORE_INVENTORY_ITEMS = 'inventory_items';
 export const STORE_CONTACTS = 'contacts';
+export const STORE_GROUP_NOTICES = 'group_notices';
 export const STORE_LEGACY_MIGRATION = 'legacy_migration_status';
 export const STORE_INVENTORY = 'inventory';
 export const STORE_TEXTURES = 'textures';
@@ -86,6 +101,7 @@ export class IndexedDBStore {
   private memFolders: Map<string, InventoryFolderRecord> = new Map(); // key: `${agentId}:${id}`
   private memItems: Map<string, InventoryItemRecord> = new Map(); // key: `${agentId}:${id}`
   private memContacts: Map<string, ContactRecord> = new Map(); // key: `${agentId}:${id}`
+  private memNotices: Map<string, GroupNoticeRecord> = new Map(); // key: `${agentId}:${id}`
   private memMigration: Map<string, any> = new Map(); // key: agentId
 
   constructor() {}
@@ -140,6 +156,20 @@ export class IndexedDBStore {
             const contactStore = e.target.transaction.objectStore(STORE_CONTACTS);
             if (!contactStore.indexNames.contains('by_agent')) {
               contactStore.createIndex('by_agent', 'agentId', { unique: false });
+            }
+          }
+
+          if (!db.objectStoreNames.contains(STORE_GROUP_NOTICES)) {
+            const noticeStore = db.createObjectStore(STORE_GROUP_NOTICES, {
+              keyPath: ['agentId', 'id'],
+            });
+            noticeStore.createIndex('by_group', ['agentId', 'groupId'], { unique: false });
+            noticeStore.createIndex('by_agent', 'agentId', { unique: false });
+            noticeStore.createIndex('timestamp', 'timestamp', { unique: false });
+          } else {
+            const noticeStore = e.target.transaction.objectStore(STORE_GROUP_NOTICES);
+            if (!noticeStore.indexNames.contains('by_group')) {
+              noticeStore.createIndex('by_group', ['agentId', 'groupId'], { unique: false });
             }
           }
 
@@ -491,6 +521,179 @@ export class IndexedDBStore {
       pageSize: safePageSize,
       totalPages,
     };
+  }
+
+  // --- Group Notices Operations ---
+
+  public async saveGroupNotices(agentId: string, groupId: string, notices: any[]): Promise<void> {
+    const safeAgentId = agentId || 'local_user';
+    const db = await this.getDB();
+    const records: GroupNoticeRecord[] = notices.map((n) => ({
+      agentId: safeAgentId,
+      id: String(n.id || `notice-${Date.now()}-${Math.random()}`),
+      groupId: String(n.groupId || groupId),
+      subject: String(n.subject || 'Group Notice'),
+      message: String(n.message || ''),
+      from: String(n.from || n.fromName || 'Group Admin'),
+      timestamp: Number(n.timestamp || Date.now()),
+      hasAttachment: Boolean(n.hasAttachment || n.attachment),
+      attachment: n.attachment || null,
+      calendar: n.calendar || null,
+      updatedAt: Date.now(),
+    }));
+
+    for (const r of records) {
+      if (r.id) {
+        this.memNotices.set(`${safeAgentId}:${r.id}`, r);
+      }
+    }
+
+    if (!db) return;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_GROUP_NOTICES], 'readwrite');
+        const store = tx.objectStore(STORE_GROUP_NOTICES);
+        for (const r of records) {
+          if (r.id) store.put(r);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async getGroupNotices(agentId: string, groupId: string): Promise<GroupNoticeRecord[]> {
+    const safeAgentId = agentId || 'local_user';
+    const db = await this.getDB();
+
+    if (!db) {
+      const results: GroupNoticeRecord[] = [];
+      for (const record of this.memNotices.values()) {
+        if (record.agentId === safeAgentId && record.groupId === groupId) {
+          results.push(record);
+        }
+      }
+      return results.sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([STORE_GROUP_NOTICES], 'readonly');
+        const index = tx.objectStore(STORE_GROUP_NOTICES).index('by_group');
+        const range = IDBKeyRange.only([safeAgentId, groupId]);
+        const req = index.getAll(range);
+        req.onsuccess = () => {
+          const list = req.result || [];
+          resolve(list.sort((a: any, b: any) => b.timestamp - a.timestamp));
+        };
+        req.onerror = () => resolve([]);
+      } catch {
+        resolve([]);
+      }
+    });
+  }
+
+  public async getAllGroupNotices(agentId: string): Promise<GroupNoticeRecord[]> {
+    const safeAgentId = agentId || 'local_user';
+    const db = await this.getDB();
+
+    if (!db) {
+      const results: GroupNoticeRecord[] = [];
+      for (const record of this.memNotices.values()) {
+        if (!agentId || record.agentId === safeAgentId) {
+          results.push(record);
+        }
+      }
+      return results.sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([STORE_GROUP_NOTICES], 'readonly');
+        const index = tx.objectStore(STORE_GROUP_NOTICES).index('by_agent');
+        const range = IDBKeyRange.only(safeAgentId);
+        const req = index.getAll(range);
+        req.onsuccess = () => {
+          const list = req.result || [];
+          resolve(list.sort((a: any, b: any) => b.timestamp - a.timestamp));
+        };
+        req.onerror = () => resolve([]);
+      } catch {
+        resolve([]);
+      }
+    });
+  }
+
+  public async purgeOldGroupNotices(
+    agentId?: string,
+    maxAgeMs: number = 90 * 24 * 60 * 60 * 1000,
+    maxDbSizeBytes: number = 50 * 1024 * 1024,
+  ): Promise<{ purged: number }> {
+    let purged = 0;
+    const cutoff = Date.now() - maxAgeMs;
+
+    // Purge memory fallback
+    for (const [key, record] of this.memNotices.entries()) {
+      if ((!agentId || record.agentId === agentId) && record.timestamp < cutoff) {
+        this.memNotices.delete(key);
+        purged++;
+      }
+    }
+
+    const db = await this.getDB();
+    if (!db) return { purged };
+
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction([STORE_GROUP_NOTICES], 'readwrite');
+        const store = tx.objectStore(STORE_GROUP_NOTICES);
+        const req = store.openCursor();
+
+        req.onsuccess = (e: any) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            const val = cursor.value;
+            if ((!agentId || val.agentId === agentId) && val.timestamp < cutoff) {
+              cursor.delete();
+              purged++;
+            }
+            cursor.continue();
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        const usage = estimate.usage || 0;
+        if (usage > maxDbSizeBytes) {
+          const all = await this.getAllGroupNotices(agentId || '');
+          if (all.length > 500) {
+            const excess = all.slice(500);
+            const tx = db.transaction([STORE_GROUP_NOTICES], 'readwrite');
+            const store = tx.objectStore(STORE_GROUP_NOTICES);
+            for (const item of excess) {
+              store.delete([item.agentId, item.id]);
+              purged++;
+            }
+          }
+        }
+      } catch {
+        // ignore estimation error
+      }
+    }
+
+    return { purged };
   }
 
   // --- Migration Tracking ---
