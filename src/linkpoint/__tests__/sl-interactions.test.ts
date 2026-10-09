@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const {
   TEXT_BOX_MARKER, MAX_REPLY_BYTES, serializeScriptDialog, serializeLure, PendingInteractions,
-  subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction, serializeGroupNotice,
+  subscribeInteractions, respondScriptDialog, acceptLure, declineLure, dismissInteraction, serializeGroupNotice,
   serializeInventoryOffer, serializeGroupInvite, acceptInventoryOffer, declineInventoryOffer,
   acceptGroupInvite, declineGroupInvite, acceptGroupNoticeAttachment,
 } = require('../../../core/sl-interactions.cjs');
@@ -261,6 +261,27 @@ describe('lures', () => {
     await expect(acceptLure(bot, pending, { id })).rejects.toThrow('Teleport failed');
     expect(pending.size).toBe(2);
     await expect(acceptLure(bot, pending, { id: dialogId })).rejects.toThrow(/no longer pending/);
+  });
+
+  it('declines a lure by sending a decline message to the inviter and removing the request', async () => {
+    const pending = new PendingInteractions();
+    const event = lureEvent();
+    const id = pending.add('lure', event);
+    const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
+    const bot = botWith({ sendInstantMessage });
+    await expect(declineLure(bot, pending, { id })).resolves.toEqual({ declined: true });
+    expect(sendInstantMessage).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222', 'Teleport offer declined');
+    expect(pending.size).toBe(0);
+  });
+
+  it('removes pending lure even if sending decline IM fails gracefully', async () => {
+    const pending = new PendingInteractions();
+    const event = lureEvent();
+    const id = pending.add('lure', event);
+    const sendInstantMessage = vi.fn().mockRejectedValue(new Error('Connection dropped'));
+    const bot = botWith({ sendInstantMessage });
+    await expect(declineLure(bot, pending, { id })).resolves.toEqual({ declined: true });
+    expect(pending.size).toBe(0);
   });
 
   it('dismisses locally without calling the grid', () => {

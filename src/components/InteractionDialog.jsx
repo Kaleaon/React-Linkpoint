@@ -124,7 +124,7 @@ export default function InteractionDialog() {
           {isLure ? (
             <>
               <button type="button" ref={firstRef} disabled={busy} style={primary} onClick={() => attempt(() => app.interactions.acceptLure(current.id))}>ACCEPT</button>
-              <button type="button" disabled={busy} style={dim} onClick={() => void app.interactions.dismiss(current.id)}>DISMISS</button>
+              <button type="button" disabled={busy} style={dim} onClick={() => attempt(() => app.interactions.declineLure(current.id))}>DECLINE</button>
             </>
           ) : isInventoryOffer ? (
             <>
@@ -150,7 +150,7 @@ export default function InteractionDialog() {
             </>
           )}
         </div>
-        {isLure ? <div style={{ marginTop: 8, font: `400 10.5px/1.4 ${t.font}`, color: V.ink2 }}>Dismissing does not notify the sender.</div> : null}
+        {isLure ? <div style={{ marginTop: 8, font: `400 10.5px/1.4 ${t.font}`, color: V.ink2 }}>Declining notifies the sender.</div> : null}
       </div>
     </FocusTrap>
   );
