@@ -26,7 +26,7 @@ export function computeTheme(state, cf) {
   // Dynamic token contrast enforcement (WCAG 2.2 Criterion 1.4.3 & 1.4.11)
   const bgSurface = V.bg || "#000000";
   const surfSurface = V.surf || bgSurface;
-  const targetTokens = ["ink2", "sec", "sec2", "ok", "err", "warn", "info"];
+  const targetTokens = ["ink2", "sec", "sec2", "bdg", "outv", "ok", "err", "warn", "info"];
   for (const tok of targetTokens) {
     if (V[tok]) {
       let adj = ensureMinContrast(V[tok], bgSurface, 4.5);

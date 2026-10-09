@@ -115,7 +115,7 @@ export default function AssetContainer({
         </div>
         <SkeletonAssetPlaceholder title={displayTitle} progress={progress} />
         {bytesInfo.total > 0 && (
-          <div style={{ fontSize: "11px", color: V?.ink2 || "#aaa", textAlign: "right" }}>
+          <div style={{ fontSize: "11px", color: V?.ink2, textAlign: "right" }}>
             {(bytesInfo.loaded / 1024).toFixed(1)} KB / {(bytesInfo.total / 1024).toFixed(1)} KB
           </div>
         )}
@@ -198,7 +198,7 @@ export default function AssetContainer({
             {displayTitle}
           </div>
           {asset?.description && (
-            <p style={{ fontSize: "12px", color: V?.ink2 || "#aaa", margin: "0 0 8px 0" }}>{asset.description}</p>
+            <p style={{ fontSize: "12px", color: V?.ink2, margin: "0 0 8px 0" }}>{asset.description}</p>
           )}
           {typeof loadedData === "string" ? (
             <pre

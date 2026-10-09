@@ -643,7 +643,7 @@ export function computeThemeTokens(
   // WCAG 2.2 Criterion 1.4.3 & 1.4.11 contrast enforcement
   const bgSurface = V.bg || "#000000";
   const surfSurface = V.surf || bgSurface;
-  const targetTokens: (keyof PaletteColors)[] = ["ink2", "sec", "sec2", "ok", "err", "warn", "info"];
+  const targetTokens: (keyof PaletteColors)[] = ["ink2", "sec", "sec2", "bdg", "outv", "ok", "err", "warn", "info"];
 
   for (const tok of targetTokens) {
     if (V[tok]) {
