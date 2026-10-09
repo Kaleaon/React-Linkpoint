@@ -1,7 +1,7 @@
 import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 
 export const VIEWER_SETTINGS_KEY = "linkpoint_viewer_settings";
-const TOGGLES = ["largeType", "push", "voice", "chatCmds", "autoresponse", "rlv", "shadows", "battery", "timestamps", "imLogs", "mediaAuto", "showOnline", "typingSent", "cacheOnExit", "notifyLocal", "notifyIM", "notifyGroup"];
+const TOGGLES = ["largeType", "push", "voice", "chatCmds", "autoresponse", "pttUse", "pttToggle", "gamepad", "rlv", "shadows", "battery", "timestamps", "imLogs", "mediaAuto", "showOnline", "typingSent", "cacheOnExit", "notifyLocal", "notifyIM", "notifyGroup"];
 const OPTIONS = {
   draw: ["20 m", "32 m", "64 m", "96 m", "128 m", "192 m", "256 m"],
   quality: ["Low", "Balanced", "High", "Ultra"], fps: ["30 fps", "45 fps", "60 fps", "Uncapped"],

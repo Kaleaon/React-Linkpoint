@@ -17,6 +17,12 @@ import { Utils } from './utils';
 import { slBridge } from './sl-bridge';
 import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
+import { RlvController } from './rlv';
+import { VoiceInput } from './voice-input';
+import { MuteFlag, MuteList, MuteType } from './mute-list';
+import { ParcelSoundMap } from './parcel-sound';
+import { chooseSpatialChannel, regionHandleFor } from './voice-protocol';
+import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
@@ -64,6 +70,14 @@ export class LinkpointApp {
   public chatExtended: ChatExtended;
   public groups: GroupsManager;
   public friends: FriendsExtended;
+  /** RLV (off until the user turns it on). `rlv.handler` holds the restrictions. */
+  public rlv: RlvController;
+  private voiceInput: VoiceInput | null = null;
+  /** The account's mute list, kept on the grid. */
+  public muteList: MuteList;
+  /** Which parcels only hear their own sounds. */
+  public parcelSound = new ParcelSoundMap();
+  private regionOriginMeters: [number, number] = [0, 0];
 
   constructor() {
     this.protocol = new SLConnectionFull();
@@ -93,6 +107,85 @@ export class LinkpointApp {
     this.chat.setMessageFilter(message => this.chatExtended.shouldDisplayMessage(message));
     this.groups = new GroupsManager(this.chatAdapter);
     this.friends = new FriendsExtended(this.protocol);
+    this.rlv = new RlvController(false, this.rlvEnvironment());
+    this.chat.setRlv(this.rlv.handler);
+    this.muteList = new MuteList({
+      update: (entry) => slBridge.updateMuteEntry(entry),
+      remove: (entry) => slBridge.removeMuteEntry(entry),
+    });
+    this.chatExtended.attachGridMuteList(this.muteList, (id) => this.nameOfObjectOrAvatar(id));
+    this.audio.setPolicy({
+      // LLViewerParcelMgr::canHearSound; a position outside the current region is in a parcel we know nothing about
+      canHearAt: (global) => {
+        const x = global[0] - this.regionOriginMeters[0], y = global[1] - this.regionOriginMeters[1];
+        const inside = x >= 0 && y >= 0 && x < this.parcelSound.regionWidth && y < this.parcelSound.regionWidth;
+        return this.parcelSound.canHear(inside ? [x, y, global[2]] : null);
+      },
+      isMuted: (id) => this.muteList.isMuted(id),
+      ownerSoundsMuted: (ownerId) => this.muteList.isMuted(ownerId, '', MuteFlag.OBJECT_SOUNDS),
+    });
+    this.voice.setVoiceMuteChecker((id) => this.muteList.isMuted(id, '', MuteFlag.VOICE_CHAT));
+    this.muteList.on('entry_changed', ({ entry, removed }: { entry: { id: string; type: number; flags: number }; removed: boolean }) => {
+      // LLWebRTCVoiceClient::onChangeDetailed: an agent's voice mute follows the mute list at once
+      if (entry.type === MuteType.AGENT) this.voice.setUserMuted(entry.id, !removed && (entry.flags & MuteFlag.VOICE_CHAT) === 0);
+    });
+    this.wireRlv();
+  }
+
+  /** `voiceConnectionStateMachine`: pick the spatial voice channel from the avatar's parcel and apply it. */
+  private updateVoiceChannel() {
+    const parcel = this.parcelSound.agentParcel;
+    if (!parcel) return;
+    void this.voice.setSpatialChoice(chooseSpatialChannel(parcel), regionHandleFor(this.regionOriginMeters));
+  }
+
+  /** A name for the mute list entry of an avatar or object we can see. */
+  private nameOfObjectOrAvatar(id: string): string | undefined {
+    const wanted = id.toLowerCase();
+    return this.world.objectName(id) ?? this.world.nearbyUsers.find((u: any) => String(u.id).toLowerCase() === wanted)?.name;
+  }
+
+  /** What RLV needs from the viewer. Missing pieces make the commands that use them fail rather than guess. */
+  private rlvEnvironment() {
+    return {
+      selfId: () => String(this.protocol.agentId || ''),
+      sendChat: (text: string, channel: number, type: number) => {
+        void this.protocol.sendChat(text, channel, type).catch((error: unknown) => console.warn('[RLV] reply not sent:', error));
+      },
+      avatarDistanceSquared: (id: string) => {
+        const me = this.world.avatarPosition;
+        const other = this.world.nearbyUsers.find((user: any) => String(user.id).toLowerCase() === id.toLowerCase())?.position;
+        if (!me || !other) return null;
+        return (me[0] - other[0]) ** 2 + (me[1] - other[1]) ** 2 + (me[2] - other[2]) ** 2;
+      },
+      nearbyAvatars: () => this.world.nearbyUsers
+        .filter((user: any) => user.id && user.name)
+        .map((user: any) => ({ id: String(user.id), displayName: String(user.name), legacyName: String(user.name) })),
+      locationNames: () => ({ regions: [this.world.region?.name].filter(Boolean) as string[], parcel: this.world.region?.parcel?.Name ?? this.world.region?.parcel?.name ?? null }),
+      sendInstantMessage: (recipientId: string, text: string) => { void this.protocol.sendInstantMessage(recipientId, text).catch(() => {}); },
+    };
+  }
+
+  private wireRlv() {
+    const rlv = this.rlv.handler;
+    this.world.movementRestrictions = {
+      canFly: () => !rlv.isEnabled() || rlv.canFly(),
+      canJump: () => !rlv.isEnabled() || rlv.canJump(),
+      canAlwaysRun: () => !rlv.isEnabled() || !rlv.hasBehaviour('alwaysrun'),
+      canTempRun: () => !rlv.isEnabled() || !rlv.hasBehaviour('temprun'),
+    };
+    this.protocol.actionGuard = (action, detail) => {
+      if (!rlv.isEnabled()) return null;
+      switch (action) {
+        case 'teleport': return rlv.canTeleportToLocation('') ? null : RLV_STRINGS.blockedTeleport;
+        case 'acceptLure': return detail?.senderId ? (rlv.canAcceptTpOffer(detail.senderId) ? null : RLV_STRINGS.blockedTeleport) : (rlv.hasBehaviour('tplure') ? RLV_STRINGS.blockedTeleport : null);
+        case 'sit': return rlv.canGroundSit() ? null : RLV_STRINGS.blockedGeneric;
+        case 'stand': return rlv.canStand() ? null : RLV_STRINGS.blockedGeneric;
+        default: return null;
+      }
+    };
+    // Restrictions belong to the session: forget them on logout.
+    this.auth.on('logout', () => { rlv.reset(); this.muteList.clear(); });
   }
 
   async init() {
@@ -117,6 +210,10 @@ export class LinkpointApp {
     this.notifications.init(this.chat);
     this.audio.init();
     this.wireSoundListener();
+    // Push-to-talk keys (middle mouse toggles the mic; voice_follow_key holds it open)
+    if (typeof window !== 'undefined') {
+      this.voiceInput ??= new VoiceInput(this.voice, { mode: () => this.world.keyMode(), enabled: () => this.voice.state === 'connected' });
+    }
 
     this.setupEventListeners();
 
@@ -124,6 +221,10 @@ export class LinkpointApp {
   }
 
   private setupEventListeners() {
+    this.protocol.on('scene:parcel-sound', (data: any) => this.parcelSound.accept(data));
+    this.protocol.on('scene:voice-neighbors', (data: any) => this.voice.setNeighborRegions(data?.neighbors ?? []));
+    this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
+    this.protocol.on('connected', () => this.muteList.setSelfId(this.protocol.agentId || ''));
     this.protocol.on('friends_loaded', (friends: any[]) => {
       console.log('Real friends loaded from Second Life:', friends.length);
       this.friends.replaceFriends(friends.map((f) => ({
@@ -214,19 +315,14 @@ export class LinkpointApp {
         const origin = CoordinateNormalizer.getRegionOriginMeters(region);
         this.voice.setRegionOrigin(origin);
         this.audio.setRegionOrigin(origin);
+        this.regionOriginMeters = [origin[0], origin[1]];
       }
-      const parcelLocalId = region?.parcel?.LocalID || region?.parcel?.localId;
-      if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
-        void this.voice.reprovision(parcelLocalId);
-      }
+      // A new region: its parcel is not known yet, so the voice channel is decided when the parcel arrives.
+      this.parcelSound.reset();
     });
 
-    this.world.on('parcel_changed', (parcel: any) => {
-      const parcelLocalId = parcel?.LocalID || parcel?.localId;
-      if (this.voice.state === 'connected' || this.voice.state === 'connecting') {
-        void this.voice.reprovision(parcelLocalId);
-      }
-    });
+    // The voice channel follows the avatar's parcel: its own channel, the estate channel, or none (parcel flags).
+    this.parcelSound.on('agent_parcel', () => this.updateVoiceChannel());
 
     this.world.on('nearby_changed', (users: any[]) => {
       if (Array.isArray(users)) {

@@ -62,6 +62,7 @@ export function useAppState() {
   const [pinned, setPinned] = useState({});
   const [toggles, setToggles] = useState(() => ({
     largeType: false, push: true, voice: true, chatCmds: true,
+    pttUse: true, pttToggle: false, gamepad: false,
     rlv: false, shadows: false, battery: true, timestamps: true, imLogs: true, mediaAuto: false,
     showOnline: true, typingSent: true, cacheOnExit: false,
     notifyLocal: true, notifyIM: true, notifyGroup: true,
@@ -126,6 +127,16 @@ export function useAppState() {
     const timer = setInterval(() => app.world.moveCamera(step[0] * metersPerTick, step[1] * metersPerTick, step[2] * metersPerTick), 50);
     return () => clearInterval(timer);
   }, [cHeld, cRun]);
+
+  // The Settings switch is the only place RLV is turned on; turning it off forgets every restriction.
+  useEffect(() => { app.rlv.setEnabled(Boolean(toggles.rlv)); }, [toggles.rlv]);
+
+  // JoystickEnabled: a connected gamepad moves the avatar only when the user turns it on.
+  useEffect(() => { app.world.gamepadEnabled = Boolean(toggles.gamepad); }, [toggles.gamepad]);
+
+  // Push-to-talk follows the viewer's PTTCurrentlyEnabled / PushToTalkToggle settings.
+  useEffect(() => { app.voice.setUsePtt(Boolean(toggles.pttUse)); }, [toggles.pttUse]);
+  useEffect(() => { app.voice.setPttToggle(Boolean(toggles.pttToggle)); }, [toggles.pttToggle]);
 
   useEffect(() => {
     saveViewerSettings({ layout, palette, dense, density: customTheme.density, toggles, prefs });

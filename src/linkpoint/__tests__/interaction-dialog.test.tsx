@@ -91,7 +91,7 @@ describe('InteractionDialog', () => {
     expect(host.textContent).toContain('grid 1000, 1001');
     expect(host.textContent).toContain('does not notify the sender');
     await click(button(host, 'ACCEPT'));
-    expect(accept).toHaveBeenCalledWith('l1');
+    expect(accept).toHaveBeenCalledWith('l1', 'f'); // the offer's sender, so RLV can check @tplure exceptions
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 

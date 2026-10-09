@@ -340,7 +340,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   /** Accept a teleport lure. Emits `lure_accepted` with the grid's message once teleported. */
   async acceptLure(id: string) {
     const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as LureRequest | undefined;
-    const result = await this.run(id, () => this.protocol.acceptLure(id));
+    const result = await this.run(id, () => this.protocol.acceptLure(id, lure?.fromId ?? undefined));
     if (result && lure) this.emit('lure_accepted', { lure, message: result.message });
     return Boolean(result);
   }
