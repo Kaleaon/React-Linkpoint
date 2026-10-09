@@ -2,6 +2,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL, TABS_NAV_IDS } from "../data/content.js";
 import Icon from "./Icon.jsx";
+import TouchTarget from "./TouchTarget";
 import { navActive } from "../theme/look.js";
 import { BottomTabs as SystemBottomTabs } from "@linkpoint/design-system/react";
 import { LAYOUTS } from "@linkpoint/design-system/tokens";
@@ -44,7 +45,7 @@ export default function BottomTabs() {
             }
           };
           return (
-            <div
+            <TouchTarget
               key={n.id}
               role="tab"
               tabIndex={0}
@@ -52,7 +53,21 @@ export default function BottomTabs() {
               aria-label={n.label}
               onClick={() => actions.setScreen(n.id)}
               onKeyDown={handleKeyDown}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", padding: "6px 0", cursor: "pointer", color: active ? V.pri : V.ink2, position: "relative" }}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "4px",
+                padding: "6px 0",
+                cursor: "pointer",
+                color: active ? V.pri : V.ink2,
+                position: "relative",
+                background: "transparent",
+                border: "none",
+                font: "inherit",
+              }}
             >
               <Icon name={n.icon} size={22} />
               <span style={{ font: "600 9px/1 " + t.font, letterSpacing: ".14em" }}>{n.label}</span>
@@ -61,7 +76,7 @@ export default function BottomTabs() {
                   {n.badge}
                 </span>
               ) : null}
-            </div>
+            </TouchTarget>
           );
         })}
       </div>
