@@ -6,6 +6,7 @@ import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 import { HEAD } from "../data/content.js";
 import { SCREENS } from "../theme/constants.js";
 import Icon from "./Icon.jsx";
+import TouchTarget from "./TouchTarget";
 
 // Ported from the five header <sc-if> blocks (hasHeader/isSweepHead/
 // isPivotHead/isRuleHead/isPressHead) plus the shared title/subtitle lookup.
@@ -57,7 +58,7 @@ function StackHead({ title, subtitle, scr }) {
       ) : null}
       {headerIcons
         ? headerIcons.map((hi) => (
-            <div
+            <TouchTarget
               key={hi.icon}
               onClick={hi.pick}
               onKeyDown={(e) => {
@@ -72,7 +73,7 @@ function StackHead({ title, subtitle, scr }) {
               style={{ width: "44px", height: "44px", minWidth: "24px", minHeight: "24px", border: "1px solid " + V.outv, borderRadius: V.rs, background: V.surf, display: "flex", alignItems: "center", justifyContent: "center", color: V.pri, cursor: "pointer", flexShrink: 0 }}
             >
               <Icon name={hi.icon} size={18} />
-            </div>
+            </TouchTarget>
           ))
         : null}
     </header>
@@ -102,16 +103,16 @@ function PivotHead({ title, subtitle, scr }) {
     <header style={{ flex: "none" }}>
       <div style={{ flex: "none", padding: "14px 0 2px 16px", display: "flex", alignItems: "baseline", gap: "22px", overflow: "hidden" }}>
         <span style={{ flex: "none", font: "300 42px/1 " + t.dfont, color: V.ink, textTransform: "lowercase", letterSpacing: "-.02em" }}>{String(title || "").toLowerCase()}</span>
-        <span
+        <TouchTarget
           onClick={() => actions.setScreen(nextScr)}
           role="button"
           tabIndex={0}
           aria-label={"Pivot to " + nextScr}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); actions.setScreen(nextScr); } }}
-          style={{ flex: "none", minWidth: "24px", minHeight: "24px", font: "300 42px/1 " + t.dfont, color: V.ink2, opacity: 0.35, cursor: "pointer", textTransform: "lowercase", letterSpacing: "-.02em" }}
+          style={{ flex: "none", minWidth: "24px", minHeight: "24px", font: "300 42px/1 " + t.dfont, color: V.ink2, opacity: 0.35, cursor: "pointer", textTransform: "lowercase", letterSpacing: "-.02em", background: "transparent", border: "none" }}
         >
           {nextScr.toLowerCase()}
-        </span>
+        </TouchTarget>
       </div>
       <div style={{ flex: "none", padding: "2px 16px 10px", font: "300 12px/1.4 " + t.font, color: V.ink2 }}>{subtitle}</div>
     </header>
