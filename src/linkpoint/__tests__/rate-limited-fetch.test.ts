@@ -3,7 +3,8 @@ import { rateLimitedFetch } from '../rate-limited-fetch';
 
 describe('rate-limited fetch', () => {
   it('honors a 429 response and retries a safe request', async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(new Response('', { status: 429, headers: { 'Retry-After': '0' } }))
       .mockResolvedValueOnce(new Response('ready', { status: 200 }));
 
@@ -25,7 +26,9 @@ describe('rate-limited fetch', () => {
       return new Response('', { status: 200 });
     });
 
-    await Promise.all(Array.from({ length: 6 }, () => rateLimitedFetch('/asset', undefined, fetcher)));
+    await Promise.all(
+      Array.from({ length: 6 }, () => rateLimitedFetch('/asset', undefined, fetcher)),
+    );
 
     expect(peak).toBe(2);
   });

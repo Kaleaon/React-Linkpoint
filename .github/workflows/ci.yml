@@ -59,7 +59,11 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - name: TypeScript type check
+        run: npm run typecheck
+      - name: ESLint check
         run: npm run lint
+      - name: Prettier check
+        run: npm run format:check
       - name: Check for fabricated data
         run: npm run check:fake-data
       - name: Unit tests (Vitest)

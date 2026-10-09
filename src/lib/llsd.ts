@@ -111,15 +111,16 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 export function parseXML(xml: string): LLSDValue {
   let doc: any;
   try {
-    const parser = typeof DOMParser !== 'undefined'
-      ? new DOMParser()
-      : new XMLDOMParser({
-          onError: (level: string, msg: string) => {
-            if (level === 'error' || level === 'fatalError') {
-              throw new Error(`XML Parse Error: ${msg}`);
-            }
-          }
-        });
+    const parser =
+      typeof DOMParser !== 'undefined'
+        ? new DOMParser()
+        : new XMLDOMParser({
+            onError: (level: string, msg: string) => {
+              if (level === 'error' || level === 'fatalError') {
+                throw new Error(`XML Parse Error: ${msg}`);
+              }
+            },
+          });
 
     doc = parser.parseFromString(xml, 'text/xml');
   } catch (e: any) {
@@ -127,7 +128,9 @@ export function parseXML(xml: string): LLSDValue {
     throw new Error(`XML Parse Error: ${e.message}`);
   }
 
-  const parserError = doc.querySelector ? doc.querySelector('parsererror') : doc.getElementsByTagName('parsererror')[0];
+  const parserError = doc.querySelector
+    ? doc.querySelector('parsererror')
+    : doc.getElementsByTagName('parsererror')[0];
   if (parserError) {
     throw new Error(`XML Parse Error: ${parserError.textContent}`);
   }
@@ -146,7 +149,8 @@ export function parseXML(xml: string): LLSDValue {
   let firstChild: Element | null = null;
   for (let i = 0; i < root.childNodes.length; i++) {
     const node = root.childNodes[i];
-    if (node.nodeType === 1) { // Element node
+    if (node.nodeType === 1) {
+      // Element node
       firstChild = node as Element;
       break;
     }
@@ -159,14 +163,22 @@ export function parseXML(xml: string): LLSDValue {
 function parseXMLElement(el: Element): LLSDValue {
   const tag = el.tagName.toLowerCase();
   switch (tag) {
-    case 'undef': return null;
-    case 'boolean': return el.textContent?.trim() === 'true' || el.textContent?.trim() === '1';
-    case 'integer': return parseInt(el.textContent || '0', 10);
-    case 'real': return parseFloat(el.textContent || '0');
-    case 'uuid': return el.textContent?.trim() || '';
-    case 'string': return el.textContent || '';
-    case 'date': return parseISO(el.textContent?.trim() || '');
-    case 'uri': return el.textContent?.trim() || '';
+    case 'undef':
+      return null;
+    case 'boolean':
+      return el.textContent?.trim() === 'true' || el.textContent?.trim() === '1';
+    case 'integer':
+      return parseInt(el.textContent || '0', 10);
+    case 'real':
+      return parseFloat(el.textContent || '0');
+    case 'uuid':
+      return el.textContent?.trim() || '';
+    case 'string':
+      return el.textContent || '';
+    case 'date':
+      return parseISO(el.textContent?.trim() || '');
+    case 'uri':
+      return el.textContent?.trim() || '';
     case 'binary': {
       const base64 = el.textContent?.trim() || '';
       return decodeBase64(base64);
@@ -196,7 +208,8 @@ function parseXMLElement(el: Element): LLSDValue {
       }
       return array;
     }
-    default: return null;
+    default:
+      return null;
   }
 }
 
@@ -237,20 +250,39 @@ export function serializeXML(value: LLSDValue): string {
 
 function serializeXMLElement(value: LLSDValue, indent: number): string {
   const pad = '  '.repeat(indent);
-  if (value === null || value === undefined || value instanceof LLSDUndef || (typeof value === 'object' && value !== null && (value as any).type === 'undef')) {
+  if (
+    value === null ||
+    value === undefined ||
+    value instanceof LLSDUndef ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'undef')
+  ) {
     return `${pad}<undef />`;
   }
-  if (value instanceof LLSDUUID || (typeof value === 'object' && value !== null && (value as any).type === 'uuid')) {
+  if (
+    value instanceof LLSDUUID ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'uuid')
+  ) {
     const val = (value as any).value !== undefined ? (value as any).value : String(value);
     return `${pad}<uuid>${val}</uuid>`;
   }
-  if (value instanceof LLSDURI || (typeof value === 'object' && value !== null && (value as any).type === 'uri')) {
+  if (
+    value instanceof LLSDURI ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'uri')
+  ) {
     const val = (value as any).value !== undefined ? (value as any).value : String(value);
     return `${pad}<uri>${val}</uri>`;
   }
-  if (value instanceof LLSDBinary || (typeof value === 'object' && value !== null && (value as any).type === 'binary')) {
+  if (
+    value instanceof LLSDBinary ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'binary')
+  ) {
     const raw = (value as any).value;
-    const val = typeof raw === 'string' ? raw : (raw instanceof Uint8Array ? encodeBase64(raw) : String(raw || ''));
+    const val =
+      typeof raw === 'string'
+        ? raw
+        : raw instanceof Uint8Array
+          ? encodeBase64(raw)
+          : String(raw || '');
     return `${pad}<binary encoding="base64">${val}</binary>`;
   }
   if (typeof value === 'boolean') return `${pad}<boolean>${value}</boolean>`;
@@ -264,16 +296,18 @@ function serializeXMLElement(value: LLSDValue, indent: number): string {
     return `${pad}<binary encoding="base64">${base64}</binary>`;
   }
   if (Array.isArray(value)) {
-    const children = value.map(v => serializeXMLElement(v, indent + 1)).join('\n');
+    const children = value.map((v) => serializeXMLElement(v, indent + 1)).join('\n');
     return `${pad}<array>\n${children}\n${pad}</array>`;
   }
   if (typeof value === 'string') {
     return `${pad}<string>${value}</string>`;
   }
   if (typeof value === 'object') {
-    const children = Object.entries(value).map(([k, v]) => {
-      return `${pad}  <key>${k}</key>\n${serializeXMLElement(v, indent + 1)}`;
-    }).join('\n');
+    const children = Object.entries(value)
+      .map(([k, v]) => {
+        return `${pad}  <key>${k}</key>\n${serializeXMLElement(v, indent + 1)}`;
+      })
+      .join('\n');
     return `${pad}<map>\n${children}\n${pad}</map>`;
   }
   return `${pad}<undef />`;
@@ -538,17 +572,39 @@ export class NotationParser {
         if (this.pos >= this.len) break;
         const esc = this.input[this.pos];
         switch (esc) {
-          case 'a': str += '\x07'; break;
-          case 'b': str += '\b'; break;
-          case 'f': str += '\f'; break;
-          case 'n': str += '\n'; break;
-          case 'r': str += '\r'; break;
-          case 't': str += '\t'; break;
-          case 'v': str += '\v'; break;
-          case '\\': str += '\\'; break;
-          case "'": str += "'"; break;
-          case '"': str += '"'; break;
-          default: str += esc; break;
+          case 'a':
+            str += '\x07';
+            break;
+          case 'b':
+            str += '\b';
+            break;
+          case 'f':
+            str += '\f';
+            break;
+          case 'n':
+            str += '\n';
+            break;
+          case 'r':
+            str += '\r';
+            break;
+          case 't':
+            str += '\t';
+            break;
+          case 'v':
+            str += '\v';
+            break;
+          case '\\':
+            str += '\\';
+            break;
+          case "'":
+            str += "'";
+            break;
+          case '"':
+            str += '"';
+            break;
+          default:
+            str += esc;
+            break;
         }
       } else {
         str += ch;
@@ -584,7 +640,11 @@ export class NotationParser {
     }
 
     while (this.pos < this.len && /[0-9\.\-eE+]/.test(this.input[this.pos])) {
-      if (this.input[this.pos] === '.' || this.input[this.pos] === 'e' || this.input[this.pos] === 'E') {
+      if (
+        this.input[this.pos] === '.' ||
+        this.input[this.pos] === 'e' ||
+        this.input[this.pos] === 'E'
+      ) {
         isFloat = true;
       }
       this.pos++;
@@ -626,20 +686,39 @@ export class NotationParser {
  * LLSD Notation Serialization
  */
 export function serializeNotation(value: LLSDValue): string {
-  if (value === null || value === undefined || value instanceof LLSDUndef || (typeof value === 'object' && value !== null && (value as any).type === 'undef')) {
+  if (
+    value === null ||
+    value === undefined ||
+    value instanceof LLSDUndef ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'undef')
+  ) {
     return '!';
   }
-  if (value instanceof LLSDUUID || (typeof value === 'object' && value !== null && (value as any).type === 'uuid')) {
+  if (
+    value instanceof LLSDUUID ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'uuid')
+  ) {
     const val = (value as any).value !== undefined ? (value as any).value : String(value);
     return `u'${val}'`;
   }
-  if (value instanceof LLSDURI || (typeof value === 'object' && value !== null && (value as any).type === 'uri')) {
+  if (
+    value instanceof LLSDURI ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'uri')
+  ) {
     const val = (value as any).value !== undefined ? (value as any).value : String(value);
     return `l'${val}'`;
   }
-  if (value instanceof LLSDBinary || (typeof value === 'object' && value !== null && (value as any).type === 'binary')) {
+  if (
+    value instanceof LLSDBinary ||
+    (typeof value === 'object' && value !== null && (value as any).type === 'binary')
+  ) {
     const raw = (value as any).value;
-    const val = typeof raw === 'string' ? raw : (raw instanceof Uint8Array ? encodeBase64(raw) : String(raw || ''));
+    const val =
+      typeof raw === 'string'
+        ? raw
+        : raw instanceof Uint8Array
+          ? encodeBase64(raw)
+          : String(raw || '');
     return `b'${val}'`;
   }
   if (typeof value === 'boolean') return value ? 'true' : 'false';
@@ -653,13 +732,15 @@ export function serializeNotation(value: LLSDValue): string {
     return `b'${base64}'`;
   }
   if (Array.isArray(value)) {
-    return `[ ${value.map(v => serializeNotation(v)).join(', ')} ]`;
+    return `[ ${value.map((v) => serializeNotation(v)).join(', ')} ]`;
   }
   if (typeof value === 'string') {
     return `'${escapeString(value)}'`;
   }
   if (typeof value === 'object') {
-    return `{ ${Object.entries(value).map(([k, v]) => `'${escapeString(k)}': ${serializeNotation(v)}`).join(', ')} }`;
+    return `{ ${Object.entries(value)
+      .map(([k, v]) => `'${escapeString(k)}': ${serializeNotation(v)}`)
+      .join(', ')} }`;
   }
   return '!';
 }
@@ -677,11 +758,15 @@ function escapeString(str: string): string {
  * JSON Conversion
  */
 export function toJSON(value: LLSDValue): string {
-  return JSON.stringify(value, (key, val) => {
-    if (val instanceof Date) return val.toISOString();
-    if (val instanceof Uint8Array) return encodeBase64(val);
-    return val;
-  }, 2);
+  return JSON.stringify(
+    value,
+    (key, val) => {
+      if (val instanceof Date) return val.toISOString();
+      if (val instanceof Uint8Array) return encodeBase64(val);
+      return val;
+    },
+    2,
+  );
 }
 
 export function fromJSON(json: string): LLSDValue {
@@ -694,7 +779,12 @@ export function fromJSON(json: string): LLSDValue {
 export function detectFormat(input: string): LLSDFormat {
   const trimmed = input.trim();
   if (trimmed.startsWith('<?xml') || trimmed.startsWith('<llsd')) return LLSDFormat.XML;
-  if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('!') || /^[irudlbs]['"]/.test(trimmed)) {
+  if (
+    trimmed.startsWith('{') ||
+    trimmed.startsWith('[') ||
+    trimmed.startsWith('!') ||
+    /^[irudlbs]['"]/.test(trimmed)
+  ) {
     try {
       JSON.parse(trimmed);
       return LLSDFormat.JSON;

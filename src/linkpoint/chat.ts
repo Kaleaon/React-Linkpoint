@@ -25,22 +25,29 @@ export class ChatManager extends Utils.EventEmitter {
   private historyLoggingEnabled = true;
   private messageFilter: ((message: any) => boolean) | null = null;
 
-  setMessageFilter(filter: (message: any) => boolean) { this.messageFilter = filter; }
+  setMessageFilter(filter: (message: any) => boolean) {
+    this.messageFilter = filter;
+  }
 
   /** RLV: object commands are consumed, restricted chat and IMs are filtered, and what is said is limited. Null turns it off. */
-  setRlv(rlv: RlvHandler | null) { this.rlv = rlv; }
+  setRlv(rlv: RlvHandler | null) {
+    this.rlv = rlv;
+  }
   private rlv: RlvHandler | null = null;
   public autoReplyEnabled: boolean = false;
-  public awayMessage: string = 'I am currently away. Your message has been received and I will reply as soon as possible.';
+  public awayMessage: string =
+    'I am currently away. Your message has been received and I will reply as soon as possible.';
   private autoReplyRecipients: Set<string> = new Set();
-  public openSessions: Map<string, { contactId: string; contactName: string; openedAt: number }> = new Map();
+  public openSessions: Map<string, { contactId: string; contactName: string; openedAt: number }> =
+    new Map();
   public closedSessions: Set<string> = new Set();
 
   constructor(protocolManager: any, authManager: any) {
     super();
-    this.adapter = protocolManager instanceof ChatProtocolAdapter
-      ? protocolManager
-      : new ChatProtocolAdapter(protocolManager);
+    this.adapter =
+      protocolManager instanceof ChatProtocolAdapter
+        ? protocolManager
+        : new ChatProtocolAdapter(protocolManager);
     this.protocol = this.adapter.protocol || protocolManager;
     this.auth = authManager;
   }
@@ -60,7 +67,12 @@ export class ChatManager extends Utils.EventEmitter {
     try {
       const savedOpen = Utils.storage.get('linkpoint_open_im_sessions', null);
       if (Array.isArray(savedOpen)) {
-        const real = savedOpen.filter((s: any) => s && typeof s.contactName === 'string' && !isFabricatedContact(s.contactId, s.contactName));
+        const real = savedOpen.filter(
+          (s: any) =>
+            s &&
+            typeof s.contactName === 'string' &&
+            !isFabricatedContact(s.contactId, s.contactName),
+        );
         this.openSessions = new Map(real.map((s: any) => [s.contactName.toLowerCase().trim(), s]));
         if (real.length !== savedOpen.length) this.saveSessions();
       }
@@ -123,7 +135,10 @@ export class ChatManager extends Utils.EventEmitter {
     const key = contactName.toLowerCase().trim();
     let updated = false;
     for (const m of this.messages) {
-      if (m.type === 'im' && (m.sender?.toLowerCase().trim() === key || m.senderId === contactName)) {
+      if (
+        m.type === 'im' &&
+        (m.sender?.toLowerCase().trim() === key || m.senderId === contactName)
+      ) {
         if (m.unread) {
           m.unread = false;
           updated = true;
@@ -210,16 +225,17 @@ export class ChatManager extends Utils.EventEmitter {
     if (echo) this.pendingEchoes.push(echo);
     try {
       await this.adapter.sendSpatialChat(message, channel, type);
-      
+
       const messageData = {
         id: Utils.generateUUID(),
-        sender: typeof this.auth.getUserDisplayName === 'function'
-          ? this.auth.getUserDisplayName()
-          : (this.auth.user?.fullName || this.auth.user?.username || 'Me'),
+        sender:
+          typeof this.auth.getUserDisplayName === 'function'
+            ? this.auth.getUserDisplayName()
+            : this.auth.user?.fullName || this.auth.user?.username || 'Me',
         senderId: this.auth.user?.id,
         text: message,
         timestamp: Date.now(),
-        type: type === 4 ? 'im' : 'local'
+        type: type === 4 ? 'im' : 'local',
       };
 
       this.addMessage(messageData);
@@ -231,27 +247,33 @@ export class ChatManager extends Utils.EventEmitter {
     }
   }
 
-  async sendInstantMessage(recipientId: string, message: string, recipientName: string = 'Resident') {
+  async sendInstantMessage(
+    recipientId: string,
+    message: string,
+    recipientName: string = 'Resident',
+  ) {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!recipientId) throw new Error('Recipient ID required');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
-    if (this.rlv?.isEnabled() && !this.rlv.canSendIM(recipientId)) throw new Error(RLV_STRINGS.blockedGeneric);
+    if (this.rlv?.isEnabled() && !this.rlv.canSendIM(recipientId))
+      throw new Error(RLV_STRINGS.blockedGeneric);
 
     try {
       const result = await this.adapter.sendDirectIM(recipientId, message, recipientName);
 
       const messageData = {
         id: Utils.generateUUID(),
-        sender: typeof this.auth.getUserDisplayName === 'function'
-          ? this.auth.getUserDisplayName()
-          : (this.auth.user?.fullName || this.auth.user?.username || 'Me'),
+        sender:
+          typeof this.auth.getUserDisplayName === 'function'
+            ? this.auth.getUserDisplayName()
+            : this.auth.user?.fullName || this.auth.user?.username || 'Me',
         senderId: this.auth.user?.id,
         recipientId,
         recipientName,
         text: message,
         timestamp: Date.now(),
         type: 'im',
-        queued: result.queued
+        queued: result.queued,
       };
 
       this.addMessage(messageData);
@@ -269,24 +291,27 @@ export class ChatManager extends Utils.EventEmitter {
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
 
     try {
-      if (typeof this.protocol?.sendGroupMessage !== 'function' &&
-          typeof this.protocol?.sendImprovedInstantMessage !== 'function' &&
-          !this.adapter.isTransportAvailable()) {
+      if (
+        typeof this.protocol?.sendGroupMessage !== 'function' &&
+        typeof this.protocol?.sendImprovedInstantMessage !== 'function' &&
+        !this.adapter.isTransportAvailable()
+      ) {
         throw new Error('Group chat is unavailable on this connection');
       }
       await this.adapter.sendGroupChat(groupId, message, groupName);
 
       const messageData = {
         id: Utils.generateUUID(),
-        sender: typeof this.auth.getUserDisplayName === 'function'
-          ? this.auth.getUserDisplayName()
-          : (this.auth.user?.fullName || this.auth.user?.username || 'Me'),
+        sender:
+          typeof this.auth.getUserDisplayName === 'function'
+            ? this.auth.getUserDisplayName()
+            : this.auth.user?.fullName || this.auth.user?.username || 'Me',
         senderId: this.auth.user?.id,
         groupId,
         groupName,
         text: message,
         timestamp: Date.now(),
-        type: 'group'
+        type: 'group',
       };
 
       this.addMessage(messageData);
@@ -298,15 +323,32 @@ export class ChatManager extends Utils.EventEmitter {
     }
   }
 
-  getIMThreads(): Array<{ contactId: string; contactName: string; lastMessage: string; timestamp: number; unreadCount: number }> {
-    const threadMap = new Map<string, { contactId: string; contactName: string; lastMessage: string; timestamp: number; unreadCount: number }>();
+  getIMThreads(): Array<{
+    contactId: string;
+    contactName: string;
+    lastMessage: string;
+    timestamp: number;
+    unreadCount: number;
+  }> {
+    const threadMap = new Map<
+      string,
+      {
+        contactId: string;
+        contactName: string;
+        lastMessage: string;
+        timestamp: number;
+        unreadCount: number;
+      }
+    >();
     const myId = this.auth?.user?.id;
 
     for (const msg of this.messages) {
       if (msg.type !== 'im') continue;
       const isOutgoing = Boolean(myId && msg.senderId === myId);
-      const contactId = isOutgoing ? (msg.recipientId || msg.recipientName || 'unknown') : (msg.senderId || msg.sender || 'unknown');
-      const contactName = isOutgoing ? (msg.recipientName || 'Resident') : (msg.sender || 'Resident');
+      const contactId = isOutgoing
+        ? msg.recipientId || msg.recipientName || 'unknown'
+        : msg.senderId || msg.sender || 'unknown';
+      const contactName = isOutgoing ? msg.recipientName || 'Resident' : msg.sender || 'Resident';
       const key = contactName.toLowerCase().trim();
 
       if (this.closedSessions.has(key)) continue;
@@ -361,16 +403,23 @@ export class ChatManager extends Utils.EventEmitter {
       const cid = contactId.toLowerCase().trim();
       const sender = (m.sender || '').toLowerCase().trim();
       const rec = (m.recipientName || '').toLowerCase().trim();
-      return (m.senderId === contactId && m.senderId !== myId) ||
-        (m.recipientId === contactId) ||
+      return (
+        (m.senderId === contactId && m.senderId !== myId) ||
+        m.recipientId === contactId ||
         sender === cid ||
-        rec === cid;
+        rec === cid
+      );
     });
   }
 
   async handleIncomingMessage(data: any): Promise<void> {
     const isGroup = data.type === 'group' || data.chatType === 'group' || data.chatType === 9;
-    const isIM = !isGroup && (data.type === 'im' || data.chatType === 'im' || data.chatType === 4 || data.dialog !== undefined);
+    const isIM =
+      !isGroup &&
+      (data.type === 'im' ||
+        data.chatType === 'im' ||
+        data.chatType === 4 ||
+        data.dialog !== undefined);
     const senderId = data.fromId || data.from || data.OwnerID || data.senderId;
     const msgText = data.message || data.Message || data.text || '';
     const senderName = data.fromName || data.FromName || data.sender || 'Unknown';
@@ -379,7 +428,7 @@ export class ChatManager extends Utils.EventEmitter {
       data.chatType === 6 ||
       data.channel === 2147483647 ||
       msgText.includes('Script run-time error') ||
-      msgText.includes('Stack-Heap Collision')
+      msgText.includes('Stack-Heap Collision'),
     );
     const isObject = Boolean(
       data.sourceType === 2 ||
@@ -387,7 +436,7 @@ export class ChatManager extends Utils.EventEmitter {
       isScriptError ||
       senderName.startsWith('[') ||
       senderName.includes('HUD') ||
-      senderName === 'av'
+      senderName === 'av',
     );
 
     // RLV: object commands (llOwnerSay "@...") are never shown, and restricted chat is filtered before it is displayed
@@ -395,12 +444,20 @@ export class ChatManager extends Utils.EventEmitter {
     let rlvName = senderName;
     if (this.rlv?.isEnabled()) {
       const chatType = Number(data.chatType);
-      if (!isIM && !isGroup && this.rlv.handleObjectChat(String(senderId || ''), msgText, chatType)) return;
+      if (!isIM && !isGroup && this.rlv.handleObjectChat(String(senderId || ''), msgText, chatType))
+        return;
       if (isIM) rlvText = this.rlv.filterIncomingIM(String(senderId || ''), msgText);
       else if (!isGroup) {
         const filtered = this.rlv.filterIncomingChat({
-          fromId: String(senderId || ''), fromName: senderName, text: msgText, chatType: Number.isFinite(chatType) ? chatType : 1,
-          sourceType: isObject ? CHAT_SOURCE.OBJECT : (typeof data.sourceType === 'number' ? data.sourceType : CHAT_SOURCE.AGENT),
+          fromId: String(senderId || ''),
+          fromName: senderName,
+          text: msgText,
+          chatType: Number.isFinite(chatType) ? chatType : 1,
+          sourceType: isObject
+            ? CHAT_SOURCE.OBJECT
+            : typeof data.sourceType === 'number'
+              ? data.sourceType
+              : CHAT_SOURCE.AGENT,
         });
         if (filtered.text === null) return;
         rlvText = filtered.text;
@@ -429,10 +486,10 @@ export class ChatManager extends Utils.EventEmitter {
       groupName: data.groupName,
       text: rlvText,
       timestamp: data.timestamp || Date.now(),
-      type: isGroup ? 'group' : isIM ? 'im' : (data.chatType || data.type || 'local'),
+      type: isGroup ? 'group' : isIM ? 'im' : data.chatType || data.type || 'local',
       isObject,
       isScriptError,
-      sourceType: isObject ? 2 : (data.sourceType || 1),
+      sourceType: isObject ? 2 : data.sourceType || 1,
       channel: data.channel ?? 0,
     };
 
@@ -463,16 +520,17 @@ export class ChatManager extends Utils.EventEmitter {
 
       const autoReplyMessage = {
         id: Utils.generateUUID(),
-        sender: typeof this.auth?.getUserDisplayName === 'function'
-          ? this.auth.getUserDisplayName()
-          : (this.auth?.user?.fullName || this.auth?.user?.username || 'Me'),
+        sender:
+          typeof this.auth?.getUserDisplayName === 'function'
+            ? this.auth.getUserDisplayName()
+            : this.auth?.user?.fullName || this.auth?.user?.username || 'Me',
         senderId: this.auth?.user?.id,
         recipientId,
         recipientName,
         text: replyText,
         timestamp: Date.now(),
         type: 'im',
-        isAutoReply: true
+        isAutoReply: true,
       };
 
       this.addMessage(autoReplyMessage);
@@ -492,7 +550,7 @@ export class ChatManager extends Utils.EventEmitter {
         const clean = contactName.trim();
         this.closedSessions.delete(clean.toLowerCase());
         this.openSessions.set(clean.toLowerCase(), {
-          contactId: isOutgoing ? (messageData.recipientId || clean) : (messageData.senderId || clean),
+          contactId: isOutgoing ? messageData.recipientId || clean : messageData.senderId || clean,
           contactName: clean,
           openedAt: messageData.timestamp || Date.now(),
         });

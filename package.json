@@ -23,16 +23,30 @@
     "android:clean": "cd android && ./gradlew clean",
     "android:run": "expo run:android",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
     "test": "vitest run",
     "check:fake-data": "node scripts/check-fake-data.mjs",
     "check:source-imports": "node scripts/check-source-imports.mjs",
     "test:live-grid": "node scripts/live-grid-smoke.mjs",
-    "check": "npm run lint && npm run check:fake-data && npm run test && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:fake-data && npm run test && npm run build",
     "web": "expo start --web",
     "sync-design": "tsx scripts/sync-design.ts",
     "ios:pods": "cd ios && pod install",
-    "postinstall": "node scripts/patch-metaverse.cjs"
+    "postinstall": "node scripts/patch-metaverse.cjs",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,scss,html}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@caspertech/node-metaverse": "^0.8.21",
@@ -74,6 +88,7 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
@@ -82,10 +97,21 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/spark-md5": "^3.0.5",
     "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
+    "@typescript-eslint/parser": "^8.71.1",
     "electron": "^38.8.6",
     "electron-builder": "^26.15.3",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
     "jsdom": "^29.0.1",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.1",
     "vitest": "^4.1.1"
   },
   "overrides": {

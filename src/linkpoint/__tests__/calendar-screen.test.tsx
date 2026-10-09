@@ -3,23 +3,51 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { act } from 'react';
 import CalendarScreen from '../../screens/CalendarScreen.jsx';
 import { app } from '../app';
-import { buttonByText, click, flush, mountScreen, typeInto, unmount, type Mounted } from './ui-helpers';
+import {
+  buttonByText,
+  click,
+  flush,
+  mountScreen,
+  typeInto,
+  unmount,
+  type Mounted,
+} from './ui-helpers';
 
-const google = vi.hoisted(() => ({ signIn: vi.fn(), token: vi.fn(), add: vi.fn(), list: vi.fn(), del: vi.fn() }));
+const google = vi.hoisted(() => ({
+  signIn: vi.fn(),
+  token: vi.fn(),
+  add: vi.fn(),
+  list: vi.fn(),
+  del: vi.fn(),
+}));
 vi.mock('../../services/google.ts', () => ({
   loadGoogle: async () => ({
     auth: { getGoogleToken: google.token, signInWithGoogle: google.signIn, signOutGoogle: vi.fn() },
     contacts: {},
-    calendar: { addNoticeToCalendar: google.add, fetchLinkpointEvents: google.list, deleteCalendarEvent: google.del },
+    calendar: {
+      addNoticeToCalendar: google.add,
+      fetchLinkpointEvents: google.list,
+      deleteCalendarEvent: google.del,
+    },
   }),
 }));
 
 let mounted: Mounted | null = null;
 // Wednesday 4 March 2026, 12:00 UTC (4 am in Los Angeles).
 const RECEIVED = Date.UTC(2026, 2, 4, 12, 0);
-const notice = (over: any = {}) => ({ id: 'n1', groupId: 'g1', fromName: 'Officer', subject: 'Dance night', message: 'Join us Saturday 7pm SLT at the club.', timestamp: RECEIVED, ...over });
+const notice = (over: any = {}) => ({
+  id: 'n1',
+  groupId: 'g1',
+  fromName: 'Officer',
+  subject: 'Dance night',
+  message: 'Join us Saturday 7pm SLT at the club.',
+  timestamp: RECEIVED,
+  ...over,
+});
 
-beforeAll(() => { app.notices.init(); });
+beforeAll(() => {
+  app.notices.init();
+});
 beforeEach(() => {
   localStorage.clear();
   app.notices.clear();
@@ -27,10 +55,22 @@ beforeEach(() => {
   Object.values(google).forEach((fn) => fn.mockReset());
   Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:test'), revokeObjectURL: vi.fn() });
 });
-afterEach(async () => { await unmount(mounted); mounted = null; });
+afterEach(async () => {
+  await unmount(mounted);
+  mounted = null;
+});
 
-const receive = async (data: any = notice()) => { await act(async () => { (app.protocol as any).emit('group_notice', data); }); };
-const open = async (host: HTMLElement, subject = 'Dance night') => click([...host.querySelectorAll('ul[aria-label="Group notices"] button')].find((b) => (b.textContent || '').includes(subject)));
+const receive = async (data: any = notice()) => {
+  await act(async () => {
+    (app.protocol as any).emit('group_notice', data);
+  });
+};
+const open = async (host: HTMLElement, subject = 'Dance night') =>
+  click(
+    [...host.querySelectorAll('ul[aria-label="Group notices"] button')].find((b) =>
+      (b.textContent || '').includes(subject),
+    ),
+  );
 const input = (host: HTMLElement, id: string) => host.querySelector(`#${id}`) as HTMLInputElement;
 
 describe('Calendar screen: group notices', () => {
@@ -53,8 +93,16 @@ describe('Calendar screen: group notices', () => {
 
   it('says when no time was found and when the zone was assumed', async () => {
     mounted = await mountScreen(CalendarScreen);
-    await receive(notice({ id: 'n2', subject: 'Rules update', message: 'Please read the new rules for room 7.' }));
-    await receive(notice({ id: 'n3', subject: 'Market day', message: 'Saturday 2pm', timestamp: RECEIVED + 1 }));
+    await receive(
+      notice({
+        id: 'n2',
+        subject: 'Rules update',
+        message: 'Please read the new rules for room 7.',
+      }),
+    );
+    await receive(
+      notice({ id: 'n3', subject: 'Market day', message: 'Saturday 2pm', timestamp: RECEIVED + 1 }),
+    );
     await open(mounted.host, 'Rules update');
     expect(mounted.host.textContent).toContain('No time was found in this notice');
     await open(mounted.host, 'Rules update'); // collapse
@@ -75,7 +123,9 @@ describe('Calendar screen: group notices', () => {
     await receive();
     await open(mounted.host);
     await typeInto(input(mounted.host, 'cal-end'), '2026-03-07T18:00');
-    expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain('must end after it starts');
+    expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain(
+      'must end after it starts',
+    );
     expect(buttonByText(mounted.host, 'SAVE CALENDAR FILE (.ICS)')!.disabled).toBe(true);
     await typeInto(input(mounted.host, 'cal-start'), '');
     expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain('valid start');
@@ -100,20 +150,35 @@ describe('Calendar screen: group notices', () => {
   });
 
   it('opens the notice another screen asked for', async () => {
-    await act(async () => { app.notices.receive(notice()); });
+    await act(async () => {
+      app.notices.receive(notice());
+    });
     app.notices.focus('n1');
     mounted = await mountScreen(CalendarScreen);
-    expect(mounted.host.querySelector('section[aria-label="Add notice to calendar"]')).not.toBeNull();
+    expect(
+      mounted.host.querySelector('section[aria-label="Add notice to calendar"]'),
+    ).not.toBeNull();
   });
 
   describe('Google (optional)', () => {
     it('adds to Google Calendar with the chosen zone, remembers the event, and links to it', async () => {
       google.token.mockReturnValue(null);
       google.signIn.mockResolvedValue({ email: 'me@example.com', name: 'Me' });
-      google.add.mockResolvedValue({ existing: false, event: { id: 'evt1', summary: 'Dance night', htmlLink: 'https://www.google.com/calendar/event?eid=abc', start: 'S', end: 'E' } });
+      google.add.mockResolvedValue({
+        existing: false,
+        event: {
+          id: 'evt1',
+          summary: 'Dance night',
+          htmlLink: 'https://www.google.com/calendar/event?eid=abc',
+          start: 'S',
+          end: 'E',
+        },
+      });
       mounted = await mountScreen(CalendarScreen);
       await receive();
-      await act(async () => { app.preferences.set('integrations', 'google', true); });
+      await act(async () => {
+        app.preferences.set('integrations', 'google', true);
+      });
       await open(mounted.host);
 
       await click(buttonByText(mounted.host, 'ADD TO GOOGLE CALENDAR'));
@@ -124,24 +189,42 @@ describe('Calendar screen: group notices', () => {
       expect(options.timeZone).toBe('America/Los_Angeles');
       expect(options.start.toISOString()).toBe('2026-03-08T03:00:00.000Z');
       expect(options.end.getTime() - options.start.getTime()).toBe(3_600_000);
-      expect(app.notices.get('n1')!.calendar).toMatchObject({ eventId: 'evt1', link: 'https://www.google.com/calendar/event?eid=abc' });
+      expect(app.notices.get('n1')!.calendar).toMatchObject({
+        eventId: 'evt1',
+        link: 'https://www.google.com/calendar/event?eid=abc',
+      });
       expect(mounted.host.textContent).toContain('Added to your Google Calendar');
-      expect((mounted.host.querySelector('a[href^="https://www.google.com/calendar"]') as HTMLAnchorElement).rel).toContain('noopener');
+      expect(
+        (
+          mounted.host.querySelector(
+            'a[href^="https://www.google.com/calendar"]',
+          ) as HTMLAnchorElement
+        ).rel,
+      ).toContain('noopener');
     });
 
-    it('says when the notice was already in the calendar, and shows Google\'s error otherwise', async () => {
+    it("says when the notice was already in the calendar, and shows Google's error otherwise", async () => {
       google.token.mockReturnValue('tok');
-      google.add.mockResolvedValueOnce({ existing: true, event: { id: 'evt1', summary: 'x', htmlLink: null, start: null, end: null } }).mockRejectedValueOnce(new Error('Google refused: quota'));
+      google.add
+        .mockResolvedValueOnce({
+          existing: true,
+          event: { id: 'evt1', summary: 'x', htmlLink: null, start: null, end: null },
+        })
+        .mockRejectedValueOnce(new Error('Google refused: quota'));
       mounted = await mountScreen(CalendarScreen);
       await receive();
-      await act(async () => { app.preferences.set('integrations', 'google', true); });
+      await act(async () => {
+        app.preferences.set('integrations', 'google', true);
+      });
       await open(mounted.host);
       await click(buttonByText(mounted.host, 'ADD TO GOOGLE CALENDAR'));
       await flush();
       expect(mounted.host.textContent).toContain('already in your Google Calendar');
       await click(buttonByText(mounted.host, 'ADD TO GOOGLE CALENDAR'));
       await flush();
-      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain('Google refused: quota');
+      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain(
+        'Google refused: quota',
+      );
     });
   });
 });
@@ -149,18 +232,34 @@ describe('Calendar screen: group notices', () => {
 describe('Calendar screen: Google events tab', () => {
   it('explains that Google is off, without touching Google', async () => {
     mounted = await mountScreen(CalendarScreen);
-    await act(async () => { mounted!.ctx.current.actions.setTab('Calendar', 'GOOGLE CALENDAR'); });
+    await act(async () => {
+      mounted!.ctx.current.actions.setTab('Calendar', 'GOOGLE CALENDAR');
+    });
     expect(mounted.host.textContent).toContain('Google Calendar is off');
     expect(google.signIn).not.toHaveBeenCalled();
   });
 
   it('when on, loads upcoming events on request and deletes one, clearing the notice record', async () => {
     google.token.mockReturnValue('tok');
-    google.list.mockResolvedValue([{ id: 'evt1', summary: 'Dance night', htmlLink: 'https://www.google.com/calendar/event?eid=abc', start: '2026-03-08T03:00:00Z', end: null }]);
+    google.list.mockResolvedValue([
+      {
+        id: 'evt1',
+        summary: 'Dance night',
+        htmlLink: 'https://www.google.com/calendar/event?eid=abc',
+        start: '2026-03-08T03:00:00Z',
+        end: null,
+      },
+    ]);
     google.del.mockResolvedValue(undefined);
-    await act(async () => { app.notices.receive(notice()); app.notices.markAdded('n1', { eventId: 'evt1', link: null }); app.preferences.set('integrations', 'google', true); });
+    await act(async () => {
+      app.notices.receive(notice());
+      app.notices.markAdded('n1', { eventId: 'evt1', link: null });
+      app.preferences.set('integrations', 'google', true);
+    });
     mounted = await mountScreen(CalendarScreen);
-    await act(async () => { mounted!.ctx.current.actions.setTab('Calendar', 'GOOGLE CALENDAR'); });
+    await act(async () => {
+      mounted!.ctx.current.actions.setTab('Calendar', 'GOOGLE CALENDAR');
+    });
     expect(google.list).not.toHaveBeenCalled(); // nothing is fetched until the user asks
     await click(buttonByText(mounted.host, 'SIGN IN AND LOAD'));
     await flush();

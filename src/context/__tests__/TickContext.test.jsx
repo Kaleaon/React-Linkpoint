@@ -1,15 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createElement, act } from "react";
-import { createRoot } from "react-dom/client";
-import { AppProvider, useApp } from "../AppContext.jsx";
-import { TickProvider, useTickContext } from "../TickContext.jsx";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createElement, act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { AppProvider, useApp } from '../AppContext.jsx';
+import { TickProvider, useTickContext } from '../TickContext.jsx';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let mounted = null;
 
 async function mount(ui) {
-  const host = document.createElement("div");
+  const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
@@ -30,21 +30,19 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-describe("TickContext", () => {
+describe('TickContext', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
 
-  it("provides initial tick value 0 and increments every 1 second", async () => {
+  it('provides initial tick value 0 and increments every 1 second', async () => {
     let currentTick = null;
     function Consumer() {
       currentTick = useTickContext();
-      return createElement("div", null, `Tick: ${currentTick}`);
+      return createElement('div', null, `Tick: ${currentTick}`);
     }
 
-    await mount(
-      createElement(TickProvider, null, createElement(Consumer))
-    );
+    await mount(createElement(TickProvider, null, createElement(Consumer)));
 
     expect(currentTick).toBe(0);
 
@@ -59,16 +57,14 @@ describe("TickContext", () => {
     expect(currentTick).toBe(3);
   });
 
-  it("cleans up timer on unmount", async () => {
-    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+  it('cleans up timer on unmount', async () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
     function Consumer() {
       const tick = useTickContext();
-      return createElement("div", null, `Tick: ${tick}`);
+      return createElement('div', null, `Tick: ${tick}`);
     }
 
-    await mount(
-      createElement(TickProvider, null, createElement(Consumer))
-    );
+    await mount(createElement(TickProvider, null, createElement(Consumer)));
 
     await act(async () => {
       mounted.root.unmount();
@@ -80,7 +76,7 @@ describe("TickContext", () => {
     clearIntervalSpy.mockRestore();
   });
 
-  it("re-renders TickContext consumers on tick without re-rendering AppContext consumers", async () => {
+  it('re-renders TickContext consumers on tick without re-rendering AppContext consumers', async () => {
     let appRenderCount = 0;
     let tickRenderCount = 0;
     let lastSeenTick = null;
@@ -88,14 +84,14 @@ describe("TickContext", () => {
     function AppSubscriber() {
       const { state } = useApp();
       appRenderCount++;
-      return createElement("div", { id: "app-sub" }, `Screen: ${state.screen}`);
+      return createElement('div', { id: 'app-sub' }, `Screen: ${state.screen}`);
     }
 
     function TickSubscriber() {
       const tick = useTickContext();
       lastSeenTick = tick;
       tickRenderCount++;
-      return createElement("div", { id: "tick-sub" }, `Tick: ${tick}`);
+      return createElement('div', { id: 'tick-sub' }, `Tick: ${tick}`);
     }
 
     await mount(
@@ -105,9 +101,9 @@ describe("TickContext", () => {
         createElement(
           TickProvider,
           null,
-          createElement("div", null, createElement(AppSubscriber), createElement(TickSubscriber))
-        )
-      )
+          createElement('div', null, createElement(AppSubscriber), createElement(TickSubscriber)),
+        ),
+      ),
     );
 
     expect(appRenderCount).toBe(1);

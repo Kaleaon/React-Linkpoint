@@ -2,17 +2,33 @@ import { describe, expect, it, vi } from 'vitest';
 import { WorldViewer } from '../world';
 import { Utils } from '../utils';
 
-class Protocol extends Utils.EventEmitter { connected = true; authReply = null; }
+class Protocol extends Utils.EventEmitter {
+  connected = true;
+  authReply = null;
+}
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const geometry = { vertices: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] };
-const prim = { id: 'prim', localId: 1, position: [1, 2, 3], scale: [2, 3, 4], rotation: [0, 0, 0, 1], shape: 'asset-proxy' };
-const image = (assetId: string) => ({ assetId, width: 1, height: 1, rgba: btoa('\xff\xff\xff\xff') });
+const prim = {
+  id: 'prim',
+  localId: 1,
+  position: [1, 2, 3],
+  scale: [2, 3, 4],
+  rotation: [0, 0, 0, 1],
+  shape: 'asset-proxy',
+};
+const image = (assetId: string) => ({
+  assetId,
+  width: 1,
+  height: 1,
+  rgba: btoa('\xff\xff\xff\xff'),
+});
 function setup() {
   const protocol = new Protocol();
   const world = new WorldViewer(protocol);
   const objects = new Map<string, any>();
   const scene = {
-    objects, graphics: { maxJoints: 110 },
+    objects,
+    graphics: { maxJoints: 110 },
     addObject: (id: string, config: any) => objects.set(id, { ...config }),
     updateObject: (id: string, config: any) => Object.assign(objects.get(id), config),
     removeObject: (id: string) => objects.delete(id),
@@ -32,11 +48,23 @@ describe('simulator asset replacement and material hydration', () => {
       protocol.emit('scene:asset-ready', { assetId: id, geometry });
       protocol.emit('scene:texture-ready', image(id));
     }
-    protocol.emit('scene:object-add', { ...prim, assetId: 'old', assetKind: 'mesh', textureId: 'old' });
+    protocol.emit('scene:object-add', {
+      ...prim,
+      assetId: 'old',
+      assetKind: 'mesh',
+      textureId: 'old',
+    });
     protocol.emit('scene:object-update', { id: 'prim', assetId: 'new', textureId: 'new' });
-    expect(scene.objects.get('prim')).toMatchObject({ meshes: [{ mesh: 'asset:new:0' }], texture: 'texture:new' });
+    expect(scene.objects.get('prim')).toMatchObject({
+      meshes: [{ mesh: 'asset:new:0' }],
+      texture: 'texture:new',
+    });
     protocol.emit('scene:object-update', { id: 'prim', position: [4, 5, 6] });
-    expect(scene.objects.get('prim')).toMatchObject({ meshes: [{ mesh: 'asset:new:0' }], texture: 'texture:new', position: [4, 5, 6] });
+    expect(scene.objects.get('prim')).toMatchObject({
+      meshes: [{ mesh: 'asset:new:0' }],
+      texture: 'texture:new',
+      position: [4, 5, 6],
+    });
   });
 
   it('drops old geometry while a replacement downloads and ignores late arrivals for the old asset', () => {
@@ -55,7 +83,13 @@ describe('simulator asset replacement and material hydration', () => {
     const { protocol, scene } = setup();
     protocol.emit('scene:asset-ready', { assetId: 'old', geometry });
     protocol.emit('scene:object-add', { ...prim, assetId: 'old', assetKind: 'mesh' });
-    protocol.emit('scene:object-update', { id: 'prim', assetId: null, assetKind: null, shape: 'cube', shapeParams: { pathCurve: 0x10, profileCurve: 0x01 } });
+    protocol.emit('scene:object-update', {
+      id: 'prim',
+      assetId: null,
+      assetKind: null,
+      shape: 'cube',
+      shapeParams: { pathCurve: 0x10, profileCurve: 0x01 },
+    });
     expect(scene.objects.get('prim').meshes[0].mesh).toBe('volume:new');
   });
 
@@ -63,31 +97,90 @@ describe('simulator asset replacement and material hydration', () => {
     const { protocol, scene } = setup();
     protocol.emit('scene:asset-ready', { assetId: 'MESH', geometry });
     protocol.emit('scene:texture-ready', image('TEXTURE'));
-    protocol.emit('scene:material-ready', { assetId: 'MATERIAL', material: { textures: { baseColor: { textureId: 'TeXtUrE' } } } });
-    protocol.emit('scene:object-add', { ...prim, assetId: 'MeSh', textureId: 'TeXtUrE', faceTextures: [{ materialId: 'MaTeRiAl' }] });
+    protocol.emit('scene:material-ready', {
+      assetId: 'MATERIAL',
+      material: { textures: { baseColor: { textureId: 'TeXtUrE' } } },
+    });
+    protocol.emit('scene:object-add', {
+      ...prim,
+      assetId: 'MeSh',
+      textureId: 'TeXtUrE',
+      faceTextures: [{ materialId: 'MaTeRiAl' }],
+    });
     expect(scene.addAssetMesh).toHaveBeenCalledWith('mesh', geometry);
     expect(scene.addAssetTexture).toHaveBeenCalledWith('texture', 1, 1, expect.any(Uint8Array));
-    expect(scene.objects.get('prim')).toMatchObject({ texture: 'texture:texture', meshes: [{ mesh: 'asset:mesh:0' }], faces: [{ texture: 'texture:texture' }] });
+    expect(scene.objects.get('prim')).toMatchObject({
+      texture: 'texture:texture',
+      meshes: [{ mesh: 'asset:mesh:0' }],
+      faces: [{ texture: 'texture:texture' }],
+    });
   });
 
   it('keeps inherited transform components for partial overrides and sparse texture slots', () => {
     const { protocol, scene } = setup();
     protocol.emit('scene:texture-ready', image('normal'));
-    protocol.emit('scene:material-ready', { assetId: 'material', material: { textures: { baseColor: { scale: [2, 3], offset: [.1, .2], rotation: .7 } } } });
-    protocol.emit('scene:object-add', { ...prim, faceTextures: [{ materialId: 'material', materialOverride: { textureTransforms: [{ offset: [.4, .5] }], textures: { 1: 'normal' } } }] });
-    expect(scene.objects.get('prim').faces[0]).toMatchObject({ repeat: [2, 3], offset: [.4, .5], rotation: .7, pbr: { normalTexture: 'texture:normal', baseColorTexture: undefined } });
+    protocol.emit('scene:material-ready', {
+      assetId: 'material',
+      material: { textures: { baseColor: { scale: [2, 3], offset: [0.1, 0.2], rotation: 0.7 } } },
+    });
+    protocol.emit('scene:object-add', {
+      ...prim,
+      faceTextures: [
+        {
+          materialId: 'material',
+          materialOverride: {
+            textureTransforms: [{ offset: [0.4, 0.5] }],
+            textures: { 1: 'normal' },
+          },
+        },
+      ],
+    });
+    expect(scene.objects.get('prim').faces[0]).toMatchObject({
+      repeat: [2, 3],
+      offset: [0.4, 0.5],
+      rotation: 0.7,
+      pbr: { normalTexture: 'texture:normal', baseColorTexture: undefined },
+    });
   });
 
   it('honors standalone emissive, double-sided and alpha-cutoff overrides', () => {
     const { protocol, scene } = setup();
-    protocol.emit('scene:object-add', { ...prim, faceTextures: [{ materialOverride: { emissiveFactor: [1, .2, .3], doubleSided: true, alphaCutoff: .3 } }] });
-    expect(scene.objects.get('prim').faces[0].pbr).toMatchObject({ emissive: [1, .2, .3], doubleSided: true, alphaCutoff: .3 });
+    protocol.emit('scene:object-add', {
+      ...prim,
+      faceTextures: [
+        {
+          materialOverride: { emissiveFactor: [1, 0.2, 0.3], doubleSided: true, alphaCutoff: 0.3 },
+        },
+      ],
+    });
+    expect(scene.objects.get('prim').faces[0].pbr).toMatchObject({
+      emissive: [1, 0.2, 0.3],
+      doubleSided: true,
+      alphaCutoff: 0.3,
+    });
   });
 
   it('rebuilds the shared avatar skeleton when a rigged attachment becomes unrigged', () => {
     const { protocol, world } = setup();
-    protocol.emit('scene:object-add', { id: 'avatar', localId: 10, avatar: true, position: [1, 2, 3], scale: [1, 1, 2], rotation: [0, 0, 0, 1] });
-    protocol.emit('scene:asset-ready', { assetId: 'rig', geometry: { ...geometry, skin: { jointNames: ['mPelvis'], bindShapeMatrix: identity, inverseBindMatrices: [identity] } } });
+    protocol.emit('scene:object-add', {
+      id: 'avatar',
+      localId: 10,
+      avatar: true,
+      position: [1, 2, 3],
+      scale: [1, 1, 2],
+      rotation: [0, 0, 0, 1],
+    });
+    protocol.emit('scene:asset-ready', {
+      assetId: 'rig',
+      geometry: {
+        ...geometry,
+        skin: {
+          jointNames: ['mPelvis'],
+          bindShapeMatrix: identity,
+          inverseBindMatrices: [identity],
+        },
+      },
+    });
     protocol.emit('scene:object-add', { ...prim, parentId: 10, assetId: 'rig', assetKind: 'mesh' });
     const rebuild = vi.spyOn(world as any, 'reapplyAvatarSubject');
     protocol.emit('scene:object-update', { id: 'prim', assetId: 'static' });
@@ -116,8 +209,20 @@ describe('simulator asset replacement and material hydration', () => {
     protocol.emit('scene:object-add', { ...prim, name: 'Sword', assetId: 'm1', assetKind: 'mesh' });
     protocol.emit('scene:object-update', { id: 'prim', position: [9, 9, 9] }); // terse: keeps the mesh, no warning
     expect(warn).not.toHaveBeenCalled();
-    protocol.emit('scene:object-update', { id: 'prim', assetId: null, assetKind: null, shape: 'torus', shapeParams: {} });
-    protocol.emit('scene:object-update', { id: 'prim', assetId: null, assetKind: null, shape: 'torus', shapeParams: {} });
+    protocol.emit('scene:object-update', {
+      id: 'prim',
+      assetId: null,
+      assetKind: null,
+      shape: 'torus',
+      shapeParams: {},
+    });
+    protocol.emit('scene:object-update', {
+      id: 'prim',
+      assetId: null,
+      assetKind: null,
+      shape: 'torus',
+      shapeParams: {},
+    });
     const lost = warn.mock.calls.filter((call) => String(call[0]).includes('lost its mesh asset'));
     expect(lost).toHaveLength(1);
     expect(String(lost[0][0])).toContain('"Sword"');

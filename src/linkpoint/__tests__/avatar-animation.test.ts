@@ -1,30 +1,88 @@
 import { describe, expect, it } from 'vitest';
-import { animationTiming, blendAnimations, parseAnimation, sampleRotation, samplePosition, unpackQuaternion, type KeyframeAnimation } from '../avatar-animation';
+import {
+  animationTiming,
+  blendAnimations,
+  parseAnimation,
+  sampleRotation,
+  samplePosition,
+  unpackQuaternion,
+  type KeyframeAnimation,
+} from '../avatar-animation';
 
-function build(opts: { length: number; loop?: boolean; joints: { name: string; priority: number; rot: [number, number[]][]; pos: [number, number[]][] }[] }): Uint8Array {
+function build(opts: {
+  length: number;
+  loop?: boolean;
+  joints: {
+    name: string;
+    priority: number;
+    rot: [number, number[]][];
+    pos: [number, number[]][];
+  }[];
+}): Uint8Array {
   const out: number[] = [];
   const dv = new DataView(new ArrayBuffer(4));
-  const i32 = (v: number) => { dv.setInt32(0, v, true); out.push(...new Uint8Array(dv.buffer)); };
-  const f32 = (v: number) => { dv.setFloat32(0, v, true); out.push(...new Uint8Array(dv.buffer)); };
-  const u16 = (v: number) => { out.push(v & 255, v >> 8); };
-  const str = (s: string) => { for (const c of s) out.push(c.charCodeAt(0)); out.push(0); };
+  const i32 = (v: number) => {
+    dv.setInt32(0, v, true);
+    out.push(...new Uint8Array(dv.buffer));
+  };
+  const f32 = (v: number) => {
+    dv.setFloat32(0, v, true);
+    out.push(...new Uint8Array(dv.buffer));
+  };
+  const u16 = (v: number) => {
+    out.push(v & 255, v >> 8);
+  };
+  const str = (s: string) => {
+    for (const c of s) out.push(c.charCodeAt(0));
+    out.push(0);
+  };
   out.push(1, 0, 0, 0);
-  i32(3); f32(opts.length); str('');
-  f32(0); f32(opts.length); i32(opts.loop ? 1 : 0); f32(0.25); f32(0.25); i32(0);
+  i32(3);
+  f32(opts.length);
+  str('');
+  f32(0);
+  f32(opts.length);
+  i32(opts.loop ? 1 : 0);
+  f32(0.25);
+  f32(0.25);
+  i32(0);
   i32(opts.joints.length);
   for (const j of opts.joints) {
-    str(j.name); i32(j.priority);
+    str(j.name);
+    i32(j.priority);
     i32(j.rot.length);
-    for (const [t, q] of j.rot) { u16(Math.round((t / opts.length) * 65535)); for (const c of q) u16(Math.round(((c + 1) / 2) * 65535)); }
+    for (const [t, q] of j.rot) {
+      u16(Math.round((t / opts.length) * 65535));
+      for (const c of q) u16(Math.round(((c + 1) / 2) * 65535));
+    }
     i32(j.pos.length);
-    for (const [t, p] of j.pos) { u16(Math.round((t / opts.length) * 65535)); for (const c of p) u16(Math.round(((c + 5) / 10) * 65535)); }
+    for (const [t, p] of j.pos) {
+      u16(Math.round((t / opts.length) * 65535));
+      for (const c of p) u16(Math.round(((c + 5) / 10) * 65535));
+    }
   }
   return new Uint8Array(out);
 }
 
 describe('avatar animation', () => {
   it('parses header, joints and dequantised keyframes', () => {
-    const anim = parseAnimation(build({ length: 2, loop: true, joints: [{ name: 'mPelvis', priority: 4, rot: [[0, [0, 0, 0]], [1, [0.5, 0, 0]]], pos: [[0, [1, 2, -3]]] }] }));
+    const anim = parseAnimation(
+      build({
+        length: 2,
+        loop: true,
+        joints: [
+          {
+            name: 'mPelvis',
+            priority: 4,
+            rot: [
+              [0, [0, 0, 0]],
+              [1, [0.5, 0, 0]],
+            ],
+            pos: [[0, [1, 2, -3]]],
+          },
+        ],
+      }),
+    );
     expect(anim.priority).toBe(3);
     expect(anim.length).toBeCloseTo(2);
     expect(anim.loop).toBe(true);
@@ -40,11 +98,23 @@ describe('avatar animation', () => {
   });
 
   it('rejects truncated data', () => {
-    expect(() => parseAnimation(build({ length: 1, joints: [{ name: 'a', priority: 0, rot: [[0, [0, 0, 0]]], pos: [] }] }).subarray(0, 40))).toThrow();
+    expect(() =>
+      parseAnimation(
+        build({
+          length: 1,
+          joints: [{ name: 'a', priority: 0, rot: [[0, [0, 0, 0]]], pos: [] }],
+        }).subarray(0, 40),
+      ),
+    ).toThrow();
   });
 
   it('keeps negative quantised values signed', () => {
-    const anim = parseAnimation(build({ length: 1, joints: [{ name: 'a', priority: 0, rot: [], pos: [[0, [-4.5, -0.5, 4.5]]] }] }));
+    const anim = parseAnimation(
+      build({
+        length: 1,
+        joints: [{ name: 'a', priority: 0, rot: [], pos: [[0, [-4.5, -0.5, 4.5]]] }],
+      }),
+    );
     expect(anim.joints[0].positions[0].value[0]).toBeCloseTo(-4.5, 3);
     expect(anim.joints[0].positions[0].value[1]).toBeCloseTo(-0.5, 3);
   });
@@ -55,7 +125,25 @@ describe('avatar animation', () => {
   });
 
   it('interpolates, holds ends, and wraps to the first key', () => {
-    const anim = parseAnimation(build({ length: 2, joints: [{ name: 'a', priority: 0, rot: [[0.5, [0, 0, 0]], [1.5, [0.6, 0, 0]]], pos: [[0.5, [0, 0, 0]], [1.5, [2, 0, 0]]] }] }));
+    const anim = parseAnimation(
+      build({
+        length: 2,
+        joints: [
+          {
+            name: 'a',
+            priority: 0,
+            rot: [
+              [0.5, [0, 0, 0]],
+              [1.5, [0.6, 0, 0]],
+            ],
+            pos: [
+              [0.5, [0, 0, 0]],
+              [1.5, [2, 0, 0]],
+            ],
+          },
+        ],
+      }),
+    );
     const j = anim.joints[0];
     expect(samplePosition(j, 1, 2)![0]).toBeCloseTo(1, 2);
     expect(samplePosition(j, 0.1, 2)![0]).toBeCloseTo(0, 2);
@@ -65,7 +153,19 @@ describe('avatar animation', () => {
     expect(mid[0]).toBeGreaterThan(0.2);
   });
 
-  const anim = (over: Partial<KeyframeAnimation>): KeyframeAnimation => ({ priority: 1, length: 2, expression: '', inPoint: 0.5, outPoint: 1.5, loop: true, easeIn: 0.5, easeOut: 0.5, handPose: 0, joints: [], ...over });
+  const anim = (over: Partial<KeyframeAnimation>): KeyframeAnimation => ({
+    priority: 1,
+    length: 2,
+    expression: '',
+    inPoint: 0.5,
+    outPoint: 1.5,
+    loop: true,
+    easeIn: 0.5,
+    easeOut: 0.5,
+    handPose: 0,
+    joints: [],
+    ...over,
+  });
 
   it('loops between in/out points and eases in', () => {
     const a = anim({});
@@ -84,9 +184,27 @@ describe('avatar animation', () => {
   });
 
   it('lets the higher priority animation own a joint', () => {
-    const lo = parseAnimation(build({ length: 1, loop: true, joints: [{ name: 'mHead', priority: 1, rot: [[0, [0, 0, 0]]], pos: [] }] }));
-    const hi = parseAnimation(build({ length: 1, loop: true, joints: [{ name: 'mHead', priority: 4, rot: [[0, [0.7071, 0, 0]]], pos: [] }] }));
-    const pose = blendAnimations([{ anim: lo, startedAt: 0 }, { anim: hi, startedAt: 0 }], 5).get('mHead')!;
+    const lo = parseAnimation(
+      build({
+        length: 1,
+        loop: true,
+        joints: [{ name: 'mHead', priority: 1, rot: [[0, [0, 0, 0]]], pos: [] }],
+      }),
+    );
+    const hi = parseAnimation(
+      build({
+        length: 1,
+        loop: true,
+        joints: [{ name: 'mHead', priority: 4, rot: [[0, [0.7071, 0, 0]]], pos: [] }],
+      }),
+    );
+    const pose = blendAnimations(
+      [
+        { anim: lo, startedAt: 0 },
+        { anim: hi, startedAt: 0 },
+      ],
+      5,
+    ).get('mHead')!;
     expect(pose.rotation[0]).toBeCloseTo(0.7071, 2);
     expect(Math.hypot(...pose.rotation)).toBeCloseTo(1, 5);
   });

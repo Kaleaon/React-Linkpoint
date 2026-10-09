@@ -18,7 +18,12 @@ interface ErrorRecoveryContextValue extends ErrorRecoverySnapshot {
     onSuccess?: (result: T) => void;
     onFailure?: (error: Error) => void;
   }) => Promise<T>;
-  logTelemetry: (category: string, code: string, message: string, details?: Record<string, any>) => TelemetryEntry;
+  logTelemetry: (
+    category: string,
+    code: string,
+    message: string,
+    details?: Record<string, any>,
+  ) => TelemetryEntry;
   clearError: () => void;
   processRetryQueue: () => Promise<void>;
   setOnlineStatus: (online: boolean) => void;
@@ -26,10 +31,10 @@ interface ErrorRecoveryContextValue extends ErrorRecoverySnapshot {
 
 const ErrorRecoveryContext = createContext<ErrorRecoveryContextValue | null>(null);
 
-export const ErrorRecoveryProvider: React.FC<{ children: React.ReactNode; customService?: ErrorRecoveryService }> = ({
-  children,
-  customService,
-}) => {
+export const ErrorRecoveryProvider: React.FC<{
+  children: React.ReactNode;
+  customService?: ErrorRecoveryService;
+}> = ({ children, customService }) => {
   const service = customService || errorRecovery;
   const [snapshot, setSnapshot] = useState<ErrorRecoverySnapshot>(() => service.getSnapshot());
 
@@ -52,14 +57,14 @@ export const ErrorRecoveryProvider: React.FC<{ children: React.ReactNode; custom
     }) => {
       return service.enqueueRetry<T>(options);
     },
-    [service]
+    [service],
   );
 
   const logTelemetry = useCallback(
     (category: string, code: string, message: string, details?: Record<string, any>) => {
       return service.logTelemetry(category, code, message, details);
     },
-    [service]
+    [service],
   );
 
   const clearError = useCallback(() => {
@@ -74,7 +79,7 @@ export const ErrorRecoveryProvider: React.FC<{ children: React.ReactNode; custom
     (online: boolean) => {
       service.setOnlineStatus(online);
     },
-    [service]
+    [service],
   );
 
   return (

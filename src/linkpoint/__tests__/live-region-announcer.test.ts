@@ -50,7 +50,12 @@ describe('LiveRegionAnnouncerService & Theme Contrast Tests', () => {
     });
 
     it('formats group chat messages correctly', () => {
-      const data = { type: 'group', groupName: 'Builders Club', sender: 'Bob', text: 'Meeting at 5' };
+      const data = {
+        type: 'group',
+        groupName: 'Builders Club',
+        sender: 'Bob',
+        text: 'Meeting at 5',
+      };
       const formatted = announcer.formatChatMessage(data);
       expect(formatted).toBe('[Group Chat - Builders Club] Bob: Meeting at 5');
     });

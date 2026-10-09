@@ -11,9 +11,36 @@ class ProtocolStub extends Utils.EventEmitter {
   touchObject = vi.fn(async (_: any) => ({ touched: 'x' }));
 }
 
-const AVATAR = { id: 'agent-1', localId: 100, avatar: true, position: [128, 128, 30], scale: [1, 1, 1], rotation: [0, 0, 0, 1] };
-const hudRoot = (extra: any = {}) => ({ id: 'hud-root', localId: 200, parentId: 100, attachmentPoint: 35, name: 'Combat HUD', position: [0, 0, 0], scale: [0.02, 1, 0.5], rotation: [0, 0, 0, 1], ...extra });
-const child = (extra: any = {}) => ({ id: 'hud-btn', localId: 201, parentId: 200, attachmentPoint: 0, name: 'Button', position: [0, 0.2, 0.1], scale: [0.02, 0.2, 0.1], rotation: [0, 0, 0, 1], ...extra });
+const AVATAR = {
+  id: 'agent-1',
+  localId: 100,
+  avatar: true,
+  position: [128, 128, 30],
+  scale: [1, 1, 1],
+  rotation: [0, 0, 0, 1],
+};
+const hudRoot = (extra: any = {}) => ({
+  id: 'hud-root',
+  localId: 200,
+  parentId: 100,
+  attachmentPoint: 35,
+  name: 'Combat HUD',
+  position: [0, 0, 0],
+  scale: [0.02, 1, 0.5],
+  rotation: [0, 0, 0, 1],
+  ...extra,
+});
+const child = (extra: any = {}) => ({
+  id: 'hud-btn',
+  localId: 201,
+  parentId: 200,
+  attachmentPoint: 0,
+  name: 'Button',
+  position: [0, 0.2, 0.1],
+  scale: [0.02, 0.2, 0.1],
+  rotation: [0, 0, 0, 1],
+  ...extra,
+});
 
 function setup() {
   const protocol = new ProtocolStub();
@@ -25,8 +52,18 @@ function setup() {
 describe('worn HUD detection', () => {
   it('lists a HUD with all of its linked prims and the attachment point name', () => {
     const { world, add } = setup();
-    add(AVATAR); add(hudRoot()); add(child());
-    expect(world.getHuds()).toEqual([{ id: 'hud-root', name: 'Combat HUD', attachmentPoint: 35, pointName: 'Center', memberIds: expect.arrayContaining(['hud-root', 'hud-btn']) }]);
+    add(AVATAR);
+    add(hudRoot());
+    add(child());
+    expect(world.getHuds()).toEqual([
+      {
+        id: 'hud-root',
+        name: 'Combat HUD',
+        attachmentPoint: 35,
+        pointName: 'Center',
+        memberIds: expect.arrayContaining(['hud-root', 'hud-btn']),
+      },
+    ]);
     expect(world.getHuds()[0].memberIds).toHaveLength(2);
   });
 
@@ -36,7 +73,15 @@ describe('worn HUD detection', () => {
     add(hudRoot({ id: 'hat', localId: 300, attachmentPoint: 2 })); // Skull
     add(hudRoot({ id: 'hud-39', localId: 301, attachmentPoint: 39 })); // Neck
     add(hudRoot({ id: 'hud-30', localId: 302, attachmentPoint: 30 })); // Right Pec, just below the HUD range
-    add({ id: 'rock', localId: 303, parentId: 0, attachmentPoint: 35, position: [1, 1, 1], scale: [1, 1, 1], rotation: [0, 0, 0, 1] }); // no parent: not worn
+    add({
+      id: 'rock',
+      localId: 303,
+      parentId: 0,
+      attachmentPoint: 35,
+      position: [1, 1, 1],
+      scale: [1, 1, 1],
+      rotation: [0, 0, 0, 1],
+    }); // no parent: not worn
     expect(world.getHuds()).toEqual([]);
   });
 
@@ -44,7 +89,8 @@ describe('worn HUD detection', () => {
     const { world, protocol, add } = setup();
     const seen: any[] = [];
     world.on('huds_changed', (huds: any[]) => seen.push(huds.map((h) => h.memberIds.length)));
-    add(AVATAR); add(hudRoot());
+    add(AVATAR);
+    add(hudRoot());
     expect(seen).toEqual([[1]]);
     add(hudRoot({ position: [0, 0, 0.1] })); // a move changes nothing in the list
     expect(seen).toEqual([[1]]);
@@ -58,7 +104,8 @@ describe('worn HUD detection', () => {
 
   it('recognises a prim whose root arrives after it', () => {
     const { world, add } = setup();
-    add(AVATAR); add(child());
+    add(AVATAR);
+    add(child());
     expect(world.getHuds()).toEqual([]);
     add(hudRoot());
     expect(world.getHuds()[0].memberIds).toHaveLength(2);
@@ -66,8 +113,22 @@ describe('worn HUD detection', () => {
 
   it('survives a parent loop', () => {
     const { world, add } = setup();
-    add({ id: 'a', localId: 1, parentId: 2, position: [0, 0, 0], scale: [1, 1, 1], rotation: [0, 0, 0, 1] });
-    add({ id: 'b', localId: 2, parentId: 1, position: [0, 0, 0], scale: [1, 1, 1], rotation: [0, 0, 0, 1] });
+    add({
+      id: 'a',
+      localId: 1,
+      parentId: 2,
+      position: [0, 0, 0],
+      scale: [1, 1, 1],
+      rotation: [0, 0, 0, 1],
+    });
+    add({
+      id: 'b',
+      localId: 2,
+      parentId: 1,
+      position: [0, 0, 0],
+      scale: [1, 1, 1],
+      rotation: [0, 0, 0, 1],
+    });
     expect(world.getHuds()).toEqual([]);
   });
 });
@@ -77,7 +138,8 @@ describe('displaying a HUD', () => {
     const { world, protocol, add } = setup();
     const displays: any[] = [];
     world.on('hud_display_changed', (d: any) => displays.push(d && { ...d }));
-    add(AVATAR); add(hudRoot());
+    add(AVATAR);
+    add(hudRoot());
     expect(world.setDisplayedHud('nope')).toBe(false);
     expect(world.displayedHud).toBeNull();
     expect(world.setDisplayedHud('hud-root')).toBe(true);
@@ -95,7 +157,8 @@ describe('displaying a HUD', () => {
 
   it('forgets everything when the region is left', () => {
     const { world, protocol, add } = setup();
-    add(AVATAR); add(hudRoot());
+    add(AVATAR);
+    add(hudRoot());
     world.setDisplayedHud('hud-root');
     protocol.emit('disconnected', {});
     expect(world.getHuds()).toEqual([]);
@@ -106,7 +169,8 @@ describe('displaying a HUD', () => {
 describe('touching', () => {
   it('sends a touch through the connection and reports a failure instead of hiding it', async () => {
     const { world, protocol, add } = setup();
-    add(AVATAR); add(hudRoot());
+    add(AVATAR);
+    add(hudRoot());
     expect(await world.touchObject('hud-root')).toBe(true);
     expect(protocol.touchObject).toHaveBeenCalledWith({ id: 'hud-root' });
 
@@ -127,13 +191,24 @@ describe('touching', () => {
 describe('HUD placement in the scene', () => {
   function withScene() {
     const { world, protocol, add } = setup();
-    const graphics = { clear: vi.fn(), clearDepth: vi.fn(), drawMesh: vi.fn(), setClearColor: vi.fn(), createMesh: vi.fn(), createRenderTarget: vi.fn(), beginRenderTarget: vi.fn(() => false), endRenderTarget: vi.fn(), getMeshBounds: vi.fn(() => ({ min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] })), textureHasAlpha: vi.fn(() => false) };
+    const graphics = {
+      clear: vi.fn(),
+      clearDepth: vi.fn(),
+      drawMesh: vi.fn(),
+      setClearColor: vi.fn(),
+      createMesh: vi.fn(),
+      createRenderTarget: vi.fn(),
+      beginRenderTarget: vi.fn(() => false),
+      endRenderTarget: vi.fn(),
+      getMeshBounds: vi.fn(() => ({ min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] })),
+      textureHasAlpha: vi.fn(() => false),
+    };
     const scene = new Scene3D(graphics as any, new Camera3D());
     (world as any).scene3d = scene;
     return { world, protocol, add, scene, graphics };
   }
 
-  it('flags HUD prims for the HUD pass and keeps the avatar\'s world position out of their transforms', () => {
+  it("flags HUD prims for the HUD pass and keeps the avatar's world position out of their transforms", () => {
     const { add, scene } = withScene();
     add(AVATAR);
     add(hudRoot({ position: [0.1, 0.4, -0.2] }));
@@ -155,7 +230,14 @@ describe('HUD placement in the scene', () => {
     const { add, scene } = withScene();
     add(AVATAR);
     add(hudRoot({ id: 'hat', localId: 300, attachmentPoint: 2, position: [0, 0, 0.2] }));
-    add({ id: 'rock', localId: 301, parentId: 0, position: [10, 10, 25], scale: [1, 1, 1], rotation: [0, 0, 0, 1] });
+    add({
+      id: 'rock',
+      localId: 301,
+      parentId: 0,
+      position: [10, 10, 25],
+      scale: [1, 1, 1],
+      rotation: [0, 0, 0, 1],
+    });
     expect(scene.objects.get('hat').hud).toBe(false);
     expect(scene.objects.get('rock').hud).toBe(false);
     // The hat follows the avatar through its skull joint (which has a small
@@ -175,13 +257,17 @@ describe('HUD placement in the scene', () => {
 
   it('draws the displayed HUD in the HUD pass and a tap on it touches the prim', async () => {
     const { world, protocol, add, scene, graphics } = withScene();
-    add(AVATAR); add(hudRoot()); add(child());
+    add(AVATAR);
+    add(hudRoot());
+    add(child());
     world.setDisplayedHud('hud-root');
     expect(scene.displayedHud?.rootId).toBe('hud-root');
     scene.render();
     expect(graphics.clearDepth).toHaveBeenCalledOnce();
 
-    (world as any).canvas = { getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }) };
+    (world as any).canvas = {
+      getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }),
+    };
     const touched = world.touchHudAt(400, 300);
     expect(touched?.id).toBeTruthy();
     await Promise.resolve();

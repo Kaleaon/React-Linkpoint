@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Event Queue System (Features 5-8)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 1
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 21-26)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/modules/
- * 
+ *
  * Handles Second Life event queue polling and processing.
  */
 
@@ -38,13 +38,13 @@ export class EventQueueManager {
     if (!seedCapability || typeof seedCapability !== 'string') {
       throw new Error('Valid seed capability URL required');
     }
-    
+
     this.queueUrl = seedCapability;
     this.isPolling = true;
     this.currentDelay = this.baseDelay;
     this.ackId = null;
     console.log('[EventQueue] Started polling:', this.queueUrl);
-    
+
     this.pollLoop();
     return Promise.resolve();
   }
@@ -53,14 +53,15 @@ export class EventQueueManager {
     if (!this.isPolling || !this.queueUrl) return;
 
     try {
-      const body = this.ackId !== null
-        ? LLSD.buildXML({ ack: this.ackId, done: false })
-        : LLSD.buildXML({ done: false });
+      const body =
+        this.ackId !== null
+          ? LLSD.buildXML({ ack: this.ackId, done: false })
+          : LLSD.buildXML({ done: false });
 
       const response = await corsHandler.makeRequest(this.queueUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/llsd+xml' },
-        body
+        body,
       });
 
       if (response && response.ok) {
@@ -76,9 +77,15 @@ export class EventQueueManager {
         }
       } else {
         if (response && (response.status === 403 || response.status === 404)) {
-          console.warn(`[EventQueue] Got HTTP ${response.status} during region boundary crossing. Resetting ack and updating capability URL.`);
+          console.warn(
+            `[EventQueue] Got HTTP ${response.status} during region boundary crossing. Resetting ack and updating capability URL.`,
+          );
           this.ackId = null;
-          if (this.protocol && this.protocol.seedCapability && this.protocol.seedCapability !== this.queueUrl) {
+          if (
+            this.protocol &&
+            this.protocol.seedCapability &&
+            this.protocol.seedCapability !== this.queueUrl
+          ) {
             this.queueUrl = this.protocol.seedCapability;
             this.currentDelay = this.baseDelay;
           }
@@ -137,18 +144,18 @@ export class EventQueueManager {
     if (!eventName || typeof handler !== 'function') {
       throw new Error('Event name and handler function required');
     }
-    
+
     if (!this.handlers.has(eventName)) {
       this.handlers.set(eventName, []);
     }
-    
+
     this.handlers.get(eventName)!.push(handler);
     console.log(`[EventQueue] Registered handler for: ${eventName}`);
   }
 
   unregisterHandler(eventName: string, handler: Function) {
     if (!eventName || !this.handlers.has(eventName)) return;
-    const list = this.handlers.get(eventName)!.filter(h => h !== handler);
+    const list = this.handlers.get(eventName)!.filter((h) => h !== handler);
     if (list.length > 0) {
       this.handlers.set(eventName, list);
     } else {
@@ -164,7 +171,7 @@ export class EventQueueManager {
     if (!eventData || typeof eventData !== 'object') {
       throw new Error('Valid event data object required');
     }
-    
+
     this.eventBuffer.push(eventData);
     this.processEvents();
   }
@@ -207,12 +214,12 @@ export class EventQueueManager {
         const items = Array.isArray(eventBody)
           ? eventBody
           : Array.isArray(eventBody?.AgentData)
-          ? eventBody.AgentData
-          : Array.isArray(eventBody?.agents)
-          ? eventBody.agents
-          : Array.isArray(eventBody?.avatars)
-          ? eventBody.avatars
-          : [eventBody];
+            ? eventBody.AgentData
+            : Array.isArray(eventBody?.agents)
+              ? eventBody.agents
+              : Array.isArray(eventBody?.avatars)
+                ? eventBody.avatars
+                : [eventBody];
         batchedAvatars.push(...items.filter(Boolean));
       } else {
         regularEvents.push({ eventName, eventBody, rawEvent: event });
@@ -229,8 +236,18 @@ export class EventQueueManager {
       // Coalesce updates by avatar ID to keep the latest coordinates/presence state
       const latestById = new Map<string, any>();
       for (const item of batchedAvatars) {
-        const rawId = item.id || item.agentId || item.AgentID || item.agent_id || item.avatar_id || item.avatarId || item.uuid || '';
-        const id = String(typeof rawId === 'object' && rawId?.toString ? rawId.toString() : rawId).trim();
+        const rawId =
+          item.id ||
+          item.agentId ||
+          item.AgentID ||
+          item.agent_id ||
+          item.avatar_id ||
+          item.avatarId ||
+          item.uuid ||
+          '';
+        const id = String(
+          typeof rawId === 'object' && rawId?.toString ? rawId.toString() : rawId,
+        ).trim();
         if (id) {
           latestById.set(id, item);
         } else {
@@ -270,7 +287,7 @@ export class EventQueueManager {
     for (const [registeredName, handlers] of this.handlers.entries()) {
       const regNorm = String(registeredName).toLowerCase().replace(/[-_]/g, '');
       if (regNorm === lowerNorm || registeredName === eventName) {
-        handlers.forEach(handler => {
+        handlers.forEach((handler) => {
           if (handledSet.has(handler)) return;
           handledSet.add(handler);
           try {
@@ -289,7 +306,7 @@ export class EventQueueManager {
       queueUrl: this.queueUrl,
       bufferedEvents: this.eventBuffer.length,
       handlerCount: this.handlers.size,
-      processedEvents: this.processedCount
+      processedEvents: this.processedCount,
     };
   }
 }

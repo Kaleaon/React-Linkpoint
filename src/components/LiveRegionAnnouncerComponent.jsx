@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import { liveRegionAnnouncer } from "../services/LiveRegionAnnouncer";
-import { app } from "../linkpoint/app";
+import { useEffect, useRef } from 'react';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
+import { app } from '../linkpoint/app';
 
 /**
  * LiveRegionAnnouncerComponent

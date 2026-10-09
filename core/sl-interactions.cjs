@@ -21,7 +21,8 @@ const MAX_REPLY_BYTES = 255;
 /** Unanswered interactions kept per session; the oldest are dropped past this. */
 const MAX_PENDING = 50;
 
-const idString = (value) => (value && typeof value.toString === 'function' ? value.toString() : null);
+const idString = (value) =>
+  value && typeof value.toString === 'function' ? value.toString() : null;
 /** A finite number from a number or numeric string; anything else (null, '', booleans, objects) is treated as missing. */
 const finiteOr = (value, fallback) => {
   const usable = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '');
@@ -30,7 +31,12 @@ const finiteOr = (value, fallback) => {
 
 function vectorArray(value) {
   if (!value) return null;
-  const get = (axis) => (typeof value[axis] === 'number' ? value[axis] : typeof value[`get${axis.toUpperCase()}`] === 'function' ? value[`get${axis.toUpperCase()}`]() : NaN);
+  const get = (axis) =>
+    typeof value[axis] === 'number'
+      ? value[axis]
+      : typeof value[`get${axis.toUpperCase()}`] === 'function'
+        ? value[`get${axis.toUpperCase()}`]()
+        : NaN;
   const out = [get('x'), get('y'), get('z')];
   return out.every(Number.isFinite) ? out : null;
 }
@@ -69,15 +75,33 @@ function serializeLure(event) {
 /** Describe a GroupNoticeEvent. Notices need no answer, so nothing is kept for them. */
 function serializeGroupNotice(event) {
   const rawHasAttachment = event.hasAttachment ?? event.HasAttachment ?? event.has_attachment;
-  const attachmentItemId = idString(event.attachmentItemId ?? event.AttachmentItemID ?? event.attachment_item_id ?? event.attachmentItemID);
-  const attachmentName = event.attachmentName != null ? String(event.attachmentName) :
-                         (event.AttachmentName != null ? String(event.AttachmentName) :
-                         (event.attachment_name != null ? String(event.attachment_name) : null));
-  const attachmentType = finiteOr(event.attachmentType ?? event.AttachmentType ?? event.attachment_type, null);
-  const attachmentOwnerId = idString(event.attachmentOwnerId ?? event.AttachmentOwnerID ?? event.attachment_owner_id ?? event.attachmentOwnerID);
+  const attachmentItemId = idString(
+    event.attachmentItemId ??
+      event.AttachmentItemID ??
+      event.attachment_item_id ??
+      event.attachmentItemID,
+  );
+  const attachmentName =
+    event.attachmentName != null
+      ? String(event.attachmentName)
+      : event.AttachmentName != null
+        ? String(event.AttachmentName)
+        : event.attachment_name != null
+          ? String(event.attachment_name)
+          : null;
+  const attachmentType = finiteOr(
+    event.attachmentType ?? event.AttachmentType ?? event.attachment_type,
+    null,
+  );
+  const attachmentOwnerId = idString(
+    event.attachmentOwnerId ??
+      event.AttachmentOwnerID ??
+      event.attachment_owner_id ??
+      event.attachmentOwnerID,
+  );
 
   const hasAttachment = Boolean(
-    rawHasAttachment ?? (attachmentItemId || attachmentName || attachmentType !== null)
+    rawHasAttachment ?? (attachmentItemId || attachmentName || attachmentType !== null),
   );
 
   return {
@@ -87,7 +111,7 @@ function serializeGroupNotice(event) {
     subject: String(event.subject || 'Group Notice'),
     message: String(event.message || ''),
     hasAttachment,
-    attachmentName: hasAttachment ? (attachmentName || null) : null,
+    attachmentName: hasAttachment ? attachmentName || null : null,
     attachmentItemId: hasAttachment ? attachmentItemId : null,
     attachmentType: hasAttachment ? attachmentType : null,
     attachmentOwnerId: hasAttachment ? attachmentOwnerId : null,
@@ -171,19 +195,25 @@ async function respondScriptDialog(bot, pending, params) {
   let reply;
   let index;
   if (textBoxIndex !== -1) {
-    if (typeof params.text !== 'string' || params.text.length === 0) throw new Error('Enter some text to send');
-    if (Buffer.byteLength(params.text, 'utf8') > MAX_REPLY_BYTES) throw new Error(`The reply is too long (${MAX_REPLY_BYTES} bytes at most)`);
+    if (typeof params.text !== 'string' || params.text.length === 0)
+      throw new Error('Enter some text to send');
+    if (Buffer.byteLength(params.text, 'utf8') > MAX_REPLY_BYTES)
+      throw new Error(`The reply is too long (${MAX_REPLY_BYTES} bytes at most)`);
     index = textBoxIndex;
     reply = params.text;
   } else {
     index = params.buttonIndex;
-    if (!Number.isInteger(index) || index < 0 || index >= buttons.length) throw new Error('That button does not exist');
+    if (!Number.isInteger(index) || index < 0 || index >= buttons.length)
+      throw new Error('That button does not exist');
     reply = buttons[index];
   }
   // The library sends `Buttons[index]` as the reply label, so give it a copy whose label is the answer.
   const labels = buttons.slice();
   labels[index] = reply;
-  await commands(bot).comms.respondToScriptDialog({ ObjectID: event.ObjectID, ChatChannel: event.ChatChannel, Buttons: labels }, index);
+  await commands(bot).comms.respondToScriptDialog(
+    { ObjectID: event.ObjectID, ChatChannel: event.ChatChannel, Buttons: labels },
+    index,
+  );
   pending.remove(params.id);
   return { answered: true };
 }
@@ -199,7 +229,10 @@ async function acceptLure(bot, pending, params) {
 /** Accept an inventory offer. */
 async function acceptInventoryOffer(bot, pending, params) {
   const offer = pending.get('inventory-offer', params && params.id);
-  if (commands(bot).inventory && typeof commands(bot).inventory.acceptInventoryOffer === 'function') {
+  if (
+    commands(bot).inventory &&
+    typeof commands(bot).inventory.acceptInventoryOffer === 'function'
+  ) {
     await commands(bot).inventory.acceptInventoryOffer(offer);
   }
   pending.remove(params.id);
@@ -225,15 +258,31 @@ async function acceptGroupNoticeAttachment(bot, pending, params = {}) {
     } catch {}
   }
   const groupId = idString(params.groupId || noticeEvent?.groupID || noticeEvent?.groupId);
-  const attachmentItemId = idString(params.attachmentItemId || noticeEvent?.attachmentItemId || noticeEvent?.AttachmentItemID);
-  const attachmentOwnerId = idString(params.attachmentOwnerId || noticeEvent?.attachmentOwnerId || noticeEvent?.AttachmentOwnerID);
+  const attachmentItemId = idString(
+    params.attachmentItemId || noticeEvent?.attachmentItemId || noticeEvent?.AttachmentItemID,
+  );
+  const attachmentOwnerId = idString(
+    params.attachmentOwnerId || noticeEvent?.attachmentOwnerId || noticeEvent?.AttachmentOwnerID,
+  );
   const folderId = idString(params.folderId);
 
   const cmd = commands(bot);
   if (cmd.groups && typeof cmd.groups.acceptGroupNoticeAttachment === 'function') {
-    await cmd.groups.acceptGroupNoticeAttachment({ groupId, attachmentItemId, attachmentOwnerId, folderId, ...params });
+    await cmd.groups.acceptGroupNoticeAttachment({
+      groupId,
+      attachmentItemId,
+      attachmentOwnerId,
+      folderId,
+      ...params,
+    });
   } else if (cmd.inventory && typeof cmd.inventory.acceptGroupNoticeAttachment === 'function') {
-    await cmd.inventory.acceptGroupNoticeAttachment({ groupId, attachmentItemId, attachmentOwnerId, folderId, ...params });
+    await cmd.inventory.acceptGroupNoticeAttachment({
+      groupId,
+      attachmentItemId,
+      attachmentOwnerId,
+      folderId,
+      ...params,
+    });
   }
   if (params && params.id) {
     pending.remove(params.id);
@@ -273,10 +322,12 @@ function subscribeInteractions(events, pending, send) {
   const subscriptions = [];
   const watch = (subject, kind, serialize) => {
     if (!subject || typeof subject.subscribe !== 'function') return;
-    subscriptions.push(subject.subscribe((event) => {
-      const id = pending.add(kind, event);
-      send(kind, { id, receivedAt: Date.now(), ...serialize(event) });
-    }));
+    subscriptions.push(
+      subject.subscribe((event) => {
+        const id = pending.add(kind, event);
+        send(kind, { id, receivedAt: Date.now(), ...serialize(event) });
+      }),
+    );
   };
   watch(events.onScriptDialog, 'script-dialog', serializeScriptDialog);
   watch(events.onLure, 'lure', serializeLure);
@@ -284,9 +335,15 @@ function subscribeInteractions(events, pending, send) {
   watch(events.onGroupInvite, 'group-invite', serializeGroupInvite);
 
   if (events.onGroupNotice && typeof events.onGroupNotice.subscribe === 'function') {
-    subscriptions.push(events.onGroupNotice.subscribe((event) => {
-      send('group-notice', { id: randomUUID(), timestamp: Date.now(), ...serializeGroupNotice(event) });
-    }));
+    subscriptions.push(
+      events.onGroupNotice.subscribe((event) => {
+        send('group-notice', {
+          id: randomUUID(),
+          timestamp: Date.now(),
+          ...serializeGroupNotice(event),
+        });
+      }),
+    );
   }
   return subscriptions;
 }

@@ -64,35 +64,70 @@ describe('ViewportCanvas Component', () => {
     const canvas = host.querySelector('canvas') as HTMLCanvasElement;
 
     // Test Arrow key movement
-    const upEvent = new KeyboardEvent('keydown', { code: 'ArrowUp', key: 'ArrowUp', bubbles: true, cancelable: true });
+    const upEvent = new KeyboardEvent('keydown', {
+      code: 'ArrowUp',
+      key: 'ArrowUp',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(upEvent);
     expect(onCameraMove).toHaveBeenCalledWith(1, 0, 0);
 
-    const leftEvent = new KeyboardEvent('keydown', { code: 'ArrowLeft', key: 'ArrowLeft', bubbles: true, cancelable: true });
+    const leftEvent = new KeyboardEvent('keydown', {
+      code: 'ArrowLeft',
+      key: 'ArrowLeft',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(leftEvent);
     expect(onCameraMove).toHaveBeenCalledWith(0, -1, 0);
 
     // Test WASD movement
-    const wEvent = new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true, cancelable: true });
+    const wEvent = new KeyboardEvent('keydown', {
+      code: 'KeyW',
+      key: 'w',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(wEvent);
     expect(onCameraMove).toHaveBeenCalledWith(1, 0, 0);
 
     // Test EQ movement
-    const eEvent = new KeyboardEvent('keydown', { code: 'KeyE', key: 'e', bubbles: true, cancelable: true });
+    const eEvent = new KeyboardEvent('keydown', {
+      code: 'KeyE',
+      key: 'e',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(eEvent);
     expect(onCameraMove).toHaveBeenCalledWith(0, 0, 1);
 
     // Test Zoom (+ and -)
-    const plusEvent = new KeyboardEvent('keydown', { key: '+', code: 'Equal', bubbles: true, cancelable: true });
+    const plusEvent = new KeyboardEvent('keydown', {
+      key: '+',
+      code: 'Equal',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(plusEvent);
     expect(onZoom).toHaveBeenCalledWith(0.2);
 
-    const minusEvent = new KeyboardEvent('keydown', { key: '-', code: 'Minus', bubbles: true, cancelable: true });
+    const minusEvent = new KeyboardEvent('keydown', {
+      key: '-',
+      code: 'Minus',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(minusEvent);
     expect(onZoom).toHaveBeenCalledWith(-0.2);
 
     // Test Reset view (Home or KeyR)
-    const homeEvent = new KeyboardEvent('keydown', { code: 'Home', key: 'Home', bubbles: true, cancelable: true });
+    const homeEvent = new KeyboardEvent('keydown', {
+      code: 'Home',
+      key: 'Home',
+      bubbles: true,
+      cancelable: true,
+    });
     canvas.dispatchEvent(homeEvent);
     expect(onResetView).toHaveBeenCalled();
   });
@@ -102,7 +137,12 @@ describe('ViewportCanvas Component', () => {
     const host = await mount({ onCameraMove });
     const canvas = host.querySelector('canvas') as HTMLCanvasElement;
 
-    const ctrlUp = new KeyboardEvent('keydown', { code: 'ArrowUp', key: 'ArrowUp', ctrlKey: true, bubbles: true });
+    const ctrlUp = new KeyboardEvent('keydown', {
+      code: 'ArrowUp',
+      key: 'ArrowUp',
+      ctrlKey: true,
+      bubbles: true,
+    });
     canvas.dispatchEvent(ctrlUp);
     expect(onCameraMove).not.toHaveBeenCalled();
   });

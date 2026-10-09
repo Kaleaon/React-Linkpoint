@@ -4,12 +4,15 @@
 
 export const Utils = {
   generateUUID() {
-    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+    if (
+      typeof globalThis.crypto !== 'undefined' &&
+      typeof globalThis.crypto.randomUUID === 'function'
+    ) {
       return globalThis.crypto.randomUUID();
     }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
   },
@@ -26,13 +29,19 @@ export const Utils = {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type} p-4 mb-2 rounded shadow-lg transition-all duration-300 transform translate-x-0`;
-    
+
     if (type === 'success') toast.classList.add('bg-green-600', 'text-white');
     else if (type === 'error') toast.classList.add('bg-red-600', 'text-white');
     else if (type === 'warning') toast.classList.add('bg-yellow-500', 'text-black');
     else toast.classList.add('bg-blue-600', 'text-white');
 
-    const escapeHTML = (str: string) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    const escapeHTML = (str: string) =>
+      String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     toast.innerHTML = `
       <div class="toast-content">
         <strong>${escapeHTML(type).charAt(0).toUpperCase() + escapeHTML(type).slice(1)}</strong>
@@ -92,7 +101,7 @@ export const Utils = {
       } catch (e) {
         return false;
       }
-    }
+    },
   },
 
   debounce(func: Function, wait: number) {
@@ -109,11 +118,11 @@ export const Utils = {
 
   throttle(func: Function, limit: number) {
     let inThrottle: boolean;
-    return function(this: any, ...args: any[]) {
+    return function (this: any, ...args: any[]) {
       if (!inThrottle) {
         func.apply(this, args);
         inThrottle = true;
-        setTimeout(() => inThrottle = false, limit);
+        setTimeout(() => (inThrottle = false), limit);
       }
     };
   },
@@ -130,7 +139,7 @@ export const Utils = {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     const i = Math.floor(Math.log(absBytes) / Math.log(k));
     const sizeIndex = Math.min(i, sizes.length - 1);
-    const value = Math.round(absBytes / Math.pow(k, sizeIndex) * 100) / 100;
+    const value = Math.round((absBytes / Math.pow(k, sizeIndex)) * 100) / 100;
     return (isNegative ? '-' : '') + value + ' ' + sizes[sizeIndex];
   },
 
@@ -138,7 +147,7 @@ export const Utils = {
     const params: Record<string, string> = {};
     const queryString = url.split('?')[1];
     if (queryString) {
-      queryString.split('&').forEach(param => {
+      queryString.split('&').forEach((param) => {
         const [key, value] = param.split('=');
         params[decodeURIComponent(key)] = decodeURIComponent(value || '');
       });
@@ -161,7 +170,9 @@ export const Utils = {
 
   isMobile() {
     if (typeof navigator === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    );
   },
 
   getDeviceInfo() {
@@ -173,7 +184,7 @@ export const Utils = {
         language: 'en',
         isMobile: false,
         isOnline: true,
-        cookiesEnabled: false
+        cookiesEnabled: false,
       };
     }
     return {
@@ -183,12 +194,12 @@ export const Utils = {
       language: navigator.language,
       isMobile: this.isMobile(),
       isOnline: navigator.onLine,
-      cookiesEnabled: navigator.cookieEnabled
+      cookiesEnabled: navigator.cookieEnabled,
     };
   },
 
   sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   },
 
   async retry(fn: Function, retries: number = 3, delay: number = 1000): Promise<any> {
@@ -213,12 +224,12 @@ export const Utils = {
 
     off(event: string, listener: Function) {
       if (!this.events[event]) return;
-      this.events[event] = this.events[event].filter(l => l !== listener);
+      this.events[event] = this.events[event].filter((l) => l !== listener);
     }
 
     emit(event: string, ...args: any[]) {
       if (!this.events[event]) return;
-      this.events[event].forEach(listener => listener(...args));
+      this.events[event].forEach((listener) => listener(...args));
     }
 
     once(event: string, listener: Function) {
@@ -236,5 +247,5 @@ export const Utils = {
         this.events = {};
       }
     }
-  }
+  },
 };

@@ -17,9 +17,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -38,7 +36,9 @@ afterEach(async () => {
 describe('Minimum Touch Target Dimensions', () => {
   it('renders Camera HUD Close Button in FloatersDesktop with minimum 24x24 dimensions', async () => {
     const host = await mount(createElement(FloatersDesktop));
-    const closeBtn = host.querySelector('button[aria-label="Close Camera Controls"]') as HTMLButtonElement;
+    const closeBtn = host.querySelector(
+      'button[aria-label="Close Camera Controls"]',
+    ) as HTMLButtonElement;
     expect(closeBtn).not.toBeNull();
     expect(closeBtn.style.minWidth).toBe('24px');
     expect(closeBtn.style.minHeight).toBe('24px');
@@ -68,10 +68,16 @@ describe('Minimum Touch Target Dimensions', () => {
     try {
       await act(async () => {
         root.render(
-          createElement(AppProvider, null, createElement(ThemeProvider, null, createElement(TestWrapper)))
+          createElement(
+            AppProvider,
+            null,
+            createElement(ThemeProvider, null, createElement(TestWrapper)),
+          ),
         );
       });
-      const closeBtn = host.querySelector('button[title="Close conversation with Jules"]') as HTMLButtonElement;
+      const closeBtn = host.querySelector(
+        'button[title="Close conversation with Jules"]',
+      ) as HTMLButtonElement;
       expect(closeBtn).not.toBeNull();
       expect(closeBtn.style.minWidth).toBe('24px');
       expect(closeBtn.style.minHeight).toBe('24px');

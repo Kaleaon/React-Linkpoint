@@ -79,7 +79,8 @@ export class LiveRegionAnnouncerService {
     if (!text) return null;
 
     const sender = data.sender || data.fromName || 'Resident';
-    const type = data.type || (data.chatType === 4 ? 'im' : data.chatType === 9 ? 'group' : 'local');
+    const type =
+      data.type || (data.chatType === 4 ? 'im' : data.chatType === 9 ? 'group' : 'local');
 
     if (type === 'im') {
       const recipient = data.recipientName ? ` to ${data.recipientName}` : '';
@@ -132,13 +133,18 @@ export class LiveRegionAnnouncerService {
       const item = this.queue.shift();
       if (item && this.domElement) {
         // Preserve active focused element (ARIA22: no focus displacement)
-        const activeElement = typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null;
+        const activeElement =
+          typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null;
 
         this.domElement.setAttribute('aria-live', item.priority);
         this.domElement.textContent = item.text;
 
         // Restore focus if displaced
-        if (activeElement && typeof document !== 'undefined' && document.activeElement !== activeElement) {
+        if (
+          activeElement &&
+          typeof document !== 'undefined' &&
+          document.activeElement !== activeElement
+        ) {
           try {
             activeElement.focus({ preventScroll: true });
           } catch {

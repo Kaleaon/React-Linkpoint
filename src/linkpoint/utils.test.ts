@@ -133,11 +133,16 @@ describe('Utils', () => {
     });
 
     it('handles URL-encoded values', () => {
-      expect(Utils.parseQueryString('https://example.com?message=Hello%20World&symbol=%24')).toEqual({ message: 'Hello World', symbol: '$' });
+      expect(
+        Utils.parseQueryString('https://example.com?message=Hello%20World&symbol=%24'),
+      ).toEqual({ message: 'Hello World', symbol: '$' });
     });
 
     it('handles parameters without values', () => {
-      expect(Utils.parseQueryString('https://example.com?flag=&another')).toEqual({ flag: '', another: '' });
+      expect(Utils.parseQueryString('https://example.com?flag=&another')).toEqual({
+        flag: '',
+        another: '',
+      });
     });
 
     it('handles duplicate parameters by overwriting with the last value', () => {

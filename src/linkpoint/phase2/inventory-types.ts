@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Inventory Special Types (Features 31-35)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 2
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 65-70)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/modules/inventory/
- * 
+ *
  * Handles special inventory item types (gestures, animations, scripts, sounds, textures).
  */
 
@@ -26,7 +26,7 @@ export class InventorySpecialTypes {
     if (!gestureData || typeof gestureData !== 'object') {
       throw new Error('Valid gesture data required');
     }
-    
+
     const gesture = {
       id: gestureId,
       name: gestureData.name || 'Gesture',
@@ -34,9 +34,9 @@ export class InventorySpecialTypes {
       animations: gestureData.animations || [],
       sounds: gestureData.sounds || [],
       active: gestureData.active || false,
-      ...gestureData
+      ...gestureData,
     };
-    
+
     this.gestures.set(gestureId, gesture);
     console.log(`[InventoryTypes] Registered gesture: ${gesture.name}`);
   }
@@ -60,16 +60,16 @@ export class InventorySpecialTypes {
     if (!animData || typeof animData !== 'object') {
       throw new Error('Valid animation data required');
     }
-    
+
     const animation = {
       id: animId,
       name: animData.name || 'Animation',
       duration: animData.duration || 0,
       loop: animData.loop || false,
       priority: animData.priority || 0,
-      ...animData
+      ...animData,
     };
-    
+
     this.animations.set(animId, animation);
     console.log(`[InventoryTypes] Registered animation: ${animation.name}`);
   }
@@ -89,16 +89,16 @@ export class InventorySpecialTypes {
     if (!scriptData || typeof scriptData !== 'object') {
       throw new Error('Valid script data required');
     }
-    
+
     const script = {
       id: scriptId,
       name: scriptData.name || 'Script',
       state: scriptData.state || 'stopped', // stopped, running, error
       compiled: scriptData.compiled || false,
       errors: scriptData.errors || [],
-      ...scriptData
+      ...scriptData,
     };
-    
+
     this.scripts.set(scriptId, script);
     console.log(`[InventoryTypes] Registered script: ${script.name}`);
   }
@@ -122,16 +122,16 @@ export class InventorySpecialTypes {
     if (!soundData || typeof soundData !== 'object') {
       throw new Error('Valid sound data required');
     }
-    
+
     const sound = {
       id: soundId,
       name: soundData.name || 'Sound',
       duration: soundData.duration || 0,
       preloaded: false,
       volume: soundData.volume || 1.0,
-      ...soundData
+      ...soundData,
     };
-    
+
     this.sounds.set(soundId, sound);
     console.log(`[InventoryTypes] Registered sound: ${sound.name}`);
   }
@@ -231,7 +231,7 @@ export class InventorySpecialTypes {
     if (!textureData || typeof textureData !== 'object') {
       throw new Error('Valid texture data required');
     }
-    
+
     const texture = {
       id: textureId,
       name: textureData.name || 'Texture',
@@ -239,9 +239,9 @@ export class InventorySpecialTypes {
       height: textureData.height || 0,
       cached: false,
       priority: textureData.priority || 0,
-      ...textureData
+      ...textureData,
     };
-    
+
     this.textures.set(textureId, texture);
     console.log(`[InventoryTypes] Registered texture: ${texture.name}`);
   }
@@ -257,21 +257,21 @@ export class InventorySpecialTypes {
     return {
       gestures: {
         total: this.gestures.size,
-        active: Array.from(this.gestures.values()).filter(g => g.active).length
+        active: Array.from(this.gestures.values()).filter((g) => g.active).length,
       },
       animations: this.animations.size,
       scripts: {
         total: this.scripts.size,
-        running: Array.from(this.scripts.values()).filter(s => s.state === 'running').length
+        running: Array.from(this.scripts.values()).filter((s) => s.state === 'running').length,
       },
       sounds: {
         total: this.sounds.size,
-        preloaded: Array.from(this.sounds.values()).filter(s => s.preloaded).length
+        preloaded: Array.from(this.sounds.values()).filter((s) => s.preloaded).length,
       },
       textures: {
         total: this.textures.size,
-        cached: Array.from(this.textures.values()).filter(t => t.cached).length
-      }
+        cached: Array.from(this.textures.values()).filter((t) => t.cached).length,
+      },
     };
   }
 }

@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../app';
 
 describe('friends loading retries', () => {
-  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it('retries after a failure and reports the error until the list arrives', async () => {
     vi.useFakeTimers();
     vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
-    const fetchFriends = vi.fn()
+    const fetchFriends = vi
+      .fn()
       .mockRejectedValueOnce(new Error('timed out'))
       .mockResolvedValueOnce([])
       .mockResolvedValue([{ id: 'aaaa', name: 'Ada Lovelace', onlineStatus: 'online' }]);
@@ -22,7 +26,9 @@ describe('friends loading retries', () => {
     await vi.advanceTimersByTimeAsync(4001);
     expect(fetchFriends).toHaveBeenCalledTimes(3);
     expect(app.friendsError).toBeNull();
-    expect(loaded).toHaveBeenCalledWith([{ id: 'aaaa', name: 'Ada Lovelace', onlineStatus: 'online' }]);
+    expect(loaded).toHaveBeenCalledWith([
+      { id: 'aaaa', name: 'Ada Lovelace', onlineStatus: 'online' },
+    ]);
     app.protocol.off('friends_loaded', loaded);
   });
 });

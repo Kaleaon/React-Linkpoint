@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { ControlFlags } from '@caspertech/node-metaverse';
 import {
-  AGENT_CONTROL, AgentController, FLY_TIME_MS, NUDGE_TIME_MS, ONE_SHOT_FLAGS,
+  AGENT_CONTROL,
+  AgentController,
+  FLY_TIME_MS,
+  NUDGE_TIME_MS,
+  ONE_SHOT_FLAGS,
   intentToFlags,
 } from '../agent-controls';
-import { DEFAULT_KEY_BINDINGS, commandFor, commandsFor, keyNameFromCode, maskFromModifiers } from '../key-bindings';
+import {
+  DEFAULT_KEY_BINDINGS,
+  commandFor,
+  commandsFor,
+  keyNameFromCode,
+  maskFromModifiers,
+} from '../key-bindings';
 
 describe('agent control flags', () => {
   it('match node-metaverse for every flag it defines', () => {
@@ -12,7 +22,10 @@ describe('agent control flags', () => {
     let checked = 0;
     for (const [name, value] of Object.entries(AGENT_CONTROL)) {
       const key = `AGENT_CONTROL_${name}`;
-      if (key in lib) { expect(value >>> 0, key).toBe(lib[key] >>> 0); checked++; }
+      if (key in lib) {
+        expect(value >>> 0, key).toBe(lib[key] >>> 0);
+        checked++;
+      }
     }
     expect(checked).toBeGreaterThan(25);
   });
@@ -36,7 +49,9 @@ describe('agent control flags', () => {
   });
 
   it('adds FAST_* only to axes that are moving', () => {
-    expect(intentToFlags({ forward: 1, run: true })).toBe(AGENT_CONTROL.AT_POS | AGENT_CONTROL.FAST_AT);
+    expect(intentToFlags({ forward: 1, run: true })).toBe(
+      AGENT_CONTROL.AT_POS | AGENT_CONTROL.FAST_AT,
+    );
     expect(intentToFlags({ run: true })).toBe(0);
   });
 
@@ -58,7 +73,8 @@ describe('AgentController', () => {
 
   it('runs on tap-tap-hold and stops running on release', () => {
     const c = new AgentController();
-    c.command('push_forward', true, 0); c.command('push_forward', false, 80);
+    c.command('push_forward', true, 0);
+    c.command('push_forward', false, 80);
     c.command('push_forward', true, 200);
     expect(c.nextFlags(200 + NUDGE_TIME_MS + 1)).toBe(AGENT_CONTROL.AT_POS | AGENT_CONTROL.FAST_AT);
     c.command('push_forward', false, 900);
@@ -68,7 +84,8 @@ describe('AgentController', () => {
 
   it('does not treat a second tap after the window as a run', () => {
     const c = new AgentController();
-    c.command('push_forward', true, 0); c.command('push_forward', false, 50);
+    c.command('push_forward', true, 0);
+    c.command('push_forward', false, 50);
     c.command('push_forward', true, 400);
     expect(c.nextFlags(400 + NUDGE_TIME_MS + 1) & AGENT_CONTROL.FAST_AT).toBe(0);
   });
@@ -76,7 +93,9 @@ describe('AgentController', () => {
   it('honours AllowTapTapHoldRun = off and always-run', () => {
     const c = new AgentController();
     c.allowTapTapHoldRun = false;
-    c.command('push_forward', true, 0); c.command('push_forward', false, 50); c.command('push_forward', true, 100);
+    c.command('push_forward', true, 0);
+    c.command('push_forward', false, 50);
+    c.command('push_forward', true, 100);
     expect(c.nextFlags(500) & AGENT_CONTROL.FAST_AT).toBe(0);
     c.command('toggle_run', true, 600);
     expect(c.nextFlags(900) & AGENT_CONTROL.FAST_AT).toBe(AGENT_CONTROL.FAST_AT);
@@ -84,7 +103,8 @@ describe('AgentController', () => {
 
   it('toggles flying on the key-down edge only', () => {
     const c = new AgentController();
-    c.command('toggle_fly', true, 0); c.command('toggle_fly', false, 10);
+    c.command('toggle_fly', true, 0);
+    c.command('toggle_fly', false, 10);
     expect(c.flying).toBe(true);
     expect(c.nextFlags(20) & AGENT_CONTROL.FLY).toBe(AGENT_CONTROL.FLY);
     c.command('toggle_fly', true, 30);
@@ -96,7 +116,8 @@ describe('AgentController', () => {
     c.command('jump', true, 0);
     expect(c.nextFlags(FLY_TIME_MS - 1) & AGENT_CONTROL.FLY).toBe(0);
     expect(c.nextFlags(FLY_TIME_MS) & AGENT_CONTROL.FLY).toBe(AGENT_CONTROL.FLY);
-    const off = new AgentController(); off.automaticFly = false;
+    const off = new AgentController();
+    off.automaticFly = false;
     off.command('jump', true, 0);
     expect(off.nextFlags(5000) & AGENT_CONTROL.FLY).toBe(0);
     expect(off.nextFlags(5000) & AGENT_CONTROL.UP_POS).toBe(AGENT_CONTROL.UP_POS);
@@ -115,7 +136,8 @@ describe('AgentController', () => {
 
   it('ignores key repeat and releaseAll clears held state', () => {
     const c = new AgentController();
-    c.command('turn_left', true, 0); c.command('turn_left', true, 30);
+    c.command('turn_left', true, 0);
+    c.command('turn_left', true, 30);
     expect(c.nextFlags(40)).toBe(AGENT_CONTROL.TURN_LEFT);
     c.releaseAll();
     expect(c.nextFlags(50)).toBe(0);
@@ -145,7 +167,9 @@ describe('default key bindings', () => {
   });
 
   it('applies overrides per mode and maps DOM codes and modifiers', () => {
-    expect(commandFor('third_person', 'W', 'NONE', { third_person: [['W', 'NONE', 'jump']] })).toBe('jump');
+    expect(commandFor('third_person', 'W', 'NONE', { third_person: [['W', 'NONE', 'jump']] })).toBe(
+      'jump',
+    );
     expect(keyNameFromCode('KeyW')).toBe('W');
     expect(keyNameFromCode('PageUp')).toBe('PGUP');
     expect(keyNameFromCode('F5')).toBeNull();

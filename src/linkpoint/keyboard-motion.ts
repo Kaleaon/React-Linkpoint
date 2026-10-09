@@ -9,8 +9,20 @@
  */
 
 export const MOTION_KEYS = [
-  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyC', 'Space',
-  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown',
+  'KeyW',
+  'KeyA',
+  'KeyS',
+  'KeyD',
+  'KeyQ',
+  'KeyE',
+  'KeyC',
+  'Space',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'PageUp',
+  'PageDown',
 ] as const;
 
 const MOTION_KEY_SET = new Set<string>(MOTION_KEYS);
@@ -38,9 +50,17 @@ export function resolveKeyMotion(keys: ReadonlySet<string>, shift = false): KeyM
   const up = axis(keys, ['KeyE', 'Space', 'PageUp'], ['KeyQ', 'KeyC', 'PageDown']);
   const turn = axis(keys, ['ArrowRight'], ['ArrowLeft']);
   const planar = Math.hypot(forward, right);
-  if (planar > 1) { forward /= planar; right /= planar; }
+  if (planar > 1) {
+    forward /= planar;
+    right /= planar;
+  }
   const speed = shift ? RUN_SPEED_MULTIPLIER : WALK_SPEED_MULTIPLIER;
-  return { forward: forward * speed, right: right * speed, up: up * speed, turn: turn * (shift ? 1.5 : 1) };
+  return {
+    forward: forward * speed,
+    right: right * speed,
+    up: up * speed,
+    turn: turn * (shift ? 1.5 : 1),
+  };
 }
 
 /** True when typing should win over camera shortcuts. */

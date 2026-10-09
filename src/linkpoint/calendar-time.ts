@@ -12,23 +12,56 @@
 export const SLT_ZONE = 'America/Los_Angeles';
 
 const ZONES: Record<string, string> = {
-  slt: SLT_ZONE, pst: SLT_ZONE, pdt: SLT_ZONE, pt: SLT_ZONE,
-  utc: 'UTC', gmt: 'UTC',
-  est: 'America/New_York', edt: 'America/New_York', et: 'America/New_York',
-  cst: 'America/Chicago', cdt: 'America/Chicago', ct: 'America/Chicago',
+  slt: SLT_ZONE,
+  pst: SLT_ZONE,
+  pdt: SLT_ZONE,
+  pt: SLT_ZONE,
+  utc: 'UTC',
+  gmt: 'UTC',
+  est: 'America/New_York',
+  edt: 'America/New_York',
+  et: 'America/New_York',
+  cst: 'America/Chicago',
+  cdt: 'America/Chicago',
+  ct: 'America/Chicago',
 };
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-interface Wall { year: number; month: number; day: number; hour: number; minute: number; weekday: number }
+interface Wall {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  weekday: number;
+}
 
 /** The calendar fields of an instant as seen in `zone`. */
 function wallClock(instant: number, zone: string): Wall {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', weekday: 'short' }).formatToParts(new Date(instant));
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    weekday: 'short',
+  }).formatToParts(new Date(instant));
   const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
-  const weekday = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(get('weekday').toLowerCase());
-  return { year: Number(get('year')), month: Number(get('month')), day: Number(get('day')), hour: Number(get('hour')) % 24, minute: Number(get('minute')), weekday };
+  const weekday = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(
+    get('weekday').toLowerCase(),
+  );
+  return {
+    year: Number(get('year')),
+    month: Number(get('month')),
+    day: Number(get('day')),
+    hour: Number(get('hour')) % 24,
+    minute: Number(get('minute')),
+    weekday,
+  };
 }
 
 /** `YYYY-MM-DDTHH:mm`, the clock reading of an instant in `zone`, in the form a datetime-local input uses. */
@@ -52,11 +85,21 @@ export function fromLocalInputValue(value: string, zone: string): Date | null {
 /** Milliseconds `zone` is ahead of UTC at `instant`. */
 function offsetAt(instant: number, zone: string): number {
   const wall = wallClock(instant, zone);
-  return Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute) - Math.floor(instant / 60000) * 60000;
+  return (
+    Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute) -
+    Math.floor(instant / 60000) * 60000
+  );
 }
 
 /** The instant at which the clocks in `zone` read this date and time. */
-export function zonedTimeToInstant(year: number, month: number, day: number, hour: number, minute: number, zone: string): Date {
+export function zonedTimeToInstant(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  zone: string,
+): Date {
   const naive = Date.UTC(year, month - 1, day, hour, minute);
   let instant = naive - offsetAt(naive, zone);
   // Across a daylight-saving change the first offset can be off by an hour; recompute once with the better guess.
@@ -97,17 +140,25 @@ function readDate(text: string, today: Wall): { year: number; month: number; day
   const iso = lower.match(/\b(20\d{2})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/);
   if (iso) return { year: Number(iso[1]), month: Number(iso[2]), day: Number(iso[3]) };
 
-  const named = lower.match(new RegExp(`\\b(${MONTHS.join('|')})[a-z]*\\.?\\s+(0?[1-9]|[12]\\d|3[01])(?:st|nd|rd|th)?\\b`));
+  const named = lower.match(
+    new RegExp(`\\b(${MONTHS.join('|')})[a-z]*\\.?\\s+(0?[1-9]|[12]\\d|3[01])(?:st|nd|rd|th)?\\b`),
+  );
   if (named) return rollForward(today, MONTHS.indexOf(named[1]) + 1, Number(named[2]));
 
   const slash = lower.match(/\b(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])(?:\/(\d{2}|\d{4}))?\b/);
   if (slash) {
-    if (slash[3]) return { year: slash[3].length === 2 ? 2000 + Number(slash[3]) : Number(slash[3]), month: Number(slash[1]), day: Number(slash[2]) };
+    if (slash[3])
+      return {
+        year: slash[3].length === 2 ? 2000 + Number(slash[3]) : Number(slash[3]),
+        month: Number(slash[1]),
+        day: Number(slash[2]),
+      };
     return rollForward(today, Number(slash[1]), Number(slash[2]));
   }
 
   if (/\btomorrow\b/.test(lower)) return addDays(today, 1);
-  if (/\btoday\b|\btonight\b/.test(lower)) return { year: today.year, month: today.month, day: today.day };
+  if (/\btoday\b|\btonight\b/.test(lower))
+    return { year: today.year, month: today.month, day: today.day };
   for (let i = 0; i < 7; i++) {
     if (new RegExp(`\\b${WEEKDAYS[i]}\\b|\\b${WEEKDAYS[i].slice(0, 3)}\\b(?!\\w)`).test(lower)) {
       const ahead = (i - today.weekday + 7) % 7;
@@ -142,7 +193,13 @@ export function suggestEventTime(text: string, receivedAt: number = Date.now()):
   if (!time) {
     // Nothing to go on: the next whole hour after the notice, flagged as a placeholder.
     const start = new Date(Math.floor(receivedAt / 3_600_000) * 3_600_000 + 3_600_000);
-    return { start, end: new Date(start.getTime() + 3_600_000), timeZone, found: false, assumedZone };
+    return {
+      start,
+      end: new Date(start.getTime() + 3_600_000),
+      timeZone,
+      found: false,
+      assumedZone,
+    };
   }
 
   const today = wallClock(receivedAt, timeZone);

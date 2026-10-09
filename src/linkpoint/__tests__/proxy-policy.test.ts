@@ -24,6 +24,8 @@ describe('proxy target policy', () => {
   it('uses an explicit deployment allowlist when one is supplied', () => {
     const hosts = getAllowedProxyHosts('login.example-grid.test');
     expect(() => validateProxyTarget('https://login.example-grid.test/', hosts)).not.toThrow();
-    expect(() => validateProxyTarget('https://login.agni.lindenlab.com/', hosts)).toThrow('not allowed');
+    expect(() => validateProxyTarget('https://login.agni.lindenlab.com/', hosts)).toThrow(
+      'not allowed',
+    );
   });
 });

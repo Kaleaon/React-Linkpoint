@@ -3,8 +3,21 @@ import { failureFromResponseBody } from './login-failure';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
 const READ_ONLY_CALLS = new Set([
-  'fetchAnimation', 'fetchSound', 'getBalance', 'getDiagnostics', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getOutfit', 'getShape',
-  'getMapBlocks', 'getSceneObjects', 'getSceneSnapshot', 'getTransactionHistory', 'searchDir',
+  'fetchAnimation',
+  'fetchSound',
+  'getBalance',
+  'getDiagnostics',
+  'getFriends',
+  'getGroups',
+  'getGroupDetails',
+  'getInventory',
+  'getOutfit',
+  'getShape',
+  'getMapBlocks',
+  'getSceneObjects',
+  'getSceneSnapshot',
+  'getTransactionHistory',
+  'searchDir',
 ]);
 
 export interface SLBridgeConnectParams {
@@ -55,7 +68,10 @@ export class SLBridge extends Utils.EventEmitter {
 
   private async failure(response: Response, fallback: string) {
     const err = await response.json().catch(() => ({ error: fallback }));
-    return failureFromResponseBody(err) || new Error(err.error || err.message || `${fallback} (HTTP ${response.status})`);
+    return (
+      failureFromResponseBody(err) ||
+      new Error(err.error || err.message || `${fallback} (HTTP ${response.status})`)
+    );
   }
 
   private begin(data: any) {
@@ -63,7 +79,9 @@ export class SLBridge extends Utils.EventEmitter {
     this.connected = true;
     if (desktop()) {
       this.removeNativeListener?.();
-      this.removeNativeListener = desktop()!.onViewerEvent(({ type, data: payload }) => this.emit(type, payload));
+      this.removeNativeListener = desktop()!.onViewerEvent(({ type, data: payload }) =>
+        this.emit(type, payload),
+      );
     } else {
       this.startEventStream(this.sessionId);
     }
@@ -154,7 +172,8 @@ export class SLBridge extends Utils.EventEmitter {
         ? await rateLimitedFetch('/api/sl/call', options)
         : await fetch('/api/sl/call', options);
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || data.message || `Request failed (HTTP ${response.status})`);
+      if (!response.ok)
+        throw new Error(data.error || data.message || `Request failed (HTTP ${response.status})`);
       return data as T;
     };
     if (!READ_ONLY_CALLS.has(method)) return request();
@@ -167,53 +186,173 @@ export class SLBridge extends Utils.EventEmitter {
   }
 
   teleport(params: { destination?: string; region?: string; x?: number; y?: number; z?: number }) {
-    return this.call<{ requested: { region: string; x: number; y: number; z: number }; message: string }>('teleport', params);
+    return this.call<{
+      requested: { region: string; x: number; y: number; z: number };
+      message: string;
+    }>('teleport', params);
   }
-  teleportHome() { return this.call<{ requested: string }>('teleportHome'); }
-  wearItem(params: { itemId: string }) { return this.call<{ worn: string; baked: boolean; reason?: string }>('wearItem', params); }
-  removeWorn(params: { linkId: string }) { return this.call<{ removed: string; baked: boolean; reason?: string }>('removeWorn', params); }
-  wearOutfit(params: { folderId: string }) { return this.call<{ worn: number; baked: boolean; reason?: string }>('wearOutfit', params); }
-  detachAttachment(params: { id: string }) { return this.call<{ detached: string }>('detachAttachment', params); }
-  offerTeleport(params: { id: string; message?: string }) { return this.call<{ offered: string }>('offerTeleport', params); }
-  fetchShape() { return this.call<{ itemId: string; name: string; values: Record<string, number> }>('getShape'); }
-  saveShape(params: { values: Record<string, number>; name?: string }) { return this.call<{ saved: string; baked: boolean; reason?: string }>('saveShape', params); }
-  joinGroup(params: { groupId: string }) { return this.call<{ joined: boolean }>('joinGroup', params); }
+  teleportHome() {
+    return this.call<{ requested: string }>('teleportHome');
+  }
+  wearItem(params: { itemId: string }) {
+    return this.call<{ worn: string; baked: boolean; reason?: string }>('wearItem', params);
+  }
+  removeWorn(params: { linkId: string }) {
+    return this.call<{ removed: string; baked: boolean; reason?: string }>('removeWorn', params);
+  }
+  wearOutfit(params: { folderId: string }) {
+    return this.call<{ worn: number; baked: boolean; reason?: string }>('wearOutfit', params);
+  }
+  detachAttachment(params: { id: string }) {
+    return this.call<{ detached: string }>('detachAttachment', params);
+  }
+  offerTeleport(params: { id: string; message?: string }) {
+    return this.call<{ offered: string }>('offerTeleport', params);
+  }
+  fetchShape() {
+    return this.call<{ itemId: string; name: string; values: Record<string, number> }>('getShape');
+  }
+  saveShape(params: { values: Record<string, number>; name?: string }) {
+    return this.call<{ saved: string; baked: boolean; reason?: string }>('saveShape', params);
+  }
+  joinGroup(params: { groupId: string }) {
+    return this.call<{ joined: boolean }>('joinGroup', params);
+  }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }
-  acceptLure(params: { id: string }) { return this.call<{ accepted: boolean; message: string }>('acceptLure', params); }
-  acceptInventoryOffer(params: { id: string }) { return this.call<{ accepted: boolean }>('acceptInventoryOffer', params); }
-  declineInventoryOffer(params: { id: string }) { return this.call<{ declined: boolean }>('declineInventoryOffer', params).catch(() => this.dismissInteraction(params) as any); }
-  acceptGroupInvite(params: { id: string }) { return this.call<{ accepted: boolean }>('acceptGroupInvite', params); }
-  declineGroupInvite(params: { id: string }) { return this.call<{ declined: boolean }>('declineGroupInvite', params).catch(() => this.dismissInteraction(params) as any); }
-  acceptGroupNoticeAttachment(params: { id?: string; noticeId?: string; groupId?: string; attachmentItemId?: string; attachmentOwnerId?: string; folderId?: string }) { return this.call<{ accepted: boolean }>('acceptGroupNoticeAttachment', params); }
-  dismissInteraction(params: { id: string }) { return this.call<{ dismissed: boolean }>('dismissInteraction', params); }
-  touchObject(params: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
+  acceptLure(params: { id: string }) {
+    return this.call<{ accepted: boolean; message: string }>('acceptLure', params);
+  }
+  acceptInventoryOffer(params: { id: string }) {
+    return this.call<{ accepted: boolean }>('acceptInventoryOffer', params);
+  }
+  declineInventoryOffer(params: { id: string }) {
+    return this.call<{ declined: boolean }>('declineInventoryOffer', params).catch(
+      () => this.dismissInteraction(params) as any,
+    );
+  }
+  acceptGroupInvite(params: { id: string }) {
+    return this.call<{ accepted: boolean }>('acceptGroupInvite', params);
+  }
+  declineGroupInvite(params: { id: string }) {
+    return this.call<{ declined: boolean }>('declineGroupInvite', params).catch(
+      () => this.dismissInteraction(params) as any,
+    );
+  }
+  acceptGroupNoticeAttachment(params: {
+    id?: string;
+    noticeId?: string;
+    groupId?: string;
+    attachmentItemId?: string;
+    attachmentOwnerId?: string;
+    folderId?: string;
+  }) {
+    return this.call<{ accepted: boolean }>('acceptGroupNoticeAttachment', params);
+  }
+  dismissInteraction(params: { id: string }) {
+    return this.call<{ dismissed: boolean }>('dismissInteraction', params);
+  }
+  touchObject(params: {
+    id?: string;
+    localId?: number;
+    face?: number;
+    uv?: number[];
+    st?: number[];
+    position?: number[];
+  }) {
     return this.call<{ touched: string | number }>('touchObject', params);
   }
-  sit(params: { id?: string } = {}) { return this.call<{ sitting: string }>('sit', params); }
-  stand() { return this.call<{ standing: boolean }>('stand'); }
-  setMovement(params: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean; controlFlags?: number }) {
+  sit(params: { id?: string } = {}) {
+    return this.call<{ sitting: string }>('sit', params);
+  }
+  stand() {
+    return this.call<{ standing: boolean }>('stand');
+  }
+  setMovement(params: {
+    forward?: number;
+    right?: number;
+    up?: number;
+    turn?: number;
+    run?: boolean;
+    controlFlags?: number;
+  }) {
     return this.call<{ moving: boolean; flags?: number }>('setMovement', params);
   }
-  getBalance() { return this.call<{ balance: number; currencySymbol?: string; currency_symbol?: string; isZeroCurrency?: boolean; is_zero_currency?: boolean }>('getBalance'); }
-  payObject(params: { targetId?: string; id?: string; objectId?: string; amount: number; description?: string; targetName?: string; currencySymbol?: string; isZeroCurrency?: boolean }) {
-    return this.call<{ paid: boolean; targetId: string; amount: number; description: string; transaction?: any }>('payObject', params);
+  getBalance() {
+    return this.call<{
+      balance: number;
+      currencySymbol?: string;
+      currency_symbol?: string;
+      isZeroCurrency?: boolean;
+      is_zero_currency?: boolean;
+    }>('getBalance');
   }
-  payAvatar(params: { targetId?: string; id?: string; avatarId?: string; amount: number; description?: string; targetName?: string; currencySymbol?: string; isZeroCurrency?: boolean }) {
-    return this.call<{ paid: boolean; targetId: string; amount: number; description: string; transaction?: any }>('payAvatar', params);
+  payObject(params: {
+    targetId?: string;
+    id?: string;
+    objectId?: string;
+    amount: number;
+    description?: string;
+    targetName?: string;
+    currencySymbol?: string;
+    isZeroCurrency?: boolean;
+  }) {
+    return this.call<{
+      paid: boolean;
+      targetId: string;
+      amount: number;
+      description: string;
+      transaction?: any;
+    }>('payObject', params);
+  }
+  payAvatar(params: {
+    targetId?: string;
+    id?: string;
+    avatarId?: string;
+    amount: number;
+    description?: string;
+    targetName?: string;
+    currencySymbol?: string;
+    isZeroCurrency?: boolean;
+  }) {
+    return this.call<{
+      paid: boolean;
+      targetId: string;
+      amount: number;
+      description: string;
+      transaction?: any;
+    }>('payAvatar', params);
   }
   getTransactionHistory() {
-    return this.call<{ balance: number; currencySymbol?: string; currency_symbol?: string; isZeroCurrency?: boolean; is_zero_currency?: boolean; transactions: any[] }>('getTransactionHistory');
+    return this.call<{
+      balance: number;
+      currencySymbol?: string;
+      currency_symbol?: string;
+      isZeroCurrency?: boolean;
+      is_zero_currency?: boolean;
+      transactions: any[];
+    }>('getTransactionHistory');
   }
 
-  async sendChat(message: string, channel = 0, type = 1) { await this.call('sendChat', { message, channel, type }); }
-  async sendInstantMessage(recipientId: string, message: string) { await this.call('sendInstantMessage', { recipientId, message }); }
-  async sendGroupMessage(groupId: string, message: string) { await this.call('sendGroupMessage', { groupId, message }); }
-  async sendFriendRequest(recipientId: string, message?: string) { await this.call('sendFriendRequest', { recipientId, message }); }
+  async sendChat(message: string, channel = 0, type = 1) {
+    await this.call('sendChat', { message, channel, type });
+  }
+  async sendInstantMessage(recipientId: string, message: string) {
+    await this.call('sendInstantMessage', { recipientId, message });
+  }
+  async sendGroupMessage(groupId: string, message: string) {
+    await this.call('sendGroupMessage', { groupId, message });
+  }
+  async sendFriendRequest(recipientId: string, message?: string) {
+    await this.call('sendFriendRequest', { recipientId, message });
+  }
 
   /** A resident's public profile picture as base64, or null when they have none. */
-  async fetchProfilePhoto(name: string, full = false): Promise<{ photoBytes: string | null; contentType?: string }> {
+  async fetchProfilePhoto(
+    name: string,
+    full = false,
+  ): Promise<{ photoBytes: string | null; contentType?: string }> {
     if (!this.connected) throw new Error('Not connected to Second Life');
     const native = desktop();
     if (native) return native.fetchProfilePhoto({ name, full });
@@ -224,25 +363,44 @@ export class SLBridge extends Utils.EventEmitter {
     return data;
   }
 
-  async fetchFriends() { return this.connected ? this.call<any[]>('getFriends') : []; }
+  async fetchFriends() {
+    return this.connected ? this.call<any[]>('getFriends') : [];
+  }
   async fetchGroupDetails(groupId: string, section: string = 'profile') {
     if (!this.connected) throw new Error('Connect to a grid to load group details');
     return this.call<any>('getGroupDetails', { groupId, section });
   }
 
-  async fetchOutfit() { return this.connected ? this.call<{ items: any[]; outfits: any[] }>('getOutfit') : { items: [], outfits: [] }; }
-  async fetchGroups() { return this.connected ? this.call<any[]>('getGroups') : []; }
+  async fetchOutfit() {
+    return this.connected
+      ? this.call<{ items: any[]; outfits: any[] }>('getOutfit')
+      : { items: [], outfits: [] };
+  }
+  async fetchGroups() {
+    return this.connected ? this.call<any[]>('getGroups') : [];
+  }
   async fetchInventory(folderId?: string) {
-    return this.connected ? this.call('getInventory', folderId ? { folderId } : {}) : { folders: [], items: [] };
+    return this.connected
+      ? this.call('getInventory', folderId ? { folderId } : {})
+      : { folders: [], items: [] };
   }
   async fetchScene() {
     if (!this.connected) return [];
-    try { return await this.call<any[]>('getSceneObjects'); } catch { return []; }
+    try {
+      return await this.call<any[]>('getSceneObjects');
+    } catch {
+      return [];
+    }
   }
-  async fetchSceneSnapshot(options: { retryFailed?: boolean } = {}): Promise<{ objects: any[]; assets: any[] }> {
+  async fetchSceneSnapshot(
+    options: { retryFailed?: boolean } = {},
+  ): Promise<{ objects: any[]; assets: any[] }> {
     if (!this.connected) return { objects: [], assets: [] };
     try {
-      const snapshot = await this.call<{ objects: any[]; assets: any[] }>('getSceneSnapshot', options.retryFailed ? { retryFailed: true } : undefined);
+      const snapshot = await this.call<{ objects: any[]; assets: any[] }>(
+        'getSceneSnapshot',
+        options.retryFailed ? { retryFailed: true } : undefined,
+      );
       return snapshot || { objects: [], assets: [] };
     } catch {
       return { objects: await this.fetchScene(), assets: [] };
@@ -250,7 +408,11 @@ export class SLBridge extends Utils.EventEmitter {
   }
   async fetchDiagnostics() {
     if (!this.connected) return null;
-    try { return await this.call('getDiagnostics'); } catch { return null; }
+    try {
+      return await this.call('getDiagnostics');
+    } catch {
+      return null;
+    }
   }
   /** Directory search capabilities across grid categories ('people', 'groups', 'places'). */
   async searchDir(params: { category: string; query: string; start?: number }): Promise<{
@@ -278,16 +440,32 @@ export class SLBridge extends Utils.EventEmitter {
     return this.call('searchDir', params);
   }
 
-  fetchAnimation(id: string): Promise<{ id: string; data: string }> { return this.call('fetchAnimation', { id }); }
-  fetchSound(id: string): Promise<{ requested: boolean }> { return this.call('fetchSound', { id }); }
+  fetchAnimation(id: string): Promise<{ id: string; data: string }> {
+    return this.call('fetchAnimation', { id });
+  }
+  fetchSound(id: string): Promise<{ requested: boolean }> {
+    return this.call('fetchSound', { id });
+  }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   /** `regionHandle` provisions on a neighbouring region (cross-region voice) instead of the current one. */
-  voiceProvision(body: Record<string, unknown>, regionHandle?: string) { return this.call<any>('voiceProvision', regionHandle ? { body, regionHandle } : { body }); }
-  voiceSignal(body: Record<string, unknown>) { return this.call('voiceSignal', { body }); }
-  voiceLogout(viewerSession: string) { return this.call('voiceLogout', { viewerSession }); }
-  requestMuteList() { return this.call<{ requested: boolean }>('requestMuteList'); }
-  updateMuteEntry(entry: { id: string; name: string; type: number; flags: number }) { return this.call<{ sent: boolean }>('updateMuteEntry', entry); }
-  removeMuteEntry(entry: { id: string; name: string; type: number }) { return this.call<{ sent: boolean }>('removeMuteEntry', entry); }
+  voiceProvision(body: Record<string, unknown>, regionHandle?: string) {
+    return this.call<any>('voiceProvision', regionHandle ? { body, regionHandle } : { body });
+  }
+  voiceSignal(body: Record<string, unknown>) {
+    return this.call('voiceSignal', { body });
+  }
+  voiceLogout(viewerSession: string) {
+    return this.call('voiceLogout', { viewerSession });
+  }
+  requestMuteList() {
+    return this.call<{ requested: boolean }>('requestMuteList');
+  }
+  updateMuteEntry(entry: { id: string; name: string; type: number; flags: number }) {
+    return this.call<{ sent: boolean }>('updateMuteEntry', entry);
+  }
+  removeMuteEntry(entry: { id: string; name: string; type: number }) {
+    return this.call<{ sent: boolean }>('removeMuteEntry', entry);
+  }
 
   disconnect() {
     this.eventSource?.close();

@@ -1,5 +1,12 @@
 import { AGENT_COMMANDS, AgentController } from './agent-controls';
-import { DEFAULT_KEY_BINDINGS, commandFor, keyNameFromCode, maskFromModifiers, type KeyMode, type KeyOverrides } from './key-bindings';
+import {
+  DEFAULT_KEY_BINDINGS,
+  commandFor,
+  keyNameFromCode,
+  maskFromModifiers,
+  type KeyMode,
+  type KeyOverrides,
+} from './key-bindings';
 import { isTypingTarget } from './keyboard-motion';
 
 export interface AgentKeyboardOptions {
@@ -36,15 +43,23 @@ export class AgentKeyboard {
     this.target.addEventListener('blur', this.release);
   }
 
-  private mode(): KeyMode { return this.options.mode?.() ?? 'third_person'; }
-  private now() { return this.options.now ? this.options.now() : performance.now(); }
+  private mode(): KeyMode {
+    return this.options.mode?.() ?? 'third_person';
+  }
+  private now() {
+    return this.options.now ? this.options.now() : performance.now();
+  }
 
   private onKeyDown = (event: KeyboardEvent) => {
     if (this.options.enabled && !this.options.enabled()) return;
     if (event.ctrlKey && !event.altKey) return; // leave browser shortcuts alone
     if (event.metaKey || isTypingTarget(event.target)) return;
     const key = keyNameFromCode(event.code);
-    const mask = maskFromModifiers({ ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey });
+    const mask = maskFromModifiers({
+      ctrl: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+    });
     if (!key || !mask) return;
     const command = commandFor(this.mode(), key, mask, this.options.overrides?.());
     if (!command || !AGENT_COMMANDS.has(command)) return;
@@ -61,7 +76,8 @@ export class AgentKeyboard {
     if (!key) return;
     const table = this.options.overrides?.()[this.mode()] ?? DEFAULT_KEY_BINDINGS[this.mode()];
     for (const [k, , command] of table) {
-      if (k === key && AGENT_COMMANDS.has(command)) this.controller.command(command, false, this.now());
+      if (k === key && AGENT_COMMANDS.has(command))
+        this.controller.command(command, false, this.now());
     }
     this.flush();
   };
@@ -78,12 +94,21 @@ export class AgentKeyboard {
     this.flush();
   }
 
-  private release = () => { this.controller.releaseAll(); this.flush(); };
+  private release = () => {
+    this.controller.releaseAll();
+    this.flush();
+  };
 
   private flush() {
     const flags = this.controller.nextFlags(this.now());
-    if (flags !== this.last) { this.last = flags; this.options.send(flags); }
-    if (!this.controller.isMoving() && this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (flags !== this.last) {
+      this.last = flags;
+      this.options.send(flags);
+    }
+    if (!this.controller.isMoving() && this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
   }
 
   private startTicking() {
@@ -98,6 +123,9 @@ export class AgentKeyboard {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.controller.releaseAll();
-    if (this.last) { this.last = 0; this.options.send(0); }
+    if (this.last) {
+      this.last = 0;
+      this.options.send(0);
+    }
   }
 }

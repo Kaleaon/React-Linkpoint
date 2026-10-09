@@ -15,9 +15,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -46,14 +44,14 @@ describe('PayDialog Component', () => {
         isOpen: true,
         onClose: vi.fn(),
         target: { id: 'resident-1', name: 'Aimee Resident', type: 'avatar' },
-      })
+      }),
     );
 
     const title = host.querySelector('#pay-dialog-title');
     expect(title?.textContent).toContain('Pay Resident');
 
     const presets = Array.from(host.querySelectorAll('button')).filter((b) =>
-      b.textContent?.includes('L$')
+      b.textContent?.includes('L$'),
     );
     expect(presets.length).toBeGreaterThanOrEqual(4);
 
@@ -93,16 +91,18 @@ describe('PayDialog Component', () => {
         onClose: vi.fn(),
         onSuccess,
         target: { id: 'resident-1', name: 'Aimee Resident', type: 'avatar' },
-      })
+      }),
     );
 
-    const customInput = host.querySelector('input[placeholder="Custom amount"]') as HTMLInputElement;
+    const customInput = host.querySelector(
+      'input[placeholder="Custom amount"]',
+    ) as HTMLInputElement;
     expect(customInput).not.toBeNull();
 
     await act(async () => {
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
-        'value'
+        'value',
       )?.set;
       nativeInputValueSetter?.call(customInput, '75');
       customInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -145,7 +145,7 @@ describe('PayDialog Component', () => {
         isOpen: true,
         onClose: vi.fn(),
         target: { id: 'object-99', name: 'Vendor Machine', type: 'object' },
-      })
+      }),
     );
 
     const title = host.querySelector('#pay-dialog-title');
@@ -168,16 +168,14 @@ describe('PayDialog Component', () => {
   });
 
   it('displays error message when payment throws', async () => {
-    vi.spyOn(app.economy, 'payAvatar').mockRejectedValueOnce(
-      new Error('Insufficient L$ balance')
-    );
+    vi.spyOn(app.economy, 'payAvatar').mockRejectedValueOnce(new Error('Insufficient L$ balance'));
 
     const host = await mount(
       createElement(PayDialog, {
         isOpen: true,
         onClose: vi.fn(),
         target: { id: 'resident-1', name: 'Aimee Resident', type: 'avatar' },
-      })
+      }),
     );
 
     const payBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
@@ -197,7 +195,7 @@ describe('PayDialog Component', () => {
         isOpen: true,
         onClose: vi.fn(),
         target: { id: 'resident-1', name: 'Aimee Resident', type: 'avatar' },
-      })
+      }),
     );
 
     expect(host.textContent).toContain('This grid operates in zero-currency mode');

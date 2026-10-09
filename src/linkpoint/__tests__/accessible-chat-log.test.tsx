@@ -17,11 +17,7 @@ async function mountComponent(element: any) {
   const r = createRoot(host);
   await act(async () => {
     r.render(
-      createElement(
-        AppProvider as any,
-        null,
-        createElement(ThemeProvider as any, null, element)
-      )
+      createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, element)),
     );
   });
   mounted = { host, root: r };
@@ -40,14 +36,20 @@ afterEach(async () => {
 describe('AccessibleChatLog', () => {
   it('configures role="log" and aria-live="polite" for non-intrusive live announcements', async () => {
     const sampleMessages = [
-      { id: '1', sender: 'Arapaima Resident', text: 'Hello spatial world', timestamp: Date.now(), type: 'local' },
+      {
+        id: '1',
+        sender: 'Arapaima Resident',
+        text: 'Hello spatial world',
+        timestamp: Date.now(),
+        type: 'local',
+      },
     ];
     const host = await mountComponent(
       createElement(AccessibleChatLog, {
         messages: sampleMessages,
         variant: 'overlay',
         ariaLabel: 'Spatial chat overlay log',
-      })
+      }),
     );
 
     const logContainer = host.querySelector('[role="log"]');
@@ -61,13 +63,19 @@ describe('AccessibleChatLog', () => {
 
   it('applies high-contrast text (#FFFFFF) over dark background scrim (rgba(18, 18, 20, 0.85)) in overlay mode', async () => {
     const sampleMessages = [
-      { id: '1', sender: 'Arapaima Resident', text: 'High contrast text over 3D viewport', timestamp: Date.now(), type: 'local' },
+      {
+        id: '1',
+        sender: 'Arapaima Resident',
+        text: 'High contrast text over 3D viewport',
+        timestamp: Date.now(),
+        type: 'local',
+      },
     ];
     const host = await mountComponent(
       createElement(AccessibleChatLog, {
         messages: sampleMessages,
         variant: 'overlay',
-      })
+      }),
     );
 
     const logSection = host.querySelector('[role="log"]') as HTMLElement;
@@ -93,7 +101,7 @@ describe('AccessibleChatLog', () => {
     ];
 
     const host = await mountComponent(
-      createElement(AccessibleChatLog, { messages: initialMessages, variant: 'overlay' })
+      createElement(AccessibleChatLog, { messages: initialMessages, variant: 'overlay' }),
     );
 
     // Focus remains on active control
@@ -114,9 +122,9 @@ describe('AccessibleChatLog', () => {
           createElement(
             ThemeProvider as any,
             null,
-            createElement(AccessibleChatLog, { messages: updatedMessages, variant: 'overlay' })
-          )
-        )
+            createElement(AccessibleChatLog, { messages: updatedMessages, variant: 'overlay' }),
+          ),
+        ),
       );
     });
 
@@ -134,7 +142,7 @@ describe('AccessibleChatLog', () => {
     ];
 
     const host = await mountComponent(
-      createElement(AccessibleChatLog, { messages, variant: 'embedded' })
+      createElement(AccessibleChatLog, { messages, variant: 'embedded' }),
     );
 
     const toggleBtn = host.querySelector('button[aria-pressed]') as HTMLButtonElement;
@@ -154,7 +162,15 @@ describe('AccessibleChatLog', () => {
   it('integrates with Chat screen to render group and local chat using role="log"', async () => {
     vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
     app.chat.messages = [
-      { id: 'g1', type: 'group', groupId: 'grp1', groupName: 'Group Alpha', sender: 'Member A', text: 'Group chat content', timestamp: Date.now() },
+      {
+        id: 'g1',
+        type: 'group',
+        groupId: 'grp1',
+        groupName: 'Group Alpha',
+        sender: 'Member A',
+        text: 'Group chat content',
+        timestamp: Date.now(),
+      },
     ];
 
     const host = await mountComponent(createElement(Chat));

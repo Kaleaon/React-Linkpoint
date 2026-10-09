@@ -58,9 +58,15 @@ export class RlvController {
     this.handler.setEnabled(enabled);
   }
 
-  public setEnabled(enabled: boolean): void { this.handler.setEnabled(enabled); }
-  public isEnabled(): boolean { return this.handler.isEnabled(); }
-  public setReplyCallback(cb: (channel: number, message: string) => void): void { this.onReplyCallback = cb; }
+  public setEnabled(enabled: boolean): void {
+    this.handler.setEnabled(enabled);
+  }
+  public isEnabled(): boolean {
+    return this.handler.isEnabled();
+  }
+  public setReplyCallback(cb: (channel: number, message: string) => void): void {
+    this.onReplyCallback = cb;
+  }
 
   /**
    * Process a line of object chat such as "@detach=n,sendchat=n" as the viewer does for llOwnerSay: commands are
@@ -85,33 +91,78 @@ export class RlvController {
     const wanted = (option ?? targetId ?? '').toLowerCase();
     if (!wanted) return this.handler.hasBehaviour(command);
     for (const object of this.handler.objects.values()) {
-      if (object.commands.some((c) => c.name === command && (c.option.toLowerCase() === wanted || c.option === ''))) return true;
+      if (
+        object.commands.some(
+          (c) => c.name === command && (c.option.toLowerCase() === wanted || c.option === ''),
+        )
+      )
+        return true;
     }
     return false;
   }
 
-  public canDetach(attachmentName?: string, objectId?: string): boolean { return !this.isRestricted('detach', attachmentName, objectId); }
+  public canDetach(attachmentName?: string, objectId?: string): boolean {
+    return !this.isRestricted('detach', attachmentName, objectId);
+  }
   public canSendChat(channel: number = 0): boolean {
     if (!this.handler.isEnabled()) return true;
-    return channel === 0 ? !this.handler.hasBehaviour('sendchat') : this.handler.canSendChannel(channel);
+    return channel === 0
+      ? !this.handler.hasBehaviour('sendchat')
+      : this.handler.canSendChannel(channel);
   }
   public canRecvChat(senderId?: string): boolean {
     if (!this.handler.isEnabled()) return true;
-    return !this.handler.hasBehaviour('recvchat') || (senderId ? this.handler.isException('recvchat', senderId) : false);
+    return (
+      !this.handler.hasBehaviour('recvchat') ||
+      (senderId ? this.handler.isException('recvchat', senderId) : false)
+    );
   }
-  public canSendIM(targetId?: string): boolean { return targetId ? this.handler.canSendIM(targetId) : !this.handler.hasBehaviour('sendim') || !this.handler.isEnabled(); }
-  public canRecvIM(senderId?: string): boolean { return senderId ? this.handler.canReceiveIM(senderId) : !this.handler.hasBehaviour('recvim') || !this.handler.isEnabled(); }
-  public canTeleportLandmark(): boolean { return !this.handler.isEnabled() || this.handler.canTeleportToLandmark(); }
-  public canTeleportLocation(): boolean { return !this.handler.isEnabled() || this.handler.canTeleportToLocation(''); }
-  public canTeleportSit(): boolean { return !this.isRestricted('sittp'); }
-  public canTeleportLure(senderId?: string): boolean { return !this.handler.isEnabled() || (senderId ? this.handler.canAcceptTpOffer(senderId) : !this.handler.hasBehaviour('tplure')); }
-  public autoAcceptTeleport(senderId?: string): boolean { return this.handler.isEnabled() && this.handler.autoAcceptTeleportOffer(senderId ?? ''); }
-  public canShowInventory(): boolean { return !this.handler.isEnabled() || this.handler.canShowInventory(); }
-  public canViewNotecard(): boolean { return !this.isRestricted('viewnote'); }
-  public canSit(): boolean { return !this.isRestricted('sit'); }
-  public canUnsit(): boolean { return !this.isRestricted('unsit'); }
-  public canRemoveOutfit(itemOrType?: string): boolean { return !this.isRestricted('remoutfit', itemOrType); }
-  public canAddOutfit(itemOrType?: string): boolean { return !this.isRestricted('addoutfit', itemOrType); }
+  public canSendIM(targetId?: string): boolean {
+    return targetId
+      ? this.handler.canSendIM(targetId)
+      : !this.handler.hasBehaviour('sendim') || !this.handler.isEnabled();
+  }
+  public canRecvIM(senderId?: string): boolean {
+    return senderId
+      ? this.handler.canReceiveIM(senderId)
+      : !this.handler.hasBehaviour('recvim') || !this.handler.isEnabled();
+  }
+  public canTeleportLandmark(): boolean {
+    return !this.handler.isEnabled() || this.handler.canTeleportToLandmark();
+  }
+  public canTeleportLocation(): boolean {
+    return !this.handler.isEnabled() || this.handler.canTeleportToLocation('');
+  }
+  public canTeleportSit(): boolean {
+    return !this.isRestricted('sittp');
+  }
+  public canTeleportLure(senderId?: string): boolean {
+    return (
+      !this.handler.isEnabled() ||
+      (senderId ? this.handler.canAcceptTpOffer(senderId) : !this.handler.hasBehaviour('tplure'))
+    );
+  }
+  public autoAcceptTeleport(senderId?: string): boolean {
+    return this.handler.isEnabled() && this.handler.autoAcceptTeleportOffer(senderId ?? '');
+  }
+  public canShowInventory(): boolean {
+    return !this.handler.isEnabled() || this.handler.canShowInventory();
+  }
+  public canViewNotecard(): boolean {
+    return !this.isRestricted('viewnote');
+  }
+  public canSit(): boolean {
+    return !this.isRestricted('sit');
+  }
+  public canUnsit(): boolean {
+    return !this.isRestricted('unsit');
+  }
+  public canRemoveOutfit(itemOrType?: string): boolean {
+    return !this.isRestricted('remoutfit', itemOrType);
+  }
+  public canAddOutfit(itemOrType?: string): boolean {
+    return !this.isRestricted('addoutfit', itemOrType);
+  }
 
   /** Channels local chat is redirected to (`@redirchat:<channel>`). */
   public getRedirChatChannels(): number[] {

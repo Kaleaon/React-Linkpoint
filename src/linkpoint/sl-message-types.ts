@@ -27,7 +27,7 @@ export const ChatSourceType = {
   REGION: 5,
 } as const;
 
-export type ChatSourceType = typeof ChatSourceType[keyof typeof ChatSourceType];
+export type ChatSourceType = (typeof ChatSourceType)[keyof typeof ChatSourceType];
 
 export const ChatType = {
   WHISPER: 0,
@@ -41,7 +41,7 @@ export const ChatType = {
   DIRECT: 9,
 } as const;
 
-export type ChatType = typeof ChatType[keyof typeof ChatType];
+export type ChatType = (typeof ChatType)[keyof typeof ChatType];
 
 export const ChatAudible = {
   NOT: -1,
@@ -49,7 +49,7 @@ export const ChatAudible = {
   FULLY: 1,
 } as const;
 
-export type ChatAudible = typeof ChatAudible[keyof typeof ChatAudible];
+export type ChatAudible = (typeof ChatAudible)[keyof typeof ChatAudible];
 
 /**
  * ImprovedInstantMessage Dialog values from the official viewer's
@@ -99,7 +99,7 @@ export const InstantMessageDialog = {
   TYPING_STOP: 42,
 } as const;
 
-export type InstantMessageDialog = typeof InstantMessageDialog[keyof typeof InstantMessageDialog];
+export type InstantMessageDialog = (typeof InstantMessageDialog)[keyof typeof InstantMessageDialog];
 
 export const MessageIDs = {
   AGENT_UPDATE: 0x04,
@@ -109,13 +109,13 @@ export const MessageIDs = {
   CHAT_FROM_SIMULATOR: lowFrequencyId(139),
   CHAT_FROM_VIEWER: lowFrequencyId(80),
   IMPROVED_IM: lowFrequencyId(254),
-  OBJECT_UPDATE: 0x0C,
-  OBJECT_UPDATE_COMPRESSED: 0x0D,
-  OBJECT_UPDATE_CACHED: 0x0E,
+  OBJECT_UPDATE: 0x0c,
+  OBJECT_UPDATE_COMPRESSED: 0x0d,
+  OBJECT_UPDATE_CACHED: 0x0e,
   KILL_OBJECT: 0x10,
   REGION_HANDSHAKE: lowFrequencyId(148),
   REGION_HANDSHAKE_REPLY: lowFrequencyId(149),
-  PACKET_ACK: 0xFFFFFFFB,
+  PACKET_ACK: 0xfffffffb,
   START_PING_CHECK: 0x01,
   COMPLETE_PING_CHECK: 0x02,
   TELEPORT_REQUEST: lowFrequencyId(62),
@@ -128,19 +128,23 @@ const UUID_BYTES = 16;
 
 function readUuid(bytes: Uint8Array): string {
   if (bytes.byteLength !== UUID_BYTES) throw new RangeError('An LLUUID must contain 16 bytes');
-  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export class LLVector3 {
-  constructor(public x: number = 0, public y: number = 0, public z: number = 0) {}
+  constructor(
+    public x: number = 0,
+    public y: number = 0,
+    public z: number = 0,
+  ) {}
 
   static unpack(buffer: ArrayBuffer): LLVector3 {
     const view = new DataView(buffer);
     return new LLVector3(
       view.getFloat32(0, LITTLE_ENDIAN),
       view.getFloat32(4, LITTLE_ENDIAN),
-      view.getFloat32(8, LITTLE_ENDIAN)
+      view.getFloat32(8, LITTLE_ENDIAN),
     );
   }
 
@@ -150,7 +154,12 @@ export class LLVector3 {
 }
 
 export class LLQuaternion {
-  constructor(public x: number = 0, public y: number = 0, public z: number = 0, public w: number = 1) {}
+  constructor(
+    public x: number = 0,
+    public y: number = 0,
+    public z: number = 0,
+    public w: number = 1,
+  ) {}
 
   static unpack(buffer: ArrayBuffer): LLQuaternion {
     const view = new DataView(buffer);
@@ -158,7 +167,7 @@ export class LLQuaternion {
       view.getFloat32(0, LITTLE_ENDIAN),
       view.getFloat32(4, LITTLE_ENDIAN),
       view.getFloat32(8, LITTLE_ENDIAN),
-      view.getFloat32(12, LITTLE_ENDIAN)
+      view.getFloat32(12, LITTLE_ENDIAN),
     );
   }
 }
@@ -180,8 +189,12 @@ export class ChatFromSimulatorMessage extends SLMessage {
   public position: LLVector3 = new LLVector3();
   public message: string = '';
 
-  getMessageID() { return MessageIDs.CHAT_FROM_SIMULATOR; }
-  getMessageName() { return 'ChatFromSimulator'; }
+  getMessageID() {
+    return MessageIDs.CHAT_FROM_SIMULATOR;
+  }
+  getMessageName() {
+    return 'ChatFromSimulator';
+  }
 
   unpackPayload(buffer: ArrayBuffer) {
     const view = new DataView(buffer);
@@ -213,7 +226,8 @@ export class ChatFromSimulatorMessage extends SLMessage {
     this.position = LLVector3.unpack(buffer.slice(offset));
     offset += 12;
 
-    const messageLength = view.getUint16(offset, LITTLE_ENDIAN); offset += 2;
+    const messageLength = view.getUint16(offset, LITTLE_ENDIAN);
+    offset += 2;
     requireBytes(messageLength);
     const messageBytes = new Uint8Array(buffer, offset, messageLength);
     this.message = new TextDecoder().decode(messageBytes).replace(/\0$/, '');
@@ -221,11 +235,21 @@ export class ChatFromSimulatorMessage extends SLMessage {
 }
 
 export class ChatFromViewerMessage extends SLMessage {
-  constructor(public agentId: string, public sessionId: string, public message: string, public type: ChatType = ChatType.NORMAL, public channel: number = 0) {
+  constructor(
+    public agentId: string,
+    public sessionId: string,
+    public message: string,
+    public type: ChatType = ChatType.NORMAL,
+    public channel: number = 0,
+  ) {
     super();
     this.isReliable = true;
   }
 
-  getMessageID() { return MessageIDs.CHAT_FROM_VIEWER; }
-  getMessageName() { return 'ChatFromViewer'; }
+  getMessageID() {
+    return MessageIDs.CHAT_FROM_VIEWER;
+  }
+  getMessageName() {
+    return 'ChatFromViewer';
+  }
 }

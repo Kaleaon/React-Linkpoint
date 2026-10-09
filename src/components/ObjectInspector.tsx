@@ -134,11 +134,21 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             No object selected
           </div>
           <p style={{ margin: 0, color: V.ink2, fontSize: '10px' }}>
-            Click an object or avatar in the 3D viewport canvas or pick one from the list below to inspect properties.
+            Click an object or avatar in the 3D viewport canvas or pick one from the list below to
+            inspect properties.
           </p>
         </div>
 
-        <div style={{ fontWeight: 700, fontSize: '10px', color: V.ink2, letterSpacing: '0.08em', marginBottom: '6px', textTransform: 'uppercase' }}>
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: '10px',
+            color: V.ink2,
+            letterSpacing: '0.08em',
+            marginBottom: '6px',
+            textTransform: 'uppercase',
+          }}
+        >
           Nearby Scene Entities ({combinedList.length})
         </div>
 
@@ -167,9 +177,24 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
                   cursor: 'pointer',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                >
                   <Icon name={item.isAvatar ? 'user' : 'box'} size={12} color={V.pri} />
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                  <span
+                    style={{
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      fontWeight: 600,
+                    }}
+                  >
                     {item.name || item.id || (item.isAvatar ? 'Avatar' : 'Prim Object')}
                   </span>
                 </div>
@@ -185,12 +210,13 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   }
 
   const name = selection.name || selection.id || 'Simulator object';
-  const typeStr = selection.shape || (selection.avatar || selection.isAvatar ? 'Avatar' : 'Primitive');
+  const typeStr =
+    selection.shape || (selection.avatar || selection.isAvatar ? 'Avatar' : 'Primitive');
   const posStr = Array.isArray(selection.position)
     ? selection.position.map((n: number) => Number(n).toFixed(1)).join(', ')
     : selection.x != null
-    ? `${Number(selection.x).toFixed(1)}, ${Number(selection.y).toFixed(1)}, ${Number(selection.z).toFixed(1)}`
-    : '—';
+      ? `${Number(selection.x).toFixed(1)}, ${Number(selection.y).toFixed(1)}, ${Number(selection.z).toFixed(1)}`
+      : '—';
   const scaleStr = Array.isArray(selection.scale)
     ? selection.scale.map((n: number) => Number(n).toFixed(2)).join(', ')
     : '—';
@@ -199,7 +225,14 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
 
   return (
     <div className={className} style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '8px',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Icon name="box" size={14} color={V.pri} />
           <strong style={{ fontSize: '12px', color: V.pri, letterSpacing: '0.05em' }}>
@@ -233,9 +266,19 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           {typeStr} · Distance: {distStr}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: '4px', fontSize: '10px', color: V.ink2 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '70px 1fr',
+            gap: '4px',
+            fontSize: '10px',
+            color: V.ink2,
+          }}
+        >
           <span>UUID:</span>
-          <span style={{ color: V.ink, wordBreak: 'break-all', fontFamily: 'monospace' }}>{uuidStr}</span>
+          <span style={{ color: V.ink, wordBreak: 'break-all', fontFamily: 'monospace' }}>
+            {uuidStr}
+          </span>
 
           <span>Position:</span>
           <span style={{ color: V.ink, fontFamily: 'monospace' }}>{posStr}</span>
@@ -269,7 +312,16 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
         </div>
       </div>
 
-      <div style={{ fontWeight: 700, fontSize: '10px', color: V.ink2, letterSpacing: '0.08em', marginBottom: '6px', textTransform: 'uppercase' }}>
+      <div
+        style={{
+          fontWeight: 700,
+          fontSize: '10px',
+          color: V.ink2,
+          letterSpacing: '0.08em',
+          marginBottom: '6px',
+          textTransform: 'uppercase',
+        }}
+      >
         Object Actions & Properties
       </div>
 

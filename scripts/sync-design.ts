@@ -40,7 +40,9 @@ async function syncDesign() {
       throw new Error(`Invalid layout structure for '${layoutKey}'.`);
     }
   }
-  console.log(`  ✓ Verified ${Object.keys(LAYOUTS).length} layout packs in @linkpoint/design-system/tokens`);
+  console.log(
+    `  ✓ Verified ${Object.keys(LAYOUTS).length} layout packs in @linkpoint/design-system/tokens`,
+  );
 
   // 3. Token validity checks: PALETTES
   const requiredPalettes = ['ink', 'lcars', 'metro', 'aero', 'navy', 'paper', 'deco'];
@@ -57,7 +59,9 @@ async function syncDesign() {
       throw new Error(`Invalid palette structure for '${palKey}'.`);
     }
   }
-  console.log(`  ✓ Verified ${Object.keys(PALETTES).length} palette packs in @linkpoint/design-system/tokens`);
+  console.log(
+    `  ✓ Verified ${Object.keys(PALETTES).length} palette packs in @linkpoint/design-system/tokens`,
+  );
 
   // 4. Token compute function & contrast check
   const testTokens = computeThemeTokens('terminal', 'ink');
@@ -73,10 +77,19 @@ async function syncDesign() {
   console.log(`  ✓ Verified ${themeNames.length} synchronized theme names`);
 
   // 6. Verify React component primitives
-  const expectedComponents = ['Card', 'BottomTabs', 'RailNav', 'TileNav', 'ConsoleFrame', 'DeviceFrame'];
+  const expectedComponents = [
+    'Card',
+    'BottomTabs',
+    'RailNav',
+    'TileNav',
+    'ConsoleFrame',
+    'DeviceFrame',
+  ];
   for (const compName of expectedComponents) {
     if (typeof (ReactComponents as any)[compName] !== 'function') {
-      throw new Error(`Missing expected React layout primitive '${compName}' in @linkpoint/design-system/react.`);
+      throw new Error(
+        `Missing expected React layout primitive '${compName}' in @linkpoint/design-system/react.`,
+      );
     }
   }
   console.log('  ✓ Verified React layout primitives (@linkpoint/design-system/react)');

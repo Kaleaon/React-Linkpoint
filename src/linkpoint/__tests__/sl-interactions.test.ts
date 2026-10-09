@@ -3,31 +3,63 @@ import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-  TEXT_BOX_MARKER, MAX_REPLY_BYTES, serializeScriptDialog, serializeLure, PendingInteractions,
-  subscribeInteractions, respondScriptDialog, acceptLure, dismissInteraction, serializeGroupNotice,
-  serializeInventoryOffer, serializeGroupInvite, acceptInventoryOffer, declineInventoryOffer,
-  acceptGroupInvite, declineGroupInvite, acceptGroupNoticeAttachment,
+  TEXT_BOX_MARKER,
+  MAX_REPLY_BYTES,
+  serializeScriptDialog,
+  serializeLure,
+  PendingInteractions,
+  subscribeInteractions,
+  respondScriptDialog,
+  acceptLure,
+  dismissInteraction,
+  serializeGroupNotice,
+  serializeInventoryOffer,
+  serializeGroupInvite,
+  acceptInventoryOffer,
+  declineInventoryOffer,
+  acceptGroupInvite,
+  declineGroupInvite,
+  acceptGroupNoticeAttachment,
 } = require('../../../core/sl-interactions.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
 const dialogEvent = (over: any = {}) => ({
   ObjectID: uuid('11111111-1111-1111-1111-111111111111'),
-  FirstName: 'Pat', LastName: 'Resident', ObjectName: 'Vendor', Message: 'Pick one',
-  ChatChannel: -4242, ImageID: uuid('00000000-0000-0000-0000-000000000000'), Buttons: ['Yes', 'No'], Owners: [],
+  FirstName: 'Pat',
+  LastName: 'Resident',
+  ObjectName: 'Vendor',
+  Message: 'Pick one',
+  ChatChannel: -4242,
+  ImageID: uuid('00000000-0000-0000-0000-000000000000'),
+  Buttons: ['Yes', 'No'],
+  Owners: [],
   ...over,
 });
 const lureEvent = (over: any = {}) => ({
-  from: uuid('22222222-2222-2222-2222-222222222222'), fromName: 'Sam Resident', lureMessage: 'Come visit',
-  regionID: uuid('33333333-3333-3333-3333-333333333333'), position: { x: 10, y: 20, z: 30 },
-  gridX: 1000, gridY: 1001, lureID: uuid('44444444-4444-4444-4444-444444444444'), ...over,
+  from: uuid('22222222-2222-2222-2222-222222222222'),
+  fromName: 'Sam Resident',
+  lureMessage: 'Come visit',
+  regionID: uuid('33333333-3333-3333-3333-333333333333'),
+  position: { x: 10, y: 20, z: 30 },
+  gridX: 1000,
+  gridY: 1001,
+  lureID: uuid('44444444-4444-4444-4444-444444444444'),
+  ...over,
 });
 const botWith = (comms: any = {}, teleport: any = {}) => ({ clientCommands: { comms, teleport } });
 
 describe('serializing interactions', () => {
   it('describes a button dialog', () => {
     expect(serializeScriptDialog(dialogEvent())).toEqual({
-      objectId: '11111111-1111-1111-1111-111111111111', objectName: 'Vendor', ownerName: 'Pat Resident', message: 'Pick one',
-      channel: -4242, imageId: '00000000-0000-0000-0000-000000000000', buttons: ['Yes', 'No'], textBox: false, textBoxIndex: -1,
+      objectId: '11111111-1111-1111-1111-111111111111',
+      objectName: 'Vendor',
+      ownerName: 'Pat Resident',
+      message: 'Pick one',
+      channel: -4242,
+      imageId: '00000000-0000-0000-0000-000000000000',
+      buttons: ['Yes', 'No'],
+      textBox: false,
+      textBoxIndex: -1,
     });
   });
 
@@ -39,7 +71,14 @@ describe('serializing interactions', () => {
 
   it('tolerates missing fields', () => {
     const wire = serializeScriptDialog({ ObjectID: uuid('x') });
-    expect(wire).toMatchObject({ objectName: '', ownerName: '', message: '', channel: 0, buttons: [], textBox: false });
+    expect(wire).toMatchObject({
+      objectName: '',
+      ownerName: '',
+      message: '',
+      channel: 0,
+      buttons: [],
+      textBox: false,
+    });
   });
 
   it('treats null, empty and non-numeric values as missing rather than as 0', () => {
@@ -47,20 +86,31 @@ describe('serializing interactions', () => {
     expect(lure.gridX).toBeNull();
     expect(lure.gridY).toBeNull();
     expect(serializeLure(lureEvent({ gridX: true, gridY: {} })).gridX).toBeNull();
-    expect(serializeLure(lureEvent({ gridX: '1000', gridY: 0 }))).toMatchObject({ gridX: 1000, gridY: 0 });
+    expect(serializeLure(lureEvent({ gridX: '1000', gridY: 0 }))).toMatchObject({
+      gridX: 1000,
+      gridY: 0,
+    });
     expect(serializeScriptDialog(dialogEvent({ ChatChannel: null })).channel).toBe(0);
     expect(serializeScriptDialog(dialogEvent({ ChatChannel: '-5' })).channel).toBe(-5);
   });
 
   it('describes a lure with a plain position array', () => {
     expect(serializeLure(lureEvent())).toEqual({
-      fromId: '22222222-2222-2222-2222-222222222222', fromName: 'Sam Resident', message: 'Come visit',
-      regionId: '33333333-3333-3333-3333-333333333333', position: [10, 20, 30], gridX: 1000, gridY: 1001,
+      fromId: '22222222-2222-2222-2222-222222222222',
+      fromName: 'Sam Resident',
+      message: 'Come visit',
+      regionId: '33333333-3333-3333-3333-333333333333',
+      position: [10, 20, 30],
+      gridX: 1000,
+      gridY: 1001,
     });
   });
 
   it('reads library-style vectors and drops an unreadable position or grid', () => {
-    expect(serializeLure(lureEvent({ position: { getX: () => 1, getY: () => 2, getZ: () => 3 } })).position).toEqual([1, 2, 3]);
+    expect(
+      serializeLure(lureEvent({ position: { getX: () => 1, getY: () => 2, getZ: () => 3 } }))
+        .position,
+    ).toEqual([1, 2, 3]);
     const odd = serializeLure(lureEvent({ position: { x: NaN, y: 0, z: 0 }, gridX: 'nope' }));
     expect(odd.position).toBeNull();
     expect(odd.gridX).toBeNull();
@@ -96,10 +146,19 @@ describe('PendingInteractions', () => {
 describe('subscribeInteractions', () => {
   it('forwards each event with an id and keeps the original for answering', () => {
     const handlers: Record<string, (e: any) => void> = {};
-    const subject = (name: string) => ({ subscribe: (fn: any) => { handlers[name] = fn; return { unsubscribe: vi.fn() }; } });
+    const subject = (name: string) => ({
+      subscribe: (fn: any) => {
+        handlers[name] = fn;
+        return { unsubscribe: vi.fn() };
+      },
+    });
     const pending = new PendingInteractions();
     const send = vi.fn();
-    const subs = subscribeInteractions({ onScriptDialog: subject('d'), onLure: subject('l') }, pending, send);
+    const subs = subscribeInteractions(
+      { onScriptDialog: subject('d'), onLure: subject('l') },
+      pending,
+      send,
+    );
     expect(subs).toHaveLength(2);
     const event = dialogEvent();
     handlers.d(event);
@@ -117,11 +176,34 @@ describe('subscribeInteractions', () => {
     let handler: (e: any) => void = () => undefined;
     const pending = new PendingInteractions();
     const send = vi.fn();
-    subscribeInteractions({ onGroupNotice: { subscribe: (fn: any) => { handler = fn; return { unsubscribe: vi.fn() }; } } }, pending, send);
-    handler({ groupID: uuid('g'), from: uuid('f'), fromName: 'Officer', subject: 'Meeting at 7pm', message: 'Bring friends' });
+    subscribeInteractions(
+      {
+        onGroupNotice: {
+          subscribe: (fn: any) => {
+            handler = fn;
+            return { unsubscribe: vi.fn() };
+          },
+        },
+      },
+      pending,
+      send,
+    );
+    handler({
+      groupID: uuid('g'),
+      from: uuid('f'),
+      fromName: 'Officer',
+      subject: 'Meeting at 7pm',
+      message: 'Bring friends',
+    });
     const [type, data] = send.mock.calls[0];
     expect(type).toBe('group-notice');
-    expect(data).toMatchObject({ groupId: 'g', fromId: 'f', fromName: 'Officer', subject: 'Meeting at 7pm', message: 'Bring friends' });
+    expect(data).toMatchObject({
+      groupId: 'g',
+      fromId: 'f',
+      fromName: 'Officer',
+      subject: 'Meeting at 7pm',
+      message: 'Bring friends',
+    });
     expect(typeof data.id).toBe('string');
     expect(Number.isFinite(data.timestamp)).toBe(true);
     expect(pending.size).toBe(0);
@@ -185,7 +267,9 @@ describe('answering a script dialog', () => {
   it('sends the chosen button and forgets the dialog', async () => {
     const event = dialogEvent();
     const { pending, id, respond, bot } = setup(event);
-    await expect(respondScriptDialog(bot, pending, { id, buttonIndex: 1 })).resolves.toEqual({ answered: true });
+    await expect(respondScriptDialog(bot, pending, { id, buttonIndex: 1 })).resolves.toEqual({
+      answered: true,
+    });
     const [sent, index] = respond.mock.calls[0];
     expect(index).toBe(1);
     expect(sent.Buttons[1]).toBe('No');
@@ -197,7 +281,9 @@ describe('answering a script dialog', () => {
   it('rejects a button that does not exist or is not an integer, leaving the dialog pending', async () => {
     const { pending, id, respond, bot } = setup(dialogEvent());
     for (const buttonIndex of [2, -1, 0.5, '0', undefined]) {
-      await expect(respondScriptDialog(bot, pending, { id, buttonIndex })).rejects.toThrow(/does not exist/);
+      await expect(respondScriptDialog(bot, pending, { id, buttonIndex })).rejects.toThrow(
+        /does not exist/,
+      );
     }
     expect(respond).not.toHaveBeenCalled();
     expect(pending.size).toBe(1);
@@ -215,10 +301,16 @@ describe('answering a script dialog', () => {
 
   it('refuses empty or oversized text, counting bytes not characters', async () => {
     const { pending, id, respond, bot } = setup(dialogEvent({ Buttons: [TEXT_BOX_MARKER] }));
-    await expect(respondScriptDialog(bot, pending, { id, text: '' })).rejects.toThrow(/Enter some text/);
+    await expect(respondScriptDialog(bot, pending, { id, text: '' })).rejects.toThrow(
+      /Enter some text/,
+    );
     await expect(respondScriptDialog(bot, pending, { id })).rejects.toThrow(/Enter some text/);
-    await expect(respondScriptDialog(bot, pending, { id, text: 'a'.repeat(MAX_REPLY_BYTES + 1) })).rejects.toThrow(/too long/);
-    await expect(respondScriptDialog(bot, pending, { id, text: '€'.repeat(86) })).rejects.toThrow(/too long/); // 86 x 3 bytes
+    await expect(
+      respondScriptDialog(bot, pending, { id, text: 'a'.repeat(MAX_REPLY_BYTES + 1) }),
+    ).rejects.toThrow(/too long/);
+    await expect(respondScriptDialog(bot, pending, { id, text: '€'.repeat(86) })).rejects.toThrow(
+      /too long/,
+    ); // 86 x 3 bytes
     await respondScriptDialog(bot, pending, { id, text: 'a'.repeat(MAX_REPLY_BYTES) });
     expect(respond).toHaveBeenCalledTimes(1);
   });
@@ -226,7 +318,9 @@ describe('answering a script dialog', () => {
   it('keeps the dialog pending when the grid does not acknowledge', async () => {
     const { pending, id, respond, bot } = setup(dialogEvent());
     respond.mockRejectedValueOnce(new Error('timeout'));
-    await expect(respondScriptDialog(bot, pending, { id, buttonIndex: 0 })).rejects.toThrow('timeout');
+    await expect(respondScriptDialog(bot, pending, { id, buttonIndex: 0 })).rejects.toThrow(
+      'timeout',
+    );
     expect(pending.size).toBe(1);
     await respondScriptDialog(bot, pending, { id, buttonIndex: 0 });
     expect(pending.size).toBe(0);
@@ -234,10 +328,16 @@ describe('answering a script dialog', () => {
 
   it('rejects an unknown or already answered dialog and a missing connection', async () => {
     const { pending, id, bot } = setup(dialogEvent());
-    await expect(respondScriptDialog(bot, pending, { id: 'nope', buttonIndex: 0 })).rejects.toThrow(/no longer pending/);
-    await expect(respondScriptDialog(undefined, pending, { id, buttonIndex: 0 })).rejects.toThrow(/Not connected/);
+    await expect(respondScriptDialog(bot, pending, { id: 'nope', buttonIndex: 0 })).rejects.toThrow(
+      /no longer pending/,
+    );
+    await expect(respondScriptDialog(undefined, pending, { id, buttonIndex: 0 })).rejects.toThrow(
+      /Not connected/,
+    );
     await respondScriptDialog(bot, pending, { id, buttonIndex: 0 });
-    await expect(respondScriptDialog(bot, pending, { id, buttonIndex: 0 })).rejects.toThrow(/no longer pending/);
+    await expect(respondScriptDialog(bot, pending, { id, buttonIndex: 0 })).rejects.toThrow(
+      /no longer pending/,
+    );
   });
 });
 
@@ -247,7 +347,10 @@ describe('lures', () => {
     const event = lureEvent();
     const id = pending.add('lure', event);
     const acceptTeleport = vi.fn().mockResolvedValue({ message: 'Arrived' });
-    await expect(acceptLure(botWith({}, { acceptTeleport }), pending, { id })).resolves.toEqual({ accepted: true, message: 'Arrived' });
+    await expect(acceptLure(botWith({}, { acceptTeleport }), pending, { id })).resolves.toEqual({
+      accepted: true,
+      message: 'Arrived',
+    });
     expect(acceptTeleport).toHaveBeenCalledWith(event);
     expect(pending.size).toBe(0);
   });
@@ -274,10 +377,27 @@ describe('lures', () => {
 
 describe('inventory offers and group invites', () => {
   it('serializes inventory offer and group invite events', () => {
-    const offer = serializeInventoryOffer({ from: uuid('f1'), fromName: 'Alice', requestID: uuid('r1'), message: 'Take this', type: 1 });
-    expect(offer).toEqual({ fromId: 'f1', fromName: 'Alice', requestId: 'r1', message: 'Take this', type: 1 });
+    const offer = serializeInventoryOffer({
+      from: uuid('f1'),
+      fromName: 'Alice',
+      requestID: uuid('r1'),
+      message: 'Take this',
+      type: 1,
+    });
+    expect(offer).toEqual({
+      fromId: 'f1',
+      fromName: 'Alice',
+      requestId: 'r1',
+      message: 'Take this',
+      type: 1,
+    });
 
-    const invite = serializeGroupInvite({ from: uuid('f2'), fromName: 'Bob', message: 'Join us', inviteID: uuid('i1') });
+    const invite = serializeGroupInvite({
+      from: uuid('f2'),
+      fromName: 'Bob',
+      message: 'Join us',
+      inviteID: uuid('i1'),
+    });
     expect(invite).toEqual({ fromId: 'f2', fromName: 'Bob', message: 'Join us', inviteId: 'i1' });
   });
 
@@ -290,7 +410,9 @@ describe('inventory offers and group invites', () => {
     expect(pending.size).toBe(0);
 
     const id2 = pending.add('inventory-offer', { from: 'f2' });
-    await expect(declineInventoryOffer(bot, pending, { id: id2 })).resolves.toEqual({ declined: true });
+    await expect(declineInventoryOffer(bot, pending, { id: id2 })).resolves.toEqual({
+      declined: true,
+    });
     expect(pending.size).toBe(0);
   });
 
@@ -303,7 +425,9 @@ describe('inventory offers and group invites', () => {
     expect(pending.size).toBe(0);
 
     const id2 = pending.add('group-invite', { from: 'f2' });
-    await expect(declineGroupInvite(bot, pending, { id: id2 })).resolves.toEqual({ declined: true });
+    await expect(declineGroupInvite(bot, pending, { id: id2 })).resolves.toEqual({
+      declined: true,
+    });
     expect(pending.size).toBe(0);
   });
 
@@ -311,11 +435,15 @@ describe('inventory offers and group invites', () => {
     const pending = new PendingInteractions();
     const acceptFn = vi.fn().mockResolvedValue(undefined);
     const bot = { clientCommands: { groups: { acceptGroupNoticeAttachment: acceptFn } } };
-    await expect(acceptGroupNoticeAttachment(bot, pending, { groupId: 'g1', attachmentItemId: 'item-1' })).resolves.toEqual({
+    await expect(
+      acceptGroupNoticeAttachment(bot, pending, { groupId: 'g1', attachmentItemId: 'item-1' }),
+    ).resolves.toEqual({
       accepted: true,
       groupId: 'g1',
       attachmentItemId: 'item-1',
     });
-    expect(acceptFn).toHaveBeenCalledWith(expect.objectContaining({ groupId: 'g1', attachmentItemId: 'item-1' }));
+    expect(acceptFn).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: 'g1', attachmentItemId: 'item-1' }),
+    );
   });
 });

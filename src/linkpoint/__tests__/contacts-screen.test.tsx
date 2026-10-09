@@ -3,10 +3,21 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { act } from 'react';
 import ContactsScreen from '../../screens/ContactsScreen.jsx';
 import { app } from '../app';
-import { buttonByText, click, flush, mountScreen, typeInto, unmount, type Mounted } from './ui-helpers';
+import {
+  buttonByText,
+  click,
+  flush,
+  mountScreen,
+  typeInto,
+  unmount,
+  type Mounted,
+} from './ui-helpers';
 
 const google = vi.hoisted(() => ({
-  signIn: vi.fn(), token: vi.fn(), fetchSl: vi.fn(), push: vi.fn(),
+  signIn: vi.fn(),
+  token: vi.fn(),
+  fetchSl: vi.fn(),
+  push: vi.fn(),
 }));
 vi.mock('../../services/google.ts', () => ({
   loadGoogle: async () => ({
@@ -22,7 +33,9 @@ const friends = [
   { id: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Sam Linden', onlineStatus: 'offline' },
 ];
 
-beforeAll(() => { vi.spyOn(console, 'log').mockImplementation(() => undefined); });
+beforeAll(() => {
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+});
 beforeEach(() => {
   localStorage.clear();
   app.contacts.clear();
@@ -30,12 +43,25 @@ beforeEach(() => {
   app.preferences.set('integrations', 'google', false);
   Object.values(google).forEach((fn) => fn.mockReset());
 });
-afterEach(async () => { await unmount(mounted); mounted = null; vi.restoreAllMocks(); vi.spyOn(console, 'log').mockImplementation(() => undefined); });
+afterEach(async () => {
+  await unmount(mounted);
+  mounted = null;
+  vi.restoreAllMocks();
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
+});
 
-const seedFriends = async () => { await act(async () => { app.friends.replaceFriends(friends); }); };
-const row = (host: HTMLElement, name: string) => [...host.querySelectorAll('ul[aria-label="Saved contacts"] button')].find((b) => (b.textContent || '').includes(name)) as HTMLElement;
+const seedFriends = async () => {
+  await act(async () => {
+    app.friends.replaceFriends(friends);
+  });
+};
+const row = (host: HTMLElement, name: string) =>
+  [...host.querySelectorAll('ul[aria-label="Saved contacts"] button')].find((b) =>
+    (b.textContent || '').includes(name),
+  ) as HTMLElement;
 const saveAll = async (host: HTMLElement) => click(buttonByText(host, /SAVE FRIENDS LIST/));
-const addButtons = (host: HTMLElement) => [...host.querySelectorAll('button')].filter((b) => (b.textContent || '').trim() === 'ADD');
+const addButtons = (host: HTMLElement) =>
+  [...host.querySelectorAll('button')].filter((b) => (b.textContent || '').trim() === 'ADD');
 
 describe('Contacts screen', () => {
   it('starts empty and honest, with the friends button disabled until friends are loaded', async () => {
@@ -60,7 +86,9 @@ describe('Contacts screen', () => {
     mounted = await mountScreen(ContactsScreen);
     await seedFriends();
     await saveAll(mounted.host);
-    await act(async () => { app.contacts.setNote(friends[1].id, 'dance partner'); });
+    await act(async () => {
+      app.contacts.setNote(friends[1].id, 'dance partner');
+    });
     const search = mounted.host.querySelector('input[type="search"]') as HTMLInputElement;
     await typeInto(search, 'pat');
     expect(row(mounted.host, 'Pat Resident')).toBeTruthy();
@@ -77,7 +105,9 @@ describe('Contacts screen', () => {
     await saveAll(mounted.host);
     await click(row(mounted.host, 'Pat Resident'));
 
-    const telegram = mounted.host.querySelector(`#link-telegram-${friends[0].id}`) as HTMLInputElement;
+    const telegram = mounted.host.querySelector(
+      `#link-telegram-${friends[0].id}`,
+    ) as HTMLInputElement;
     await typeInto(telegram, 'bad input!');
     await click(addButtons(mounted.host)[0]);
     expect(mounted.host.querySelector('[role="alert"]')?.textContent).toMatch(/Telegram usernames/);
@@ -85,7 +115,9 @@ describe('Contacts screen', () => {
 
     await typeInto(telegram, 't.me/pat_user');
     await click(addButtons(mounted.host)[0]);
-    const anchor = mounted.host.querySelector('a[href="https://t.me/pat_user"]') as HTMLAnchorElement;
+    const anchor = mounted.host.querySelector(
+      'a[href="https://t.me/pat_user"]',
+    ) as HTMLAnchorElement;
     expect(anchor).toBeTruthy();
     expect(anchor.target).toBe('_blank');
     expect(anchor.rel).toContain('noopener');
@@ -97,7 +129,10 @@ describe('Contacts screen', () => {
     await seedFriends();
     await saveAll(mounted.host);
     await click(row(mounted.host, 'Pat Resident'));
-    await typeInto(mounted.host.querySelector(`#link-web-${friends[0].id}`) as HTMLInputElement, 'javascript:alert(1)');
+    await typeInto(
+      mounted.host.querySelector(`#link-web-${friends[0].id}`) as HTMLInputElement,
+      'javascript:alert(1)',
+    );
     await click(addButtons(mounted.host)[2]);
     expect(mounted.host.querySelector('[role="alert"]')?.textContent).toMatch(/http and https/);
     expect(mounted.host.querySelector('a[href^="javascript"]')).toBeNull();
@@ -109,7 +144,10 @@ describe('Contacts screen', () => {
     await seedFriends();
     await saveAll(mounted.host);
     await click(row(mounted.host, 'Pat Resident'));
-    await typeInto(mounted.host.querySelector(`#note-${friends[0].id}`) as HTMLTextAreaElement, 'met at the market');
+    await typeInto(
+      mounted.host.querySelector(`#note-${friends[0].id}`) as HTMLTextAreaElement,
+      'met at the market',
+    );
     await click(buttonByText(mounted.host, 'SAVE NOTE'));
     expect(app.contacts.get(friends[0].id)!.note).toBe('met at the market');
 
@@ -126,9 +164,14 @@ describe('Contacts screen', () => {
     await seedFriends();
     await saveAll(mounted.host);
     await click(row(mounted.host, 'Pat Resident'));
-    const input = mounted.host.querySelector('input[aria-label="Choose a photo"]') as HTMLInputElement;
+    const input = mounted.host.querySelector(
+      'input[aria-label="Choose a photo"]',
+    ) as HTMLInputElement;
     await act(async () => {
-      Object.defineProperty(input, 'files', { value: [new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' })], configurable: true });
+      Object.defineProperty(input, 'files', {
+        value: [new File(['<svg/>'], 'x.svg', { type: 'image/svg+xml' })],
+        configurable: true,
+      });
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await flush();
@@ -138,7 +181,9 @@ describe('Contacts screen', () => {
 
   it('says so when a resident has no public profile picture', async () => {
     vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
-    const fetchPhoto = vi.spyOn(app.protocol, 'fetchProfilePhoto').mockResolvedValue({ photoBytes: null } as any);
+    const fetchPhoto = vi
+      .spyOn(app.protocol, 'fetchProfilePhoto')
+      .mockResolvedValue({ photoBytes: null } as any);
     mounted = await mountScreen(ContactsScreen);
     await seedFriends();
     await saveAll(mounted.host);
@@ -151,8 +196,12 @@ describe('Contacts screen', () => {
   it('lists friends who are not saved yet on the ADD FROM SL tab and saves one', async () => {
     mounted = await mountScreen(ContactsScreen);
     await seedFriends();
-    await act(async () => { app.contacts.saveFriends([friends[0]]); });
-    await act(async () => { mounted!.ctx.current.actions.setTab('Contacts', 'ADD FROM SL'); });
+    await act(async () => {
+      app.contacts.saveFriends([friends[0]]);
+    });
+    await act(async () => {
+      mounted!.ctx.current.actions.setTab('Contacts', 'ADD FROM SL');
+    });
     const list = mounted.host.querySelector('ul[aria-label="Friends not yet saved"]')!;
     expect(list.textContent).toContain('Sam Linden');
     expect(list.textContent).not.toContain('Pat Resident');
@@ -192,11 +241,17 @@ describe('Contacts screen', () => {
       google.token.mockReturnValue(null);
       google.signIn.mockResolvedValue({ email: 'me@example.com', name: 'Me' });
       google.fetchSl.mockResolvedValue(new Map());
-      google.push.mockImplementation(async (contact: any) => ({ resourceName: `people/c${contact.id.slice(-1)}`, created: true, photoUploaded: null }));
+      google.push.mockImplementation(async (contact: any) => ({
+        resourceName: `people/c${contact.id.slice(-1)}`,
+        created: true,
+        photoUploaded: null,
+      }));
       mounted = await mountScreen(ContactsScreen);
       await seedFriends();
       await saveAll(mounted.host);
-      await act(async () => { app.preferences.set('integrations', 'google', true); });
+      await act(async () => {
+        app.preferences.set('integrations', 'google', true);
+      });
 
       await click(buttonByText(mounted.host, 'COPY ALL TO GOOGLE'));
       await flush();
@@ -210,13 +265,23 @@ describe('Contacts screen', () => {
     it('reports a failed photo upload and a sign-in failure honestly', async () => {
       google.token.mockReturnValue('tok');
       google.fetchSl.mockResolvedValue(new Map());
-      google.push.mockResolvedValueOnce({ resourceName: 'people/c1', created: true, photoUploaded: false, photoError: 'too big' });
+      google.push.mockResolvedValueOnce({
+        resourceName: 'people/c1',
+        created: true,
+        photoUploaded: false,
+        photoError: 'too big',
+      });
       mounted = await mountScreen(ContactsScreen);
       await seedFriends();
-      await act(async () => { app.contacts.saveFriends([friends[0]]); app.preferences.set('integrations', 'google', true); });
+      await act(async () => {
+        app.contacts.saveFriends([friends[0]]);
+        app.preferences.set('integrations', 'google', true);
+      });
       await click(buttonByText(mounted.host, 'COPY ALL TO GOOGLE'));
       await flush();
-      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toMatch(/1 photo could not be uploaded/);
+      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toMatch(
+        /1 photo could not be uploaded/,
+      );
 
       google.token.mockReturnValue(null);
       google.signIn.mockRejectedValueOnce(new Error('Popup closed'));

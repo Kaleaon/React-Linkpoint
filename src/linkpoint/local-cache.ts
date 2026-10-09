@@ -66,7 +66,12 @@ function standardizeItem(item: any): any {
   };
 }
 
-function standardizeInventoryPayload(data: { folders: any[]; items: any[]; rootId?: string; rootName?: string }): { folders: any[]; items: any[]; rootId?: string; rootName?: string } {
+function standardizeInventoryPayload(data: {
+  folders: any[];
+  items: any[];
+  rootId?: string;
+  rootName?: string;
+}): { folders: any[]; items: any[]; rootId?: string; rootName?: string } {
   if (!data) return { folders: [], items: [] };
   const folders = Array.isArray(data.folders) ? data.folders.map(standardizeFolder) : [];
   const items = Array.isArray(data.items) ? data.items.map(standardizeItem) : [];
@@ -157,11 +162,16 @@ class LocalCacheManager extends Utils.EventEmitter {
   /**
    * Prompts user via the Web File System Access API to select a folder on a Flashdrive / USB drive.
    */
-  public async pickFlashdriveDirectory(): Promise<{ success: boolean; name?: string; error?: string }> {
+  public async pickFlashdriveDirectory(): Promise<{
+    success: boolean;
+    name?: string;
+    error?: string;
+  }> {
     if (typeof window === 'undefined' || !(window as any).showDirectoryPicker) {
       return {
         success: false,
-        error: 'Directory selection is supported on desktop browsers (Chrome, Edge, Opera). You can also specify a custom path below.',
+        error:
+          'Directory selection is supported on desktop browsers (Chrome, Edge, Opera). You can also specify a custom path below.',
       };
     }
 
@@ -176,7 +186,8 @@ class LocalCacheManager extends Utils.EventEmitter {
       this.setLocation('flashdrive_fs', handle.name, handle);
       return { success: true, name: handle.name };
     } catch (err: any) {
-      if (err.name === 'AbortError') return { success: false, error: 'Directory selection cancelled' };
+      if (err.name === 'AbortError')
+        return { success: false, error: 'Directory selection cancelled' };
       return { success: false, error: err.message || 'Failed to select flashdrive directory' };
     }
   }
@@ -184,7 +195,10 @@ class LocalCacheManager extends Utils.EventEmitter {
   /**
    * Save complete inventory (skeleton folders & items) to cache.
    */
-  public async saveInventory(agentId: string, inventoryData: { folders: any[]; items: any[]; rootId?: string; rootName?: string }): Promise<void> {
+  public async saveInventory(
+    agentId: string,
+    inventoryData: { folders: any[]; items: any[]; rootId?: string; rootName?: string },
+  ): Promise<void> {
     const stdData = standardizeInventoryPayload(inventoryData);
     const payload = {
       id: `inv_${agentId}`,
@@ -201,7 +215,9 @@ class LocalCacheManager extends Utils.EventEmitter {
     // 2. Save via Web File System API if user selected a flashdrive folder
     if (this.locationType === 'flashdrive_fs' && this.dirHandle) {
       try {
-        const fileHandle = await this.dirHandle.getFileHandle(`inventory_${agentId}.json`, { create: true });
+        const fileHandle = await this.dirHandle.getFileHandle(`inventory_${agentId}.json`, {
+          create: true,
+        });
         const writable = await fileHandle.createWritable();
         await writable.write(JSON.stringify(payload, null, 2));
         await writable.close();
@@ -249,7 +265,9 @@ class LocalCacheManager extends Utils.EventEmitter {
   /**
    * Load inventory from selected cache. Returns null if not cached.
    */
-  public async loadInventory(agentId: string): Promise<{ folders: any[]; items: any[]; rootId?: string; rootName?: string } | null> {
+  public async loadInventory(
+    agentId: string,
+  ): Promise<{ folders: any[]; items: any[]; rootId?: string; rootName?: string } | null> {
     // 1. Check memory cache first
     const mem = this.memoryCache.get(`inv_${agentId}`);
     if (mem?.data?.folders?.length) {
@@ -276,7 +294,9 @@ class LocalCacheManager extends Utils.EventEmitter {
 
     // 3. Try loading from server disk / configured flashdrive directory
     try {
-      const res = await fetch(`/api/sl/cache/inventory?agentId=${encodeURIComponent(agentId)}&path=${encodeURIComponent(this.customFlashdrivePath)}`);
+      const res = await fetch(
+        `/api/sl/cache/inventory?agentId=${encodeURIComponent(agentId)}&path=${encodeURIComponent(this.customFlashdrivePath)}`,
+      );
       if (res.ok) {
         const serverCache = await res.json();
         if (serverCache?.data?.folders?.length) {
@@ -423,7 +443,9 @@ class LocalCacheManager extends Utils.EventEmitter {
   /**
    * Import a cache bundle from a file selected on a flashdrive.
    */
-  public async importCacheBundle(file: File): Promise<{ success: boolean; foldersCount: number; error?: string }> {
+  public async importCacheBundle(
+    file: File,
+  ): Promise<{ success: boolean; foldersCount: number; error?: string }> {
     try {
       const text = await file.text();
       const bundle = JSON.parse(text);
@@ -435,7 +457,11 @@ class LocalCacheManager extends Utils.EventEmitter {
       await this.saveInventory(agentId, bundle.inventory);
       return { success: true, foldersCount: bundle.inventory.folders.length };
     } catch (err: any) {
-      return { success: false, foldersCount: 0, error: err.message || 'Failed to read cache bundle' };
+      return {
+        success: false,
+        foldersCount: 0,
+        error: err.message || 'Failed to read cache bundle',
+      };
     }
   }
 
@@ -486,7 +512,10 @@ class LocalCacheManager extends Utils.EventEmitter {
       if (db) {
         await new Promise<void>((resolve) => {
           const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
-          const request = tx.objectStore(STORE_TRANSACTIONS).index('agentId').openKeyCursor(IDBKeyRange.only(agentId));
+          const request = tx
+            .objectStore(STORE_TRANSACTIONS)
+            .index('agentId')
+            .openKeyCursor(IDBKeyRange.only(agentId));
           request.onsuccess = () => {
             const cursor = request.result;
             if (cursor) {
@@ -590,17 +619,21 @@ class LocalCacheManager extends Utils.EventEmitter {
         tx.objectStore(STORE_META).clear();
       });
     }
-    for (const key of this.memoryCache.keys()) if (!key.startsWith('txs_')) this.memoryCache.delete(key);
+    for (const key of this.memoryCache.keys())
+      if (!key.startsWith('txs_')) this.memoryCache.delete(key);
 
     let serverCleared = false;
     try {
       const response = await fetch('/api/sl/cache/clear', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customPath: this.customFlashdrivePath, agentId }),
         signal: AbortSignal.timeout(10_000),
       });
       serverCleared = response.ok;
-    } catch { /* A browser/device cache can be cleared while the server is unavailable. */ }
+    } catch {
+      /* A browser/device cache can be cleared while the server is unavailable. */
+    }
     this.emit('cache_cleared');
     return { serverCleared };
   }
@@ -635,7 +668,9 @@ class LocalCacheManager extends Utils.EventEmitter {
       // Ignore
     }
 
-    const approxMb = Number(((foldersCount * 120 + itemsCount * 80 + texturesCount * 65000) / (1024 * 1024)).toFixed(2));
+    const approxMb = Number(
+      ((foldersCount * 120 + itemsCount * 80 + texturesCount * 65000) / (1024 * 1024)).toFixed(2),
+    );
 
     let locationName = 'Internal Browser Storage';
     if (this.locationType === 'flashdrive_fs') {

@@ -1,5 +1,11 @@
 import { Camera3D } from './camera-3d';
-import { isMotionKey, isTypingTarget, resolveKeyMotion, TURN_RATE, type KeyMotion } from './keyboard-motion';
+import {
+  isMotionKey,
+  isTypingTarget,
+  resolveKeyMotion,
+  TURN_RATE,
+  type KeyMotion,
+} from './keyboard-motion';
 import { cameraRates, heldCameraCommands, isCameraKey } from './camera-keyboard';
 import type { KeyMode } from './key-bindings';
 
@@ -38,7 +44,14 @@ export class CameraControls {
   private displacementThreshold = 3; // px
   private panMode = false;
 
-  constructor(private canvas: HTMLCanvasElement, private camera: Camera3D, private changed: () => void = () => undefined, private picked: (x: number, y: number) => void = () => undefined, private avatarMotion: (motion: KeyMotion, run: boolean) => boolean = () => false, private options: CameraControlOptions = {}) {
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private camera: Camera3D,
+    private changed: () => void = () => undefined,
+    private picked: (x: number, y: number) => void = () => undefined,
+    private avatarMotion: (motion: KeyMotion, run: boolean) => boolean = () => false,
+    private options: CameraControlOptions = {},
+  ) {
     canvas.style.touchAction = 'none';
     canvas.tabIndex = 0;
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -57,13 +70,28 @@ export class CameraControls {
     document.addEventListener('visibilitychange', this.onBlur);
   }
 
-  public setVelocityThreshold(threshold: number) { this.velocityThreshold = Math.max(0, threshold); }
-  public getVelocityThreshold() { return this.velocityThreshold; }
-  public setDisplacementThreshold(threshold: number) { this.displacementThreshold = Math.max(0, threshold); }
-  public getDisplacementThreshold() { return this.displacementThreshold; }
-  public setPanMode(enabled: boolean) { this.panMode = enabled; }
-  public getPanMode() { return this.panMode; }
-  public togglePanMode() { this.panMode = !this.panMode; return this.panMode; }
+  public setVelocityThreshold(threshold: number) {
+    this.velocityThreshold = Math.max(0, threshold);
+  }
+  public getVelocityThreshold() {
+    return this.velocityThreshold;
+  }
+  public setDisplacementThreshold(threshold: number) {
+    this.displacementThreshold = Math.max(0, threshold);
+  }
+  public getDisplacementThreshold() {
+    return this.displacementThreshold;
+  }
+  public setPanMode(enabled: boolean) {
+    this.panMode = enabled;
+  }
+  public getPanMode() {
+    return this.panMode;
+  }
+  public togglePanMode() {
+    this.panMode = !this.panMode;
+    return this.panMode;
+  }
 
   private preventMenu = (event: Event) => event.preventDefault();
   private onTouchStart = (event: TouchEvent) => {
@@ -80,12 +108,18 @@ export class CameraControls {
     if ((event as any).timeStampOverride !== undefined) return (event as any).timeStampOverride;
     return event.timeStamp && event.timeStamp > 0
       ? event.timeStamp
-      : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      : typeof performance !== 'undefined'
+        ? performance.now()
+        : Date.now();
   }
 
   private onPointerDown = (event: PointerEvent) => {
     this.canvas.focus({ preventScroll: true });
-    try { this.canvas.setPointerCapture?.(event.pointerId); } catch { /* ignore */ }
+    try {
+      this.canvas.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* ignore */
+    }
     const time = this.sampleTime(event);
     const sample = { x: event.clientX, y: event.clientY, time };
     this.pointers.set(event.pointerId, sample);
@@ -107,10 +141,16 @@ export class CameraControls {
     const velocity = stepDistance / dt;
 
     const start = this.pointerStart.get(event.pointerId);
-    const totalDisplacement = start ? Math.hypot(event.clientX - start.x, event.clientY - start.y) : stepDistance;
+    const totalDisplacement = start
+      ? Math.hypot(event.clientX - start.x, event.clientY - start.y)
+      : stepDistance;
 
     // Filter touch/pointer drag gestures using velocity and displacement thresholds for single pointer
-    if (this.pointers.size === 1 && velocity < this.velocityThreshold && totalDisplacement < this.displacementThreshold) {
+    if (
+      this.pointers.size === 1 &&
+      velocity < this.velocityThreshold &&
+      totalDisplacement < this.displacementThreshold
+    ) {
       return;
     }
 
@@ -142,7 +182,13 @@ export class CameraControls {
       } else {
         this.previousMidpoint = currentMidpoint;
       }
-    } else if (this.panMode || event.shiftKey || (event.altKey && event.ctrlKey) || event.button === 1 || event.buttons === 4) {
+    } else if (
+      this.panMode ||
+      event.shiftKey ||
+      (event.altKey && event.ctrlKey) ||
+      event.button === 1 ||
+      event.buttons === 4
+    ) {
       // Single-pointer Pan: Pan mode on mobile, Shift-drag, Ctrl+Alt-drag (the viewer's pan) or middle-drag on desktop.
       this.camera.pan(-dx * 0.015, dy * 0.015);
     } else {
@@ -162,7 +208,11 @@ export class CameraControls {
       if (event.altKey && this.options.focusAt) this.options.focusAt(x, y);
       else this.picked(x, y);
     }
-    try { this.canvas.releasePointerCapture?.(event.pointerId); } catch { /* ignore */ }
+    try {
+      this.canvas.releasePointerCapture?.(event.pointerId);
+    } catch {
+      /* ignore */
+    }
     this.pointers.delete(event.pointerId);
     this.pointerStart.delete(event.pointerId);
     if (this.pointers.size > 1) {
@@ -180,19 +230,37 @@ export class CameraControls {
     this.changed();
   };
   private shift = false;
-  private keyMode(): KeyMode { return this.options.keyMode?.() ?? 'third_person'; }
+  private keyMode(): KeyMode {
+    return this.options.keyMode?.() ?? 'third_person';
+  }
   private onKeyDown = (event: KeyboardEvent) => {
     this.shift = event.shiftKey;
     this.mods = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey };
     if (event.metaKey || isTypingTarget(event.target)) return;
     // Esc puts the camera back behind the avatar; M toggles mouselook. Neither fires with a modifier held.
     if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.repeat) {
-      if (event.code === 'Escape' && this.options.resetView && !this.escapeBelongsToPage(event.target)) { this.options.resetView(); this.changed(); return; }
-      if (event.code === 'KeyM' && this.options.toggleMouselook) { event.preventDefault(); this.options.toggleMouselook(); this.changed(); return; }
+      if (
+        event.code === 'Escape' &&
+        this.options.resetView &&
+        !this.escapeBelongsToPage(event.target)
+      ) {
+        this.options.resetView();
+        this.changed();
+        return;
+      }
+      if (event.code === 'KeyM' && this.options.toggleMouselook) {
+        event.preventDefault();
+        this.options.toggleMouselook();
+        this.changed();
+        return;
+      }
     }
     // Camera commands from the official bindings (Alt+arrows orbit, Alt+W/S zoom, Ctrl+Alt+Shift pan...).
     // While sitting the unmodified movement keys drive the camera (the sitting binding table), since the avatar cannot walk.
-    if ((event.altKey || event.ctrlKey || this.keyMode() === 'sitting') && isCameraKey(event.code, this.mods, this.keyMode())) {
+    if (
+      (event.altKey || event.ctrlKey || this.keyMode() === 'sitting') &&
+      isCameraKey(event.code, this.mods, this.keyMode())
+    ) {
       event.preventDefault();
       this.cameraKeys.add(event.code);
       this.startKeys();
@@ -212,11 +280,18 @@ export class CameraControls {
     this.keys.delete(event.code);
     this.cameraKeys.delete(event.code);
   };
-  private onBlur = () => { this.keys.clear(); this.cameraKeys.clear(); this.shift = false; this.mods = { ctrl: false, alt: false, shift: false }; };
+  private onBlur = () => {
+    this.keys.clear();
+    this.cameraKeys.clear();
+    this.shift = false;
+    this.mods = { ctrl: false, alt: false, shift: false };
+  };
   /** Esc closes dialogs and menus first; only a press that reaches the page itself resets the camera. */
   private escapeBelongsToPage(target: EventTarget | null) {
     const element = target as HTMLElement | null;
-    return Boolean(element?.closest?.('[role="dialog"], [role="menu"], [aria-modal="true"], dialog'));
+    return Boolean(
+      element?.closest?.('[role="dialog"], [role="menu"], [aria-modal="true"], dialog'),
+    );
   }
 
   private distance(): number {
@@ -236,11 +311,12 @@ export class CameraControls {
   private startKeys() {
     if (this.frame !== null) return;
     const tick = (time: number) => {
-      const seconds = Math.min((time - (this.lastFrame || time)) / 1000, .05);
+      const seconds = Math.min((time - (this.lastFrame || time)) / 1000, 0.05);
       this.lastFrame = time;
       if (this.cameraKeys.size) {
         const rates = cameraRates(heldCameraCommands(this.cameraKeys, this.mods, this.keyMode()));
-        if (rates.yaw || rates.pitch) this.camera.rotate(rates.pitch * seconds, rates.yaw * seconds);
+        if (rates.yaw || rates.pitch)
+          this.camera.rotate(rates.pitch * seconds, rates.yaw * seconds);
         if (rates.zoom) this.camera.zoom(rates.zoom * seconds);
         if (rates.panX || rates.panY) this.camera.pan(rates.panX * seconds, rates.panY * seconds);
         if (rates.yaw || rates.pitch || rates.zoom || rates.panX || rates.panY) this.changed();
@@ -249,14 +325,20 @@ export class CameraControls {
       const avatarMoved = this.avatarMotion(motion, this.shift);
       const step = seconds * this.camera.moveSpeed;
       let moved = false;
-      if (!avatarMoved && motion.turn) { this.camera.turn(motion.turn * TURN_RATE * seconds); moved = true; }
+      if (!avatarMoved && motion.turn) {
+        this.camera.turn(motion.turn * TURN_RATE * seconds);
+        moved = true;
+      }
       if (!avatarMoved && (motion.forward || motion.right || motion.up)) {
         this.camera.move(motion.forward * step, motion.right * step, motion.up * step);
         moved = true;
       }
       if (moved) this.changed();
       if (this.keys.size || this.cameraKeys.size) this.frame = requestAnimationFrame(tick);
-      else { this.frame = null; this.lastFrame = 0; }
+      else {
+        this.frame = null;
+        this.lastFrame = 0;
+      }
     };
     this.frame = requestAnimationFrame(tick);
   }

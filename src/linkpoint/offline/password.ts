@@ -64,7 +64,10 @@ function hasSubtleCrypto(): boolean {
 
 function randomSalt(size: number = SALT_BYTES): Uint8Array {
   const out = new Uint8Array(size);
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.getRandomValues === 'function'
+  ) {
     globalThis.crypto.getRandomValues(out);
   } else {
     for (let i = 0; i < size; i++) {
@@ -74,30 +77,43 @@ function randomSalt(size: number = SALT_BYTES): Uint8Array {
   return out;
 }
 
-async function deriveWithSubtle(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+async function deriveWithSubtle(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<string> {
   const keyMaterial = await globalThis.crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
     'PBKDF2',
     false,
-    ['deriveBits']
+    ['deriveBits'],
   );
   const bits = await globalThis.crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt: salt as unknown as BufferSource, iterations, hash: 'SHA-256' },
     keyMaterial,
-    KEY_BITS
+    KEY_BITS,
   );
   return bytesToHex(new Uint8Array(bits));
 }
 
-async function deriveWithNoble(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+async function deriveWithNoble(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<string> {
   // The async variant yields to the event loop so a pure-JS derivation does not freeze the UI.
-  const key = await pbkdf2Async(sha256, new TextEncoder().encode(password), salt, { c: iterations, dkLen: KEY_BITS / 8 });
+  const key = await pbkdf2Async(sha256, new TextEncoder().encode(password), salt, {
+    c: iterations,
+    dkLen: KEY_BITS / 8,
+  });
   return bytesToHex(key);
 }
 
 async function derive(password: string, salt: Uint8Array, iterations: number): Promise<string> {
-  return hasSubtleCrypto() ? deriveWithSubtle(password, salt, iterations) : deriveWithNoble(password, salt, iterations);
+  return hasSubtleCrypto()
+    ? deriveWithSubtle(password, salt, iterations)
+    : deriveWithNoble(password, salt, iterations);
 }
 
 /** Length-independent comparison so verification does not leak the digest byte by byte. */
@@ -122,7 +138,10 @@ export async function hashPassword(password: string): Promise<PasswordRecord> {
 }
 
 /** Check a candidate password against a stored record, replaying its parameters. */
-export async function verifyPassword(password: string, record: PasswordRecord | null | undefined): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  record: PasswordRecord | null | undefined,
+): Promise<boolean> {
   if (!isPasswordRecord(record) || typeof password !== 'string' || password.length === 0) {
     return false;
   }

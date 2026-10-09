@@ -20,7 +20,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
         telemetry: telemetryLogs.slice(0, 20),
       },
       null,
-      2
+      2,
     );
     void navigator.clipboard.writeText(payload);
     setCopied(true);
@@ -86,12 +86,20 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
               Service Recovery Gateway
             </h2>
             <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>
-              Code: <code style={{ color: '#fca5a5' }}>{activeError.code}</code> ({activeError.category})
+              Code: <code style={{ color: '#fca5a5' }}>{activeError.code}</code> (
+              {activeError.category})
             </p>
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#111827', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
+        <div
+          style={{
+            backgroundColor: '#111827',
+            padding: '12px',
+            borderRadius: '6px',
+            marginBottom: '16px',
+          }}
+        >
           <p style={{ margin: 0, fontSize: '14px', color: '#f3f4f6' }}>{activeError.message}</p>
           <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
             Automated retries attempted: {activeError.attempts} / 3
@@ -131,7 +139,10 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
               data-testid="telemetry-log-viewer"
             >
               {telemetryLogs.map((log) => (
-                <div key={log.id} style={{ marginBottom: '4px', borderBottom: '1px solid #1f2937' }}>
+                <div
+                  key={log.id}
+                  style={{ marginBottom: '4px', borderBottom: '1px solid #1f2937' }}
+                >
                   [{log.timestamp.slice(11, 19)}] [{log.code}] {log.message}
                   {log.details && <div>Details: {JSON.stringify(log.details)}</div>}
                 </div>
@@ -176,7 +187,15 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
             </button>
           </div>
 
-          <div style={{ borderTop: '1px solid #374151', paddingTop: '8px', marginTop: '4px', display: 'flex', gap: '8px' }}>
+          <div
+            style={{
+              borderTop: '1px solid #374151',
+              paddingTop: '8px',
+              marginTop: '4px',
+              display: 'flex',
+              gap: '8px',
+            }}
+          >
             <button
               onClick={() => handleFallback('Chat')}
               style={{
