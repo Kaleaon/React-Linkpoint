@@ -66,6 +66,18 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     return voice;
   }
 
+  it('starts someone muted for us when the mute list silences their voice', async () => {
+    const voice = new VoiceManager();
+    voice.setSelfId(SELF);
+    voice.setVoiceMuteChecker((id) => id === OTHER);
+    await voice.connect({ parcelLocalId: 12 });
+    lastPeer.channel.onopen?.();
+    lastPeer.channel.sent.length = 0;
+    lastPeer.channel.onmessage?.({ data: JSON.stringify({ [OTHER]: { j: { p: true } } }) });
+    expect(parsed(lastPeer.channel)).toContainEqual({ m: { [OTHER]: true } });
+    await voice.disconnect();
+  });
+
   it('offers Opus 48 kHz stereo with an ordered "SLData" channel and the grid STUN servers', async () => {
     const voice = await connected();
     expect(lastPeer.channel.label).toBe('SLData');

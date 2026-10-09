@@ -213,3 +213,55 @@ export class RetryBackoff {
 
   reset() { this.waitSeconds = this.random() + 0.5; }
 }
+
+// ---- which voice channel applies, and which neighbouring regions join it ------------------------------
+
+/** Parcel flags (`llparcelflags.h`). */
+export const PF_ALLOW_VOICE_CHAT = 1 << 29;
+export const PF_USE_ESTATE_VOICE_CHAN = 1 << 30;
+
+export type SpatialChoice =
+  | { enabled: false; reason: string }
+  /** `estate`: the region's estate-wide channel (provisioned without a parcel id), the only one that spans region borders. */
+  | { enabled: true; estate: true }
+  | { enabled: true; estate: false; parcelLocalId: number };
+
+/**
+ * `LLWebRTCVoiceClient::voiceConnectionStateMachine`: no parcel known means the estate channel; a parcel that does not
+ * allow voice turns voice off; one that does not use the estate channel has its own, named by its local id.
+ */
+export function chooseSpatialChannel(parcel: { localId: number; flags: number } | null | undefined): SpatialChoice {
+  if (!parcel || !Number.isInteger(parcel.localId) || parcel.localId < 0) return { enabled: true, estate: true };
+  const flags = parcel.flags >>> 0;
+  if (!(flags & PF_ALLOW_VOICE_CHAT)) return { enabled: false, reason: 'Voice is not allowed on this parcel' };
+  if (!(flags & PF_USE_ESTATE_VOICE_CHAN)) return { enabled: true, estate: false, parcelLocalId: parcel.localId };
+  return { enabled: true, estate: true };
+}
+
+export const sameSpatialChoice = (a: SpatialChoice, b: SpatialChoice) =>
+  a.enabled === b.enabled && (!a.enabled || !b.enabled || (a.estate === b.estate && (a.estate || b.estate || a.parcelLocalId === b.parcelLocalId)));
+
+/** The unit-ish steps `updateNeighboringRegions` probes in, each taken 100 m (2 * MAX_AUDIO_DIST) from the speaker. */
+export const NEIGHBOR_DIRECTIONS: ReadonlyArray<readonly [number, number]> = [
+  [0, 1], [0.707, 0.707], [1, 0], [0.707, -0.707], [0, -1], [-0.707, -0.707], [-1, 0], [-0.707, 0.707],
+];
+
+/** A region handle: south-west corner in metres, x in the high 32 bits and y in the low, as a decimal string. */
+export const regionHandleFor = (origin: readonly [number, number]) => ((BigInt(Math.round(origin[0])) << 32n) | BigInt(Math.round(origin[1]))).toString();
+
+export interface NeighborRegion { handle: string; originX: number; originY: number }
+
+/**
+ * `LLWebRTCVoiceClient::updateNeighboringRegions`: the neighbours (never the current region) that contain a point 100 m
+ * from the speaker in any of eight directions. `regionWidth` is assumed 256 m for regions we know nothing else about.
+ */
+export function neighborsToJoin(speakerGlobal: readonly [number, number, number], known: readonly NeighborRegion[], currentHandle: string, regionWidth = 256): string[] {
+  const wanted = new Set<string>();
+  for (const [dx, dy] of NEIGHBOR_DIRECTIONS) {
+    const x = speakerGlobal[0] + 2 * MAX_AUDIO_DIST * dx;
+    const y = speakerGlobal[1] + 2 * MAX_AUDIO_DIST * dy;
+    const region = known.find((r) => x >= r.originX && x < r.originX + regionWidth && y >= r.originY && y < r.originY + regionWidth);
+    if (region && region.handle !== currentHandle) wanted.add(region.handle);
+  }
+  return [...wanted];
+}

@@ -12,6 +12,7 @@ const METHODS = new Set([
   'fetchAnimation', 'fetchSound', 'getMapBlocks', 'getFriends', 'getGroups', 'getGroupDetails', 'getInventory', 'getOutfit', 'getShape', 'getDiagnostics',
   'getSceneObjects', 'getSceneSnapshot',
   'voiceProvision', 'voiceSignal', 'voiceLogout',
+  'requestMuteList', 'updateMuteEntry', 'removeMuteEntry',
   'searchDir',
 ]);
 

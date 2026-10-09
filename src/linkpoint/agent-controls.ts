@@ -126,7 +126,19 @@ const MOVE_AXIS: Record<string, string> = {
  *  - toggle_fly and toggle_run act on the key-down edge only; stop_moving is held.
  * It holds no timers; callers pass the event time.
  */
+/**
+ * Things the viewer may forbid (RLV): the official `LLAgent` consults them in `setFlying`, `moveUp`, `setAlwaysRun` and
+ * `setTempRun`. Each defaults to allowed.
+ */
+export interface MovementRestrictions {
+  canFly?: () => boolean;
+  canJump?: () => boolean;
+  canAlwaysRun?: () => boolean;
+  canTempRun?: () => boolean;
+}
+
 export class AgentController {
+  restrictions: MovementRestrictions = {};
   flying = false;
   alwaysRun = false;
   automaticFly = true;
@@ -139,24 +151,33 @@ export class AgentController {
   private tempRunAxis: string | null = null;
   private stopHeld = false;
   private pendingOneShots = 0;
+  /** An analog source (a gamepad) layered over the keys: it fills any axis the keys leave idle. */
+  private analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null = null;
+
+  setAnalog(analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null): void { this.analog = analog; }
 
   command(command: string, down: boolean, time: number): boolean {
     if (!AGENT_COMMANDS.has(command)) return false;
-    if (command === 'toggle_fly') { if (down) this.flying = !this.flying; return true; }
-    if (command === 'toggle_run') { if (down) this.alwaysRun = !this.alwaysRun; return true; }
+    if (command === 'toggle_fly') { if (down) this.flying = !this.flying && this.canFly(); return true; }
+    if (command === 'toggle_run') { if (down) this.alwaysRun = !this.alwaysRun && this.canAlwaysRun(); return true; }
     if (command === 'stop_moving') { this.stopHeld = down; return true; }
     const axis = MOVE_AXIS[command];
     if (down) this.press(axis, time); else this.release(axis);
     return true;
   }
 
+  private canFly() { return this.restrictions.canFly?.() ?? true; }
+  private canAlwaysRun() { return this.restrictions.canAlwaysRun?.() ?? true; }
+
   private press(axis: string, time: number): void {
     if (this.pressedAt.has(axis)) return; // key repeat
+    // LLAgent::moveUp: no jumping while @jump=n, unless already flying
+    if (axis === 'up' && !this.flying && !(this.restrictions.canJump?.() ?? true)) return;
     this.pressedAt.set(axis, time);
     const walk = ['forward', 'back', 'left', 'right'].includes(axis);
     if (!walk) return;
     const running = this.alwaysRun || this.tempRunAxis !== null;
-    if (this.allowTapTapHoldRun && !running && this.lastWalkTap?.axis === axis && time - this.lastWalkTap.at < NUDGE_TIME_MS) {
+    if (this.allowTapTapHoldRun && !running && (this.restrictions.canTempRun?.() ?? true) && this.lastWalkTap?.axis === axis && time - this.lastWalkTap.at < NUDGE_TIME_MS) {
       this.tempRunAxis = axis;
     }
     this.lastWalkTap = { axis, at: time };
@@ -179,6 +200,10 @@ export class AgentController {
 
   /** Flags for the next AgentUpdate at `time`; consumes one-shot flags. */
   nextFlags(time: number): number {
+    // A restriction that arrives while it is in use takes effect at once (RLVa lands the avatar and stops always-run)
+    if (this.flying && !this.canFly()) this.flying = false;
+    if (this.alwaysRun && !this.canAlwaysRun()) this.alwaysRun = false;
+    if (this.tempRunAxis !== null && !(this.restrictions.canTempRun?.() ?? true)) this.tempRunAxis = null;
     const held = (axis: string) => this.pressedAt.has(axis);
     const age = (axis: string) => time - (this.pressedAt.get(axis) ?? time);
     const run = this.alwaysRun || this.tempRunAxis !== null;
@@ -193,7 +218,15 @@ export class AgentController {
     walk('right', 'left', 'right', 'nudgeRight');
     intent.up = Number(held('up')) - Number(held('down'));
     intent.turn = Number(held('turnRight')) - Number(held('turnLeft'));
-    if (held('up') && !this.flying && this.automaticFly && age('up') >= FLY_TIME_MS) { this.flying = true; intent.fly = true; }
+    const analog = this.analog;
+    if (analog) {
+      if (!intent.forward && !intent.nudgeForward && analog.forward) intent.forward = analog.forward;
+      if (!intent.right && !intent.nudgeRight && analog.right) intent.right = analog.right;
+      if (!intent.up && analog.up) intent.up = analog.up;
+      if (!intent.turn && analog.turn) intent.turn = analog.turn;
+      if (analog.run) intent.run = true;
+    }
+    if (held('up') && !this.flying && this.automaticFly && this.canFly() && age('up') >= FLY_TIME_MS) { this.flying = true; intent.fly = true; }
     const flags = (intentToFlags(intent) | this.pendingOneShots) >>> 0;
     this.pendingOneShots = 0;
     return flags;

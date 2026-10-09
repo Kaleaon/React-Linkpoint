@@ -9,6 +9,9 @@
  */
 
 import { ChatProtocolAdapter } from '../chat-protocol-adapter';
+import { MuteFlag, MuteType, isLinden, type MuteList } from '../mute-list';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ChatExtended {
   private protocol: any;
@@ -111,7 +114,14 @@ export class ChatExtended {
     if (!userId || typeof userId !== 'string') {
       throw new Error('Valid user ID required');
     }
-    
+    if (this.grid) {
+      // The account's mute list lives on the grid: a UUID mutes that resident, anything else is a legacy mute by name.
+      const clean = userId.trim();
+      if (UUID_PATTERN.test(clean)) this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.AGENT });
+      else this.grid.add({ name: clean, type: MuteType.BY_NAME });
+      return;
+    }
+
     this.muteList.add(userId);
     console.log(`[ChatExtended] Muted user: ${userId}`);
   }
@@ -120,6 +130,11 @@ export class ChatExtended {
    * Remove user from mute list
    */
   unmuteUser(userId: string) {
+    if (this.grid) {
+      const clean = userId.trim();
+      this.grid.remove(UUID_PATTERN.test(clean) ? { id: clean } : { name: clean });
+      return;
+    }
     if (this.muteList.delete(userId)) {
       console.log(`[ChatExtended] Unmuted user: ${userId}`);
     }
@@ -130,6 +145,7 @@ export class ChatExtended {
    */
   isUserMuted(userId: string): boolean {
     if (!userId) return false;
+    if (this.grid) return this.grid.isMuted(userId, userId) || this.grid.isMutedByName(userId);
     const clean = userId.trim().toLowerCase();
     return Array.from(this.muteList).some((id) => id.trim().toLowerCase() === clean);
   }
@@ -141,33 +157,66 @@ export class ChatExtended {
     if (!message) return false;
     const fromId = message.fromId || message.senderId || message.from;
     const fromName = message.fromName || message.sender || message.from;
+    if (this.grid) {
+      // `process_chat_from_simulator` / IM handling: muted speakers, muted owners of objects, muted groups.
+      const name = typeof fromName === 'string' ? fromName : '';
+      if (fromId && this.grid.isMuted(fromId, name, MuteFlag.TEXT_CHAT) && !isLinden(name)) return false;
+      if (message.ownerId && this.grid.isMuted(message.ownerId, '', MuteFlag.TEXT_CHAT)) return false;
+      if (message.groupId && this.grid.isMuted(message.groupId)) return false;
+      return this.applyFilters(message);
+    }
     if (fromId && (this.isUserMuted(fromId) || this.isObjectMuted(fromId))) return false;
     if (fromName && (this.isUserMuted(fromName) || this.isObjectMuted(fromName))) return false;
     return this.applyFilters(message);
   }
 
   getMutedUsers() {
+    if (this.grid) {
+      const { mutes, legacy } = this.grid.snapshot();
+      return [...mutes.filter((m) => m.type === MuteType.AGENT || m.type === MuteType.GROUP).map((m) => m.id), ...legacy];
+    }
     return Array.from(this.muteList);
   }
 
+  /** Use the account's grid-backed mute list instead of the in-memory sets. `resolveName` gives the stored name for an id. */
+  attachGridMuteList(list: MuteList | null, resolveName: (id: string) => string | undefined = () => undefined) {
+    this.grid = list;
+    this.resolveName = resolveName;
+  }
+  private grid: MuteList | null = null;
+  private resolveName: (id: string) => string | undefined = () => undefined;
+
   muteObject(nameOrId: string) {
     if (!nameOrId || typeof nameOrId !== 'string') return;
+    if (this.grid) {
+      const clean = nameOrId.trim();
+      if (UUID_PATTERN.test(clean)) this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.OBJECT });
+      else this.grid.add({ name: clean, type: MuteType.BY_NAME });
+      return;
+    }
     this.mutedObjects.add(nameOrId.trim());
     console.log(`[ChatExtended] Muted object: ${nameOrId}`);
   }
 
   unmuteObject(nameOrId: string) {
+    if (this.grid) {
+      const clean = nameOrId.trim();
+      this.grid.remove(UUID_PATTERN.test(clean) ? { id: clean } : { name: clean });
+      return;
+    }
     this.mutedObjects.delete(nameOrId.trim());
     console.log(`[ChatExtended] Unmuted object: ${nameOrId}`);
   }
 
   isObjectMuted(nameOrId: string): boolean {
     if (!nameOrId) return false;
+    if (this.grid) return this.grid.isMuted(nameOrId, nameOrId);
     const clean = nameOrId.trim();
     return this.mutedObjects.has(clean) || Array.from(this.mutedObjects).some(m => clean.toLowerCase() === m.toLowerCase());
   }
 
   getMutedObjects() {
+    if (this.grid) return this.grid.snapshot().mutes.filter((m) => m.type === MuteType.OBJECT).map((m) => m.id);
     return Array.from(this.mutedObjects);
   }
 

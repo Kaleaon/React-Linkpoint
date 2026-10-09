@@ -218,6 +218,9 @@ export default function Settings() {
           </FormField>
         </div>
         <SwitchSetting id="voice-indicator" title="Voice indicator" description="Show speaking rings in radar and chat logs." on={state.toggles.voice} onClick={() => actions.toggleSetting("voice")} />
+        <SwitchSetting id="gamepad" title="Gamepad movement" description="Move with a connected gamepad: left stick walks and strafes, right stick turns, triggers fly up and down, A jumps. The stick processing is the viewer's joystick code; the gamepad layout is Linkpoint's." on={state.toggles.gamepad} onClick={() => actions.toggleSetting("gamepad")} />
+        <SwitchSetting id="ptt-use" title="Push-to-talk" description="The microphone is open only while you hold the talk key, or after you press it in toggle mode. The microphone button and the middle mouse button toggle it." on={state.toggles.pttUse} onClick={() => actions.toggleSetting("pttUse")} />
+        <SwitchSetting id="ptt-toggle" title="Push-to-talk toggle mode" description="Press once to open the microphone and again to close it, instead of holding." on={state.toggles.pttToggle} onClick={() => actions.toggleSetting("pttToggle")} />
         <SwitchSetting id="media-auto" title="Autoplay parcel media" description="Automatically start parcel audio streams and MOAP media." on={state.toggles.mediaAuto} onClick={() => actions.toggleSetting("mediaAuto")} />
         <p style={{ fontSize: "12px", opacity: 0.8, marginTop: "8px" }}>
           Simulator audio uses positional HRTF sound. Live microphone and voice call controls are located directly in the 3D World View and IM Calls.
@@ -265,7 +268,7 @@ export default function Settings() {
           <button type="button" onClick={() => actions.setScreen("Mute List")}>Open Mute &amp; Block List</button>
         </div>
         <SwitchSetting id="show-online" title="Show me as online" description="When off, friends see you offline and map position is hidden." on={state.toggles.showOnline} onClick={() => actions.toggleSetting("showOnline")} />
-        <SwitchSetting id="rlv" title="RestrainedLove (RLV)" description="Enable RLV script commands for viewer interactions." on={state.toggles.rlv} onClick={() => actions.toggleSetting("rlv")} />
+        <SwitchSetting id="rlv" title="RestrainedLove (RLV)" description="Lets worn scripted items restrict you (chat, IMs, names, flying, teleports) as in RLV viewers. Outfit and attachment locks are not supported yet. Turning this off clears every restriction." on={state.toggles.rlv} onClick={() => actions.toggleSetting("rlv")} />
         <div style={{ marginTop: "8px" }}>
           <strong>Scripted object permissions</strong>
           <p style={{ margin: "2px 0 10px", opacity: 0.8, fontSize: "12px" }}>Manage object animation, attachment, and control grants.</p>

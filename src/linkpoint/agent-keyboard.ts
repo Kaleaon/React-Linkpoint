@@ -66,6 +66,18 @@ export class AgentKeyboard {
     this.flush();
   };
 
+  /** Analog movement from a gamepad, layered over the keys; null stops it. */
+  setAnalog(analog: Parameters<AgentController['setAnalog']>[0]): void {
+    this.controller.setAnalog(analog);
+    this.flush();
+  }
+
+  /** Take off or land (a gamepad button or an upward push). */
+  setFlying(flying: boolean): void {
+    this.controller.setFlying(flying);
+    this.flush();
+  }
+
   private release = () => { this.controller.releaseAll(); this.flush(); };
 
   private flush() {

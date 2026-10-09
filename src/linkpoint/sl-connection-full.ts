@@ -150,7 +150,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       });
     }
     // Everything else the session announces is scene data: objects, assets, textures, terrain, environment...
-    for (const type of ['object-add', 'object-update', 'object-remove', 'asset-ready', 'asset-error', 'animations', 'texture-ready', 'material-ready', 'sound-event', 'sound-asset', 'wind-layer', 'world-data', 'environment', 'terrain']) {
+    for (const type of ['object-add', 'object-update', 'object-remove', 'asset-ready', 'asset-error', 'animations', 'texture-ready', 'material-ready', 'sound-event', 'sound-asset', 'wind-layer', 'parcel-sound', 'voice-neighbors', 'mute-list', 'world-data', 'environment', 'terrain']) {
       forward(type, `scene:${type}`);
     }
     slBridge.on('disconnected', (data: any) => {
@@ -316,9 +316,21 @@ export class SLConnectionFull extends Utils.EventEmitter {
     if (!this.connected && !slBridge.connected) throw new Error('Not connected to a grid');
   }
 
+  /**
+   * Refuses an action before it is sent: returns the reason to show, or null to allow. RLV installs one
+   * (teleport, accepting a lure, sitting and standing can all be restricted).
+   */
+  actionGuard: ((action: 'teleport' | 'acceptLure' | 'sit' | 'stand', detail?: { senderId?: string; objectId?: string }) => string | null) | null = null;
+
+  private guardAction(action: 'teleport' | 'acceptLure' | 'sit' | 'stand', detail?: { senderId?: string; objectId?: string }) {
+    const reason = this.actionGuard?.(action, detail);
+    if (reason) throw new Error(reason);
+  }
+
   /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
   async teleportTo(destination: string) {
     this.requireConnected();
+    this.guardAction('teleport');
     this.emit('teleport_started', { destination });
     this.emit('teleport_progress', { phase: 'initiating', percent: 15, statusText: `Resolving ${destination}...`, regionName: destination });
     this.emit('teleport_progress', { phase: 'contacting', percent: 40, statusText: 'Contacting destination region...' });
@@ -350,8 +362,9 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Accept a teleport lure. Resolves when the grid reports the teleport result. */
-  async acceptLure(id: string) {
+  async acceptLure(id: string, senderId?: string) {
     this.requireConnected();
+    this.guardAction('acceptLure', { senderId });
     return slBridge.acceptLure({ id });
   }
 
@@ -399,11 +412,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async sit(id?: string) {
     this.requireConnected();
+    this.guardAction('sit', { objectId: id });
     return slBridge.sit({ id });
   }
 
   async stand() {
     this.requireConnected();
+    this.guardAction('stand');
     return slBridge.stand();
   }
 
