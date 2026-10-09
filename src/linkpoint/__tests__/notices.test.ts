@@ -135,4 +135,43 @@ describe('NoticeStore', () => {
     expect(notice.attachment).toBeNull();
     expect(notice.hasAttachment).toBe(false);
   });
+
+  it('enforces 5-minute TTL group notice caching and persistence across reloads', () => {
+    const store = new NoticeStore();
+    const notices = [
+      { id: 'n10', groupId: 'g1', subject: 'TTL Notice 1', message: 'Msg 1', from: 'Admin', timestamp: 1000, calendar: null, attachment: null },
+    ];
+    store.setGroupCache('g1', notices, Date.now());
+
+    expect(store.isGroupCacheValid('g1')).toBe(true);
+    const cache = store.getGroupCache('g1')!;
+    expect(cache.valid).toBe(true);
+    expect(cache.notices[0].subject).toBe('TTL Notice 1');
+
+    // Reload from storage
+    const store2 = new NoticeStore();
+    expect(store2.isGroupCacheValid('g1')).toBe(true);
+    expect(store2.getGroupCache('g1')?.notices[0].subject).toBe('TTL Notice 1');
+
+    // Check expired TTL (6 minutes ago)
+    const oldTime = Date.now() - 6 * 60 * 1000;
+    store.setGroupCache('g2', notices, oldTime);
+    expect(store.isGroupCacheValid('g2')).toBe(false);
+    expect(store.getGroupCache('g2')?.valid).toBe(false);
+    expect(store.getGroupCache('g2')?.notices).toHaveLength(1);
+  });
+
+  it('tracks notice history unavailable status', () => {
+    const store = new NoticeStore();
+    const statusFn = vi.fn();
+    store.on('notice_history_status', statusFn);
+
+    expect(store.isHistoryUnavailable('g1')).toBe(false);
+    store.setHistoryUnavailable('g1', true);
+    expect(store.isHistoryUnavailable('g1')).toBe(true);
+    expect(statusFn).toHaveBeenCalledWith({ groupId: 'g1', unavailable: true, isAnyUnavailable: true });
+
+    store.setHistoryUnavailable('g1', false);
+    expect(store.isHistoryUnavailable('g1')).toBe(false);
+  });
 });
