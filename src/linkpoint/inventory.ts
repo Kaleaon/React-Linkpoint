@@ -507,8 +507,9 @@ export class InventoryManager extends Utils.EventEmitter {
           purgeSubtree(childId);
         }
         this.folders.delete(fid);
+      } else {
+        this.items.delete(fid);
       }
-      this.items.delete(fid);
     };
 
     for (const staleId of staleChildIds) {
@@ -721,25 +722,31 @@ export class InventoryManager extends Utils.EventEmitter {
 
     const childFolders: any[] = [];
     const childItems: any[] = [];
+    const seenFolders = new Set<string>();
+    const seenItems = new Set<string>();
 
     if (Array.isArray(folder.children)) {
       for (const childId of folder.children) {
         if (this.folders.has(childId)) {
           childFolders.push(this.folders.get(childId));
+          seenFolders.add(childId);
         } else if (this.items.has(childId)) {
           childItems.push(this.items.get(childId));
+          seenItems.add(childId);
         }
       }
     }
 
     for (const [id, f] of this.folders.entries()) {
-      if (f.parent === folderId && id !== folderId && !childFolders.some((cf) => cf.id === id)) {
+      if (f.parent === folderId && id !== folderId && !seenFolders.has(id)) {
         childFolders.push(f);
+        seenFolders.add(id);
       }
     }
     for (const [id, i] of this.items.entries()) {
-      if (i.parent === folderId && !childItems.some((ci) => ci.id === id)) {
+      if (i.parent === folderId && !seenItems.has(id)) {
         childItems.push(i);
+        seenItems.add(id);
       }
     }
 
@@ -809,6 +816,7 @@ export class InventoryManager extends Utils.EventEmitter {
 
     this.moveItemToFolder(itemId, targetFolderId);
     item.folderId = targetFolderId;
+    item.parent = targetFolderId;
   }
 
   setRootFolder(folderId: string) {

@@ -206,5 +206,23 @@ describe('Integrated Atomic Folder Reconciler and Snapshot Engine', () => {
       app.inventoryCore.addItem('unified-i1', { name: 'Unified Item', folderId: 'unified-f1' });
       expect(app.inventory.items.has('unified-i1')).toBe(true);
     });
+
+    it('correctly updates item.parent and folderId on moveItem and lists contents properly', () => {
+      invManager.createFolder('f-source', { name: 'Source Folder' });
+      invManager.createFolder('f-target', { name: 'Target Folder' });
+      invManager.addItem('item-to-move', { name: 'Movable Item', folderId: 'f-source' });
+
+      invManager.moveItem('item-to-move', 'f-target');
+
+      const movedItem = invManager.getItem('item-to-move');
+      expect(movedItem.folderId).toBe('f-target');
+      expect(movedItem.parent).toBe('f-target');
+
+      const targetContents = invManager.listFolderContents('f-target');
+      expect(targetContents.items.map((i: any) => i.id)).toContain('item-to-move');
+
+      const sourceContents = invManager.listFolderContents('f-source');
+      expect(sourceContents.items.map((i: any) => i.id)).not.toContain('item-to-move');
+    });
   });
 });
