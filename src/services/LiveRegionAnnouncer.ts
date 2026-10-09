@@ -18,7 +18,7 @@ export class LiveRegionAnnouncerService {
   private static instance: LiveRegionAnnouncerService | null = null;
   private queue: AnnouncementItem[] = [];
   private isProcessing = false;
-  private throttleMs = 150;
+  private throttleMs = 1000;
   private domElement: HTMLElement | null = null;
   private chatManager: any = null;
   private isListening = false;
@@ -36,19 +36,57 @@ export class LiveRegionAnnouncerService {
   }
 
   /**
+   * Ensure an off-screen container mounted at root level exists as a persistent singleton DOM element.
+   */
+  public ensureDOMElement(): HTMLElement | null {
+    if (this.domElement && typeof document !== 'undefined' && document.body?.contains(this.domElement)) {
+      return this.domElement;
+    }
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    let element = document.getElementById('live-region-announcer');
+    if (!element) {
+      element = document.createElement('div');
+      element.id = 'live-region-announcer';
+      element.className = 'sr-only live-region-announcer';
+      element.setAttribute('role', 'log');
+      element.setAttribute('aria-live', 'polite');
+      element.setAttribute('aria-atomic', 'true');
+      if (document.body) {
+        document.body.appendChild(element);
+      } else if (document.documentElement) {
+        document.documentElement.appendChild(element);
+      }
+    } else {
+      if (!element.getAttribute('role')) element.setAttribute('role', 'log');
+      if (!element.getAttribute('aria-live')) element.setAttribute('aria-live', 'polite');
+      element.setAttribute('aria-atomic', 'true');
+    }
+
+    this.domElement = element;
+    return element;
+  }
+
+  /**
    * Register the off-screen DOM element that acts as the role="log" live region.
    */
   public registerDOMElement(element: HTMLElement | null): void {
-    this.domElement = element;
-    if (this.domElement) {
+    if (element) {
+      this.domElement = element;
       if (!this.domElement.getAttribute('role')) {
         this.domElement.setAttribute('role', 'log');
       }
       if (!this.domElement.getAttribute('aria-live')) {
         this.domElement.setAttribute('aria-live', 'polite');
       }
-      if (!this.domElement.getAttribute('aria-atomic')) {
-        this.domElement.setAttribute('aria-atomic', 'false');
+      this.domElement.setAttribute('aria-atomic', 'true');
+    } else {
+      if (this.domElement && this.domElement.id === 'live-region-announcer' && typeof document !== 'undefined' && document.body?.contains(this.domElement)) {
+        // Retain the persistent container if registered via fallback
+      } else {
+        this.domElement = null;
       }
     }
   }
@@ -129,13 +167,15 @@ export class LiveRegionAnnouncerService {
     this.isProcessing = true;
 
     while (this.queue.length > 0) {
+      const targetElement = this.ensureDOMElement();
       const item = this.queue.shift();
-      if (item && this.domElement) {
+      if (item && targetElement) {
         // Preserve active focused element (ARIA22: no focus displacement)
         const activeElement = typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null;
 
-        this.domElement.setAttribute('aria-live', item.priority);
-        this.domElement.textContent = item.text;
+        targetElement.setAttribute('aria-live', item.priority);
+        targetElement.setAttribute('aria-atomic', 'true');
+        targetElement.textContent = item.text;
 
         // Restore focus if displaced
         if (activeElement && typeof document !== 'undefined' && document.activeElement !== activeElement) {

@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
+import { liveRegionAnnouncer } from "../services/LiveRegionAnnouncer";
 
 // Ported from `toastStyle`/`{{ toast }}` — the transient acknowledgement
 // toast shared by every screen and layout pack, the feedback channel for
@@ -8,6 +10,13 @@ import { useTheme } from "../context/ThemeContext.jsx";
 export default function Toast() {
   const { state } = useApp();
   const { V, t, isFloat } = useTheme();
+
+  useEffect(() => {
+    if (state.toast) {
+      liveRegionAnnouncer.announce(state.toast, "polite");
+    }
+  }, [state.toast]);
+
   if (!state.toast) return null;
 
   const toastStyle = {

@@ -34,11 +34,36 @@ describe('LiveRegionAnnouncerService & Theme Contrast Tests', () => {
   });
 
   describe('ARIA Attributes & Registration', () => {
-    it('sets role="log", aria-live="polite", and aria-atomic="false" on registered DOM element', () => {
+    it('sets role="log", aria-live="polite", and aria-atomic="true" on registered DOM element', () => {
       expect(mockDomElement.getAttribute('role')).toBe('log');
       expect(mockDomElement.getAttribute('aria-live')).toBe('polite');
-      expect(mockDomElement.getAttribute('aria-atomic')).toBe('false');
+      expect(mockDomElement.getAttribute('aria-atomic')).toBe('true');
       expect(mockDomElement.classList.contains('sr-only')).toBe(true);
+    });
+
+    it('defaults to 1000ms throttle time for speech queue lingering', () => {
+      const freshAnnouncer = new LiveRegionAnnouncerService();
+      // @ts-ignore - access private property for verification
+      expect(freshAnnouncer.throttleMs).toBe(1000);
+      freshAnnouncer.destroy();
+    });
+
+    it('auto-creates and maintains persistent off-screen DOM live region if unregistered', async () => {
+      const freshAnnouncer = new LiveRegionAnnouncerService();
+      freshAnnouncer.setThrottleMs(10);
+      const element = freshAnnouncer.ensureDOMElement();
+      expect(element).not.toBeNull();
+      expect(element?.id).toBe('live-region-announcer');
+      expect(element?.getAttribute('aria-atomic')).toBe('true');
+
+      freshAnnouncer.announce('Persistent live region test');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(element?.textContent).toBe('Persistent live region test');
+
+      freshAnnouncer.destroy();
+      if (element && element.parentNode) {
+        element.parentNode.removeChild(element);
+      }
     });
   });
 
@@ -119,6 +144,25 @@ describe('LiveRegionAnnouncerService & Theme Contrast Tests', () => {
       expect(document.activeElement).toBe(input);
 
       document.body.removeChild(input);
+    });
+  });
+
+  describe('Toast and Chat Live Region Integration', () => {
+    it('routes toast messages to liveRegionAnnouncer', async () => {
+      announcer.announce('Settings saved successfully');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mockDomElement.textContent).toBe('Settings saved successfully');
+    });
+
+    it('routes chat status and error messages to liveRegionAnnouncer', async () => {
+      announcer.announce('Away auto-reply enabled', 'polite');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mockDomElement.textContent).toBe('Away auto-reply enabled');
+
+      announcer.announce('Chat is unavailable while disconnected.', 'assertive');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(mockDomElement.textContent).toBe('Chat is unavailable while disconnected.');
+      expect(mockDomElement.getAttribute('aria-live')).toBe('assertive');
     });
   });
 

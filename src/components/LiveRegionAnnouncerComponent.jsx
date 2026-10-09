@@ -29,7 +29,7 @@ export default function LiveRegionAnnouncerComponent() {
       id="live-region-announcer"
       role="log"
       aria-live="polite"
-      aria-atomic="false"
+      aria-atomic="true"
       aria-label="Live Chat Announcements"
       className="sr-only live-region-announcer"
     />
