@@ -18,9 +18,7 @@ async function mount(ui: React.ReactNode) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(
-      createElement(AppProvider, null, createElement(ThemeProvider, null, ui))
-    );
+    root.render(createElement(AppProvider, null, createElement(ThemeProvider, null, ui)));
   });
   mounted = { host, root };
   return host;
@@ -228,7 +226,7 @@ describe('PayDialog inline CrystalLoader integration', () => {
         isOpen: true,
         onClose: vi.fn(),
         target: { id: 'resident-1', name: 'Aimee Resident', type: 'avatar' },
-      })
+      }),
     );
 
     const payBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
