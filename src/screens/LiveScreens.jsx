@@ -514,22 +514,69 @@ function NoticeAttachmentBanner({ notice, V, t }) {
   );
 }
 
+function NoticeHistoryUnavailableBanner({ V, onClose }) {
+  return (
+    <div
+      role="alert"
+      style={{
+        padding: "10px 12px",
+        background: V.surf,
+        border: `1px solid ${V.err}`,
+        borderRadius: V.rs,
+        color: V.err,
+        fontSize: 12.5,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name="alert-triangle" size={16} style={{ color: V.err, flexShrink: 0 }} />
+        <span>Notice history is currently unavailable from the grid server.</span>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        style={{ background: "none", border: "none", color: V.err, cursor: "pointer", fontWeight: "bold" }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function NoticesList() {
   const { V, t } = useTheme();
   const { actions } = useApp();
   const [notices, setNotices] = useState(() => app.notices.list());
   const [others, setOthers] = useState(() => app.notifications.items.filter((item) => item.kind !== "notice"));
   const [openId, setOpenId] = useState(null);
+  const [historyUnavailable, setHistoryUnavailable] = useState(() => app.notices.isHistoryUnavailable());
 
   useEffect(() => {
     const onNotices = (list) => setNotices(list);
     const onOthers = () => setOthers(app.notifications.items.filter((item) => item.kind !== "notice"));
+    const onStatus = ({ isAnyUnavailable }) => setHistoryUnavailable(Boolean(isAnyUnavailable));
+
     app.notices.on("notices_changed", onNotices);
+    app.notices.on("notice_history_status", onStatus);
     app.notifications.on("notification_received", onOthers);
     app.notifications.on("cleared", onOthers);
     setNotices(app.notices.list());
+    setHistoryUnavailable(app.notices.isHistoryUnavailable());
+
+    // Trigger background re-validation for groups with expired notice cache
+    const userGroups = app.groups?.getGroups ? app.groups.getGroups() : [];
+    for (const group of userGroups) {
+      if (group && group.id && !app.notices.isGroupCacheValid(group.id)) {
+        app.groups.requestGroupNotices(group.id).catch(() => {});
+      }
+    }
+
     return () => {
       app.notices.off("notices_changed", onNotices);
+      app.notices.off("notice_history_status", onStatus);
       app.notifications.off("notification_received", onOthers);
       app.notifications.off("cleared", onOthers);
     };
@@ -538,10 +585,18 @@ function NoticesList() {
   const groupName = (id) => (id ? app.groups.getGroups().find((group) => group.id === id || group.groupId === id)?.name : null) || null;
   const button = { minHeight: 32, padding: "0 12px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.surf, color: V.pri, cursor: "pointer", font: `700 10.5px/1 ${t.font}`, letterSpacing: ".08em" };
 
-  if (!notices.length && !others.length) return <Empty icon="bell">No group notices have been received. Notices you receive are kept on this device.</Empty>;
+  if (!notices.length && !others.length) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12, display: "grid", gap: 8, alignContent: "start", background: V.bg, color: V.ink }}>
+        {historyUnavailable ? <NoticeHistoryUnavailableBanner V={V} onClose={() => setHistoryUnavailable(false)} /> : null}
+        <Empty icon="bell">No group notices have been received. Notices you receive are kept on this device.</Empty>
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12, display: "grid", gap: 8, alignContent: "start", background: V.bg, color: V.ink }}>
+      {historyUnavailable ? <NoticeHistoryUnavailableBanner V={V} onClose={() => setHistoryUnavailable(false)} /> : null}
       {notices.map((notice) => {
         const open = openId === notice.id;
         const hasAttachment = Boolean(notice.attachment?.hasAttachment || notice.hasAttachment);
