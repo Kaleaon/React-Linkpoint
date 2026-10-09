@@ -1,0 +1,17 @@
+dist
+build
+node_modules
+coverage
+android
+android-kotlin
+ios
+.sl-cache
+build-desktop
+packages
+sl_mockup.html
+Second Life Mobile Viewer.html
+*.diff
+bun.lock
+bun.lockb
+package-lock.json
+src/wasm/spatial-wasm-binary.ts

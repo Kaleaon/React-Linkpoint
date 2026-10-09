@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useTheme } from "../context/ThemeContext.jsx";
-import { useApp } from "../context/AppContext.jsx";
-import Icon from "../components/Icon.jsx";
-import AccessibleChatLog from "../components/AccessibleChatLog.jsx";
-import { app } from "../linkpoint/app";
-import { liveRegionAnnouncer } from "../services/LiveRegionAnnouncer";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { useApp } from '../context/AppContext.jsx';
+import Icon from '../components/Icon.jsx';
+import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
+import { app } from '../linkpoint/app';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 export default function Chat() {
   const { V, t } = useTheme();
   const { state, actions } = useApp();
   const [messages, setMessages] = useState(() => [...app.chat.messages]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
   const connected = app.auth.isLoggedIn();
 
@@ -21,7 +21,11 @@ export default function Chat() {
   const [awayMessage, setAwayMessage] = useState(() => app.chat.getAwayMessage());
   const [showAwaySettings, setShowAwaySettings] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
-  const [voice, setVoice] = useState({ state: app.voice.state, muted: app.voice.muted, message: "" });
+  const [voice, setVoice] = useState({
+    state: app.voice.state,
+    muted: app.voice.muted,
+    message: '',
+  });
   const [activeSpeakers, setActiveSpeakers] = useState({});
 
   useEffect(() => {
@@ -36,19 +40,19 @@ export default function Chat() {
       setActiveSpeakers(map);
     };
 
-    app.voice.on("state", updateVoice);
-    app.voice.on("speaking", updateSpeaking);
+    app.voice.on('state', updateVoice);
+    app.voice.on('speaking', updateSpeaking);
     return () => {
-      app.voice.off("state", updateVoice);
-      app.voice.off("speaking", updateSpeaking);
+      app.voice.off('state', updateVoice);
+      app.voice.off('speaking', updateSpeaking);
     };
   }, []);
 
   // Active sub-tab from navigation (LOCAL, IM, GROUP)
-  const activeTab = state.tabs?.Chat || "LOCAL";
+  const activeTab = state.tabs?.Chat || 'LOCAL';
 
   // Selected contact for IMs
-  const [selectedContact, setSelectedContact] = useState(() => state.chip || "");
+  const [selectedContact, setSelectedContact] = useState(() => state.chip || '');
 
   // Update selected contact if chip changes
   useEffect(() => {
@@ -64,32 +68,32 @@ export default function Chat() {
       setAwayMessage(cfg.awayMessage);
     };
 
-    app.chat.on("message_received", refresh);
-    app.chat.on("message_sent", refresh);
-    app.chat.on("auto_reply_changed", onAutoReplyChange);
+    app.chat.on('message_received', refresh);
+    app.chat.on('message_sent', refresh);
+    app.chat.on('auto_reply_changed', onAutoReplyChange);
 
     return () => {
-      app.chat.off("message_received", refresh);
-      app.chat.off("message_sent", refresh);
-      app.chat.off("auto_reply_changed", onAutoReplyChange);
+      app.chat.off('message_received', refresh);
+      app.chat.off('message_sent', refresh);
+      app.chat.off('auto_reply_changed', onAutoReplyChange);
     };
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeTab, selectedContact]);
 
   // Friends and IM Threads for Contact Picker
   const [friends, setFriends] = useState(() => app.friends.getFriends());
   useEffect(() => {
     const refreshFriends = () => setFriends(app.friends.getFriends());
-    app.friends.on("friend_added", refreshFriends);
-    app.friends.on("friend_updated", refreshFriends);
-    app.friends.on("friend_removed", refreshFriends);
+    app.friends.on('friend_added', refreshFriends);
+    app.friends.on('friend_updated', refreshFriends);
+    app.friends.on('friend_removed', refreshFriends);
     return () => {
-      app.friends.off("friend_added", refreshFriends);
-      app.friends.off("friend_updated", refreshFriends);
-      app.friends.off("friend_removed", refreshFriends);
+      app.friends.off('friend_added', refreshFriends);
+      app.friends.off('friend_updated', refreshFriends);
+      app.friends.off('friend_removed', refreshFriends);
     };
   }, []);
   const imThreads = useMemo(() => app.chat.getIMThreads(), [messages]);
@@ -97,52 +101,66 @@ export default function Chat() {
   // Groups for the group picker: known group records plus any group that has already spoken to us.
   const [knownGroups, setKnownGroups] = useState(() => app.groups.getGroups());
   useEffect(() => {
-    if (activeTab !== "GROUP") return undefined;
+    if (activeTab !== 'GROUP') return undefined;
     let cancelled = false;
     Promise.resolve(app.loadGroups())
-      .then((list) => { if (!cancelled) setKnownGroups(Array.isArray(list) ? list : app.groups.getGroups()); })
+      .then((list) => {
+        if (!cancelled) setKnownGroups(Array.isArray(list) ? list : app.groups.getGroups());
+      })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [activeTab, connected]);
   const groupOptions = useMemo(() => {
-    const byId = new Map(knownGroups.filter((g) => g?.id).map((g) => [g.id, { id: g.id, name: g.name || "Group" }]));
+    const byId = new Map(
+      knownGroups.filter((g) => g?.id).map((g) => [g.id, { id: g.id, name: g.name || 'Group' }]),
+    );
     for (const m of messages) {
-      if (m.type === "group" && m.groupId && !byId.has(m.groupId)) byId.set(m.groupId, { id: m.groupId, name: m.groupName || "Group" });
+      if (m.type === 'group' && m.groupId && !byId.has(m.groupId))
+        byId.set(m.groupId, { id: m.groupId, name: m.groupName || 'Group' });
     }
     return Array.from(byId.values());
   }, [knownGroups, messages]);
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [groupQuery, setGroupQuery] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [groupQuery, setGroupQuery] = useState('');
   useEffect(() => {
     if (!selectedGroup && groupOptions.length === 1) setSelectedGroup(groupOptions[0].id);
   }, [groupOptions, selectedGroup]);
   useEffect(() => {
-    if (activeTab !== "GROUP" || !state.chip) return;
-    const requested = groupOptions.find((group) => group.id === state.chip || group.name === state.chip);
+    if (activeTab !== 'GROUP' || !state.chip) return;
+    const requested = groupOptions.find(
+      (group) => group.id === state.chip || group.name === state.chip,
+    );
     if (requested) setSelectedGroup(requested.id);
   }, [activeTab, groupOptions, state.chip]);
   const matchingGroups = useMemo(() => {
     const needle = groupQuery.trim().toLocaleLowerCase();
-    return needle ? groupOptions.filter((group) => group.name.toLocaleLowerCase().includes(needle)) : groupOptions;
+    return needle
+      ? groupOptions.filter((group) => group.name.toLocaleLowerCase().includes(needle))
+      : groupOptions;
   }, [groupOptions, groupQuery]);
 
   // Filter messages based on activeTab
   const visibleMessages = useMemo(() => {
     const myId = app.auth.user?.id;
     return messages.filter((m) => {
-      if (activeTab === "LOCAL") {
-        return m.type !== "im" && m.type !== "group";
+      if (activeTab === 'LOCAL') {
+        return m.type !== 'im' && m.type !== 'group';
       }
-      if (activeTab === "IM") {
-        if (m.type !== "im") return false;
+      if (activeTab === 'IM') {
+        if (m.type !== 'im') return false;
         if (!selectedContact) return true; // Show all IMs if no contact picked
         const targetClean = selectedContact.toLowerCase().trim();
-        const matchesSender = (m.sender || "").toLowerCase().trim() === targetClean || m.senderId === selectedContact;
-        const matchesRecipient = (m.recipientName || "").toLowerCase().trim() === targetClean || m.recipientId === selectedContact;
+        const matchesSender =
+          (m.sender || '').toLowerCase().trim() === targetClean || m.senderId === selectedContact;
+        const matchesRecipient =
+          (m.recipientName || '').toLowerCase().trim() === targetClean ||
+          m.recipientId === selectedContact;
         return matchesSender || matchesRecipient;
       }
-      if (activeTab === "GROUP") {
-        return m.type === "group" && (!selectedGroup || m.groupId === selectedGroup);
+      if (activeTab === 'GROUP') {
+        return m.type === 'group' && (!selectedGroup || m.groupId === selectedGroup);
       }
       return true;
     });
@@ -152,21 +170,24 @@ export default function Chat() {
     const next = !autoReplyEnabled;
     app.chat.setAutoReplyEnabled(next);
     setAutoReplyEnabled(next);
-    liveRegionAnnouncer.announce(next ? "Away auto-reply enabled" : "Away auto-reply disabled", "polite");
+    liveRegionAnnouncer.announce(
+      next ? 'Away auto-reply enabled' : 'Away auto-reply disabled',
+      'polite',
+    );
   };
 
   const handleSaveAwayMessage = (e) => {
     e.preventDefault();
     app.chat.setAwayMessage(awayMessage);
     setSavedNotice(true);
-    liveRegionAnnouncer.announce("Away message saved", "polite");
+    liveRegionAnnouncer.announce('Away message saved', 'polite');
     setTimeout(() => setSavedNotice(false), 2000);
   };
 
   const handleResetRecipients = () => {
     app.chat.clearAutoReplyRecipients();
     setSavedNotice(true);
-    liveRegionAnnouncer.announce("Cleared replied contacts memory", "polite");
+    liveRegionAnnouncer.announce('Cleared replied contacts memory', 'polite');
     setTimeout(() => setSavedNotice(false), 2000);
   };
 
@@ -174,24 +195,27 @@ export default function Chat() {
     event.preventDefault();
     const text = draft.trim();
     if (!text || sending) return;
-    if (!connected) return setError("Chat is unavailable while disconnected.");
+    if (!connected) return setError('Chat is unavailable while disconnected.');
     setSending(true);
-    setError("");
+    setError('');
 
     try {
-      if (activeTab === "IM") {
+      if (activeTab === 'IM') {
         // Resolve recipient ID
         let targetId = selectedContact;
         let targetName = selectedContact;
         const matchedFriend = friends.find(
-          (f) => f.id === selectedContact || f.name?.toLowerCase() === selectedContact.toLowerCase()
+          (f) =>
+            f.id === selectedContact || f.name?.toLowerCase() === selectedContact.toLowerCase(),
         );
         if (matchedFriend) {
           targetId = matchedFriend.id;
           targetName = matchedFriend.name;
         } else {
           const matchedThread = imThreads.find(
-            (t) => t.contactId === selectedContact || t.contactName?.toLowerCase() === selectedContact.toLowerCase()
+            (t) =>
+              t.contactId === selectedContact ||
+              t.contactName?.toLowerCase() === selectedContact.toLowerCase(),
           );
           if (matchedThread) {
             targetId = matchedThread.contactId;
@@ -200,86 +224,142 @@ export default function Chat() {
         }
 
         if (!targetId) {
-          throw new Error("Please select a friend or recipient to send an Instant Message.");
+          throw new Error('Please select a friend or recipient to send an Instant Message.');
         }
 
         await app.chat.sendInstantMessage(targetId, text, targetName);
-      } else if (activeTab === "GROUP") {
+      } else if (activeTab === 'GROUP') {
         const group = groupOptions.find((g) => g.id === selectedGroup);
-        if (!group) throw new Error("Select a group above before sending a group message.");
+        if (!group) throw new Error('Select a group above before sending a group message.');
         await app.chat.sendGroupMessage(group.id, text, group.name);
       } else {
         await app.chat.sendMessage(text, 0, 1);
       }
 
-      setDraft("");
+      setDraft('');
       setMessages([...app.chat.messages]);
     } catch (reason) {
-      const msg = reason instanceof Error ? reason.message : "Message could not be sent.";
+      const msg = reason instanceof Error ? reason.message : 'Message could not be sent.';
       setError(msg);
-      liveRegionAnnouncer.announce(msg, "assertive");
+      liveRegionAnnouncer.announce(msg, 'assertive');
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <div className="chat-container" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--chat-bg-scrim, " + V.bg + ")", color: "var(--chat-text, " + V.ink + ")" }}>
+    <div
+      className="chat-container"
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--chat-bg-scrim, ' + V.bg + ')',
+        color: 'var(--chat-text, ' + V.ink + ')',
+      }}
+    >
       {/* Auto-Reply / Away Message Controls Header */}
-      <div style={{ padding: "8px 12px", background: V.surf, borderBottom: `1px solid ${V.outv}`, display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: "11px", fontWeight: 700, color: autoReplyEnabled ? "#eab308" : V.ink2, display: "flex", alignItems: "center", gap: 4 }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          background: V.surf,
+          borderBottom: `1px solid ${V.outv}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: autoReplyEnabled ? '#eab308' : V.ink2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
               <Icon name="clock" size={13} />
-              AWAY AUTO-REPLY: {autoReplyEnabled ? "ON" : "OFF"}
+              AWAY AUTO-REPLY: {autoReplyEnabled ? 'ON' : 'OFF'}
             </span>
             {autoReplyEnabled && (
-              <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: V.rs, background: "rgba(234, 179, 8, 0.15)", color: "#eab308", border: "1px solid rgba(234, 179, 8, 0.3)" }}>
+              <span
+                style={{
+                  fontSize: '10px',
+                  padding: '1px 6px',
+                  borderRadius: V.rs,
+                  background: 'rgba(234, 179, 8, 0.15)',
+                  color: '#eab308',
+                  border: '1px solid rgba(234, 179, 8, 0.3)',
+                }}
+              >
                 ACTIVE
               </span>
             )}
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             <button
               type="button"
               onClick={handleToggleAutoReply}
               style={{
-                padding: "3px 8px",
-                fontSize: "10px",
+                padding: '3px 8px',
+                fontSize: '10px',
                 fontWeight: 700,
-                background: autoReplyEnabled ? "#eab308" : V.bg,
-                color: autoReplyEnabled ? "#000" : V.ink,
+                background: autoReplyEnabled ? '#eab308' : V.bg,
+                color: autoReplyEnabled ? '#000' : V.ink,
                 border: `1px solid ${V.outv}`,
                 borderRadius: V.rs,
-                cursor: "pointer",
+                cursor: 'pointer',
               }}
               title="Toggle Auto-Reply on incoming IMs"
             >
-              {autoReplyEnabled ? "DISABLE AWAY" : "SET AWAY"}
+              {autoReplyEnabled ? 'DISABLE AWAY' : 'SET AWAY'}
             </button>
             <button
               type="button"
               onClick={() => setShowAwaySettings(!showAwaySettings)}
               style={{
-                padding: "3px 8px",
-                fontSize: "10px",
+                padding: '3px 8px',
+                fontSize: '10px',
                 background: V.bg,
                 color: V.pri,
                 border: `1px solid ${V.outv}`,
                 borderRadius: V.rs,
-                cursor: "pointer",
+                cursor: 'pointer',
               }}
               title="Configure custom away message"
             >
-              {showAwaySettings ? "HIDE AWAY CONFIG" : "CONFIG AWAY MSG"}
+              {showAwaySettings ? 'HIDE AWAY CONFIG' : 'CONFIG AWAY MSG'}
             </button>
           </div>
         </div>
 
         {/* Collapsible Away Message Configuration */}
         {showAwaySettings && (
-          <form onSubmit={handleSaveAwayMessage} style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 6, padding: "8px", background: V.bg, borderRadius: V.rs, border: `1px solid ${V.outv}` }}>
-            <label htmlFor="chat-away-message-input" style={{ fontSize: "11px", fontWeight: 600, color: V.ink }}>Custom 'Away' Message for incoming IMs:</label>
+          <form
+            onSubmit={handleSaveAwayMessage}
+            style={{
+              marginTop: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              padding: '8px',
+              background: V.bg,
+              borderRadius: V.rs,
+              border: `1px solid ${V.outv}`,
+            }}
+          >
+            <label
+              htmlFor="chat-away-message-input"
+              style={{ fontSize: '11px', fontWeight: 600, color: V.ink }}
+            >
+              Custom 'Away' Message for incoming IMs:
+            </label>
             <textarea
               id="chat-away-message-input"
               value={awayMessage}
@@ -287,30 +367,30 @@ export default function Chat() {
               rows={2}
               placeholder="Enter custom away message..."
               style={{
-                width: "100%",
-                padding: "6px 8px",
-                fontSize: "12px",
+                width: '100%',
+                padding: '6px 8px',
+                fontSize: '12px',
                 fontFamily: t.font,
                 background: V.surf,
                 color: V.ink,
                 border: `1px solid ${V.outv}`,
                 borderRadius: V.rs,
-                resize: "vertical",
+                resize: 'vertical',
               }}
             />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="submit"
                   style={{
-                    padding: "4px 10px",
-                    fontSize: "11px",
+                    padding: '4px 10px',
+                    fontSize: '11px',
                     fontWeight: 700,
                     background: V.pri,
                     color: V.onpri,
                     border: 0,
                     borderRadius: V.rs,
-                    cursor: "pointer",
+                    cursor: 'pointer',
                   }}
                 >
                   SAVE AWAY MESSAGE
@@ -319,79 +399,163 @@ export default function Chat() {
                   type="button"
                   onClick={handleResetRecipients}
                   style={{
-                    padding: "4px 8px",
-                    fontSize: "10px",
+                    padding: '4px 8px',
+                    fontSize: '10px',
                     background: V.surf,
                     color: V.ink2,
                     border: `1px solid ${V.outv}`,
                     borderRadius: V.rs,
-                    cursor: "pointer",
+                    cursor: 'pointer',
                   }}
                   title="Clear already-replied contact memory so they receive the notice again"
                 >
                   CLEAR REPLIED CONTACTS
                 </button>
               </div>
-              {savedNotice && <span style={{ fontSize: "10px", color: V.pri, fontWeight: 600 }}>SAVED!</span>}
+              {savedNotice && (
+                <span style={{ fontSize: '10px', color: V.pri, fontWeight: 600 }}>SAVED!</span>
+              )}
             </div>
           </form>
         )}
 
         {/* Group Selector (When GROUP tab is active) */}
-        {activeTab === "GROUP" && (
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, .7fr) minmax(160px, 1fr)", alignItems: "center", gap: 7, paddingBottom: 2 }}>
-            <label style={{ position: "relative" }}>
+        {activeTab === 'GROUP' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(120px, .7fr) minmax(160px, 1fr)',
+              alignItems: 'center',
+              gap: 7,
+              paddingBottom: 2,
+            }}
+          >
+            <label style={{ position: 'relative' }}>
               <span className="sr-only">Search group conversations</span>
-              <Icon name="search" size={13} style={{ position: "absolute", left: 8, top: 8, color: V.ink2 }} />
-              <input value={groupQuery} onChange={(event) => setGroupQuery(event.target.value)} placeholder="Find a group…" style={{ boxSizing: "border-box", width: "100%", height: 30, padding: "0 8px 0 27px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, fontSize: 11 }} />
+              <Icon
+                name="search"
+                size={13}
+                style={{ position: 'absolute', left: 8, top: 8, color: V.ink2 }}
+              />
+              <input
+                value={groupQuery}
+                onChange={(event) => setGroupQuery(event.target.value)}
+                placeholder="Find a group…"
+                style={{
+                  boxSizing: 'border-box',
+                  width: '100%',
+                  height: 30,
+                  padding: '0 8px 0 27px',
+                  border: `1px solid ${V.outv}`,
+                  borderRadius: V.rs,
+                  background: V.bg,
+                  color: V.ink,
+                  fontSize: 11,
+                }}
+              />
             </label>
             {groupOptions.length === 0 && (
-              <span style={{ fontSize: "10px", color: V.ink2 }}>No groups available on this connection.</span>
+              <span style={{ fontSize: '10px', color: V.ink2 }}>
+                No groups available on this connection.
+              </span>
             )}
-            {groupOptions.length > 0 && <label style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ fontSize: 10, fontWeight: 700, color: V.ink2 }}>TO</span><select aria-label="Group conversation" value={selectedGroup} onChange={(event) => { setSelectedGroup(event.target.value); actions?.setChip(event.target.value); }} style={{ width: "100%", minWidth: 0, height: 30, padding: "0 8px", border: `1px solid ${V.outv}`, borderRadius: V.rs, background: V.bg, color: V.ink, fontSize: 11 }}><option value="">Choose a group</option>{matchingGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
+            {groupOptions.length > 0 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: V.ink2 }}>TO</span>
+                <select
+                  aria-label="Group conversation"
+                  value={selectedGroup}
+                  onChange={(event) => {
+                    setSelectedGroup(event.target.value);
+                    actions?.setChip(event.target.value);
+                  }}
+                  style={{
+                    width: '100%',
+                    minWidth: 0,
+                    height: 30,
+                    padding: '0 8px',
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    background: V.bg,
+                    color: V.ink,
+                    fontSize: 11,
+                  }}
+                >
+                  <option value="">Choose a group</option>
+                  {matchingGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         )}
 
         {/* Instant Messenger Contact Selector & Voice Call Bar (When IM tab is active) */}
-        {activeTab === "IM" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", background: V.bg, borderRadius: V.rs, border: `1px solid ${V.outv}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name={voice.muted ? "mic-off" : "mic"} size={13} style={{ color: voice.state === "connected" ? (voice.muted ? V.err : V.pri) : V.ink2 }} />
-                <span style={{ fontSize: "10px", fontWeight: 700, color: V.ink }}>
-                  IM CALL: {voice.state === "connected" ? (voice.muted ? "MUTED" : "LIVE") : voice.state === "connecting" ? "CONNECTING..." : "OFF"}
+        {activeTab === 'IM' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '4px 8px',
+                background: V.bg,
+                borderRadius: V.rs,
+                border: `1px solid ${V.outv}`,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon
+                  name={voice.muted ? 'mic-off' : 'mic'}
+                  size={13}
+                  style={{
+                    color: voice.state === 'connected' ? (voice.muted ? V.err : V.pri) : V.ink2,
+                  }}
+                />
+                <span style={{ fontSize: '10px', fontWeight: 700, color: V.ink }}>
+                  IM CALL:{' '}
+                  {voice.state === 'connected'
+                    ? voice.muted
+                      ? 'MUTED'
+                      : 'LIVE'
+                    : voice.state === 'connecting'
+                      ? 'CONNECTING...'
+                      : 'OFF'}
                 </span>
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {voice.state === "connected" ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                {voice.state === 'connected' ? (
                   <>
                     <button
                       type="button"
                       onClick={() => app.voice.setMuted(!voice.muted)}
                       style={{
-                        padding: "2px 8px",
-                        fontSize: "10px",
+                        padding: '2px 8px',
+                        fontSize: '10px',
                         fontWeight: 700,
                         background: voice.muted ? V.pri : V.surf,
                         color: voice.muted ? V.onpri : V.ink,
                         border: `1px solid ${V.outv}`,
                         borderRadius: V.rs,
-                        cursor: "pointer",
+                        cursor: 'pointer',
                       }}
                     >
-                      {voice.muted ? "UNMUTE MIC" : "MUTE MIC"}
+                      {voice.muted ? 'UNMUTE MIC' : 'MUTE MIC'}
                     </button>
                     <button
                       type="button"
                       onClick={() => void app.voice.disconnect()}
                       style={{
-                        padding: "2px 6px",
-                        fontSize: "10px",
-                        background: "transparent",
+                        padding: '2px 6px',
+                        fontSize: '10px',
+                        background: 'transparent',
                         color: V.err,
                         border: `1px solid ${V.err}`,
                         borderRadius: V.rs,
-                        cursor: "pointer",
+                        cursor: 'pointer',
                       }}
                     >
                       END CALL
@@ -403,14 +567,14 @@ export default function Chat() {
                     disabled={!connected}
                     onClick={() => void app.voice.connect().catch(() => {})}
                     style={{
-                      padding: "2px 8px",
-                      fontSize: "10px",
+                      padding: '2px 8px',
+                      fontSize: '10px',
                       fontWeight: 700,
                       background: V.pri,
                       color: V.onpri,
                       border: 0,
                       borderRadius: V.rs,
-                      cursor: "pointer",
+                      cursor: 'pointer',
                     }}
                   >
                     START VOICE CALL
@@ -419,76 +583,105 @@ export default function Chat() {
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-            <span style={{ fontSize: "10px", fontWeight: 700, color: V.ink2, flexShrink: 0 }}>
-              RECIPIENT:
-            </span>
-            <button
-              type="button"
-              onClick={() => { setSelectedContact(""); actions?.setChip(""); }}
+            <div
               style={{
-                padding: "2px 8px",
-                fontSize: "10px",
-                borderRadius: V.rs,
-                border: `1px solid ${!selectedContact ? V.pri : V.outv}`,
-                background: !selectedContact ? V.pri : V.bg,
-                color: !selectedContact ? V.onpri : V.ink,
-                cursor: "pointer",
-                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                overflowX: 'auto',
+                paddingBottom: 2,
               }}
             >
-              ALL CONVERSATIONS
-            </button>
-            {friends.map((f) => {
-              const isSelected = selectedContact === f.name || selectedContact === f.id;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => { setSelectedContact(f.name); actions?.setChip(f.name); }}
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: "10px",
-                    borderRadius: V.rs,
-                    border: `1px solid ${isSelected ? V.pri : V.outv}`,
-                    background: isSelected ? V.pri : V.bg,
-                    color: isSelected ? V.onpri : V.ink,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    flexShrink: 0,
-                  }}
-                >
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: f.onlineStatus === "online" ? "#22c55e" : "#6b7280" }} />
-                  {f.name}
-                </button>
-              );
-            })}
-            {imThreads.filter((t) => !friends.some((f) => f.id === t.contactId || f.name === t.contactName)).map((t) => {
-              const isSelected = selectedContact === t.contactName || selectedContact === t.contactId;
-              return (
-                <button
-                  key={t.contactId}
-                  type="button"
-                  onClick={() => { setSelectedContact(t.contactName); actions?.setChip(t.contactName); }}
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: "10px",
-                    borderRadius: V.rs,
-                    border: `1px solid ${isSelected ? V.pri : V.outv}`,
-                    background: isSelected ? V.pri : V.bg,
-                    color: isSelected ? V.onpri : V.ink,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
-                >
-                  {t.contactName}
-                </button>
-              );
-            })}
+              <span style={{ fontSize: '10px', fontWeight: 700, color: V.ink2, flexShrink: 0 }}>
+                RECIPIENT:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedContact('');
+                  actions?.setChip('');
+                }}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: '10px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${!selectedContact ? V.pri : V.outv}`,
+                  background: !selectedContact ? V.pri : V.bg,
+                  color: !selectedContact ? V.onpri : V.ink,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                ALL CONVERSATIONS
+              </button>
+              {friends.map((f) => {
+                const isSelected = selectedContact === f.name || selectedContact === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedContact(f.name);
+                      actions?.setChip(f.name);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      borderRadius: V.rs,
+                      border: `1px solid ${isSelected ? V.pri : V.outv}`,
+                      background: isSelected ? V.pri : V.bg,
+                      color: isSelected ? V.onpri : V.ink,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        background: f.onlineStatus === 'online' ? '#22c55e' : '#6b7280',
+                      }}
+                    />
+                    {f.name}
+                  </button>
+                );
+              })}
+              {imThreads
+                .filter(
+                  (t) => !friends.some((f) => f.id === t.contactId || f.name === t.contactName),
+                )
+                .map((t) => {
+                  const isSelected =
+                    selectedContact === t.contactName || selectedContact === t.contactId;
+                  return (
+                    <button
+                      key={t.contactId}
+                      type="button"
+                      onClick={() => {
+                        setSelectedContact(t.contactName);
+                        actions?.setChip(t.contactName);
+                      }}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '10px',
+                        borderRadius: V.rs,
+                        border: `1px solid ${isSelected ? V.pri : V.outv}`,
+                        background: isSelected ? V.pri : V.bg,
+                        color: isSelected ? V.onpri : V.ink,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {t.contactName}
+                    </button>
+                  );
+                })}
+            </div>
           </div>
-        </div>
         )}
       </div>
 
@@ -500,21 +693,36 @@ export default function Chat() {
         ariaLabel={`${activeTab} chat transcript`}
         emptyStateMessage={
           connected
-            ? activeTab === "IM"
-              ? (selectedContact ? `No Instant Messages yet with ${selectedContact}.` : "No Instant Messages yet. Pick a resident above to start an IM.")
-              : activeTab === "GROUP"
-              ? (selectedGroup ? `No messages yet in ${groupOptions.find((group) => group.id === selectedGroup)?.name || "this group"}.` : "Choose a group above to open its conversation.")
-              : "Listening to live Second Life region chat…"
-            : "Connect to a grid to chat."
+            ? activeTab === 'IM'
+              ? selectedContact
+                ? `No Instant Messages yet with ${selectedContact}.`
+                : 'No Instant Messages yet. Pick a resident above to start an IM.'
+              : activeTab === 'GROUP'
+                ? selectedGroup
+                  ? `No messages yet in ${groupOptions.find((group) => group.id === selectedGroup)?.name || 'this group'}.`
+                  : 'Choose a group above to open its conversation.'
+                : 'Listening to live Second Life region chat…'
+            : 'Connect to a grid to chat.'
         }
       />
 
       {/* Chat Send Input Form */}
-      <form onSubmit={send} style={{ padding: 12, borderTop: `1px solid ${V.outv}`, background: V.surf }}>
-        {error && <div role="alert" style={{ color: V.err, marginBottom: 7, fontSize: "12px" }}>{error}</div>}
-        <div style={{ display: "flex", gap: 8 }}>
+      <form
+        onSubmit={send}
+        style={{ padding: 12, borderTop: `1px solid ${V.outv}`, background: V.surf }}
+      >
+        {error && (
+          <div role="alert" style={{ color: V.err, marginBottom: 7, fontSize: '12px' }}>
+            {error}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
           <label htmlFor="chat-input" className="sr-only">
-            {activeTab === "IM" ? `Instant message ${selectedContact || "resident"}` : activeTab === "GROUP" ? "Message group chat" : "Message local chat"}
+            {activeTab === 'IM'
+              ? `Instant message ${selectedContact || 'resident'}`
+              : activeTab === 'GROUP'
+                ? 'Message group chat'
+                : 'Message local chat'}
           </label>
           <input
             id="chat-input"
@@ -523,19 +731,23 @@ export default function Chat() {
             disabled={!connected || sending}
             placeholder={
               !connected
-                ? "Disconnected"
-                : activeTab === "IM"
-                ? (selectedContact ? `Instant Message to ${selectedContact}…` : "Select a friend above or enter message…")
-                : activeTab === "GROUP"
-                ? (selectedGroup ? `Message ${groupOptions.find((group) => group.id === selectedGroup)?.name || "group"}…` : "Select a group above…")
-                : "Say to nearby region…"
+                ? 'Disconnected'
+                : activeTab === 'IM'
+                  ? selectedContact
+                    ? `Instant Message to ${selectedContact}…`
+                    : 'Select a friend above or enter message…'
+                  : activeTab === 'GROUP'
+                    ? selectedGroup
+                      ? `Message ${groupOptions.find((group) => group.id === selectedGroup)?.name || 'group'}…`
+                      : 'Select a group above…'
+                    : 'Say to nearby region…'
             }
             autoComplete="off"
             style={{
               flex: 1,
               minWidth: 0,
               minHeight: 44,
-              padding: "0 12px",
+              padding: '0 12px',
               border: `1px solid ${V.outv}`,
               borderRadius: V.rs,
               background: V.bg,
@@ -546,8 +758,24 @@ export default function Chat() {
           <button
             type="submit"
             disabled={!connected || !draft.trim() || sending}
-            aria-label={activeTab === "IM" ? "Send Instant Message" : activeTab === "GROUP" ? "Send group message" : "Send local chat"}
-            style={{ width: 48, border: 0, borderRadius: V.rs, background: V.pri, color: V.onpri, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label={
+              activeTab === 'IM'
+                ? 'Send Instant Message'
+                : activeTab === 'GROUP'
+                  ? 'Send group message'
+                  : 'Send local chat'
+            }
+            style={{
+              width: 48,
+              border: 0,
+              borderRadius: V.rs,
+              background: V.pri,
+              color: V.onpri,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             <Icon name="send" size={19} />
           </button>

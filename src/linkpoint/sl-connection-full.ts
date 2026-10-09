@@ -51,8 +51,15 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return {
       ...this.diagnostics,
       connected: isConn,
-      agentId: this.agentId || this.diagnostics.agentId || (typeof window !== 'undefined' && (window as any).app?.auth?.user?.id) || '',
-      simName: this.authReply?.sim_name || (typeof window !== 'undefined' && (window as any).app?.world?.regionName) || this.diagnostics.simName,
+      agentId:
+        this.agentId ||
+        this.diagnostics.agentId ||
+        (typeof window !== 'undefined' && (window as any).app?.auth?.user?.id) ||
+        '',
+      simName:
+        this.authReply?.sim_name ||
+        (typeof window !== 'undefined' && (window as any).app?.world?.regionName) ||
+        this.diagnostics.simName,
       // Prefer what the login reply actually told us over the last polled snapshot.
       simAddress: this.simAddress || this.diagnostics.simAddress,
       simPort: this.simPort || this.diagnostics.simPort,
@@ -107,11 +114,16 @@ export class SLConnectionFull extends Utils.EventEmitter {
   private attachBridge() {
     if (this.bridgeAttached) return;
     this.bridgeAttached = true;
-    const forward = (from: string, to: string, wrap: (data: any) => any = (data) => data) => slBridge.on(from, (data: any) => this.emit(to, wrap(data)));
+    const forward = (from: string, to: string, wrap: (data: any) => any = (data) => data) =>
+      slBridge.on(from, (data: any) => this.emit(to, wrap(data)));
     forward('chat', 'ChatFromSimulator');
     forward('im', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'im' }));
-    forward('group-chat', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'group', type: 'group' }));
-    
+    forward('group-chat', 'ChatFromSimulator', (data) => ({
+      ...data,
+      chatType: 'group',
+      type: 'group',
+    }));
+
     for (const name of ['group_notice', 'group-notice']) {
       slBridge.on(name, (data: any) => {
         this.emit('group_notice', data);
@@ -150,7 +162,25 @@ export class SLConnectionFull extends Utils.EventEmitter {
       });
     }
     // Everything else the session announces is scene data: objects, assets, textures, terrain, environment...
-    for (const type of ['object-add', 'object-update', 'object-remove', 'asset-ready', 'asset-error', 'animations', 'texture-ready', 'material-ready', 'sound-event', 'sound-asset', 'wind-layer', 'parcel-sound', 'voice-neighbors', 'mute-list', 'world-data', 'environment', 'terrain']) {
+    for (const type of [
+      'object-add',
+      'object-update',
+      'object-remove',
+      'asset-ready',
+      'asset-error',
+      'animations',
+      'texture-ready',
+      'material-ready',
+      'sound-event',
+      'sound-asset',
+      'wind-layer',
+      'parcel-sound',
+      'voice-neighbors',
+      'mute-list',
+      'world-data',
+      'environment',
+      'terrain',
+    ]) {
       forward(type, `scene:${type}`);
     }
     slBridge.on('disconnected', (data: any) => {
@@ -181,7 +211,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
     try {
       const friendsList = await slBridge.fetchFriends();
-      if (Array.isArray(friendsList) && friendsList.length > 0) this.emit('friends_loaded', friendsList);
+      if (Array.isArray(friendsList) && friendsList.length > 0)
+        this.emit('friends_loaded', friendsList);
     } catch (fErr) {
       console.warn('[SL Connection] fetchFriends warning:', fErr);
     }
@@ -190,18 +221,33 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return loginResult;
   }
 
-  async connect(gridId: string, username: string, password: string, startLocation: string = 'last', mfa: { token?: string; hash?: string } = {}) {
+  async connect(
+    gridId: string,
+    username: string,
+    password: string,
+    startLocation: string = 'last',
+    mfa: { token?: string; hash?: string } = {},
+  ) {
     this.resetConnectionState();
     this.setState('AUTHENTICATING');
 
     try {
       if (gridId === 'gemini' || gridId === 'offline' || gridId === 'local') {
-        throw new Error('Synthetic grid sessions have been removed; select a live Second Life or OpenSim endpoint');
+        throw new Error(
+          'Synthetic grid sessions have been removed; select a live Second Life or OpenSim endpoint',
+        );
       }
       const loginUrl = SLProtocol.getLoginUrl(gridId) || gridId;
       if (!loginUrl) throw new Error('Invalid or insecure grid selected');
       this.attachBridge();
-      const loginResult = await slBridge.connect({ loginUrl, username, password, start: startLocation, mfaToken: mfa.token, mfaHash: mfa.hash });
+      const loginResult = await slBridge.connect({
+        loginUrl,
+        username,
+        password,
+        start: startLocation,
+        mfaToken: mfa.token,
+        mfaHash: mfa.hash,
+      });
       return await this.finishLogin(loginResult);
     } catch (error) {
       this.resetConnectionState();
@@ -228,11 +274,16 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
   async fetchCapabilities() {
     try {
-      const capsToRequest = ['EventQueueGet', 'FetchInventoryDescendents2', 'ChatSessionRequest', 'GetDisplayNames'];
+      const capsToRequest = [
+        'EventQueueGet',
+        'FetchInventoryDescendents2',
+        'ChatSessionRequest',
+        'GetDisplayNames',
+      ];
       const response = await corsHandler.makeRequest(this.seedCapability!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/llsd+xml' },
-        body: LLSD.buildXML(capsToRequest)
+        body: LLSD.buildXML(capsToRequest),
       });
 
       if (response && response.ok) {
@@ -256,20 +307,20 @@ export class SLConnectionFull extends Utils.EventEmitter {
 
     try {
       const url = this.capabilities.EventQueueGet;
-      const body = this.lastEventId 
+      const body = this.lastEventId
         ? LLSD.buildXML({ ack: this.lastEventId, done: false })
         : LLSD.buildXML({ done: false });
 
       const response = await corsHandler.makeRequest(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/llsd+xml' },
-        body
+        body,
       });
 
       if (response && response.ok) {
         const text = await response.text();
         const data = LLSD.parseXML(text);
-        
+
         if (data && data.events) {
           data.events.forEach((event: any) => this.handleEvent(event));
           if (data.id) this.lastEventId = data.id;
@@ -320,9 +371,17 @@ export class SLConnectionFull extends Utils.EventEmitter {
    * Refuses an action before it is sent: returns the reason to show, or null to allow. RLV installs one
    * (teleport, accepting a lure, sitting and standing can all be restricted).
    */
-  actionGuard: ((action: 'teleport' | 'acceptLure' | 'sit' | 'stand', detail?: { senderId?: string; objectId?: string }) => string | null) | null = null;
+  actionGuard:
+    | ((
+        action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
+        detail?: { senderId?: string; objectId?: string },
+      ) => string | null)
+    | null = null;
 
-  private guardAction(action: 'teleport' | 'acceptLure' | 'sit' | 'stand', detail?: { senderId?: string; objectId?: string }) {
+  private guardAction(
+    action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
+    detail?: { senderId?: string; objectId?: string },
+  ) {
     const reason = this.actionGuard?.(action, detail);
     if (reason) throw new Error(reason);
   }
@@ -332,12 +391,29 @@ export class SLConnectionFull extends Utils.EventEmitter {
     this.requireConnected();
     this.guardAction('teleport');
     this.emit('teleport_started', { destination });
-    this.emit('teleport_progress', { phase: 'initiating', percent: 15, statusText: `Resolving ${destination}...`, regionName: destination });
-    this.emit('teleport_progress', { phase: 'contacting', percent: 40, statusText: 'Contacting destination region...' });
+    this.emit('teleport_progress', {
+      phase: 'initiating',
+      percent: 15,
+      statusText: `Resolving ${destination}...`,
+      regionName: destination,
+    });
+    this.emit('teleport_progress', {
+      phase: 'contacting',
+      percent: 40,
+      statusText: 'Contacting destination region...',
+    });
     try {
-      this.emit('teleport_progress', { phase: 'preparing', percent: 65, statusText: 'Preparing avatar transfer...' });
+      this.emit('teleport_progress', {
+        phase: 'preparing',
+        percent: 65,
+        statusText: 'Preparing avatar transfer...',
+      });
       const result = await slBridge.teleport({ destination });
-      this.emit('teleport_progress', { phase: 'arriving', percent: 90, statusText: 'Arriving at destination...' });
+      this.emit('teleport_progress', {
+        phase: 'arriving',
+        percent: 90,
+        statusText: 'Arriving at destination...',
+      });
       this.emit('teleport_requested', result);
       const regionName = result?.requested?.region || destination;
       this.emit('teleport_completed', { regionName, result });
@@ -399,7 +475,14 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Accept a group notice attachment. */
-  async acceptGroupNoticeAttachment(request: { id?: string; noticeId?: string; groupId?: string; attachmentItemId?: string; attachmentOwnerId?: string; folderId?: string }) {
+  async acceptGroupNoticeAttachment(request: {
+    id?: string;
+    noticeId?: string;
+    groupId?: string;
+    attachmentItemId?: string;
+    attachmentOwnerId?: string;
+    folderId?: string;
+  }) {
     this.requireConnected();
     return slBridge.acceptGroupNoticeAttachment(request);
   }
@@ -411,7 +494,14 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Touch an object by id. Face and texture coordinates are sent only when known. */
-  async touchObject(target: { id?: string; localId?: number; face?: number; uv?: number[]; st?: number[]; position?: number[] }) {
+  async touchObject(target: {
+    id?: string;
+    localId?: number;
+    face?: number;
+    uv?: number[];
+    st?: number[];
+    position?: number[];
+  }) {
     this.requireConnected();
     return slBridge.touchObject(target);
   }
@@ -429,7 +519,14 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Update the logged-in avatar's directional control flags. */
-  async setMovement(movement: { forward?: number; right?: number; up?: number; turn?: number; run?: boolean; controlFlags?: number }) {
+  async setMovement(movement: {
+    forward?: number;
+    right?: number;
+    up?: number;
+    turn?: number;
+    run?: boolean;
+    controlFlags?: number;
+  }) {
     this.requireConnected();
     return slBridge.setMovement(movement);
   }
@@ -438,7 +535,10 @@ export class SLConnectionFull extends Utils.EventEmitter {
   public balance: number | null = null;
 
   async refreshBalance(): Promise<number | null> {
-    if (!this.connected && !slBridge.connected) { this.balance = null; return null; }
+    if (!this.connected && !slBridge.connected) {
+      this.balance = null;
+      return null;
+    }
     try {
       const { balance } = await slBridge.getBalance();
       this.balance = Number.isFinite(balance) ? balance : null;

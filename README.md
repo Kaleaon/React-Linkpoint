@@ -1,4 +1,3 @@
-
 # Linkpoint Viewer
 
 A Second Life communicator and viewer utility suite packaged as a Progressive Web App.
@@ -43,21 +42,20 @@ interactive desktop testing is required.
    bun run dev
    ```
 
-
 ## Packaging
 
 `.github/workflows/release.yml` builds every distributable package. It runs on
 pushes to `main`, on `v*` tags, and on demand from the **Actions** tab (where a
 dropdown lets you build a single platform instead of all of them).
 
-| Package | Built on | Produces |
-| --- | --- | --- |
-| Web | `ubuntu-latest` | `Linkpoint-<version>-web.zip` (the `dist/` PWA bundle) |
-| Android | `ubuntu-latest` | release `.apk` and Play Store `.aab` |
-| iOS | `macos-latest` | unsigned `.ipa` |
+| Package | Built on         | Produces                                                                      |
+| ------- | ---------------- | ----------------------------------------------------------------------------- |
+| Web     | `ubuntu-latest`  | `Linkpoint-<version>-web.zip` (the `dist/` PWA bundle)                        |
+| Android | `ubuntu-latest`  | release `.apk` and Play Store `.aab`                                          |
+| iOS     | `macos-latest`   | unsigned `.ipa`                                                               |
 | Windows | `windows-latest` | NSIS installer, no-install portable `.exe`, and portable `.zip` (x64 + arm64) |
-| macOS | `macos-latest` | `.dmg` and `.zip` (x64 + arm64) |
-| Linux | `ubuntu-latest` | `.AppImage` and `.deb` |
+| macOS   | `macos-latest`   | `.dmg` and `.zip` (x64 + arm64)                                               |
+| Linux   | `ubuntu-latest`  | `.AppImage` and `.deb`                                                        |
 
 Every run uploads the packages as workflow artifacts. Pushing a tag such as
 `v1.2.3` additionally creates a GitHub Release with all packages attached and

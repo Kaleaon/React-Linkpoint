@@ -40,7 +40,8 @@ describe('Camera3D viewer controls', () => {
     const camera = new Camera3D();
     camera.setOrbitTarget(10, 10, 10);
     camera.updateMatrices();
-    const apply = (m: Float32Array, v: number[]) => [0, 1, 2, 3].map((r) => m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3]);
+    const apply = (m: Float32Array, v: number[]) =>
+      [0, 1, 2, 3].map((r) => m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3]);
     const point = [12, 10, 10, 1];
 
     const expected = apply(camera.getProjectionMatrix(), apply(camera.getViewMatrix(), point));
@@ -54,8 +55,23 @@ describe('Camera3D viewer controls', () => {
 
   describe('movement follows what is on screen', () => {
     const setups: Array<[string, (c: Camera3D, yaw: number, pitch: number) => void]> = [
-      ['orbit', (c, yaw, pitch) => { c.mode = 'orbit'; c.setOrbitTarget(100, 100, 30); c.orbitDistance = 12; c.setRotation(pitch, yaw); }],
-      ['first-person', (c, yaw, pitch) => { c.mode = 'first-person'; c.position = [100, 100, 30]; c.setRotation(pitch, yaw); }],
+      [
+        'orbit',
+        (c, yaw, pitch) => {
+          c.mode = 'orbit';
+          c.setOrbitTarget(100, 100, 30);
+          c.orbitDistance = 12;
+          c.setRotation(pitch, yaw);
+        },
+      ],
+      [
+        'first-person',
+        (c, yaw, pitch) => {
+          c.mode = 'first-person';
+          c.position = [100, 100, 30];
+          c.setRotation(pitch, yaw);
+        },
+      ],
     ];
     const viewSpace = (c: Camera3D, p: number[]) => {
       const v = c.getViewMatrix();
@@ -68,7 +84,11 @@ describe('Camera3D viewer controls', () => {
           it(`${name} yaw ${yaw} pitch ${pitch}: forward approaches, right moves the world left, up rises`, () => {
             const camera = new Camera3D();
             setup(camera, yaw, pitch);
-            const probe = [100 + 20 * Math.sin(yaw) * (name === 'orbit' ? -1 : 1), 100 + 20 * Math.cos(yaw) * (name === 'orbit' ? -1 : 1), 30];
+            const probe = [
+              100 + 20 * Math.sin(yaw) * (name === 'orbit' ? -1 : 1),
+              100 + 20 * Math.cos(yaw) * (name === 'orbit' ? -1 : 1),
+              30,
+            ];
 
             const before = viewSpace(camera, probe);
             camera.move(5, 0, 0);

@@ -51,9 +51,11 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       world.on('selection_changed', selectionListener);
 
       // Mock canvas and scene3d on world
-      world.canvas = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }) } as any;
+      world.canvas = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
+      } as any;
       world.scene3d = {
-        pick: vi.fn().mockReturnValue({ id: 'obj-123', point: [1, 2, 3], distance: 5 })
+        pick: vi.fn().mockReturnValue({ id: 'obj-123', point: [1, 2, 3], distance: 5 }),
       } as any;
 
       // In Navigate mode
@@ -69,11 +71,13 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       const selectionListener = vi.fn();
       world.on('selection_changed', selectionListener);
 
-      world.canvas = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }) } as any;
+      world.canvas = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
+      } as any;
       const hitObject = { id: 'obj-123', name: 'Test Box' };
       (world as any).sceneObjects.set('obj-123', hitObject);
       world.scene3d = {
-        pick: vi.fn().mockReturnValue({ id: 'obj-123', point: [1, 2, 3], distance: 5 })
+        pick: vi.fn().mockReturnValue({ id: 'obj-123', point: [1, 2, 3], distance: 5 }),
       } as any;
 
       // Switch to Interact mode
@@ -102,7 +106,7 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       const downEvent = new PointerEvent('pointerdown', {
         pointerId: 1,
         clientX: 100,
-        clientY: 100
+        clientY: 100,
       });
       (downEvent as any).timeStampOverride = 1000;
       canvas.dispatchEvent(downEvent);
@@ -113,7 +117,7 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       const slowMoveEvent = new PointerEvent('pointermove', {
         pointerId: 1,
         clientX: 101,
-        clientY: 101
+        clientY: 101,
       });
       (slowMoveEvent as any).timeStampOverride = 1100;
       canvas.dispatchEvent(slowMoveEvent);
@@ -137,7 +141,7 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       const downEvent = new PointerEvent('pointerdown', {
         pointerId: 1,
         clientX: 100,
-        clientY: 100
+        clientY: 100,
       });
       (downEvent as any).timeStampOverride = 1000;
       canvas.dispatchEvent(downEvent);
@@ -147,7 +151,7 @@ describe('Camera control mode selector and drag velocity filtering', () => {
       const fastMoveEvent = new PointerEvent('pointermove', {
         pointerId: 1,
         clientX: 150,
-        clientY: 150
+        clientY: 150,
       });
       (fastMoveEvent as any).timeStampOverride = 1010;
       canvas.dispatchEvent(fastMoveEvent);

@@ -1,10 +1,10 @@
-import { useApp } from "../context/AppContext.jsx";
-import { useTheme } from "../context/ThemeContext.jsx";
-import { NAV_ALL, TABS_NAV_IDS } from "../data/content.js";
-import Icon from "./Icon.jsx";
-import { navActive } from "../theme/look.js";
-import { BottomTabs as SystemBottomTabs } from "@linkpoint/design-system/react";
-import { LAYOUTS } from "@linkpoint/design-system/tokens";
+import { useApp } from '../context/AppContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { NAV_ALL, TABS_NAV_IDS } from '../data/content.js';
+import Icon from './Icon.jsx';
+import { navActive } from '../theme/look.js';
+import { BottomTabs as SystemBottomTabs } from '@linkpoint/design-system/react';
+import { LAYOUTS } from '@linkpoint/design-system/tokens';
 
 /**
  * BottomTabs component provides accessible bottom tab bar navigation.
@@ -26,19 +26,25 @@ export default function BottomTabs() {
   const { V, t, nav } = useTheme();
   // Navigation stays visible on the 3D View too. Hiding it left no way out of the
   // scene on phones and tablets (the 3D screen has no header or back button).
-  if (nav !== "tabs") return null;
+  if (nav !== 'tabs') return null;
   const items = NAV_ALL.filter((n) => TABS_NAV_IDS.includes(n.id));
 
   return (
     <nav
       aria-label="Bottom Navigation"
-      style={{ flex: "none", display: "flex", background: V.surf, borderTop: "1px solid " + V.outv, padding: "6px 0 10px" }}
+      style={{
+        flex: 'none',
+        display: 'flex',
+        background: V.surf,
+        borderTop: '1px solid ' + V.outv,
+        padding: '6px 0 10px',
+      }}
     >
-      <div role="tablist" style={{ display: "flex", width: "100%" }}>
+      <div role="tablist" style={{ display: 'flex', width: '100%' }}>
         {items.map((n) => {
           const active = navActive(state.screen, n.id);
           const handleKeyDown = (e) => {
-            if (e.key === "Enter" || e.key === " ") {
+            if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               actions.setScreen(n.id);
             }
@@ -52,12 +58,36 @@ export default function BottomTabs() {
               aria-label={n.label}
               onClick={() => actions.setScreen(n.id)}
               onKeyDown={handleKeyDown}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", padding: "6px 0", cursor: "pointer", color: active ? V.pri : V.ink2, position: "relative" }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '6px 0',
+                cursor: 'pointer',
+                color: active ? V.pri : V.ink2,
+                position: 'relative',
+              }}
             >
               <Icon name={n.icon} size={22} />
-              <span style={{ font: "600 9px/1 " + t.font, letterSpacing: ".14em" }}>{n.label}</span>
+              <span style={{ font: '600 9px/1 ' + t.font, letterSpacing: '.14em' }}>{n.label}</span>
               {n.badge ? (
-                <span style={{ position: "absolute", top: "2px", right: "24%", minWidth: "16px", height: "16px", padding: "0 4px", borderRadius: "8px", background: V.bdg, color: V.onbdg, font: "700 9px/16px " + t.font, textAlign: "center" }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '24%',
+                    minWidth: '16px',
+                    height: '16px',
+                    padding: '0 4px',
+                    borderRadius: '8px',
+                    background: V.bdg,
+                    color: V.onbdg,
+                    font: '700 9px/16px ' + t.font,
+                    textAlign: 'center',
+                  }}
+                >
                   {n.badge}
                 </span>
               ) : null}
@@ -68,4 +98,3 @@ export default function BottomTabs() {
     </nav>
   );
 }
-

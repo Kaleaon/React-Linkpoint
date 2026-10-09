@@ -1,5 +1,5 @@
-import { createContext, useContext } from "react";
-import { useAppState } from "../hooks/useAppState.js";
+import { createContext, useContext } from 'react';
+import { useAppState } from '../hooks/useAppState.js';
 
 /** @typedef {ReturnType<typeof useAppState>} AppContextValue */
 /** @type {import("react").Context<AppContextValue | null>} */
@@ -13,6 +13,6 @@ export function AppProvider({ children }) {
 
 export function useApp() {
   const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be used inside <AppProvider>");
+  if (!ctx) throw new Error('useApp must be used inside <AppProvider>');
   return ctx;
 }

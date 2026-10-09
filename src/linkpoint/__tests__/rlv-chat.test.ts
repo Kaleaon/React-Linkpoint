@@ -13,18 +13,35 @@ function setup() {
   Utils.storage.remove('linkpoint_auto_reply_config');
   const sendChat = vi.fn().mockResolvedValue(undefined);
   const sendDirectIM = vi.fn();
-  const manager = new ChatManager({ sendChat }, { isLoggedIn: () => true, getUserDisplayName: () => 'Me', user: { id: ME } });
+  const manager = new ChatManager(
+    { sendChat },
+    { isLoggedIn: () => true, getUserDisplayName: () => 'Me', user: { id: ME } },
+  );
   (manager as any).adapter.sendDirectIM = sendDirectIM.mockResolvedValue({ queued: false });
   const replies: Array<[string, number, number]> = [];
-  const rlv = new RlvHandler({ selfId: () => ME, sendChat: (t, c, ty) => { replies.push([t, c, ty]); } });
+  const rlv = new RlvHandler({
+    selfId: () => ME,
+    sendChat: (t, c, ty) => {
+      replies.push([t, c, ty]);
+    },
+  });
   manager.setRlv(rlv);
   return { manager, rlv, sendChat, sendDirectIM, replies };
 }
-const owner = (message: string) => ({ fromId: OBJ, fromName: 'Collar', message, chatType: 8, sourceType: 2 });
+const owner = (message: string) => ({
+  fromId: OBJ,
+  fromName: 'Collar',
+  message,
+  chatType: 8,
+  sourceType: 2,
+});
 
 describe('ChatManager with RLV', () => {
   let t: ReturnType<typeof setup>;
-  beforeEach(() => { t = setup(); t.rlv.setEnabled(true); });
+  beforeEach(() => {
+    t = setup();
+    t.rlv.setEnabled(true);
+  });
 
   it('consumes llOwnerSay command lines: applied, never shown', async () => {
     await t.manager.handleIncomingMessage(owner('@sendchat=n,version=2222'));
@@ -60,17 +77,35 @@ describe('ChatManager with RLV', () => {
     expect(t.sendChat).toHaveBeenCalledWith('((hi all))', 0, 0);
   });
 
-  it('@recvchat replaces other residents\' chat; a resident on the exception list is heard', async () => {
+  it("@recvchat replaces other residents' chat; a resident on the exception list is heard", async () => {
     t.rlv.processCommand(OBJ, 'recvchat=n');
     t.rlv.processCommand(OBJ, `recvchat:${BOB}=n`);
-    await t.manager.handleIncomingMessage({ fromId: 'cccccccc-cccc-cccc-cccc-cccccccccccc', fromName: 'Carol', message: 'hello', chatType: 1, sourceType: 1 });
-    await t.manager.handleIncomingMessage({ fromId: BOB, fromName: 'Bob', message: 'hello', chatType: 1, sourceType: 1 });
+    await t.manager.handleIncomingMessage({
+      fromId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+      fromName: 'Carol',
+      message: 'hello',
+      chatType: 1,
+      sourceType: 1,
+    });
+    await t.manager.handleIncomingMessage({
+      fromId: BOB,
+      fromName: 'Bob',
+      message: 'hello',
+      chatType: 1,
+      sourceType: 1,
+    });
     expect(t.manager.messages.map((m) => m.text)).toEqual(['...', 'hello']);
   });
 
-  it('@shownames replaces a speaker\'s name', async () => {
+  it("@shownames replaces a speaker's name", async () => {
     t.rlv.processCommand(OBJ, 'shownames=n');
-    await t.manager.handleIncomingMessage({ fromId: BOB, fromName: 'Bob Builder', message: 'hi', chatType: 1, sourceType: 1 });
+    await t.manager.handleIncomingMessage({
+      fromId: BOB,
+      fromName: 'Bob Builder',
+      message: 'hi',
+      chatType: 1,
+      sourceType: 1,
+    });
     expect(t.manager.messages[0].sender).not.toBe('Bob Builder');
     expect(t.manager.messages[0].sender).toBe(t.rlv.anonym('Bob Builder'));
   });
@@ -82,9 +117,14 @@ describe('ChatManager with RLV', () => {
     await expect(t.manager.sendInstantMessage(BOB, 'psst')).resolves.toBeDefined();
   });
 
-  it('@recvim replaces an incoming IM with the viewer\'s notice', async () => {
+  it("@recvim replaces an incoming IM with the viewer's notice", async () => {
     t.rlv.processCommand(OBJ, 'recvim=n');
-    await t.manager.handleIncomingMessage({ fromId: BOB, fromName: 'Bob', message: 'secret', type: 'im' });
+    await t.manager.handleIncomingMessage({
+      fromId: BOB,
+      fromName: 'Bob',
+      message: 'secret',
+      type: 'im',
+    });
     expect(t.manager.messages[0].text).toBe('*** IM blocked by your viewer');
   });
 });
@@ -117,16 +157,20 @@ describe('movement restrictions (AgentController)', () => {
 
   it('@alwaysrun=n and @temprun=n keep the avatar walking', () => {
     const controller = new AgentController();
-    let canAlways = false, canTemp = false;
+    let canAlways = false,
+      canTemp = false;
     controller.restrictions = { canAlwaysRun: () => canAlways, canTempRun: () => canTemp };
     controller.command('toggle_run', true, 0);
     expect(controller.alwaysRun).toBe(false);
-    controller.command('push_forward', true, 100); controller.command('push_forward', false, 150);
+    controller.command('push_forward', true, 100);
+    controller.command('push_forward', false, 150);
     controller.command('push_forward', true, 200); // tap-tap-hold would run
     const walking = controller.nextFlags(1000);
-    canAlways = true; canTemp = true;
+    canAlways = true;
+    canTemp = true;
     controller.releaseAll();
-    controller.command('push_forward', true, 2000); controller.command('push_forward', false, 2050);
+    controller.command('push_forward', true, 2000);
+    controller.command('push_forward', false, 2050);
     controller.command('push_forward', true, 2100);
     const running = controller.nextFlags(3000);
     expect(running).not.toBe(walking);

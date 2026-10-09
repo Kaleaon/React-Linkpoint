@@ -5,7 +5,6 @@ were merged in PR #150. See [the consolidated audit](docs/followup-audit.md) for
 follow-up fixes and remaining capabilities. The earlier comparison below is retained
 as reference evidence, not a statement that implemented services are absent.
 
-
 Reference: `Kaleaon/Lumiya-redux` at commit `b3048e878b83de8d89a984579719dc066cccee86`.
 The comparison used the Android manifest, `NavDrawerAdapter`, and the activity/
 fragment inventory. Lumiya is a behavioral reference only; no recovered code is
@@ -33,22 +32,22 @@ are not retained after WebGL upload.
 
 ## Primary navigation parity
 
-| Lumiya surface | Linkpoint counterpart | Runtime source |
-| --- | --- | --- |
-| Login / grids | Login | `AuthManager`, custom grid state |
-| Local chat / contacts | Chat / Friends / Groups | `ChatManager`, `FriendsExtended`, `GroupsManager` |
-| World view | 3D View | `WorldViewer`, WebGL scene |
-| Objects | Radar / Objects | simulator `ObjectUpdate`, inventory object assets |
-| Inventory / current outfit | Inventory / Outfits | inventory capability responses |
-| Minimap | Map | simulator `RegionHandshake` |
-| My avatar | Profile | authenticated user record |
-| People search | Search | server directory RPC, session resident index and friend requests |
-| Settings | Settings | `PreferencesManager`, theme state |
-| Sign out | Settings → Disconnect | `AuthManager.logout()` |
-| Manage accounts | Accounts | remembered identity metadata, credential removal |
-| Manage grids | Grids / Login | built-in and persisted custom grid registry |
-| Streaming media | Media | native browser media pipeline |
-| Notecard list/detail | Notecards | inventory asset metadata |
+| Lumiya surface             | Linkpoint counterpart   | Runtime source                                                   |
+| -------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| Login / grids              | Login                   | `AuthManager`, custom grid state                                 |
+| Local chat / contacts      | Chat / Friends / Groups | `ChatManager`, `FriendsExtended`, `GroupsManager`                |
+| World view                 | 3D View                 | `WorldViewer`, WebGL scene                                       |
+| Objects                    | Radar / Objects         | simulator `ObjectUpdate`, inventory object assets                |
+| Inventory / current outfit | Inventory / Outfits     | inventory capability responses                                   |
+| Minimap                    | Map                     | simulator `RegionHandshake`                                      |
+| My avatar                  | Profile                 | authenticated user record                                        |
+| People search              | Search                  | server directory RPC, session resident index and friend requests |
+| Settings                   | Settings                | `PreferencesManager`, theme state                                |
+| Sign out                   | Settings → Disconnect   | `AuthManager.logout()`                                           |
+| Manage accounts            | Accounts                | remembered identity metadata, credential removal                 |
+| Manage grids               | Grids / Login           | built-in and persisted custom grid registry                      |
+| Streaming media            | Media                   | native browser media pipeline                                    |
+| Notecard list/detail       | Notecards               | inventory asset metadata                                         |
 
 ## Secondary surfaces found in Lumiya
 

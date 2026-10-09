@@ -11,7 +11,14 @@ import { app } from '../app';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-const avatar = { id: 'me', localId: 1, avatar: true, position: [1, 1, 1], scale: [1, 1, 1], rotation: [0, 0, 0, 1] };
+const avatar = {
+  id: 'me',
+  localId: 1,
+  avatar: true,
+  position: [1, 1, 1],
+  scale: [1, 1, 1],
+  rotation: [0, 0, 0, 1],
+};
 const rootHud = (id: string, localId: number, name: string, point: number) => ({
   id,
   localId,
@@ -31,11 +38,7 @@ async function mountComponent(ui: React.ReactElement) {
   const r = createRoot(host);
   await act(async () => {
     r.render(
-      createElement(
-        AppProvider as any,
-        null,
-        createElement(ThemeProvider as any, null, ui)
-      )
+      createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, ui)),
     );
   });
   mounted = { host, root: r };
@@ -126,7 +129,7 @@ describe('Spatial Touch Pods & Responsive Overlay Architecture', () => {
 
     // Open Outfits Drawer via side rail button
     const outfitsBtn = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.getAttribute('aria-label') === 'Open Outfits Drawer'
+      (b) => b.getAttribute('aria-label') === 'Open Outfits Drawer',
     );
     expect(outfitsBtn).not.toBeNull();
     await click(outfitsBtn!);
@@ -153,7 +156,7 @@ describe('Spatial Touch Pods & Responsive Overlay Architecture', () => {
 
     // Open outfits drawer to include drawer buttons in check
     const outfitsBtn = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.getAttribute('aria-label') === 'Open Outfits Drawer'
+      (b) => b.getAttribute('aria-label') === 'Open Outfits Drawer',
     );
     await click(outfitsBtn!);
 

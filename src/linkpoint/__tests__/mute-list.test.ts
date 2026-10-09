@@ -11,8 +11,16 @@ let updates: MuteEntry[];
 let removes: unknown[];
 let list: MuteList;
 beforeEach(() => {
-  updates = []; removes = [];
-  list = new MuteList({ update: async (e) => { updates.push(e); }, remove: async (e) => { removes.push(e); } });
+  updates = [];
+  removes = [];
+  list = new MuteList({
+    update: async (e) => {
+      updates.push(e);
+    },
+    remove: async (e) => {
+      removes.push(e);
+    },
+  });
   list.setSelfId(ME);
   list.load({ state: 'loaded', mutes: [], legacy: [] });
 });
@@ -26,7 +34,10 @@ describe('MuteList (LLMuteList)', () => {
   });
 
   it('muting only some properties sets the others\' bits, and a lookup with a set bit is "not muted"', () => {
-    list.add({ id: BOB, name: 'Bob', type: MuteType.AGENT }, MuteFlag.TEXT_CHAT | MuteFlag.VOICE_CHAT);
+    list.add(
+      { id: BOB, name: 'Bob', type: MuteType.AGENT },
+      MuteFlag.TEXT_CHAT | MuteFlag.VOICE_CHAT,
+    );
     expect(updates[0].flags).toBe(MuteFlag.PARTICLES | MuteFlag.OBJECT_SOUNDS);
     expect(list.isMuted(BOB, '', MuteFlag.TEXT_CHAT)).toBe(true);
     expect(list.isMuted(BOB, '', MuteFlag.OBJECT_SOUNDS)).toBe(false);
@@ -79,23 +90,40 @@ describe('MuteList (LLMuteList)', () => {
     expect(list.isMuted(ME, 'Me Resident')).toBe(false);
   });
 
-  it('refuses to mute a Linden\'s text, but allows muting other properties', () => {
+  it("refuses to mute a Linden's text, but allows muting other properties", () => {
     expect(isLinden('Philip Linden')).toBe(true);
     expect(isLinden('philip.linden')).toBe(true);
     expect(isLinden('Linden Lab')).toBe(false);
     expect(isLinden('Bob Resident')).toBe(false);
     expect(list.add({ id: BOB, name: 'Philip Linden', type: MuteType.AGENT })).toBe(false);
-    expect(list.add({ id: BOB, name: 'Philip Linden', type: MuteType.AGENT }, MuteFlag.TEXT_CHAT)).toBe(false);
-    expect(list.add({ id: BOB, name: 'Philip Linden', type: MuteType.AGENT }, MuteFlag.PARTICLES)).toBe(true);
+    expect(
+      list.add({ id: BOB, name: 'Philip Linden', type: MuteType.AGENT }, MuteFlag.TEXT_CHAT),
+    ).toBe(false);
+    expect(
+      list.add({ id: BOB, name: 'Philip Linden', type: MuteType.AGENT }, MuteFlag.PARTICLES),
+    ).toBe(true);
   });
 
   it('stops at the limit of 1000 entries', () => {
-    list.load({ state: 'loaded', mutes: Array.from({ length: 1000 }, (_, n) => ({ id: `00000000-0000-0000-0000-${String(n + 1).padStart(12, '0')}`, name: `n${n}`, type: 1, flags: 0 })), legacy: [] });
+    list.load({
+      state: 'loaded',
+      mutes: Array.from({ length: 1000 }, (_, n) => ({
+        id: `00000000-0000-0000-0000-${String(n + 1).padStart(12, '0')}`,
+        name: `n${n}`,
+        type: 1,
+        flags: 0,
+      })),
+      legacy: [],
+    });
     expect(list.add({ id: BOB, name: 'One Too Many', type: MuteType.AGENT })).toBe(false);
   });
 
   it('loads what the grid sent, compares ids case-insensitively, and keeps a failed load empty', () => {
-    list.load({ state: 'loaded', mutes: [{ id: BOB.toUpperCase(), name: 'Bob', type: 1, flags: 0 }], legacy: ['Old'] });
+    list.load({
+      state: 'loaded',
+      mutes: [{ id: BOB.toUpperCase(), name: 'Bob', type: 1, flags: 0 }],
+      legacy: ['Old'],
+    });
     expect(list.isMuted(BOB)).toBe(true);
     expect(list.isMuted(OBJ, 'Old')).toBe(true);
     expect(list.state).toBe('loaded');
@@ -105,7 +133,7 @@ describe('MuteList (LLMuteList)', () => {
     expect(list.isMuted(BOB)).toBe(false);
   });
 
-  it('keeps a muted resident\'s stored name current when their account name changes', () => {
+  it("keeps a muted resident's stored name current when their account name changes", () => {
     list.add({ id: BOB, name: 'Old Name', type: MuteType.AGENT });
     list.rename(BOB, 'New Name');
     expect(updates.at(-1)).toMatchObject({ id: BOB, name: 'New Name' });
@@ -113,13 +141,19 @@ describe('MuteList (LLMuteList)', () => {
   });
 
   it('reports a grid update that failed without losing the local change', async () => {
-    const failing = new MuteList({ update: async () => { throw new Error('offline'); }, remove: async () => {} });
+    const failing = new MuteList({
+      update: async () => {
+        throw new Error('offline');
+      },
+      remove: async () => {},
+    });
     failing.load({ state: 'loaded', mutes: [], legacy: [] });
     const onError = vi.fn();
     failing.on('sync_error', onError);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     failing.add({ id: BOB, name: 'Bob', type: MuteType.AGENT });
-    await Promise.resolve(); await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(failing.isMuted(BOB)).toBe(true);
     expect(onError).toHaveBeenCalled();
     warn.mockRestore();
@@ -138,10 +172,15 @@ describe('mute list in chat, sound and voice', () => {
     chat.muteUser(BOB);
     chat.muteUser('Some Name');
     chat.muteObject(OBJ);
-    expect(updates.map((u) => [u.type, u.name])).toEqual([[1, BOB], [0, 'Some Name'], [2, 'Box']]);
+    expect(updates.map((u) => [u.type, u.name])).toEqual([
+      [1, BOB],
+      [0, 'Some Name'],
+      [2, 'Box'],
+    ]);
     expect(chat.getMutedUsers()).toEqual([BOB, 'Some Name']);
     expect(chat.getMutedObjects()).toEqual([OBJ]);
-    chat.unmuteUser(BOB); chat.unmuteObject(OBJ);
+    chat.unmuteUser(BOB);
+    chat.unmuteObject(OBJ);
     expect(chat.getMutedUsers()).toEqual(['Some Name']);
     expect(chat.getMutedObjects()).toEqual([]);
   });
@@ -150,12 +189,25 @@ describe('mute list in chat, sound and voice', () => {
     const chat = makeChat();
     list.add({ id: BOB, name: 'Bob', type: MuteType.AGENT });
     expect(chat.shouldDisplayMessage({ fromId: BOB, fromName: 'Bob', text: 'hi' })).toBe(false);
-    expect(chat.shouldDisplayMessage({ fromId: OBJ, fromName: 'Box', ownerId: BOB, text: 'hi' })).toBe(false);
-    expect(chat.shouldDisplayMessage({ fromId: OBJ, fromName: 'Box', ownerId: ME, text: 'hi' })).toBe(true);
+    expect(
+      chat.shouldDisplayMessage({ fromId: OBJ, fromName: 'Box', ownerId: BOB, text: 'hi' }),
+    ).toBe(false);
+    expect(
+      chat.shouldDisplayMessage({ fromId: OBJ, fromName: 'Box', ownerId: ME, text: 'hi' }),
+    ).toBe(true);
     list.add({ id: 'cccccccc-cccc-cccc-cccc-cccccccccccc', name: 'G', type: MuteType.GROUP });
-    expect(chat.shouldDisplayMessage({ groupId: 'cccccccc-cccc-cccc-cccc-cccccccccccc', fromId: ME, text: 'x' })).toBe(false);
+    expect(
+      chat.shouldDisplayMessage({
+        groupId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        fromId: ME,
+        text: 'x',
+      }),
+    ).toBe(false);
     list.remove({ id: BOB });
-    list.add({ id: BOB, name: 'Bob', type: MuteType.AGENT }, MuteFlag.VOICE_CHAT | MuteFlag.PARTICLES); // mute only voice and particles
+    list.add(
+      { id: BOB, name: 'Bob', type: MuteType.AGENT },
+      MuteFlag.VOICE_CHAT | MuteFlag.PARTICLES,
+    ); // mute only voice and particles
     expect(chat.shouldDisplayMessage({ fromId: BOB, fromName: 'Bob', text: 'hi' })).toBe(true);
     list.add({ id: BOB, name: 'Bob', type: MuteType.AGENT }, MuteFlag.TEXT_CHAT); // now text too
     expect(chat.shouldDisplayMessage({ fromId: BOB, fromName: 'Bob', text: 'hi' })).toBe(false);
@@ -166,15 +218,23 @@ describe('mute list in chat, sound and voice', () => {
   it('a legacy mute by name hides an object that speaks under that name', () => {
     const chat = makeChat();
     list.add({ name: 'Annoying Box', type: MuteType.BY_NAME });
-    expect(chat.shouldDisplayMessage({ fromId: OBJ, fromName: 'Annoying Box', text: 'buy now' })).toBe(false);
+    expect(
+      chat.shouldDisplayMessage({ fromId: OBJ, fromName: 'Annoying Box', text: 'buy now' }),
+    ).toBe(false);
   });
 
   it('announces entry changes so voice can follow, with the flag meaning of the viewer', () => {
     const seen: Array<{ id: string; flags: number; removed: boolean }> = [];
-    list.on('entry_changed', ({ entry, removed }: any) => seen.push({ id: entry.id, flags: entry.flags, removed }));
+    list.on('entry_changed', ({ entry, removed }: any) =>
+      seen.push({ id: entry.id, flags: entry.flags, removed }),
+    );
     list.add({ id: BOB, name: 'Bob', type: MuteType.AGENT });
     list.remove({ id: BOB }, MuteFlag.VOICE_CHAT);
     list.remove({ id: BOB });
-    expect(seen.map((s) => [s.flags & MuteFlag.VOICE_CHAT, s.removed])).toEqual([[0, false], [2, false], [2, true]]);
+    expect(seen.map((s) => [s.flags & MuteFlag.VOICE_CHAT, s.removed])).toEqual([
+      [0, false],
+      [2, false],
+      [2, true],
+    ]);
   });
 });

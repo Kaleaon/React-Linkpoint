@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { indexBlocks, mapRange, mapTileUrl, mapTiles, ratingName, teleportTarget } from '../map-tiles';
+import {
+  indexBlocks,
+  mapRange,
+  mapTileUrl,
+  mapTiles,
+  ratingName,
+  teleportTarget,
+} from '../map-tiles';
 
 describe('map layout', () => {
   it('puts north at the top and the current region in the middle', () => {

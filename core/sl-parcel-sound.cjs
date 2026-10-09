@@ -10,7 +10,11 @@ function serializeParcelPacket(packet) {
   if (message.id === Message.ParcelOverlay) {
     const data = message.ParcelData?.Data;
     if (!data?.length) return null;
-    return { action: 'overlay', sequenceId: Number(message.ParcelData.SequenceID), data: Buffer.from(data).toString('base64') };
+    return {
+      action: 'overlay',
+      sequenceId: Number(message.ParcelData.SequenceID),
+      data: Buffer.from(data).toString('base64'),
+    };
   }
   if (message.id === Message.ParcelProperties) {
     const d = message.ParcelData;
@@ -36,15 +40,24 @@ function watchParcelSound(getRegion, send, intervalMs = 2000) {
     subscription?.unsubscribe();
     if (region) send('parcel-sound', { action: 'reset' });
     region = current;
-    subscription = current.circuit?.subscribeToMessages?.([Message.ParcelOverlay, Message.ParcelProperties], (packet) => {
-      const payload = serializeParcelPacket(packet);
-      if (payload) send('parcel-sound', payload);
-    });
+    subscription = current.circuit?.subscribeToMessages?.(
+      [Message.ParcelOverlay, Message.ParcelProperties],
+      (packet) => {
+        const payload = serializeParcelPacket(packet);
+        if (payload) send('parcel-sound', payload);
+      },
+    );
   };
   attach();
   const timer = setInterval(attach, intervalMs);
   timer.unref?.();
-  return { unsubscribe() { clearInterval(timer); subscription?.unsubscribe(); subscription = null; } };
+  return {
+    unsubscribe() {
+      clearInterval(timer);
+      subscription?.unsubscribe();
+      subscription = null;
+    },
+  };
 }
 
 module.exports = { serializeParcelPacket, watchParcelSound };

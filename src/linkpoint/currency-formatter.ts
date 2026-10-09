@@ -24,7 +24,7 @@ export function formatCurrency(
   amount: number | null | undefined,
   symbol = 'L$',
   isZeroCurrency = false,
-  options: CurrencyFormatOptions = {}
+  options: CurrencyFormatOptions = {},
 ): string {
   if (isZeroCurrency) {
     return 'No Currency System';
@@ -56,9 +56,6 @@ export function formatCurrency(
 /**
  * Convenience helper to format monetary amounts without zero-currency check override.
  */
-export function formatAmount(
-  amount: number | null | undefined,
-  symbol = 'L$'
-): string {
+export function formatAmount(amount: number | null | undefined, symbol = 'L$'): string {
   return formatCurrency(amount, symbol, false);
 }

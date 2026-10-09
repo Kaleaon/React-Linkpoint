@@ -23,9 +23,21 @@ const MATC_VERSION = '1.53.4';
 const RELEASE_BASE = `https://github.com/google/filament/releases/download/v${MATC_VERSION}`;
 /** SHA-256 of each release archive, so a tampered download is never executed. */
 const ARCHIVES = {
-  linux: { file: `filament-v${MATC_VERSION}-linux.tgz`, sha256: '7ce0242434927ef4916c58788b49ba06642fae3ec350be0704bf819eb450f8da', binary: 'filament/bin/matc' },
-  darwin: { file: `filament-v${MATC_VERSION}-mac.tgz`, sha256: 'b042bb2219b8dd8cdb6a0610dfff6bd2f861d49f88db54befe29040f1e3b0087', binary: 'filament/bin/matc' },
-  win32: { file: `filament-v${MATC_VERSION}-windows.tgz`, sha256: '83d061cd63c11abde47b22842e09b7c4df9db4fdb34fd1d15780bc84f72251a1', binary: 'bin/matc.exe' },
+  linux: {
+    file: `filament-v${MATC_VERSION}-linux.tgz`,
+    sha256: '7ce0242434927ef4916c58788b49ba06642fae3ec350be0704bf819eb450f8da',
+    binary: 'filament/bin/matc',
+  },
+  darwin: {
+    file: `filament-v${MATC_VERSION}-mac.tgz`,
+    sha256: 'b042bb2219b8dd8cdb6a0610dfff6bd2f861d49f88db54befe29040f1e3b0087',
+    binary: 'filament/bin/matc',
+  },
+  win32: {
+    file: `filament-v${MATC_VERSION}-windows.tgz`,
+    sha256: '83d061cd63c11abde47b22842e09b7c4df9db4fdb34fd1d15780bc84f72251a1',
+    binary: 'bin/matc.exe',
+  },
 };
 /** WebGL2 runs ESSL 3.00, which is the mobile shader family at feature level 1. */
 const MATC_ARGS = ['--platform', 'mobile', '--api', 'opengl', '--feature-level', '1'];
@@ -42,7 +54,10 @@ function sha256(file) {
 async function findMatc() {
   if (process.env.MATC) return process.env.MATC;
   const archive = ARCHIVES[process.platform];
-  if (!archive) throw new Error(`No Filament release archive is known for ${process.platform}; set MATC=/path/to/matc`);
+  if (!archive)
+    throw new Error(
+      `No Filament release archive is known for ${process.platform}; set MATC=/path/to/matc`,
+    );
   const cache = path.join(root, 'node_modules', '.cache', 'filament-matc', MATC_VERSION);
   const binary = path.join(cache, archive.binary);
   if (fs.existsSync(binary)) return binary;
@@ -52,12 +67,17 @@ async function findMatc() {
   const url = `${RELEASE_BASE}/${archive.file}`;
   console.log(`Downloading ${url}`);
   const response = await fetch(url, { redirect: 'follow' });
-  if (!response.ok) throw new Error(`Download failed: ${response.status} ${response.statusText}. Set MATC=/path/to/matc to skip it.`);
+  if (!response.ok)
+    throw new Error(
+      `Download failed: ${response.status} ${response.statusText}. Set MATC=/path/to/matc to skip it.`,
+    );
   fs.writeFileSync(tarball, Buffer.from(await response.arrayBuffer()));
   const actual = sha256(tarball);
   if (actual !== archive.sha256) {
     fs.rmSync(tarball);
-    throw new Error(`Checksum mismatch for ${archive.file}: expected ${archive.sha256}, got ${actual}`);
+    throw new Error(
+      `Checksum mismatch for ${archive.file}: expected ${archive.sha256}, got ${actual}`,
+    );
   }
   execFileSync('tar', ['-xzf', tarball, '-C', cache, archive.binary], { stdio: 'inherit' });
   fs.rmSync(tarball);
@@ -67,18 +87,25 @@ async function findMatc() {
 
 function warnOnRuntimeMismatch() {
   try {
-    const runtime = JSON.parse(fs.readFileSync(path.join(root, 'node_modules', 'filament', 'package.json'), 'utf8')).version;
+    const runtime = JSON.parse(
+      fs.readFileSync(path.join(root, 'node_modules', 'filament', 'package.json'), 'utf8'),
+    ).version;
     if (runtime !== MATC_VERSION) {
-      console.warn(`Warning: installed filament runtime is ${runtime} but matc is ${MATC_VERSION}; keep them on the same release.`);
+      console.warn(
+        `Warning: installed filament runtime is ${runtime} but matc is ${MATC_VERSION}; keep them on the same release.`,
+      );
     }
-  } catch { /* the runtime is optional while the renderer is being added */ }
+  } catch {
+    /* the runtime is optional while the renderer is being added */
+  }
 }
 
 /** Replace `//!include name` lines with the named file from materials/include. */
 function expandIncludes(source, name) {
   return source.replace(/^[ \t]*\/\/!include[ \t]+(\S+)[ \t]*$/gm, (_, include) => {
     const file = path.join(sourceDir, 'include', include);
-    if (!fs.existsSync(file)) throw new Error(`${name}: include "${include}" not found in materials/include`);
+    if (!fs.existsSync(file))
+      throw new Error(`${name}: include "${include}" not found in materials/include`);
     return fs.readFileSync(file, 'utf8');
   });
 }
@@ -86,7 +113,10 @@ function expandIncludes(source, name) {
 const matc = await findMatc();
 warnOnRuntimeMismatch();
 
-const sources = fs.readdirSync(sourceDir).filter((file) => file.endsWith('.mat')).sort();
+const sources = fs
+  .readdirSync(sourceDir)
+  .filter((file) => file.endsWith('.mat'))
+  .sort();
 if (!sources.length) throw new Error('No materials/*.mat files found');
 
 const target = check ? fs.mkdtempSync(path.join(os.tmpdir(), 'linkpoint-materials-')) : outputDir;
@@ -97,10 +127,15 @@ try {
   for (const file of sources) {
     const name = file.replace(/\.mat$/, '');
     const expanded = path.join(work, file);
-    fs.writeFileSync(expanded, expandIncludes(fs.readFileSync(path.join(sourceDir, file), 'utf8'), file));
+    fs.writeFileSync(
+      expanded,
+      expandIncludes(fs.readFileSync(path.join(sourceDir, file), 'utf8'), file),
+    );
     const out = path.join(target, `${name}.filamat`);
     execFileSync(matc, [...MATC_ARGS, '-o', out, expanded], { stdio: 'inherit' });
-    console.log(`${file} -> ${path.relative(root, path.join(outputDir, `${name}.filamat`))} (${fs.statSync(out).size} bytes)`);
+    console.log(
+      `${file} -> ${path.relative(root, path.join(outputDir, `${name}.filamat`))} (${fs.statSync(out).size} bytes)`,
+    );
     if (check) {
       const committed = path.join(outputDir, `${name}.filamat`);
       if (!fs.existsSync(committed) || sha256(committed) !== sha256(out)) {

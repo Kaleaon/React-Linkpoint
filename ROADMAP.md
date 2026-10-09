@@ -5,13 +5,14 @@
 > status, remaining PRs and validation limits. Old statements about missing skinning,
 > animation, voice, search, PBR or simulator environment must not be treated as current.
 
-
 > The checkboxes below are the original phase plan and are out of date. For current status, gaps and blockers see [`PARITY_ROADMAP.md`](PARITY_ROADMAP.md).
 
 This document outlines the strategic phases for developing Linkpoint into a fully-featured, cross-platform Second Life and OpenSim viewer. The goal is to provide a "Lumiya-style" mobile-first experience, complete with a 3D worldview, extensive community features, and strict compliance with Linden Lab's Third-Party Viewer (TPV) policies.
 
 ## Phase 1: Foundation & TPV Compliance (Current Phase)
-*Establish the core architecture, security, and networking layers.*
+
+_Establish the core architecture, security, and networking layers._
+
 - [x] **Core Protocol Implementation:** Initial TypeScript implementation of SLLogin, LLSD parsing, and basic messaging (`src/linkpoint/`).
 - [x] **Networking Bifurcation Setup:**
   - Define local proxy setup with full CORS support (`server.ts`).
@@ -20,7 +21,9 @@ This document outlines the strategic phases for developing Linkpoint into a full
 - [x] **React Native / Expo Migration:** Scaffolding the new universal codebase that supports Web, Android, and iOS natively. (Also includes Electron Desktop build!)
 
 ## Phase 2: Core Viewer Features (The Text/UI Client)
-*Implement the essential interactions for engaging in the Second Life world without rendering graphics.*
+
+_Implement the essential interactions for engaging in the Second Life world without rendering graphics._
+
 - [ ] **Chat & Communications:** Local chat, IMs, Group Chat via `ChatManager` and `GroupsManager`.
 - [ ] **Inventory System:** Loading, caching, and managing the hierarchical inventory tree using `InventoryCore`.
 - [ ] **Profiles & Search:** Viewing avatar profiles, group information, and parsing SLURLs.
@@ -28,7 +31,9 @@ This document outlines the strategic phases for developing Linkpoint into a full
 - [ ] **Friends List & Notifications:** Managing online status and system popups.
 
 ## Phase 3: The 3D Worldview Engine
-*Integrate the graphical engine capable of rendering Second Life environments.*
+
+_Integrate the graphical engine capable of rendering Second Life environments._
+
 - [ ] **WebGL 2.0 / OpenGL ES 3.0 Setup:** Initialize `Three.js` via `expo-gl` for cross-platform rendering contexts.
 - [ ] **Asset Fetching & Decoding:**
   - Implement UDP mesh fetching.
@@ -40,7 +45,9 @@ This document outlines the strategic phases for developing Linkpoint into a full
 - [ ] **Camera & Interaction:** Touch controls for panning, zooming, and clicking on 3D objects.
 
 ## Phase 4: Advanced Features & RLV Support
-*Bring the viewer to parity with advanced desktop clients.*
+
+_Bring the viewer to parity with advanced desktop clients._
+
 - [ ] **RLV (Restrained Life Viewer) Core:** Implement the RLV API specification.
   - Parse @-commands from chat.
   - Enforce inventory locks, vision restrictions, and forced teleports.
@@ -48,7 +55,9 @@ This document outlines the strategic phases for developing Linkpoint into a full
 - [ ] **Media on a Prim (MoaP):** Render web media on 3D objects.
 
 ## Phase 5: CI/CD & Production Deployment
-*Automate the build and release pipeline.*
+
+_Automate the build and release pipeline._
+
 - [ ] **Web Deployment:** Configure GitHub Actions to build and deploy the Web client to GitHub Pages.
 - [ ] **Proxy Infrastructure:** Set up a production-ready Node.js WebSocket-to-UDP proxy on a VPS (e.g., Render, DigitalOcean) for the Web client.
 - [ ] **Mobile Deployment:** Configure EAS (Expo Application Services) via GitHub Actions to automatically build APK/AAB for Android and IPA for iOS.

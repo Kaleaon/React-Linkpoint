@@ -7,7 +7,7 @@ import {
   isPasswordRecord,
   PBKDF2_ITERATIONS,
   PBKDF2_FALLBACK_ITERATIONS,
-  KEY_BITS
+  KEY_BITS,
 } from '../password';
 
 describe('offline account password hashing', () => {
@@ -63,15 +63,19 @@ describe('offline account password hashing', () => {
       new TextEncoder().encode('cross-impl'),
       'PBKDF2',
       false,
-      ['deriveBits']
+      ['deriveBits'],
     );
-    const saltBytes = new Uint8Array(record.salt.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+    const saltBytes = new Uint8Array(
+      record.salt.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)),
+    );
     const bits = await globalThis.crypto.subtle.deriveBits(
       { name: 'PBKDF2', salt: saltBytes, iterations: record.iterations, hash: 'SHA-256' },
       keyMaterial,
-      KEY_BITS
+      KEY_BITS,
     );
-    const expected = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const expected = Array.from(new Uint8Array(bits))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
     expect(record.hash).toBe(expected);
   }, 30_000);
 
@@ -83,17 +87,23 @@ describe('offline account password hashing', () => {
       new TextEncoder().encode('legacy params'),
       'PBKDF2',
       false,
-      ['deriveBits']
+      ['deriveBits'],
     );
-    const saltBytes = new Uint8Array(record.salt.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+    const saltBytes = new Uint8Array(
+      record.salt.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)),
+    );
     const bits = await globalThis.crypto.subtle.deriveBits(
       { name: 'PBKDF2', salt: saltBytes, iterations: 1000, hash: 'SHA-256' },
       keyMaterial,
-      KEY_BITS
+      KEY_BITS,
     );
-    const rehashed = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const rehashed = Array.from(new Uint8Array(bits))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
 
-    await expect(verifyPassword('legacy params', { ...downgraded, hash: rehashed })).resolves.toBe(true);
+    await expect(verifyPassword('legacy params', { ...downgraded, hash: rehashed })).resolves.toBe(
+      true,
+    );
     expect(record.iterations).toBe(PBKDF2_ITERATIONS);
   });
 
@@ -111,7 +121,7 @@ describe('offline account password hashing', () => {
 
     // The whole storage surface, not just the account key.
     const everything = Object.keys(localStorage)
-      .map(k => `${k}=${localStorage.getItem(k)}`)
+      .map((k) => `${k}=${localStorage.getItem(k)}`)
       .join('\n');
     expect(everything).not.toContain('nanosecond');
   });
@@ -137,17 +147,25 @@ describe('offline account password hashing', () => {
     await manager.changePassword('newshortestpath');
 
     const server = manager.getServer();
-    await expect(server.processLogin('Edsger', 'Dijkstra', 'shortestpath')).resolves.toMatchObject({ login: 'false' });
-    await expect(server.processLogin('Edsger', 'Dijkstra', 'newshortestpath')).resolves.toMatchObject({ login: 'true' });
+    await expect(server.processLogin('Edsger', 'Dijkstra', 'shortestpath')).resolves.toMatchObject({
+      login: 'false',
+    });
+    await expect(
+      server.processLogin('Edsger', 'Dijkstra', 'newshortestpath'),
+    ).resolves.toMatchObject({ login: 'true' });
   });
 
   it('refuses authentication while the grid is stopped', async () => {
     const manager = new LocalGridManager(new GridConsole());
     await manager.setupOfflineAccount('Barbara', 'Liskov', 'substitution');
-    await expect(manager.getServer().authenticate('Barbara', 'Liskov', 'substitution')).resolves.toBe(false);
+    await expect(
+      manager.getServer().authenticate('Barbara', 'Liskov', 'substitution'),
+    ).resolves.toBe(false);
 
     manager.toggleGridState(true);
-    await expect(manager.getServer().authenticate('Barbara', 'Liskov', 'substitution')).resolves.toBe(true);
+    await expect(
+      manager.getServer().authenticate('Barbara', 'Liskov', 'substitution'),
+    ).resolves.toBe(true);
   });
 
   describe('without WebCrypto (plain-http hosting)', () => {

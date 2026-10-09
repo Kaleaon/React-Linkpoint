@@ -12,7 +12,24 @@
  * Left out: the distance-based throttling of how often a flexi updates (it needs the camera) and the
  * per-section scale and twist of tapered or twisted paths (those are baked into the mesh).
  */
-import { IDENTITY, add, angleAxis, axisAngle, conjugate, length, lerpVec, multiply, normalize, rotate, scale, shortestArc, slerp, sub, type Quat, type Vec3 } from './sl-math';
+import {
+  IDENTITY,
+  add,
+  angleAxis,
+  axisAngle,
+  conjugate,
+  length,
+  lerpVec,
+  multiply,
+  normalize,
+  rotate,
+  scale,
+  shortestArc,
+  slerp,
+  sub,
+  type Quat,
+  type Vec3,
+} from './sl-math';
 
 /** `FLEXIBLE_OBJECT_MAX_SECTIONS`: at most 2^3 = 8 segments. */
 export const FLEXIBLE_MAX_SECTIONS = 3;
@@ -36,7 +53,11 @@ export interface FlexibleParams {
 }
 
 /** The prim's pose in the world. `scale[2]` is the length of the chain. */
-export interface FlexibleFrame { position: Vec3; rotation: Quat; scale: Vec3 }
+export interface FlexibleFrame {
+  position: Vec3;
+  rotation: Quat;
+  scale: Vec3;
+}
 
 export interface FlexibleSection {
   position: Vec3;
@@ -47,14 +68,31 @@ export interface FlexibleSection {
   dPosition: Vec3;
 }
 
-const blank = (): FlexibleSection => ({ position: [0, 0, 0], direction: [0, 0, 1], rotation: [...IDENTITY] as Quat, velocity: [0, 0, 0], dPosition: [0, 0, 0] });
-const copy = (s: FlexibleSection): FlexibleSection => ({ position: [...s.position], direction: [...s.direction], rotation: [...s.rotation] as Quat, velocity: [...s.velocity], dPosition: [...s.dPosition] });
+const blank = (): FlexibleSection => ({
+  position: [0, 0, 0],
+  direction: [0, 0, 1],
+  rotation: [...IDENTITY] as Quat,
+  velocity: [0, 0, 0],
+  dPosition: [0, 0, 0],
+});
+const copy = (s: FlexibleSection): FlexibleSection => ({
+  position: [...s.position],
+  direction: [...s.direction],
+  rotation: [...s.rotation] as Quat,
+  velocity: [...s.velocity],
+  dPosition: [...s.dPosition],
+});
 
 /**
  * `LLVolumeImplFlexible::remapSections`. `sourceRes` -1 means "build a straight chain from section 0".
  * Positions between sections use the viewer's cubic interpolation.
  */
-export function remapSections(source: FlexibleSection[], sourceRes: number, destRes: number, totalLength: number): FlexibleSection[] {
+export function remapSections(
+  source: FlexibleSection[],
+  sourceRes: number,
+  destRes: number,
+  totalLength: number,
+): FlexibleSection[] {
   const outCount = 1 << destRes;
   const sectionLength = totalLength / outCount;
   const dest: FlexibleSection[] = Array.from({ length: outCount + 1 }, blank);
@@ -113,9 +151,13 @@ export class FlexibleChain {
   constructor(public params: FlexibleParams) {}
 
   /** Segments in the simulated chain. */
-  get segments() { return 1 << this.resolution(); }
+  get segments() {
+    return 1 << this.resolution();
+  }
 
-  private resolution() { return Math.max(0, Math.min(FLEXIBLE_MAX_SECTIONS, Math.round(this.params.softness) || 0)); }
+  private resolution() {
+    return Math.max(0, Math.min(FLEXIBLE_MAX_SECTIONS, Math.round(this.params.softness) || 0));
+  }
 
   /** Advance the chain by `dt` seconds for a prim in the given world pose. `windAt` gives region wind (m/s) at a point. */
   step(dt: number, frame: FlexibleFrame, windAt?: (position: Vec3) => Vec3) {
@@ -132,7 +174,11 @@ export class FlexibleChain {
     if (this.initializedRes !== res) {
       // setAttributesOfAllSections: section 0 from the frame, the rest remapped from what we had.
       const first = this.sections[0] ? copy(this.sections[0]) : blank();
-      first.position = anchorPosition; first.direction = anchorDirection; first.dPosition = anchorDirection; first.rotation = [...baseRotation] as Quat; first.velocity = [0, 0, 0];
+      first.position = anchorPosition;
+      first.direction = anchorDirection;
+      first.dPosition = anchorDirection;
+      first.rotation = [...baseRotation] as Quat;
+      first.velocity = [0, 0, 0];
       const source = this.sections.length ? [first, ...this.sections.slice(1)] : [first];
       this.sections = remapSections(source, this.initializedRes, res, length_);
       this.initializedRes = res;
@@ -147,7 +193,8 @@ export class FlexibleChain {
 
     let tFactor = this.params.tension * 0.1;
     tFactor *= 1 - Math.pow(0.85, seconds * 30);
-    if (tFactor > FLEXIBLE_MAX_INTERNAL_TENSION_FORCE) tFactor = FLEXIBLE_MAX_INTERNAL_TENSION_FORCE;
+    if (tFactor > FLEXIBLE_MAX_INTERNAL_TENSION_FORCE)
+      tFactor = FLEXIBLE_MAX_INTERNAL_TENSION_FORCE;
 
     let frictionCoeff = this.params.friction * 2 + 1;
     frictionCoeff = Math.pow(10, frictionCoeff * seconds);
@@ -165,7 +212,8 @@ export class FlexibleChain {
       // gravity
       s[i].position[2] -= this.params.gravity * forceFactor;
       // wind
-      if (this.params.wind > 0.001 && windAt) s[i].position = add(s[i].position, scale(windAt(s[i].position), windFactor));
+      if (this.params.wind > 0.001 && windAt)
+        s[i].position = add(s[i].position, scale(windAt(s[i].position), windFactor));
       // user-defined force
       s[i].position = add(s[i].position, scale(userForce, forceFactor));
 
@@ -208,7 +256,10 @@ export class FlexibleChain {
     // derivatives, for interpolating extra render sections
     s[0].dPosition = scale(sub(s[1].position, s[0].position), invLength);
     for (let i = 1; i < n; i++) {
-      const a = scale(add(sub(s[i - 1].position, s[i].position), sub(s[i + 1].position, s[i].position)), 0.5 * invLength * invLength);
+      const a = scale(
+        add(sub(s[i - 1].position, s[i].position), sub(s[i + 1].position, s[i].position)),
+        0.5 * invLength * invLength,
+      );
       const b = sub(sub(s[i + 1].position, s[i].position), scale(a, sectionLength * sectionLength));
       s[i].dPosition = scale(b, invLength);
     }

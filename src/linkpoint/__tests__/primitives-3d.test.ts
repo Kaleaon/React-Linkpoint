@@ -10,7 +10,7 @@ describe('advanced visible scene geometry', () => {
     expect(geometry.indices.length).toBeGreaterThan(0);
     expect(geometry.vertices.length % 3).toBe(0);
     expect(geometry.normals).toHaveLength(geometry.vertices.length);
-    expect(geometry.texCoords).toHaveLength(geometry.vertices.length / 3 * 2);
+    expect(geometry.texCoords).toHaveLength((geometry.vertices.length / 3) * 2);
     expect(Math.max(...geometry.indices)).toBeLessThan(geometry.vertices.length / 3);
   });
 });

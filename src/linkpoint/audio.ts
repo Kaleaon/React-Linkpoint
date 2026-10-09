@@ -1,18 +1,49 @@
 import { Utils } from './utils';
 import {
-  AttachedSounds, AudioType, DEFAULT_AUDIO_LEVELS, DEFAULT_AUDIO_MUTES, NULL_UUID, REFERENCE_DISTANCE, ROLLOFF_FACTOR,
-  UNDERWATER_ROLLOFF_FACTOR, UI_SOUNDS, categoryGain, isBeyondCutOff, shouldPlayTrigger, triggerGlobalPosition,
-  type AttachedSoundAction, type AudioLevels, type AudioMutes, type SoundPolicy, type UiSoundName, type Vec3,
+  AttachedSounds,
+  AudioType,
+  DEFAULT_AUDIO_LEVELS,
+  DEFAULT_AUDIO_MUTES,
+  NULL_UUID,
+  REFERENCE_DISTANCE,
+  ROLLOFF_FACTOR,
+  UNDERWATER_ROLLOFF_FACTOR,
+  UI_SOUNDS,
+  categoryGain,
+  isBeyondCutOff,
+  shouldPlayTrigger,
+  triggerGlobalPosition,
+  type AttachedSoundAction,
+  type AudioLevels,
+  type AudioMutes,
+  type SoundPolicy,
+  type UiSoundName,
+  type Vec3,
 } from './sound-standards';
 
 type SoundEvent = {
-  action: string; soundId?: string; objectId?: string; ownerId?: string; parentId?: string; position?: number[];
-  handle?: string; gain?: number; flags?: number; radius?: number; sounds?: Array<{ soundId: string }>;
+  action: string;
+  soundId?: string;
+  objectId?: string;
+  ownerId?: string;
+  parentId?: string;
+  position?: number[];
+  handle?: string;
+  gain?: number;
+  flags?: number;
+  radius?: number;
+  sounds?: Array<{ soundId: string }>;
 };
 
 interface Playing {
-  objectId: string; gain: GainNode; mute: GainNode; panner: PannerNode;
-  source: AudioBufferSourceNode | null; soundId: string; loop: boolean; muted: boolean;
+  objectId: string;
+  gain: GainNode;
+  mute: GainNode;
+  panner: PannerNode;
+  source: AudioBufferSourceNode | null;
+  soundId: string;
+  loop: boolean;
+  muted: boolean;
   /** Sounds waiting for the current one to finish (the QUEUE flag). */
   queue: Array<{ soundId: string; gain: number; loop: boolean }>;
 }
@@ -53,13 +84,27 @@ export class AudioManager extends Utils.EventEmitter {
   private muteTimer: ReturnType<typeof setInterval> | null = null;
   private initialised = false;
 
-  constructor(private protocol: { on: (event: string, listener: Function) => void; fetchSound?: (id: string) => Promise<void> }) {
+  constructor(
+    private protocol: {
+      on: (event: string, listener: Function) => void;
+      fetchSound?: (id: string) => Promise<void>;
+    },
+  ) {
     super();
     this.policy = {
-      agentId: '', isMuted: () => false, ownerSoundsMuted: () => false, canHearAt: () => true, canAccessMaturityAt: () => true,
-      enableGestureSounds: true, enableCollisionSounds: true, isCollisionSound: () => false,
+      agentId: '',
+      isMuted: () => false,
+      ownerSoundsMuted: () => false,
+      canHearAt: () => true,
+      canAccessMaturityAt: () => true,
+      enableGestureSounds: true,
+      enableCollisionSounds: true,
+      isCollisionSound: () => false,
     };
-    this.attached = new AttachedSounds(() => Date.now(), (id) => this.positions.has(id));
+    this.attached = new AttachedSounds(
+      () => Date.now(),
+      (id) => this.positions.has(id),
+    );
   }
 
   init() {
@@ -80,7 +125,9 @@ export class AudioManager extends Utils.EventEmitter {
     this.protocol.on('scene:object-update', seen);
     this.protocol.on('scene:object-remove', (object: any) => {
       const id = String(object.id);
-      this.positions.delete(id); this.radii.delete(id); this.owners.delete(id);
+      this.positions.delete(id);
+      this.radii.delete(id);
+      this.owners.delete(id);
       this.attached.remove(id);
       this.stopObject(id);
     });
@@ -92,25 +139,45 @@ export class AudioManager extends Utils.EventEmitter {
   // ---- settings ----------------------------------------------------------------------------------
 
   /** Master level 0..1 (`AudioLevelMaster`). */
-  setVolume(value: number) { this.setLevels({ master: value }); }
+  setVolume(value: number) {
+    this.setLevels({ master: value });
+  }
 
-  setLevels(levels: Partial<AudioLevels>) { Object.assign(this.levels, levels); this.applyLevels(); }
-  setMutes(mutes: Partial<AudioMutes>) { Object.assign(this.mutes, mutes); this.applyLevels(); }
-  getLevels(): Readonly<AudioLevels> { return this.levels; }
+  setLevels(levels: Partial<AudioLevels>) {
+    Object.assign(this.levels, levels);
+    this.applyLevels();
+  }
+  setMutes(mutes: Partial<AudioMutes>) {
+    Object.assign(this.mutes, mutes);
+    this.applyLevels();
+  }
+  getLevels(): Readonly<AudioLevels> {
+    return this.levels;
+  }
 
   /** Mute list, parcel, maturity and "enable gesture / collision sounds" settings. */
-  setPolicy(policy: Partial<SoundPolicy>) { Object.assign(this.policy, policy); }
-  setSelfId(id: string) { this.policy.agentId = id; }
+  setPolicy(policy: Partial<SoundPolicy>) {
+    Object.assign(this.policy, policy);
+  }
+  setSelfId(id: string) {
+    this.policy.agentId = id;
+  }
 
   /** Global metres of the current region's south-west corner; positions from the scene are region-local. */
-  setRegionOrigin(origin: [number, number]) { this.regionOrigin = origin; }
+  setRegionOrigin(origin: [number, number]) {
+    this.regionOrigin = origin;
+  }
 
   /**
    * Where the ear is, region-local. The viewer's default is the camera (`MediaSoundsEarLocation` 0).
    * `forward` and `up` are SL-frame vectors; they default to looking north with up as +Z.
    */
   setListener(pose: { position: Vec3; forward?: Vec3; up?: Vec3 }) {
-    this.listener = { position: pose.position, forward: pose.forward ?? [0, 1, 0], up: pose.up ?? [0, 0, 1] };
+    this.listener = {
+      position: pose.position,
+      forward: pose.forward ?? [0, 1, 0],
+      up: pose.up ?? [0, 0, 1],
+    };
     const ctx = this.context;
     if (ctx) {
       const l = ctx.listener;
@@ -118,9 +185,15 @@ export class AudioManager extends Utils.EventEmitter {
       const [fx, fy, fz] = toAudio(this.listener.forward);
       const [ux, uy, uz] = toAudio(this.listener.up);
       if (l.positionX) {
-        l.positionX.value = x; l.positionY.value = y; l.positionZ.value = z;
-        l.forwardX.value = fx; l.forwardY.value = fy; l.forwardZ.value = fz;
-        l.upX.value = ux; l.upY.value = uy; l.upZ.value = uz;
+        l.positionX.value = x;
+        l.positionY.value = y;
+        l.positionZ.value = z;
+        l.forwardX.value = fx;
+        l.forwardY.value = fy;
+        l.forwardZ.value = fz;
+        l.upX.value = ux;
+        l.upY.value = uy;
+        l.upZ.value = uz;
       }
     }
     this.refreshMutes();
@@ -153,7 +226,12 @@ export class AudioManager extends Utils.EventEmitter {
     if (!this.master) return;
     // The master is applied once; each category carries only its own level (the viewer's secondary gain).
     this.master.gain.value = this.mutes.all ? 0 : Math.max(0, Math.min(1, this.levels.master));
-    for (const [type, node] of this.categories) node.gain.value = categoryGain(type, { ...this.levels, master: 1 }, { ...this.mutes, all: false });
+    for (const [type, node] of this.categories)
+      node.gain.value = categoryGain(
+        type,
+        { ...this.levels, master: 1 },
+        { ...this.mutes, all: false },
+      );
   }
 
   // ---- assets ------------------------------------------------------------------------------------
@@ -166,16 +244,24 @@ export class AudioManager extends Utils.EventEmitter {
       this.buffers.set(asset.assetId, buffer);
       for (const resume of this.waiting.get(asset.assetId) ?? []) resume();
       this.waiting.delete(asset.assetId);
-    } catch (error) { this.emit('error', { assetId: asset.assetId, error }); }
+    } catch (error) {
+      this.emit('error', { assetId: asset.assetId, error });
+    }
   }
 
   /** Run `play` once the sound is decoded, requesting it first if nobody has. */
   private whenLoaded(soundId: string, play: () => void) {
-    if (this.buffers.has(soundId)) { play(); return; }
+    if (this.buffers.has(soundId)) {
+      play();
+      return;
+    }
     this.waiting.set(soundId, [...(this.waiting.get(soundId) ?? []), play]);
     if (!this.requested.has(soundId)) {
       this.requested.add(soundId);
-      void this.protocol.fetchSound?.(soundId)?.catch?.(() => { this.requested.delete(soundId); this.waiting.delete(soundId); });
+      void this.protocol.fetchSound?.(soundId)?.catch?.(() => {
+        this.requested.delete(soundId);
+        this.waiting.delete(soundId);
+      });
     }
   }
 
@@ -183,39 +269,61 @@ export class AudioManager extends Utils.EventEmitter {
 
   private acceptEvent(event: SoundEvent) {
     switch (event.action) {
-      case 'trigger': this.trigger(event); break;
+      case 'trigger':
+        this.trigger(event);
+        break;
       case 'attached': {
         const objectId = String(event.objectId);
-        if (Array.isArray(event.position) && !this.positions.has(objectId)) this.positions.set(objectId, event.position as unknown as Vec3);
+        if (Array.isArray(event.position) && !this.positions.has(objectId))
+          this.positions.set(objectId, event.position as unknown as Vec3);
         if (typeof event.radius === 'number') this.radii.set(objectId, event.radius);
         if (event.ownerId) this.owners.set(objectId, event.ownerId);
-        if (this.policy.ownerSoundsMuted(event.ownerId ?? '') || this.policy.isMuted(objectId)) return; // set_attached_sound
-        this.run(this.attached.apply(objectId, { soundId: event.soundId || NULL_UUID, ownerId: event.ownerId ?? '', gain: event.gain ?? 1, flags: event.flags ?? 0 }));
+        if (this.policy.ownerSoundsMuted(event.ownerId ?? '') || this.policy.isMuted(objectId))
+          return; // set_attached_sound
+        this.run(
+          this.attached.apply(objectId, {
+            soundId: event.soundId || NULL_UUID,
+            ownerId: event.ownerId ?? '',
+            gain: event.gain ?? 1,
+            flags: event.flags ?? 0,
+          }),
+        );
         break;
       }
       case 'gain': {
         const gain = this.attached.gainChange(String(event.objectId), event.gain ?? 0);
         const live = this.playing.get(String(event.objectId));
-        if (gain !== null && live) live.gain.gain.setTargetAtTime(gain, this.audioContext().currentTime, 0.02);
+        if (gain !== null && live)
+          live.gain.gain.setTargetAtTime(gain, this.audioContext().currentTime, 0.02);
         break;
       }
-      case 'stop': this.stopObject(String(event.objectId)); break;
-      case 'preload': break; // the host already starts the download
+      case 'stop':
+        this.stopObject(String(event.objectId));
+        break;
+      case 'preload':
+        break; // the host already starts the download
     }
   }
 
   private trigger(event: SoundEvent) {
     if (!event.soundId || !Array.isArray(event.position)) return;
     const trigger = {
-      soundId: event.soundId, objectId: String(event.objectId ?? ''), ownerId: String(event.ownerId ?? ''), parentId: event.parentId,
-      position: event.position as unknown as Vec3, handle: event.handle,
+      soundId: event.soundId,
+      objectId: String(event.objectId ?? ''),
+      ownerId: String(event.ownerId ?? ''),
+      parentId: event.parentId,
+      position: event.position as unknown as Vec3,
+      handle: event.handle,
     };
     if (!shouldPlayTrigger(trigger, this.policy)) return;
     const [ox, oy] = this.regionOrigin;
     const global = triggerGlobalPosition(trigger);
-    const local: Vec3 = event.handle === undefined ? global : [global[0] - ox, global[1] - oy, global[2]];
+    const local: Vec3 =
+      event.handle === undefined ? global : [global[0] - ox, global[1] - oy, global[2]];
     const gain = Math.max(0, Math.min(1, event.gain ?? 1));
-    this.whenLoaded(event.soundId, () => this.playOneShot(event.soundId!, gain, local, AudioType.Sfx));
+    this.whenLoaded(event.soundId, () =>
+      this.playOneShot(event.soundId!, gain, local, AudioType.Sfx),
+    );
   }
 
   private playOneShot(soundId: string, gain: number, position: Vec3 | null, type: AudioType) {
@@ -248,7 +356,11 @@ export class AudioManager extends Utils.EventEmitter {
 
   private setPannerPosition(panner: PannerNode, position: Vec3) {
     const [x, y, z] = toAudio(position);
-    if (panner.positionX) { panner.positionX.value = x; panner.positionY.value = y; panner.positionZ.value = z; }
+    if (panner.positionX) {
+      panner.positionX.value = x;
+      panner.positionY.value = y;
+      panner.positionZ.value = z;
+    }
   }
 
   /** A UI sound (`UISnd*`): not positional, on the UI level. */
@@ -260,8 +372,12 @@ export class AudioManager extends Utils.EventEmitter {
 
   // ---- attached sounds ---------------------------------------------------------------------------
 
-  private epoch(objectId: string) { return this.epochs.get(objectId) ?? 0; }
-  private supersede(objectId: string) { this.epochs.set(objectId, this.epoch(objectId) + 1); }
+  private epoch(objectId: string) {
+    return this.epochs.get(objectId) ?? 0;
+  }
+  private supersede(objectId: string) {
+    this.epochs.set(objectId, this.epoch(objectId) + 1);
+  }
 
   private run(actions: AttachedSoundAction[]) {
     for (const action of actions) {
@@ -270,7 +386,9 @@ export class AudioManager extends Utils.EventEmitter {
       else {
         if (action.stopFirst) this.supersede(action.objectId); // a non-queued sound replaces any still downloading
         const epoch = this.epoch(action.objectId);
-        this.whenLoaded(action.soundId, () => { if (this.epoch(action.objectId) === epoch) this.startAttached(action); });
+        this.whenLoaded(action.soundId, () => {
+          if (this.epoch(action.objectId) === epoch) this.startAttached(action);
+        });
       }
     }
   }
@@ -286,12 +404,27 @@ export class AudioManager extends Utils.EventEmitter {
       const mute = ctx.createGain();
       const panner = this.makePanner(ctx, position);
       gain.connect(mute).connect(panner).connect(out);
-      live = { objectId: action.objectId, gain, mute, panner, source: null, soundId: '', loop: false, muted: false, queue: [] };
+      live = {
+        objectId: action.objectId,
+        gain,
+        mute,
+        panner,
+        source: null,
+        soundId: '',
+        loop: false,
+        muted: false,
+        queue: [],
+      };
       this.playing.set(action.objectId, live);
       this.ensureMuteTimer();
     }
-    if (action.stopFirst) { live.queue.length = 0; this.stopSource(live); }
-    else if (live.source) { live.queue.push({ soundId: action.soundId, gain: action.gain, loop: action.loop }); return; }
+    if (action.stopFirst) {
+      live.queue.length = 0;
+      this.stopSource(live);
+    } else if (live.source) {
+      live.queue.push({ soundId: action.soundId, gain: action.gain, loop: action.loop });
+      return;
+    }
     this.playOn(live, action.soundId, action.gain, action.loop);
     this.refreshMutes();
   }
@@ -301,7 +434,9 @@ export class AudioManager extends Utils.EventEmitter {
     const buffer = this.buffers.get(soundId);
     if (!buffer) {
       const epoch = this.epoch(live.objectId);
-      this.whenLoaded(soundId, () => { if (this.epoch(live.objectId) === epoch) this.playOn(live, soundId, gain, loop); });
+      this.whenLoaded(soundId, () => {
+        if (this.epoch(live.objectId) === epoch) this.playOn(live, soundId, gain, loop);
+      });
       return;
     }
     const source = this.audioContext().createBufferSource();
@@ -309,7 +444,9 @@ export class AudioManager extends Utils.EventEmitter {
     source.loop = loop;
     live.gain.gain.value = gain;
     source.connect(live.gain);
-    live.source = source; live.soundId = soundId; live.loop = loop;
+    live.source = source;
+    live.soundId = soundId;
+    live.loop = loop;
     source.onended = () => {
       if (live.source !== source) return;
       live.source = null;
@@ -323,7 +460,14 @@ export class AudioManager extends Utils.EventEmitter {
   private stopSource(live: Playing) {
     const source = live.source;
     live.source = null;
-    if (source) { source.onended = null; try { source.stop(); } catch { /* already ended */ } }
+    if (source) {
+      source.onended = null;
+      try {
+        source.stop();
+      } catch {
+        /* already ended */
+      }
+    }
   }
 
   private stopObject(objectId: string, cleanup = false) {
@@ -333,7 +477,11 @@ export class AudioManager extends Utils.EventEmitter {
     live.queue.length = 0;
     this.stopSource(live);
     if (cleanup) {
-      try { live.panner.disconnect(); } catch { /* ignore */ }
+      try {
+        live.panner.disconnect();
+      } catch {
+        /* ignore */
+      }
       this.playing.delete(objectId);
       if (!this.playing.size) this.stopMuteTimer();
     }
@@ -344,12 +492,19 @@ export class AudioManager extends Utils.EventEmitter {
     this.attached.clear();
   }
 
-  private place(live: Playing, position: Vec3) { this.setPannerPosition(live.panner, position); }
+  private place(live: Playing, position: Vec3) {
+    this.setPannerPosition(live.panner, position);
+  }
 
   // ---- cut-off radius, parcel and mute rules ---------------------------------------------------------
 
-  private ensureMuteTimer() { this.muteTimer ||= setInterval(() => this.refreshMutes(), 250); }
-  private stopMuteTimer() { if (this.muteTimer) clearInterval(this.muteTimer); this.muteTimer = null; }
+  private ensureMuteTimer() {
+    this.muteTimer ||= setInterval(() => this.refreshMutes(), 250);
+  }
+  private stopMuteTimer() {
+    if (this.muteTimer) clearInterval(this.muteTimer);
+    this.muteTimer = null;
+  }
 
   /** `LLAudioSourceVO::updateMute`: a sound is silenced beyond its cut-off radius, across a local-sound parcel, or when muted. */
   private refreshMutes() {
@@ -361,8 +516,11 @@ export class AudioManager extends Utils.EventEmitter {
       if (!position) continue;
       const distance = Math.hypot(position[0] - ear[0], position[1] - ear[1], position[2] - ear[2]);
       const global: Vec3 = [position[0] + ox, position[1] + oy, position[2]];
-      const muted = isBeyondCutOff(distance, this.radii.get(live.objectId) ?? 0)
-        || !this.policy.canHearAt(global) || this.policy.isMuted(live.objectId) || this.policy.ownerSoundsMuted(this.owners.get(live.objectId) ?? '');
+      const muted =
+        isBeyondCutOff(distance, this.radii.get(live.objectId) ?? 0) ||
+        !this.policy.canHearAt(global) ||
+        this.policy.isMuted(live.objectId) ||
+        this.policy.ownerSoundsMuted(this.owners.get(live.objectId) ?? '');
       if (muted !== live.muted) {
         live.muted = muted;
         live.mute.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, 0.02); // a short ramp avoids a click
@@ -373,4 +531,6 @@ export class AudioManager extends Utils.EventEmitter {
 }
 
 /** SL frame (x east, y north, z up) to Web Audio (x right, y up, -z forward). */
-function toAudio(v: Vec3): Vec3 { return [v[0], v[2], -v[1]]; }
+function toAudio(v: Vec3): Vec3 {
+  return [v[0], v[2], -v[1]];
+}

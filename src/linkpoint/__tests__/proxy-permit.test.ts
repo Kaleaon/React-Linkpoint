@@ -8,7 +8,9 @@ describe('capability permits', () => {
     const permits = new CapabilityPermitService(secret);
     const token = permits.issue(['https://caps.example-grid.test/seed']);
 
-    expect(permits.permits(new URL('https://caps.example-grid.test/event-queue'), token)).toBe(true);
+    expect(permits.permits(new URL('https://caps.example-grid.test/event-queue'), token)).toBe(
+      true,
+    );
     expect(permits.permits(new URL('https://other.example-grid.test/'), token)).toBe(false);
   });
 
@@ -22,7 +24,10 @@ describe('capability permits', () => {
   });
 
   it('extracts a seed capability from a login response', () => {
-    expect(extractSeedCapability('<name>seed_capability</name><value><string>https://caps.example.test/seed</string></value>'))
-      .toEqual(['https://caps.example.test/seed']);
+    expect(
+      extractSeedCapability(
+        '<name>seed_capability</name><value><string>https://caps.example.test/seed</string></value>',
+      ),
+    ).toEqual(['https://caps.example.test/seed']);
   });
 });

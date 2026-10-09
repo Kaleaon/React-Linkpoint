@@ -72,7 +72,10 @@ export class EconomyManager extends Utils.EventEmitter {
         if (data.currencySymbol || data.currency_symbol) {
           this.currencySymbol = data.currencySymbol || data.currency_symbol;
         }
-        if (typeof data.isZeroCurrency === 'boolean' || typeof data.is_zero_currency === 'boolean') {
+        if (
+          typeof data.isZeroCurrency === 'boolean' ||
+          typeof data.is_zero_currency === 'boolean'
+        ) {
           this.isZeroCurrency = Boolean(data.isZeroCurrency ?? data.is_zero_currency);
         }
         if (data.transaction) {
@@ -256,9 +259,13 @@ export class EconomyManager extends Utils.EventEmitter {
         this.balance = remote.balance;
       }
       if (remote.currencySymbol || remote.currency_symbol) {
-        this.currencySymbol = remote.currencySymbol || remote.currency_symbol || this.currencySymbol;
+        this.currencySymbol =
+          remote.currencySymbol || remote.currency_symbol || this.currencySymbol;
       }
-      if (typeof remote.isZeroCurrency === 'boolean' || typeof remote.is_zero_currency === 'boolean') {
+      if (
+        typeof remote.isZeroCurrency === 'boolean' ||
+        typeof remote.is_zero_currency === 'boolean'
+      ) {
         this.isZeroCurrency = Boolean(remote.isZeroCurrency ?? remote.is_zero_currency);
       }
       this.emit('balance_updated', {
@@ -337,7 +344,7 @@ export class EconomyManager extends Utils.EventEmitter {
         t.targetName.toLowerCase().includes(q) ||
         t.targetId.toLowerCase().includes(q) ||
         t.type.toLowerCase().includes(q) ||
-        String(t.amount).includes(q)
+        String(t.amount).includes(q),
     );
   }
 
@@ -371,7 +378,9 @@ export class EconomyManager extends Utils.EventEmitter {
       totalTransactions: valid.length,
       totalSpent30Days: totalSpent,
       totalReceived30Days: totalReceived,
-      oldestTransactionDate: oldestTimestamp ? new Date(oldestTimestamp).toLocaleDateString() : null,
+      oldestTransactionDate: oldestTimestamp
+        ? new Date(oldestTimestamp).toLocaleDateString()
+        : null,
     };
   }
 

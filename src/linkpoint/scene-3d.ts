@@ -6,17 +6,52 @@ import { Utils } from './utils';
 import { Graphics3D } from './graphics-3d';
 import { Camera3D } from './camera-3d';
 import { Primitives3D } from './primitives-3d';
-import { extractFrustum, multiplyMat4, testAABB, transformAABB, OUTSIDE, type Frustum } from './frustum';
+import {
+  extractFrustum,
+  multiplyMat4,
+  testAABB,
+  transformAABB,
+  OUTSIDE,
+  type Frustum,
+} from './frustum';
 import { SpatialPipeline } from './spatial-pipeline';
 import { intersectRayOrientedBox } from './ray-pick';
 import { HEAVENLY_BODY_RADIUS, atmosphereColor, atmosphereUniforms } from './atmosphere';
-import { DEFAULT_SKY, DEFAULT_WATER, dayFraction, normalizeSky, normalizeWater, skyAt, skyState, waterAt, type SkySettings, type SkyState, type WaterSettings } from './eep';
-import { DETAIL_TILE_METRES, FALLBACK_LAYER_COLORS, TERRAIN_LAYERS, compositionTexture, terrainComposition, type TerrainParams } from './terrain';
+import {
+  DEFAULT_SKY,
+  DEFAULT_WATER,
+  dayFraction,
+  normalizeSky,
+  normalizeWater,
+  skyAt,
+  skyState,
+  waterAt,
+  type SkySettings,
+  type SkyState,
+  type WaterSettings,
+} from './eep';
+import {
+  DETAIL_TILE_METRES,
+  FALLBACK_LAYER_COLORS,
+  TERRAIN_LAYERS,
+  compositionTexture,
+  terrainComposition,
+  type TerrainParams,
+} from './terrain';
 import { fitHud, hudExtents, hudProjection, HUD_SIZE, type HudFit } from './hud';
 import {
-  WATER_WAVES, WATER_NORMAL_SCALE, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, isUnderWater, readVec3,
-  createSkyDome, createStarField, createWaterPlane,
-  type SkyUniforms, type WaterUniforms,
+  WATER_WAVES,
+  WATER_NORMAL_SCALE,
+  DEFAULT_WATER_HEIGHT,
+  computeSkyUniforms,
+  computeWaterUniforms,
+  isUnderWater,
+  readVec3,
+  createSkyDome,
+  createStarField,
+  createWaterPlane,
+  type SkyUniforms,
+  type WaterUniforms,
 } from './sky';
 
 const UNIT_CUBE_BOUNDS = { min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] };
@@ -27,11 +62,11 @@ const SUN_DISTANCE = 10000;
 export class Scene3D extends Utils.EventEmitter {
   public graphics: Graphics3D;
   public camera: Camera3D;
-  
+
   // Scene objects
   public objects: Map<string, any> = new Map();
   public lights: any[] = [];
-  
+
   // Grid
   public showGrid: boolean = true;
   public gridSize: number = 256;
@@ -60,7 +95,11 @@ export class Scene3D extends Utils.EventEmitter {
   private waterUniforms: WaterUniforms = computeWaterUniforms(null);
   private skyClearColor: number[] = [0.53, 0.81, 0.92, 1];
   /** Sky, water and light values for the current time of day (EEP day cycle, or the fallback sky frame). */
-  public atmosphere: { sky: SkySettings; state: SkyState; water: WaterSettings } = { sky: DEFAULT_SKY, state: skyState(DEFAULT_SKY), water: DEFAULT_WATER };
+  public atmosphere: { sky: SkySettings; state: SkyState; water: WaterSettings } = {
+    sky: DEFAULT_SKY,
+    state: skyState(DEFAULT_SKY),
+    water: DEFAULT_WATER,
+  };
   private atmosphereBucket = -1;
   /** Wall-clock seconds, used to find the point in the region's day. Replaceable for tests. */
   public wallClock = () => Date.now() / 1000;
@@ -89,20 +128,20 @@ export class Scene3D extends Utils.EventEmitter {
     // Create default primitives
     this.createDefaultPrimitives();
     this.createEnvironmentMeshes();
-    
+
     // Create grid
     if (this.showGrid) {
       this.createGrid();
     }
-    
+
     // Add default light
     this.addLight({
       type: 'directional',
       position: [100, 100, 200],
       color: [1, 1, 1],
-      intensity: 1.0
+      intensity: 1.0,
     });
-    
+
     this.emit('initialized');
   }
 
@@ -113,31 +152,73 @@ export class Scene3D extends Utils.EventEmitter {
     // Cube
     const cube = Primitives3D.createCube(1);
     this.graphics.createMesh('cube', cube.vertices, cube.indices, cube.normals, cube.texCoords);
-    
+
     // Sphere
     const sphere = Primitives3D.createSphere(0.5, 32, 16);
-    this.graphics.createMesh('sphere', sphere.vertices, sphere.indices, sphere.normals, sphere.texCoords);
-    
+    this.graphics.createMesh(
+      'sphere',
+      sphere.vertices,
+      sphere.indices,
+      sphere.normals,
+      sphere.texCoords,
+    );
+
     // Plane
     const plane = Primitives3D.createPlane(10, 10, 10, 10);
-    this.graphics.createMesh('plane', plane.vertices, plane.indices, plane.normals, plane.texCoords);
+    this.graphics.createMesh(
+      'plane',
+      plane.vertices,
+      plane.indices,
+      plane.normals,
+      plane.texCoords,
+    );
     const particleSprite = Primitives3D.createPlane(1, 1);
-    this.graphics.createMesh('particle-sprite', particleSprite.vertices, particleSprite.indices, particleSprite.normals, particleSprite.texCoords);
-    
+    this.graphics.createMesh(
+      'particle-sprite',
+      particleSprite.vertices,
+      particleSprite.indices,
+      particleSprite.normals,
+      particleSprite.texCoords,
+    );
+
     // Cylinder
     const cylinder = Primitives3D.createCylinder(0.5, 0.5, 1, 32);
-    this.graphics.createMesh('cylinder', cylinder.vertices, cylinder.indices, cylinder.normals, cylinder.texCoords);
+    this.graphics.createMesh(
+      'cylinder',
+      cylinder.vertices,
+      cylinder.indices,
+      cylinder.normals,
+      cylinder.texCoords,
+    );
 
     const prism = Primitives3D.createPrism();
-    this.graphics.createMesh('prism', prism.vertices, prism.indices, prism.normals, prism.texCoords);
+    this.graphics.createMesh(
+      'prism',
+      prism.vertices,
+      prism.indices,
+      prism.normals,
+      prism.texCoords,
+    );
 
     const torus = Primitives3D.createTorus();
-    this.graphics.createMesh('torus', torus.vertices, torus.indices, torus.normals, torus.texCoords);
+    this.graphics.createMesh(
+      'torus',
+      torus.vertices,
+      torus.indices,
+      torus.normals,
+      torus.texCoords,
+    );
 
     // Until LLMesh/JP2 decoding is available in WebGL, uploaded mesh and sculpt
     // assets get an unmistakable non-cube proxy rather than silently vanishing.
     const assetProxy = Primitives3D.createTorus(0.28, 0.22, 16, 8);
-    this.graphics.createMesh('asset-proxy', assetProxy.vertices, assetProxy.indices, assetProxy.normals, assetProxy.texCoords);
+    this.graphics.createMesh(
+      'asset-proxy',
+      assetProxy.vertices,
+      assetProxy.indices,
+      assetProxy.normals,
+      assetProxy.texCoords,
+    );
   }
 
   /** Sky dome, star field and water plane (shaders live in sky.ts). */
@@ -159,23 +240,55 @@ export class Scene3D extends Utils.EventEmitter {
     this.graphics.createMesh('grid', grid.vertices, grid.indices, grid.normals, grid.texCoords);
   }
 
-  addAssetMesh(assetId: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[]; parts?: any[] }) {
+  addAssetMesh(
+    assetId: string,
+    geometry: {
+      vertices: number[];
+      indices: number[];
+      normals?: number[];
+      texCoords?: number[];
+      parts?: any[];
+    },
+  ) {
     const parts = geometry.parts?.length ? geometry.parts : [geometry];
     return parts.map((part, index) => {
       const name = `asset:${assetId}:${index}`;
-      const skin = Array.isArray(part.joints) && Array.isArray(part.jointWeights) ? { joints: part.joints, weights: part.jointWeights } : undefined;
+      const skin =
+        Array.isArray(part.joints) && Array.isArray(part.jointWeights)
+          ? { joints: part.joints, weights: part.jointWeights }
+          : undefined;
       try {
-        this.graphics.createMesh(name, part.vertices, part.indices, part.normals, part.texCoords, undefined, skin);
+        this.graphics.createMesh(
+          name,
+          part.vertices,
+          part.indices,
+          part.normals,
+          part.texCoords,
+          undefined,
+          skin,
+        );
         return { mesh: name, materialIndex: Number(part.materialIndex ?? index) };
       } catch (err) {
-        console.warn(`[Scene3D] Failed to register mesh ${name}, falling back to asset proxy:`, err);
+        console.warn(
+          `[Scene3D] Failed to register mesh ${name}, falling back to asset proxy:`,
+          err,
+        );
         return { mesh: 'asset-proxy', materialIndex: Number(part.materialIndex ?? index) };
       }
     });
   }
 
   /** Register the faces of a generated prim volume; returns one draw per face (material index = texture-entry face). */
-  addVolumeMeshes(key: string, faces: Array<{ faceIndex: number; vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }>) {
+  addVolumeMeshes(
+    key: string,
+    faces: Array<{
+      faceIndex: number;
+      vertices: number[];
+      indices: number[];
+      normals?: number[];
+      texCoords?: number[];
+    }>,
+  ) {
     return faces.map((face) => {
       const name = `volume:${key}:${face.faceIndex}`;
       this.graphics.createMesh(name, face.vertices, face.indices, face.normals, face.texCoords);
@@ -184,8 +297,20 @@ export class Scene3D extends Utils.EventEmitter {
   }
 
   /** Register a skinned mesh (joint indices + weights per vertex) under `name`. */
-  addSkinnedMesh(name: string, geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] }, skin: { joints: number[]; weights: number[] }) {
-    this.graphics.createMesh(name, geometry.vertices, geometry.indices, geometry.normals, geometry.texCoords, undefined, skin);
+  addSkinnedMesh(
+    name: string,
+    geometry: { vertices: number[]; indices: number[]; normals?: number[]; texCoords?: number[] },
+    skin: { joints: number[]; weights: number[] },
+  ) {
+    this.graphics.createMesh(
+      name,
+      geometry.vertices,
+      geometry.indices,
+      geometry.normals,
+      geometry.texCoords,
+      undefined,
+      skin,
+    );
     return name;
   }
 
@@ -202,12 +327,16 @@ export class Scene3D extends Utils.EventEmitter {
     // whose placement was calculated from the original terrain.  255 cells still fit exactly in
     // WebGL's unsigned-short index range (256 * 256 vertices, last index 65535).
     const cells = Math.min(255, size - 1);
-    const vertices: number[] = [], normals: number[] = [], texCoords: number[] = [], indices: number[] = [];
-    const sample = (x: number, y: number) => Number(heights[Math.min(size - 1, y) * size + Math.min(size - 1, x)]) || 0;
+    const vertices: number[] = [],
+      normals: number[] = [],
+      texCoords: number[] = [],
+      indices: number[] = [];
+    const sample = (x: number, y: number) =>
+      Number(heights[Math.min(size - 1, y) * size + Math.min(size - 1, x)]) || 0;
     for (let y = 0; y <= cells; y++) {
-      const sy = Math.round(y * (size - 1) / cells);
+      const sy = Math.round((y * (size - 1)) / cells);
       for (let x = 0; x <= cells; x++) {
-        const sx = Math.round(x * (size - 1) / cells);
+        const sx = Math.round((x * (size - 1)) / cells);
         vertices.push(sx, sy, sample(sx, sy));
         const dx = sample(Math.min(size - 1, sx + 1), sy) - sample(Math.max(0, sx - 1), sy);
         const dy = sample(sx, Math.min(size - 1, sy + 1)) - sample(sx, Math.max(0, sy - 1));
@@ -216,10 +345,14 @@ export class Scene3D extends Utils.EventEmitter {
         texCoords.push(sx / (size - 1), sy / (size - 1));
       }
     }
-    for (let y = 0; y < cells; y++) for (let x = 0; x < cells; x++) {
-      const a = y * (cells + 1) + x, b = a + 1, c = a + cells + 1, d = c + 1;
-      indices.push(a, b, c, b, d, c);
-    }
+    for (let y = 0; y < cells; y++)
+      for (let x = 0; x < cells; x++) {
+        const a = y * (cells + 1) + x,
+          b = a + 1,
+          c = a + cells + 1,
+          d = c + 1;
+        indices.push(a, b, c, b, d, c);
+      }
     this.graphics.createMesh('terrain', vertices, indices, normals, texCoords);
     this.terrainLoaded = true;
     this.terrainHeights = Array.from(heights, Number);
@@ -234,7 +367,8 @@ export class Scene3D extends Utils.EventEmitter {
    * graphics texture names of the four layers; any not loaded yet show a fallback colour.
    */
   setTerrainMaterials(materials: TerrainParams & { textureNames: string[] }) {
-    if (!materials || materials.startHeights?.length < 4 || materials.heightRanges?.length < 4) return false;
+    if (!materials || materials.startHeights?.length < 4 || materials.heightRanges?.length < 4)
+      return false;
     this.terrainMaterials = materials;
     this.buildTerrainComposition();
     return true;
@@ -245,7 +379,12 @@ export class Scene3D extends Utils.EventEmitter {
     const materials = this.terrainMaterials;
     if (!materials || !this.terrainHeights || !this.terrainSize) return;
     const values = terrainComposition(this.terrainHeights, this.terrainSize, materials);
-    this.graphics.createTexture('terrain:composition', this.terrainSize, this.terrainSize, compositionTexture(values, this.terrainSize));
+    this.graphics.createTexture(
+      'terrain:composition',
+      this.terrainSize,
+      this.terrainSize,
+      compositionTexture(values, this.terrainSize),
+    );
     this.terrainCompositionReady = true;
   }
 
@@ -278,7 +417,11 @@ export class Scene3D extends Utils.EventEmitter {
     const cycle = environment?.dayCycle;
     const hasCycle = cycle && (cycle.tracks?.length || Object.keys(cycle.frames || {}).length);
     if (hasCycle) {
-      const fraction = dayFraction(this.wallClock(), Number(environment.dayLength), Number(environment.dayOffset) || 0);
+      const fraction = dayFraction(
+        this.wallClock(),
+        Number(environment.dayLength),
+        Number(environment.dayOffset) || 0,
+      );
       sky = skyAt(cycle, fraction);
       water = waterAt(cycle, fraction);
       state = skyState(sky);
@@ -286,8 +429,13 @@ export class Scene3D extends Utils.EventEmitter {
       const frame = environment?.sky || environment?.currentSky;
       sky = frame ? normalizeSky(frame) : DEFAULT_SKY;
       water = normalizeWater(environment?.water);
-      const sun = Array.isArray(frame?.sunDirection) ? (frame.sunDirection.slice(0, 3).map(Number) as [number, number, number]) : undefined;
-      state = skyState(sky, sun ? { sun, moon: sun.map((v: number) => -v) as [number, number, number] } : {});
+      const sun = Array.isArray(frame?.sunDirection)
+        ? (frame.sunDirection.slice(0, 3).map(Number) as [number, number, number])
+        : undefined;
+      state = skyState(
+        sky,
+        sun ? { sun, moon: sun.map((v: number) => -v) as [number, number, number] } : {},
+      );
     }
     this.atmosphere = { sky, state, water };
 
@@ -295,7 +443,9 @@ export class Scene3D extends Utils.EventEmitter {
     const light = this.lights[0];
     const direction = state.lightDirection;
     const diffuse = state.sunUp ? state.sunDiffuse : state.moonDiffuse;
-    const ambient = state.sunUp ? state.sunAmbient.map((v) => Math.pow(Math.max(0, v), 0.9) * 0.57) : state.moonAmbient;
+    const ambient = state.sunUp
+      ? state.sunAmbient.map((v) => Math.pow(Math.max(0, v), 0.9) * 0.57)
+      : state.moonAmbient;
     if (light) {
       light.position = direction.map((v) => v * SUN_DISTANCE);
       light.color = diffuse.map((v) => Math.max(0, Math.min(1, v)));
@@ -303,7 +453,9 @@ export class Scene3D extends Utils.EventEmitter {
     this.ambientColor = ambient.map((v) => Math.max(0, Math.min(1, v)));
 
     // Clear colour: the sky near the zenith, tone mapped (the dome covers it, but it shows through gaps).
-    const zenith = atmosphereColor(sky, state, [0, 0, 1]).map((v) => Math.pow(1 - Math.exp(-v * 1.2), 1 / 2.2));
+    const zenith = atmosphereColor(sky, state, [0, 0, 1]).map((v) =>
+      Math.pow(1 - Math.exp(-v * 1.2), 1 / 2.2),
+    );
     this.skyClearColor = [...zenith, 1];
     if (!this.underWater) this.graphics.setClearColor(this.skyClearColor);
     this.waterUniforms = computeWaterUniforms({ waterFogColor: water.fogColor }, this.waterHeight);
@@ -321,8 +473,14 @@ export class Scene3D extends Utils.EventEmitter {
    * Add object to scene
    */
   /** Show one worn HUD over the world (or none). `size` is the fraction of the view height its largest side fills. */
-  setDisplayedHud(rootId: string | null, size: number = HUD_SIZE.initial, pan: [number, number] = [0, 0]) {
-    this.displayedHud = rootId ? { rootId, size: Math.max(HUD_SIZE.min, Math.min(HUD_SIZE.max, size)), pan } : null;
+  setDisplayedHud(
+    rootId: string | null,
+    size: number = HUD_SIZE.initial,
+    pan: [number, number] = [0, 0],
+  ) {
+    this.displayedHud = rootId
+      ? { rootId, size: Math.max(HUD_SIZE.min, Math.min(HUD_SIZE.max, size)), pan }
+      : null;
   }
 
   addObject(id: string, config: any) {
@@ -348,7 +506,7 @@ export class Scene3D extends Utils.EventEmitter {
       flexi: config.flexi || null,
       flexiSections: config.flexiSections || null,
     };
-    
+
     this.objects.set(id, object);
     this.emit('object_added', object);
     return object;
@@ -385,9 +543,9 @@ export class Scene3D extends Utils.EventEmitter {
       type: config.type || 'point',
       position: config.position || [0, 0, 0],
       color: config.color || [1, 1, 1],
-      intensity: config.intensity || 1.0
+      intensity: config.intensity || 1.0,
     };
-    
+
     this.lights.push(light);
     this.emit('light_added', light);
     return light;
@@ -405,7 +563,9 @@ export class Scene3D extends Utils.EventEmitter {
     // Get matrices
     const viewMatrix = this.camera.getViewMatrix();
     const projectionMatrix = this.camera.getProjectionMatrix();
-    const frustum = this.cullingEnabled ? extractFrustum(multiplyMat4(projectionMatrix, viewMatrix)) : null;
+    const frustum = this.cullingEnabled
+      ? extractFrustum(multiplyMat4(projectionMatrix, viewMatrix))
+      : null;
 
     // Below the surface the sky is not visible; show the water tint instead.
     const waterActive = this.showWater && this.terrainLoaded && this.environmentMeshesReady;
@@ -426,27 +586,49 @@ export class Scene3D extends Utils.EventEmitter {
     // back-to-front afterwards so trees, windows and hair do not disappear as
     // insertion order changes while simulator updates stream in.
     let culled = 0;
-    const visible = [...this.objects.values()].filter(object => {
+    const visible = [...this.objects.values()].filter((object) => {
       if (!object.visible || object.hud) return false;
       const bounds = this.objectLocalBounds(object);
       // Account for the whole scaled mesh, so large prims crossing the distance
       // boundary stay visible even when their origin is beyond it.
-      const radius = bounds ? Math.hypot(...bounds.max.map((v, i) => Math.max(Math.abs(v), Math.abs(bounds.min[i])) * Math.abs(object.scale[i]))) : Infinity;
-      const distance = Math.hypot(...object.position.map((v: number, i: number) => v - this.camera.position[i]));
-      if (distance - radius > this.drawDistance || this.isCulled(object, frustum)) { culled++; return false; }
+      const radius = bounds
+        ? Math.hypot(
+            ...bounds.max.map(
+              (v, i) => Math.max(Math.abs(v), Math.abs(bounds.min[i])) * Math.abs(object.scale[i]),
+            ),
+          )
+        : Infinity;
+      const distance = Math.hypot(
+        ...object.position.map((v: number, i: number) => v - this.camera.position[i]),
+      );
+      if (distance - radius > this.drawDistance || this.isCulled(object, frustum)) {
+        culled++;
+        return false;
+      }
       return true;
     });
     this.frameStats = { drawn: visible.length, culled };
     const transparent = (object: any) => this.isTransparent(object);
-    const distanceSquared = (object: any) => object.position.reduce((sum: number, value: number, index: number) => sum + (value - this.camera.position[index]) ** 2, 0);
-    visible.filter(object => !transparent(object)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
+    const distanceSquared = (object: any) =>
+      object.position.reduce(
+        (sum: number, value: number, index: number) =>
+          sum + (value - this.camera.position[index]) ** 2,
+        0,
+      );
+    visible
+      .filter((object) => !transparent(object))
+      .forEach((object) => this.renderObject(object, viewMatrix, projectionMatrix));
 
     // The sky is drawn after opaque geometry at the far plane, so it only
     // shades pixels nothing else covered instead of overdrawing the screen.
-    if (this.showSky && this.environmentMeshesReady && !underWater) this.renderSky(viewMatrix, projectionMatrix);
+    if (this.showSky && this.environmentMeshesReady && !underWater)
+      this.renderSky(viewMatrix, projectionMatrix);
     if (waterActive && !underWater) this.renderWater(viewMatrix, projectionMatrix);
 
-    visible.filter(transparent).sort((a, b) => distanceSquared(b) - distanceSquared(a)).forEach(object => this.renderObject(object, viewMatrix, projectionMatrix));
+    visible
+      .filter(transparent)
+      .sort((a, b) => distanceSquared(b) - distanceSquared(a))
+      .forEach((object) => this.renderObject(object, viewMatrix, projectionMatrix));
 
     // The HUD goes last, over everything, in its own orthographic view.
     this.renderHud();
@@ -478,23 +660,38 @@ export class Scene3D extends Utils.EventEmitter {
     const displayed = this.displayedHud;
     if (!displayed) return null;
     const prims = [...this.objects.values()]
-      .filter((object) => object.hud && object.hudRoot === displayed.rootId && object.visible !== false)
-      .map((object) => ({ object, local: this.calculateModelMatrix(object.position, object.rotation, object.scale) }));
+      .filter(
+        (object) => object.hud && object.hudRoot === displayed.rootId && object.visible !== false,
+      )
+      .map((object) => ({
+        object,
+        local: this.calculateModelMatrix(object.position, object.rotation, object.scale),
+      }));
     if (!prims.length) return null;
     // Measure each prim's real mesh bounds (the unit cube when unknown) through the same matrix it is drawn with.
     const boxes = prims.map(({ object, local }) => {
       const bounds = this.objectLocalBounds(object) || UNIT_CUBE_BOUNDS;
       return { local, bounds };
     });
-    const extents = hudExtents(boxes.map(({ local, bounds }) => {
-      // Express the transformed bounds as a prim so the shared extents code can measure it.
-      const world = transformAABB(local, bounds.min, bounds.max);
-      return {
-        position: [(world.min[0] + world.max[0]) / 2, (world.min[1] + world.max[1]) / 2, (world.min[2] + world.max[2]) / 2],
-        rotation: [0, 0, 0, 1],
-        scale: [world.max[0] - world.min[0], world.max[1] - world.min[1], world.max[2] - world.min[2]],
-      };
-    }));
+    const extents = hudExtents(
+      boxes.map(({ local, bounds }) => {
+        // Express the transformed bounds as a prim so the shared extents code can measure it.
+        const world = transformAABB(local, bounds.min, bounds.max);
+        return {
+          position: [
+            (world.min[0] + world.max[0]) / 2,
+            (world.min[1] + world.max[1]) / 2,
+            (world.min[2] + world.max[2]) / 2,
+          ],
+          rotation: [0, 0, 0, 1],
+          scale: [
+            world.max[0] - world.min[0],
+            world.max[1] - world.min[1],
+            world.max[2] - world.min[2],
+          ],
+        };
+      }),
+    );
     return { fit: fitHud(extents, displayed.size, displayed.pan), prims };
   }
 
@@ -511,14 +708,23 @@ export class Scene3D extends Utils.EventEmitter {
     const projection = hudProjection(this.hudAspect());
     this.graphics.clearDepth?.();
     // Opaque prims first, then blended ones from far to near (screen -z is away from the viewer).
-    const depthOf = ({ local }: { local: Float32Array }) => fit.matrix[2] * local[12] + fit.matrix[6] * local[13] + fit.matrix[10] * local[14] + fit.matrix[14];
+    const depthOf = ({ local }: { local: Float32Array }) =>
+      fit.matrix[2] * local[12] +
+      fit.matrix[6] * local[13] +
+      fit.matrix[10] * local[14] +
+      fit.matrix[14];
     const ordered = [
       ...prims.filter(({ object }) => !this.isTransparent(object)),
-      ...prims.filter(({ object }) => this.isTransparent(object)).sort((a, b) => depthOf(a) - depthOf(b)),
+      ...prims
+        .filter(({ object }) => this.isTransparent(object))
+        .sort((a, b) => depthOf(a) - depthOf(b)),
     ];
     for (const { object, local } of ordered) {
       // HUDs are not lit by the sun: they are drawn full-bright, as Lumiya does (no Windlight lighting).
-      this.renderObject(object, identity, projection, { model: multiplyMat4(fit.matrix, local), fullBright: true });
+      this.renderObject(object, identity, projection, {
+        model: multiplyMat4(fit.matrix, local),
+        fullBright: true,
+      });
     }
   }
 
@@ -532,7 +738,12 @@ export class Scene3D extends Utils.EventEmitter {
     let best: { id: string; distance: number; point: number[] } | null = null;
     for (const { object, local } of setup.prims) {
       const bounds = this.objectLocalBounds(object) || UNIT_CUBE_BOUNDS;
-      const distance = intersectRayOrientedBox(ray, multiplyMat4(setup.fit.matrix, local), bounds.min, bounds.max);
+      const distance = intersectRayOrientedBox(
+        ray,
+        multiplyMat4(setup.fit.matrix, local),
+        bounds.min,
+        bounds.max,
+      );
       if (distance === null || (best && distance >= best.distance)) continue;
       best = { id: object.id, distance, point: [x, y, 50 - distance] };
     }
@@ -542,55 +753,74 @@ export class Scene3D extends Utils.EventEmitter {
   /** Atmospheric sky dome (sun, moon, haze glow) plus optional stars, pinned to the far plane. */
   private renderSky(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
     const skyView = new Float32Array(viewMatrix);
-    skyView[12] = 0; skyView[13] = 0; skyView[14] = 0;
+    skyView[12] = 0;
+    skyView[13] = 0;
+    skyView[14] = 0;
     const { sky, state } = this.atmosphere;
-    this.graphics.drawMesh('sky-dome', 'sky', {
-      uSkyViewMatrix: skyView,
-      uProjectionMatrix: projectionMatrix,
-      ...atmosphereUniforms(sky, state),
-      uSunDir: new Float32Array(state.sunDirection),
-      uMoonDir: new Float32Array(state.moonDirection),
-      uSunRadius: HEAVENLY_BODY_RADIUS * Math.max(0.2, Math.min(sky.sunScale, 4)),
-      uMoonRadius: HEAVENLY_BODY_RADIUS * Math.max(0.2, Math.min(sky.moonScale, 4)),
-      uMoonBrightness: Math.max(0, sky.moonBrightness),
-      uMoonUp: state.moonUp ? 1 : 0,
-    }, { depthWrite: false, cullFace: false });
-    // EEP star brightness is 0..250 (0 by day); the fallback frames carry 0..1.
-    const stars = this.environment?.dayCycle ? Math.max(0, Math.min(1, sky.starBrightness / 250)) : this.skyUniforms.starBrightness;
-    if (stars > 0) {
-      this.graphics.drawMesh('sky-stars', 'stars', {
+    this.graphics.drawMesh(
+      'sky-dome',
+      'sky',
+      {
         uSkyViewMatrix: skyView,
         uProjectionMatrix: projectionMatrix,
-        uStarColor: new Float32Array([1, 1, 1, stars]),
-      }, { mode: 'points', depthWrite: false, blend: true, cullFace: false });
+        ...atmosphereUniforms(sky, state),
+        uSunDir: new Float32Array(state.sunDirection),
+        uMoonDir: new Float32Array(state.moonDirection),
+        uSunRadius: HEAVENLY_BODY_RADIUS * Math.max(0.2, Math.min(sky.sunScale, 4)),
+        uMoonRadius: HEAVENLY_BODY_RADIUS * Math.max(0.2, Math.min(sky.moonScale, 4)),
+        uMoonBrightness: Math.max(0, sky.moonBrightness),
+        uMoonUp: state.moonUp ? 1 : 0,
+      },
+      { depthWrite: false, cullFace: false },
+    );
+    // EEP star brightness is 0..250 (0 by day); the fallback frames carry 0..1.
+    const stars = this.environment?.dayCycle
+      ? Math.max(0, Math.min(1, sky.starBrightness / 250))
+      : this.skyUniforms.starBrightness;
+    if (stars > 0) {
+      this.graphics.drawMesh(
+        'sky-stars',
+        'stars',
+        {
+          uSkyViewMatrix: skyView,
+          uProjectionMatrix: projectionMatrix,
+          uStarColor: new Float32Array([1, 1, 1, stars]),
+        },
+        { mode: 'points', depthWrite: false, blend: true, cullFace: false },
+      );
     }
   }
 
   /** Animated four-wave water surface at the region water level. */
   private renderWater(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
-    this.graphics.drawMesh('water-plane', 'water', {
-      uViewMatrix: viewMatrix,
-      uProjectionMatrix: projectionMatrix,
-      uWaterHeight: this.waterHeight,
-      uCameraPos: new Float32Array(this.camera.position),
-      ...atmosphereUniforms(this.atmosphere.sky, this.atmosphere.state),
-      uFogColor: new Float32Array(this.atmosphere.water.fogColor),
-      uFogDensity: this.atmosphere.water.fogDensity,
-      uFresnelScale: this.atmosphere.water.fresnelScale,
-      uFresnelOffset: this.atmosphere.water.fresnelOffset,
-      uLightDir: new Float32Array(this.atmosphere.state.lightDirection),
-      uLightColor: new Float32Array(light.color),
-      uSurfaceAmbient: new Float32Array(this.ambientColor),
-      // Wrap so float precision does not degrade the phase over long sessions.
-      uTime: this.now() % 1000,
-      uPixelAngle: this.pixelAngle(),
-      uNormalScale: WATER_NORMAL_SCALE,
-      uFrequency: new Float32Array(WATER_WAVES.frequency),
-      uPhase: new Float32Array(WATER_WAVES.phase),
-      uAmplitude: new Float32Array(WATER_WAVES.amplitude),
-      uDirection: new Float32Array(WATER_WAVES.direction),
-    }, { depthWrite: false, blend: true, cullFace: false });
+    this.graphics.drawMesh(
+      'water-plane',
+      'water',
+      {
+        uViewMatrix: viewMatrix,
+        uProjectionMatrix: projectionMatrix,
+        uWaterHeight: this.waterHeight,
+        uCameraPos: new Float32Array(this.camera.position),
+        ...atmosphereUniforms(this.atmosphere.sky, this.atmosphere.state),
+        uFogColor: new Float32Array(this.atmosphere.water.fogColor),
+        uFogDensity: this.atmosphere.water.fogDensity,
+        uFresnelScale: this.atmosphere.water.fresnelScale,
+        uFresnelOffset: this.atmosphere.water.fresnelOffset,
+        uLightDir: new Float32Array(this.atmosphere.state.lightDirection),
+        uLightColor: new Float32Array(light.color),
+        uSurfaceAmbient: new Float32Array(this.ambientColor),
+        // Wrap so float precision does not degrade the phase over long sessions.
+        uTime: this.now() % 1000,
+        uPixelAngle: this.pixelAngle(),
+        uNormalScale: WATER_NORMAL_SCALE,
+        uFrequency: new Float32Array(WATER_WAVES.frequency),
+        uPhase: new Float32Array(WATER_WAVES.phase),
+        uAmplitude: new Float32Array(WATER_WAVES.amplitude),
+        uDirection: new Float32Array(WATER_WAVES.direction),
+      },
+      { depthWrite: false, blend: true, cullFace: false },
+    );
   }
 
   /** Approximate angle subtended by one screen pixel, used to filter sub-pixel water ripples. */
@@ -650,18 +880,31 @@ export class Scene3D extends Utils.EventEmitter {
       const model = this.calculateModelMatrix(object.position, object.rotation, object.scale);
       const distance = intersectRayOrientedBox(ray, model, local.min, local.max);
       if (distance === null || (best && distance >= best.distance)) continue;
-      best = { id: object.id, distance, point: ray.origin.map((value: number, axis: number) => value + ray.direction[axis] * distance) };
+      best = {
+        id: object.id,
+        distance,
+        point: ray.origin.map(
+          (value: number, axis: number) => value + ray.direction[axis] * distance,
+        ),
+      };
     }
     return best;
   }
 
   private renderMirrors() {
-    const mirrors = [...this.objects.values()].filter(object => object.visible && object.reflectionProbe?.mirror);
+    const mirrors = [...this.objects.values()].filter(
+      (object) => object.visible && object.reflectionProbe?.mirror,
+    );
     for (const mirror of mirrors.slice(0, 2)) {
       const targetName = this.graphics.createRenderTarget(`mirror:${mirror.id}`, 256, 256);
       if (!this.graphics.beginRenderTarget(targetName)) continue;
       const [rx, ry, rz] = mirror.rotation;
-      const sx = Math.sin(rx), cx = Math.cos(rx), sy = Math.sin(ry), cy = Math.cos(ry), sz = Math.sin(rz), cz = Math.cos(rz);
+      const sx = Math.sin(rx),
+        cx = Math.cos(rx),
+        sy = Math.sin(ry),
+        cy = Math.cos(ry),
+        sz = Math.sin(rz),
+        cz = Math.cos(rz);
       const normal = [cz * sy * cx + sz * sx, sz * sy * cx - cz * sx, cy * cx];
       const reflect = (point: number[]) => {
         const offset = point.map((value, index) => value - mirror.position[index]);
@@ -669,12 +912,23 @@ export class Scene3D extends Utils.EventEmitter {
         return point.map((value, index) => value - 2 * distance * normal[index]);
       };
       const eye = reflect(this.camera.position);
-      const focus = reflect(this.camera.mode === 'orbit' ? this.camera.orbitTarget : this.camera.target);
+      const focus = reflect(
+        this.camera.mode === 'orbit' ? this.camera.orbitTarget : this.camera.target,
+      );
       const view = this.camera.mat4LookAt(eye, focus, [0, 0, 1]);
       if (this.showGrid) this.renderGrid(view, this.camera.getProjectionMatrix());
-      const mirrorFrustum = this.cullingEnabled ? extractFrustum(multiplyMat4(this.camera.getProjectionMatrix(), view)) : null;
+      const mirrorFrustum = this.cullingEnabled
+        ? extractFrustum(multiplyMat4(this.camera.getProjectionMatrix(), view))
+        : null;
       for (const object of this.objects.values()) {
-        if (object.visible && !object.hud && object !== mirror && !object.reflectionProbe?.mirror && !this.isCulled(object, mirrorFrustum)) this.renderObject(object, view, this.camera.getProjectionMatrix());
+        if (
+          object.visible &&
+          !object.hud &&
+          object !== mirror &&
+          !object.reflectionProbe?.mirror &&
+          !this.isCulled(object, mirrorFrustum)
+        )
+          this.renderObject(object, view, this.camera.getProjectionMatrix());
       }
       this.graphics.endRenderTarget();
       mirror.mirrorTexture = targetName;
@@ -687,9 +941,9 @@ export class Scene3D extends Utils.EventEmitter {
   renderGrid(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
     const modelMatrix = this.mat4Identity();
     const normalMatrix = this.mat3FromMat4(modelMatrix);
-    
+
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
-    
+
     if (this.terrainTextured && this.terrainMaterials) {
       const names = this.terrainMaterials.textureNames;
       const use = [0, 1, 2, 3].map((i) => (this.graphics.hasTexture(names[i]) ? 1 : 0));
@@ -699,9 +953,15 @@ export class Scene3D extends Utils.EventEmitter {
         detail[`uFallback${i}`] = new Float32Array(FALLBACK_LAYER_COLORS[i]);
       }
       this.graphics.drawMesh('terrain', 'terrain', {
-        uModelMatrix: modelMatrix, uViewMatrix: viewMatrix, uProjectionMatrix: projectionMatrix, uNormalMatrix: normalMatrix,
-        uLightPos: new Float32Array(light.position), uLightColor: new Float32Array(light.color), uAmbientColor: new Float32Array(this.ambientColor),
-        uCompositionName: 'terrain:composition', uDetailUse: new Float32Array(use),
+        uModelMatrix: modelMatrix,
+        uViewMatrix: viewMatrix,
+        uProjectionMatrix: projectionMatrix,
+        uNormalMatrix: normalMatrix,
+        uLightPos: new Float32Array(light.position),
+        uLightColor: new Float32Array(light.color),
+        uAmbientColor: new Float32Array(this.ambientColor),
+        uCompositionName: 'terrain:composition',
+        uDetailUse: new Float32Array(use),
         uTileScale: this.terrainSize > 1 ? 256 / DETAIL_TILE_METRES : 16,
         ...detail,
       });
@@ -739,19 +999,21 @@ export class Scene3D extends Utils.EventEmitter {
   /**
    * Render object
    */
-  renderObject(object: any, viewMatrix: Float32Array, projectionMatrix: Float32Array, options: { model?: Float32Array; fullBright?: boolean } = {}) {
+  renderObject(
+    object: any,
+    viewMatrix: Float32Array,
+    projectionMatrix: Float32Array,
+    options: { model?: Float32Array; fullBright?: boolean } = {},
+  ) {
     const skinned = Boolean(object.skin) && typeof this.graphics.isSkinnedMesh === 'function';
     // WorldViewer has already resolved the correct scale: worn rigged attachments use unit scale,
     // while Animesh keeps its simulator scale. Do not discard that distinction here.
-    const modelMatrix = options.model || this.calculateModelMatrix(
-      object.position,
-      object.rotation,
-      object.scale
-    );
-    
+    const modelMatrix =
+      options.model || this.calculateModelMatrix(object.position, object.rotation, object.scale);
+
     const normalMatrix = this.mat3FromMat4(modelMatrix);
     const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
-    
+
     // A flexible prim draws straight until its chain has a pose (flexiSections), like any other prim.
     const isFlexi = Boolean(object.flexi && object.flexiSections);
     const draws = object.meshes?.length ? object.meshes : [{ mesh: object.mesh, materialIndex: 0 }];
@@ -760,14 +1022,16 @@ export class Scene3D extends Utils.EventEmitter {
       const pbr = face?.pbr || {};
       const alphaMode = this.faceBlendMode(object, face);
       const drawSkinned = skinned && this.graphics.isSkinnedMesh(draw.mesh);
-      const programMaterial = isFlexi ? 'prim_flexible' : (drawSkinned ? 'skinned' : object.material);
+      const programMaterial = isFlexi ? 'prim_flexible' : drawSkinned ? 'skinned' : object.material;
       this.graphics.drawMesh(draw.mesh, programMaterial, {
         ...(drawSkinned ? { uJointRows: object.skin } : null),
-        ...(isFlexi ? {
-          uFlexPos: object.flexiSections.positions,
-          uFlexRot: object.flexiSections.rotations,
-          uScale: new Float32Array(object.scale || [1, 1, 1]),
-        } : null),
+        ...(isFlexi
+          ? {
+              uFlexPos: object.flexiSections.positions,
+              uFlexRot: object.flexiSections.rotations,
+              uScale: new Float32Array(object.scale || [1, 1, 1]),
+            }
+          : null),
         uModelMatrix: modelMatrix,
         uViewMatrix: viewMatrix,
         uProjectionMatrix: projectionMatrix,
@@ -811,7 +1075,7 @@ export class Scene3D extends Utils.EventEmitter {
     if (rotation[1] !== 0) this.mat4RotateY(matrix, rotation[1]);
     if (rotation[2] !== 0) this.mat4RotateZ(matrix, rotation[2]);
     this.mat4Translate(matrix, position);
-    
+
     return matrix;
   }
 
@@ -819,12 +1083,7 @@ export class Scene3D extends Utils.EventEmitter {
    * Matrix operations
    */
   private mat4Identity(): Float32Array {
-    return new Float32Array([
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1
-    ]);
+    return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
   }
 
   private mat4Translate(m: Float32Array, v: number[]) {
@@ -838,7 +1097,8 @@ export class Scene3D extends Utils.EventEmitter {
     const s = Math.sin(angle);
     for (let column = 0; column < 4; column++) {
       const offset = column * 4;
-      const y = m[offset + 1], z = m[offset + 2];
+      const y = m[offset + 1],
+        z = m[offset + 2];
       m[offset + 1] = y * c - z * s;
       m[offset + 2] = y * s + z * c;
     }
@@ -849,7 +1109,8 @@ export class Scene3D extends Utils.EventEmitter {
     const s = Math.sin(angle);
     for (let column = 0; column < 4; column++) {
       const offset = column * 4;
-      const x = m[offset], z = m[offset + 2];
+      const x = m[offset],
+        z = m[offset + 2];
       m[offset] = x * c + z * s;
       m[offset + 2] = z * c - x * s;
     }
@@ -860,7 +1121,8 @@ export class Scene3D extends Utils.EventEmitter {
     const s = Math.sin(angle);
     for (let column = 0; column < 4; column++) {
       const offset = column * 4;
-      const x = m[offset], y = m[offset + 1];
+      const x = m[offset],
+        y = m[offset + 1];
       m[offset] = x * c - y * s;
       m[offset + 1] = x * s + y * c;
     }
@@ -885,9 +1147,15 @@ export class Scene3D extends Utils.EventEmitter {
     // Normals transform by the inverse transpose. Using the model matrix
     // directly visibly breaks lighting on the heavily non-uniform scales used
     // by prims and avatar parts.
-    const a00 = m4[0], a01 = m4[1], a02 = m4[2];
-    const a10 = m4[4], a11 = m4[5], a12 = m4[6];
-    const a20 = m4[8], a21 = m4[9], a22 = m4[10];
+    const a00 = m4[0],
+      a01 = m4[1],
+      a02 = m4[2];
+    const a10 = m4[4],
+      a11 = m4[5],
+      a12 = m4[6];
+    const a20 = m4[8],
+      a21 = m4[9],
+      a22 = m4[10];
     const b01 = a22 * a11 - a12 * a21;
     const b11 = -a22 * a10 + a12 * a20;
     const b21 = a21 * a10 - a11 * a20;
@@ -895,9 +1163,15 @@ export class Scene3D extends Utils.EventEmitter {
     if (!determinant) return new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
     const inverse = 1 / determinant;
     return new Float32Array([
-      b01 * inverse, (-a22 * a01 + a02 * a21) * inverse, (a12 * a01 - a02 * a11) * inverse,
-      b11 * inverse, (a22 * a00 - a02 * a20) * inverse, (-a12 * a00 + a02 * a10) * inverse,
-      b21 * inverse, (-a21 * a00 + a01 * a20) * inverse, (a11 * a00 - a01 * a10) * inverse,
+      b01 * inverse,
+      (-a22 * a01 + a02 * a21) * inverse,
+      (a12 * a01 - a02 * a11) * inverse,
+      b11 * inverse,
+      (a22 * a00 - a02 * a20) * inverse,
+      (-a12 * a00 + a02 * a10) * inverse,
+      b21 * inverse,
+      (-a21 * a00 + a01 * a20) * inverse,
+      (a11 * a00 - a01 * a10) * inverse,
     ]);
   }
 }

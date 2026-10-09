@@ -1,7 +1,7 @@
-import React from "react";
-import TouchTarget from "./TouchTarget";
-import Icon from "./Icon";
-import { useTheme } from "../context/ThemeContext.jsx";
+import React from 'react';
+import TouchTarget from './TouchTarget';
+import Icon from './Icon';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 export interface MobileOverlayControlsProps {
   cameraPreset?: string;
@@ -41,7 +41,7 @@ export interface MobileOverlayControlsProps {
  * and encapsulate all interactive buttons within <TouchTarget> wrappers (Technique C42, WCAG 2.5.8).
  */
 export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
-  cameraPreset = "rear",
+  cameraPreset = 'rear',
   onCameraChange,
   onMove,
   onOpenChat,
@@ -66,7 +66,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
   onTogglePan,
   chatOpen = false,
   enhanced = false,
-  className = "",
+  className = '',
   style,
 }) => {
   const { V } = useTheme();
@@ -75,36 +75,36 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
     background: V.surf,
     color: V.pri,
     border: `1px solid ${V.outv}`,
-    borderRadius: V.rs || "4px",
-    fontSize: "11px",
+    borderRadius: V.rs || '4px',
+    fontSize: '11px',
     fontWeight: 600,
   };
 
   const activeButtonStyle: React.CSSProperties = {
     ...buttonStyle,
     background: V.pri,
-    color: V.onpri || "#000",
+    color: V.onpri || '#000',
   };
 
   const containerStyle: React.CSSProperties = {
-    display: "flex",
-    gap: "8px",
-    alignItems: "center",
-    boxSizing: "border-box",
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+    boxSizing: 'border-box',
   };
 
   return (
     <div
       className={`mobile-overlay-controls ${className}`.trim()}
       style={{
-        position: "absolute",
+        position: 'absolute',
         inset: 0,
-        pointerEvents: "none",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        padding: "12px",
-        boxSizing: "border-box",
+        pointerEvents: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        padding: '12px',
+        boxSizing: 'border-box',
         zIndex: 20,
         ...style,
       }}
@@ -114,18 +114,18 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
         className="overlay-container top-bar"
         style={{
           ...containerStyle,
-          justifyContent: "space-between",
-          pointerEvents: "auto",
-          width: "100%",
-          flexWrap: "wrap",
+          justifyContent: 'space-between',
+          pointerEvents: 'auto',
+          width: '100%',
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ ...containerStyle, flexWrap: "wrap" }}>
+        <div style={{ ...containerStyle, flexWrap: 'wrap' }}>
           {[
-            { id: "rear", label: "REAR" },
-            { id: "front", label: "FRONT" },
-            { id: "first-person", label: "MOUSELOOK" },
-            { id: "free", label: "FREE" },
+            { id: 'rear', label: 'REAR' },
+            { id: 'front', label: 'FRONT' },
+            { id: 'first-person', label: 'MOUSELOOK' },
+            { id: 'free', label: 'FREE' },
           ].map((preset) => (
             <TouchTarget
               key={preset.id}
@@ -136,12 +136,12 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
               onClick={() => onCameraChange?.(preset.id)}
               style={cameraPreset === preset.id ? activeButtonStyle : buttonStyle}
             >
-              <span style={{ fontSize: "10px", padding: "0 2px" }}>{preset.label}</span>
+              <span style={{ fontSize: '10px', padding: '0 2px' }}>{preset.label}</span>
             </TouchTarget>
           ))}
         </div>
 
-        <div style={{ ...containerStyle, flexWrap: "wrap" }}>
+        <div style={{ ...containerStyle, flexWrap: 'wrap' }}>
           {onRefreshScene && (
             <TouchTarget
               minSize={44}
@@ -172,14 +172,14 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             <TouchTarget
               minSize={44}
               enhanced={enhanced}
-              aria-label={showDpad ? "Hide movement controls" : "Show movement controls"}
-              title={showDpad ? "Hide D-pad controls" : "Show D-pad controls"}
+              aria-label={showDpad ? 'Hide movement controls' : 'Show movement controls'}
+              title={showDpad ? 'Hide D-pad controls' : 'Show D-pad controls'}
               aria-pressed={showDpad}
               onClick={onToggleDpad}
               style={showDpad ? activeButtonStyle : buttonStyle}
             >
-              <span style={{ fontSize: "10px", padding: "0 4px" }}>
-                {showDpad ? "DPAD ON" : "DPAD OFF"}
+              <span style={{ fontSize: '10px', padding: '0 4px' }}>
+                {showDpad ? 'DPAD ON' : 'DPAD OFF'}
               </span>
             </TouchTarget>
           )}
@@ -191,9 +191,9 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
               aria-label="Hide 3D overlays"
               title="Hide all overlays (H)"
               onClick={onToggleOverlays}
-              style={{ ...buttonStyle, padding: "0 6px" }}
+              style={{ ...buttonStyle, padding: '0 6px' }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "10px" }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '10px' }}>
                 <Icon name="eye-off" size={13} />
                 <span>HIDE UI</span>
               </span>
@@ -205,12 +205,12 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
       {/* Middle Area: Side Action Rail */}
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           flex: 1,
-          pointerEvents: "none",
-          margin: "8px 0",
+          pointerEvents: 'none',
+          margin: '8px 0',
         }}
       >
         {/* Left Side Actions */}
@@ -218,28 +218,40 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           className="overlay-container side-toolbar-left"
           style={{
             ...containerStyle,
-            flexDirection: "column",
-            pointerEvents: "auto",
+            flexDirection: 'column',
+            pointerEvents: 'auto',
           }}
         >
           {(onToggleMic || onJoinVoice) && (
             <TouchTarget
               minSize={44}
               enhanced={enhanced}
-              aria-label={voiceState === "connected" ? (voiceMuted ? "Unmute Microphone" : "Mute Microphone") : "Join Voice"}
-              title={voiceState === "connected" ? (voiceMuted ? "Unmute Microphone" : "Mute Microphone") : "Join Voice"}
-              aria-pressed={voiceState === "connected" && !voiceMuted}
-              onClick={voiceState === "connected" ? onToggleMic : onJoinVoice}
-              style={voiceState === "connected" && !voiceMuted ? activeButtonStyle : buttonStyle}
+              aria-label={
+                voiceState === 'connected'
+                  ? voiceMuted
+                    ? 'Unmute Microphone'
+                    : 'Mute Microphone'
+                  : 'Join Voice'
+              }
+              title={
+                voiceState === 'connected'
+                  ? voiceMuted
+                    ? 'Unmute Microphone'
+                    : 'Mute Microphone'
+                  : 'Join Voice'
+              }
+              aria-pressed={voiceState === 'connected' && !voiceMuted}
+              onClick={voiceState === 'connected' ? onToggleMic : onJoinVoice}
+              style={voiceState === 'connected' && !voiceMuted ? activeButtonStyle : buttonStyle}
             >
-              <Icon name={voiceState === "connected" && voiceMuted ? "mic-off" : "mic"} size={16} />
+              <Icon name={voiceState === 'connected' && voiceMuted ? 'mic-off' : 'mic'} size={16} />
             </TouchTarget>
           )}
           {onOpenChat && (
             <TouchTarget
               minSize={44}
               enhanced={enhanced}
-              aria-label={chatOpen ? "Close Chat Overlay" : "Open Chat"}
+              aria-label={chatOpen ? 'Close Chat Overlay' : 'Open Chat'}
               aria-pressed={chatOpen}
               onClick={onOpenChat}
               style={chatOpen ? activeButtonStyle : buttonStyle}
@@ -273,7 +285,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             <TouchTarget
               minSize={44}
               enhanced={enhanced}
-              aria-label={outfitsOpen ? "Close Outfits Drawer" : "Open Outfits Drawer"}
+              aria-label={outfitsOpen ? 'Close Outfits Drawer' : 'Open Outfits Drawer'}
               aria-pressed={outfitsOpen}
               onClick={onOpenOutfits}
               style={outfitsOpen ? activeButtonStyle : buttonStyle}
@@ -288,8 +300,8 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           className="overlay-container side-toolbar-right"
           style={{
             ...containerStyle,
-            flexDirection: "column",
-            pointerEvents: "auto",
+            flexDirection: 'column',
+            pointerEvents: 'auto',
           }}
         >
           {onZoomIn && (
@@ -318,8 +330,8 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             <TouchTarget
               minSize={44}
               enhanced={enhanced}
-              aria-label={panMode ? "Switch to Orbit Mode" : "Switch to Pan Mode"}
-              title={panMode ? "Pan Mode Active (Tap to Orbit)" : "Orbit Mode Active (Tap to Pan)"}
+              aria-label={panMode ? 'Switch to Orbit Mode' : 'Switch to Pan Mode'}
+              title={panMode ? 'Pan Mode Active (Tap to Orbit)' : 'Orbit Mode Active (Tap to Pan)'}
               aria-pressed={panMode}
               onClick={onTogglePan}
               style={panMode ? activeButtonStyle : buttonStyle}
@@ -369,11 +381,11 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
         className="overlay-container bottom-bar"
         style={{
           ...containerStyle,
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          pointerEvents: showDpad ? "auto" : "none",
-          width: "100%",
-          visibility: showDpad ? "visible" : "hidden",
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          pointerEvents: showDpad ? 'auto' : 'none',
+          width: '100%',
+          visibility: showDpad ? 'visible' : 'hidden',
         }}
       >
         {/* D-Pad Movement Flexbox Container */}
@@ -381,7 +393,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           className="overlay-container movement-dpad"
           style={{
             ...containerStyle,
-            flexDirection: "column",
+            flexDirection: 'column',
           }}
         >
           <div style={containerStyle}>
@@ -431,7 +443,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
           className="overlay-container movement-elevation"
           style={{
             ...containerStyle,
-            flexDirection: "column",
+            flexDirection: 'column',
           }}
         >
           <TouchTarget
@@ -441,7 +453,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             onClick={() => onMove?.(0, 0, 1)}
             style={buttonStyle}
           >
-            <span style={{ fontSize: "10px" }}>UP</span>
+            <span style={{ fontSize: '10px' }}>UP</span>
           </TouchTarget>
           <TouchTarget
             minSize={44}
@@ -450,7 +462,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             onClick={() => onMove?.(0, 0, -1)}
             style={buttonStyle}
           >
-            <span style={{ fontSize: "10px" }}>DN</span>
+            <span style={{ fontSize: '10px' }}>DN</span>
           </TouchTarget>
         </div>
       </div>

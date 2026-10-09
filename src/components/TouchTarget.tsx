@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 export interface TouchTargetProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children?: React.ReactNode;
@@ -27,29 +27,29 @@ export const TouchTarget = React.forwardRef<HTMLButtonElement, TouchTargetProps>
       children,
       minSize,
       enhanced = false,
-      padding = "4px",
-      className = "",
+      padding = '4px',
+      className = '',
       style,
-      type = "button",
+      type = 'button',
       disabled = false,
       ...restProps
     },
-    ref
+    ref,
   ) => {
     const defaultMin = enhanced ? 44 : 24;
     const effectiveMinSize = Math.max(minSize ?? defaultMin, enhanced ? 44 : 24);
 
     const baseStyle: React.CSSProperties = {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       minWidth: `${effectiveMinSize}px`,
       minHeight: `${effectiveMinSize}px`,
-      padding: typeof padding === "number" ? `${padding}px` : padding,
-      boxSizing: "border-box",
-      touchAction: "manipulation",
-      cursor: disabled ? "not-allowed" : "pointer",
-      position: "relative",
+      padding: typeof padding === 'number' ? `${padding}px` : padding,
+      boxSizing: 'border-box',
+      touchAction: 'manipulation',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      position: 'relative',
       flexShrink: 0,
       ...style,
     };
@@ -66,9 +66,9 @@ export const TouchTarget = React.forwardRef<HTMLButtonElement, TouchTargetProps>
         {children}
       </button>
     );
-  }
+  },
 );
 
-TouchTarget.displayName = "TouchTarget";
+TouchTarget.displayName = 'TouchTarget';
 
 export default TouchTarget;

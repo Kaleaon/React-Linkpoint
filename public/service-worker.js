@@ -14,7 +14,7 @@ const STATIC_FILES = [
   './index.html',
   './manifest.webmanifest',
   './icons/icon.svg',
-  './icons/icon-maskable.svg'
+  './icons/icon-maskable.svg',
 ];
 
 const MAX_CACHE_SIZE = 50;
@@ -25,9 +25,10 @@ const MAX_SL_ANIMATION_CACHE = 2000;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_STATIC)
+    caches
+      .open(CACHE_STATIC)
       .then((cache) => cache.addAll(STATIC_FILES))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -37,12 +38,24 @@ self.addEventListener('activate', (event) => {
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((cacheName) => cacheName.startsWith('linkpoint-') && !Object.values({CACHE_STATIC, CACHE_DYNAMIC, CACHE_ASSETS, CACHE_SL_TEXTURES, CACHE_SL_MESHES, CACHE_SL_SOUNDS, CACHE_SL_ANIMATIONS}).includes(cacheName))
-            .map((cacheName) => caches.delete(cacheName))
+            .filter(
+              (cacheName) =>
+                cacheName.startsWith('linkpoint-') &&
+                !Object.values({
+                  CACHE_STATIC,
+                  CACHE_DYNAMIC,
+                  CACHE_ASSETS,
+                  CACHE_SL_TEXTURES,
+                  CACHE_SL_MESHES,
+                  CACHE_SL_SOUNDS,
+                  CACHE_SL_ANIMATIONS,
+                }).includes(cacheName),
+            )
+            .map((cacheName) => caches.delete(cacheName)),
         );
       }),
-      self.clients.claim()
-    ])
+      self.clients.claim(),
+    ]),
   );
 });
 
@@ -62,7 +75,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(cacheSLAsset(request, CACHE_SL_TEXTURES, MAX_SL_TEXTURE_CACHE));
     return;
   }
-  
+
   if (url.pathname.includes('/mesh/')) {
     event.respondWith(cacheSLAsset(request, CACHE_SL_MESHES, MAX_SL_MESH_CACHE));
     return;

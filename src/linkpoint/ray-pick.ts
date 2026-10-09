@@ -11,17 +11,35 @@ export interface Ray {
 
 /** General 4x4 inverse. Returns null when the matrix is singular. */
 export function invertMat4(m: ArrayLike<number>): Float64Array | null {
-  const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
-  const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7];
-  const a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11];
-  const a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+  const a00 = m[0],
+    a01 = m[1],
+    a02 = m[2],
+    a03 = m[3];
+  const a10 = m[4],
+    a11 = m[5],
+    a12 = m[6],
+    a13 = m[7];
+  const a20 = m[8],
+    a21 = m[9],
+    a22 = m[10],
+    a23 = m[11];
+  const a30 = m[12],
+    a31 = m[13],
+    a32 = m[14],
+    a33 = m[15];
 
-  const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10;
-  const b02 = a00 * a13 - a03 * a10, b03 = a01 * a12 - a02 * a11;
-  const b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
-  const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30;
-  const b08 = a20 * a33 - a23 * a30, b09 = a21 * a32 - a22 * a31;
-  const b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+  const b00 = a00 * a11 - a01 * a10,
+    b01 = a00 * a12 - a02 * a10;
+  const b02 = a00 * a13 - a03 * a10,
+    b03 = a01 * a12 - a02 * a11;
+  const b04 = a01 * a13 - a03 * a11,
+    b05 = a02 * a13 - a03 * a12;
+  const b06 = a20 * a31 - a21 * a30,
+    b07 = a20 * a32 - a22 * a30;
+  const b08 = a20 * a33 - a23 * a30,
+    b09 = a21 * a32 - a22 * a31;
+  const b10 = a21 * a33 - a23 * a31,
+    b11 = a22 * a33 - a23 * a32;
 
   const determinant = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
   if (!determinant || !Number.isFinite(determinant)) return null;
@@ -62,7 +80,11 @@ function transformPoint(m: ArrayLike<number>, x: number, y: number, z: number): 
  * view-projection matrix. The origin is the point on the near plane, which is
  * also correct for orthographic projections.
  */
-export function rayFromNDC(inverseViewProjection: ArrayLike<number>, ndcX: number, ndcY: number): Ray | null {
+export function rayFromNDC(
+  inverseViewProjection: ArrayLike<number>,
+  ndcX: number,
+  ndcY: number,
+): Ray | null {
   const near = transformPoint(inverseViewProjection, ndcX, ndcY, -1);
   const far = transformPoint(inverseViewProjection, ndcX, ndcY, 1);
   const direction = [far[0] - near[0], far[1] - near[1], far[2] - near[2]];
@@ -88,7 +110,9 @@ export function intersectRayOrientedBox(
   if (!inverse) return null;
   const o = transformPoint(inverse, ray.origin[0], ray.origin[1], ray.origin[2]);
   // Direction is a vector, so ignore translation.
-  const dx = ray.direction[0], dy = ray.direction[1], dz = ray.direction[2];
+  const dx = ray.direction[0],
+    dy = ray.direction[1],
+    dz = ray.direction[2];
   const d = [
     inverse[0] * dx + inverse[4] * dy + inverse[8] * dz,
     inverse[1] * dx + inverse[5] * dy + inverse[9] * dz,

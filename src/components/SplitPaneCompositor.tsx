@@ -125,7 +125,7 @@ export function getNodeDepth(node: SplitPaneNode, targetId?: string, currentDept
     if (node.type === 'leaf') return currentDepth;
     return Math.max(
       getNodeDepth(node.children[0], undefined, currentDepth + 1),
-      getNodeDepth(node.children[1], undefined, currentDepth + 1)
+      getNodeDepth(node.children[1], undefined, currentDepth + 1),
     );
   }
 
@@ -143,7 +143,7 @@ export function splitLeafInTree(
   node: SplitPaneNode,
   targetId: string,
   direction: 'horizontal' | 'vertical',
-  currentDepth = 1
+  currentDepth = 1,
 ): SplitPaneNode {
   if (node.type === 'leaf') {
     if (node.id === targetId) {
@@ -155,8 +155,8 @@ export function splitLeafInTree(
         existingView === 'Viewport'
           ? 'Inspector'
           : existingView === 'Inspector'
-          ? 'Diagnostics'
-          : 'Viewport';
+            ? 'Diagnostics'
+            : 'Viewport';
 
       return {
         type: 'parent',
@@ -199,7 +199,11 @@ export function closeLeafInTree(node: SplitPaneNode, targetId: string): SplitPan
   };
 }
 
-export function updateLeafViewInTree(node: SplitPaneNode, targetId: string, view: PaneViewType): SplitPaneNode {
+export function updateLeafViewInTree(
+  node: SplitPaneNode,
+  targetId: string,
+  view: PaneViewType,
+): SplitPaneNode {
   if (node.type === 'leaf') {
     return node.id === targetId ? { ...node, view } : node;
   }
@@ -212,7 +216,11 @@ export function updateLeafViewInTree(node: SplitPaneNode, targetId: string, view
   };
 }
 
-export function updateSplitRatioInTree(node: SplitPaneNode, parentId: string, splitRatio: number): SplitPaneNode {
+export function updateSplitRatioInTree(
+  node: SplitPaneNode,
+  parentId: string,
+  splitRatio: number,
+): SplitPaneNode {
   const clampedRatio = Math.max(0.1, Math.min(0.9, splitRatio));
   if (node.type === 'parent') {
     if (node.id === parentId) {
@@ -248,7 +256,10 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
   const [activePreset, setActivePreset] = useState<WorkstationPreset>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_PRESET_KEY);
-      if (saved && ['single', 'dual', 'inspector_stack', 'terminal_split', 'quad'].includes(saved)) {
+      if (
+        saved &&
+        ['single', 'dual', 'inspector_stack', 'terminal_split', 'quad'].includes(saved)
+      ) {
         return saved as WorkstationPreset;
       }
     } catch {}
@@ -268,7 +279,9 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
     return getPresetTree(initialPreset);
   });
 
-  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024,
+  );
   const [activeMobileView, setActiveMobileView] = useState<PaneViewType>('Viewport');
   const [chatInputText, setChatInputText] = useState('');
   const [chatMessages, setChatMessages] = useState<any[]>(() => app.chat?.messages || []);
@@ -383,7 +396,7 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
     e: React.MouseEvent | React.TouchEvent,
     parentId: string,
     direction: 'horizontal' | 'vertical',
-    containerElement: HTMLElement
+    containerElement: HTMLElement,
   ) => {
     e.preventDefault();
     const rect = containerElement.getBoundingClientRect();
@@ -452,13 +465,29 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
         return <ObjectInspector style={{ height: '100%', width: '100%' }} />;
       case 'Diagnostics':
         return (
-          <div style={{ height: '100%', width: '100%', overflowY: 'auto', background: V.surf, padding: '8px' }}>
+          <div
+            style={{
+              height: '100%',
+              width: '100%',
+              overflowY: 'auto',
+              background: V.surf,
+              padding: '8px',
+            }}
+          >
             <DiagnosticsPanel />
           </div>
         );
       case 'Chat':
         return (
-          <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', background: V.surf }}>
+          <div
+            style={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              background: V.surf,
+            }}
+          >
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <AccessibleChatLog messages={chatMessages} variant="embedded" />
             </div>
@@ -558,10 +587,10 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
                   node.view === 'Viewport'
                     ? 'eye'
                     : node.view === 'Inspector'
-                    ? 'box'
-                    : node.view === 'Diagnostics'
-                    ? 'activity'
-                    : 'message-square'
+                      ? 'box'
+                      : node.view === 'Diagnostics'
+                        ? 'activity'
+                        : 'message-square'
                 }
                 size={12}
                 color={V.pri}
@@ -654,7 +683,9 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
           </div>
 
           {/* Tile Surface Area */}
-          <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+          <div
+            style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', overflow: 'hidden' }}
+          >
             {renderToolSurface(node.view, node.id)}
           </div>
         </div>
@@ -702,8 +733,12 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
           aria-valuemin={10}
           aria-valuemax={90}
           aria-label={`Pane divider for ${node.direction} split`}
-          onMouseDown={(e) => handleStartDrag(e, node.id, node.direction, e.currentTarget.parentElement!)}
-          onTouchStart={(e) => handleStartDrag(e, node.id, node.direction, e.currentTarget.parentElement!)}
+          onMouseDown={(e) =>
+            handleStartDrag(e, node.id, node.direction, e.currentTarget.parentElement!)
+          }
+          onTouchStart={(e) =>
+            handleStartDrag(e, node.id, node.direction, e.currentTarget.parentElement!)
+          }
           onKeyDown={(e) => {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
               e.preventDefault();
@@ -788,7 +823,9 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Icon name="grid" size={14} color={V.pri} />
-          <span style={{ fontSize: '11px', fontWeight: 700, color: V.pri, letterSpacing: '0.05em' }}>
+          <span
+            style={{ fontSize: '11px', fontWeight: 700, color: V.pri, letterSpacing: '0.05em' }}
+          >
             WORKSTATION LAYOUT
           </span>
         </div>

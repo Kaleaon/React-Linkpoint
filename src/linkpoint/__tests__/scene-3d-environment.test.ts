@@ -13,7 +13,9 @@ function makeScene(options: { camera?: Partial<Camera3D>; bounds?: boolean } = {
     createRenderTarget: vi.fn(),
     beginRenderTarget: vi.fn(() => false),
     endRenderTarget: vi.fn(),
-    getMeshBounds: vi.fn((name: string) => (options.bounds === false || name.startsWith('unknown') ? null : CUBE_BOUNDS)),
+    getMeshBounds: vi.fn((name: string) =>
+      options.bounds === false || name.startsWith('unknown') ? null : CUBE_BOUNDS,
+    ),
   };
   const camera = new Camera3D();
   camera.mode = 'first-person';
@@ -28,8 +30,11 @@ function makeScene(options: { camera?: Partial<Camera3D>; bounds?: boolean } = {
 }
 
 const drawnIds = (graphics: ReturnType<typeof makeScene>['graphics']) =>
-  graphics.drawMesh.mock.calls.filter((call) => call[1] === 'basic').map((call) => call[2].uModelMatrix[13]);
-const programs = (graphics: ReturnType<typeof makeScene>['graphics']) => graphics.drawMesh.mock.calls.map((call) => call[1]);
+  graphics.drawMesh.mock.calls
+    .filter((call) => call[1] === 'basic')
+    .map((call) => call[2].uModelMatrix[13]);
+const programs = (graphics: ReturnType<typeof makeScene>['graphics']) =>
+  graphics.drawMesh.mock.calls.map((call) => call[1]);
 
 describe('Scene3D frustum culling', () => {
   it('skips objects behind the camera or far outside the view but keeps visible ones', () => {
@@ -79,15 +84,31 @@ describe('Scene3D frustum culling', () => {
 
   it('does not cull a multi-part asset when one part has no known bounds', () => {
     const { scene } = makeScene();
-    scene.addObject('asset', { mesh: 'cube', meshes: [{ mesh: 'cube', materialIndex: 0 }, { mesh: 'unknown-part', materialIndex: 1 }], position: [0, -20, 50] });
+    scene.addObject('asset', {
+      mesh: 'cube',
+      meshes: [
+        { mesh: 'cube', materialIndex: 0 },
+        { mesh: 'unknown-part', materialIndex: 1 },
+      ],
+      position: [0, -20, 50],
+    });
     scene.render();
     expect(scene.frameStats.culled).toBe(0);
   });
 
   it('uses the union of part bounds for multi-part assets', () => {
     const { scene, graphics } = makeScene();
-    graphics.getMeshBounds.mockImplementation((name: string) => (name === 'wide' ? { min: [-200, -0.5, -0.5], max: [200, 0.5, 0.5] } : CUBE_BOUNDS));
-    scene.addObject('asset', { mesh: 'cube', meshes: [{ mesh: 'cube', materialIndex: 0 }, { mesh: 'wide', materialIndex: 1 }], position: [-100, 20, 50] });
+    graphics.getMeshBounds.mockImplementation((name: string) =>
+      name === 'wide' ? { min: [-200, -0.5, -0.5], max: [200, 0.5, 0.5] } : CUBE_BOUNDS,
+    );
+    scene.addObject('asset', {
+      mesh: 'cube',
+      meshes: [
+        { mesh: 'cube', materialIndex: 0 },
+        { mesh: 'wide', materialIndex: 1 },
+      ],
+      position: [-100, 20, 50],
+    });
     scene.render();
     expect(scene.frameStats).toEqual({ drawn: 1, culled: 0 }); // the wide part spans x -300..100
   });
@@ -109,7 +130,11 @@ describe('Scene3D sky and water', () => {
   it('draws opaque objects, then the sky, then water, then blended objects back to front', () => {
     const { scene, graphics } = readyScene();
     scene.setTerrain(new Array(16 * 16).fill(0), 16);
-    scene.addObject('glass', { mesh: 'cube', position: [0, 20, 50], faces: [{ pbr: { alphaMode: 'BLEND' } }] });
+    scene.addObject('glass', {
+      mesh: 'cube',
+      position: [0, 20, 50],
+      faces: [{ pbr: { alphaMode: 'BLEND' } }],
+    });
     scene.addObject('solid', { mesh: 'cube', position: [0, 30, 50] });
 
     scene.render();
@@ -120,15 +145,26 @@ describe('Scene3D sky and water', () => {
 
   it('pins the sky to the camera by removing view translation, and writes no depth', () => {
     const { scene, graphics } = readyScene({ camera: { position: [100, 200, 50] } });
-    scene.setEnvironment({ sky: { blueHorizon: [0.2, 0.2, 0.2], blueDensity: [1, 1, 1], sunlightColor: [0.1, 0.1, 0.1], ambient: [0.1, 0.1, 0.1] } });
+    scene.setEnvironment({
+      sky: {
+        blueHorizon: [0.2, 0.2, 0.2],
+        blueDensity: [1, 1, 1],
+        sunlightColor: [0.1, 0.1, 0.1],
+        ambient: [0.1, 0.1, 0.1],
+      },
+    });
     scene.render();
 
     const call = graphics.drawMesh.mock.calls.find((c) => c[1] === 'sky')!;
     expect(Array.from(call[2].uSkyViewMatrix.slice(12, 15))).toEqual([0, 0, 0]);
     // the atmosphere inputs come straight from the sky settings
-    expect(Array.from(call[2].uBlueHorizon as ArrayLike<number>).map((v) => +v.toFixed(3))).toEqual([0.2, 0.2, 0.2]);
+    expect(Array.from(call[2].uBlueHorizon as ArrayLike<number>).map((v) => +v.toFixed(3))).toEqual(
+      [0.2, 0.2, 0.2],
+    );
     expect(Array.from(call[2].uBlueDensity)).toEqual([1, 1, 1]);
-    expect(Array.from(call[2].uSunlight as ArrayLike<number>).map((v) => +v.toFixed(3))).toEqual([0.1, 0.1, 0.1]);
+    expect(Array.from(call[2].uSunlight as ArrayLike<number>).map((v) => +v.toFixed(3))).toEqual([
+      0.1, 0.1, 0.1,
+    ]);
     expect(call[2].uSunDir).toHaveLength(3);
     expect(call[2].uSunRadius).toBeGreaterThan(0);
     expect(call[3]).toMatchObject({ depthWrite: false });
@@ -136,7 +172,9 @@ describe('Scene3D sky and water', () => {
 
   it('draws stars only when the sky has star brightness', () => {
     const night = readyScene();
-    night.scene.setEnvironment({ sky: { blueHorizon: [0, 0, 0], blueDensity: [1, 1, 1], starBrightness: 0.7 } });
+    night.scene.setEnvironment({
+      sky: { blueHorizon: [0, 0, 0], blueDensity: [1, 1, 1], starBrightness: 0.7 },
+    });
     night.scene.render();
     const stars = night.graphics.drawMesh.mock.calls.find((c) => c[1] === 'stars')!;
     expect(stars[3]).toMatchObject({ mode: 'points', blend: true });
@@ -225,7 +263,12 @@ describe('Scene3D.pick', () => {
   it('respects rotation, visibility and misses', () => {
     const { scene } = makeScene();
     scene.addObject('hidden', { mesh: 'cube', position: [0, 10, 50], visible: false });
-    scene.addObject('slab', { mesh: 'cube', position: [0, 20, 50], scale: [1, 8, 1], rotation: [0, 0, Math.PI / 2] }); // 8 wide along X after rotation
+    scene.addObject('slab', {
+      mesh: 'cube',
+      position: [0, 20, 50],
+      scale: [1, 8, 1],
+      rotation: [0, 0, Math.PI / 2],
+    }); // 8 wide along X after rotation
     expect(scene.pick(400, 300, 800, 600)!.id).toBe('slab');
     expect(scene.pick(400, 300, 800, 600)!.distance).toBeCloseTo(19.5, 3);
     expect(scene.pick(5, 5, 800, 600)).toBeNull();
@@ -248,24 +291,33 @@ describe('Scene3D.pick', () => {
 });
 
 describe('Scene3D lighting from the environment', () => {
-  const objectCall = (graphics: ReturnType<typeof makeScene>['graphics']) => graphics.drawMesh.mock.calls.find((call) => call[1] === 'basic')![2];
+  const objectCall = (graphics: ReturnType<typeof makeScene>['graphics']) =>
+    graphics.drawMesh.mock.calls.find((call) => call[1] === 'basic')![2];
 
   it('lights objects with the attenuated sunlight, the sun direction and the sky ambient', () => {
     const { scene, graphics } = makeScene();
     scene.addLight({ position: [0, 0, 1], color: [1, 1, 1] });
     scene.addObject('prim', { mesh: 'cube', position: [0, 20, 50] });
-    const frame = { ambient: [0.6, 0.5, 0.4, 1], sunlightColor: [0.9, 0.8, 0.7, 1], sunDirection: [0, 0, 1] };
+    const frame = {
+      ambient: [0.6, 0.5, 0.4, 1],
+      sunlightColor: [0.9, 0.8, 0.7, 1],
+      sunDirection: [0, 0, 1],
+    };
     scene.setEnvironment({ currentSky: frame });
     scene.render();
     const call = objectCall(graphics);
     expect(Array.from(call.uLightPos)).toEqual([0, 0, 10000]);
     // sunlight loses blue most going through the atmosphere, and never gains light
     const [r, g, b] = Array.from(call.uLightColor) as number[];
-    expect(r).toBeLessThanOrEqual(0.9); expect(g).toBeLessThanOrEqual(0.8); expect(b).toBeLessThanOrEqual(0.7);
+    expect(r).toBeLessThanOrEqual(0.9);
+    expect(g).toBeLessThanOrEqual(0.8);
+    expect(b).toBeLessThanOrEqual(0.7);
     expect(b / r).toBeLessThan(0.7 / 0.9);
     // ambient follows the viewer: raised under cloud, then pow(0.9) * 0.57
     const expected = [0.6, 0.5, 0.4].map((a) => Math.pow(a + (1 - a) * 0.2699 * 0.5, 0.9) * 0.57);
-    Array.from(call.uAmbientColor).forEach((v, i) => expect(v as number).toBeCloseTo(expected[i], 4));
+    Array.from(call.uAmbientColor).forEach((v, i) =>
+      expect(v as number).toBeCloseTo(expected[i], 4),
+    );
   });
 
   it('uses the viewer default sky when there is no environment, and clamps out-of-range ambient', () => {
@@ -285,7 +337,7 @@ describe('Scene3D lighting from the environment', () => {
     expect(clamped.every(Number.isFinite)).toBe(true);
   });
 
-  it('derives the sun from the sky\'s own rotation when a frame\'s direction is unusable', () => {
+  it("derives the sun from the sky's own rotation when a frame's direction is unusable", () => {
     const { scene } = makeScene();
     scene.addLight({ position: [1, 2, 3] });
     scene.setEnvironment({ currentSky: { sunDirection: [NaN, 0, 1] } });
@@ -300,8 +352,18 @@ describe('Scene3D lighting from the environment', () => {
     const noon = { sunRotation: [0, -Math.SQRT1_2, 0, Math.SQRT1_2], sunlightColor: [1, 1, 1] };
     const midnight = { sunRotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2], sunlightColor: [1, 1, 1] };
     const environment = {
-      dayLength: 14400, dayOffset: 0,
-      dayCycle: { frames: { noon, midnight }, tracks: [[], [{ keyKeyframe: 0, keyName: 'noon' }, { keyKeyframe: 0.5, keyName: 'midnight' }]] },
+      dayLength: 14400,
+      dayOffset: 0,
+      dayCycle: {
+        frames: { noon, midnight },
+        tracks: [
+          [],
+          [
+            { keyKeyframe: 0, keyName: 'noon' },
+            { keyKeyframe: 0.5, keyName: 'midnight' },
+          ],
+        ],
+      },
     };
     scene.wallClock = () => 0; // start of the cycle: noon, sun overhead
     scene.setEnvironment(environment);

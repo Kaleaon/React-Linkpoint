@@ -7,12 +7,12 @@ shown as "—" (or omitted), and a failed connection is reported as a failure.
 
 ## Enforcement
 
-| Tool | What it does |
-| --- | --- |
-| `npm run check:fake-data` | Scans shipped source (`src/`, `server.ts`, `electron/`) against the rules in `scripts/fake-data-rules.mjs`. Exits non-zero on any finding. Part of `npm run check` and the CI workflow. |
-| `scripts/fake-data-allowlist.json` | The only way to permit a match. Each entry names a rule and a file and **must give a reason**; entries without one are rejected. |
-| `src/linkpoint/__tests__/fake-data-scanner.test.ts` | Proves every rule fires on known-bad input, that honest code is not flagged, and that the repository itself is clean, so `npm test` fails if fabricated data comes back. |
-| `src/linkpoint/fabricated-data.ts` | Runs at startup and removes fabricated records that older builds saved into storage (seeded chat history and IM sessions). It matches placeholder ids and the `seed-` prefix, never display names. |
+| Tool                                                | What it does                                                                                                                                                                                       |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check:fake-data`                           | Scans shipped source (`src/`, `server.ts`, `electron/`) against the rules in `scripts/fake-data-rules.mjs`. Exits non-zero on any finding. Part of `npm run check` and the CI workflow.            |
+| `scripts/fake-data-allowlist.json`                  | The only way to permit a match. Each entry names a rule and a file and **must give a reason**; entries without one are rejected.                                                                   |
+| `src/linkpoint/__tests__/fake-data-scanner.test.ts` | Proves every rule fires on known-bad input, that honest code is not flagged, and that the repository itself is clean, so `npm test` fails if fabricated data comes back.                           |
+| `src/linkpoint/fabricated-data.ts`                  | Runs at startup and removes fabricated records that older builds saved into storage (seeded chat history and IM sessions). It matches placeholder ids and the `seed-` prefix, never display names. |
 
 Tests may use fixtures. `src/design/` is the synced design prototype and is not
 scanned.

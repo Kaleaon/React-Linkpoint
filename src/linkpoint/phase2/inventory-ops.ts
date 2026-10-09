@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Inventory Operations (Features 26-30)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 2
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 58-63)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/modules/inventory/
- * 
+ *
  * Handles inventory operations like create, delete, move, copy, and rename.
  */
 
@@ -32,15 +32,15 @@ export class InventoryOperations {
     if (!folderName || typeof folderName !== 'string') {
       throw new Error('Valid folder name required');
     }
-    
+
     // Generate UUID for new folder (simplified)
     const folderId = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    
+
     const folder = this.core.createFolder(folderId, {
       name: folderName,
-      parentId: parentId
+      parentId: parentId,
     });
-    
+
     console.log(`[InventoryOps] Created folder: ${folderName}`);
     return Promise.resolve(folder);
   }
@@ -53,29 +53,29 @@ export class InventoryOperations {
     if (!id || typeof id !== 'string') {
       throw new Error('Valid ID required');
     }
-    
+
     if (type === 'folder') {
       const folder = this.core.getFolder(id);
       if (!folder) {
         throw new Error(`Folder not found: ${id}`);
       }
-      
+
       // Check if folder is empty
       const contents = this.core.listFolderContents(id);
       if (contents.folders.length > 0 || contents.items.length > 0) {
         throw new Error('Cannot delete non-empty folder');
       }
-      
+
       console.log(`[InventoryOps] Deleted folder: ${id}`);
     } else {
       const item = this.core.getItem(id);
       if (!item) {
         throw new Error(`Item not found: ${id}`);
       }
-      
+
       console.log(`[InventoryOps] Deleted item: ${id}`);
     }
-    
+
     return Promise.resolve(true);
   }
 
@@ -97,15 +97,15 @@ export class InventoryOperations {
     if (!itemId || !targetFolderId) {
       throw new Error('Valid item ID and target folder ID required');
     }
-    
+
     const sourceItem = this.core.getItem(itemId);
     if (!sourceItem) {
       throw new Error(`Source item not found: ${itemId}`);
     }
-    
+
     // Generate new UUID for copy
     const newItemId = `item-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    
+
     // Create copy with new ID
     const copiedItem = this.core.addItem(newItemId, {
       name: `${sourceItem.name} (copy)`,
@@ -113,9 +113,9 @@ export class InventoryOperations {
       inventoryType: sourceItem.inventoryType,
       folderId: targetFolderId,
       description: sourceItem.description,
-      permissions: { ...sourceItem.permissions }
+      permissions: { ...sourceItem.permissions },
     });
-    
+
     console.log(`[InventoryOps] Copied item ${itemId} to ${targetFolderId}`);
     return Promise.resolve(copiedItem);
   }
@@ -128,7 +128,7 @@ export class InventoryOperations {
     if (!id || !newName) {
       throw new Error('Valid ID and new name required');
     }
-    
+
     if (type === 'folder') {
       const folder = this.core.getFolder(id);
       if (!folder) {
@@ -144,7 +144,7 @@ export class InventoryOperations {
       item.name = newName;
       console.log(`[InventoryOps] Renamed item ${id} to: ${newName}`);
     }
-    
+
     return Promise.resolve();
   }
 

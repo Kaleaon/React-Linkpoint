@@ -1,16 +1,23 @@
 // Camera heading readout and live status line for the 3D HUDs. Everything comes
 // from the running camera and session; when a value is unknown it is omitted.
-import { useEffect, useState } from "react";
-import { app } from "../linkpoint/app";
-import { realLatency } from "../screens/diagnosticsView.js";
+import { useEffect, useState } from 'react';
+import { app } from '../linkpoint/app';
+import { realLatency } from '../screens/diagnosticsView.js';
 
 /** "HDG 214° LVL" from a camera state, or null when there is no camera. */
 export function formatHeading(camera) {
   const heading = camera?.heading;
   const pitch = camera?.pitch;
-  if (typeof heading !== "number" || !Number.isFinite(heading)) return null;
-  const degrees = String(Math.round(((heading % 360) + 360) % 360) % 360).padStart(3, "0");
-  const tilt = typeof pitch !== "number" || !Number.isFinite(pitch) ? "" : pitch > 2 ? " UP" : pitch < -2 ? " DN" : " LVL";
+  if (typeof heading !== 'number' || !Number.isFinite(heading)) return null;
+  const degrees = String(Math.round(((heading % 360) + 360) % 360) % 360).padStart(3, '0');
+  const tilt =
+    typeof pitch !== 'number' || !Number.isFinite(pitch)
+      ? ''
+      : pitch > 2
+        ? ' UP'
+        : pitch < -2
+          ? ' DN'
+          : ' LVL';
   return `HDG ${degrees}°${tilt}`;
 }
 
@@ -31,9 +38,9 @@ export function useCameraState() {
   const [camera, setCamera] = useState(() => app.world?.getCameraState?.() || null);
   useEffect(() => {
     const update = (next) => setCamera(next ? { ...next } : null);
-    app.world?.on?.("camera_changed", update);
+    app.world?.on?.('camera_changed', update);
     setCamera(app.world?.getCameraState?.() || null);
-    return () => app.world?.off?.("camera_changed", update);
+    return () => app.world?.off?.('camera_changed', update);
   }, []);
   return camera;
 }

@@ -81,7 +81,13 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       store.subscribeType('contact', typeSubscriber);
 
       // Presence update for user-a
-      store.emitDelta('contact', 'user-a', 'presence', { onlineStatus: 'online' }, { onlineStatus: 'offline' });
+      store.emitDelta(
+        'contact',
+        'user-a',
+        'presence',
+        { onlineStatus: 'online' },
+        { onlineStatus: 'offline' },
+      );
 
       expect(subscriberA).toHaveBeenCalledTimes(1);
       expect(subscriberA).toHaveBeenCalledWith(
@@ -90,7 +96,7 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
           id: 'user-a',
           action: 'presence',
           payload: { onlineStatus: 'online' },
-        })
+        }),
       );
 
       // Subscriber for user-b must NOT have been called
@@ -112,8 +118,12 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       const agent1 = 'agent-alpha';
       const agent2 = 'agent-beta';
 
-      await indexedDBStore.saveFolders(agent1, [{ id: 'folder-1', name: 'Alpha Folder', parent: 'root' }]);
-      await indexedDBStore.saveFolders(agent2, [{ id: 'folder-1', name: 'Beta Folder', parent: 'root' }]);
+      await indexedDBStore.saveFolders(agent1, [
+        { id: 'folder-1', name: 'Alpha Folder', parent: 'root' },
+      ]);
+      await indexedDBStore.saveFolders(agent2, [
+        { id: 'folder-1', name: 'Beta Folder', parent: 'root' },
+      ]);
 
       const res1 = await indexedDBStore.getFolderContentsPage(agent1, 'root', 1, 50);
       const res2 = await indexedDBStore.getFolderContentsPage(agent2, 'root', 1, 50);
@@ -134,8 +144,20 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       const legacyContacts = {
         version: 1,
         contacts: [
-          { id: 'legacy-c1', name: 'Legacy Contact 1', note: 'Friend', savedAt: 1000, updatedAt: 1000 },
-          { id: 'legacy-c2', name: 'Legacy Contact 2', note: 'Buddy', savedAt: 1000, updatedAt: 1000 },
+          {
+            id: 'legacy-c1',
+            name: 'Legacy Contact 1',
+            note: 'Friend',
+            savedAt: 1000,
+            updatedAt: 1000,
+          },
+          {
+            id: 'legacy-c2',
+            name: 'Legacy Contact 2',
+            note: 'Buddy',
+            savedAt: 1000,
+            updatedAt: 1000,
+          },
         ],
       };
       localStorage.setItem(CONTACTS_STORAGE_KEY, JSON.stringify(legacyContacts));

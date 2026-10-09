@@ -46,11 +46,7 @@ describe('Scene3D rendering state', () => {
   it('rotates counterclockwise using the same convention as simulator quaternions', () => {
     const { scene } = makeScene();
     const matrix = (scene as any).calculateModelMatrix([2, 3, 4], [0, 0, Math.PI / 2], [1, 1, 1]);
-    const point = [
-      matrix[0] + matrix[12],
-      matrix[1] + matrix[13],
-      matrix[2] + matrix[14],
-    ];
+    const point = [matrix[0] + matrix[12], matrix[1] + matrix[13], matrix[2] + matrix[14]];
 
     expect(point[0]).toBeCloseTo(2, 6);
     expect(point[1]).toBeCloseTo(4, 6);
@@ -69,7 +65,10 @@ describe('Scene3D rendering state', () => {
     const { scene, graphics } = makeScene();
     (graphics as any).isSkinnedMesh = () => true;
     scene.addObject('animesh', {
-      mesh: 'animated', position: [0, 0, 0], scale: [2, 3, 4], skin: new Float32Array(12),
+      mesh: 'animated',
+      position: [0, 0, 0],
+      scale: [2, 3, 4],
+      skin: new Float32Array(12),
     });
 
     scene.renderObject(scene.objects.get('animesh'), new Float32Array(16), new Float32Array(16));
@@ -107,20 +106,32 @@ describe('Scene3D rendering state', () => {
   it('draws opaque objects first and blended objects back-to-front', () => {
     const { scene, graphics } = makeScene();
     scene.showGrid = false;
-    scene.addObject('near-glass', { mesh: 'cube', position: [11, 20, 30], faces: [{ pbr: { alphaMode: 'BLEND' } }] });
+    scene.addObject('near-glass', {
+      mesh: 'cube',
+      position: [11, 20, 30],
+      faces: [{ pbr: { alphaMode: 'BLEND' } }],
+    });
     scene.addObject('solid', { mesh: 'cube', position: [12, 20, 30] });
-    scene.addObject('far-glass', { mesh: 'cube', position: [20, 20, 30], faces: [{ pbr: { alphaMode: 'BLEND' } }] });
+    scene.addObject('far-glass', {
+      mesh: 'cube',
+      position: [20, 20, 30],
+      faces: [{ pbr: { alphaMode: 'BLEND' } }],
+    });
 
     scene.render();
 
-    expect(graphics.drawMesh.mock.calls.map((call) => call[2].uModelMatrix[12])).toEqual([12, 20, 11]);
+    expect(graphics.drawMesh.mock.calls.map((call) => call[2].uModelMatrix[12])).toEqual([
+      12, 20, 11,
+    ]);
   });
 });
 
 describe('draw distance settings', () => {
   it('hides distant meshes while retaining large prims crossing the boundary and rigs without safe bounds', () => {
     const { scene, graphics } = makeScene();
-    scene.showGrid = false; scene.showSky = false; scene.cullingEnabled = false;
+    scene.showGrid = false;
+    scene.showSky = false;
+    scene.cullingEnabled = false;
     scene.drawDistance = 20;
     (graphics as any).getMeshBounds = () => ({ min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] });
     const renderObject = vi.spyOn(scene as any, 'renderObject').mockImplementation(() => {});
@@ -129,7 +140,11 @@ describe('draw distance settings', () => {
     scene.addObject('large', { position: [40, 20, 30], scale: [30, 30, 30], mesh: 'cube' });
     scene.addObject('rig', { position: [100, 20, 30], mesh: 'cube', skin: new Float32Array(12) });
     scene.render();
-    expect(renderObject.mock.calls.map(call => (call[0] as { id: string }).id)).toEqual(expect.arrayContaining(['near', 'large', 'rig']));
-    expect(renderObject.mock.calls.map(call => (call[0] as { id: string }).id)).not.toContain('far');
+    expect(renderObject.mock.calls.map((call) => (call[0] as { id: string }).id)).toEqual(
+      expect.arrayContaining(['near', 'large', 'rig']),
+    );
+    expect(renderObject.mock.calls.map((call) => (call[0] as { id: string }).id)).not.toContain(
+      'far',
+    );
   });
 });

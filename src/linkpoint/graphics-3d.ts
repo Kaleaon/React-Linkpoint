@@ -6,12 +6,23 @@ import { Utils } from './utils';
 import { clampJointIndices, maxSkinJoints, skinnedVertexShader } from './skinning';
 import { TERRAIN_FRAGMENT_SHADER, TERRAIN_VERTEX_SHADER } from './terrain';
 import {
-  SKY_VERTEX_SHADER, SKY_FRAGMENT_SHADER, STARS_VERTEX_SHADER, STARS_FRAGMENT_SHADER,
-  WATER_VERTEX_SHADER, WATER_FRAGMENT_SHADER,
+  SKY_VERTEX_SHADER,
+  SKY_FRAGMENT_SHADER,
+  STARS_VERTEX_SHADER,
+  STARS_FRAGMENT_SHADER,
+  WATER_VERTEX_SHADER,
+  WATER_FRAGMENT_SHADER,
 } from './sky';
 
 /** Attribute slots shared by every program so a mesh's VAO is valid for any of them. */
-const ATTRIBUTE_SLOTS: Record<string, number> = { aPosition: 0, aNormal: 1, aTexCoord: 2, aTangent: 3, aJoints: 4, aWeights: 5 };
+const ATTRIBUTE_SLOTS: Record<string, number> = {
+  aPosition: 0,
+  aNormal: 1,
+  aTexCoord: 2,
+  aTangent: 3,
+  aJoints: 4,
+  aWeights: 5,
+};
 
 export interface DrawOptions {
   mode?: 'triangles' | 'points';
@@ -173,13 +184,16 @@ export class Graphics3D extends Utils.EventEmitter {
   private textures: Map<string, any> = new Map();
   /** Whether each texture has any transparent pixels, so it can be drawn blended. */
   private textureAlpha: Map<string, boolean> = new Map();
-  private renderTargets: Map<string, { framebuffer: WebGLFramebuffer; depth: WebGLRenderbuffer; width: number; height: number }> = new Map();
+  private renderTargets: Map<
+    string,
+    { framebuffer: WebGLFramebuffer; depth: WebGLRenderbuffer; width: number; height: number }
+  > = new Map();
   private clearColor: [number, number, number, number] = [0.53, 0.81, 0.92, 1];
-  
+
   // Rendering state
   public drawCalls: number = 0;
   public triangles: number = 0;
-  
+
   // Capabilities
   public extensions: any = {};
   public maxTextureSize: number = 0;
@@ -202,7 +216,7 @@ export class Graphics3D extends Utils.EventEmitter {
       antialias: true,
       premultipliedAlpha: false,
       preserveDrawingBuffer: false,
-      powerPreference: 'high-performance'
+      powerPreference: 'high-performance',
     }) as WebGL2RenderingContext;
 
     if (!this.gl) {
@@ -210,7 +224,7 @@ export class Graphics3D extends Utils.EventEmitter {
         alpha: false,
         depth: true,
         antialias: true,
-        premultipliedAlpha: false
+        premultipliedAlpha: false,
       }) as WebGLRenderingContext;
     }
 
@@ -219,7 +233,12 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     const gl = this.gl;
-    console.log('WebGL version:', typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext ? '2.0' : '1.0');
+    console.log(
+      'WebGL version:',
+      typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
+        ? '2.0'
+        : '1.0',
+    );
 
     // Get capabilities
     this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
@@ -230,9 +249,10 @@ export class Graphics3D extends Utils.EventEmitter {
     this.extensions.depthTexture = gl.getExtension('WEBGL_depth_texture');
     this.extensions.floatTexture = gl.getExtension('OES_texture_float');
     this.extensions.vao = gl.getExtension('OES_vertex_array_object');
-    this.extensions.uintIndices = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
-      ? true
-      : gl.getExtension('OES_element_index_uint');
+    this.extensions.uintIndices =
+      typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
+        ? true
+        : gl.getExtension('OES_element_index_uint');
 
     // Initial GL state
     gl.enable(gl.DEPTH_TEST);
@@ -286,27 +306,44 @@ export class Graphics3D extends Utils.EventEmitter {
           gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
         }
       `,
-      fragment: BASIC_FRAGMENT_SHADER
+      fragment: BASIC_FRAGMENT_SHADER,
     });
 
     // Skinned (rigged mesh / avatar) variant: same lighting, joint-driven vertices.
-    this.maxJoints = maxSkinJoints(Number(this.gl!.getParameter(this.gl!.MAX_VERTEX_UNIFORM_VECTORS)) || 128);
-    this.createShaderProgram('skinned', { vertex: skinnedVertexShader(this.maxJoints), fragment: BASIC_FRAGMENT_SHADER });
-    this.createShaderProgram('terrain', { vertex: TERRAIN_VERTEX_SHADER, fragment: TERRAIN_FRAGMENT_SHADER });
+    this.maxJoints = maxSkinJoints(
+      Number(this.gl!.getParameter(this.gl!.MAX_VERTEX_UNIFORM_VECTORS)) || 128,
+    );
+    this.createShaderProgram('skinned', {
+      vertex: skinnedVertexShader(this.maxJoints),
+      fragment: BASIC_FRAGMENT_SHADER,
+    });
+    this.createShaderProgram('terrain', {
+      vertex: TERRAIN_VERTEX_SHADER,
+      fragment: TERRAIN_FRAGMENT_SHADER,
+    });
 
     // Environment programs (see sky.ts).
     this.createShaderProgram('sky', { vertex: SKY_VERTEX_SHADER, fragment: SKY_FRAGMENT_SHADER });
-    this.createShaderProgram('stars', { vertex: STARS_VERTEX_SHADER, fragment: STARS_FRAGMENT_SHADER });
-    this.createShaderProgram('water', { vertex: WATER_VERTEX_SHADER, fragment: WATER_FRAGMENT_SHADER });
+    this.createShaderProgram('stars', {
+      vertex: STARS_VERTEX_SHADER,
+      fragment: STARS_FRAGMENT_SHADER,
+    });
+    this.createShaderProgram('water', {
+      vertex: WATER_VERTEX_SHADER,
+      fragment: WATER_FRAGMENT_SHADER,
+    });
 
     // Flexible prim program
-    this.createShaderProgram('prim_flexible', { vertex: FLEXIBLE_VERTEX_SHADER, fragment: BASIC_FRAGMENT_SHADER });
+    this.createShaderProgram('prim_flexible', {
+      vertex: FLEXIBLE_VERTEX_SHADER,
+      fragment: BASIC_FRAGMENT_SHADER,
+    });
   }
 
   /**
    * Create shader program
    */
-  createShaderProgram(name: string, source: { vertex: string, fragment: string }) {
+  createShaderProgram(name: string, source: { vertex: string; fragment: string }) {
     const gl = this.gl!;
 
     const vertexShader = this.compileShader(gl.VERTEX_SHADER, source.vertex);
@@ -320,7 +357,8 @@ export class Graphics3D extends Utils.EventEmitter {
     // Pin attribute slots before linking. Otherwise each program may be given a
     // different slot for the same name, and a mesh VAO captured against the
     // 'basic' program would feed the wrong data to every other program.
-    for (const [name, slot] of Object.entries(ATTRIBUTE_SLOTS)) gl.bindAttribLocation(program, slot, name);
+    for (const [name, slot] of Object.entries(ATTRIBUTE_SLOTS))
+      gl.bindAttribLocation(program, slot, name);
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
@@ -375,7 +413,15 @@ export class Graphics3D extends Utils.EventEmitter {
   /**
    * Create mesh
    */
-  createMesh(name: string, vertices: number[], indices: number[], normals?: number[], texCoords?: number[], tangents?: number[], skin?: { joints: number[]; weights: number[] }) {
+  createMesh(
+    name: string,
+    vertices: number[],
+    indices: number[],
+    normals?: number[],
+    texCoords?: number[],
+    tangents?: number[],
+    skin?: { joints: number[]; weights: number[] },
+  ) {
     const gl = this.gl!;
     const previous = this.meshes.get(name);
     if (previous) this.deleteMesh(previous);
@@ -387,7 +433,9 @@ export class Graphics3D extends Utils.EventEmitter {
       if (index > maxIndex) maxIndex = index;
     }
     if (maxIndex > 65535 && !this.extensions.uintIndices) {
-      throw new Error(`Mesh ${name} needs 32-bit indices, which this WebGL context does not support`);
+      throw new Error(
+        `Mesh ${name} needs 32-bit indices, which this WebGL context does not support`,
+      );
     }
     const indexType = maxIndex > 65535 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT;
 
@@ -401,7 +449,10 @@ export class Graphics3D extends Utils.EventEmitter {
         if (value > max[axis]) max[axis] = value;
       }
     }
-    const bounds = vertices.length >= 3 && min.every(Number.isFinite) && max.every(Number.isFinite) ? { min, max } : null;
+    const bounds =
+      vertices.length >= 3 && min.every(Number.isFinite) && max.every(Number.isFinite)
+        ? { min, max }
+        : null;
 
     const mesh: any = {
       vao: null,
@@ -409,7 +460,7 @@ export class Graphics3D extends Utils.EventEmitter {
       indexCount: indices.length,
       indexType,
       vertexCount: vertices.length / 3,
-      bounds
+      bounds,
     };
 
     // Create VAO if supported
@@ -445,10 +496,18 @@ export class Graphics3D extends Utils.EventEmitter {
     }
 
     // Skin influences: four joint indices and weights per vertex
-    if (skin && skin.joints.length === (vertices.length / 3) * 4 && skin.weights.length === skin.joints.length) {
+    if (
+      skin &&
+      skin.joints.length === (vertices.length / 3) * 4 &&
+      skin.weights.length === skin.joints.length
+    ) {
       mesh.buffers.joints = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.joints);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(clampJointIndices(skin.joints, Math.max(this.maxJoints, 1))), gl.STATIC_DRAW);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array(clampJointIndices(skin.joints, Math.max(this.maxJoints, 1))),
+        gl.STATIC_DRAW,
+      );
       mesh.buffers.weights = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.weights);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(skin.weights), gl.STATIC_DRAW);
@@ -458,7 +517,11 @@ export class Graphics3D extends Utils.EventEmitter {
     // Index buffer
     mesh.buffers.index = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.index);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexType === gl.UNSIGNED_INT ? new Uint32Array(indices) : new Uint16Array(indices), gl.STATIC_DRAW);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      indexType === gl.UNSIGNED_INT ? new Uint32Array(indices) : new Uint16Array(indices),
+      gl.STATIC_DRAW,
+    );
 
     if (this.extensions.vao) {
       // OES VAOs capture attribute and element-buffer bindings. Previously the
@@ -507,10 +570,15 @@ export class Graphics3D extends Utils.EventEmitter {
     // Set uniforms
     // Sampler uniforms the program declares, bound to consecutive texture units.
     const bindings = [
-      ['uTextureName', 'uTexture'], ['uMetallicRoughnessTextureName', 'uMetallicRoughnessTexture'],
-      ['uNormalTextureName', 'uNormalTexture'], ['uEmissiveTextureName', 'uEmissiveTexture'],
-      ['uCompositionName', 'uComposition'], ['uDetail0Name', 'uDetail0'], ['uDetail1Name', 'uDetail1'],
-      ['uDetail2Name', 'uDetail2'], ['uDetail3Name', 'uDetail3'],
+      ['uTextureName', 'uTexture'],
+      ['uMetallicRoughnessTextureName', 'uMetallicRoughnessTexture'],
+      ['uNormalTextureName', 'uNormalTexture'],
+      ['uEmissiveTextureName', 'uEmissiveTexture'],
+      ['uCompositionName', 'uComposition'],
+      ['uDetail0Name', 'uDetail0'],
+      ['uDetail1Name', 'uDetail1'],
+      ['uDetail2Name', 'uDetail2'],
+      ['uDetail3Name', 'uDetail3'],
     ];
     let unit = 0;
     for (const [valueName, uniformName] of bindings) {
@@ -518,7 +586,10 @@ export class Graphics3D extends Utils.EventEmitter {
       if (!sampler) continue;
       const fallback = uniformName === 'uNormalTexture' ? '__normal' : '__white';
       const val = uniforms[valueName];
-      const texture = this.textures.get(val) || (val && this.textures.get(String(val).toLowerCase())) || this.textures.get(fallback);
+      const texture =
+        this.textures.get(val) ||
+        (val && this.textures.get(String(val).toLowerCase())) ||
+        this.textures.get(fallback);
       if (!texture) continue;
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -527,7 +598,10 @@ export class Graphics3D extends Utils.EventEmitter {
     }
     this.setUniforms(programInfo.uniforms, uniforms, programInfo.arrayUniforms);
 
-    const isAdditive = uniforms.uAlphaMode === 'ADD' || uniforms.uBlendMode === 'ADD' || options.blendFunc === 'additive';
+    const isAdditive =
+      uniforms.uAlphaMode === 'ADD' ||
+      uniforms.uBlendMode === 'ADD' ||
+      options.blendFunc === 'additive';
     const blend = uniforms.uAlphaMode === 2 || isAdditive || options.blend === true;
     const noDepthWrite = uniforms.uAlphaMode === 2 || isAdditive || options.depthWrite === false;
     const doubleSided = Boolean(uniforms.uDoubleSided) || options.cullFace === false;
@@ -562,12 +636,17 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
     const powerOfTwo = (value: number) => value > 0 && (value & (value - 1)) === 0;
-    const webgl2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+    const webgl2 =
+      typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
     // WebGL 2 permits repeat wrapping and mipmaps for NPOT textures. The old
     // WebGL-1-only check clamped many SL textures, so repeats sampled a stretched
     // edge instead of the actual surface image.
     const canMipmap = webgl2 || (powerOfTwo(width) && powerOfTwo(height));
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, canMipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      canMipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR,
+    );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, canMipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
@@ -582,19 +661,28 @@ export class Graphics3D extends Utils.EventEmitter {
     let hasAlpha = false;
     // Lumiya and the official viewer treat every non-opaque alpha value as
     // transparency; a threshold here incorrectly made 250..254 fully opaque.
-    for (let i = 3; i < rgba.length; i += 4) { if (rgba[i] !== 255) { hasAlpha = true; break; } }
+    for (let i = 3; i < rgba.length; i += 4) {
+      if (rgba[i] !== 255) {
+        hasAlpha = true;
+        break;
+      }
+    }
     this.textureAlpha.set(name, hasAlpha);
     this.textureAlpha.set(name.toLowerCase(), hasAlpha);
     return name;
   }
 
   hasTexture(name: string | undefined | null): boolean {
-    return Boolean(name && (this.textures.has(name) || this.textures.has(String(name).toLowerCase())));
+    return Boolean(
+      name && (this.textures.has(name) || this.textures.has(String(name).toLowerCase())),
+    );
   }
 
   /** True when the named texture has transparent pixels. Unknown textures are opaque. */
   textureHasAlpha(name: string | undefined | null): boolean {
-    return Boolean(name && (this.textureAlpha.get(name) || this.textureAlpha.get(String(name).toLowerCase())));
+    return Boolean(
+      name && (this.textureAlpha.get(name) || this.textureAlpha.get(String(name).toLowerCase())),
+    );
   }
 
   /** Clear only the depth buffer, so a later pass (the HUD) draws over everything already rendered. */
@@ -622,7 +710,8 @@ export class Graphics3D extends Utils.EventEmitter {
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
-    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('Unable to create reflection render target');
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+      throw new Error('Unable to create reflection render target');
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     this.textures.set(name, texture);
     this.renderTargets.set(name, { framebuffer, depth, width, height });
@@ -656,7 +745,10 @@ export class Graphics3D extends Utils.EventEmitter {
     // which WebGL rejects (or renders as garbage) when the buffer is smaller.
     const bind = (location: number | undefined, buffer: WebGLBuffer | undefined, size: number) => {
       if (location === undefined || location < 0) return;
-      if (!buffer) { gl.disableVertexAttribArray(location); return; }
+      if (!buffer) {
+        gl.disableVertexAttribArray(location);
+        return;
+      }
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.enableVertexAttribArray(location);
       gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
@@ -674,7 +766,11 @@ export class Graphics3D extends Utils.EventEmitter {
   /**
    * Set uniforms
    */
-  private setUniforms(uniformLocations: any, values: any, arrayUniforms: Record<string, { type: number; size: number }> = {}) {
+  private setUniforms(
+    uniformLocations: any,
+    values: any,
+    arrayUniforms: Record<string, { type: number; size: number }> = {},
+  ) {
     const gl = this.gl!;
 
     for (const [name, location] of Object.entries(uniformLocations)) {
@@ -687,11 +783,18 @@ export class Graphics3D extends Utils.EventEmitter {
       const array = arrayUniforms[name];
       if (array) {
         const flat = value as ArrayLike<number>;
-        const upload = array.type === gl.FLOAT ? gl.uniform1fv
-          : array.type === gl.FLOAT_VEC2 ? gl.uniform2fv
-          : array.type === gl.FLOAT_VEC3 ? gl.uniform3fv
-          : array.type === gl.FLOAT_VEC4 ? gl.uniform4fv : null;
-        if (upload && flat.length > 0) upload.call(gl, location as WebGLUniformLocation, flat as Float32List);
+        const upload =
+          array.type === gl.FLOAT
+            ? gl.uniform1fv
+            : array.type === gl.FLOAT_VEC2
+              ? gl.uniform2fv
+              : array.type === gl.FLOAT_VEC3
+                ? gl.uniform3fv
+                : array.type === gl.FLOAT_VEC4
+                  ? gl.uniform4fv
+                  : null;
+        if (upload && flat.length > 0)
+          upload.call(gl, location as WebGLUniformLocation, flat as Float32List);
         continue;
       }
 
@@ -734,7 +837,7 @@ export class Graphics3D extends Utils.EventEmitter {
     if (color) this.setClearColor(color);
     gl.clearColor(...this.clearColor);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
+
     this.drawCalls = 0;
     this.triangles = 0;
   }
@@ -760,7 +863,7 @@ export class Graphics3D extends Utils.EventEmitter {
       triangles: this.triangles,
       meshes: this.meshes.size,
       textures: this.textures.size,
-      programs: this.programs.size
+      programs: this.programs.size,
     };
   }
 
@@ -772,7 +875,7 @@ export class Graphics3D extends Utils.EventEmitter {
     if (!gl) return;
 
     // Delete all meshes
-    this.meshes.forEach(mesh => this.deleteMesh(mesh));
+    this.meshes.forEach((mesh) => this.deleteMesh(mesh));
 
     // Delete all programs
     this.programs.forEach(({ program }) => {
@@ -781,10 +884,10 @@ export class Graphics3D extends Utils.EventEmitter {
 
     this.meshes.clear();
     this.programs.clear();
-    this.textures.forEach(texture => gl.deleteTexture(texture));
+    this.textures.forEach((texture) => gl.deleteTexture(texture));
     this.textures.clear();
     this.textureAlpha.clear();
-    this.renderTargets.forEach(target => {
+    this.renderTargets.forEach((target) => {
       gl.deleteFramebuffer(target.framebuffer);
       gl.deleteRenderbuffer(target.depth);
     });

@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Inventory Core (Features 21-25)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 2
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 51-56)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/modules/inventory/
- * 
+ *
  * Manages inventory folder structure and item properties.
  */
 
@@ -26,7 +26,7 @@ export class InventoryCore {
     if (!folderData || typeof folderData !== 'object') {
       throw new Error('Valid folder data required');
     }
-    
+
     const existingFolder = this.folders.get(folderId);
     if (existingFolder && existingFolder.parentId) {
       const oldParent = this.folders.get(existingFolder.parentId);
@@ -41,14 +41,20 @@ export class InventoryCore {
       name: folderData.name || 'New Folder',
       parentId: parentId,
       type: folderData.type || 'normal',
-      children: existingFolder && Array.isArray(existingFolder.children) ? Array.from(new Set(existingFolder.children)) : [],
-      items: existingFolder && Array.isArray(existingFolder.items) ? Array.from(new Set(existingFolder.items)) : [],
+      children:
+        existingFolder && Array.isArray(existingFolder.children)
+          ? Array.from(new Set(existingFolder.children))
+          : [],
+      items:
+        existingFolder && Array.isArray(existingFolder.items)
+          ? Array.from(new Set(existingFolder.items))
+          : [],
       version: folderData.version || 1,
-      created: existingFolder?.created || Date.now()
+      created: existingFolder?.created || Date.now(),
     };
-    
+
     this.folders.set(folderId, folder);
-    
+
     // Add to parent's children
     if (folder.parentId) {
       const parent = this.folders.get(folder.parentId);
@@ -61,7 +67,7 @@ export class InventoryCore {
         }
       }
     }
-    
+
     console.log(`[Inventory] Created folder: ${folder.name}`);
     return folder;
   }
@@ -108,7 +114,9 @@ export class InventoryCore {
       this.addItem(iId, { ...iData, folderId });
     }
 
-    console.log(`[Inventory] Atomically updated folder ${folderId}: ${newFoldersData.length} folders, ${newItemsData.length} items`);
+    console.log(
+      `[Inventory] Atomically updated folder ${folderId}: ${newFoldersData.length} folders, ${newItemsData.length} items`,
+    );
     return this.listFolderContents(folderId);
   }
 
@@ -120,10 +128,14 @@ export class InventoryCore {
     if (!folder) {
       return { folders: [], items: [] };
     }
-    
+
     return {
-      folders: (Array.from(new Set(folder.children || [])) as string[]).map((id: string) => this.folders.get(id)).filter(Boolean),
-      items: (Array.from(new Set(folder.items || [])) as string[]).map((id: string) => this.items.get(id)).filter(Boolean)
+      folders: (Array.from(new Set(folder.children || [])) as string[])
+        .map((id: string) => this.folders.get(id))
+        .filter(Boolean),
+      items: (Array.from(new Set(folder.items || [])) as string[])
+        .map((id: string) => this.items.get(id))
+        .filter(Boolean),
     };
   }
 
@@ -145,7 +157,7 @@ export class InventoryCore {
     if (!itemData || typeof itemData !== 'object') {
       throw new Error('Valid item data required');
     }
-    
+
     const existingItem = this.items.get(itemId);
     const targetFolderId = itemData.folderId;
 
@@ -164,11 +176,11 @@ export class InventoryCore {
       folderId: targetFolderId,
       description: itemData.description || '',
       permissions: itemData.permissions || {},
-      created: existingItem?.created || Date.now()
+      created: existingItem?.created || Date.now(),
     };
-    
+
     this.items.set(itemId, item);
-    
+
     // Add to folder
     if (item.folderId) {
       const folder = this.folders.get(item.folderId);
@@ -181,7 +193,7 @@ export class InventoryCore {
         }
       }
     }
-    
+
     console.log(`[Inventory] Added item: ${item.name}`);
     return item;
   }
@@ -196,7 +208,7 @@ export class InventoryCore {
    */
   sortFolder(folderId: string, sortBy: string = 'name') {
     const contents = this.listFolderContents(folderId);
-    
+
     const sorter = (a: any, b: any) => {
       if (sortBy === 'name') {
         return (a.name || '').localeCompare(b.name || '');
@@ -207,10 +219,10 @@ export class InventoryCore {
       }
       return 0;
     };
-    
+
     contents.folders.sort(sorter);
     contents.items.sort(sorter);
-    
+
     return contents;
   }
 
@@ -222,17 +234,17 @@ export class InventoryCore {
     if (!itemId || !targetFolderId) {
       throw new Error('Valid item ID and target folder ID required');
     }
-    
+
     const item = this.items.get(itemId);
     if (!item) {
       throw new Error(`Item not found: ${itemId}`);
     }
-    
+
     const newFolder = this.folders.get(targetFolderId);
     if (!newFolder) {
       throw new Error(`Target folder not found: ${targetFolderId}`);
     }
-    
+
     // Remove from all folders to ensure atomic detachment
     this.folders.forEach((folder) => {
       if (Array.isArray(folder.items)) {
@@ -247,7 +259,7 @@ export class InventoryCore {
       newFolder.items.push(itemId);
     }
     item.folderId = targetFolderId;
-    
+
     console.log(`[Inventory] Moved item ${itemId} to folder ${targetFolderId}`);
   }
 
@@ -260,7 +272,7 @@ export class InventoryCore {
     return {
       totalFolders: this.folders.size,
       totalItems: this.items.size,
-      rootFolder: this.rootFolderId
+      rootFolder: this.rootFolderId,
     };
   }
 }

@@ -5,7 +5,7 @@ import { PasswordRecord, hashPassword, isPasswordRecord } from './password';
 
 export const LOCAL_GRID_STORAGE_KEYS = {
   USER_ACCOUNT: 'linkpoint_offline_user_account',
-  SETTINGS: 'linkpoint_offline_grid_settings'
+  SETTINGS: 'linkpoint_offline_grid_settings',
 };
 
 export interface StoredAccount {
@@ -44,7 +44,7 @@ export class LocalGridManager extends Utils.EventEmitter {
       Utils.storage.remove(LOCAL_GRID_STORAGE_KEYS.USER_ACCOUNT);
       this.console.warn(
         LOG_COMPONENTS.USER,
-        'Discarded a saved offline account stored in a legacy format. Please set up the account again.'
+        'Discarded a saved offline account stored in a legacy format. Please set up the account again.',
       );
       return;
     }
@@ -53,18 +53,22 @@ export class LocalGridManager extends Utils.EventEmitter {
       this.currentUserAccount = {
         firstName: account.firstName,
         lastName: account.lastName || 'Resident',
-        passwordRecord: account.passwordRecord
+        passwordRecord: account.passwordRecord,
       };
       this.server.restoreUser(
         this.currentUserAccount.firstName,
         this.currentUserAccount.lastName,
-        this.currentUserAccount.passwordRecord
+        this.currentUserAccount.passwordRecord,
       );
       this.isConfigured = true;
     } catch (e) {
       this.currentUserAccount = null;
       this.isConfigured = false;
-      this.console.captureError(LOG_COMPONENTS.USER, 'Failed to restore the saved offline account.', e);
+      this.console.captureError(
+        LOG_COMPONENTS.USER,
+        'Failed to restore the saved offline account.',
+        e,
+      );
     }
   }
 
@@ -76,7 +80,11 @@ export class LocalGridManager extends Utils.EventEmitter {
    * Create the local account. `password` is the plaintext the user typed; it is
    * hashed here and only the derived record is kept or persisted.
    */
-  public async setupOfflineAccount(firstName: string, lastName: string, password: string): Promise<LocalUser> {
+  public async setupOfflineAccount(
+    firstName: string,
+    lastName: string,
+    password: string,
+  ): Promise<LocalUser> {
     const cleanedFirstName = firstName.trim();
     const cleanedLastName = lastName.trim() || 'Resident';
 
@@ -89,15 +97,18 @@ export class LocalGridManager extends Utils.EventEmitter {
     this.currentUserAccount = {
       firstName: cleanedFirstName,
       lastName: cleanedLastName,
-      passwordRecord: user.passwordRecord
+      passwordRecord: user.passwordRecord,
     };
     this.isConfigured = true;
 
-    const persisted = Utils.storage.set(LOCAL_GRID_STORAGE_KEYS.USER_ACCOUNT, this.currentUserAccount);
+    const persisted = Utils.storage.set(
+      LOCAL_GRID_STORAGE_KEYS.USER_ACCOUNT,
+      this.currentUserAccount,
+    );
     if (!persisted) {
       this.console.warn(
         LOG_COMPONENTS.USER,
-        'Local account created but could not be saved; it will not survive a restart.'
+        'Local account created but could not be saved; it will not survive a restart.',
       );
     }
 
@@ -115,10 +126,13 @@ export class LocalGridManager extends Utils.EventEmitter {
     this.server.restoreUser(
       this.currentUserAccount.firstName,
       this.currentUserAccount.lastName,
-      passwordRecord
+      passwordRecord,
     );
     Utils.storage.set(LOCAL_GRID_STORAGE_KEYS.USER_ACCOUNT, this.currentUserAccount);
-    this.console.info(LOG_COMPONENTS.USER, `Password updated for "${this.currentUserAccount.firstName}".`);
+    this.console.info(
+      LOG_COMPONENTS.USER,
+      `Password updated for "${this.currentUserAccount.firstName}".`,
+    );
   }
 
   public toggleGridState(enable: boolean): boolean {

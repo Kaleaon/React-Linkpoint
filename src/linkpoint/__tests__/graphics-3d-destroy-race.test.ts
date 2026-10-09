@@ -12,7 +12,9 @@ describe('Graphics3D.init when destroyed mid-initialization', () => {
     vi.spyOn(canvas, 'getContext').mockImplementation(() => fakeGl() as any);
     const graphics = new Graphics3D(canvas);
     // Tear the graphics down while shader creation is pending, as an unmounting view does.
-    vi.spyOn(graphics as any, 'createDefaultShaders').mockImplementation(async () => { graphics.destroy(); });
+    vi.spyOn(graphics as any, 'createDefaultShaders').mockImplementation(async () => {
+      graphics.destroy();
+    });
 
     await expect(graphics.init()).rejects.toThrow('destroyed while initializing');
     vi.restoreAllMocks();

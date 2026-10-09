@@ -1,5 +1,5 @@
-import React, { useId } from "react";
-import { useTheme } from "../context/ThemeContext.jsx";
+import React, { useId } from 'react';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 /**
  * @param {object} props
@@ -19,7 +19,7 @@ export default function FormField({
   const theme = useTheme();
   const V = theme?.V || {};
   const typography = theme?.t || {};
-  const fontStyle = typography.font || "sans-serif";
+  const fontStyle = typography.font || 'sans-serif';
 
   const fieldId = useId();
   const hasError = Boolean(error);
@@ -28,26 +28,27 @@ export default function FormField({
   const errorId = `${childId}-error`;
   const helpId = `${childId}-help`;
 
-  const describedBy = [
-    helpText ? helpId : null,
-    hasError ? errorId : null,
-  ].filter(Boolean).join(" ") || undefined;
+  const describedBy =
+    [helpText ? helpId : null, hasError ? errorId : null].filter(Boolean).join(' ') || undefined;
 
   const childWithAria = React.isValidElement(children)
     ? React.cloneElement(children, {
         id: childId,
-        "aria-invalid": hasError ? "true" : undefined,
-        "aria-errormessage": hasError ? errorId : undefined,
-        "aria-describedby": children.props["aria-describedby"]
-          ? `${children.props["aria-describedby"]} ${describedBy || ""}`.trim()
+        'aria-invalid': hasError ? 'true' : undefined,
+        'aria-errormessage': hasError ? errorId : undefined,
+        'aria-describedby': children.props['aria-describedby']
+          ? `${children.props['aria-describedby']} ${describedBy || ''}`.trim()
           : describedBy,
       })
     : children;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, ...style }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>
       {label ? (
-        <label htmlFor={childId} style={{ font: `600 10px/1 ${fontStyle}`, letterSpacing: ".16em", color: V.pri }}>
+        <label
+          htmlFor={childId}
+          style={{ font: `600 10px/1 ${fontStyle}`, letterSpacing: '.16em', color: V.pri }}
+        >
           {label}
         </label>
       ) : null}
@@ -58,7 +59,11 @@ export default function FormField({
         </small>
       ) : null}
       {hasError ? (
-        <div id={errorId} role="alert" style={{ color: V.err || "#ff4d4d", fontSize: 12, marginTop: 2 }}>
+        <div
+          id={errorId}
+          role="alert"
+          style={{ color: V.err || '#ff4d4d', fontSize: 12, marginTop: 2 }}
+        >
           {error}
         </div>
       ) : null}
