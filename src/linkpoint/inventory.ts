@@ -138,11 +138,28 @@ export class InventoryManager extends Utils.EventEmitter {
   public folders: Map<string, any> = new Map();
   public loadedFromCache: boolean = false;
   public isLoading: boolean = false;
+  private folderBuffers: Map<string, { categories: any[]; items: any[]; expectedDescendents: number | null }> = new Map();
 
   constructor(protocolManager: SLConnectionFull, authManager: AuthManager) {
     super();
     this.protocol = protocolManager;
     this.auth = authManager;
+  }
+
+  public async persistToCache(): Promise<void> {
+    const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
+    const rootId = this.rootFolder?.id || this.protocol?.inventoryRoot || 'root';
+    const rootName = this.rootFolder?.name || 'My Inventory';
+    try {
+      await localCache.saveInventory(agentId, {
+        folders: Array.from(this.folders.values()),
+        items: Array.from(this.items.values()),
+        rootId,
+        rootName,
+      });
+    } catch (err) {
+      console.warn('[Inventory] Cache persistence error:', err);
+    }
   }
 
   normalizeFolder(rawFolder: any, defaultParentId: string = ''): any {
@@ -203,7 +220,7 @@ export class InventoryManager extends Utils.EventEmitter {
     };
   }
 
-  private _addNormalizedFolder(rawFolder: any, defaultParentId: string = '') {
+  private _addNormalizedFolder(rawFolder: any, defaultParentId: string = '', mergeChildren: boolean = true) {
     const folder = this.normalizeFolder(rawFolder, defaultParentId);
     if (!folder) return null;
     const existing = this.folders.get(folder.id);
@@ -213,7 +230,7 @@ export class InventoryManager extends Utils.EventEmitter {
         oldParent.children = oldParent.children.filter((childId: string) => childId !== folder.id);
       }
     }
-    if (existing && Array.isArray(existing.children)) {
+    if (mergeChildren && existing && Array.isArray(existing.children)) {
       folder.children = Array.from(new Set([...folder.children, ...existing.children]));
     } else {
       folder.children = Array.from(new Set(folder.children || []));
@@ -361,16 +378,7 @@ export class InventoryManager extends Utils.EventEmitter {
       try {
         const inv = await slBridge.fetchInventory(folderId);
         if (inv) {
-          if (Array.isArray(inv.folders)) {
-            for (const f of inv.folders) {
-              this._addNormalizedFolder(f, folderId);
-            }
-          }
-          if (Array.isArray(inv.items)) {
-            for (const item of inv.items) {
-              this._addNormalizedItem(item, folderId);
-            }
-          }
+          this.reconcileFolder(folderId, inv.folders || [], inv.items || []);
           this.emit('inventory_updated');
           this.emit('inventory_loaded');
           return;
@@ -404,7 +412,7 @@ export class InventoryManager extends Utils.EventEmitter {
       if (response && response.ok) {
         const text = await response.text();
         const data = LLSD.parseXML(text);
-        this.handleInventoryResponse(data);
+        this.handleInventoryResponse(data, folderId);
       }
     } catch (error) {
       console.error(`Error fetching folder ${folderId}:`, error);
@@ -447,10 +455,18 @@ export class InventoryManager extends Utils.EventEmitter {
     const purgeSubtree = (fid: string) => {
       const folderToPurge = this.folders.get(fid);
       if (folderToPurge) {
+        const childIds = new Set<string>();
         if (Array.isArray(folderToPurge.children)) {
-          for (const childId of [...folderToPurge.children]) {
-            purgeSubtree(childId);
-          }
+          folderToPurge.children.forEach((cId: string) => childIds.add(cId));
+        }
+        for (const [id, f] of this.folders.entries()) {
+          if (f.parent === fid && id !== fid) childIds.add(id);
+        }
+        for (const [id, i] of this.items.entries()) {
+          if (i.parent === fid) childIds.add(id);
+        }
+        for (const childId of childIds) {
+          purgeSubtree(childId);
         }
         this.folders.delete(fid);
       }
@@ -458,15 +474,11 @@ export class InventoryManager extends Utils.EventEmitter {
     };
 
     for (const staleId of staleChildIds) {
-      if (this.folders.has(staleId)) {
-        purgeSubtree(staleId);
-      } else {
-        this.items.delete(staleId);
-      }
+      purgeSubtree(staleId);
     }
 
     for (const f of normalizedFolders) {
-      this._addNormalizedFolder(f, folderId);
+      this._addNormalizedFolder(f, folderId, false);
     }
 
     for (const i of normalizedItems) {
@@ -474,20 +486,46 @@ export class InventoryManager extends Utils.EventEmitter {
     }
 
     parentFolder.children = Array.from(allIncomingIds);
+
+    this.persistToCache().catch(() => {});
   }
 
-  handleInventoryResponse(data: any) {
+  handleInventoryResponse(data: any, targetFolderId?: string) {
     if (!data) return;
 
     const foldersList = Array.isArray(data.folders) ? data.folders : (data.categories || data.items ? [data] : []);
 
     foldersList.forEach((folderData: any) => {
-      const defaultParent = folderData.folder_id || folderData.category_id || folderData.id || '';
-      const categories = Array.isArray(folderData.categories) ? folderData.categories : [];
+      const defaultParent = folderData.folder_id || folderData.category_id || folderData.id || targetFolderId || '';
+      const categories = Array.isArray(folderData.categories) ? folderData.categories : (Array.isArray(folderData.folders) ? folderData.folders : []);
       const items = Array.isArray(folderData.items) ? folderData.items : [];
+      const expectedDescendents = typeof folderData.descendents === 'number' ? folderData.descendents : null;
 
       if (defaultParent) {
-        this.reconcileFolder(defaultParent, categories, items);
+        if (expectedDescendents !== null) {
+          const buffer = this.folderBuffers.get(defaultParent) || { categories: [], items: [], expectedDescendents };
+
+          const catMap = new Map<string, any>();
+          buffer.categories.forEach((cat: any) => { const id = cat.id || cat.category_id || cat.folder_id; if (id) catMap.set(id, cat); });
+          categories.forEach((cat: any) => { const id = cat.id || cat.category_id || cat.folder_id; if (id) catMap.set(id, cat); });
+          buffer.categories = Array.from(catMap.values());
+
+          const itemMap = new Map<string, any>();
+          buffer.items.forEach((item: any) => { const id = item.id || item.item_id; if (id) itemMap.set(id, item); });
+          items.forEach((item: any) => { const id = item.id || item.item_id; if (id) itemMap.set(id, item); });
+          buffer.items = Array.from(itemMap.values());
+
+          buffer.expectedDescendents = expectedDescendents;
+
+          if (buffer.categories.length + buffer.items.length >= expectedDescendents) {
+            this.reconcileFolder(defaultParent, buffer.categories, buffer.items);
+            this.folderBuffers.delete(defaultParent);
+          } else {
+            this.folderBuffers.set(defaultParent, buffer);
+          }
+        } else {
+          this.reconcileFolder(defaultParent, categories, items);
+        }
       } else {
         if (categories.length > 0) {
           categories.forEach((cat: any) => this._addNormalizedFolder(cat));
@@ -578,6 +616,149 @@ export class InventoryManager extends Utils.EventEmitter {
 
     this.emit('inventory_updated');
     return true;
+  }
+
+  createFolder(folderId: string, folderData: any) {
+    if (!folderId || typeof folderId !== 'string') {
+      throw new Error('Valid folder ID required');
+    }
+    if (!folderData || typeof folderData !== 'object') {
+      throw new Error('Valid folder data required');
+    }
+
+    const parentId = folderData.parentId || folderData.parent || this.rootFolder?.id || '';
+    const rawFolder = {
+      id: folderId,
+      name: folderData.name || 'New Folder',
+      parent: parentId,
+      type: folderData.type || 'folder',
+      folderType: folderData.folderType ?? folderData.type ?? -1,
+      version: folderData.version || 1,
+      children: folderData.children || [],
+    };
+
+    return this._addNormalizedFolder(rawFolder, parentId, true);
+  }
+
+  getFolder(folderId: string) {
+    return this.folders.get(folderId) || null;
+  }
+
+  updateFolderAtomically(folderId: string, newFoldersData: any[], newItemsData: any[]) {
+    this.reconcileFolder(folderId, newFoldersData, newItemsData);
+    return this.listFolderContents(folderId);
+  }
+
+  listFolderContents(folderId: string) {
+    const folder = this.folders.get(folderId);
+    if (!folder) {
+      return { folders: [], items: [] };
+    }
+
+    const childFolders: any[] = [];
+    const childItems: any[] = [];
+
+    if (Array.isArray(folder.children)) {
+      for (const childId of folder.children) {
+        if (this.folders.has(childId)) {
+          childFolders.push(this.folders.get(childId));
+        } else if (this.items.has(childId)) {
+          childItems.push(this.items.get(childId));
+        }
+      }
+    }
+
+    for (const [id, f] of this.folders.entries()) {
+      if (f.parent === folderId && id !== folderId && !childFolders.some((cf) => cf.id === id)) {
+        childFolders.push(f);
+      }
+    }
+    for (const [id, i] of this.items.entries()) {
+      if (i.parent === folderId && !childItems.some((ci) => ci.id === id)) {
+        childItems.push(i);
+      }
+    }
+
+    return { folders: childFolders, items: childItems };
+  }
+
+  addItem(itemId: string, itemData: any) {
+    if (!itemId || typeof itemId !== 'string') {
+      throw new Error('Valid item ID required');
+    }
+    if (!itemData || typeof itemData !== 'object') {
+      throw new Error('Valid item data required');
+    }
+
+    const parentId = itemData.folderId || itemData.parent || '';
+    const rawItem = {
+      id: itemId,
+      name: itemData.name || 'New Item',
+      parent: parentId,
+      assetType: itemData.assetType || 'unknown',
+      invType: itemData.inventoryType ?? itemData.invType ?? 0,
+      description: itemData.description || '',
+      permissions: itemData.permissions || {},
+    };
+
+    return this._addNormalizedItem(rawItem, parentId);
+  }
+
+  getItem(itemId: string) {
+    return this.items.get(itemId) || null;
+  }
+
+  sortFolder(folderId: string, sortBy: string = 'name') {
+    const contents = this.listFolderContents(folderId);
+
+    const sorter = (a: any, b: any) => {
+      if (sortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      } else if (sortBy === 'date') {
+        return (a.created || a.creationDate || 0) - (b.created || b.creationDate || 0);
+      } else if (sortBy === 'type') {
+        return String(a.type || a.assetType || '').localeCompare(String(b.type || b.assetType || ''));
+      }
+      return 0;
+    };
+
+    contents.folders.sort(sorter);
+    contents.items.sort(sorter);
+
+    return contents;
+  }
+
+  moveItem(itemId: string, targetFolderId: string) {
+    if (!itemId || !targetFolderId) {
+      throw new Error('Valid item ID and target folder ID required');
+    }
+    const item = this.items.get(itemId);
+    if (!item) {
+      throw new Error(`Item not found: ${itemId}`);
+    }
+    const target = this.folders.get(targetFolderId);
+    if (!target) {
+      throw new Error(`Target folder not found: ${targetFolderId}`);
+    }
+
+    this.moveItemToFolder(itemId, targetFolderId);
+    item.folderId = targetFolderId;
+  }
+
+  setRootFolder(folderId: string) {
+    const folder = this.folders.get(folderId) || { id: folderId, name: 'My Inventory', type: 'folder', parent: '' };
+    if (!this.folders.has(folderId)) {
+      this.folders.set(folderId, folder);
+    }
+    this.rootFolder = folder;
+  }
+
+  getStats() {
+    return {
+      totalFolders: this.folders.size,
+      totalItems: this.items.size,
+      rootFolder: this.rootFolder?.id || null,
+    };
   }
 
   /**
