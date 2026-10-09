@@ -17,39 +17,78 @@ describe('ChatManager', () => {
     const sendChat = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager(
       { sendChat },
-      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+      {
+        isLoggedIn: () => true,
+        getUserDisplayName: () => 'Test Resident',
+        user: { id: 'agent-id' },
+      },
     );
 
     await manager.sendMessage('hello', 0, 1);
 
     expect(sendChat).toHaveBeenCalledWith('hello', 0, 1);
     expect(manager.messages).toHaveLength(1);
-    expect(manager.messages[0]).toMatchObject({ sender: 'Test Resident', senderId: 'agent-id', text: 'hello', type: 'local' });
+    expect(manager.messages[0]).toMatchObject({
+      sender: 'Test Resident',
+      senderId: 'agent-id',
+      text: 'hello',
+      type: 'local',
+    });
   });
 
   it('drops the simulator echo of our own local chat but keeps other residents', async () => {
     const manager = new ChatManager(
       { sendChat: vi.fn().mockResolvedValue(undefined) },
-      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+      {
+        isLoggedIn: () => true,
+        getUserDisplayName: () => 'Test Resident',
+        user: { id: 'agent-id' },
+      },
     );
 
     await manager.sendMessage('hello', 0, 1);
-    await manager.handleIncomingMessage({ fromId: 'agent-id', fromName: 'Test Resident', message: 'hello', chatType: 1 });
+    await manager.handleIncomingMessage({
+      fromId: 'agent-id',
+      fromName: 'Test Resident',
+      message: 'hello',
+      chatType: 1,
+    });
     expect(manager.messages).toHaveLength(1);
 
     // An echo that lands before sendChat resolves is dropped too.
     let release: () => void = () => undefined;
     const slow = new ChatManager(
-      { sendChat: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })) },
-      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+      {
+        sendChat: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              release = resolve;
+            }),
+        ),
+      },
+      {
+        isLoggedIn: () => true,
+        getUserDisplayName: () => 'Test Resident',
+        user: { id: 'agent-id' },
+      },
     );
     const pending = slow.sendMessage('early', 0, 1);
-    await slow.handleIncomingMessage({ fromId: 'agent-id', fromName: 'Test Resident', message: 'early', chatType: 1 });
+    await slow.handleIncomingMessage({
+      fromId: 'agent-id',
+      fromName: 'Test Resident',
+      message: 'early',
+      chatType: 1,
+    });
     release();
     await pending;
     expect(slow.messages).toHaveLength(1);
 
-    await manager.handleIncomingMessage({ fromId: 'other-id', fromName: 'Other', message: 'hello', chatType: 1 });
+    await manager.handleIncomingMessage({
+      fromId: 'other-id',
+      fromName: 'Other',
+      message: 'hello',
+      chatType: 1,
+    });
     expect(manager.messages).toHaveLength(2);
   });
 
@@ -67,14 +106,22 @@ describe('ChatManager', () => {
     const sendInstantMessage = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager(
       { sendInstantMessage },
-      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+      {
+        isLoggedIn: () => true,
+        getUserDisplayName: () => 'Test Resident',
+        user: { id: 'agent-id' },
+      },
     );
 
     await manager.sendInstantMessage('friend-id', 'private hello', 'Friend Resident');
 
     expect(sendInstantMessage).toHaveBeenCalledWith('friend-id', 'private hello');
     expect(manager.getIMMessages('friend-id')).toEqual([
-      expect.objectContaining({ recipientId: 'friend-id', recipientName: 'Friend Resident', text: 'private hello' }),
+      expect.objectContaining({
+        recipientId: 'friend-id',
+        recipientName: 'Friend Resident',
+        text: 'private hello',
+      }),
     ]);
   });
 
@@ -83,21 +130,32 @@ describe('ChatManager', () => {
     const sendChat = vi.fn();
     const manager = new ChatManager(
       { sendGroupMessage, sendChat },
-      { isLoggedIn: () => true, getUserDisplayName: () => 'Test Resident', user: { id: 'agent-id' } },
+      {
+        isLoggedIn: () => true,
+        getUserDisplayName: () => 'Test Resident',
+        user: { id: 'agent-id' },
+      },
     );
 
     await manager.sendGroupMessage('group-id', 'hello group', 'Builders');
 
     expect(sendGroupMessage).toHaveBeenCalledWith('group-id', 'hello group');
     expect(sendChat).not.toHaveBeenCalled();
-    expect(manager.messages[0]).toMatchObject({ type: 'group', groupId: 'group-id', groupName: 'Builders', text: 'hello group' });
+    expect(manager.messages[0]).toMatchObject({
+      type: 'group',
+      groupId: 'group-id',
+      groupName: 'Builders',
+      text: 'hello group',
+    });
   });
 
   it('never speaks a group message in local chat when group chat is unavailable', async () => {
     const sendChat = vi.fn().mockResolvedValue(undefined);
     const manager = new ChatManager({ sendChat }, { isLoggedIn: () => true });
 
-    await expect(manager.sendGroupMessage('group-id', 'secret')).rejects.toThrow('Group chat is unavailable');
+    await expect(manager.sendGroupMessage('group-id', 'secret')).rejects.toThrow(
+      'Group chat is unavailable',
+    );
     expect(sendChat).not.toHaveBeenCalled();
     expect(manager.messages).toHaveLength(0);
   });
@@ -141,7 +199,10 @@ describe('ChatManager', () => {
     });
 
     // Verify direct IM dispatch was called and spatial chat was suppressed
-    expect(sendInstantMessage).toHaveBeenCalledWith('friend-uuid-1', '[Auto-Response] At the beach club, send notecard.');
+    expect(sendInstantMessage).toHaveBeenCalledWith(
+      'friend-uuid-1',
+      '[Auto-Response] At the beach club, send notecard.',
+    );
     expect(sendChat).not.toHaveBeenCalled();
 
     // Verify auto-response message was added to chat history
@@ -149,10 +210,12 @@ describe('ChatManager', () => {
     expect(autoReplyMsg).toBeDefined();
     expect(autoReplyMsg?.recipientId).toBe('friend-uuid-1');
     expect(autoReplyMsg?.text).toBe('[Auto-Response] At the beach club, send notecard.');
-    expect(autoReplySentListener).toHaveBeenCalledWith(expect.objectContaining({
-      recipientId: 'friend-uuid-1',
-      text: '[Auto-Response] At the beach club, send notecard.',
-    }));
+    expect(autoReplySentListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'friend-uuid-1',
+        text: '[Auto-Response] At the beach club, send notecard.',
+      }),
+    );
   });
 
   it('does not send duplicate auto-replies to the same resident in the same session', async () => {

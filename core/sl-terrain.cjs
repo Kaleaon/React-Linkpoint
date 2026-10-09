@@ -10,13 +10,28 @@ const finite = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number
  */
 function serializeTerrainMaterials(region) {
   if (!region) return null;
-  const ids = [region.terrainDetail0, region.terrainDetail1, region.terrainDetail2, region.terrainDetail3]
+  const ids = [
+    region.terrainDetail0,
+    region.terrainDetail1,
+    region.terrainDetail2,
+    region.terrainDetail3,
+  ]
     .map((id) => id?.toString?.() || null)
     .map((id) => (id && id !== ZERO_UUID ? id : null));
   return {
     textureIds: ids,
-    startHeights: [region.terrainStartHeight00, region.terrainStartHeight10, region.terrainStartHeight01, region.terrainStartHeight11].map((v) => finite(v, 20)),
-    heightRanges: [region.terrainHeightRange00, region.terrainHeightRange10, region.terrainHeightRange01, region.terrainHeightRange11].map((v) => finite(v, 60)),
+    startHeights: [
+      region.terrainStartHeight00,
+      region.terrainStartHeight10,
+      region.terrainStartHeight01,
+      region.terrainStartHeight11,
+    ].map((v) => finite(v, 20)),
+    heightRanges: [
+      region.terrainHeightRange00,
+      region.terrainHeightRange10,
+      region.terrainHeightRange01,
+      region.terrainHeightRange11,
+    ].map((v) => finite(v, 60)),
     origin: [finite(region.xCoordinate), finite(region.yCoordinate)],
     waterHeight: Number.isFinite(Number(region.waterHeight)) ? Number(region.waterHeight) : null,
   };

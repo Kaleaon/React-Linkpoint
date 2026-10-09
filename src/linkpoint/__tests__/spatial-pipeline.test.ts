@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { SpatialPipeline } from '../spatial-pipeline';
 import { SpatialMemoryBridge } from '../spatial-memory-bridge';
 import { CoordinateNormalizer } from '../coordinate-normalizer';
-import { extractFrustumJS, testAABBJS, transformAABBJS, multiplyMat4JS, INSIDE, INTERSECT, OUTSIDE } from '../frustum';
+import {
+  extractFrustumJS,
+  testAABBJS,
+  transformAABBJS,
+  multiplyMat4JS,
+  INSIDE,
+  INTERSECT,
+  OUTSIDE,
+} from '../frustum';
 
 describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge', () => {
   let pipeline: SpatialPipeline;
@@ -41,18 +49,8 @@ describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge
 
   describe('Mathematical Parity: WASM SIMD vs JS Fallback Routine', () => {
     it('verifies 4x4 matrix multiplication parity', () => {
-      const a = new Float32Array([
-        1, 0, 0, 0,
-        0, 2, 0, 0,
-        0, 0, 3, 0,
-        5, 6, 7, 1
-      ]);
-      const b = new Float32Array([
-        2, 0, 0, 0,
-        0, 3, 0, 0,
-        0, 0, 4, 0,
-        1, 2, 3, 1
-      ]);
+      const a = new Float32Array([1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 5, 6, 7, 1]);
+      const b = new Float32Array([2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 1, 2, 3, 1]);
 
       const jsResult = multiplyMat4JS(a, b);
       const wasmResult = pipeline.multiplyMat4(a, b);
@@ -64,10 +62,7 @@ describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge
 
     it('verifies frustum plane extraction parity', () => {
       const viewProj = new Float32Array([
-        1.732, 0,     0,       0,
-        0,     1.732, 0,       0,
-        0,     0,    -1.0002, -1,
-        0,     0,    -0.2002,  0
+        1.732, 0, 0, 0, 0, 1.732, 0, 0, 0, 0, -1.0002, -1, 0, 0, -0.2002, 0,
       ]);
 
       const jsPlanes = extractFrustumJS(viewProj);
@@ -83,13 +78,8 @@ describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge
       }
     });
 
-    it('verifies AABB transformation parity (Arvo\'s method)', () => {
-      const mat = new Float32Array([
-        2, 0, 0, 0,
-        0, 3, 0, 0,
-        0, 0, 4, 0,
-        10, 20, 30, 1
-      ]);
+    it("verifies AABB transformation parity (Arvo's method)", () => {
+      const mat = new Float32Array([2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 10, 20, 30, 1]);
       const min = [-1, -2, -3];
       const max = [1, 2, 3];
 
@@ -106,12 +96,7 @@ describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge
     });
 
     it('verifies single AABB frustum classification parity', () => {
-      const viewProj = new Float32Array([
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0.01,
-        0, 0, 0, 1
-      ]);
+      const viewProj = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0.01, 0, 0, 0, 1]);
       const planes = extractFrustumJS(viewProj)!;
 
       const insideMin = [-0.5, -0.5, 0.1];
@@ -201,10 +186,7 @@ describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge
       }
 
       const viewProj = new Float32Array([
-        1.732, 0,     0,       0,
-        0,     1.732, 0,       0,
-        0,     0,    -1.0002, -1,
-        0,     0,    -0.2002,  0
+        1.732, 0, 0, 0, 0, 1.732, 0, 0, 0, 0, -1.0002, -1, 0, 0, -0.2002, 0,
       ]);
       const frustum = extractFrustumJS(viewProj)!;
 
@@ -229,8 +211,8 @@ describe('WebAssembly SIMD Spatial Transform Pipeline & SharedArrayBuffer Bridge
       const fallbackPipeline = new SpatialPipeline(true);
       expect(fallbackPipeline.isSimdAccelerated()).toBe(false);
 
-      const a = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 2,3,4,1]);
-      const b = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 5,6,7,1]);
+      const a = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1]);
+      const b = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 6, 7, 1]);
 
       const result = fallbackPipeline.multiplyMat4(a, b);
       expect(result[12]).toBe(7);

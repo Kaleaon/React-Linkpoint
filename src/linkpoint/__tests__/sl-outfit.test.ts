@@ -7,24 +7,52 @@ const outfit = require('../../../core/sl-outfit.cjs');
 const uuid = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const id = (value: string) => ({ toString: () => value });
 const item = (n: number, name: string, inventoryType: number, flags = 0, extra: any = {}) => ({
-  itemID: id(uuid(n)), assetID: id(uuid(n + 1000)), name, inventoryType, flags, description: '', attachToAvatar: vi.fn(), detachFromAvatar: vi.fn(), ...extra,
+  itemID: id(uuid(n)),
+  assetID: id(uuid(n + 1000)),
+  name,
+  inventoryType,
+  flags,
+  description: '',
+  attachToAvatar: vi.fn(),
+  detachFromAvatar: vi.fn(),
+  ...extra,
 });
-const link = (n: number, target: any) => ({ ...item(n, target.name, target.inventoryType, target.flags), assetID: target.itemID });
+const link = (n: number, target: any) => ({
+  ...item(n, target.name, target.inventoryType, target.flags),
+  assetID: target.itemID,
+});
 
 function world(cofItems: any[], inventory: any[], postResults: any[] = [{ success: true }]) {
   const sent: any[] = [];
-  const cof: any = { folderID: id('cof'), version: 7, items: cofItems, removeItem: vi.fn(async (itemId: any) => { cof.items = cof.items.filter((i: any) => i.itemID !== itemId); }) };
+  const cof: any = {
+    folderID: id('cof'),
+    version: 7,
+    items: cofItems,
+    removeItem: vi.fn(async (itemId: any) => {
+      cof.items = cof.items.filter((i: any) => i.itemID !== itemId);
+    }),
+  };
   const post = vi.fn();
   postResults.forEach((r) => post.mockResolvedValueOnce(r));
   const circuit = {
     sessionID: id('sess'),
-    sendMessage: vi.fn((m: any) => { sent.push(m); }),
+    sendMessage: vi.fn((m: any) => {
+      sent.push(m);
+    }),
     waitForMessage: vi.fn(async (_m: any, _t: number, _f: any) => {
       const last = sent.filter((m) => m.InventoryBlock).at(-1);
-      return { InventoryData: [{ CallbackID: last.InventoryBlock.CallbackID, ItemID: id(uuid(900 + sent.length)) }] };
+      return {
+        InventoryData: [
+          { CallbackID: last.InventoryBlock.CallbackID, ItemID: id(uuid(900 + sent.length)) },
+        ],
+      };
     }),
   };
-  const region: any = { circuit, caps: { getCapability: vi.fn(async () => 'https://sim/cap'), capsPerformXMLPost: post }, objects: { getObjectByUUID: vi.fn() } };
+  const region: any = {
+    circuit,
+    caps: { getCapability: vi.fn(async () => 'https://sim/cap'), capsPerformXMLPost: post },
+    objects: { getObjectByUUID: vi.fn() },
+  };
   const items = new Map(inventory.map((i) => [uuid(Number(i.itemID.toString().slice(-12))), i]));
   const bot: any = {
     agent: { agentID: id('me'), inventory: { main: { itemsByID: items, skeleton: new Map() } } },
@@ -57,12 +85,20 @@ describe('wearing and removing', () => {
 
   it('retries the appearance update with the version the server expects, and reports a refusal', async () => {
     const jacket = item(4, 'Jacket', 18, 8);
-    const w = world([], [jacket], [{ success: false, error: 'Wrong COF version', expected: 9 }, { success: true }]);
-    await expect(outfit.wearItem(w.bot, w.region, { itemId: uuid(4) })).resolves.toMatchObject({ baked: true });
+    const w = world(
+      [],
+      [jacket],
+      [{ success: false, error: 'Wrong COF version', expected: 9 }, { success: true }],
+    );
+    await expect(outfit.wearItem(w.bot, w.region, { itemId: uuid(4) })).resolves.toMatchObject({
+      baked: true,
+    });
     expect(w.post.mock.calls.map((c: any) => c[1].cof_version)).toEqual([7, 9]);
 
     const refused = world([], [jacket], [{ success: false, error: 'nope' }]);
-    await expect(outfit.wearItem(refused.bot, refused.region, { itemId: uuid(4) })).resolves.toEqual({ worn: 'Jacket', baked: false, reason: 'nope' });
+    await expect(
+      outfit.wearItem(refused.bot, refused.region, { itemId: uuid(4) }),
+    ).resolves.toEqual({ worn: 'Jacket', baked: false, reason: 'nope' });
   });
 
   it('removes clothing and detaches attachments but never a body part', async () => {
@@ -70,11 +106,15 @@ describe('wearing and removing', () => {
     const watch = item(6, 'Watch', 6);
     const skin = item(7, 'Skin', 18, 1);
     const w = world([link(15, jacket), link(16, watch), link(17, skin)], [jacket, watch, skin]);
-    await expect(outfit.removeWorn(w.bot, w.region, { linkId: uuid(17) })).rejects.toThrow(/cannot be taken off/);
+    await expect(outfit.removeWorn(w.bot, w.region, { linkId: uuid(17) })).rejects.toThrow(
+      /cannot be taken off/,
+    );
     await outfit.removeWorn(w.bot, w.region, { linkId: uuid(15) });
     await outfit.removeWorn(w.bot, w.region, { linkId: uuid(16) });
     expect(watch.detachFromAvatar).toHaveBeenCalledTimes(1);
-    await expect(outfit.removeWorn(w.bot, w.region, { linkId: uuid(99) })).rejects.toThrow(/not part of the current outfit/);
+    await expect(outfit.removeWorn(w.bot, w.region, { linkId: uuid(99) })).rejects.toThrow(
+      /not part of the current outfit/,
+    );
   });
 });
 
@@ -95,10 +135,17 @@ describe('outfits, detach and teleport offers', () => {
 
   it('detaches only your own attachments', () => {
     const w = world([], []);
-    w.region.objects.getObjectByUUID.mockReturnValueOnce({ ID: 77, ParentID: 50 }).mockReturnValueOnce({ ID: 78, ParentID: 12 }).mockReturnValueOnce(undefined);
-    expect(outfit.detachAttachment(w.bot, w.region, { id: uuid(1) })).toEqual({ detached: uuid(1) });
+    w.region.objects.getObjectByUUID
+      .mockReturnValueOnce({ ID: 77, ParentID: 50 })
+      .mockReturnValueOnce({ ID: 78, ParentID: 12 })
+      .mockReturnValueOnce(undefined);
+    expect(outfit.detachAttachment(w.bot, w.region, { id: uuid(1) })).toEqual({
+      detached: uuid(1),
+    });
     expect(w.sent[0].ObjectData).toEqual([{ ObjectLocalID: 77 }]);
-    expect(() => outfit.detachAttachment(w.bot, w.region, { id: uuid(2) })).toThrow(/not attached to you/);
+    expect(() => outfit.detachAttachment(w.bot, w.region, { id: uuid(2) })).toThrow(
+      /not attached to you/,
+    );
     expect(() => outfit.detachAttachment(w.bot, w.region, { id: uuid(3) })).toThrow(/not in view/);
   });
 

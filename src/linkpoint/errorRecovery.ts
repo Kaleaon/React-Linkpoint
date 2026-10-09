@@ -69,7 +69,12 @@ export function sanitizeTelemetryData(data: Record<string, any>): Record<string,
 
   for (const [key, val] of Object.entries(data)) {
     const lowerKey = key.toLowerCase();
-    if (SENSITIVE_KEYS.has(lowerKey) || lowerKey.includes('pass') || lowerKey.includes('token') || lowerKey.includes('secret')) {
+    if (
+      SENSITIVE_KEYS.has(lowerKey) ||
+      lowerKey.includes('pass') ||
+      lowerKey.includes('token') ||
+      lowerKey.includes('secret')
+    ) {
       sanitized[key] = '[REDACTED]';
     } else if (val && typeof val === 'object' && !Array.isArray(val)) {
       sanitized[key] = sanitizeTelemetryData(val);
@@ -162,7 +167,12 @@ export class ErrorRecoveryService {
   /**
    * Log telemetry event with sanitized details.
    */
-  public logTelemetry(category: string, code: string, message: string, details?: Record<string, any>): TelemetryEntry {
+  public logTelemetry(
+    category: string,
+    code: string,
+    message: string,
+    details?: Record<string, any>,
+  ): TelemetryEntry {
     const sanitizedDetails = details ? sanitizeTelemetryData(details) : undefined;
     const entry: TelemetryEntry = {
       id: `tel_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -203,7 +213,9 @@ export class ErrorRecoveryService {
     };
 
     this.retryQueue.push(item);
-    this.logTelemetry(item.category, item.code, `Queued operation: ${item.description}`, { attempts: 0 });
+    this.logTelemetry(item.category, item.code, `Queued operation: ${item.description}`, {
+      attempts: 0,
+    });
     this.notify();
 
     return this.executeItem(item);
@@ -213,7 +225,11 @@ export class ErrorRecoveryService {
     if (!this.isOnlineState) {
       const err = new Error('Network offline');
       item.lastError = err;
-      this.logTelemetry(item.category, 'NET_OFFLINE', `Cannot execute ${item.description}: device offline`);
+      this.logTelemetry(
+        item.category,
+        'NET_OFFLINE',
+        `Cannot execute ${item.description}: device offline`,
+      );
       if (item.onFailure) item.onFailure(err);
       throw err;
     }
@@ -225,17 +241,26 @@ export class ErrorRecoveryService {
       item.attempts++;
       const backoffMs = Math.min(1000 * Math.pow(2, item.attempts - 1), 4000);
 
-      this.logTelemetry(item.category, `${item.code}_ATTEMPT`, `Executing ${item.description} (attempt ${item.attempts}/${item.maxRetries})`, {
-        attempt: item.attempts,
-        backoffMs,
-      });
+      this.logTelemetry(
+        item.category,
+        `${item.code}_ATTEMPT`,
+        `Executing ${item.description} (attempt ${item.attempts}/${item.maxRetries})`,
+        {
+          attempt: item.attempts,
+          backoffMs,
+        },
+      );
 
       try {
         const result = await item.action();
         // Success! Remove from queue
         this.retryQueue = this.retryQueue.filter((i) => i.id !== item.id);
         this.isRetryingState = this.retryQueue.length > 0;
-        this.logTelemetry(item.category, `${item.code}_SUCCESS`, `Operation ${item.description} recovered successfully`);
+        this.logTelemetry(
+          item.category,
+          `${item.code}_SUCCESS`,
+          `Operation ${item.description} recovered successfully`,
+        );
 
         if (this.activeErrorState && this.activeErrorState.code === item.code) {
           this.activeErrorState = null;
@@ -248,9 +273,14 @@ export class ErrorRecoveryService {
         const err = error instanceof Error ? error : new Error(String(error));
         item.lastError = err;
 
-        this.logTelemetry(item.category, `${item.code}_FAILURE`, `Attempt ${item.attempts} failed for ${item.description}: ${err.message}`, {
-          error: err.message,
-        });
+        this.logTelemetry(
+          item.category,
+          `${item.code}_FAILURE`,
+          `Attempt ${item.attempts} failed for ${item.description}: ${err.message}`,
+          {
+            error: err.message,
+          },
+        );
 
         if (item.attempts < item.maxRetries) {
           await new Promise((r) => setTimeout(r, backoffMs));
@@ -262,7 +292,8 @@ export class ErrorRecoveryService {
     this.retryQueue = this.retryQueue.filter((i) => i.id !== item.id);
     this.isRetryingState = this.retryQueue.length > 0;
 
-    const finalError = item.lastError || new Error(`Operation failed after ${item.maxRetries} retries`);
+    const finalError =
+      item.lastError || new Error(`Operation failed after ${item.maxRetries} retries`);
     this.activeErrorState = {
       code: item.code,
       category: item.category,
@@ -272,9 +303,14 @@ export class ErrorRecoveryService {
       details: { description: item.description },
     };
 
-    this.logTelemetry(item.category, `${item.code}_EXHAUSTED`, `Max retries (${item.maxRetries}) reached for ${item.description}. Prompting recovery gateway.`, {
-      error: finalError.message,
-    });
+    this.logTelemetry(
+      item.category,
+      `${item.code}_EXHAUSTED`,
+      `Max retries (${item.maxRetries}) reached for ${item.description}. Prompting recovery gateway.`,
+      {
+        error: finalError.message,
+      },
+    );
 
     if (item.onFailure) item.onFailure(finalError);
     this.notify();

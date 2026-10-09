@@ -9,10 +9,12 @@ function acquire() {
     activeRequests++;
     return Promise.resolve();
   }
-  return new Promise<void>((resolve) => waiting.push(() => {
-    activeRequests++;
-    resolve();
-  }));
+  return new Promise<void>((resolve) =>
+    waiting.push(() => {
+      activeRequests++;
+      resolve();
+    }),
+  );
 }
 
 function release() {

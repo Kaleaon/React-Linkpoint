@@ -20,10 +20,18 @@ const APP_SCHEME_REGISTRATION = {
  */
 function resolveAppFile(root, requestUrl) {
   let url;
-  try { url = new URL(requestUrl); } catch { return null; }
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return null;
+  }
   if (url.protocol !== `${APP_SCHEME}:` || url.hostname !== 'app') return null;
   let relative;
-  try { relative = decodeURIComponent(url.pathname); } catch { return null; }
+  try {
+    relative = decodeURIComponent(url.pathname);
+  } catch {
+    return null;
+  }
   if (relative.includes('\0')) return null;
   relative = relative.replace(/^\/+/, '');
   if (!relative || relative.endsWith('/')) relative += 'index.html';
@@ -46,4 +54,10 @@ function registerAppProtocol({ protocol, net }, root) {
   });
 }
 
-module.exports = { APP_SCHEME, APP_URL, APP_SCHEME_REGISTRATION, resolveAppFile, registerAppProtocol };
+module.exports = {
+  APP_SCHEME,
+  APP_URL,
+  APP_SCHEME_REGISTRATION,
+  resolveAppFile,
+  registerAppProtocol,
+};

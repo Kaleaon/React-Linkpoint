@@ -18,7 +18,9 @@ export class NotificationsManager extends Utils.EventEmitter {
   private noticeCounter = 0;
   private filters = { local: true, im: true, group: true };
 
-  setFilters(filters: { local: boolean; im: boolean; group: boolean }) { this.filters = { ...filters }; }
+  setFilters(filters: { local: boolean; im: boolean; group: boolean }) {
+    this.filters = { ...filters };
+  }
 
   constructor(protocolManager: SLConnectionFull) {
     super();
@@ -27,8 +29,21 @@ export class NotificationsManager extends Utils.EventEmitter {
 
   init(chat?: { on(event: string, listener: Function): void }) {
     chat?.on('message_received', (data: any) => {
-      if (!data || !['im', 'group'].includes(data.type) || (this.protocol.agentId && data.senderId === this.protocol.agentId)) return;
-      this.handleNotification({ ...data, kind: data.type, title: data.type === 'group' ? (data.groupName || 'Group message') : (data.sender || 'Private message'), message: data.text || '' });
+      if (
+        !data ||
+        !['im', 'group'].includes(data.type) ||
+        (this.protocol.agentId && data.senderId === this.protocol.agentId)
+      )
+        return;
+      this.handleNotification({
+        ...data,
+        kind: data.type,
+        title:
+          data.type === 'group'
+            ? data.groupName || 'Group message'
+            : data.sender || 'Private message',
+        message: data.text || '',
+      });
     });
     this.protocol.on('notification', (data: NotificationData) => this.handleNotification(data));
     this.protocol.on('group_notice', (data: any) => {
@@ -49,7 +64,12 @@ export class NotificationsManager extends Utils.EventEmitter {
     this.items.push({ ...data });
     this.unreadCount++;
     this.emit('notification_received', data);
-    const category = data.groupId || data.kind === 'notice' || data.kind === 'group' || data.type === 'group' ? 'group' : data.kind === 'im' || data.type === 'im' ? 'im' : 'local';
+    const category =
+      data.groupId || data.kind === 'notice' || data.kind === 'group' || data.type === 'group'
+        ? 'group'
+        : data.kind === 'im' || data.type === 'im'
+          ? 'im'
+          : 'local';
     if (this.filters[category]) Utils.showToast(data.title || 'Notification', 'info');
   }
 

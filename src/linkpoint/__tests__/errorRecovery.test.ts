@@ -118,12 +118,14 @@ describe('ErrorRecoveryService', () => {
 
       const action = vi.fn().mockResolvedValue('RecoveredData');
 
-      const promise = service.enqueueRetry({
-        action,
-        category: 'net',
-        code: 'FETCH_CONTACTS',
-        description: 'Fetch contact list',
-      }).catch((e) => e);
+      const promise = service
+        .enqueueRetry({
+          action,
+          category: 'net',
+          code: 'FETCH_CONTACTS',
+          description: 'Fetch contact list',
+        })
+        .catch((e) => e);
 
       expect(action).not.toHaveBeenCalled();
 

@@ -43,7 +43,7 @@ describe('LiveRegionAnnouncerService & Theme Contrast Tests', () => {
 
     it('defaults to 1000ms throttle time for speech queue lingering', () => {
       const freshAnnouncer = new LiveRegionAnnouncerService();
-      // @ts-ignore - access private property for verification
+      // @ts-expect-error - access private property for verification
       expect(freshAnnouncer.throttleMs).toBe(1000);
       freshAnnouncer.destroy();
     });
@@ -75,7 +75,12 @@ describe('LiveRegionAnnouncerService & Theme Contrast Tests', () => {
     });
 
     it('formats group chat messages correctly', () => {
-      const data = { type: 'group', groupName: 'Builders Club', sender: 'Bob', text: 'Meeting at 5' };
+      const data = {
+        type: 'group',
+        groupName: 'Builders Club',
+        sender: 'Bob',
+        text: 'Meeting at 5',
+      };
       const formatted = announcer.formatChatMessage(data);
       expect(formatted).toBe('[Group Chat - Builders Club] Bob: Meeting at 5');
     });

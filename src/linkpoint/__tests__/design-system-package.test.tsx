@@ -1,8 +1,19 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createElement, act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { LAYOUTS, PALETTES, computeThemeTokens, ensureMinContrast, themeNames } from '@linkpoint/design-system/tokens';
-import { Card as DesignCard, BottomTabs as DesignBottomTabs, RailNav as DesignRailNav, LayoutProvider } from '@linkpoint/design-system/react';
+import {
+  LAYOUTS,
+  PALETTES,
+  computeThemeTokens,
+  ensureMinContrast,
+  themeNames,
+} from '@linkpoint/design-system/tokens';
+import {
+  Card as DesignCard,
+  BottomTabs as DesignBottomTabs,
+  RailNav as DesignRailNav,
+  LayoutProvider,
+} from '@linkpoint/design-system/react';
 import { AppProvider, useApp } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import BottomTabs from '../../components/BottomTabs.jsx';
@@ -36,8 +47,12 @@ afterEach(async () => {
 describe('@linkpoint/design-system package integration', () => {
   describe('Tokens & Registry Exports', () => {
     it('exports complete LAYOUTS and PALETTES registries', () => {
-      expect(Object.keys(LAYOUTS)).toEqual(expect.arrayContaining(['terminal', 'sweep', 'tiles', 'glass', 'rules', 'press']));
-      expect(Object.keys(PALETTES)).toEqual(expect.arrayContaining(['ink', 'lcars', 'metro', 'aero', 'navy', 'paper', 'deco']));
+      expect(Object.keys(LAYOUTS)).toEqual(
+        expect.arrayContaining(['terminal', 'sweep', 'tiles', 'glass', 'rules', 'press']),
+      );
+      expect(Object.keys(PALETTES)).toEqual(
+        expect.arrayContaining(['ink', 'lcars', 'metro', 'aero', 'navy', 'paper', 'deco']),
+      );
       expect(themeNames.length).toBeGreaterThanOrEqual(20);
     });
 
@@ -61,10 +76,11 @@ describe('@linkpoint/design-system package integration', () => {
       const card = createElement(DesignCard, { c: { title: 'Package Test Card', badge: 'NEW' } });
       await act(async () => {
         root.render(
-          createElement(
-            LayoutProvider,
-            { initialLayout: 'terminal', initialPalette: 'ink', children: card }
-          )
+          createElement(LayoutProvider, {
+            initialLayout: 'terminal',
+            initialPalette: 'ink',
+            children: card,
+          }),
         );
       });
 
@@ -91,10 +107,11 @@ describe('@linkpoint/design-system package integration', () => {
       });
       await act(async () => {
         root.render(
-          createElement(
-            LayoutProvider,
-            { initialLayout: 'terminal', initialPalette: 'ink', children: tabs }
-          )
+          createElement(LayoutProvider, {
+            initialLayout: 'terminal',
+            initialPalette: 'ink',
+            children: tabs,
+          }),
         );
       });
 
@@ -119,10 +136,12 @@ describe('@linkpoint/design-system package integration', () => {
       });
       await act(async () => {
         root.render(
-          createElement(
-            LayoutProvider,
-            { initialLayout: 'rules', initialPalette: 'ink', initialDevice: 'tab', children: rail }
-          )
+          createElement(LayoutProvider, {
+            initialLayout: 'rules',
+            initialPalette: 'ink',
+            initialDevice: 'tab',
+            children: rail,
+          }),
         );
       });
 

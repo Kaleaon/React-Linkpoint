@@ -34,8 +34,24 @@ describe('Flexible Prim Dynamics', () => {
     });
 
     it('reads the field names node-metaverse produces: Drag is the air friction', () => {
-      expect(parseFlexibleParams({ flexible: { Softness: 2, Tension: 1.5, Drag: 0.7, Gravity: -9, Wind: 1.2, Force: { x: 1, y: 2, z: 3 } } })).toEqual({
-        softness: 2, tension: 1.5, friction: 0.7, gravity: -9, wind: 1.2, force: [1, 2, 3],
+      expect(
+        parseFlexibleParams({
+          flexible: {
+            Softness: 2,
+            Tension: 1.5,
+            Drag: 0.7,
+            Gravity: -9,
+            Wind: 1.2,
+            Force: { x: 1, y: 2, z: 3 },
+          },
+        }),
+      ).toEqual({
+        softness: 2,
+        tension: 1.5,
+        friction: 0.7,
+        gravity: -9,
+        wind: 1.2,
+        force: [1, 2, 3],
       });
     });
 
@@ -80,7 +96,11 @@ describe('Flexible Prim Dynamics', () => {
 
       const world = new WorldViewer(mockProtocol);
       const sceneAddObject = vi.fn();
-      world.scene3d = { addObject: sceneAddObject, updateObject: vi.fn(), objects: new Map() } as any;
+      world.scene3d = {
+        addObject: sceneAddObject,
+        updateObject: vi.fn(),
+        objects: new Map(),
+      } as any;
 
       const flexiObject = {
         id: 'flexi-prim-1',
@@ -122,7 +142,7 @@ describe('Flexible Prim Dynamics', () => {
             tension: 2.0,
             force: [0, 0, 0],
           },
-        })
+        }),
       );
     });
   });
@@ -132,16 +152,32 @@ describe('Flexible Prim Dynamics', () => {
       const listeners = new Map<string, Function[]>();
       const protocol = {
         connected: true,
-        on: (event: string, fn: Function) => { listeners.set(event, [...(listeners.get(event) || []), fn]); },
-        emit: (event: string, data: any) => { for (const fn of listeners.get(event) || []) fn(data); },
+        on: (event: string, fn: Function) => {
+          listeners.set(event, [...(listeners.get(event) || []), fn]);
+        },
+        emit: (event: string, data: any) => {
+          for (const fn of listeners.get(event) || []) fn(data);
+        },
       };
       const world = new WorldViewer(protocol);
       const updateObject = vi.fn();
       const objects = new Map<string, any>();
-      world.scene3d = { addObject: (id: string, c: any) => objects.set(id, c), updateObject, removeObject: (id: string) => objects.delete(id), objects } as any;
+      world.scene3d = {
+        addObject: (id: string, c: any) => objects.set(id, c),
+        updateObject,
+        removeObject: (id: string) => objects.delete(id),
+        objects,
+      } as any;
       return { world, protocol, updateObject, objects };
     };
-    const flexible = { softness: 2, gravity: 4, friction: 0.5, wind: 0, tension: 1, force: [0, 0, 0] };
+    const flexible = {
+      softness: 2,
+      gravity: 4,
+      friction: 0.5,
+      wind: 0,
+      tension: 1,
+      force: [0, 0, 0],
+    };
 
     it('keeps flexi parameters when an object is first added to the scene', () => {
       const scene = new Scene3D({ createMesh: vi.fn() } as any, new Camera3D());
@@ -152,17 +188,27 @@ describe('Flexible Prim Dynamics', () => {
 
     it('gives the scene nine section transforms per frame, in the prim frame, once the chain has run', () => {
       const { world, protocol, updateObject, objects } = makeWorld();
-      protocol.emit('ObjectUpdate', { id: 'flag', position: [10, 10, 20], rotation: [0, 0, 0, 1], scale: [0.2, 1, 4], flexible });
+      protocol.emit('ObjectUpdate', {
+        id: 'flag',
+        position: [10, 10, 20],
+        rotation: [0, 0, 0, 1],
+        scale: [0.2, 1, 4],
+        flexible,
+      });
       expect(objects.get('flag')).toBeDefined();
       objects.set('flag', { ...objects.get('flag') });
       (world as any).updateFlexibles(1);
       (world as any).updateFlexibles(1.016);
-      const call = updateObject.mock.calls.filter((c) => c[0] === 'flag' && c[1].flexiSections).at(-1)!;
+      const call = updateObject.mock.calls
+        .filter((c) => c[0] === 'flag' && c[1].flexiSections)
+        .at(-1)!;
       const { positions, rotations } = call[1].flexiSections;
       expect(positions).toHaveLength(27);
       expect(rotations).toHaveLength(36);
       // base at the bottom of the prim, tip near the top; gravity pulls along the chain so it stays straight
-      expect(Array.from(positions.slice(0, 3))).toEqual([0, 0, -2].map((v) => expect.closeTo(v, 4)));
+      expect(Array.from(positions.slice(0, 3))).toEqual(
+        [0, 0, -2].map((v) => expect.closeTo(v, 4)),
+      );
       expect(positions[26]).toBeCloseTo(2, 3);
     });
 
@@ -171,30 +217,52 @@ describe('Flexible Prim Dynamics', () => {
       const bits: number[] = [];
       const write = (value: number, count: number) => {
         for (let remaining = count, v = value; remaining > 0;) {
-          const chunk = Math.min(8, remaining); remaining -= chunk;
-          const byte = v % 256; v = Math.floor(v / 256);
+          const chunk = Math.min(8, remaining);
+          remaining -= chunk;
+          const byte = v % 256;
+          v = Math.floor(v / 256);
           for (let i = chunk - 1; i >= 0; i--) bits.push((byte >> i) & 1);
         }
       };
       const float = new DataView(new ArrayBuffer(4));
       const patch = (dc: number, coefficient: number) => {
-        write(0x38, 8); float.setFloat32(0, dc, true); write(float.getUint32(0, true), 32); write(32, 16); write(0, 10);
-        if (coefficient) { write(0b11, 2); write(0, 1); write(coefficient, 10); }
-        else write(0, 1);
+        write(0x38, 8);
+        float.setFloat32(0, dc, true);
+        write(float.getUint32(0, true), 32);
+        write(32, 16);
+        write(0, 10);
+        if (coefficient) {
+          write(0b11, 2);
+          write(0, 1);
+          write(coefficient, 10);
+        } else write(0, 1);
         write(0b10, 2);
       };
-      write(16, 16); write(16, 8); write(0x37, 8);
-      patch(dcX, 0); patch(0, 0);
+      write(16, 16);
+      write(16, 8);
+      write(0x37, 8);
+      patch(dcX, 0);
+      patch(0, 0);
       const bytes = new Uint8Array(Math.ceil(bits.length / 8));
-      bits.forEach((b, i) => { if (b) bytes[i >> 3] |= 0x80 >> (i & 7); });
+      bits.forEach((b, i) => {
+        if (b) bytes[i >> 3] |= 0x80 >> (i & 7);
+      });
       return { action: 'layer', data: btoa(String.fromCharCode(...bytes)) };
     };
 
     it('has no wind until the simulator sends its wind layer, then blows flexible prims with it', () => {
       const { world, protocol, updateObject } = makeWorld();
-      const tipX = () => updateObject.mock.calls.filter((c) => c[0] === 'flag' && c[1].flexiSections).at(-1)![1].flexiSections.positions[24];
+      const tipX = () =>
+        updateObject.mock.calls.filter((c) => c[0] === 'flag' && c[1].flexiSections).at(-1)![1]
+          .flexiSections.positions[24];
       const windy = { ...flexible, gravity: 0, wind: 10, softness: 0 };
-      protocol.emit('ObjectUpdate', { id: 'flag', position: [0, 0, 20], rotation: [0, 0, 0, 1], scale: [0.2, 1, 3], flexible: windy });
+      protocol.emit('ObjectUpdate', {
+        id: 'flag',
+        position: [0, 0, 20],
+        rotation: [0, 0, 0, 1],
+        scale: [0.2, 1, 3],
+        flexible: windy,
+      });
       for (let t = 1; t < 1.5; t += 1 / 30) (world as any).updateFlexibles(t);
       expect(world.wind).toBeNull();
       const calm = tipX();
@@ -223,10 +291,21 @@ describe('Flexible Prim Dynamics', () => {
 
     it('does nothing for objects that are not flexible, and forgets a removed object', () => {
       const { world, protocol, updateObject } = makeWorld();
-      protocol.emit('ObjectUpdate', { id: 'plain', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] });
+      protocol.emit('ObjectUpdate', {
+        id: 'plain',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+        scale: [1, 1, 1],
+      });
       (world as any).updateFlexibles(1);
       expect(updateObject.mock.calls.some((c) => c[1]?.flexiSections)).toBe(false);
-      protocol.emit('ObjectUpdate', { id: 'flag', position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 3], flexible });
+      protocol.emit('ObjectUpdate', {
+        id: 'flag',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+        scale: [1, 1, 3],
+        flexible,
+      });
       (world as any).updateFlexibles(2);
       expect((world as any).flexChains.has('flag')).toBe(true);
       (world as any).removeSceneObject({ id: 'flag' });

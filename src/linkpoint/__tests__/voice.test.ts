@@ -9,19 +9,35 @@ vi.mock('../sl-bridge', () => ({
 const SELF = '11111111-2222-3333-4444-555555555555';
 const OTHER = '99999999-2222-3333-4444-555555555555';
 
-class FakeTrack { id = 't'; enabled = true; stop = vi.fn(); toJSON() { return {}; } }
+class FakeTrack {
+  id = 't';
+  enabled = true;
+  stop = vi.fn();
+  toJSON() {
+    return {};
+  }
+}
 class FakeStream {
   tracks = [new FakeTrack()];
-  getAudioTracks() { return this.tracks; }
-  getTracks() { return this.tracks; }
+  getAudioTracks() {
+    return this.tracks;
+  }
+  getTracks() {
+    return this.tracks;
+  }
 }
 class FakeDataChannel {
   readyState = 'open';
   sent: string[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
-  constructor(public label: string, public init: RTCDataChannelInit) {}
-  send(data: string) { this.sent.push(data); }
+  constructor(
+    public label: string,
+    public init: RTCDataChannelInit,
+  ) {}
+  send(data: string) {
+    this.sent.push(data);
+  }
   close = vi.fn();
 }
 let lastPeer: FakePeer;
@@ -30,15 +46,29 @@ class FakePeer {
   localDescription: RTCSessionDescriptionInit | null = null;
   remoteDescription: RTCSessionDescriptionInit | null = null;
   ontrack: ((e: unknown) => void) | null = null;
-  onicecandidate: ((e: { candidate: { toJSON(): RTCIceCandidateInit } | null }) => void) | null = null;
+  onicecandidate: ((e: { candidate: { toJSON(): RTCIceCandidateInit } | null }) => void) | null =
+    null;
   onconnectionstatechange: (() => void) | null = null;
   channel!: FakeDataChannel;
   addTrack = vi.fn();
-  constructor(public config: RTCConfiguration) { lastPeer = this; }
-  createDataChannel(label: string, init: RTCDataChannelInit) { this.channel = new FakeDataChannel(label, init); return this.channel; }
-  createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10\r\n' }));
-  setLocalDescription = vi.fn(async (d: RTCSessionDescriptionInit) => { this.localDescription = d; });
-  setRemoteDescription = vi.fn(async (d: RTCSessionDescriptionInit) => { this.remoteDescription = d; this.onconnectionstatechange?.(); });
+  constructor(public config: RTCConfiguration) {
+    lastPeer = this;
+  }
+  createDataChannel(label: string, init: RTCDataChannelInit) {
+    this.channel = new FakeDataChannel(label, init);
+    return this.channel;
+  }
+  createOffer = vi.fn(async () => ({
+    type: 'offer',
+    sdp: 'm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10\r\n',
+  }));
+  setLocalDescription = vi.fn(async (d: RTCSessionDescriptionInit) => {
+    this.localDescription = d;
+  });
+  setRemoteDescription = vi.fn(async (d: RTCSessionDescriptionInit) => {
+    this.remoteDescription = d;
+    this.onconnectionstatechange?.();
+  });
   close = vi.fn();
 }
 
@@ -51,13 +81,29 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     stream = new FakeStream();
     vi.stubGlobal('RTCPeerConnection', FakePeer);
     vi.stubGlobal('MediaStream', FakeStream);
-    vi.stubGlobal('Audio', class { autoplay = false; volume = 1; srcObject: unknown = null; play = vi.fn(async () => {}); });
-    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn(async () => stream) } });
-    (slBridge.voiceProvision as any).mockReset().mockResolvedValue({ viewer_session: 'vs-1', jsep: { type: 'answer', sdp: 'answer-sdp' } });
+    vi.stubGlobal(
+      'Audio',
+      class {
+        autoplay = false;
+        volume = 1;
+        srcObject: unknown = null;
+        play = vi.fn(async () => {});
+      },
+    );
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn(async () => stream) },
+    });
+    (slBridge.voiceProvision as any)
+      .mockReset()
+      .mockResolvedValue({ viewer_session: 'vs-1', jsep: { type: 'answer', sdp: 'answer-sdp' } });
     (slBridge.voiceSignal as any).mockReset().mockResolvedValue({});
     (slBridge.voiceLogout as any).mockReset().mockResolvedValue({});
   });
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   async function connected(options = {}) {
     const voice = new VoiceManager();
@@ -82,17 +128,32 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     const voice = await connected();
     expect(lastPeer.channel.label).toBe('SLData');
     expect(lastPeer.channel.init).toEqual({ ordered: true });
-    expect((lastPeer.config.iceServers![0].urls as string[])[2]).toBe('stun:stun3.agni.secondlife.io:3478');
+    expect((lastPeer.config.iceServers![0].urls as string[])[2]).toBe(
+      'stun:stun3.agni.secondlife.io:3478',
+    );
     const body = (slBridge.voiceProvision as any).mock.calls[0][0];
-    expect(body).toMatchObject({ channel_type: 'local', parcel_local_id: 12, voice_server_type: 'webrtc', jsep: { type: 'offer' } });
-    expect(body.jsep.sdp).toContain('a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1');
+    expect(body).toMatchObject({
+      channel_type: 'local',
+      parcel_local_id: 12,
+      voice_server_type: 'webrtc',
+      jsep: { type: 'offer' },
+    });
+    expect(body.jsep.sdp).toContain(
+      'a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1',
+    );
     expect(lastPeer.remoteDescription).toEqual({ type: 'answer', sdp: 'answer-sdp' });
     await voice.disconnect();
   });
 
   it('provisions an ad-hoc channel for P2P and group voice', async () => {
-    const voice = await connected({ channel: { kind: 'multiagent', channelId: 'chan', credentials: 'cred' } });
-    expect((slBridge.voiceProvision as any).mock.calls[0][0]).toMatchObject({ channel_type: 'multiagent', channel: 'chan', credentials: 'cred' });
+    const voice = await connected({
+      channel: { kind: 'multiagent', channelId: 'chan', credentials: 'cred' },
+    });
+    expect((slBridge.voiceProvision as any).mock.calls[0][0]).toMatchObject({
+      channel_type: 'multiagent',
+      channel: 'chan',
+      credentials: 'cred',
+    });
     await voice.disconnect();
   });
 
@@ -131,7 +192,9 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     lastPeer.channel.onopen!();
     const speaking = vi.fn();
     voice.on('speaking', speaking);
-    lastPeer.channel.onmessage!({ data: JSON.stringify({ [OTHER]: { j: { p: true } }, [SELF]: { j: { p: true } } }) });
+    lastPeer.channel.onmessage!({
+      data: JSON.stringify({ [OTHER]: { j: { p: true } }, [SELF]: { j: { p: true } } }),
+    });
     lastPeer.channel.onmessage!({ data: JSON.stringify({ [OTHER]: { p: 64, v: true } }) });
     expect(voice.isSpeaking(OTHER)).toBe(true);
     expect(voice.getSpeakerEnergy(OTHER)).toBe(0.5);
@@ -166,13 +229,23 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
 
   it('trickles candidates, then the completed marker, as separate signaling requests', async () => {
     const voice = await connected();
-    lastPeer.onicecandidate!({ candidate: { toJSON: () => ({ candidate: 'cand-1', sdpMid: '0', sdpMLineIndex: 0 }) } });
+    lastPeer.onicecandidate!({
+      candidate: { toJSON: () => ({ candidate: 'cand-1', sdpMid: '0', sdpMLineIndex: 0 }) },
+    });
     await vi.advanceTimersByTimeAsync(150);
     lastPeer.onicecandidate!({ candidate: null });
     await vi.advanceTimersByTimeAsync(10);
     const calls = (slBridge.voiceSignal as any).mock.calls.map((c: any[]) => c[0]);
-    expect(calls[0]).toEqual({ viewer_session: 'vs-1', voice_server_type: 'webrtc', candidates: [{ sdpMid: '0', sdpMLineIndex: 0, candidate: 'cand-1' }] });
-    expect(calls[1]).toEqual({ viewer_session: 'vs-1', voice_server_type: 'webrtc', candidate: { completed: true } });
+    expect(calls[0]).toEqual({
+      viewer_session: 'vs-1',
+      voice_server_type: 'webrtc',
+      candidates: [{ sdpMid: '0', sdpMLineIndex: 0, candidate: 'cand-1' }],
+    });
+    expect(calls[1]).toEqual({
+      viewer_session: 'vs-1',
+      voice_server_type: 'webrtc',
+      candidate: { completed: true },
+    });
     await voice.disconnect();
   });
 
@@ -183,7 +256,10 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     expect(slBridge.voiceProvision).toHaveBeenCalledTimes(1);
     await voice.reprovision(34);
     expect(slBridge.voiceLogout).toHaveBeenCalledWith('vs-1');
-    expect((slBridge.voiceProvision as any).mock.calls[1][0]).toMatchObject({ parcel_local_id: 34, channel_type: 'local' });
+    expect((slBridge.voiceProvision as any).mock.calls[1][0]).toMatchObject({
+      parcel_local_id: 34,
+      channel_type: 'local',
+    });
     expect(voice.muted).toBe(false);
     await voice.disconnect();
   });
@@ -212,20 +288,38 @@ describe('VoiceManager reconnecting', () => {
     vi.useFakeTimers();
     vi.stubGlobal('RTCPeerConnection', FakePeer);
     vi.stubGlobal('MediaStream', FakeStream);
-    vi.stubGlobal('Audio', class { autoplay = false; volume = 1; srcObject: unknown = null; play = vi.fn(async () => {}); });
-    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: vi.fn(async () => new FakeStream()) } });
-    (slBridge.voiceProvision as any).mockReset().mockResolvedValue({ viewer_session: 'vs-1', jsep: { type: 'answer', sdp: 'answer-sdp' } });
+    vi.stubGlobal(
+      'Audio',
+      class {
+        autoplay = false;
+        volume = 1;
+        srcObject: unknown = null;
+        play = vi.fn(async () => {});
+      },
+    );
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn(async () => new FakeStream()) },
+    });
+    (slBridge.voiceProvision as any)
+      .mockReset()
+      .mockResolvedValue({ viewer_session: 'vs-1', jsep: { type: 'answer', sdp: 'answer-sdp' } });
     (slBridge.voiceSignal as any).mockReset().mockResolvedValue({});
     (slBridge.voiceLogout as any).mockReset().mockResolvedValue({});
   });
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it('retries a failed provisioning on the viewer schedule and joins when it works', async () => {
     const voice = new VoiceManager();
     voice.setRandom(() => 0.25); // 0.75 s, then 1.5 s
     const retrying: Array<{ attempt: number; delaySeconds: number }> = [];
     voice.on('retrying', (e: any) => retrying.push(e));
-    (slBridge.voiceProvision as any).mockRejectedValueOnce(new Error('503')).mockRejectedValueOnce(new Error('503'));
+    (slBridge.voiceProvision as any)
+      .mockRejectedValueOnce(new Error('503'))
+      .mockRejectedValueOnce(new Error('503'));
     await expect(voice.connect({ parcelLocalId: 5 })).rejects.toThrow('503');
     expect(voice.state).toBe('error');
     expect(retrying).toEqual([{ attempt: 1, delaySeconds: 0.75 }]);
@@ -270,7 +364,9 @@ describe('VoiceManager reconnecting', () => {
     await vi.advanceTimersByTimeAsync(30000);
     expect(slBridge.voiceProvision).toHaveBeenCalledTimes(1);
 
-    (navigator.mediaDevices.getUserMedia as any).mockRejectedValueOnce(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+    (navigator.mediaDevices.getUserMedia as any).mockRejectedValueOnce(
+      Object.assign(new Error('denied'), { name: 'NotAllowedError' }),
+    );
     await expect(voice.connect({})).rejects.toThrow('denied');
     await vi.advanceTimersByTimeAsync(30000);
     expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
@@ -283,7 +379,9 @@ describe('VoiceManager reconnecting', () => {
     await expect(voice.connect({ parcelLocalId: 1 })).rejects.toThrow();
     await voice.reprovision(9);
     await vi.advanceTimersByTimeAsync(600);
-    expect((slBridge.voiceProvision as any).mock.calls.at(-1)[0]).toMatchObject({ parcel_local_id: 9 });
+    expect((slBridge.voiceProvision as any).mock.calls.at(-1)[0]).toMatchObject({
+      parcel_local_id: 9,
+    });
     await voice.disconnect();
   });
 });
@@ -292,24 +390,57 @@ describe('ViewerSession voice capabilities', () => {
   const { ViewerSession } = require('../../../core/viewer-session.cjs');
   const session = (post: ReturnType<typeof vi.fn>) => {
     const s = new ViewerSession(() => undefined);
-    s.currentRegion = () => ({ caps: { getCapability: async (name: string) => `https://sim/${name}`, capsPerformXMLPost: post } });
+    s.currentRegion = () => ({
+      caps: {
+        getCapability: async (name: string) => `https://sim/${name}`,
+        capsPerformXMLPost: post,
+      },
+    });
     return s;
   };
 
   it('posts only whitelisted fields to the right capability', async () => {
     const post = vi.fn(async () => ({ ok: true }));
     const s = session(post);
-    await s.voiceProvision({ body: { jsep: { type: 'offer', sdp: 'S' }, channel_type: 'local', voice_server_type: 'webrtc', evil: 1 } });
-    expect(post).toHaveBeenCalledWith('https://sim/ProvisionVoiceAccountRequest', { jsep: { type: 'offer', sdp: 'S' }, channel_type: 'local', voice_server_type: 'webrtc' });
-    await s.voiceSignal({ body: { viewer_session: 'v', voice_server_type: 'webrtc', candidate: { completed: true }, x: 1 } });
-    expect(post).toHaveBeenLastCalledWith('https://sim/VoiceSignalingRequest', { viewer_session: 'v', voice_server_type: 'webrtc', candidate: { completed: true } });
+    await s.voiceProvision({
+      body: {
+        jsep: { type: 'offer', sdp: 'S' },
+        channel_type: 'local',
+        voice_server_type: 'webrtc',
+        evil: 1,
+      },
+    });
+    expect(post).toHaveBeenCalledWith('https://sim/ProvisionVoiceAccountRequest', {
+      jsep: { type: 'offer', sdp: 'S' },
+      channel_type: 'local',
+      voice_server_type: 'webrtc',
+    });
+    await s.voiceSignal({
+      body: {
+        viewer_session: 'v',
+        voice_server_type: 'webrtc',
+        candidate: { completed: true },
+        x: 1,
+      },
+    });
+    expect(post).toHaveBeenLastCalledWith('https://sim/VoiceSignalingRequest', {
+      viewer_session: 'v',
+      voice_server_type: 'webrtc',
+      candidate: { completed: true },
+    });
   });
 
   it('rejects other voice servers, missing offers and empty signaling', async () => {
     const s = session(vi.fn());
-    await expect(s.voiceProvision({ body: { jsep: { type: 'offer', sdp: 'S' }, voice_server_type: 'vivox' } })).rejects.toThrow(/WebRTC/);
-    await expect(s.voiceProvision({ body: { voice_server_type: 'webrtc' } })).rejects.toThrow(/offer/);
+    await expect(
+      s.voiceProvision({ body: { jsep: { type: 'offer', sdp: 'S' }, voice_server_type: 'vivox' } }),
+    ).rejects.toThrow(/WebRTC/);
+    await expect(s.voiceProvision({ body: { voice_server_type: 'webrtc' } })).rejects.toThrow(
+      /offer/,
+    );
     await expect(s.voiceProvision({})).rejects.toThrow(/body/);
-    await expect(s.voiceSignal({ body: { viewer_session: 'v', voice_server_type: 'webrtc' } })).rejects.toThrow(/candidates/);
+    await expect(
+      s.voiceSignal({ body: { viewer_session: 'v', voice_server_type: 'webrtc' } }),
+    ).rejects.toThrow(/candidates/);
   });
 });

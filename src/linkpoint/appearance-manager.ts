@@ -56,7 +56,7 @@ export class AppearanceManager {
       new Map(),
       this.positionOverrides,
       [0, 0, 0],
-      this.scaleOverrides
+      this.scaleOverrides,
     );
     return this.cachedWorldMatrices;
   }

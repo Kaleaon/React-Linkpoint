@@ -39,7 +39,11 @@ export class LiveRegionAnnouncerService {
    * Ensure an off-screen container mounted at root level exists as a persistent singleton DOM element.
    */
   public ensureDOMElement(): HTMLElement | null {
-    if (this.domElement && typeof document !== 'undefined' && document.body?.contains(this.domElement)) {
+    if (
+      this.domElement &&
+      typeof document !== 'undefined' &&
+      document.body?.contains(this.domElement)
+    ) {
       return this.domElement;
     }
     if (typeof document === 'undefined') {
@@ -83,7 +87,12 @@ export class LiveRegionAnnouncerService {
       }
       this.domElement.setAttribute('aria-atomic', 'true');
     } else {
-      if (this.domElement && this.domElement.id === 'live-region-announcer' && typeof document !== 'undefined' && document.body?.contains(this.domElement)) {
+      if (
+        this.domElement &&
+        this.domElement.id === 'live-region-announcer' &&
+        typeof document !== 'undefined' &&
+        document.body?.contains(this.domElement)
+      ) {
         // Retain the persistent container if registered via fallback
       } else {
         this.domElement = null;
@@ -117,7 +126,8 @@ export class LiveRegionAnnouncerService {
     if (!text) return null;
 
     const sender = data.sender || data.fromName || 'Resident';
-    const type = data.type || (data.chatType === 4 ? 'im' : data.chatType === 9 ? 'group' : 'local');
+    const type =
+      data.type || (data.chatType === 4 ? 'im' : data.chatType === 9 ? 'group' : 'local');
 
     if (type === 'im') {
       const recipient = data.recipientName ? ` to ${data.recipientName}` : '';
@@ -171,14 +181,19 @@ export class LiveRegionAnnouncerService {
       const item = this.queue.shift();
       if (item && targetElement) {
         // Preserve active focused element (ARIA22: no focus displacement)
-        const activeElement = typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null;
+        const activeElement =
+          typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null;
 
         targetElement.setAttribute('aria-live', item.priority);
         targetElement.setAttribute('aria-atomic', 'true');
         targetElement.textContent = item.text;
 
         // Restore focus if displaced
-        if (activeElement && typeof document !== 'undefined' && document.activeElement !== activeElement) {
+        if (
+          activeElement &&
+          typeof document !== 'undefined' &&
+          document.activeElement !== activeElement
+        ) {
           try {
             activeElement.focus({ preventScroll: true });
           } catch {

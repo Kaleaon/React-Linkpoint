@@ -33,7 +33,8 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
   it('Chat screen away message textarea has explicit id linked to label htmlFor', async () => {
     mounted = await mountScreen(Chat);
     const configBtn = [...mounted.host.querySelectorAll('button')].find(
-      (b) => b.textContent?.includes('CONFIG AWAY MSG') || b.textContent?.includes('HIDE AWAY CONFIG')
+      (b) =>
+        b.textContent?.includes('CONFIG AWAY MSG') || b.textContent?.includes('HIDE AWAY CONFIG'),
     );
     expect(configBtn).toBeTruthy();
     await click(configBtn!);
@@ -54,7 +55,7 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
 
     // Switch to GROUPS tab by finding the specific tab element
     const tabBtn = [...mounted.host.querySelectorAll('button[data-tab]')].find(
-      (d) => d.getAttribute('data-tab') === 'GROUPS'
+      (d) => d.getAttribute('data-tab') === 'GROUPS',
     );
     expect(tabBtn).toBeTruthy();
     await click(tabBtn!);
@@ -78,7 +79,9 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
   it('Cache screen custom path input and import input both have accessible names', async () => {
     mounted = await mountScreen(CacheScreen);
     const pathInput = mounted.host.querySelector('input[aria-label="Custom cache mount path"]');
-    const importInput = mounted.host.querySelector('input[aria-label="Import flashdrive cache file"]');
+    const importInput = mounted.host.querySelector(
+      'input[aria-label="Import flashdrive cache file"]',
+    );
 
     expect(pathInput).not.toBeNull();
     expect(importInput).not.toBeNull();
@@ -92,7 +95,9 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
     await unmount(mounted);
 
     mounted = await mountScreen(TeleportScreen);
-    const teleportInput = mounted.host.querySelector('input[aria-label="Teleport destination URI"]');
+    const teleportInput = mounted.host.querySelector(
+      'input[aria-label="Teleport destination URI"]',
+    );
     expect(teleportInput).not.toBeNull();
   });
 

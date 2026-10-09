@@ -1,9 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { toJSON, fromJSON, parseXML, detectFormat, LLSDFormat, serializeXML, parseNotation, serializeNotation, LLSDUUID, LLSDUndef, LLSDURI, LLSDBinary, type LLSDValue } from './llsd.js';
+import {
+  toJSON,
+  fromJSON,
+  parseXML,
+  detectFormat,
+  LLSDFormat,
+  serializeXML,
+  parseNotation,
+  serializeNotation,
+  LLSDUUID,
+  LLSDUndef,
+  LLSDURI,
+  LLSDBinary,
+  type LLSDValue,
+} from './llsd.js';
 import { parseISO } from 'date-fns';
-
-
-
 
 describe('LLSD JSON Serialization (toJSON)', () => {
   it('serializes null', () => {
@@ -37,13 +48,13 @@ describe('LLSD JSON Serialization (toJSON)', () => {
   });
 
   it('serializes arrays', () => {
-    const arr = [1, "two", true, null];
+    const arr = [1, 'two', true, null];
     // using spacing from `toJSON` which is 2 spaces
     expect(toJSON(arr)).toBe('[\n  1,\n  "two",\n  true,\n  null\n]');
   });
 
   it('serializes objects', () => {
-    const obj = { a: 1, b: "two" };
+    const obj = { a: 1, b: 'two' };
     expect(toJSON(obj)).toBe('{\n  "a": 1,\n  "b": "two"\n}');
   });
 
@@ -55,8 +66,8 @@ describe('LLSD JSON Serialization (toJSON)', () => {
       payload: data,
       items: [
         { id: 1, valid: true },
-        { id: 2, data: new Uint8Array([255, 0]) }
-      ]
+        { id: 2, data: new Uint8Array([255, 0]) },
+      ],
     };
 
     // The result should have the correct strings and formatting
@@ -69,7 +80,6 @@ describe('LLSD JSON Serialization (toJSON)', () => {
     expect(parsed.items[1].data).toBe(btoa(String.fromCharCode(255, 0)));
   });
 });
-
 
 describe('LLSD parseXML', () => {
   it('should parse undef', () => {
@@ -172,10 +182,7 @@ describe('LLSD parseXML', () => {
       </llsd>
     `;
     expect(parseXML(xml)).toEqual({
-      items: [
-        { id: 1 },
-        { id: 2 },
-      ]
+      items: [{ id: 1 }, { id: 2 }],
     });
   });
 
@@ -203,10 +210,14 @@ describe('LLSD parseXML', () => {
 describe('detectFormat', () => {
   describe('XML Format', () => {
     it('should detect standard XML declaration', () => {
-      expect(detectFormat('<?xml version="1.0" encoding="UTF-8"?>\n<llsd>...</llsd>')).toBe(LLSDFormat.XML);
+      expect(detectFormat('<?xml version="1.0" encoding="UTF-8"?>\n<llsd>...</llsd>')).toBe(
+        LLSDFormat.XML,
+      );
     });
     it('should detect LLSD root element directly', () => {
-      expect(detectFormat('<llsd><map><key>foo</key><string>bar</string></map></llsd>')).toBe(LLSDFormat.XML);
+      expect(detectFormat('<llsd><map><key>foo</key><string>bar</string></map></llsd>')).toBe(
+        LLSDFormat.XML,
+      );
     });
     it('should ignore leading whitespace for XML', () => {
       expect(detectFormat('   \n  <?xml version="1.0"?>')).toBe(LLSDFormat.XML);
@@ -277,7 +288,6 @@ describe('detectFormat', () => {
   });
 });
 
-
 describe('serializeXML', () => {
   it('serializes null to undef', () => {
     const xml = serializeXML(null);
@@ -313,7 +323,7 @@ describe('serializeXML', () => {
   });
 
   it('serializes Arrays', () => {
-    const xml = serializeXML([1, "test"]);
+    const xml = serializeXML([1, 'test']);
     expect(xml).toContain('<array>');
     expect(xml).toContain('<integer>1</integer>');
     expect(xml).toContain('<string>test</string>');
@@ -321,7 +331,7 @@ describe('serializeXML', () => {
   });
 
   it('serializes Maps', () => {
-    const xml = serializeXML({ foo: "bar", baz: 42 });
+    const xml = serializeXML({ foo: 'bar', baz: 42 });
     expect(xml).toContain('<map>');
     expect(xml).toContain('<key>foo</key>');
     expect(xml).toContain('<string>bar</string>');
@@ -331,20 +341,26 @@ describe('serializeXML', () => {
   });
 
   it('serializes strings to string without regex misclassification', () => {
-    expect(serializeXML("hello world")).toContain('<string>hello world</string>');
-    expect(serializeXML("")).toContain('<string></string>');
-    expect(serializeXML("123e4567-e89b-12d3-a456-426614174000")).toContain('<string>123e4567-e89b-12d3-a456-426614174000</string>');
-    expect(serializeXML("http://example.com")).toContain('<string>http://example.com</string>');
+    expect(serializeXML('hello world')).toContain('<string>hello world</string>');
+    expect(serializeXML('')).toContain('<string></string>');
+    expect(serializeXML('123e4567-e89b-12d3-a456-426614174000')).toContain(
+      '<string>123e4567-e89b-12d3-a456-426614174000</string>',
+    );
+    expect(serializeXML('http://example.com')).toContain('<string>http://example.com</string>');
   });
 
   it('serializes valid LLSDUUID sentinels to uuid', () => {
-    const uuid = "123e4567-e89b-12d3-a456-426614174000";
+    const uuid = '123e4567-e89b-12d3-a456-426614174000';
     expect(serializeXML(new LLSDUUID(uuid))).toContain(`<uuid>${uuid}</uuid>`);
   });
 
   it('serializes valid LLSDURI sentinels to uri', () => {
-    expect(serializeXML(new LLSDURI("http://example.com"))).toContain('<uri>http://example.com</uri>');
-    expect(serializeXML(new LLSDURI("https://secure.example.com"))).toContain('<uri>https://secure.example.com</uri>');
+    expect(serializeXML(new LLSDURI('http://example.com'))).toContain(
+      '<uri>http://example.com</uri>',
+    );
+    expect(serializeXML(new LLSDURI('https://secure.example.com'))).toContain(
+      '<uri>https://secure.example.com</uri>',
+    );
   });
 
   it('serializes LLSDUndef sentinels to undef', () => {
@@ -352,7 +368,7 @@ describe('serializeXML', () => {
   });
 
   it('includes xml declaration and root llsd element', () => {
-    const xml = serializeXML("test");
+    const xml = serializeXML('test');
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml).toContain('<llsd>');
     expect(xml).toMatch(/<\/llsd>$/);
@@ -416,30 +432,35 @@ describe('parseNotation and serializeNotation', () => {
 
   it('parses strings with quote escape sequences', () => {
     expect(parseNotation("'hello \\'world\\''")).toBe("hello 'world'");
-    expect(parseNotation('"line1\\nline2\\tindent"')).toBe("line1\nline2\tindent");
-    expect(parseNotation("s'prefixed string'")).toBe("prefixed string");
+    expect(parseNotation('"line1\\nline2\\tindent"')).toBe('line1\nline2\tindent');
+    expect(parseNotation("s'prefixed string'")).toBe('prefixed string');
   });
 
   it('parses arrays', () => {
     expect(parseNotation('[]')).toEqual([]);
     expect(parseNotation("[ i1, i2, 'three', true, ! ]")).toEqual([1, 2, 'three', true, null]);
-    expect(parseNotation("[i10 i20 i30]")).toEqual([10, 20, 30]);
-    expect(parseNotation("[ [ i1 ], [ i2, i3 ] ]")).toEqual([[1], [2, 3]]);
+    expect(parseNotation('[i10 i20 i30]')).toEqual([10, 20, 30]);
+    expect(parseNotation('[ [ i1 ], [ i2, i3 ] ]')).toEqual([[1], [2, 3]]);
   });
 
   it('parses maps with quoted, unquoted, and nested keys', () => {
     expect(parseNotation('{}')).toEqual({});
     expect(parseNotation("{ 'foo': i42, 'bar': 'test' }")).toEqual({ foo: 42, bar: 'test' });
-    expect(parseNotation("{ unquotedKey: i100, 'quotedKey': true }")).toEqual({ unquotedKey: 100, quotedKey: true });
+    expect(parseNotation("{ unquotedKey: i100, 'quotedKey': true }")).toEqual({
+      unquotedKey: 100,
+      quotedKey: true,
+    });
     expect(parseNotation("{ 'a': i1 'b': i2 }")).toEqual({ a: 1, b: 2 });
 
-    const nested = parseNotation("{ 'user': { 'id': u'550e8400-e29b-41d4-a716-446655440000', 'active': true }, 'tags': [ 'admin', 'user' ] }");
+    const nested = parseNotation(
+      "{ 'user': { 'id': u'550e8400-e29b-41d4-a716-446655440000', 'active': true }, 'tags': [ 'admin', 'user' ] }",
+    );
     expect(nested).toEqual({
       user: {
         id: '550e8400-e29b-41d4-a716-446655440000',
-        active: true
+        active: true,
       },
-      tags: ['admin', 'user']
+      tags: ['admin', 'user'],
     });
   });
 
@@ -450,8 +471,12 @@ describe('parseNotation and serializeNotation', () => {
     expect(serializeNotation(false)).toBe('false');
     expect(serializeNotation(42)).toBe('i42');
     expect(serializeNotation(3.14)).toBe('r3.14');
-    expect(serializeNotation(new LLSDUUID('550e8400-e29b-41d4-a716-446655440000'))).toBe("u'550e8400-e29b-41d4-a716-446655440000'");
-    expect(serializeNotation('550e8400-e29b-41d4-a716-446655440000')).toBe("'550e8400-e29b-41d4-a716-446655440000'");
+    expect(serializeNotation(new LLSDUUID('550e8400-e29b-41d4-a716-446655440000'))).toBe(
+      "u'550e8400-e29b-41d4-a716-446655440000'",
+    );
+    expect(serializeNotation('550e8400-e29b-41d4-a716-446655440000')).toBe(
+      "'550e8400-e29b-41d4-a716-446655440000'",
+    );
     expect(serializeNotation(new LLSDURI('http://example.com'))).toBe("l'http://example.com'");
     expect(serializeNotation('hello world')).toBe("'hello world'");
     expect(serializeNotation([1, 'two'])).toBe("[ i1, 'two' ]");
@@ -471,8 +496,8 @@ describe('parseNotation and serializeNotation', () => {
       meta: {
         enabled: true,
         ratio: 0.75,
-        title: "Hello 'world'\nNext line"
-      }
+        title: "Hello 'world'\nNext line",
+      },
     };
 
     const serialized = serializeNotation(data);
@@ -485,7 +510,7 @@ describe('parseNotation and serializeNotation', () => {
     expect(roundTripped.meta).toEqual({
       enabled: true,
       ratio: 0.75,
-      title: "Hello 'world'\nNext line"
+      title: "Hello 'world'\nNext line",
     });
   });
 });

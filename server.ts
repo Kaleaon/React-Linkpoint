@@ -1,23 +1,31 @@
-import express from "express";
-import fs from "fs";
-import { createServer as createViteServer } from "vite";
-import axios from "axios";
-import path from "path";
-import { fileURLToPath } from "url";
-import cors from "cors";
-import http from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import dgram from "dgram";
-import { createRequire } from "module";
+import express from 'express';
+import fs from 'fs';
+import { createServer as createViteServer } from 'vite';
+import axios from 'axios';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cors from 'cors';
+import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import dgram from 'dgram';
+import { createRequire } from 'module';
 const requireCjs = createRequire(import.meta.url);
-const { fetchProfilePhoto } = requireCjs("./core/sl-profile-photo.cjs") as {
-  fetchProfilePhoto: (name: string, options?: { thumbnail?: boolean }) => Promise<{ base64: string; contentType: string } | null>;
+const { fetchProfilePhoto } = requireCjs('./core/sl-profile-photo.cjs') as {
+  fetchProfilePhoto: (
+    name: string,
+    options?: { thumbnail?: boolean },
+  ) => Promise<{ base64: string; contentType: string } | null>;
 };
-import { getAllowedProxyHosts, parseSecureProxyTarget } from "./src/linkpoint/proxy-policy.ts";
-import { CapabilityPermitService, extractSeedCapability } from "./src/linkpoint/proxy-permit.ts";
-import { processLLSDWithGemini } from "./src/server/llsd-assistant.ts";
-import { createSLSession, getSLSession, callSLSession, closeSLSession, closeAllSLSessions } from "./src/server/sl-session.ts";
-
+import { getAllowedProxyHosts, parseSecureProxyTarget } from './src/linkpoint/proxy-policy.ts';
+import { CapabilityPermitService, extractSeedCapability } from './src/linkpoint/proxy-permit.ts';
+import { processLLSDWithGemini } from './src/server/llsd-assistant.ts';
+import {
+  createSLSession,
+  getSLSession,
+  callSLSession,
+  closeSLSession,
+  closeAllSLSessions,
+} from './src/server/sl-session.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,17 +33,17 @@ const __dirname = path.dirname(__filename);
 // Filter out harmless SL packet padding and diagnostic warnings from node-metaverse
 const _origConsoleError = console.error;
 console.error = function (...args: any[]) {
-  const msg = typeof args[0] === 'string' ? args[0] : (args[0]?.message || '');
+  const msg = typeof args[0] === 'string' ? args[0] : args[0]?.message || '';
   if (
     typeof msg === 'string' &&
     (msg.startsWith('WARNING: Finished reading ') ||
-     msg.includes('not at the end of the packet') ||
-     msg.startsWith('WARNING: Bytes written does not match') ||
-     msg.startsWith('WARNING: BUFFER UNDERFLOW') ||
-     msg.includes('ChatSessionRequest') ||
-     msg.includes('Response code 500 (Internal Server Error)') ||
-     msg.includes('PayloadTooLargeError') ||
-     msg.includes('request entity too large'))
+      msg.includes('not at the end of the packet') ||
+      msg.startsWith('WARNING: Bytes written does not match') ||
+      msg.startsWith('WARNING: BUFFER UNDERFLOW') ||
+      msg.includes('ChatSessionRequest') ||
+      msg.includes('Response code 500 (Internal Server Error)') ||
+      msg.includes('PayloadTooLargeError') ||
+      msg.includes('request entity too large'))
   ) {
     return;
   }
@@ -44,7 +52,9 @@ console.error = function (...args: any[]) {
 
 export async function createApp() {
   const app = express();
-  const permitSecret = process.env.PROXY_PERMIT_SECRET || (process.env.NODE_ENV !== 'production' ? 'development-only-secret-must-never-be-deployed' : '');
+  const permitSecret =
+    process.env.PROXY_PERMIT_SECRET ||
+    (process.env.NODE_ENV !== 'production' ? 'development-only-secret-must-never-be-deployed' : '');
   const permits = new CapabilityPermitService(permitSecret);
 
   // The API is only intended for the viewer origin.  Development uses the
@@ -52,63 +62,69 @@ export async function createApp() {
   const allowedOrigin = process.env.APP_URL;
   app.use(cors({ origin: allowedOrigin ? [allowedOrigin] : true, credentials: true }));
   app.use(express.json({ limit: '50mb' }));
-  app.use(express.text({ type: ['text/xml', 'application/xml', 'application/llsd+xml'], limit: '50mb' }));
+  app.use(
+    express.text({ type: ['text/xml', 'application/xml', 'application/llsd+xml'], limit: '50mb' }),
+  );
   app.use(express.raw({ type: '*/*', limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // Health check
-  app.get("/api/health", (req, res) => {
-    console.log("[Server] Health check hit");
-    res.json({ status: "ok", env: process.env.NODE_ENV || 'development' });
+  app.get('/api/health', (req, res) => {
+    console.log('[Server] Health check hit');
+    res.json({ status: 'ok', env: process.env.NODE_ENV || 'development' });
   });
 
   // Real Second Life / OpenSim Session Management
-  app.get("/api/sl/auto-login-status", (_req, res) => {
+  app.get('/api/sl/auto-login-status', (_req, res) => {
     const hasSecrets = Boolean(process.env.USERNAME && process.env.PASSWORD);
-    let displayName = "";
+    let displayName = '';
     if (hasSecrets && process.env.USERNAME) {
-      displayName = process.env.USERNAME.includes(" ")
+      displayName = process.env.USERNAME.includes(' ')
         ? process.env.USERNAME
         : `${process.env.USERNAME} Resident`;
     }
     res.json({
       available: hasSecrets,
       username: displayName,
-      grid: "agni",
+      grid: 'agni',
     });
   });
 
-  app.post("/api/sl/auto-login", async (req, res) => {
+  app.post('/api/sl/auto-login', async (req, res) => {
     try {
       const username = process.env.USERNAME;
       const password = process.env.PASSWORD;
       if (!username || !password) {
-        return res.status(400).json({ error: "USERNAME and PASSWORD secrets are not configured on server" });
+        return res
+          .status(400)
+          .json({ error: 'USERNAME and PASSWORD secrets are not configured on server' });
       }
       const { start } = req.body || {};
       console.log(`[SL Session] Auto-logging in resident "${username}" to Second Life (agni)...`);
       const session = await createSLSession({
-        loginUrl: "https://login.agni.lindenlab.com/cgi-bin/login.cgi",
+        loginUrl: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi',
         username,
         password,
-        start: start || "last",
+        start: start || 'last',
       });
       res.json(session);
     } catch (err: any) {
-      console.error("[SL Auto-Login Error]", err.message);
-      res.status(401).json({ error: err.message || "Auto-login failed" });
+      console.error('[SL Auto-Login Error]', err.message);
+      res.status(401).json({ error: err.message || 'Auto-login failed' });
     }
   });
 
-  app.post("/api/sl/connect", async (req, res) => {
+  app.post('/api/sl/connect', async (req, res) => {
     try {
       const { loginUrl, username, password, start, mfaToken, mfaHash } = req.body || {};
       if (!username || !password) {
-        return res.status(400).json({ error: "Username and password are required" });
+        return res.status(400).json({ error: 'Username and password are required' });
       }
-      console.log(`[SL Session] Connecting resident "${username}" to ${loginUrl || 'Second Life'}...`);
+      console.log(
+        `[SL Session] Connecting resident "${username}" to ${loginUrl || 'Second Life'}...`,
+      );
       const session = await createSLSession({
-        loginUrl: loginUrl || "https://login.agni.lindenlab.com/cgi-bin/login.cgi",
+        loginUrl: loginUrl || 'https://login.agni.lindenlab.com/cgi-bin/login.cgi',
         username,
         password,
         start,
@@ -120,67 +136,81 @@ export async function createApp() {
       // A login the grid refused carries structured details (reason, whether a
       // multi-factor code is needed); anything else is a plain failure.
       const details = err?.details;
-      console.error("[SL Connect Error]", details?.reason || err.message);
-      res.status(401).json(details
-        ? { error: details.message, ...details }
-        : { error: err.message || "Failed to log in to Second Life" });
+      console.error('[SL Connect Error]', details?.reason || err.message);
+      res
+        .status(401)
+        .json(
+          details
+            ? { error: details.message, ...details }
+            : { error: err.message || 'Failed to log in to Second Life' },
+        );
     }
   });
 
   // Every viewer operation (chat, teleport, friends, inventory...) is one allow-listed call on the
   // shared session in core/, the same table the desktop app reaches over IPC.
-  app.post("/api/sl/call", async (req, res) => {
+  app.post('/api/sl/call', async (req, res) => {
     try {
       const { sessionId, method, params } = req.body || {};
-      if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
-      res.json((await callSLSession(String(sessionId), String(method || ""), params)) ?? { ok: true });
+      if (!sessionId) return res.status(400).json({ error: 'Missing sessionId' });
+      res.json(
+        (await callSLSession(String(sessionId), String(method || ''), params)) ?? { ok: true },
+      );
     } catch (err: any) {
-      res.status(err?.message === "Not connected to Second Life" ? 401 : 400).json({ error: err.message });
+      res
+        .status(err?.message === 'Not connected to Second Life' ? 401 : 400)
+        .json({ error: err.message });
     }
   });
 
   // A resident's public web profile picture, for contact photos. Needs a live session so it is not an open proxy.
-  app.get("/api/sl/avatar/photo", async (req, res) => {
+  app.get('/api/sl/avatar/photo', async (req, res) => {
     try {
-      if (!getSLSession(String(req.query.sessionId || ""))) return res.status(401).json({ error: "Not connected to Second Life" });
-      const photo = await fetchProfilePhoto(String(req.query.name || ""), { thumbnail: req.query.size !== "full" });
-      res.json(photo ? { photoBytes: photo.base64, contentType: photo.contentType } : { photoBytes: null });
+      if (!getSLSession(String(req.query.sessionId || '')))
+        return res.status(401).json({ error: 'Not connected to Second Life' });
+      const photo = await fetchProfilePhoto(String(req.query.name || ''), {
+        thumbnail: req.query.size !== 'full',
+      });
+      res.json(
+        photo ? { photoBytes: photo.base64, contentType: photo.contentType } : { photoBytes: null },
+      );
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.get("/api/sl/events", (req, res) => {
+  app.get('/api/sl/events', (req, res) => {
     const sessionId = req.query.sessionId as string;
     const session = getSLSession(sessionId);
     if (!session) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: 'Session not found' });
     }
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    if (typeof res.flushHeaders === "function") res.flushHeaders();
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
     session.eventClients.push(res);
-    res.write(`data: ${JSON.stringify({ type: "connected", data: { sim: session.simName } })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'connected', data: { sim: session.simName } })}\n\n`);
 
     // Catch a late-joining client up with everything announced before it connected.
     try {
       const { objects, assets } = session.viewer.getSceneSnapshot();
-      for (const object of objects) res.write(`data: ${JSON.stringify({ type: "object-add", data: object })}\n\n`);
+      for (const object of objects)
+        res.write(`data: ${JSON.stringify({ type: 'object-add', data: object })}\n\n`);
       for (const asset of assets) res.write(`data: ${JSON.stringify(asset)}\n\n`);
     } catch (error) {
       console.warn('[SL Events] Error streaming initial scene:', error);
     }
 
-    req.on("close", () => {
+    req.on('close', () => {
       const index = session.eventClients.indexOf(res);
       if (index !== -1) session.eventClients.splice(index, 1);
     });
   });
 
-  app.post("/api/sl/disconnect", (req, res) => {
+  app.post('/api/sl/disconnect', (req, res) => {
     const { sessionId } = req.body || {};
     if (sessionId) closeSLSession(sessionId);
     res.json({ ok: true });
@@ -188,62 +218,62 @@ export async function createApp() {
 
   // --- Local / Removable Flashdrive Cache System ---
   const getCacheDir = (customPath?: string) => {
-    if (customPath && typeof customPath === "string" && customPath.trim().length > 0) {
-      if (customPath.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(customPath)) {
+    if (customPath && typeof customPath === 'string' && customPath.trim().length > 0) {
+      if (customPath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(customPath)) {
         return customPath;
       }
       return path.resolve(process.cwd(), customPath);
     }
-    return path.resolve(process.cwd(), ".sl-cache");
+    return path.resolve(process.cwd(), '.sl-cache');
   };
 
-  app.post("/api/sl/cache/inventory", async (req, res) => {
+  app.post('/api/sl/cache/inventory', async (req, res) => {
     try {
       const { agentId, customPath, inventoryData } = req.body || {};
       if (!agentId || !inventoryData) {
-        return res.status(400).json({ error: "Missing agentId or inventoryData" });
+        return res.status(400).json({ error: 'Missing agentId or inventoryData' });
       }
       const cacheDir = getCacheDir(customPath);
       await fs.promises.mkdir(cacheDir, { recursive: true });
       const filePath = path.join(cacheDir, `inventory_${agentId}.json`);
-      await fs.promises.writeFile(filePath, JSON.stringify(inventoryData), "utf8");
+      await fs.promises.writeFile(filePath, JSON.stringify(inventoryData), 'utf8');
       res.json({ ok: true, path: filePath, foldersCount: inventoryData.foldersCount || 0 });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.get("/api/sl/cache/inventory", async (req, res) => {
+  app.get('/api/sl/cache/inventory', async (req, res) => {
     try {
       const agentId = req.query.agentId as string;
       const customPath = req.query.path as string;
-      if (!agentId) return res.status(400).json({ error: "Missing agentId" });
+      if (!agentId) return res.status(400).json({ error: 'Missing agentId' });
       const cacheDir = getCacheDir(customPath);
       const filePath = path.join(cacheDir, `inventory_${agentId}.json`);
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: "Cache not found" });
+        return res.status(404).json({ error: 'Cache not found' });
       }
-      const data = await fs.promises.readFile(filePath, "utf8");
+      const data = await fs.promises.readFile(filePath, 'utf8');
       res.json(JSON.parse(data));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post("/api/sl/cache/texture", async (req, res) => {
+  app.post('/api/sl/cache/texture', async (req, res) => {
     try {
       const { uuid, dataUrl, customPath } = req.body || {};
-      if (!uuid || !dataUrl) return res.status(400).json({ error: "Missing uuid or dataUrl" });
-      const texDir = path.join(getCacheDir(customPath), "textures");
+      if (!uuid || !dataUrl) return res.status(400).json({ error: 'Missing uuid or dataUrl' });
+      const texDir = path.join(getCacheDir(customPath), 'textures');
       await fs.promises.mkdir(texDir, { recursive: true });
-      await fs.promises.writeFile(path.join(texDir, `${uuid}.txt`), dataUrl, "utf8");
+      await fs.promises.writeFile(path.join(texDir, `${uuid}.txt`), dataUrl, 'utf8');
       res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post("/api/sl/cache/clear", async (req, res) => {
+  app.post('/api/sl/cache/clear', async (req, res) => {
     try {
       const { customPath } = req.body || {};
       const cacheDir = getCacheDir(customPath);
@@ -257,20 +287,20 @@ export async function createApp() {
   });
 
   // LLSD assistant status. This only explains pasted LLSD; it cannot stand in for a grid.
-  app.get("/api/gemini/status", (req, res) => {
+  app.get('/api/gemini/status', (req, res) => {
     res.json({
-      status: "ok",
-      purpose: "LLSD explanation assistant",
-      model: "gemini-3.8-flash",
+      status: 'ok',
+      purpose: 'LLSD explanation assistant',
+      model: 'gemini-3.8-flash',
       apiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
     });
   });
 
   // LLSD explanation assistant
-  app.post("/api/gemini/llsd", async (req, res) => {
+  app.post('/api/gemini/llsd', async (req, res) => {
     try {
-      const { data, task = "Parse and explain this LLSD structure" } = req.body || {};
-      const result = await processLLSDWithGemini(data || "", task);
+      const { data, task = 'Parse and explain this LLSD structure' } = req.body || {};
+      const result = await processLLSDWithGemini(data || '', task);
       res.json({ result });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -278,11 +308,17 @@ export async function createApp() {
   });
 
   // CORS Proxy Endpoint. Failures are reported as failures; nothing is synthesized.
-  app.all("/api/proxy", async (req, res) => {
+  app.all('/api/proxy', async (req, res) => {
     const targetUrl = (req.query.url || req.body?.url) as string;
     let target: URL | null = null;
     const host = req.headers.host || 'localhost:3000';
-    const proto = (req.headers['x-forwarded-proto'] as string) || (req.secure ? 'https' : (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'));
+    const proto =
+      (req.headers['x-forwarded-proto'] as string) ||
+      (req.secure
+        ? 'https'
+        : host.includes('localhost') || host.includes('127.0.0.1')
+          ? 'http'
+          : 'https');
 
     try {
       if (targetUrl) {
@@ -305,26 +341,31 @@ export async function createApp() {
 
     // Determine the body to forward
     let forwardData = req.body;
-    
+
     // Handle Buffer from express.raw()
     if (Buffer.isBuffer(req.body)) {
       forwardData = req.body;
     }
-    
-    // If req.body is an empty object (from express.json() default), 
+
+    // If req.body is an empty object (from express.json() default),
     // but the request actually had no body, we should send undefined
-    if (req.method === 'GET' || (!Buffer.isBuffer(req.body) && typeof req.body === 'object' && Object.keys(req.body).length === 0)) {
+    if (
+      req.method === 'GET' ||
+      (!Buffer.isBuffer(req.body) &&
+        typeof req.body === 'object' &&
+        Object.keys(req.body).length === 0)
+    ) {
       forwardData = undefined;
     }
 
     const xmlBodyStr = Buffer.isBuffer(forwardData)
       ? forwardData.toString('utf8')
       : typeof forwardData === 'string'
-      ? forwardData
-      : JSON.stringify(forwardData || '');
+        ? forwardData
+        : JSON.stringify(forwardData || '');
 
     if (!target) {
-      return res.status(400).json({ error: "Missing proxy target URL" });
+      return res.status(400).json({ error: 'Missing proxy target URL' });
     }
 
     try {
@@ -332,10 +373,10 @@ export async function createApp() {
         method: req.method,
         url: target.toString(),
         data: forwardData,
-        responseType: "arraybuffer",
+        responseType: 'arraybuffer',
         headers: {
-          "Accept": String(req.headers.accept || "text/xml, application/xml"),
-          "Content-Type": String(req.headers["content-type"] || "text/xml"),
+          Accept: String(req.headers.accept || 'text/xml, application/xml'),
+          'Content-Type': String(req.headers['content-type'] || 'text/xml'),
         },
         timeout: 15000,
         maxContentLength: 50 * 1024 * 1024,
@@ -343,9 +384,9 @@ export async function createApp() {
         maxRedirects: 0,
       });
 
-      const contentType = response.headers["content-type"];
+      const contentType = response.headers['content-type'];
       if (contentType) {
-        res.setHeader("Content-Type", contentType as string);
+        res.setHeader('Content-Type', contentType as string);
       }
       const permit = extractSeedCapability(Buffer.from(response.data).toString('utf8'));
       const token = permits.issue(permit);
@@ -353,14 +394,14 @@ export async function createApp() {
         res.setHeader('X-Linkpoint-Capability-Permit', token);
         res.setHeader('Access-Control-Expose-Headers', 'X-Linkpoint-Capability-Permit');
       }
-      
+
       res.send(response.data);
     } catch (error: any) {
       // An unreachable grid is reported as exactly that. The proxy never invents
       // a login reply, so a failed connection can never look like a successful one.
       console.warn(`[Proxy] Target ${target.hostname} unreachable (${error.message}).`);
       res.status(error.response?.status || 502).json({
-        error: "Failed to fetch target URL",
+        error: 'Failed to fetch target URL',
         message: error.message,
       });
     }
@@ -368,11 +409,15 @@ export async function createApp() {
 
   // Handle payload too large or body-parser errors gracefully
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (err?.type === 'entity.too.large' || err?.status === 413 || err?.name === 'PayloadTooLargeError') {
+    if (
+      err?.type === 'entity.too.large' ||
+      err?.status === 413 ||
+      err?.name === 'PayloadTooLargeError'
+    ) {
       console.warn(`[Server] Request entity too large (${req.method} ${req.url})`);
       res.status(413).json({
-        error: "Payload too large",
-        message: "The submitted request body exceeds the size limit.",
+        error: 'Payload too large',
+        message: 'The submitted request body exceeds the size limit.',
       });
       return;
     }
@@ -380,15 +425,15 @@ export async function createApp() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production" && !process.env.VITEST) {
-    console.log("[Server] Mounting Vite middleware...");
+  if (process.env.NODE_ENV !== 'production' && !process.env.VITEST) {
+    console.log('[Server] Mounting Vite middleware...');
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    console.log("[Server] Serving static files from dist...");
+    console.log('[Server] Serving static files from dist...');
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -420,7 +465,7 @@ async function startServer() {
         try {
           const config = JSON.parse(message.toString()) as { ip?: unknown; port?: unknown };
           if (!config.ip || !config.port) {
-            throw new Error("Missing ip or port");
+            throw new Error('Missing ip or port');
           }
           if (
             typeof config.ip !== 'string' ||
@@ -429,7 +474,7 @@ async function startServer() {
             config.port < 1 ||
             config.port > 65_535
           ) {
-            throw new Error("Invalid ip or port");
+            throw new Error('Invalid ip or port');
           }
           targetIp = config.ip;
           targetPort = config.port;
@@ -447,10 +492,10 @@ async function startServer() {
             ws.close();
           });
 
-          ws.send(JSON.stringify({ status: "connected" }));
+          ws.send(JSON.stringify({ status: 'connected' }));
           console.log(`[UDP Proxy] Bridged to ${targetIp}:${targetPort}`);
         } catch (e) {
-          console.error("[UDP Proxy] Invalid initialization message:", e);
+          console.error('[UDP Proxy] Invalid initialization message:', e);
           ws.close();
         }
       } else {
@@ -465,7 +510,7 @@ async function startServer() {
             datagram = Buffer.concat(message);
           }
           udpSocket.send(datagram, targetPort, targetIp, (err) => {
-             if (err) console.error("[UDP Proxy] Send error:", err);
+            if (err) console.error('[UDP Proxy] Send error:', err);
           });
         }
       }
@@ -479,7 +524,7 @@ async function startServer() {
     });
   });
 
-  server.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`[Server] Running on http://localhost:${PORT}`);
   });
 
@@ -498,6 +543,6 @@ async function startServer() {
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   startServer().catch((err) => {
-    console.error("[Server] Failed to start:", err);
+    console.error('[Server] Failed to start:', err);
   });
 }

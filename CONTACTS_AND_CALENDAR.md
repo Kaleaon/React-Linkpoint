@@ -15,7 +15,7 @@ Both work with no account. Google is an optional extra, off until you turn it on
   - Discord: a numeric user id or `discord.com/users/<id>` link (these open the profile), or
     a username (kept as text; Discord cannot link to a username).
   - Website: any `http(s)` address.
-  Input is validated, and only `http(s)` links are ever opened (never `javascript:` or `data:`).
+    Input is validated, and only `http(s)` links are ever opened (never `javascript:` or `data:`).
 - **Photos** are ones you pick (resized to 256 px on the device) or **Use profile picture**, which
   fetches the resident's public Second Life web profile picture if they have one. A resident
   without one is reported as having none; no image is generated or substituted. Initials are
@@ -42,10 +42,10 @@ Both work with no account. Google is an optional extra, off until you turn it on
 Off by default. Turning it on does not sign you in; sign-in happens only when you use a Google
 action, and each action asks Google for just what it needs:
 
-| Action | Access requested |
-| --- | --- |
-| Copy contacts to Google Contacts | `auth/contacts` |
-| Add notices to Google Calendar | `auth/calendar.events` |
+| Action                           | Access requested       |
+| -------------------------------- | ---------------------- |
+| Copy contacts to Google Contacts | `auth/contacts`        |
+| Add notices to Google Calendar   | `auth/calendar.events` |
 
 Turning the setting off signs you out. Access tokens are kept in memory only. Nothing is sent to
 Google until you press a Google button. Copying a contact sends its name, Second Life UUID, web
@@ -59,7 +59,7 @@ This repository ships `firebase-applet-config.json`. Firebase web keys are meant
 you should restrict the key to your site's address in the Google Cloud console. For sign-in to work
 the Google Cloud project needs the People API and Google Calendar API enabled, the Google sign-in
 provider enabled in Firebase Authentication, and an OAuth consent screen that lists the two scopes
-above. Both are *sensitive* scopes, so a public release needs Google's app verification; until
+above. Both are _sensitive_ scopes, so a public release needs Google's app verification; until
 then only listed test users can sign in.
 
 ## Not verified

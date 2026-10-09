@@ -143,7 +143,9 @@ describe('InventoryTree DOM Virtualization & Viewport Windowing', () => {
     app.inventory.folders.set('folder-perf', folderPerf);
 
     const host = await mount();
-    const expandBtn = host.querySelector('button[aria-label="Expand Performance Folder"]') as HTMLButtonElement;
+    const expandBtn = host.querySelector(
+      'button[aria-label="Expand Performance Folder"]',
+    ) as HTMLButtonElement;
 
     // Measure JS calculation time for virtual tree processing during folder expansion
     const startExpand = performance.now();
@@ -155,7 +157,9 @@ describe('InventoryTree DOM Virtualization & Viewport Windowing', () => {
     // Folder open transition (virtual node calculation) must complete smoothly (< 300ms in jsdom test suite, < 1ms in browser)
     expect(expandDuration).toBeLessThan(500);
 
-    const collapseBtn = host.querySelector('button[aria-label="Collapse Performance Folder"]') as HTMLButtonElement;
+    const collapseBtn = host.querySelector(
+      'button[aria-label="Collapse Performance Folder"]',
+    ) as HTMLButtonElement;
     const startCollapse = performance.now();
     await act(async () => {
       collapseBtn.click();

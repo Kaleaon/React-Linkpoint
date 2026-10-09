@@ -17,7 +17,7 @@ export const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
   info: 1,
   warn: 2,
   error: 3,
-  fatal: 4
+  fatal: 4,
 };
 
 export const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error', 'fatal'];
@@ -33,7 +33,7 @@ export const LOG_COMPONENTS = {
   ARCHIVER: 'ARCHIVER',
   CACHE: 'CACHE',
   HYPERGRID: 'HYPERGRID',
-  CONSOLE: 'CONSOLE'
+  CONSOLE: 'CONSOLE',
 } as const;
 
 export interface LogEntry {
@@ -96,7 +96,12 @@ export class GridConsole extends Utils.EventEmitter {
   }
 
   /** Record an entry. Returns null when the level is below the threshold. */
-  public log(level: LogLevel, component: string, message: string, detail?: string): LogEntry | null {
+  public log(
+    level: LogLevel,
+    component: string,
+    message: string,
+    detail?: string,
+  ): LogEntry | null {
     if (LOG_LEVEL_ORDER[level] < LOG_LEVEL_ORDER[this.minLevel]) {
       return null;
     }
@@ -107,7 +112,7 @@ export class GridConsole extends Utils.EventEmitter {
       level,
       component,
       message,
-      ...(detail ? { detail } : {})
+      ...(detail ? { detail } : {}),
     };
 
     this.entries.push(entry);
@@ -174,17 +179,18 @@ export class GridConsole extends Utils.EventEmitter {
 
     if (filter?.level) {
       const threshold = LOG_LEVEL_ORDER[filter.level];
-      result = result.filter(e => LOG_LEVEL_ORDER[e.level] >= threshold);
+      result = result.filter((e) => LOG_LEVEL_ORDER[e.level] >= threshold);
     }
     if (filter?.component) {
-      result = result.filter(e => e.component === filter.component);
+      result = result.filter((e) => e.component === filter.component);
     }
     if (filter?.search) {
       const needle = filter.search.toLowerCase();
-      result = result.filter(e =>
-        e.message.toLowerCase().includes(needle) ||
-        e.component.toLowerCase().includes(needle) ||
-        (e.detail ? e.detail.toLowerCase().includes(needle) : false)
+      result = result.filter(
+        (e) =>
+          e.message.toLowerCase().includes(needle) ||
+          e.component.toLowerCase().includes(needle) ||
+          (e.detail ? e.detail.toLowerCase().includes(needle) : false),
       );
     }
 
@@ -205,7 +211,7 @@ export class GridConsole extends Utils.EventEmitter {
   }
 
   public getComponents(): string[] {
-    return Array.from(new Set(this.entries.map(e => e.component))).sort();
+    return Array.from(new Set(this.entries.map((e) => e.component))).sort();
   }
 
   public clear() {
@@ -241,7 +247,7 @@ export class GridConsole extends Utils.EventEmitter {
   /** Export the (optionally filtered) log as plain text for copy or download. */
   public toText(filter?: LogFilter): string {
     return this.getEntries(filter)
-      .map(entry => formatLogEntry(entry, true))
+      .map((entry) => formatLogEntry(entry, true))
       .join('\n');
   }
 
@@ -263,7 +269,7 @@ export class GridConsole extends Utils.EventEmitter {
       this.captureError(
         LOG_COMPONENTS.CONSOLE,
         `Uncaught error: ${event.message || 'unknown error'}`,
-        event.error ?? event.message
+        event.error ?? event.message,
       );
     };
     const onRejection = (event: PromiseRejectionEvent) => {

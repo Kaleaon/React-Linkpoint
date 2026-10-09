@@ -16,9 +16,24 @@ class ProtocolStub extends Utils.EventEmitter {
 function emptyAnim() {
   const out: number[] = [1, 0, 0, 0];
   const dv = new DataView(new ArrayBuffer(4));
-  const i32 = (v: number) => { dv.setInt32(0, v, true); out.push(...new Uint8Array(dv.buffer)); };
-  const f32 = (v: number) => { dv.setFloat32(0, v, true); out.push(...new Uint8Array(dv.buffer)); };
-  i32(1); f32(1); out.push(0); f32(0); f32(1); i32(0); f32(0); f32(0); i32(0); i32(0);
+  const i32 = (v: number) => {
+    dv.setInt32(0, v, true);
+    out.push(...new Uint8Array(dv.buffer));
+  };
+  const f32 = (v: number) => {
+    dv.setFloat32(0, v, true);
+    out.push(...new Uint8Array(dv.buffer));
+  };
+  i32(1);
+  f32(1);
+  out.push(0);
+  f32(0);
+  f32(1);
+  i32(0);
+  f32(0);
+  f32(0);
+  i32(0);
+  i32(0);
   return new Uint8Array(out);
 }
 
@@ -38,16 +53,22 @@ describe('animation loading for the world', () => {
     const protocol = new ProtocolStub();
     protocol.fetchAnimation.mockRejectedValue(new Error('boom'));
     const world = new WorldViewer(protocol);
-    expect(await (world as any).animationLoader()('11111111-2222-3333-4444-555555555555')).toBeNull();
+    expect(
+      await (world as any).animationLoader()('11111111-2222-3333-4444-555555555555'),
+    ).toBeNull();
     const bare = new WorldViewer(new Utils.EventEmitter() as any);
-    expect(await (bare as any).animationLoader()('11111111-2222-3333-4444-555555555555')).toBeNull();
+    expect(
+      await (bare as any).animationLoader()('11111111-2222-3333-4444-555555555555'),
+    ).toBeNull();
     warn.mockRestore();
   });
 });
 
 describe('downloadAnimation', () => {
   const id = '11111111-2222-3333-4444-555555555555';
-  const botWith = (impl: (type: number, id: string) => Promise<Buffer>) => ({ clientCommands: { asset: { downloadAsset: vi.fn(impl) } } });
+  const botWith = (impl: (type: number, id: string) => Promise<Buffer>) => ({
+    clientCommands: { asset: { downloadAsset: vi.fn(impl) } },
+  });
 
   it('returns the asset base64-encoded', async () => {
     const bot = botWith(async () => Buffer.from([1, 2, 3]));
@@ -56,9 +77,24 @@ describe('downloadAnimation', () => {
   });
 
   it('rejects bad ids, empty and oversized assets, and a missing session', async () => {
-    await expect(downloadAnimation(botWith(async () => Buffer.from([1])), '../../etc/passwd')).rejects.toThrow('Invalid animation id');
-    await expect(downloadAnimation(botWith(async () => Buffer.alloc(0)), id)).rejects.toThrow('empty');
-    await expect(downloadAnimation(botWith(async () => Buffer.alloc(3 * 1024 * 1024)), id)).rejects.toThrow('too large');
+    await expect(
+      downloadAnimation(
+        botWith(async () => Buffer.from([1])),
+        '../../etc/passwd',
+      ),
+    ).rejects.toThrow('Invalid animation id');
+    await expect(
+      downloadAnimation(
+        botWith(async () => Buffer.alloc(0)),
+        id,
+      ),
+    ).rejects.toThrow('empty');
+    await expect(
+      downloadAnimation(
+        botWith(async () => Buffer.alloc(3 * 1024 * 1024)),
+        id,
+      ),
+    ).rejects.toThrow('too large');
     await expect(downloadAnimation(null, id)).rejects.toThrow('Not connected');
   });
 });

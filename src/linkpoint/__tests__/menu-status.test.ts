@@ -4,15 +4,25 @@ import { formatLatency, liveRegionName, formatSlt } from '../../components/menuS
 describe('menu bar status', () => {
   it('shows latency only for a real measurement', () => {
     expect(formatLatency({ latencyMs: 87.4 })).toBe('87 ms');
-    for (const value of [null, undefined, 0, -5, Number.NaN, '54', Infinity]) expect(formatLatency({ latencyMs: value })).toBeNull();
+    for (const value of [null, undefined, 0, -5, Number.NaN, '54', Infinity])
+      expect(formatLatency({ latencyMs: value })).toBeNull();
     expect(formatLatency(null)).toBeNull();
     expect(formatLatency({})).toBeNull();
   });
 
   it('never invents a region name', () => {
-    expect(liveRegionName({ protocol: { authReply: { sim_name: ' Ahern ' } }, world: {} })).toBe('Ahern');
-    expect(liveRegionName({ protocol: {}, world: { region: { name: 'Da Boom' } } })).toBe('Da Boom');
-    expect(liveRegionName({ protocol: { authReply: { sim_name: '' } }, world: { region: { name: '  ' } } })).toBeNull();
+    expect(liveRegionName({ protocol: { authReply: { sim_name: ' Ahern ' } }, world: {} })).toBe(
+      'Ahern',
+    );
+    expect(liveRegionName({ protocol: {}, world: { region: { name: 'Da Boom' } } })).toBe(
+      'Da Boom',
+    );
+    expect(
+      liveRegionName({
+        protocol: { authReply: { sim_name: '' } },
+        world: { region: { name: '  ' } },
+      }),
+    ).toBeNull();
     expect(liveRegionName({ protocol: {}, world: {} })).toBeNull();
     expect(liveRegionName(undefined)).toBeNull();
   });

@@ -31,7 +31,8 @@ export interface WorkerWriteResponse {
 
 export class IDBWorkerBridge {
   private worker: Worker | null = null;
-  private pending: Map<string, { resolve: (val: any) => void; reject: (err: any) => void }> = new Map();
+  private pending: Map<string, { resolve: (val: any) => void; reject: (err: any) => void }> =
+    new Map();
 
   constructor() {
     this.initWorker();
@@ -102,7 +103,9 @@ export class IDBWorkerBridge {
     return indexedDBStore.deleteContact(agentId, contactId);
   }
 
-  public async checkQuotaAndEvict(agentId?: string): Promise<{ evicted: number; remainingMb: number }> {
+  public async checkQuotaAndEvict(
+    agentId?: string,
+  ): Promise<{ evicted: number; remainingMb: number }> {
     return indexedDBStore.checkQuotaAndEvict(agentId);
   }
 

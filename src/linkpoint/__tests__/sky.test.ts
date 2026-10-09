@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
-  WATER_WAVES, DEFAULT_WATER_HEIGHT, computeSkyUniforms, computeWaterUniforms, createSkyDome, createStarField,
-  createWaterPlane, isUnderWater, readScalar, readVec3,
+  WATER_WAVES,
+  DEFAULT_WATER_HEIGHT,
+  computeSkyUniforms,
+  computeWaterUniforms,
+  createSkyDome,
+  createStarField,
+  createWaterPlane,
+  isUnderWater,
+  readScalar,
+  readVec3,
 } from '../sky';
 
 describe('computeSkyUniforms', () => {
@@ -86,7 +94,8 @@ describe('water', () => {
   it('builds a horizontal plane covering the region', () => {
     const { vertices, indices } = createWaterPlane();
     expect(indices.length).toBe(6);
-    const xs = vertices.filter((_, i) => i % 3 === 0), ys = vertices.filter((_, i) => i % 3 === 1);
+    const xs = vertices.filter((_, i) => i % 3 === 0),
+      ys = vertices.filter((_, i) => i % 3 === 1);
     expect(Math.min(...xs)).toBeLessThan(0);
     expect(Math.max(...xs)).toBeGreaterThan(256);
     expect(Math.min(...ys)).toBeLessThan(0);
@@ -98,22 +107,30 @@ describe('sky geometry', () => {
   it('builds a closed unit icosphere with inward-facing triangles', () => {
     const { vertices, indices } = createSkyDome(2);
     expect(indices.length / 3).toBe(20 * 4 * 4);
-    for (let i = 0; i < vertices.length; i += 3) expect(Math.hypot(vertices[i], vertices[i + 1], vertices[i + 2])).toBeCloseTo(1, 6);
+    for (let i = 0; i < vertices.length; i += 3)
+      expect(Math.hypot(vertices[i], vertices[i + 1], vertices[i + 2])).toBeCloseTo(1, 6);
 
     const edges = new Map<string, number>();
     let outward = 0;
     for (let i = 0; i < indices.length; i += 3) {
       const tri = [indices[i], indices[i + 1], indices[i + 2]];
       for (let k = 0; k < 3; k++) {
-        const a = tri[k], b = tri[(k + 1) % 3];
+        const a = tri[k],
+          b = tri[(k + 1) % 3];
         const key = a < b ? `${a}:${b}` : `${b}:${a}`;
         edges.set(key, (edges.get(key) || 0) + 1);
       }
       const p = tri.map((index) => vertices.slice(index * 3, index * 3 + 3));
-      const u = p[1].map((v, axis) => v - p[0][axis]), w = p[2].map((v, axis) => v - p[0][axis]);
-      const normal = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+      const u = p[1].map((v, axis) => v - p[0][axis]),
+        w = p[2].map((v, axis) => v - p[0][axis]);
+      const normal = [
+        u[1] * w[2] - u[2] * w[1],
+        u[2] * w[0] - u[0] * w[2],
+        u[0] * w[1] - u[1] * w[0],
+      ];
       const centroid = [0, 1, 2].map((axis) => p[0][axis] + p[1][axis] + p[2][axis]);
-      if (normal[0] * centroid[0] + normal[1] * centroid[1] + normal[2] * centroid[2] > 0) outward++;
+      if (normal[0] * centroid[0] + normal[1] * centroid[1] + normal[2] * centroid[2] > 0)
+        outward++;
     }
     expect([...edges.values()].every((count) => count === 2)).toBe(true); // watertight
     expect(outward).toBe(0);
@@ -126,7 +143,8 @@ describe('sky geometry', () => {
   });
 
   it('places a deterministic star field on the unit sphere, covering both hemispheres', () => {
-    const a = createStarField(500), b = createStarField(500);
+    const a = createStarField(500),
+      b = createStarField(500);
     expect(a.vertices).toEqual(b.vertices);
     expect(a.indices).toEqual(Array.from({ length: 500 }, (_, i) => i));
     let up = 0;

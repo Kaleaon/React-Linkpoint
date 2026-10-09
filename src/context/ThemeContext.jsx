@@ -1,6 +1,6 @@
-import { createContext, useContext, useMemo } from "react";
-import { useApp } from "./AppContext.jsx";
-import { computeTheme } from "../theme/computeTheme.js";
+import { createContext, useContext, useMemo } from 'react';
+import { useApp } from './AppContext.jsx';
+import { computeTheme } from '../theme/computeTheme.js';
 
 /** @typedef {ReturnType<typeof computeTheme>} ThemeContextValue */
 /** @type {import("react").Context<ThemeContextValue | null>} */
@@ -15,6 +15,6 @@ export function ThemeProvider({ children }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used inside <ThemeProvider>");
+  if (!ctx) throw new Error('useTheme must be used inside <ThemeProvider>');
   return ctx;
 }

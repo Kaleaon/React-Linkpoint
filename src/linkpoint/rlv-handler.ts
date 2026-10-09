@@ -17,7 +17,13 @@
  * restrictions, force and reply forms answer `FAILED_UNSUPPORTED` (replies still send an empty answer so
  * a script waiting on its channel does not hang), and no enforcement exists for them.
  */
-import { RLV_ANONYMS, RLV_BEHAVIOURS, RLV_STRINGS, RLV_SYNONYMS, type RlvOptionKind } from './rlv-data';
+import {
+  RLV_ANONYMS,
+  RLV_BEHAVIOURS,
+  RLV_STRINGS,
+  RLV_SYNONYMS,
+  type RlvOptionKind,
+} from './rlv-data';
 import { Utils } from './utils';
 
 /** Specification version reported by `@version*` (`RLV_VERSION_*`) and the RLVa implementation it follows. */
@@ -39,7 +45,17 @@ export const DEFAULT_FIELD_OF_VIEW = 1.04719755;
 export const IMG_DEFAULT = 'd2114404-dd59-4a4d-8e6c-49359e91bbf0';
 
 /** Chat types as the simulator numbers them. */
-export const CHAT_TYPE = { WHISPER: 0, NORMAL: 1, SHOUT: 2, START: 4, STOP: 5, DEBUG: 6, REGION: 7, OWNER: 8, DIRECT: 9 } as const;
+export const CHAT_TYPE = {
+  WHISPER: 0,
+  NORMAL: 1,
+  SHOUT: 2,
+  START: 4,
+  STOP: 5,
+  DEBUG: 6,
+  REGION: 7,
+  OWNER: 8,
+  DIRECT: 9,
+} as const;
 export const CHAT_SOURCE = { SYSTEM: 0, AGENT: 1, OBJECT: 2 } as const;
 
 /** `ERlvCmdRet`. `FAILED_UNSUPPORTED` is ours: the command is valid but this viewer has no inventory or outfit to act on. */
@@ -66,31 +82,49 @@ export const RlvRet = {
   FAILED_THROTTLED: 0x020c,
   FAILED_UNSUPPORTED: 0x020d,
 } as const;
-export type RlvRetCode = typeof RlvRet[keyof typeof RlvRet];
+export type RlvRetCode = (typeof RlvRet)[keyof typeof RlvRet];
 export const rlvSucceeded = (ret: number) => (ret & RlvRet.SUCCESS) === RlvRet.SUCCESS;
 export const rlvFailed = (ret: number) => (ret & RlvRet.FAILED) === RlvRet.FAILED;
 
 /** `RlvStrings::getStringFromReturnCode` (debug output). */
 export function rlvReturnText(ret: number): string | null {
   switch (ret) {
-    case RlvRet.SUCCESS_UNSET: return 'unset';
-    case RlvRet.SUCCESS_DUPLICATE: return 'duplicate';
-    case RlvRet.SUCCESS_DELAYED: return 'delayed';
-    case RlvRet.SUCCESS_DEPRECATED: return 'deprecated';
-    case RlvRet.FAILED_SYNTAX: return 'syntax error';
-    case RlvRet.FAILED_OPTION: return 'invalid option';
-    case RlvRet.FAILED_PARAM: return 'invalid param';
-    case RlvRet.FAILED_LOCK: return 'locked command';
-    case RlvRet.FAILED_DISABLED: return 'disabled command';
-    case RlvRet.FAILED_UNKNOWN: return 'unknown command';
-    case RlvRet.FAILED_NOSHAREDROOT: return 'missing #RLV';
-    case RlvRet.FAILED_DEPRECATED: return 'deprecated and disabled';
-    case RlvRet.FAILED_NOBEHAVIOUR: return 'no active behaviours';
-    case RlvRet.FAILED_UNHELDBEHAVIOUR: return 'base behaviour not held';
-    case RlvRet.FAILED_BLOCKED: return 'blocked object';
-    case RlvRet.FAILED_THROTTLED: return 'throttled';
-    case RlvRet.FAILED_UNSUPPORTED: return 'not supported by this viewer';
-    default: return null;
+    case RlvRet.SUCCESS_UNSET:
+      return 'unset';
+    case RlvRet.SUCCESS_DUPLICATE:
+      return 'duplicate';
+    case RlvRet.SUCCESS_DELAYED:
+      return 'delayed';
+    case RlvRet.SUCCESS_DEPRECATED:
+      return 'deprecated';
+    case RlvRet.FAILED_SYNTAX:
+      return 'syntax error';
+    case RlvRet.FAILED_OPTION:
+      return 'invalid option';
+    case RlvRet.FAILED_PARAM:
+      return 'invalid param';
+    case RlvRet.FAILED_LOCK:
+      return 'locked command';
+    case RlvRet.FAILED_DISABLED:
+      return 'disabled command';
+    case RlvRet.FAILED_UNKNOWN:
+      return 'unknown command';
+    case RlvRet.FAILED_NOSHAREDROOT:
+      return 'missing #RLV';
+    case RlvRet.FAILED_DEPRECATED:
+      return 'deprecated and disabled';
+    case RlvRet.FAILED_NOBEHAVIOUR:
+      return 'no active behaviours';
+    case RlvRet.FAILED_UNHELDBEHAVIOUR:
+      return 'base behaviour not held';
+    case RlvRet.FAILED_BLOCKED:
+      return 'blocked object';
+    case RlvRet.FAILED_THROTTLED:
+      return 'throttled';
+    case RlvRet.FAILED_UNSUPPORTED:
+      return 'not supported by this viewer';
+    default:
+      return null;
   }
 }
 
@@ -98,7 +132,11 @@ export function rlvReturnText(ret: number): string | null {
 
 export type RlvParamType = 'add' | 'remove' | 'clear' | 'force' | 'reply' | 'unknown';
 
-export interface ParsedCommand { behaviour: string; option: string; param: string }
+export interface ParsedCommand {
+  behaviour: string;
+  option: string;
+  param: string;
+}
 
 /** `RlvCommand::parseCommand`: `<behaviour>[:<option>]=<param>`. Null when improperly formatted. */
 export function parseCommand(command: string): ParsedCommand | null {
@@ -108,13 +146,18 @@ export function parseCommand(command: string): ParsedCommand | null {
   // A missing <behaviour> is always malformed
   if (idxOption === 0 || idxParam === 0) return null;
 
-  const behaviour = command.slice(0, idxOption !== -1 ? idxOption : (idxParam === -1 ? command.length : idxParam));
+  const behaviour = command.slice(
+    0,
+    idxOption !== -1 ? idxOption : idxParam === -1 ? command.length : idxParam,
+  );
   // A missing <param> is malformed, except for "clear" (and "clear:<filter>")
   if (idxParam === -1 || command.length - 1 === idxParam) {
-    if (behaviour === 'clear' && (idxOption === 0 || idxParam !== 0)) return { behaviour, option: '', param: '' };
+    if (behaviour === 'clear' && (idxOption === 0 || idxParam !== 0))
+      return { behaviour, option: '', param: '' };
     return null;
   }
-  const option = idxOption !== -1 && idxOption + 1 !== idxParam ? command.slice(idxOption + 1, idxParam) : '';
+  const option =
+    idxOption !== -1 && idxOption + 1 !== idxParam ? command.slice(idxOption + 1, idxParam) : '';
   return { behaviour, option, param: command.slice(idxParam + 1) };
 }
 
@@ -130,20 +173,33 @@ export class RlvCommand {
   /** Whether the reference count was taken for this command (`isRefCounted`). */
   refCounted = false;
 
-  constructor(readonly objectId: string, command: string) {
+  constructor(
+    readonly objectId: string,
+    command: string,
+  ) {
     const parsed = parseCommand(command);
-    if (!parsed) { this.valid = false; return; }
-    this.behaviour = parsed.behaviour; this.option = parsed.option; this.param = parsed.param;
+    if (!parsed) {
+      this.valid = false;
+      return;
+    }
+    this.behaviour = parsed.behaviour;
+    this.option = parsed.option;
+    this.param = parsed.param;
     let type: RlvParamType;
     if (this.param === 'n' || this.param === 'add') type = 'add';
     else if (this.param === 'y' || this.param === 'rem') type = 'remove';
     else if (this.behaviour === 'clear') type = 'clear';
     else if (this.param === 'force') type = 'force';
-    else if (/^[+-]?\d+$/.test(this.param) && Number.isSafeInteger(Number(this.param))) type = 'reply';
+    else if (/^[+-]?\d+$/.test(this.param) && Number.isSafeInteger(Number(this.param)))
+      type = 'reply';
     else type = 'unknown';
     this.type = type;
     this.valid = type !== 'unknown';
-    if (!this.valid) { this.option = ''; this.param = ''; return; }
+    if (!this.valid) {
+      this.option = '';
+      this.param = '';
+      return;
+    }
     const looked = lookupBehaviour(this.behaviour, type);
     this.strict = looked.strict;
     this.name = looked.name;
@@ -151,15 +207,21 @@ export class RlvCommand {
 
   /** `RlvCommand::asString`: how the command is shown in `@getstatus` and used by `@clear:<filter>`. */
   asString(): string {
-    if (this.type !== 'clear') return this.option ? `${this.behaviour}:${this.option}` : this.behaviour;
+    if (this.type !== 'clear')
+      return this.option ? `${this.behaviour}:${this.option}` : this.behaviour;
     return this.param ? `${this.behaviour}:${this.param}` : this.behaviour;
   }
 
-  get hasOption() { return this.option !== ''; }
+  get hasOption() {
+    return this.option !== '';
+  }
 }
 
 /** `RlvBehaviourDictionary::getBehaviourInfo`: handles the `_sec` strict suffix and synonyms. */
-export function lookupBehaviour(behaviour: string, type: RlvParamType): { name: string | null; strict: boolean } {
+export function lookupBehaviour(
+  behaviour: string,
+  type: RlvParamType,
+): { name: string | null; strict: boolean } {
   const wanted = type === 'force' ? 'force' : type === 'reply' ? 'reply' : 'add';
   const underscore = behaviour.lastIndexOf('_');
   const strict = underscore !== -1 && behaviour.slice(underscore + 1) === 'sec';
@@ -170,52 +232,221 @@ export function lookupBehaviour(behaviour: string, type: RlvParamType): { name: 
   return { name: RLV_SYNONYMS[base] ?? base, strict };
 }
 
-const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-const parseIntStrict = (value: string): number | null => (/^\s*[+-]?\d+/.test(value) ? parseInt(value, 10) : null);
-const parseFloatStrict = (value: string): number | null => { const n = Number.parseFloat(value); return Number.isNaN(n) ? null : n; };
-const isEmote = (text: string) => text.length > 4 && (text.startsWith('/me ') || text.startsWith("/me'"));
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const parseIntStrict = (value: string): number | null =>
+  /^\s*[+-]?\d+/.test(value) ? parseInt(value, 10) : null;
+const parseFloatStrict = (value: string): number | null => {
+  const n = Number.parseFloat(value);
+  return Number.isNaN(n) ? null : n;
+};
+const isEmote = (text: string) =>
+  text.length > 4 && (text.startsWith('/me ') || text.startsWith("/me'"));
 /** `RlvUtil::isValidReplyChannel`. */
-export const isValidReplyChannel = (channel: number, loopback = false) => channel > (loopback ? -1 : 0) && channel !== CHAT_CHANNEL_DEBUG;
+export const isValidReplyChannel = (channel: number, loopback = false) =>
+  channel > (loopback ? -1 : 0) && channel !== CHAT_CHANNEL_DEBUG;
 
 // ---- modifiers --------------------------------------------------------------------------------------
 
 type ModValue = number | readonly number[] | string;
 type ModKind = 'number' | 'vec3' | 'uuid';
-interface ModifierDef { name: string; kind: ModKind; defaultValue: ModValue; addDefault: boolean; cmp: 'min' | 'max' | null }
-interface ModEntry { value: ModValue; objectId: string; behaviour: string }
+interface ModifierDef {
+  name: string;
+  kind: ModKind;
+  defaultValue: ModValue;
+  addDefault: boolean;
+  cmp: 'min' | 'max' | null;
+}
+interface ModEntry {
+  value: ModValue;
+  objectId: string;
+  behaviour: string;
+}
 
 const F32_MAX = 3.4028234663852886e38;
 /** `RlvBehaviourDictionary` modifier registrations (`addModifier`). */
 const MODIFIERS: Record<string, ModifierDef & { behaviour: string }> = {
-  fartouchdist: { behaviour: 'fartouch', name: 'Fartouch Distance', kind: 'number', defaultValue: RLV_FARTOUCH_DEFAULT, addDefault: true, cmp: 'min' },
-  recvimdistmin: { behaviour: 'recvim', name: 'RecvIM Distance (Min)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'max' },
-  recvimdistmax: { behaviour: 'recvim', name: 'RecvIM Distance (Max)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'min' },
-  sendimdistmin: { behaviour: 'sendim', name: 'SendIM Distance (Min)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'max' },
-  sendimdistmax: { behaviour: 'sendim', name: 'SendIM Distance (Max)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'min' },
-  startimdistmin: { behaviour: 'startim', name: 'StartIM Distance (Min)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'max' },
-  startimdistmax: { behaviour: 'startim', name: 'StartIM Distance (Max)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'min' },
-  shownametagsdist: { behaviour: 'shownametags', name: 'Name Tags - Visible Distance', kind: 'number', defaultValue: 0, addDefault: true, cmp: 'min' },
-  sittpdist: { behaviour: 'sittp', name: 'SitTp Distance', kind: 'number', defaultValue: RLV_SITTP_DEFAULT, addDefault: true, cmp: 'min' },
-  tplocaldist: { behaviour: 'tplocal', name: 'Local Teleport Distance', kind: 'number', defaultValue: RLV_TPLOCAL_DEFAULT, addDefault: true, cmp: 'min' },
-  setcam_avdist: { behaviour: 'setcam_avdist', name: 'Camera - Silhouette Distance', kind: 'number', defaultValue: 0, addDefault: false, cmp: 'max' },
-  setcam_avdistmin: { behaviour: 'setcam_avdistmin', name: 'Camera - Avatar Distance (Min)', kind: 'number', defaultValue: 0, addDefault: false, cmp: 'max' },
-  setcam_avdistmax: { behaviour: 'setcam_avdistmax', name: 'Camera - Avatar Distance (Max)', kind: 'number', defaultValue: F32_MAX, addDefault: false, cmp: 'min' },
-  setcam_origindistmin: { behaviour: 'setcam_origindistmin', name: 'Camera - Focus Distance (Min)', kind: 'number', defaultValue: 0, addDefault: true, cmp: 'max' },
-  setcam_origindistmax: { behaviour: 'setcam_origindistmax', name: 'Camera - Focus Distance (Max)', kind: 'number', defaultValue: F32_MAX, addDefault: true, cmp: 'min' },
-  setcam_eyeoffset: { behaviour: 'setcam_eyeoffset', name: 'Camera - Eye Offset', kind: 'vec3', defaultValue: [0, 0, 0], addDefault: true, cmp: null },
-  setcam_eyeoffsetscale: { behaviour: 'setcam_eyeoffsetscale', name: 'Camera - Eye Offset Scale', kind: 'number', defaultValue: 0, addDefault: true, cmp: null },
-  setcam_focusoffset: { behaviour: 'setcam_focusoffset', name: 'Camera - Focus Offset', kind: 'vec3', defaultValue: [0, 0, 0], addDefault: true, cmp: null },
-  setcam_fovmin: { behaviour: 'setcam_fovmin', name: 'Camera - FOV (Min)', kind: 'number', defaultValue: DEFAULT_FIELD_OF_VIEW, addDefault: true, cmp: 'max' },
-  setcam_fovmax: { behaviour: 'setcam_fovmax', name: 'Camera - FOV (Max)', kind: 'number', defaultValue: DEFAULT_FIELD_OF_VIEW, addDefault: true, cmp: 'min' },
-  setcam_texture: { behaviour: 'setcam_textures', name: 'Camera - Forced Texture', kind: 'uuid', defaultValue: IMG_DEFAULT, addDefault: true, cmp: null },
+  fartouchdist: {
+    behaviour: 'fartouch',
+    name: 'Fartouch Distance',
+    kind: 'number',
+    defaultValue: RLV_FARTOUCH_DEFAULT,
+    addDefault: true,
+    cmp: 'min',
+  },
+  recvimdistmin: {
+    behaviour: 'recvim',
+    name: 'RecvIM Distance (Min)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'max',
+  },
+  recvimdistmax: {
+    behaviour: 'recvim',
+    name: 'RecvIM Distance (Max)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'min',
+  },
+  sendimdistmin: {
+    behaviour: 'sendim',
+    name: 'SendIM Distance (Min)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'max',
+  },
+  sendimdistmax: {
+    behaviour: 'sendim',
+    name: 'SendIM Distance (Max)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'min',
+  },
+  startimdistmin: {
+    behaviour: 'startim',
+    name: 'StartIM Distance (Min)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'max',
+  },
+  startimdistmax: {
+    behaviour: 'startim',
+    name: 'StartIM Distance (Max)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'min',
+  },
+  shownametagsdist: {
+    behaviour: 'shownametags',
+    name: 'Name Tags - Visible Distance',
+    kind: 'number',
+    defaultValue: 0,
+    addDefault: true,
+    cmp: 'min',
+  },
+  sittpdist: {
+    behaviour: 'sittp',
+    name: 'SitTp Distance',
+    kind: 'number',
+    defaultValue: RLV_SITTP_DEFAULT,
+    addDefault: true,
+    cmp: 'min',
+  },
+  tplocaldist: {
+    behaviour: 'tplocal',
+    name: 'Local Teleport Distance',
+    kind: 'number',
+    defaultValue: RLV_TPLOCAL_DEFAULT,
+    addDefault: true,
+    cmp: 'min',
+  },
+  setcam_avdist: {
+    behaviour: 'setcam_avdist',
+    name: 'Camera - Silhouette Distance',
+    kind: 'number',
+    defaultValue: 0,
+    addDefault: false,
+    cmp: 'max',
+  },
+  setcam_avdistmin: {
+    behaviour: 'setcam_avdistmin',
+    name: 'Camera - Avatar Distance (Min)',
+    kind: 'number',
+    defaultValue: 0,
+    addDefault: false,
+    cmp: 'max',
+  },
+  setcam_avdistmax: {
+    behaviour: 'setcam_avdistmax',
+    name: 'Camera - Avatar Distance (Max)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: false,
+    cmp: 'min',
+  },
+  setcam_origindistmin: {
+    behaviour: 'setcam_origindistmin',
+    name: 'Camera - Focus Distance (Min)',
+    kind: 'number',
+    defaultValue: 0,
+    addDefault: true,
+    cmp: 'max',
+  },
+  setcam_origindistmax: {
+    behaviour: 'setcam_origindistmax',
+    name: 'Camera - Focus Distance (Max)',
+    kind: 'number',
+    defaultValue: F32_MAX,
+    addDefault: true,
+    cmp: 'min',
+  },
+  setcam_eyeoffset: {
+    behaviour: 'setcam_eyeoffset',
+    name: 'Camera - Eye Offset',
+    kind: 'vec3',
+    defaultValue: [0, 0, 0],
+    addDefault: true,
+    cmp: null,
+  },
+  setcam_eyeoffsetscale: {
+    behaviour: 'setcam_eyeoffsetscale',
+    name: 'Camera - Eye Offset Scale',
+    kind: 'number',
+    defaultValue: 0,
+    addDefault: true,
+    cmp: null,
+  },
+  setcam_focusoffset: {
+    behaviour: 'setcam_focusoffset',
+    name: 'Camera - Focus Offset',
+    kind: 'vec3',
+    defaultValue: [0, 0, 0],
+    addDefault: true,
+    cmp: null,
+  },
+  setcam_fovmin: {
+    behaviour: 'setcam_fovmin',
+    name: 'Camera - FOV (Min)',
+    kind: 'number',
+    defaultValue: DEFAULT_FIELD_OF_VIEW,
+    addDefault: true,
+    cmp: 'max',
+  },
+  setcam_fovmax: {
+    behaviour: 'setcam_fovmax',
+    name: 'Camera - FOV (Max)',
+    kind: 'number',
+    defaultValue: DEFAULT_FIELD_OF_VIEW,
+    addDefault: true,
+    cmp: 'min',
+  },
+  setcam_texture: {
+    behaviour: 'setcam_textures',
+    name: 'Camera - Forced Texture',
+    kind: 'uuid',
+    defaultValue: IMG_DEFAULT,
+    addDefault: true,
+    cmp: null,
+  },
 };
 /** The modifier a single-modifier behaviour carries (recvim/sendim/startim have two and parse their own option). */
 const MODIFIER_OF_BEHAVIOUR: Record<string, string> = {};
-for (const [id, def] of Object.entries(MODIFIERS)) if (!['recvim', 'sendim', 'startim'].includes(def.behaviour)) MODIFIER_OF_BEHAVIOUR[def.behaviour] = id;
+for (const [id, def] of Object.entries(MODIFIERS))
+  if (!['recvim', 'sendim', 'startim'].includes(def.behaviour))
+    MODIFIER_OF_BEHAVIOUR[def.behaviour] = id;
 
 /** `RlvBehaviourModifier::convertOptionValue`. */
 function convertModifierOption(option: string, kind: ModKind): ModValue | null {
-  if (kind === 'number') { const n = parseFloatStrict(option); return n === null ? null : n; }
+  if (kind === 'number') {
+    const n = parseFloatStrict(option);
+    return n === null ? null : n;
+  }
   if (kind === 'vec3') {
     const m = /^\s*([+-]?[\d.eE+-]+)\/([+-]?[\d.eE+-]+)\/([+-]?[\d.eE+-]+)/.exec(option);
     if (!m) return null;
@@ -224,7 +455,10 @@ function convertModifierOption(option: string, kind: ModKind): ModValue | null {
   }
   return isUuid(option) ? option.toLowerCase() : null;
 }
-const sameValue = (a: ModValue, b: ModValue) => (Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((v, i) => v === b[i]) : a === b);
+const sameValue = (a: ModValue, b: ModValue) =>
+  Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && a.every((v, i) => v === b[i])
+    : a === b;
 
 class Modifier {
   readonly values: ModEntry[] = [];
@@ -236,10 +470,13 @@ class Modifier {
     const primary = this.primaryObject;
     // Mirrors RlvBehaviourModifierComp: the primary object's values come first, then min/max order (stable otherwise).
     this.values.sort((a, b) => {
-      const ap = primary && a.objectId === primary, bp = primary && b.objectId === primary;
+      const ap = primary && a.objectId === primary,
+        bp = primary && b.objectId === primary;
       if (ap !== bp) return ap ? -1 : 1;
-      if (cmp === 'min' && typeof a.value === 'number' && typeof b.value === 'number') return a.value - b.value;
-      if (cmp === 'max' && typeof a.value === 'number' && typeof b.value === 'number') return b.value - a.value;
+      if (cmp === 'min' && typeof a.value === 'number' && typeof b.value === 'number')
+        return a.value - b.value;
+      if (cmp === 'max' && typeof a.value === 'number' && typeof b.value === 'number')
+        return b.value - a.value;
       return 0;
     });
   }
@@ -250,12 +487,15 @@ class Modifier {
   }
 
   removeValue(value: ModValue, objectId: string, behaviour: string) {
-    const at = this.values.findIndex((e) => e.objectId === objectId && e.behaviour === behaviour && sameValue(e.value, value));
+    const at = this.values.findIndex(
+      (e) => e.objectId === objectId && e.behaviour === behaviour && sameValue(e.value, value),
+    );
     if (at !== -1) this.values.splice(at, 1);
   }
 
   clearValues(objectId: string) {
-    for (let i = this.values.length - 1; i >= 0; i--) if (this.values[i].objectId === objectId) this.values.splice(i, 1);
+    for (let i = this.values.length - 1; i >= 0; i--)
+      if (this.values[i].objectId === objectId) this.values.splice(i, 1);
   }
 
   hasValue() {
@@ -263,7 +503,9 @@ class Modifier {
     return this.values.length > 0 && this.values[0].objectId === this.primaryObject;
   }
 
-  get value(): ModValue { return this.hasValue() ? this.values[0].value : this.def.defaultValue; }
+  get value(): ModValue {
+    return this.hasValue() ? this.values[0].value : this.def.defaultValue;
+  }
 }
 
 // ---- per-object state ---------------------------------------------------------------------------------
@@ -274,14 +516,24 @@ export class RlvObject {
 
   /** Returns the existing duplicate (added=false) or the stored command. */
   addCommand(command: RlvCommand): { command: RlvCommand; added: boolean } {
-    const dup = this.commands.find((c) => c.behaviour === command.behaviour && c.option === command.option && c.strict === command.strict);
+    const dup = this.commands.find(
+      (c) =>
+        c.behaviour === command.behaviour &&
+        c.option === command.option &&
+        c.strict === command.strict,
+    );
     if (dup) return { command: dup, added: false };
     this.commands.push(command);
     return { command, added: true };
   }
 
   removeCommand(command: RlvCommand): boolean {
-    const at = this.commands.findIndex((c) => c.behaviour === command.behaviour && c.option === command.option && c.strict === command.strict);
+    const at = this.commands.findIndex(
+      (c) =>
+        c.behaviour === command.behaviour &&
+        c.option === command.option &&
+        c.strict === command.strict,
+    );
     if (at === -1) return false;
     this.commands.splice(at, 1);
     return true;
@@ -289,16 +541,29 @@ export class RlvObject {
 
   /** `RlvObject::hasBehaviour(bhvr, option, strictOnly)`; an empty option matches a reference-counted command. */
   hasBehaviour(name: string, option = '', strictOnly = false): boolean {
-    return this.commands.some((c) => c.name === name && (c.option === option || (option === '' && c.refCounted)) && (!strictOnly || c.strict));
+    return this.commands.some(
+      (c) =>
+        c.name === name &&
+        (c.option === option || (option === '' && c.refCounted)) &&
+        (!strictOnly || c.strict),
+    );
   }
 
   getStatusString(filter: string, separator: string): string {
-    return this.commands.map((c) => c.asString()).filter((s) => !filter || s.includes(filter)).map((s) => separator + s).join('');
+    return this.commands
+      .map((c) => c.asString())
+      .filter((s) => !filter || s.includes(filter))
+      .map((s) => separator + s)
+      .join('');
   }
 }
 
 type ExceptionOption = string | number;
-interface RlvException { objectId: string; name: string; option: ExceptionOption }
+interface RlvException {
+  objectId: string;
+  name: string;
+  option: ExceptionOption;
+}
 
 /** What the handler needs from the rest of the viewer. Everything is optional; missing pieces make the commands that use them fail. */
 export interface RlvEnvironment {
@@ -324,7 +589,11 @@ export interface RlvEnvironment {
   /** Teleport to a global position (and optional look-at angle in radians). */
   teleportToGlobal?(position: readonly [number, number, number], lookAtAngle?: number): void;
   /** Look up a region by name and teleport to a position inside it. */
-  teleportToRegion?(region: string, position: readonly [number, number, number], lookAtAngle?: number): void;
+  teleportToRegion?(
+    region: string,
+    position: readonly [number, number, number],
+    lookAtAngle?: number,
+  ): void;
   /** Names of nearby avatars for `filterNames`: `{ id, displayName, legacyName }`. */
   nearbyAvatars?(): Array<{ id: string; displayName: string; legacyName: string }>;
   /** Names of the regions and parcel mentioned by `filterLocation`. */
@@ -379,9 +648,13 @@ export class RlvHandler extends Utils.EventEmitter {
     for (const [id, def] of Object.entries(MODIFIERS)) this.modifiers.set(id, new Modifier(def));
   }
 
-  setEnvironment(env: RlvEnvironment) { this.env = env; }
+  setEnvironment(env: RlvEnvironment) {
+    this.env = env;
+  }
 
-  isEnabled() { return this.enabled; }
+  isEnabled() {
+    return this.enabled;
+  }
 
   /** Turn RLV on or off. Turning it off forgets every restriction (`RlvHandler::setEnabled` restarts the viewer in the real thing). */
   setEnabled(enabled: boolean) {
@@ -393,9 +666,15 @@ export class RlvHandler extends Utils.EventEmitter {
 
   /** Forget every object, restriction, exception and modifier (logout, teleport failure recovery, ...). */
   reset() {
-    this.objects.clear(); this.behaviours.clear(); this.exceptions = [];
-    for (const modifier of this.modifiers.values()) { modifier.values.length = 0; modifier.primaryObject = ''; }
-    this.notifications.length = 0; this.commandStack.length = 0;
+    this.objects.clear();
+    this.behaviours.clear();
+    this.exceptions = [];
+    for (const modifier of this.modifiers.values()) {
+      modifier.values.length = 0;
+      modifier.primaryObject = '';
+    }
+    this.notifications.length = 0;
+    this.commandStack.length = 0;
     this.blockNames = false;
     this.emit('reset');
   }
@@ -403,7 +682,9 @@ export class RlvHandler extends Utils.EventEmitter {
   // ---- queries -----------------------------------------------------------------------------------
 
   /** `hasBehaviour(bhvr)`: any object holds it (reference counted). */
-  hasBehaviour(name: string): boolean { return (this.behaviours.get(name) ?? 0) > 0; }
+  hasBehaviour(name: string): boolean {
+    return (this.behaviours.get(name) ?? 0) > 0;
+  }
 
   hasBehaviourFor(objectId: string, name: string, option = ''): boolean {
     return this.objects.get(objectId)?.hasBehaviour(name, option, false) ?? false;
@@ -411,14 +692,21 @@ export class RlvHandler extends Utils.EventEmitter {
 
   /** `hasBehaviourExcept`: some object other than `objectId` holds it. */
   hasBehaviourExcept(name: string, objectId: string, option = ''): boolean {
-    for (const [id, object] of this.objects) if (id !== objectId && object.hasBehaviour(name, option, false)) return true;
+    for (const [id, object] of this.objects)
+      if (id !== objectId && object.hasBehaviour(name, option, false)) return true;
     return false;
   }
 
-  hasException(name: string): boolean { return this.exceptions.some((e) => e.name === name); }
+  hasException(name: string): boolean {
+    return this.exceptions.some((e) => e.name === name);
+  }
 
-  getCurrentCommand(): RlvCommand | null { return this.commandStack.length ? this.commandStack[this.commandStack.length - 1] : null; }
-  getCurrentObject(): string { return this.getCurrentCommand()?.objectId ?? ''; }
+  getCurrentCommand(): RlvCommand | null {
+    return this.commandStack.length ? this.commandStack[this.commandStack.length - 1] : null;
+  }
+  getCurrentObject(): string {
+    return this.getCurrentCommand()?.objectId ?? '';
+  }
 
   /** `RlvHandler::isPermissive`. */
   isPermissive(name: string): boolean {
@@ -428,13 +716,19 @@ export class RlvHandler extends Utils.EventEmitter {
   }
 
   /** `RlvHandler::isException`; `check` picks strict or permissive matching, defaulting as the viewer does. */
-  isException(name: string, option: ExceptionOption, check: 'default' | 'strict' | 'permissive' = 'default'): boolean {
+  isException(
+    name: string,
+    option: ExceptionOption,
+    check: 'default' | 'strict' | 'permissive' = 'default',
+  ): boolean {
     let mode = check;
-    if (mode === 'default') mode = this.hasBehaviour(name) && !this.isPermissive(name) ? 'strict' : 'permissive';
+    if (mode === 'default')
+      mode = this.hasBehaviour(name) && !this.isPermissive(name) ? 'strict' : 'permissive';
     const owners: string[] = [];
     if (mode === 'strict') {
       const strictOnly = !this.hasBehaviour('permissive');
-      for (const [id, object] of this.objects) if (object.hasBehaviour(name, '', strictOnly)) owners.push(id);
+      for (const [id, object] of this.objects)
+        if (object.hasBehaviour(name, '', strictOnly)) owners.push(id);
     }
     const norm = (o: ExceptionOption) => (typeof o === 'string' ? o.toLowerCase() : o);
     for (const exception of this.exceptions) {
@@ -447,27 +741,52 @@ export class RlvHandler extends Utils.EventEmitter {
     return false;
   }
 
-  private addException(objectId: string, name: string, option: ExceptionOption) { this.exceptions.push({ objectId, name, option }); }
+  private addException(objectId: string, name: string, option: ExceptionOption) {
+    this.exceptions.push({ objectId, name, option });
+  }
 
   private removeException(objectId: string, name: string, option: ExceptionOption) {
     const norm = (o: ExceptionOption) => (typeof o === 'string' ? o.toLowerCase() : o);
-    const at = this.exceptions.findIndex((e) => e.objectId === objectId && e.name === name && norm(e.option) === norm(option));
+    const at = this.exceptions.findIndex(
+      (e) => e.objectId === objectId && e.name === name && norm(e.option) === norm(option),
+    );
     if (at !== -1) this.exceptions.splice(at, 1);
   }
 
   /** Modifier value by id (see `MODIFIERS`), falling back to its default. */
-  getModifier(id: string): ModValue | undefined { return this.modifiers.get(id)?.value; }
-  hasModifierValue(id: string): boolean { return this.modifiers.get(id)?.hasValue() ?? false; }
-  private num(id: string) { return Number(this.modifiers.get(id)?.value); }
+  getModifier(id: string): ModValue | undefined {
+    return this.modifiers.get(id)?.value;
+  }
+  hasModifierValue(id: string): boolean {
+    return this.modifiers.get(id)?.hasValue() ?? false;
+  }
+  private num(id: string) {
+    return Number(this.modifiers.get(id)?.value);
+  }
 
-  addBlockedObject(objectId: string) { this.blockedObjects.add(objectId); }
-  removeBlockedObject(objectId: string) { this.blockedObjects.delete(objectId); }
+  addBlockedObject(objectId: string) {
+    this.blockedObjects.add(objectId);
+  }
+  removeBlockedObject(objectId: string) {
+    this.blockedObjects.delete(objectId);
+  }
 
   // ---- processing commands -----------------------------------------------------------------------
 
   /** `llOwnerSay("@a,b=n")` and the like: handle a chat line and say whether it was consumed (must not be displayed). */
-  handleObjectChat(fromId: string, message: string, chatType: number, opts: { isTempAttachment?: boolean } = {}): boolean {
-    if (!this.enabled || message.length <= 3 || message[0] !== RLV_CMD_PREFIX || chatType !== CHAT_TYPE.OWNER) return false;
+  handleObjectChat(
+    fromId: string,
+    message: string,
+    chatType: number,
+    opts: { isTempAttachment?: boolean } = {},
+  ): boolean {
+    if (
+      !this.enabled ||
+      message.length <= 3 ||
+      message[0] !== RLV_CMD_PREFIX ||
+      chatType !== CHAT_TYPE.OWNER
+    )
+      return false;
     const results: Array<{ command: string; ret: number }> = [];
     for (const token of message.slice(1).toLowerCase().split(',')) {
       if (token === '') continue;
@@ -483,19 +802,35 @@ export class RlvHandler extends Utils.EventEmitter {
   }
 
   private process(command: RlvCommand, fromObject: boolean): number {
-    if (this.blockedObjects.has(command.objectId) && command.type !== 'remove' && command.type !== 'clear') return RlvRet.FAILED_BLOCKED;
+    if (
+      this.blockedObjects.has(command.objectId) &&
+      command.type !== 'remove' &&
+      command.type !== 'clear'
+    )
+      return RlvRet.FAILED_BLOCKED;
     if (!command.valid) return RlvRet.FAILED_SYNTAX;
 
     this.commandStack.push(command);
     let ret: number = RlvRet.UNKNOWN;
     try {
       switch (command.type) {
-        case 'add': ret = this.processAdd(command); break;
-        case 'remove': ret = this.processRemove(command); break;
-        case 'clear': ret = this.processClear(command); break;
-        case 'force': ret = this.processForce(command); break;
-        case 'reply': ret = this.processReply(command); break;
-        default: ret = RlvRet.FAILED_PARAM;
+        case 'add':
+          ret = this.processAdd(command);
+          break;
+        case 'remove':
+          ret = this.processRemove(command);
+          break;
+        case 'clear':
+          ret = this.processClear(command);
+          break;
+        case 'force':
+          ret = this.processForce(command);
+          break;
+        case 'reply':
+          ret = this.processReply(command);
+          break;
+        default:
+          ret = RlvRet.FAILED_PARAM;
       }
     } finally {
       this.commandStack.pop();
@@ -508,11 +843,17 @@ export class RlvHandler extends Utils.EventEmitter {
     const name = command.name;
     if (!name) return RlvRet.FAILED_PARAM;
     // Some restrictions can only be held by one object at a time to avoid deadlocks
-    if (this.hasBehaviour(name) && (name === 'setcam' || name === 'setdebug' || name === 'setenv')) {
+    if (
+      this.hasBehaviour(name) &&
+      (name === 'setcam' || name === 'setdebug' || name === 'setenv')
+    ) {
       if (!this.hasBehaviourFor(command.objectId, name)) return RlvRet.FAILED_LOCK;
     }
     let object = this.objects.get(command.objectId);
-    if (!object) { object = new RlvObject(command.objectId); this.objects.set(command.objectId, object); }
+    if (!object) {
+      object = new RlvObject(command.objectId);
+      this.objects.set(command.objectId, object);
+    }
     const { command: stored, added } = object.addCommand(command);
     if (!added) return RlvRet.SUCCESS_DUPLICATE;
     const ret = this.processAddRem(stored);
@@ -542,7 +883,8 @@ export class RlvHandler extends Utils.EventEmitter {
       const filter = command.param;
       for (const stored of [...object.commands]) {
         const text = stored.asString();
-        if (!filter || text.includes(filter)) this.processCommand(command.objectId, `${text}=y`, false);
+        if (!filter || text.includes(filter))
+          this.processCommand(command.objectId, `${text}=y`, false);
       }
     }
     this.emit('clear', command.objectId);
@@ -553,7 +895,9 @@ export class RlvHandler extends Utils.EventEmitter {
   private processAddRem(command: RlvCommand): number {
     const name = command.name!;
     const adding = command.type === 'add';
-    const info = RLV_BEHAVIOURS[RLV_SYNONYMS[command.behaviour] ? command.behaviour : name] ?? RLV_BEHAVIOURS[name];
+    const info =
+      RLV_BEHAVIOURS[RLV_SYNONYMS[command.behaviour] ? command.behaviour : name] ??
+      RLV_BEHAVIOURS[name];
     const option = command.option;
     let refCount = false;
     let ret: number = RlvRet.SUCCESS;
@@ -561,10 +905,12 @@ export class RlvHandler extends Utils.EventEmitter {
     const handler = this.customHandler(name);
     if (handler) {
       const res = handler(command, adding);
-      ret = res.ret; refCount = res.refCount;
+      ret = res.ret;
+      refCount = res.refCount;
     } else {
       const res = this.genericHandler(info?.option ?? 'none', command, adding);
-      ret = res.ret; refCount = res.refCount;
+      ret = res.ret;
+      refCount = res.refCount;
     }
 
     if (ret === RlvRet.SUCCESS && refCount) {
@@ -580,12 +926,15 @@ export class RlvHandler extends Utils.EventEmitter {
       this.emit('behaviour', { name, type: command.type, objectId: command.objectId, option });
       if (wasHeld !== this.hasBehaviour(name)) this.onToggle(name, this.hasBehaviour(name));
     }
-    if (info?.deprecated && rlvSucceeded(ret) && ret === RlvRet.SUCCESS) return RlvRet.SUCCESS_DEPRECATED;
+    if (info?.deprecated && rlvSucceeded(ret) && ret === RlvRet.SUCCESS)
+      return RlvRet.SUCCESS_DEPRECATED;
     return ret;
   }
 
   private modifierIdsOf(name: string): string[] {
-    return Object.entries(MODIFIERS).filter(([, def]) => def.behaviour === name).map(([id]) => id);
+    return Object.entries(MODIFIERS)
+      .filter(([, def]) => def.behaviour === name)
+      .map(([id]) => id);
   }
 
   private onToggle(name: string, held: boolean) {
@@ -594,8 +943,15 @@ export class RlvHandler extends Utils.EventEmitter {
   }
 
   /** `RlvBehaviourGenericHandler<...>::onCommand`. */
-  private genericHandler(kind: RlvOptionKind, command: RlvCommand, adding: boolean): { ret: number; refCount: boolean } {
-    const noneHandler = () => (command.hasOption ? { ret: RlvRet.FAILED_OPTION as number, refCount: false } : { ret: RlvRet.SUCCESS as number, refCount: true });
+  private genericHandler(
+    kind: RlvOptionKind,
+    command: RlvCommand,
+    adding: boolean,
+  ): { ret: number; refCount: boolean } {
+    const noneHandler = () =>
+      command.hasOption
+        ? { ret: RlvRet.FAILED_OPTION as number, refCount: false }
+        : { ret: RlvRet.SUCCESS as number, refCount: true };
     const exceptionHandler = () => {
       if (!isUuid(command.option)) return { ret: RlvRet.FAILED_OPTION as number, refCount: false };
       if (adding) this.addException(command.objectId, command.name!, command.option.toLowerCase());
@@ -603,33 +959,47 @@ export class RlvHandler extends Utils.EventEmitter {
       return { ret: RlvRet.SUCCESS as number, refCount: true };
     };
     switch (kind) {
-      case 'none': return noneHandler();
-      case 'exception': return exceptionHandler();
+      case 'none':
+        return noneHandler();
+      case 'exception':
+        return exceptionHandler();
       case 'noneOrException': {
-        if (command.hasOption) { const res = exceptionHandler(); return { ret: res.ret, refCount: false }; }
+        if (command.hasOption) {
+          const res = exceptionHandler();
+          return { ret: res.ret, refCount: false };
+        }
         return noneHandler();
       }
-      case 'modifier': return this.modifierHandler(command, adding);
+      case 'modifier':
+        return this.modifierHandler(command, adding);
       case 'noneOrModifier': {
         if (command.hasOption) return this.modifierHandler(command, adding);
         // @bhvr=n adds the default option on an empty modifier if needed
         for (const id of this.modifierIdsOf(command.name!)) {
           const modifier = this.modifiers.get(id)!;
           if (modifier.def.addDefault) {
-            if (adding) modifier.addValue(modifier.def.defaultValue, command.objectId, command.name!);
+            if (adding)
+              modifier.addValue(modifier.def.defaultValue, command.objectId, command.name!);
             else modifier.removeValue(modifier.def.defaultValue, command.objectId, command.name!);
           }
         }
         return { ret: RlvRet.SUCCESS, refCount: true };
       }
-      default: return { ret: RlvRet.SUCCESS, refCount: true };
+      default:
+        return { ret: RlvRet.SUCCESS, refCount: true };
     }
   }
 
-  private modifierHandler(command: RlvCommand, adding: boolean): { ret: number; refCount: boolean } {
+  private modifierHandler(
+    command: RlvCommand,
+    adding: boolean,
+  ): { ret: number; refCount: boolean } {
     const id = MODIFIER_OF_BEHAVIOUR[command.name!];
     const modifier = id ? this.modifiers.get(id) : undefined;
-    const value = modifier && command.hasOption ? convertModifierOption(command.option, modifier.def.kind) : null;
+    const value =
+      modifier && command.hasOption
+        ? convertModifierOption(command.option, modifier.def.kind)
+        : null;
     if (!modifier || value === null) return { ret: RlvRet.FAILED_OPTION, refCount: false };
     if (adding) modifier.addValue(value, command.objectId, command.name!);
     else modifier.removeValue(value, command.objectId, command.name!);
@@ -637,75 +1007,138 @@ export class RlvHandler extends Utils.EventEmitter {
   }
 
   /** Behaviours with their own parsing in RLVa. Returns null to use the generic handler. */
-  private customHandler(name: string): ((command: RlvCommand, adding: boolean) => { ret: number; refCount: boolean }) | null {
+  private customHandler(
+    name: string,
+  ): ((command: RlvCommand, adding: boolean) => { ret: number; refCount: boolean }) | null {
     switch (name) {
-      case 'recvim': case 'sendim': case 'startim': return (c, a) => this.imHandler(c, a);
-      case 'sendchannel': case 'sendchannel_except': return (c, a) => {
-        if (c.hasOption) {
+      case 'recvim':
+      case 'sendim':
+      case 'startim':
+        return (c, a) => this.imHandler(c, a);
+      case 'sendchannel':
+      case 'sendchannel_except':
+        return (c, a) => {
+          if (c.hasOption) {
+            const channel = parseIntStrict(c.option);
+            if (channel === null || channel <= 0)
+              return { ret: RlvRet.FAILED_OPTION, refCount: false };
+            if (a) this.addException(c.objectId, c.name!, channel);
+            else this.removeException(c.objectId, c.name!, channel);
+            return { ret: RlvRet.SUCCESS, refCount: false };
+          }
+          return { ret: RlvRet.SUCCESS, refCount: true };
+        };
+      case 'redirchat':
+      case 'rediremote':
+        return (c, a) => {
           const channel = parseIntStrict(c.option);
-          if (channel === null || channel <= 0) return { ret: RlvRet.FAILED_OPTION, refCount: false };
-          if (a) this.addException(c.objectId, c.name!, channel); else this.removeException(c.objectId, c.name!, channel);
-          return { ret: RlvRet.SUCCESS, refCount: false };
-        }
-        return { ret: RlvRet.SUCCESS, refCount: true };
-      };
-      case 'redirchat': case 'rediremote': return (c, a) => {
-        const channel = parseIntStrict(c.option);
-        if (channel === null || !isValidReplyChannel(channel)) return { ret: RlvRet.FAILED_OPTION, refCount: false };
-        if (a) this.addException(c.objectId, c.name!, channel); else this.removeException(c.objectId, c.name!, channel);
-        return { ret: RlvRet.SUCCESS, refCount: true };
-      };
-      case 'notify': return (c, a) => {
-        const parsed = parseNotifyOption(c.option);
-        if (!c.option || !parsed) return { ret: RlvRet.FAILED_OPTION, refCount: false };
-        if (a) this.notifications.push({ objectId: c.objectId, ...parsed });
-        else {
-          const at = this.notifications.findIndex((n) => n.objectId === c.objectId && n.channel === parsed.channel && n.filter === parsed.filter);
-          if (at !== -1) this.notifications.splice(at, 1);
-        }
-        return { ret: RlvRet.SUCCESS, refCount: true };
-      };
-      case 'shownametags': return (c, a) => {
-        if (c.hasOption && isUuid(c.option)) {
-          const res = this.genericHandler('exception', c, a);
-          return { ret: res.ret, refCount: false };
-        }
-        return this.genericHandler('noneOrModifier', c, a);
-      };
-      case 'setcam_fovmin': case 'setcam_fovmax': case 'setcam_avdist': case 'setcam_avdistmin': case 'setcam_avdistmax':
-      case 'setcam_origindistmin': case 'setcam_origindistmax': return (c, a) => this.modifierHandler(c, a);
-      case 'setcam_eyeoffset': case 'setcam_eyeoffsetscale': case 'setcam_focusoffset': return (c, a) => this.modifierHandler(c, a);
-      case 'setcam_textures': case 'fartouch': case 'sittp': case 'tplocal': return (c, a) => this.genericHandler('noneOrModifier', c, a);
-      case 'camzoommin': case 'camzoommax': return (c, a) => {
-        const mult = c.hasOption ? parseFloatStrict(c.option) : 1;
-        if (mult === null) return { ret: RlvRet.FAILED_OPTION, refCount: false };
-        const target = name === 'camzoommin' ? 'setcam_fovmin' : 'setcam_fovmax';
-        const modifier = this.modifiers.get(target)!;
-        const value = DEFAULT_FIELD_OF_VIEW / mult;
-        if (a) { this.behaviours.set(target, (this.behaviours.get(target) ?? 0) + 1); modifier.addValue(value, c.objectId, name); }
-        else { this.behaviours.set(target, Math.max(0, (this.behaviours.get(target) ?? 0) - 1)); modifier.removeValue(value, c.objectId, name); }
-        return { ret: RlvRet.SUCCESS, refCount: true };
-      };
+          if (channel === null || !isValidReplyChannel(channel))
+            return { ret: RlvRet.FAILED_OPTION, refCount: false };
+          if (a) this.addException(c.objectId, c.name!, channel);
+          else this.removeException(c.objectId, c.name!, channel);
+          return { ret: RlvRet.SUCCESS, refCount: true };
+        };
+      case 'notify':
+        return (c, a) => {
+          const parsed = parseNotifyOption(c.option);
+          if (!c.option || !parsed) return { ret: RlvRet.FAILED_OPTION, refCount: false };
+          if (a) this.notifications.push({ objectId: c.objectId, ...parsed });
+          else {
+            const at = this.notifications.findIndex(
+              (n) =>
+                n.objectId === c.objectId &&
+                n.channel === parsed.channel &&
+                n.filter === parsed.filter,
+            );
+            if (at !== -1) this.notifications.splice(at, 1);
+          }
+          return { ret: RlvRet.SUCCESS, refCount: true };
+        };
+      case 'shownametags':
+        return (c, a) => {
+          if (c.hasOption && isUuid(c.option)) {
+            const res = this.genericHandler('exception', c, a);
+            return { ret: res.ret, refCount: false };
+          }
+          return this.genericHandler('noneOrModifier', c, a);
+        };
+      case 'setcam_fovmin':
+      case 'setcam_fovmax':
+      case 'setcam_avdist':
+      case 'setcam_avdistmin':
+      case 'setcam_avdistmax':
+      case 'setcam_origindistmin':
+      case 'setcam_origindistmax':
+        return (c, a) => this.modifierHandler(c, a);
+      case 'setcam_eyeoffset':
+      case 'setcam_eyeoffsetscale':
+      case 'setcam_focusoffset':
+        return (c, a) => this.modifierHandler(c, a);
+      case 'setcam_textures':
+      case 'fartouch':
+      case 'sittp':
+      case 'tplocal':
+        return (c, a) => this.genericHandler('noneOrModifier', c, a);
+      case 'camzoommin':
+      case 'camzoommax':
+        return (c, a) => {
+          const mult = c.hasOption ? parseFloatStrict(c.option) : 1;
+          if (mult === null) return { ret: RlvRet.FAILED_OPTION, refCount: false };
+          const target = name === 'camzoommin' ? 'setcam_fovmin' : 'setcam_fovmax';
+          const modifier = this.modifiers.get(target)!;
+          const value = DEFAULT_FIELD_OF_VIEW / mult;
+          if (a) {
+            this.behaviours.set(target, (this.behaviours.get(target) ?? 0) + 1);
+            modifier.addValue(value, c.objectId, name);
+          } else {
+            this.behaviours.set(target, Math.max(0, (this.behaviours.get(target) ?? 0) - 1));
+            modifier.removeValue(value, c.objectId, name);
+          }
+          return { ret: RlvRet.SUCCESS, refCount: true };
+        };
       // Outfit, attachment, shared-folder and effect restrictions are tracked but have nothing to enforce here.
-      case 'addattach': case 'remattach': case 'addoutfit': case 'remoutfit': case 'detach': case 'attachthis': case 'attachallthis':
-      case 'detachthis': case 'detachallthis': case 'attachthis_except': case 'attachallthis_except': case 'detachthis_except':
-      case 'detachallthis_except': case 'sharedwear': case 'sharedunwear': case 'unsharedwear': case 'unsharedunwear':
-      case 'setoverlay': case 'setsphere': case 'setoverlay_touch': return () => ({ ret: RlvRet.SUCCESS, refCount: true });
-      default: return null;
+      case 'addattach':
+      case 'remattach':
+      case 'addoutfit':
+      case 'remoutfit':
+      case 'detach':
+      case 'attachthis':
+      case 'attachallthis':
+      case 'detachthis':
+      case 'detachallthis':
+      case 'attachthis_except':
+      case 'attachallthis_except':
+      case 'detachthis_except':
+      case 'detachallthis_except':
+      case 'sharedwear':
+      case 'sharedunwear':
+      case 'unsharedwear':
+      case 'unsharedunwear':
+      case 'setoverlay':
+      case 'setsphere':
+      case 'setoverlay_touch':
+        return () => ({ ret: RlvRet.SUCCESS, refCount: true });
+      default:
+        return null;
     }
   }
 
   /** `@recvim/@sendim/@startim[:<uuid>|<min>[;<max>]]`. */
   private imHandler(command: RlvCommand, adding: boolean): { ret: number; refCount: boolean } {
     const generic = this.genericHandler('noneOrException', command, adding);
-    if (generic.ret === RlvRet.SUCCESS || !command.hasOption) return generic.ret === RlvRet.SUCCESS ? { ret: generic.ret, refCount: generic.refCount } : generic;
+    if (generic.ret === RlvRet.SUCCESS || !command.hasOption)
+      return generic.ret === RlvRet.SUCCESS
+        ? { ret: generic.ret, refCount: generic.refCount }
+        : generic;
     // <dist_min>[;<dist_max>]
     const parts = command.option.split(';');
     const min = parseFloatStrict(parts[0]);
     const max = parts.length >= 2 ? parseFloatStrict(parts[1]) : F32_MAX;
-    if (parts.length > 2 || min === null || min < 0 || max === null || max < 0) return { ret: RlvRet.FAILED_OPTION, refCount: false };
+    if (parts.length > 2 || min === null || min < 0 || max === null || max < 0)
+      return { ret: RlvRet.FAILED_OPTION, refCount: false };
     const prefix = command.name!;
-    const minMod = this.modifiers.get(`${prefix}distmin`)!, maxMod = this.modifiers.get(`${prefix}distmax`)!;
+    const minMod = this.modifiers.get(`${prefix}distmin`)!,
+      maxMod = this.modifiers.get(`${prefix}distmax`)!;
     if (adding) {
       minMod.addValue(min * min, command.objectId, command.name!);
       if (parts.length >= 2) maxMod.addValue(max * max, command.objectId, command.name!);
@@ -724,7 +1157,11 @@ export class RlvHandler extends Utils.EventEmitter {
     switch (name) {
       case 'unsit': {
         if (command.hasOption) return RlvRet.FAILED_OPTION;
-        if ((this.env.isSitting ? this.env.isSitting() : true) && !this.hasBehaviourExcept('unsit', command.objectId)) this.env.stand?.();
+        if (
+          (this.env.isSitting ? this.env.isSitting() : true) &&
+          !this.hasBehaviourExcept('unsit', command.objectId)
+        )
+          this.env.stand?.();
         return this.env.stand ? RlvRet.SUCCESS : RlvRet.FAILED_UNSUPPORTED;
       }
       case 'fly': {
@@ -751,7 +1188,8 @@ export class RlvHandler extends Utils.EventEmitter {
         this.env.sitOnGround();
         return RlvRet.SUCCESS;
       }
-      case 'tpto': return this.forceTpTo(command);
+      case 'tpto':
+        return this.forceTpTo(command);
       default:
         // Wearing, detaching, camera and overlay effects: nothing in this viewer to act on.
         return RlvRet.FAILED_UNSUPPORTED;
@@ -788,26 +1226,42 @@ export class RlvHandler extends Utils.EventEmitter {
 
   private processReply(command: RlvCommand): number {
     const channel = parseIntStrict(command.param);
-    if (channel === null || !isValidReplyChannel(channel, command.objectId === (this.env.selfId?.() ?? ''))) return RlvRet.FAILED_PARAM;
+    if (
+      channel === null ||
+      !isValidReplyChannel(channel, command.objectId === (this.env.selfId?.() ?? ''))
+    )
+      return RlvRet.FAILED_PARAM;
     const name = command.name;
     if (!name) return RlvRet.FAILED_UNKNOWN;
 
     let reply = '';
     let ret: number = RlvRet.SUCCESS;
     switch (name) {
-      case 'version': case 'versionnew':
+      case 'version':
+      case 'versionnew':
         reply = this.versionString(name === 'version');
         break;
       case 'versionnum':
         if (!command.hasOption) reply = this.versionNum();
         else if (command.option === 'impl') reply = this.versionImplNum();
         break;
-      case 'getgroup': reply = this.env.activeGroupName?.() || 'none'; break;
-      case 'getsitid': reply = this.env.sitObjectId?.() || '00000000-0000-0000-0000-000000000000'; break;
-      case 'getstatus': case 'getstatusall': {
+      case 'getgroup':
+        reply = this.env.activeGroupName?.() || 'none';
+        break;
+      case 'getsitid':
+        reply = this.env.sitObjectId?.() || '00000000-0000-0000-0000-000000000000';
+        break;
+      case 'getstatus':
+      case 'getstatusall': {
         const parsed = parseGetStatusOption(command.option);
-        if (name === 'getstatus') reply = this.objects.get(command.objectId)?.getStatusString(parsed.filter, parsed.separator) ?? '';
-        else reply = [...this.objects.values()].map((o) => o.getStatusString(parsed.filter, parsed.separator)).join('');
+        if (name === 'getstatus')
+          reply =
+            this.objects.get(command.objectId)?.getStatusString(parsed.filter, parsed.separator) ??
+            '';
+        else
+          reply = [...this.objects.values()]
+            .map((o) => o.getStatusString(parsed.filter, parsed.separator))
+            .join('');
         break;
       }
       case 'getcommand': {
@@ -817,14 +1271,27 @@ export class RlvHandler extends Utils.EventEmitter {
           const t = options[1];
           if (t === 'any' || t === '') type = 'any';
           else if (t === 'add' || t === 'force' || t === 'reply') type = t;
-          else { ret = RlvRet.FAILED_OPTION; break; }
+          else {
+            ret = RlvRet.FAILED_OPTION;
+            break;
+          }
         }
-        reply = this.commandList(options[0] ?? '', type).join(options.length >= 3 ? options[2] : RLV_OPTION_SEPARATOR);
+        reply = this.commandList(options[0] ?? '', type).join(
+          options.length >= 3 ? options[2] : RLV_OPTION_SEPARATOR,
+        );
         break;
       }
-      case 'getcam_avdist': case 'getcam_fov': case 'getcam_textures':
-      case 'getcam_avdistmin': case 'getcam_avdistmax': case 'getcam_fovmin': case 'getcam_fovmax': {
-        if (command.hasOption) { ret = RlvRet.FAILED_OPTION; break; }
+      case 'getcam_avdist':
+      case 'getcam_fov':
+      case 'getcam_textures':
+      case 'getcam_avdistmin':
+      case 'getcam_avdistmax':
+      case 'getcam_fovmin':
+      case 'getcam_fovmax': {
+        if (command.hasOption) {
+          ret = RlvRet.FAILED_OPTION;
+          break;
+        }
         if (name === 'getcam_textures') {
           const mod = this.modifiers.get('setcam_texture')!;
           reply = mod.hasValue() ? String(mod.value) : '';
@@ -859,7 +1326,12 @@ export class RlvHandler extends Utils.EventEmitter {
     for (const [name, info] of Object.entries(RLV_BEHAVIOURS)) {
       if (match && !name.includes(match)) continue;
       if (type === 'any' || info.types.includes(type)) out.push(name);
-      if (info.strict && (type === 'any' || type === 'add') && (!match || `${name}_sec`.includes(match))) out.push(`${name}_sec`);
+      if (
+        info.strict &&
+        (type === 'any' || type === 'add') &&
+        (!match || `${name}_sec`.includes(match))
+      )
+        out.push(`${name}_sec`);
     }
     return out;
   }
@@ -881,132 +1353,238 @@ export class RlvHandler extends Utils.EventEmitter {
 
   // ---- decisions the rest of the viewer asks ----------------------------------------------------
 
-  canFly() { return this.canFlyFor(this.getCurrentObject()); }
+  canFly() {
+    return this.canFlyFor(this.getCurrentObject());
+  }
   /** `RlvActions::canFly(idRlvObjExcept)`. */
-  canFlyFor(exceptObject: string) { return !(exceptObject ? this.hasBehaviourExcept('fly', exceptObject) : this.hasBehaviour('fly')); }
-  canJump() { return !this.hasBehaviour('jump'); }
-  canRun() { return !this.hasBehaviour('alwaysrun'); }
+  canFlyFor(exceptObject: string) {
+    return !(exceptObject
+      ? this.hasBehaviourExcept('fly', exceptObject)
+      : this.hasBehaviour('fly'));
+  }
+  canJump() {
+    return !this.hasBehaviour('jump');
+  }
+  canRun() {
+    return !this.hasBehaviour('alwaysrun');
+  }
   /** `RlvActions::canStand`: false only while sitting under `@unsit` (not counting the issuing object's own, if given). */
   canStand(exceptObject = '') {
-    const blocked = exceptObject ? this.hasBehaviourExcept('unsit', exceptObject) : this.hasBehaviour('unsit');
+    const blocked = exceptObject
+      ? this.hasBehaviourExcept('unsit', exceptObject)
+      : this.hasBehaviour('unsit');
     return !blocked || !this.sitting();
   }
 
   /** Whether the avatar is sitting; assumed so when the viewer cannot tell, which errs towards the restriction. */
-  private sitting(): boolean { return this.env.isSitting ? this.env.isSitting() : true; }
-  private canSitFor(exceptObject: string) { return this.canGroundSit(exceptObject); }
-  canChangeActiveGroup(objectId = '') { return objectId ? !this.hasBehaviourExcept('setgroup', objectId) : !this.hasBehaviour('setgroup'); }
-  canPlayGestures() { return !this.hasBehaviour('sendgesture'); }
+  private sitting(): boolean {
+    return this.env.isSitting ? this.env.isSitting() : true;
+  }
+  private canSitFor(exceptObject: string) {
+    return this.canGroundSit(exceptObject);
+  }
+  canChangeActiveGroup(objectId = '') {
+    return objectId
+      ? !this.hasBehaviourExcept('setgroup', objectId)
+      : !this.hasBehaviour('setgroup');
+  }
+  canPlayGestures() {
+    return !this.hasBehaviour('sendgesture');
+  }
   /** `RlvActions::canBuild`. */
-  canBuild() { return !this.hasBehaviour('edit') || !this.hasBehaviour('rez'); }
-  canPreviewTextures() { return !this.hasBehaviour('viewtexture'); }
-  canShowLocation() { return !this.hasBehaviour('showloc'); }
-  canShowNearbyAgents() { return !this.hasBehaviour('shownearby'); }
-  canShowWorldMap() { return !this.hasBehaviour('showworldmap'); }
-  canShowMiniMap() { return !this.hasBehaviour('showminimap'); }
-  canShowInventory() { return !this.hasBehaviour('showinv'); }
+  canBuild() {
+    return !this.hasBehaviour('edit') || !this.hasBehaviour('rez');
+  }
+  canPreviewTextures() {
+    return !this.hasBehaviour('viewtexture');
+  }
+  canShowLocation() {
+    return !this.hasBehaviour('showloc');
+  }
+  canShowNearbyAgents() {
+    return !this.hasBehaviour('shownearby');
+  }
+  canShowWorldMap() {
+    return !this.hasBehaviour('showworldmap');
+  }
+  canShowMiniMap() {
+    return !this.hasBehaviour('showminimap');
+  }
+  canShowInventory() {
+    return !this.hasBehaviour('showinv');
+  }
   canGiveInventory(agentId?: string) {
     if (!this.hasBehaviour('share')) return true;
     return agentId ? this.isException('share', agentId) : this.hasException('share');
   }
   canTeleportToLocation(exceptObject = this.getCurrentObject()) {
-    return !(exceptObject ? this.hasBehaviourExcept('tploc', exceptObject) : this.hasBehaviour('tploc')) && this.canStand(exceptObject);
+    return (
+      !(exceptObject
+        ? this.hasBehaviourExcept('tploc', exceptObject)
+        : this.hasBehaviour('tploc')) && this.canStand(exceptObject)
+    );
   }
   /** `@tplm`: teleporting to a landmark. */
-  canTeleportToLandmark() { return !this.hasBehaviour('tplm') && this.canStand(); }
+  canTeleportToLandmark() {
+    return !this.hasBehaviour('tplm') && this.canStand();
+  }
   /** `RlvActions::canTeleportToLocal`; `from` and `to` are global positions. */
-  canTeleportToLocal(from: readonly [number, number, number], to: readonly [number, number, number], exceptObject = this.getCurrentObject()): boolean {
+  canTeleportToLocal(
+    from: readonly [number, number, number],
+    to: readonly [number, number, number],
+    exceptObject = this.getCurrentObject(),
+  ): boolean {
     let can = this.canStand(exceptObject);
     if (can && this.hasBehaviourExcept('sittp', exceptObject)) {
-      const dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
+      const dx = to[0] - from[0],
+        dy = to[1] - from[1],
+        dz = to[2] - from[2];
       const dist = this.num('sittpdist');
       can = dx * dx + dy * dy + dz * dz < dist * dist;
     }
     if (can && this.hasBehaviourExcept('tplocal', exceptObject)) {
-      const dx = to[0] - from[0], dy = to[1] - from[1];
+      const dx = to[0] - from[0],
+        dy = to[1] - from[1];
       const dist = Math.min(this.num('tplocaldist'), RLV_TPLOCAL_DEFAULT);
       can = dx * dx + dy * dy < dist * dist;
     }
     return can;
   }
-  canAcceptTpOffer(senderId: string) { return (!this.hasBehaviour('tplure') || this.isException('tplure', senderId)) && this.canStand(); }
-  autoAcceptTeleportOffer(senderId: string) { return (Boolean(senderId) && this.isException('accepttp', senderId)) || this.hasBehaviour('accepttp'); }
-  canAcceptTpRequest(senderId: string) { return !this.hasBehaviour('tprequest') || this.isException('tprequest', senderId); }
-  autoAcceptTeleportRequest(requesterId: string) { return (Boolean(requesterId) && this.isException('accepttprequest', requesterId)) || this.hasBehaviour('accepttprequest'); }
-  canSendChannel(channel: number) {
-    return (!this.hasBehaviour('sendchannel') || this.isException('sendchannel', channel)) &&
-      (!this.hasBehaviour('sendchannel_except') || !this.isException('sendchannel_except', channel));
+  canAcceptTpOffer(senderId: string) {
+    return (
+      (!this.hasBehaviour('tplure') || this.isException('tplure', senderId)) && this.canStand()
+    );
   }
-  canSendTypingStart(showRedirectChatTyping = false) { return !this.hasBehaviour('redirchat') || showRedirectChatTyping; }
+  autoAcceptTeleportOffer(senderId: string) {
+    return (
+      (Boolean(senderId) && this.isException('accepttp', senderId)) || this.hasBehaviour('accepttp')
+    );
+  }
+  canAcceptTpRequest(senderId: string) {
+    return !this.hasBehaviour('tprequest') || this.isException('tprequest', senderId);
+  }
+  autoAcceptTeleportRequest(requesterId: string) {
+    return (
+      (Boolean(requesterId) && this.isException('accepttprequest', requesterId)) ||
+      this.hasBehaviour('accepttprequest')
+    );
+  }
+  canSendChannel(channel: number) {
+    return (
+      (!this.hasBehaviour('sendchannel') || this.isException('sendchannel', channel)) &&
+      (!this.hasBehaviour('sendchannel_except') || !this.isException('sendchannel_except', channel))
+    );
+  }
+  canSendTypingStart(showRedirectChatTyping = false) {
+    return !this.hasBehaviour('redirchat') || showRedirectChatTyping;
+  }
 
   /** `rlvCheckAvatarIMDistance` for `recvim`, `sendim` and `startim`. */
   private checkIMDistance(avatarId: string, prefix: 'recvim' | 'sendim' | 'startim'): boolean {
-    const minMod = this.modifiers.get(`${prefix}distmin`)!, maxMod = this.modifiers.get(`${prefix}distmax`)!;
+    const minMod = this.modifiers.get(`${prefix}distmin`)!,
+      maxMod = this.modifiers.get(`${prefix}distmax`)!;
     if (!minMod.hasValue()) return false;
     const hasMax = maxMod.hasValue();
-    const min = Number(minMod.value), max = hasMax ? Number(maxMod.value) : F32_MAX;
+    const min = Number(minMod.value),
+      max = hasMax ? Number(maxMod.value) : F32_MAX;
     const dist = this.env.avatarDistanceSquared?.(avatarId) ?? F32_MAX;
     return min < max && min <= dist && dist <= max;
   }
 
   canReceiveIM(senderId: string): boolean {
     if (!this.enabled) return true;
-    return (!this.hasBehaviour('recvim') || this.isException('recvim', senderId) || this.checkIMDistance(senderId, 'recvim')) &&
-      (!this.hasBehaviour('recvimfrom') || !this.isException('recvimfrom', senderId));
+    return (
+      (!this.hasBehaviour('recvim') ||
+        this.isException('recvim', senderId) ||
+        this.checkIMDistance(senderId, 'recvim')) &&
+      (!this.hasBehaviour('recvimfrom') || !this.isException('recvimfrom', senderId))
+    );
   }
   canSendIM(recipientId: string): boolean {
     if (!this.enabled) return true;
-    return (!this.hasBehaviour('sendim') || this.isException('sendim', recipientId) || this.checkIMDistance(recipientId, 'sendim')) &&
-      (!this.hasBehaviour('sendimto') || !this.isException('sendimto', recipientId));
+    return (
+      (!this.hasBehaviour('sendim') ||
+        this.isException('sendim', recipientId) ||
+        this.checkIMDistance(recipientId, 'sendim')) &&
+      (!this.hasBehaviour('sendimto') || !this.isException('sendimto', recipientId))
+    );
   }
   canStartIM(recipientId: string, hasOpenSession = false): boolean {
     if (!this.enabled) return true;
-    return ((!this.hasBehaviour('startim') || this.isException('startim', recipientId) || this.checkIMDistance(recipientId, 'startim')) &&
-      (!this.hasBehaviour('startimto') || !this.isException('startimto', recipientId))) || hasOpenSession;
+    return (
+      ((!this.hasBehaviour('startim') ||
+        this.isException('startim', recipientId) ||
+        this.checkIMDistance(recipientId, 'startim')) &&
+        (!this.hasBehaviour('startimto') || !this.isException('startimto', recipientId))) ||
+      hasOpenSession
+    );
   }
 
   /** `RlvActions::canShowName` (default context). */
   canShowName(agentId = ''): boolean {
     if (!this.blockNames) return true;
     if (!agentId) return false;
-    return this.isException('shownames', agentId) || agentId.toLowerCase() === (this.env.selfId?.() ?? '').toLowerCase();
+    return (
+      this.isException('shownames', agentId) ||
+      agentId.toLowerCase() === (this.env.selfId?.() ?? '').toLowerCase()
+    );
   }
 
   canShowNameTag(avatarId: string, distanceSquared: number): boolean {
-    if (!this.hasBehaviour('shownametags') || this.isException('shownametags', avatarId) || avatarId === this.env.selfId?.()) return true;
+    if (
+      !this.hasBehaviour('shownametags') ||
+      this.isException('shownametags', avatarId) ||
+      avatarId === this.env.selfId?.()
+    )
+      return true;
     const dist = this.num('shownametagsdist');
     return dist !== 0 && distanceSquared < dist * dist;
   }
 
   /** Squared distance at which `@fartouch` stops touching and sitting. */
-  private fartouchDistSquared() { const d = this.num('fartouchdist'); return d * d; }
+  private fartouchDistSquared() {
+    const d = this.num('fartouchdist');
+    return d * d;
+  }
 
   /** `RlvActions::canInteract` (`@interact`, `@fartouch`). `distanceSquared` is from the avatar to the object plus pick offset. */
   canInteract(obj: RlvObjectInfo | null): boolean {
     if (!obj) return true;
-    return (!this.hasBehaviour('interact') || obj.isHud) &&
-      (!this.hasBehaviour('fartouch') || obj.isHud || obj.distanceSquared <= this.fartouchDistSquared());
+    return (
+      (!this.hasBehaviour('interact') || obj.isHud) &&
+      (!this.hasBehaviour('fartouch') ||
+        obj.isHud ||
+        obj.distanceSquared <= this.fartouchDistSquared())
+    );
   }
 
   /** `RlvActions::canTouch`: `@touchall/this/world/attach/attachself/attachother/hud/me` and `@fartouch`. */
   canTouch(obj: RlvObjectInfo | null): boolean {
     const root = (obj?.rootId ?? '').toLowerCase();
     if (!obj || !root) return false;
-    let can = (obj.isHud || !this.hasBehaviour('touchall')) &&
+    let can =
+      (obj.isHud || !this.hasBehaviour('touchall')) &&
       (!this.hasBehaviour('touchthis') || !this.isException('touchthis', root, 'permissive'));
     if (can) {
       if (!obj.isAttachment) {
-        can = (!this.hasBehaviour('touchworld') || this.isException('touchworld', root, 'permissive')) &&
+        can =
+          (!this.hasBehaviour('touchworld') ||
+            this.isException('touchworld', root, 'permissive')) &&
           (!this.hasBehaviour('fartouch') || obj.distanceSquared <= this.fartouchDistSquared());
       } else if (!obj.isOwnedByYou) {
         const wearer = (obj.wearerId ?? '').toLowerCase();
-        can = ((!this.hasBehaviour('touchattach') && !this.hasBehaviour('touchattachother')) ||
-            this.isException('touchattach', root, 'permissive') || this.isException('touchattach', wearer, 'permissive')) &&
+        can =
+          ((!this.hasBehaviour('touchattach') && !this.hasBehaviour('touchattachother')) ||
+            this.isException('touchattach', root, 'permissive') ||
+            this.isException('touchattach', wearer, 'permissive')) &&
           !this.isException('touchattachother', wearer) &&
           (!this.hasBehaviour('fartouch') || obj.distanceSquared <= this.fartouchDistSquared());
       } else if (!obj.isHud) {
-        can = (!this.hasBehaviour('touchattach') || this.isException('touchattach', root, 'permissive')) &&
-          (!this.hasBehaviour('touchattachself') || this.isException('touchattach', root, 'permissive'));
+        can =
+          (!this.hasBehaviour('touchattach') ||
+            this.isException('touchattach', root, 'permissive')) &&
+          (!this.hasBehaviour('touchattachself') ||
+            this.isException('touchattach', root, 'permissive'));
       } else {
         can = !this.hasBehaviour('touchhud') || this.isException('touchhud', root, 'permissive');
       }
@@ -1018,20 +1596,26 @@ export class RlvHandler extends Utils.EventEmitter {
 
   /** `hasBehaviourRoot`: some object whose linkset root is `rootId` holds the behaviour. */
   hasBehaviourRoot(rootId: string, name: string, option = ''): boolean {
-    for (const [id, object] of this.objects) if ((this.objectRoots.get(id) ?? id) === rootId && object.hasBehaviour(name, option, false)) return true;
+    for (const [id, object] of this.objects)
+      if ((this.objectRoots.get(id) ?? id) === rootId && object.hasBehaviour(name, option, false))
+        return true;
     return false;
   }
   private readonly objectRoots = new Map<string, string>();
   /** Record an RLV object's linkset root (`RlvObject::m_idRoot`), so linkset-wide checks can find it. */
-  setObjectRoot(objectId: string, rootId: string) { this.objectRoots.set(objectId, rootId.toLowerCase()); }
+  setObjectRoot(objectId: string, rootId: string) {
+    this.objectRoots.set(objectId, rootId.toLowerCase());
+  }
 
   /** `RlvActions::canEdit(obj)`: `@edit`, `@editobj`, `@editattach`, `@editworld`. */
   canEdit(obj: RlvObjectInfo | null): boolean {
     if (!obj) return false;
     const root = obj.rootId.toLowerCase();
-    return (!this.hasBehaviour('edit') || this.isException('edit', root)) &&
+    return (
+      (!this.hasBehaviour('edit') || this.isException('edit', root)) &&
       (!this.hasBehaviour('editobj') || !this.isException('editobj', root)) &&
-      (obj.isAttachment ? !this.hasBehaviour('editattach') : !this.hasBehaviour('editworld'));
+      (obj.isAttachment ? !this.hasBehaviour('editattach') : !this.hasBehaviour('editworld'))
+    );
   }
 
   /** `RlvActions::canSit`. */
@@ -1039,34 +1623,48 @@ export class RlvHandler extends Utils.EventEmitter {
     if (!obj || !obj.isVolume) return false;
     const sitting = this.sitting();
     const issuing = this.getCurrentCommand();
-    return !this.hasBehaviour('sit') &&
+    return (
+      !this.hasBehaviour('sit') &&
       ((!this.hasBehaviour('unsit') && !this.hasBehaviour('standtp')) || !sitting) &&
       ((issuing !== null && issuing.name === 'sit') ||
         ((!this.hasBehaviour('sittp') || obj.distanceSquared < this.num('sittpdist') ** 2) &&
-          (!this.hasBehaviour('fartouch') || obj.distanceSquared < this.fartouchDistSquared())));
+          (!this.hasBehaviour('fartouch') || obj.distanceSquared < this.fartouchDistSquared())))
+    );
   }
 
   /** `RlvActions::canGroundSit`. */
   canGroundSit(exceptObject = '') {
-    return !(exceptObject ? this.hasBehaviourExcept('sit', exceptObject) : this.hasBehaviour('sit')) && this.canStand(exceptObject);
+    return (
+      !(exceptObject ? this.hasBehaviourExcept('sit', exceptObject) : this.hasBehaviour('sit')) &&
+      this.canStand(exceptObject)
+    );
   }
 
   /** `RlvActions::canShowHoverText`. */
   canShowHoverText(obj: { id: string; isVolume: boolean; isHud: boolean } | null): boolean {
     if (!obj || !obj.isVolume) return true;
-    return !(this.hasBehaviour('showhovertextall') ||
+    return !(
+      this.hasBehaviour('showhovertextall') ||
       (this.hasBehaviour('showhovertextworld') && !obj.isHud) ||
       (this.hasBehaviour('showhovertexthud') && obj.isHud) ||
-      this.isException('showhovertext', obj.id.toLowerCase(), 'permissive'));
+      this.isException('showhovertext', obj.id.toLowerCase(), 'permissive')
+    );
   }
 
-  canPayAvatar() { return !this.hasBehaviour('pay'); }
-  canPayObject() { return !this.hasBehaviour('buy'); }
-  canRez() { return !this.hasBehaviour('rez'); }
+  canPayAvatar() {
+    return !this.hasBehaviour('pay');
+  }
+  canPayObject() {
+    return !this.hasBehaviour('buy');
+  }
+  canRez() {
+    return !this.hasBehaviour('rez');
+  }
 
   /** `RlvActions::checkChatVolume`: whisper/normal/shout limited by `@chat*`. */
   checkChatVolume(type: number): number {
-    if ((type === CHAT_TYPE.SHOUT || type === CHAT_TYPE.NORMAL) && this.hasBehaviour('chatnormal')) return CHAT_TYPE.WHISPER;
+    if ((type === CHAT_TYPE.SHOUT || type === CHAT_TYPE.NORMAL) && this.hasBehaviour('chatnormal'))
+      return CHAT_TYPE.WHISPER;
     if (type === CHAT_TYPE.SHOUT && this.hasBehaviour('chatshout')) return CHAT_TYPE.NORMAL;
     if (type === CHAT_TYPE.WHISPER && this.hasBehaviour('chatwhisper')) return CHAT_TYPE.NORMAL;
     return type;
@@ -1079,12 +1677,19 @@ export class RlvHandler extends Utils.EventEmitter {
     let out = text;
     if (isEmote(out)) {
       if (filterEmote) {
-        if (/["()*=^_?~]/.test(out) || out.includes(' -') || out.includes('- ') || out.includes("''")) {
+        if (
+          /["()*=^_?~]/.test(out) ||
+          out.includes(' -') ||
+          out.includes('- ') ||
+          out.includes("''")
+        ) {
           filtered = true; // Emote contains an illegal character (or sequence)
         } else if (!this.hasBehaviour('emote')) {
           // Truncate at 20 characters or at the dot, whichever is shorter
           const idx = out.indexOf('.');
-          out = Array.from(out).slice(0, idx > 0 && idx < 20 ? idx + 1 : 20).join('');
+          out = Array.from(out)
+            .slice(0, idx > 0 && idx < 20 ? idx + 1 : 20)
+            .join('');
         }
       }
     } else if (out[0] === '/') {
@@ -1100,11 +1705,23 @@ export class RlvHandler extends Utils.EventEmitter {
    * Chat leaving the avatar on channel 0 (`send_chat_from_viewer`). Returns the text to send (or null to drop it) and
    * the chat type to send it with; redirected chat is sent on its redirect channels and not at all in public.
    */
-  prepareOutgoingChat(text: string, type: number, channel: number): { text: string; type: number } | null {
-    if (!this.enabled || (type !== CHAT_TYPE.WHISPER && type !== CHAT_TYPE.NORMAL && type !== CHAT_TYPE.SHOUT)) return { text, type };
+  prepareOutgoingChat(
+    text: string,
+    type: number,
+    channel: number,
+  ): { text: string; type: number } | null {
+    if (
+      !this.enabled ||
+      (type !== CHAT_TYPE.WHISPER && type !== CHAT_TYPE.NORMAL && type !== CHAT_TYPE.SHOUT)
+    )
+      return { text, type };
     if (channel === 0) {
       const adjusted = this.checkChatVolume(type);
-      if ((this.hasBehaviour('redirchat') || this.hasBehaviour('rediremote')) && this.redirectChatOrEmote(text)) return null;
+      if (
+        (this.hasBehaviour('redirchat') || this.hasBehaviour('rediremote')) &&
+        this.redirectChatOrEmote(text)
+      )
+        return null;
       let out = text;
       if (this.hasBehaviour('sendchat')) out = this.filterChat(out, true).text;
       return { text: out, type: adjusted };
@@ -1113,7 +1730,12 @@ export class RlvHandler extends Utils.EventEmitter {
     if (!this.canSendChannel(channel)) return null;
     if (channel === CHAT_CHANNEL_DEBUG) {
       const emote = isEmote(text);
-      if (this.hasBehaviour('sendchat') || (!emote && this.hasBehaviour('redirchat')) || (emote && this.hasBehaviour('rediremote'))) return null;
+      if (
+        this.hasBehaviour('sendchat') ||
+        (!emote && this.hasBehaviour('redirchat')) ||
+        (emote && this.hasBehaviour('rediremote'))
+      )
+        return null;
     }
     return { text, type };
   }
@@ -1135,22 +1757,41 @@ export class RlvHandler extends Utils.EventEmitter {
    * Chat arriving from the simulator (`process_chat_from_simulator`). `fromId` is the speaker; `sourceType` one of `CHAT_SOURCE`.
    * Returns the text to show, or null to hide the message. Commands in owner-say chat are handled by `handleObjectChat` first.
    */
-  filterIncomingChat(opts: { fromId: string; fromName: string; text: string; chatType: number; sourceType: number }): RlvChatEvent {
-    if (!this.enabled || opts.chatType === CHAT_TYPE.START || opts.chatType === CHAT_TYPE.STOP) return { text: opts.text, fromName: opts.fromName };
+  filterIncomingChat(opts: {
+    fromId: string;
+    fromName: string;
+    text: string;
+    chatType: number;
+    sourceType: number;
+  }): RlvChatEvent {
+    if (!this.enabled || opts.chatType === CHAT_TYPE.START || opts.chatType === CHAT_TYPE.STOP)
+      return { text: opts.text, fromName: opts.fromName };
     let text = opts.text;
     const self = (this.env.selfId?.() ?? '').toLowerCase();
     const fromId = opts.fromId.toLowerCase();
     const ownAttachment = this.env.isOwnAttachment?.(opts.fromId) ?? false;
     // avatar => filter all text (unless it's this avatar or an exception); objects => filter everything except our attachments (never llOwnerSay or llRegionSayTo)
-    const filterable = (opts.sourceType === CHAT_SOURCE.AGENT && fromId !== self) ||
-      (opts.sourceType === CHAT_SOURCE.OBJECT && !ownAttachment && opts.chatType !== CHAT_TYPE.OWNER && opts.chatType !== CHAT_TYPE.DIRECT);
+    const filterable =
+      (opts.sourceType === CHAT_SOURCE.AGENT && fromId !== self) ||
+      (opts.sourceType === CHAT_SOURCE.OBJECT &&
+        !ownAttachment &&
+        opts.chatType !== CHAT_TYPE.OWNER &&
+        opts.chatType !== CHAT_TYPE.DIRECT);
     if (filterable) {
       const emote = isEmote(text);
-      if (!emote && ((this.hasBehaviour('recvchat') && !this.isException('recvchat', fromId)) || (this.hasBehaviour('recvchatfrom') && this.isException('recvchatfrom', fromId)))) {
+      if (
+        !emote &&
+        ((this.hasBehaviour('recvchat') && !this.isException('recvchat', fromId)) ||
+          (this.hasBehaviour('recvchatfrom') && this.isException('recvchatfrom', fromId)))
+      ) {
         const result = this.filterChat(text, false);
         if (result.filtered && !this.showEllipsis) return { text: null };
         text = result.text;
-      } else if (emote && ((this.hasBehaviour('recvemote') && !this.isException('recvemote', fromId)) || (this.hasBehaviour('recvemotefrom') && this.isException('recvemotefrom', fromId)))) {
+      } else if (
+        emote &&
+        ((this.hasBehaviour('recvemote') && !this.isException('recvemote', fromId)) ||
+          (this.hasBehaviour('recvemotefrom') && this.isException('recvemotefrom', fromId)))
+      ) {
         if (!this.showEllipsis) return { text: null };
         text = '/me ...';
       }
@@ -1158,8 +1799,10 @@ export class RlvHandler extends Utils.EventEmitter {
     // avatar => filter only their name (unless it's this avatar); other => filter everything
     let fromName = opts.fromName;
     if (!this.canShowName()) {
-      if (opts.sourceType !== CHAT_SOURCE.AGENT) { fromName = this.filterNames(fromName); text = this.filterNames(text); }
-      else if (!this.canShowName(opts.fromId)) fromName = this.anonym(fromName);
+      if (opts.sourceType !== CHAT_SOURCE.AGENT) {
+        fromName = this.filterNames(fromName);
+        text = this.filterNames(text);
+      } else if (!this.canShowName(opts.fromId)) fromName = this.anonym(fromName);
       else text = this.filterNames(text);
     }
     if (this.hasBehaviour('showloc')) text = this.filterLocation(text);
@@ -1186,11 +1829,14 @@ export class RlvHandler extends Utils.EventEmitter {
     let out = text;
     for (const avatar of this.env.nearbyAvatars?.() ?? []) {
       if (!opts.clearMatches && this.canShowName(avatar.id)) continue;
-      const display = avatar.displayName, legacy = avatar.legacyName;
+      const display = avatar.displayName,
+        legacy = avatar.legacyName;
       const filterDisplay = display.length > 2;
       const filterLegacy = filterLegacyDefault && legacy.length > 2;
       const replacement = opts.clearMatches ? '' : this.anonym(legacy || display);
-      const replace = (name: string) => { out = out.replace(new RegExp(`\\b${escapeRegex(name)}\\b`, 'gi'), replacement); };
+      const replace = (name: string) => {
+        out = out.replace(new RegExp(`\\b${escapeRegex(name)}\\b`, 'gi'), replacement);
+      };
       if (legacy.toLowerCase().includes(display.toLowerCase())) {
         if (filterLegacy) replace(legacy);
         if (filterDisplay) replace(display);
@@ -1206,17 +1852,26 @@ export class RlvHandler extends Utils.EventEmitter {
   filterLocation(text: string): string {
     const { regions, parcel } = this.env.locationNames?.() ?? { regions: [], parcel: null };
     let out = text;
-    for (const region of regions) if (region) out = out.replace(new RegExp(`\\b${escapeRegex(region)}\\b`, 'gi'), RLV_STRINGS.hiddenRegion);
-    if (parcel) out = out.replace(new RegExp(`\\b${escapeRegex(parcel)}\\b`, 'gi'), RLV_STRINGS.hiddenParcel);
+    for (const region of regions)
+      if (region)
+        out = out.replace(
+          new RegExp(`\\b${escapeRegex(region)}\\b`, 'gi'),
+          RLV_STRINGS.hiddenRegion,
+        );
+    if (parcel)
+      out = out.replace(new RegExp(`\\b${escapeRegex(parcel)}\\b`, 'gi'), RLV_STRINGS.hiddenParcel);
     return out;
   }
 
   /** `@notify` subscriptions (object id, channel, filter), for the code that reports events to scripts. */
-  getNotifications() { return this.notifications.map((n) => ({ ...n })); }
+  getNotifications() {
+    return this.notifications.map((n) => ({ ...n }));
+  }
 
   /** Tell `@notify` listeners about an event (`/<text>`), honouring their filters. */
   notify(text: string) {
-    for (const n of this.notifications) if (!n.filter || text.includes(n.filter)) this.sendChatReply(n.channel, `/${text}`);
+    for (const n of this.notifications)
+      if (!n.filter || text.includes(n.filter)) this.sendChatReply(n.channel, `/${text}`);
   }
 }
 
@@ -1233,5 +1888,8 @@ function parseNotifyOption(option: string): { channel: number; filter: string } 
 /** `rlvParseGetStatusOption`: `[<filter>][;<separator>]`. */
 function parseGetStatusOption(option: string): { filter: string; separator: string } {
   const tokens = option.split(RLV_OPTION_SEPARATOR);
-  return { filter: tokens[0] ?? '', separator: tokens.length > 1 && tokens[1] !== '' ? tokens[1] : '/' };
+  return {
+    filter: tokens[0] ?? '',
+    separator: tokens.length > 1 && tokens[1] !== '' ? tokens[1] : '/',
+  };
 }

@@ -10,7 +10,12 @@ import { packJointRows } from './skinning';
 import { assetBase, staticFallbackBase } from './avatar-animator';
 import { rateLimitedFetch } from './rate-limited-fetch';
 
-export interface BodyPartMeta { vertexCount: number; faceCount: number; hasWeights: boolean; jointNames: string[] }
+export interface BodyPartMeta {
+  vertexCount: number;
+  faceCount: number;
+  hasWeights: boolean;
+  jointNames: string[];
+}
 export interface BodyPartGeometry {
   vertices: number[];
   normals: number[];
@@ -25,13 +30,31 @@ export interface BodyPartGeometry {
 }
 
 /** Parts drawn for a default avatar, with the baked-texture slot each one wears and a plain fallback colour. */
-export const BODY_PARTS: Array<{ part: string; instance: string; bake: 'head' | 'upper' | 'lower' | 'eyes' | 'hair'; color: [number, number, number, number]; rigidJoint?: string }> = [
+export const BODY_PARTS: Array<{
+  part: string;
+  instance: string;
+  bake: 'head' | 'upper' | 'lower' | 'eyes' | 'hair';
+  color: [number, number, number, number];
+  rigidJoint?: string;
+}> = [
   { part: 'upperBody', instance: 'upperBody', bake: 'upper', color: [0.82, 0.62, 0.48, 1] },
   { part: 'lowerBody', instance: 'lowerBody', bake: 'lower', color: [0.82, 0.62, 0.48, 1] },
   { part: 'head', instance: 'head', bake: 'head', color: [0.82, 0.62, 0.48, 1] },
   { part: 'eyelashes', instance: 'eyelashes', bake: 'head', color: [0.12, 0.08, 0.06, 1] },
-  { part: 'eye', instance: 'eyeLeft', bake: 'eyes', color: [0.95, 0.95, 0.95, 1], rigidJoint: 'mEyeLeft' },
-  { part: 'eye', instance: 'eyeRight', bake: 'eyes', color: [0.95, 0.95, 0.95, 1], rigidJoint: 'mEyeRight' },
+  {
+    part: 'eye',
+    instance: 'eyeLeft',
+    bake: 'eyes',
+    color: [0.95, 0.95, 0.95, 1],
+    rigidJoint: 'mEyeLeft',
+  },
+  {
+    part: 'eye',
+    instance: 'eyeRight',
+    bake: 'eyes',
+    color: [0.95, 0.95, 0.95, 1],
+    rigidJoint: 'mEyeRight',
+  },
   { part: 'hair', instance: 'hair', bake: 'hair', color: [0.28, 0.2, 0.14, 1] },
 ];
 
@@ -39,7 +62,8 @@ export const BODY_PARTS: Array<{ part: string; instance: string; bake: 'head' | 
 export function parseBodyPart(buffer: ArrayBuffer, meta: BodyPartMeta): BodyPartGeometry {
   const n = meta.vertexCount;
   const expected = n * 9 * 4 + meta.faceCount * 3 * 2;
-  if (buffer.byteLength !== expected) throw new Error(`Avatar mesh has ${buffer.byteLength} bytes, expected ${expected}`);
+  if (buffer.byteLength !== expected)
+    throw new Error(`Avatar mesh has ${buffer.byteLength} bytes, expected ${expected}`);
   const floats = new Float32Array(buffer, 0, n * 9);
   const indices = Array.from(new Uint16Array(buffer.slice(n * 9 * 4)));
   if (indices.some((index) => index >= n)) throw new Error('Avatar mesh index out of range');
@@ -47,10 +71,15 @@ export function parseBodyPart(buffer: ArrayBuffer, meta: BodyPartMeta): BodyPart
   const normals = Array.from(floats.subarray(n * 3, n * 6));
   const texCoords = Array.from(floats.subarray(n * 6, n * 8));
   const weights = floats.subarray(n * 8, n * 9);
-  const joints: number[] = [], jointWeights: number[] = [];
+  const joints: number[] = [],
+    jointWeights: number[] = [];
   const lastJoint = meta.jointNames.length - 1;
   for (let v = 0; v < n; v++) {
-    if (!meta.hasWeights || lastJoint < 0) { joints.push(0, 0, 0, 0); jointWeights.push(1, 0, 0, 0); continue; }
+    if (!meta.hasWeights || lastJoint < 0) {
+      joints.push(0, 0, 0, 0);
+      jointWeights.push(1, 0, 0, 0);
+      continue;
+    }
     // Blend weight = (joint index + 1) + fraction: skin between that joint and the next one.
     const w = weights[v];
     const base = Math.floor(w);
@@ -60,13 +89,30 @@ export function parseBodyPart(buffer: ArrayBuffer, meta: BodyPartMeta): BodyPart
     joints.push(first, second, 0, 0);
     jointWeights.push(second === first ? 1 : 1 - fraction, second === first ? 0 : fraction, 0, 0);
   }
-  return { vertices, normals, texCoords, indices, joints, jointWeights, jointNames: meta.jointNames, rigid: !meta.hasWeights };
+  return {
+    vertices,
+    normals,
+    texCoords,
+    indices,
+    joints,
+    jointWeights,
+    jointNames: meta.jointNames,
+    rigid: !meta.hasWeights,
+  };
 }
 
 /** Skin description for a body part: the joint list and, for weighted parts, inverse binds that undo each joint's rest position. */
-export function bodyPartSkin(skeleton: AvatarSkeleton, geometry: BodyPartGeometry, rigidJoint?: string): MeshSkin {
+export function bodyPartSkin(
+  skeleton: AvatarSkeleton,
+  geometry: BodyPartGeometry,
+  rigidJoint?: string,
+): MeshSkin {
   if (geometry.rigid) {
-    return { jointNames: [rigidJoint || 'mPelvis'], bindShapeMatrix: null, inverseBindMatrices: [compose([0, 0, 0])] };
+    return {
+      jointNames: [rigidJoint || 'mPelvis'],
+      bindShapeMatrix: null,
+      inverseBindMatrices: [compose([0, 0, 0])],
+    };
   }
   return {
     jointNames: geometry.jointNames,
@@ -81,12 +127,20 @@ export function bodyPartSkin(skeleton: AvatarSkeleton, geometry: BodyPartGeometr
 /** Rigid parts reference a single joint; shift their per-vertex joint indices to it. */
 export function bodyPartVertexSkin(geometry: BodyPartGeometry) {
   return geometry.rigid
-    ? { joints: geometry.joints.map(() => 0), weights: geometry.jointWeights.map((_, i) => (i % 4 === 0 ? 1 : 0)) }
+    ? {
+        joints: geometry.joints.map(() => 0),
+        weights: geometry.jointWeights.map((_, i) => (i % 4 === 0 ? 1 : 0)),
+      }
     : { joints: geometry.joints, weights: geometry.jointWeights };
 }
 
 /** Packed uniform rows for one part given the avatar's current world joint matrices. */
-export function bodyPartRows(skeleton: AvatarSkeleton, skin: MeshSkin, world: Mat4[], maxJoints: number): Float32Array {
+export function bodyPartRows(
+  skeleton: AvatarSkeleton,
+  skin: MeshSkin,
+  world: Mat4[],
+  maxJoints: number,
+): Float32Array {
   return packJointRows(skinMatrices(skeleton, skin, world), maxJoints);
 }
 
@@ -94,34 +148,55 @@ export function bodyPartRows(skeleton: AvatarSkeleton, skin: MeshSkin, world: Ma
  * Load the avatar body meshes. Without an explicit base the app's own `avatar/` folder is tried first, then
  * the fallback folder (see `staticFallbackBase`), so a deployment missing `public/avatar` still shows the real body.
  */
-export async function loadBodyParts(baseUrl?: string, fetcher: typeof fetch = (input, init) => fetch(input, init), fallbackBase: string = staticFallbackBase()): Promise<Map<string, BodyPartGeometry>> {
+export async function loadBodyParts(
+  baseUrl?: string,
+  fetcher: typeof fetch = (input, init) => fetch(input, init),
+  fallbackBase: string = staticFallbackBase(),
+): Promise<Map<string, BodyPartGeometry>> {
   if (baseUrl !== undefined) return loadBodyPartsFrom(baseUrl, fetcher);
   const bases = [`${assetBase()}avatar/`, ...(fallbackBase ? [`${fallbackBase}avatar/`] : [])];
   let failure: unknown;
   for (const base of bases) {
-    try { return await loadBodyPartsFrom(base, fetcher); }
-    catch (error) {
+    try {
+      return await loadBodyPartsFrom(base, fetcher);
+    } catch (error) {
       failure = failure ?? error;
-      if (base !== bases[bases.length - 1]) console.warn(`[WorldViewer] avatar meshes not served from ${base}; trying the fallback source:`, (error as Error).message);
+      if (base !== bases[bases.length - 1])
+        console.warn(
+          `[WorldViewer] avatar meshes not served from ${base}; trying the fallback source:`,
+          (error as Error).message,
+        );
     }
   }
   throw failure;
 }
 
-async function loadBodyPartsFrom(baseUrl: string, fetcher: typeof fetch): Promise<Map<string, BodyPartGeometry>> {
+async function loadBodyPartsFrom(
+  baseUrl: string,
+  fetcher: typeof fetch,
+): Promise<Map<string, BodyPartGeometry>> {
   const metaResponse = await rateLimitedFetch(`${baseUrl}meshes.json`, undefined, fetcher);
-  if (!metaResponse.ok) throw new Error(`Avatar mesh index unavailable (HTTP ${metaResponse.status})`);
+  if (!metaResponse.ok)
+    throw new Error(`Avatar mesh index unavailable (HTTP ${metaResponse.status})`);
   let meta: Record<string, BodyPartMeta>;
-  try { meta = (await metaResponse.json()) as Record<string, BodyPartMeta>; }
-  catch { throw new Error(`Avatar mesh index at ${baseUrl}meshes.json is not JSON (is public/avatar deployed?)`); }
+  try {
+    meta = (await metaResponse.json()) as Record<string, BodyPartMeta>;
+  } catch {
+    throw new Error(
+      `Avatar mesh index at ${baseUrl}meshes.json is not JSON (is public/avatar deployed?)`,
+    );
+  }
   const parts = new Map<string, BodyPartGeometry>();
   // These files are small. Loading them in order avoids an eight-request burst that can exhaust
   // the whole origin's rate limit just as the viewer is also fetching its initial session state.
   for (const part of Object.keys(meta)) {
     const response = await rateLimitedFetch(`${baseUrl}${part}.bin`, undefined, fetcher);
     if (!response.ok) throw new Error(`Avatar mesh ${part} unavailable (HTTP ${response.status})`);
-    try { parts.set(part, parseBodyPart(await response.arrayBuffer(), meta[part])); }
-    catch (error) { throw new Error(`Avatar mesh ${baseUrl}${part}.bin is invalid: ${(error as Error).message}`); }
+    try {
+      parts.set(part, parseBodyPart(await response.arrayBuffer(), meta[part]));
+    } catch (error) {
+      throw new Error(`Avatar mesh ${baseUrl}${part}.bin is invalid: ${(error as Error).message}`);
+    }
   }
   return parts;
 }

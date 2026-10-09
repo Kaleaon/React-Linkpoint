@@ -8,7 +8,7 @@ function findVectorFile(relativePath: string): string {
     path.resolve(__dirname, '../../../test-vectors', relativePath),
     path.resolve('/app/React-Linkpoint/test-vectors', relativePath),
     path.resolve('/app/Linkpoint/test-vectors', relativePath),
-    path.resolve(process.cwd(), 'test-vectors', relativePath)
+    path.resolve(process.cwd(), 'test-vectors', relativePath),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {
@@ -89,7 +89,13 @@ describe('React-Linkpoint Canonical Shared Test Vectors Suite', () => {
 
         for (const cp of boxCase.contains_points) {
           const pt = cp.point;
-          const inside = pt[0] >= min[0] && pt[0] <= max[0] && pt[1] >= min[1] && pt[1] <= max[1] && pt[2] >= min[2] && pt[2] <= max[2];
+          const inside =
+            pt[0] >= min[0] &&
+            pt[0] <= max[0] &&
+            pt[1] >= min[1] &&
+            pt[1] <= max[1] &&
+            pt[2] >= min[2] &&
+            pt[2] <= max[2];
           expect(inside).toBe(cp.expected);
         }
       }

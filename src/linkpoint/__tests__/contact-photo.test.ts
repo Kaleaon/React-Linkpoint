@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { MAX_SOURCE_BYTES, base64ToBlob, checkPhotoFile, fileToPhotoDataUrl, squareCrop } from '../contact-photo';
+import {
+  MAX_SOURCE_BYTES,
+  base64ToBlob,
+  checkPhotoFile,
+  fileToPhotoDataUrl,
+  squareCrop,
+} from '../contact-photo';
 
 describe('squareCrop', () => {
   it('centres the square on the long side', () => {
@@ -11,7 +17,14 @@ describe('squareCrop', () => {
   });
 
   it('rejects images with no usable size', () => {
-    for (const [w, h] of [[0, 10], [10, 0], [-1, 5], [NaN, 5], [Infinity, 5]]) expect(() => squareCrop(w, h)).toThrow(/no size/);
+    for (const [w, h] of [
+      [0, 10],
+      [10, 0],
+      [-1, 5],
+      [NaN, 5],
+      [Infinity, 5],
+    ])
+      expect(() => squareCrop(w, h)).toThrow(/no size/);
   });
 });
 
@@ -29,7 +42,9 @@ describe('checkPhotoFile', () => {
 
 describe('fileToPhotoDataUrl', () => {
   it('refuses unsuitable files before decoding anything', async () => {
-    await expect(fileToPhotoDataUrl(new Blob(['<svg/>'], { type: 'image/svg+xml' }))).rejects.toThrow(/JPEG, PNG/);
+    await expect(
+      fileToPhotoDataUrl(new Blob(['<svg/>'], { type: 'image/svg+xml' })),
+    ).rejects.toThrow(/JPEG, PNG/);
     await expect(fileToPhotoDataUrl(new Blob([], { type: 'image/png' }))).rejects.toThrow(/empty/);
   });
 });

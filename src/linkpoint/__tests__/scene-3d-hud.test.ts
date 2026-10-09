@@ -9,9 +9,14 @@ function makeScene(alphaTextures: string[] = []) {
   const graphics = {
     clear: vi.fn(() => order.push('clear')),
     clearDepth: vi.fn(() => order.push('clearDepth')),
-    drawMesh: vi.fn((mesh: string, _program: string, uniforms: any) => order.push(uniforms.uAlphaMode === 2 ? 'blend' : 'draw')),
-    setClearColor: vi.fn(), createMesh: vi.fn(), createRenderTarget: vi.fn(),
-    beginRenderTarget: vi.fn(() => false), endRenderTarget: vi.fn(),
+    drawMesh: vi.fn((mesh: string, _program: string, uniforms: any) =>
+      order.push(uniforms.uAlphaMode === 2 ? 'blend' : 'draw'),
+    ),
+    setClearColor: vi.fn(),
+    createMesh: vi.fn(),
+    createRenderTarget: vi.fn(),
+    beginRenderTarget: vi.fn(() => false),
+    endRenderTarget: vi.fn(),
     getMeshBounds: vi.fn(() => BOUNDS),
     textureHasAlpha: vi.fn((name?: string) => Boolean(name && alphaTextures.includes(name))),
   };
@@ -27,7 +32,14 @@ function makeScene(alphaTextures: string[] = []) {
 }
 
 // A flat 1 (y) x 0.5 (z) HUD button, thin in depth, at the HUD root.
-const hudButton = (id: string, extra: any = {}) => ({ mesh: 'cube', hud: true, hudRoot: 'root', position: [0, 0, 0], scale: [0.02, 1, 0.5], ...extra });
+const hudButton = (id: string, extra: any = {}) => ({
+  mesh: 'cube',
+  hud: true,
+  hudRoot: 'root',
+  position: [0, 0, 0],
+  scale: [0.02, 1, 0.5],
+  ...extra,
+});
 
 describe('HUD pass', () => {
   it('draws nothing for the HUD until one is displayed', () => {
@@ -143,11 +155,22 @@ describe('HUD picking', () => {
 describe('textures with transparency', () => {
   it('are blended automatically unless a material says otherwise', () => {
     const { scene, graphics } = makeScene(['leaf']);
-    scene.addObject('tree', { mesh: 'cube', position: [0, 20, 50], texture: 'leaf', faces: [{ texture: 'leaf' }] });
+    scene.addObject('tree', {
+      mesh: 'cube',
+      position: [0, 20, 50],
+      texture: 'leaf',
+      faces: [{ texture: 'leaf' }],
+    });
     scene.addObject('wall', { mesh: 'cube', position: [0, 21, 50], texture: 'brick' });
-    scene.addObject('masked', { mesh: 'cube', position: [0, 22, 50], faces: [{ texture: 'leaf', pbr: { alphaMode: 'MASK' } }] });
+    scene.addObject('masked', {
+      mesh: 'cube',
+      position: [0, 22, 50],
+      faces: [{ texture: 'leaf', pbr: { alphaMode: 'MASK' } }],
+    });
     scene.render();
-    const modes = Object.fromEntries(graphics.drawMesh.mock.calls.map((c: any[]) => [c[2].uModelMatrix[13], c[2].uAlphaMode]));
+    const modes = Object.fromEntries(
+      graphics.drawMesh.mock.calls.map((c: any[]) => [c[2].uModelMatrix[13], c[2].uAlphaMode]),
+    );
     expect(modes[20]).toBe(2); // transparent texture -> blend
     expect(modes[21]).toBe(0); // opaque texture
     expect(modes[22]).toBe(1); // explicit MASK is respected
@@ -158,7 +181,9 @@ describe('textures with transparency', () => {
     scene.addObject('tint', { mesh: 'cube', position: [0, 20, 50], color: [1, 0, 0, 0.4] });
     scene.addObject('solid', { mesh: 'cube', position: [0, 21, 50], color: [1, 0, 0, 1] });
     scene.render();
-    const modes = Object.fromEntries(graphics.drawMesh.mock.calls.map((c: any[]) => [c[2].uModelMatrix[13], c[2].uAlphaMode]));
+    const modes = Object.fromEntries(
+      graphics.drawMesh.mock.calls.map((c: any[]) => [c[2].uModelMatrix[13], c[2].uAlphaMode]),
+    );
     expect(modes).toEqual({ 20: 2, 21: 0 });
   });
 

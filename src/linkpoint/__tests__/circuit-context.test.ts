@@ -79,7 +79,7 @@ describe('CircuitContextManager', () => {
   it('validates mutating request and throws error if AgentData is zeroed', () => {
     // Unset circuit should fail validation
     expect(() => manager.validateMutatingRequest({ ParcelID: 'p-1' })).toThrow(
-      'Invalid or zeroed circuit identity parameters in AgentData block'
+      'Invalid or zeroed circuit identity parameters in AgentData block',
     );
 
     // Active circuit set
@@ -96,7 +96,7 @@ describe('CircuitContextManager', () => {
     expect(() =>
       manager.validateMutatingRequest({
         AgentData: { AgentID: '00000000-0000-0000-0000-000000000000' },
-      })
+      }),
     ).toThrow('Zeroed AgentID in mutating request');
   });
 

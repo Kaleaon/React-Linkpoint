@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { useApp } from "../context/AppContext.jsx";
-import { useTheme } from "../context/ThemeContext.jsx";
-import { liveRegionAnnouncer } from "../services/LiveRegionAnnouncer";
+import { useEffect } from 'react';
+import { useApp } from '../context/AppContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 // Ported from `toastStyle`/`{{ toast }}` — the transient acknowledgement
 // toast shared by every screen and layout pack, the feedback channel for
@@ -13,17 +13,29 @@ export default function Toast() {
 
   useEffect(() => {
     if (state.toast) {
-      liveRegionAnnouncer.announce(state.toast, "polite");
+      liveRegionAnnouncer.announce(state.toast, 'polite');
     }
   }, [state.toast]);
 
   if (!state.toast) return null;
 
   const toastStyle = {
-    position: "absolute", left: "50%", bottom: isFloat ? "14px" : "78px", transform: "translateX(-50%)",
-    maxWidth: "84%", padding: "10px 16px", borderRadius: V.rs, background: V.priC, color: V.onpriC,
-    font: "600 11.5px/1.3 " + t.font, letterSpacing: ".02em", textAlign: "center", zIndex: 40,
-    boxShadow: "0 8px 20px rgba(0,0,0,.35)", border: "1px solid " + V.pri, pointerEvents: "none",
+    position: 'absolute',
+    left: '50%',
+    bottom: isFloat ? '14px' : '78px',
+    transform: 'translateX(-50%)',
+    maxWidth: '84%',
+    padding: '10px 16px',
+    borderRadius: V.rs,
+    background: V.priC,
+    color: V.onpriC,
+    font: '600 11.5px/1.3 ' + t.font,
+    letterSpacing: '.02em',
+    textAlign: 'center',
+    zIndex: 40,
+    boxShadow: '0 8px 20px rgba(0,0,0,.35)',
+    border: '1px solid ' + V.pri,
+    pointerEvents: 'none',
   };
 
   return <div style={toastStyle}>{state.toast}</div>;

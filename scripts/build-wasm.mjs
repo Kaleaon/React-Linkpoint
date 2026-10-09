@@ -14,7 +14,9 @@ const checkOnly = process.argv.includes('--check');
 
 function validateGeneratedArtifacts() {
   if (!fs.existsSync(wasmOut) || !fs.existsSync(tsOut)) {
-    throw new Error('Generated WASM artifacts are missing. Run `npm run build:wasm` with clang installed.');
+    throw new Error(
+      'Generated WASM artifacts are missing. Run `npm run build:wasm` with clang installed.',
+    );
   }
 
   const wasmBuffer = fs.readFileSync(wasmOut);
@@ -32,8 +34,14 @@ function validateGeneratedArtifacts() {
     ? Buffer.from(bytesMatch[1].split(',').filter(Boolean).map(Number))
     : null;
 
-  if (!sizeMatch || Number(sizeMatch[1]) !== wasmBuffer.length || !embeddedBytes?.equals(wasmBuffer)) {
-    throw new Error('Generated WASM artifacts are out of sync. Run `npm run build:wasm` with clang installed.');
+  if (
+    !sizeMatch ||
+    Number(sizeMatch[1]) !== wasmBuffer.length ||
+    !embeddedBytes?.equals(wasmBuffer)
+  ) {
+    throw new Error(
+      'Generated WASM artifacts are out of sync. Run `npm run build:wasm` with clang installed.',
+    );
   }
 
   console.log(`WASM artifacts verified (${wasmBuffer.length} bytes).`);
