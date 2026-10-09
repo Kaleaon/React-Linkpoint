@@ -76,8 +76,11 @@ describe('Dual-tier synchronized mute engine with persistent local caching', () 
     offlineList.setSelfId(AGENT_A);
 
     // Add mute while offline
-    expect(offlineList.add({ id: AGENT_B, name: 'Offline Harasser', type: MuteType.AGENT })).toBe(true);
-    await Promise.resolve(); await Promise.resolve();
+    expect(offlineList.add({ id: AGENT_B, name: 'Offline Harasser', type: MuteType.AGENT })).toBe(
+      true,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
 
     // Verify item is added locally and queued in pendingQueue
     expect(offlineList.isMuted(AGENT_B)).toBe(true);
@@ -111,7 +114,8 @@ describe('Dual-tier synchronized mute engine with persistent local caching', () 
     const list = new MuteList(mockTransport);
     list.setSelfId(AGENT_A);
     list.add({ id: AGENT_B, name: 'Offline Resident', type: MuteType.AGENT });
-    await Promise.resolve(); await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
 
     // Grid sends remote list that arrives later
     transportFail = false;
@@ -151,12 +155,18 @@ describe('Dual-tier synchronized mute engine with persistent local caching', () 
     expect(chat.isObjectMuted(OBJECT_A)).toBe(true);
 
     // Filter incoming message
-    expect(chat.shouldDisplayMessage({ fromId: AGENT_B, fromName: 'Harasser', text: 'Spam' })).toBe(false);
-    expect(chat.shouldDisplayMessage({ fromId: OBJECT_A, fromName: 'Spam Box', text: 'Spam' })).toBe(false);
+    expect(chat.shouldDisplayMessage({ fromId: AGENT_B, fromName: 'Harasser', text: 'Spam' })).toBe(
+      false,
+    );
+    expect(
+      chat.shouldDisplayMessage({ fromId: OBJECT_A, fromName: 'Spam Box', text: 'Spam' }),
+    ).toBe(false);
 
     // Unmute
     chat.unmuteUser(AGENT_B);
     expect(chat.isUserMuted(AGENT_B)).toBe(false);
-    expect(chat.shouldDisplayMessage({ fromId: AGENT_B, fromName: 'Harasser', text: 'Hello' })).toBe(true);
+    expect(
+      chat.shouldDisplayMessage({ fromId: AGENT_B, fromName: 'Harasser', text: 'Hello' }),
+    ).toBe(true);
   });
 });

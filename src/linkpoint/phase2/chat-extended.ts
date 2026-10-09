@@ -47,6 +47,8 @@ export class ChatExtended {
   private maxHistorySize: number = 1000;
   private filters: Map<string, Function> = new Map();
   private grid: MuteList = new MuteList();
+  private mutedUsers: Set<string>;
+  private mutedObjects: Set<string>;
   private resolveName: (id: string) => string | undefined = () => undefined;
   private typingUsers: Map<string, number> = new Map();
   private typingTimeout: number = 5000; // milliseconds
@@ -57,6 +59,8 @@ export class ChatExtended {
         ? protocolManager
         : new ChatProtocolAdapter(protocolManager);
     this.protocol = this.adapter.protocol || protocolManager;
+    this.mutedUsers = loadStoredMutes(USERS_STORAGE_KEY);
+    this.mutedObjects = loadStoredMutes(OBJECTS_STORAGE_KEY);
   }
 
   /**
@@ -145,6 +149,9 @@ export class ChatExtended {
       throw new Error('Valid user ID required');
     }
     const clean = userId.trim();
+    this.mutedUsers.add(clean);
+    saveStoredMutes(USERS_STORAGE_KEY, this.mutedUsers);
+
     if (UUID_PATTERN.test(clean)) {
       this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.AGENT });
     } else {
@@ -158,6 +165,14 @@ export class ChatExtended {
   unmuteUser(userId: string) {
     if (!userId || typeof userId !== 'string') return;
     const clean = userId.trim();
+    this.mutedUsers.delete(clean);
+    for (const id of Array.from(this.mutedUsers)) {
+      if (id.trim().toLowerCase() === clean.toLowerCase()) {
+        this.mutedUsers.delete(id);
+      }
+    }
+    saveStoredMutes(USERS_STORAGE_KEY, this.mutedUsers);
+
     this.grid.remove(UUID_PATTERN.test(clean) ? { id: clean } : { name: clean });
   }
 
@@ -167,7 +182,9 @@ export class ChatExtended {
   isUserMuted(userId: string): boolean {
     if (!userId) return false;
     const clean = userId.trim();
-    return this.grid.isMuted(clean, clean) || this.grid.isMutedByName(clean);
+    if (this.grid.isMuted(clean, clean) || this.grid.isMutedByName(clean)) return true;
+    const lower = clean.toLowerCase();
+    return Array.from(this.mutedUsers).some((id) => id.trim().toLowerCase() === lower);
   }
 
   /**
@@ -188,7 +205,28 @@ export class ChatExtended {
     if (message.groupId && this.grid.isMuted(message.groupId)) {
       return false;
     }
-    if (fromName && typeof fromName === 'string' && this.grid.isMutedByName(fromName) && !isLinden(fromName)) {
+    if (
+      fromName &&
+      typeof fromName === 'string' &&
+      this.grid.isMutedByName(fromName) &&
+      !isLinden(fromName)
+    ) {
+      return false;
+    }
+
+    if (
+      fromId &&
+      (this.mutedUsers.has(fromId) || this.mutedObjects.has(fromId)) &&
+      !isLinden(name)
+    ) {
+      return false;
+    }
+    if (
+      fromName &&
+      typeof fromName === 'string' &&
+      (this.mutedUsers.has(fromName) || this.mutedObjects.has(fromName)) &&
+      !isLinden(fromName)
+    ) {
       return false;
     }
 
@@ -197,14 +235,20 @@ export class ChatExtended {
 
   getMutedUsers(): string[] {
     const { mutes, legacy } = this.grid.snapshot();
-    return [
-      ...mutes.filter((m) => m.type === MuteType.AGENT || m.type === MuteType.GROUP).map((m) => m.id),
+    const gridUsers = [
+      ...mutes
+        .filter((m) => m.type === MuteType.AGENT || m.type === MuteType.GROUP)
+        .map((m) => m.id),
       ...legacy,
     ];
+    return Array.from(new Set([...gridUsers, ...Array.from(this.mutedUsers)]));
   }
 
   /** Use the account's grid-backed mute list. `resolveName` gives the stored name for an id. */
-  attachGridMuteList(list: MuteList | null, resolveName: (id: string) => string | undefined = () => undefined) {
+  attachGridMuteList(
+    list: MuteList | null,
+    resolveName: (id: string) => string | undefined = () => undefined,
+  ) {
     if (list) this.grid = list;
     this.resolveName = resolveName;
   }
@@ -212,6 +256,9 @@ export class ChatExtended {
   muteObject(nameOrId: string) {
     if (!nameOrId || typeof nameOrId !== 'string') return;
     const clean = nameOrId.trim();
+    this.mutedObjects.add(clean);
+    saveStoredMutes(OBJECTS_STORAGE_KEY, this.mutedObjects);
+
     if (UUID_PATTERN.test(clean)) {
       this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.OBJECT });
     } else {
@@ -222,18 +269,32 @@ export class ChatExtended {
   unmuteObject(nameOrId: string) {
     if (!nameOrId || typeof nameOrId !== 'string') return;
     const clean = nameOrId.trim();
+    this.mutedObjects.delete(clean);
+    for (const obj of Array.from(this.mutedObjects)) {
+      if (obj.trim().toLowerCase() === clean.toLowerCase()) {
+        this.mutedObjects.delete(obj);
+      }
+    }
+    saveStoredMutes(OBJECTS_STORAGE_KEY, this.mutedObjects);
+
     this.grid.remove(UUID_PATTERN.test(clean) ? { id: clean } : { name: clean });
   }
 
   isObjectMuted(nameOrId: string): boolean {
     if (!nameOrId) return false;
     const clean = nameOrId.trim();
-    return this.grid.isMuted(clean, clean);
+    if (this.grid.isMuted(clean, clean)) return true;
+    const lower = clean.toLowerCase();
+    return (
+      this.mutedObjects.has(clean) ||
+      Array.from(this.mutedObjects).some((m) => m.trim().toLowerCase() === lower)
+    );
   }
 
   getMutedObjects(): string[] {
     const { mutes } = this.grid.snapshot();
-    return mutes.filter((m) => m.type === MuteType.OBJECT).map((m) => m.id);
+    const gridObjects = mutes.filter((m) => m.type === MuteType.OBJECT).map((m) => m.id);
+    return Array.from(new Set([...gridObjects, ...Array.from(this.mutedObjects)]));
   }
 
   /**
