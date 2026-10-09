@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 /**
  * TeleportCrystalHero
@@ -10,9 +10,9 @@ import React from "react";
  * - phase: Teleport session phase string ('initiating' | 'contacting' | 'preparing' | 'arriving' | 'failed' | etc.)
  * - size: Hero graphic size in pixels (default: 120)
  */
-export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiating", size = 120 }) {
-  const isFailed = phase === "failed";
-  const rawP = typeof stepPercent === "number" ? stepPercent : Number(stepPercent) || 0;
+export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiating', size = 120 }) {
+  const isFailed = phase === 'failed';
+  const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
   const p = Math.min(100, Math.max(0, rawP));
 
   // Requirement 2: Closing gap from 20px at 0% to 0px at 100%
@@ -24,8 +24,8 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
   const coreRadius = isFailed ? 14 : 8 + (p / 100) * 8;
   const coreOpacity = isFailed ? 0.95 : 0.4 + (p / 100) * 0.55;
 
-  const priColor = isFailed ? "var(--err, #EF4444)" : "var(--pri, #6CFF9A)";
-  const strokeColor = isFailed ? "var(--err, #EF4444)" : "var(--outv, #365047)";
+  const priColor = isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)';
+  const strokeColor = isFailed ? 'var(--err, #EF4444)' : 'var(--outv, #365047)';
 
   return (
     <div
@@ -37,22 +37,22 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
       style={{
         width: size,
         height: size,
-        flex: "none",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-        margin: "0 auto",
+        flex: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        margin: '0 auto',
       }}
     >
       <svg
         viewBox="0 0 120 120"
         aria-hidden="true"
         style={{
-          width: "100%",
-          height: "100%",
-          display: "block",
-          overflow: "visible",
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          overflow: 'visible',
         }}
       >
         <style>{`
@@ -70,25 +70,28 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
         `}</style>
         <defs>
           <linearGradient id="tpch-grad-a" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={isFailed ? "var(--err, #EF4444)" : "var(--pri, #6CFF9A)"} />
-            <stop offset="100%" stopColor={isFailed ? "#7F1D1D" : "var(--priC, #123B27)"} />
+            <stop
+              offset="0%"
+              stopColor={isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)'}
+            />
+            <stop offset="100%" stopColor={isFailed ? '#7F1D1D' : 'var(--priC, #123B27)'} />
           </linearGradient>
 
           <linearGradient id="tpch-grad-b" x1="100%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={isFailed ? "#F87171" : "var(--sec2, #8AD0B0)"} />
-            <stop offset="100%" stopColor={isFailed ? "#991B1B" : "var(--sec, #365047)"} />
+            <stop offset="0%" stopColor={isFailed ? '#F87171' : 'var(--sec2, #8AD0B0)'} />
+            <stop offset="100%" stopColor={isFailed ? '#991B1B' : 'var(--sec, #365047)'} />
           </linearGradient>
 
           <radialGradient id="tpch-core-glow" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#ffffff" stopOpacity=".95" />
             <stop
               offset="50%"
-              stopColor={isFailed ? "var(--err, #EF4444)" : "var(--pri, #6CFF9A)"}
+              stopColor={isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)'}
               stopOpacity=".8"
             />
             <stop
               offset="100%"
-              stopColor={isFailed ? "var(--err, #EF4444)" : "var(--pri, #6CFF9A)"}
+              stopColor={isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)'}
               stopOpacity="0"
             />
           </radialGradient>
@@ -104,7 +107,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
           stroke={priColor}
           strokeWidth="1"
           strokeDasharray="4 8"
-          opacity={isFailed ? "0.35" : "0.25"}
+          opacity={isFailed ? '0.35' : '0.25'}
         />
 
         {/* Bottom Pyramid Half */}
@@ -112,7 +115,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
           className="tpch-bot"
           style={{
             transform: `translateY(${botY.toFixed(2)}px)`,
-            transition: "transform 0.3s ease-out",
+            transition: 'transform 0.3s ease-out',
           }}
         >
           <polygon
@@ -137,7 +140,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
           className="tpch-top"
           style={{
             transform: `translateY(${topY.toFixed(2)}px)`,
-            transition: "transform 0.3s ease-out",
+            transition: 'transform 0.3s ease-out',
           }}
         >
           <polygon
@@ -159,7 +162,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = "initiati
             points="12,60 60,44 108,60"
             fill="none"
             stroke={priColor}
-            strokeOpacity={isFailed ? ".6" : ".45"}
+            strokeOpacity={isFailed ? '.6' : '.45'}
             strokeWidth="1"
           />
         </g>
