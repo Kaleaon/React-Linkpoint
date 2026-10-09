@@ -1,3 +1,5 @@
+import { ensureMinContrast } from './contrast.js';
+
 export const THEME_STORAGE_KEY = 'linkpoint.custom-theme.v1';
 
 export const EDITABLE_THEME_TOKENS = [
@@ -25,6 +27,17 @@ export function sanitizeTheme(input) {
   }
   if (Object.keys(colors).length !== EDITABLE_THEME_TOKENS.length) return null;
 
+  const bgSurface = colors.bg || '#000000';
+  const surfSurface = colors.surf || bgSurface;
+  const targetTokens = ['ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
+  for (const tok of targetTokens) {
+    if (colors[tok]) {
+      let adj = ensureMinContrast(colors[tok], bgSurface, 4.5);
+      adj = ensureMinContrast(adj, surfSurface, 4.5);
+      colors[tok] = adj;
+    }
+  }
+
   const layoutMode = ['grid', 'list', 'rail', 'split'].includes(input.layoutMode)
     ? input.layoutMode
     : 'grid';
@@ -50,11 +63,23 @@ export function sanitizeTheme(input) {
 }
 
 export function themeFromPalette(palette, name = 'My Linkpoint theme') {
+  const colors = Object.fromEntries(EDITABLE_THEME_TOKENS.map(([key]) => [key, palette.c[key]]));
+  const bgSurface = colors.bg || '#000000';
+  const surfSurface = colors.surf || bgSurface;
+  const targetTokens = ['ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
+  for (const tok of targetTokens) {
+    if (colors[tok]) {
+      let adj = ensureMinContrast(colors[tok], bgSurface, 4.5);
+      adj = ensureMinContrast(adj, surfSurface, 4.5);
+      colors[tok] = adj;
+    }
+  }
+
   return {
     version: 1,
     active: false,
     name,
-    colors: Object.fromEntries(EDITABLE_THEME_TOKENS.map(([key]) => [key, palette.c[key]])),
+    colors,
     layoutMode: 'grid',
     density: 'standard',
     breakpoint: 'desktop',

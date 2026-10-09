@@ -6,6 +6,7 @@ import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
 import { HEAD } from '../data/content.js';
 import { SCREENS } from '../theme/constants.js';
 import Icon from './Icon.jsx';
+import TouchTarget from './TouchTarget';
 
 // Ported from the five header <sc-if> blocks (hasHeader/isSweepHead/
 // isPivotHead/isRuleHead/isPressHead) plus the shared title/subtitle lookup.
@@ -104,7 +105,7 @@ function StackHead({ title, subtitle, scr }) {
       ) : null}
       {headerIcons
         ? headerIcons.map((hi) => (
-            <div
+            <TouchTarget
               key={hi.icon}
               onClick={hi.pick}
               onKeyDown={(e) => {
@@ -133,7 +134,7 @@ function StackHead({ title, subtitle, scr }) {
               }}
             >
               <Icon name={hi.icon} size={18} />
-            </div>
+            </TouchTarget>
           ))
         : null}
     </header>
@@ -240,7 +241,7 @@ function PivotHead({ title, subtitle, scr }) {
         >
           {String(title || '').toLowerCase()}
         </span>
-        <span
+        <TouchTarget
           onClick={() => actions.setScreen(nextScr)}
           role="button"
           tabIndex={0}
@@ -261,10 +262,12 @@ function PivotHead({ title, subtitle, scr }) {
             cursor: 'pointer',
             textTransform: 'lowercase',
             letterSpacing: '-.02em',
+            background: 'transparent',
+            border: 'none',
           }}
         >
           {nextScr.toLowerCase()}
-        </span>
+        </TouchTarget>
       </div>
       <div
         style={{

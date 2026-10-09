@@ -8,6 +8,8 @@ import Search from '../Search.jsx';
 import CacheScreen from '../CacheScreen.jsx';
 import Radar from '../Radar.jsx';
 import Settings from '../Settings.jsx';
+import PayDialog from '../../components/PayDialog.jsx';
+import FloatersDesktop from '../../components/FloatersDesktop.jsx';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -130,5 +132,34 @@ describe('FormField Screen Integration', () => {
     expect(layoutSelect).not.toBeNull();
     const label = host.querySelector('label[for="settings-layout-select"]');
     expect(label?.textContent).toBe('Layout');
+  });
+
+  it('PayDialog inputs integrate FormField wrapper and associate labels with controls', async () => {
+    const host = await mount(
+      <PayDialog isOpen={true} onClose={() => {}} target={{ name: 'Test Avatar' }} />,
+    );
+
+    const customAmountInput = host.querySelector(
+      'input[placeholder="Custom amount"]',
+    ) as HTMLInputElement;
+    expect(customAmountInput).not.toBeNull();
+    const customLabel = host.querySelector(`label[for="${customAmountInput?.id}"]`);
+    expect(customLabel?.textContent).toBe('Or enter custom amount');
+
+    const descInput = host.querySelector(
+      'input[placeholder="Note to recipient"]',
+    ) as HTMLInputElement;
+    expect(descInput).not.toBeNull();
+    const descLabel = host.querySelector(`label[for="${descInput?.id}"]`);
+    expect(descLabel?.textContent).toBe('Description / Note');
+  });
+
+  it('FloatersDesktop quick chat input integrates FormField wrapper', async () => {
+    const host = await mount(<FloatersDesktop />);
+
+    const chatInput = host.querySelector('input[placeholder="Nearby Chat..."]') as HTMLInputElement;
+    expect(chatInput).not.toBeNull();
+    const label = host.querySelector(`label[for="${chatInput?.id}"]`);
+    expect(label?.textContent).toBe('Nearby Chat');
   });
 });

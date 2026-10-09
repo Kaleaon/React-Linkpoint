@@ -10,6 +10,7 @@ import DesktopChrome from './DesktopChrome.jsx';
 import World3D from '../screens/World3D.jsx';
 import { formatHeading, useCameraState } from './cameraReadout.js';
 import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskStyle.js';
+import FormField from './FormField.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -577,7 +578,7 @@ export default function FloatersDesktop() {
             maxWidth: '340px',
           }}
         >
-          <div style={{ position: 'relative', flex: 1 }}>
+          <FormField label="Nearby Chat" style={{ flex: 1 }}>
             <input
               type="text"
               value={quickMsg}
@@ -595,7 +596,7 @@ export default function FloatersDesktop() {
                 font: '400 11px/1 ' + t.font,
               }}
             />
-          </div>
+          </FormField>
           <button
             type="submit"
             style={{
