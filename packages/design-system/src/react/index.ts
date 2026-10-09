@@ -11,3 +11,4 @@ export * from "./RailNav.js";
 export * from "./TileNav.js";
 export * from "./ConsoleFrame.js";
 export * from "./DeviceFrame.js";
+export * from "./AccessibleButton.js";

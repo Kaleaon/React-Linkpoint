@@ -2,6 +2,7 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { cardLooks, cardAccentStyle, actionButtonStyle } from "../theme/look.js";
 import Icon from "./Icon.jsx";
 import Toggle from "./Toggle.jsx";
+import AccessibleButton from "./AccessibleButton.jsx";
 import { Card as SystemCard } from "@linkpoint/design-system/react";
 import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
 
@@ -95,9 +96,9 @@ export default function Card({ c }) {
       {c.actions && c.actions.length ? (
         <div style={{ display: "flex", gap: "8px", marginTop: "11px" }}>
           {c.actions.map((a, i) => (
-            <div key={i} onClick={a.pick} style={actionButtonStyle(V, t.font, a)}>
+            <AccessibleButton key={i} onClick={a.pick} style={actionButtonStyle(V, t.font, a)}>
               {a.label}
-            </div>
+            </AccessibleButton>
           ))}
         </div>
       ) : null}

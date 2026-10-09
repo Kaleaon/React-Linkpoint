@@ -1,6 +1,7 @@
 import React from "react";
 import { useTheme } from "./LayoutContext.js";
 import { type PaletteColors } from "../tokens/index.js";
+import { AccessibleButton } from "./AccessibleButton.js";
 
 export interface CardAction {
   label: string;
@@ -109,7 +110,7 @@ export const Card: React.FC<CardProps> = ({ c, children }) => {
       {c.actions && c.actions.length ? (
         <div style={{ display: "flex", gap: "8px", marginTop: "11px" }}>
           {c.actions.map((a, i) => (
-            <div
+            <AccessibleButton
               key={i}
               onClick={a.pick}
               style={{
@@ -122,7 +123,7 @@ export const Card: React.FC<CardProps> = ({ c, children }) => {
               }}
             >
               {a.label}
-            </div>
+            </AccessibleButton>
           ))}
         </div>
       ) : null}

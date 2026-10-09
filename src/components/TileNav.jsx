@@ -2,6 +2,7 @@ import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL } from "../data/content.js";
 import Icon from "./Icon.jsx";
+import AccessibleButton from "./AccessibleButton.jsx";
 import { navActive } from "../theme/look.js";
 import { TileNav as SystemTileNav } from "@linkpoint/design-system/react";
 import { LAYOUTS } from "@linkpoint/design-system/tokens";
@@ -19,19 +20,11 @@ export default function TileNav() {
         const bg = active ? V.pri : V.surf;
         const fg = active ? V.onpri : V.ink;
         return (
-          <div
+          <AccessibleButton
             key={n.id}
             onClick={() => actions.setScreen(n.id)}
-            role="button"
-            tabIndex={0}
             aria-label={"Go to " + n.id}
             aria-pressed={active}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                actions.setScreen(n.id);
-              }
-            }}
             style={{
               flex: "0 0 90px", height: "64px", display: "flex", flexDirection: "column", justifyContent: "space-between",
               padding: "8px", cursor: "pointer", background: bg, color: fg, borderRadius: "0px",
@@ -43,7 +36,7 @@ export default function TileNav() {
               {active ? <span style={{ width: "6px", height: "6px", borderRadius: "0px", background: fg }} /> : null}
             </div>
             <span style={{ font: "300 11px/1 " + t.dfont, letterSpacing: ".02em", textTransform: "lowercase" }}>{n.tile}</span>
-          </div>
+          </AccessibleButton>
         );
       })}
     </nav>

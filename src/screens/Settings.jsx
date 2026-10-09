@@ -3,6 +3,7 @@ import { useTheme } from "../context/ThemeContext.jsx";
 import { NAV_ALL } from "../data/content.js";
 import useGoogleEnabled from "../hooks/useGoogleEnabled.js";
 import Toggle from "../components/Toggle.jsx";
+import AccessibleButton from "../components/AccessibleButton.jsx";
 import ThemeStudio from "../components/ThemeStudio.jsx";
 import FormField from "../components/FormField.jsx";
 import { loadGoogle } from "../services/google.ts";
@@ -19,7 +20,7 @@ function SwitchSetting({ id, title, description, on, onClick }) {
         <strong id={`${id}-label`}>{title}</strong>
         {unavailable ? <small>Not available yet — requires viewer backend support.</small> : description ? <small>{description}</small> : null}
       </div>
-      <span aria-labelledby={`${id}-label`}><Toggle on={on} onClick={onClick} disabled={unavailable} /></span>
+      <AccessibleButton as="span" role="none" aria-labelledby={`${id}-label`}><Toggle aria-labelledby={`${id}-label`} on={on} onClick={onClick} disabled={unavailable} /></AccessibleButton>
     </div>
   );
 }
@@ -123,7 +124,7 @@ export default function Settings() {
               Off by default. When on, you can copy saved contacts to Google Contacts and add group notices to Google Calendar. You sign in with Google only when you use one of those, and Linkpoint asks for just the access that feature needs. Contacts and notices work without it.
             </p>
           </div>
-          <span aria-labelledby="google-label"><Toggle on={googleEnabled} onClick={() => void toggleGoogle()} /></span>
+          <AccessibleButton as="span" role="none" aria-labelledby="google-label"><Toggle aria-labelledby="google-label" on={googleEnabled} onClick={() => void toggleGoogle()} /></AccessibleButton>
         </div>
         {googleNote ? <p role="status">{googleNote}</p> : null}
       </section>
