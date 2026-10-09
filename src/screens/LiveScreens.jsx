@@ -1325,9 +1325,9 @@ export function MuteListScreen() {
 
   useEffect(() => {
     const refresh = () => setRevision((n) => n + 1);
-    app.muteList.on("changed", refresh);
+    app.muteList.on('changed', refresh);
     return () => {
-      app.muteList.off("changed", refresh);
+      app.muteList.off('changed', refresh);
     };
   }, []);
 
@@ -1351,16 +1351,16 @@ export function MuteListScreen() {
   }, [snapshot]);
 
   const activeEntries = useMemo(() => {
-    if (sub === "OBJECTS") return objects;
-    if (sub === "GROUPS") return groups;
-    if (sub === "BY NAME" || sub === "LEGACY") return legacy;
-    if (sub === "ALL") return [...agents, ...objects, ...groups, ...legacy];
+    if (sub === 'OBJECTS') return objects;
+    if (sub === 'GROUPS') return groups;
+    if (sub === 'BY NAME' || sub === 'LEGACY') return legacy;
+    if (sub === 'ALL') return [...agents, ...objects, ...groups, ...legacy];
     return agents;
   }, [sub, agents, objects, groups, legacy]);
 
   const add = () => {
     if (!entry.trim()) return;
-    if (sub === "OBJECTS") {
+    if (sub === 'OBJECTS') {
       app.chatExtended.muteObject(entry.trim());
     } else {
       app.chatExtended.muteUser(entry.trim());
@@ -1393,22 +1393,27 @@ export function MuteListScreen() {
     }
 
     const badges = [];
-    if (isChatMuted) badges.push("Chat");
-    if (isVoiceMuted) badges.push("Voice");
-    if (isParticlesMuted) badges.push("Particles");
-    if (isSoundsMuted) badges.push("Sounds");
+    if (isChatMuted) badges.push('Chat');
+    if (isVoiceMuted) badges.push('Voice');
+    if (isParticlesMuted) badges.push('Particles');
+    if (isSoundsMuted) badges.push('Sounds');
 
     if (badges.length === 0) return <span className="mute-flag-badge">None</span>;
-    return <span className="mute-flag-badge">Muted: {badges.join(", ")}</span>;
+    return <span className="mute-flag-badge">Muted: {badges.join(', ')}</span>;
   };
 
   const getTypeName = (type) => {
     switch (type) {
-      case MuteType.AGENT: return "Avatar";
-      case MuteType.OBJECT: return "Object";
-      case MuteType.GROUP: return "Group";
-      case MuteType.BY_NAME: return "By Name";
-      default: return "Entity";
+      case MuteType.AGENT:
+        return 'Avatar';
+      case MuteType.OBJECT:
+        return 'Object';
+      case MuteType.GROUP:
+        return 'Group';
+      case MuteType.BY_NAME:
+        return 'By Name';
+      default:
+        return 'Entity';
     }
   };
 
@@ -1419,12 +1424,12 @@ export function MuteListScreen() {
           aria-label="Avatar UUID or name to mute"
           value={entry}
           onChange={(e) => setEntry(e.target.value)}
-          placeholder={sub === "OBJECTS" ? "Object or HUD name (e.g. Box)" : "Avatar UUID or Name"}
+          placeholder={sub === 'OBJECTS' ? 'Object or HUD name (e.g. Box)' : 'Avatar UUID or Name'}
         />
-        <button onClick={add}>Mute {sub === "OBJECTS" ? "Object" : "Avatar"}</button>
+        <button onClick={add}>Mute {sub === 'OBJECTS' ? 'Object' : 'Avatar'}</button>
       </div>
       {activeEntries.length ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
           {activeEntries.map((item) => (
             <div
               key={item.id || item.name}
@@ -1437,15 +1442,17 @@ export function MuteListScreen() {
                 borderRadius: 4,
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name || item.id}</span>
                   <small style={{ opacity: 0.6, fontSize: 11 }}>[{getTypeName(item.type)}]</small>
                 </div>
                 {item.id && item.id !== item.name ? (
-                  <small style={{ opacity: 0.5, fontSize: 10, fontFamily: "monospace" }}>{item.id}</small>
+                  <small style={{ opacity: 0.5, fontSize: 10, fontFamily: 'monospace' }}>
+                    {item.id}
+                  </small>
                 ) : null}
-                <div style={{ fontSize: 11, color: "var(--color-text-secondary, #aaa)" }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #aaa)' }}>
                   {renderFlags(item)}
                 </div>
               </div>

@@ -75,7 +75,10 @@ export class MuteList extends Utils.EventEmitter {
     const key = this.selfId || 'local';
     try {
       const cached = await indexedDBStore.getMuteList(key);
-      if (cached && (cached.mutes?.length || cached.legacy?.length || cached.pendingQueue?.length)) {
+      if (
+        cached &&
+        (cached.mutes?.length || cached.legacy?.length || cached.pendingQueue?.length)
+      ) {
         if (this.state === 'unloaded') {
           for (const m of cached.mutes || []) {
             this.mutes.set(lc(m.id), { ...m, id: lc(m.id) });
@@ -306,7 +309,10 @@ export class MuteList extends Utils.EventEmitter {
   private enqueuePending(kind: 'update' | 'remove', entry: MuteEntry) {
     const key = entry.type === MuteType.BY_NAME ? `name:${entry.name}` : `id:${lc(entry.id)}`;
     this.pendingQueue = this.pendingQueue.filter((item) => {
-      const itemKey = item.entry.type === MuteType.BY_NAME ? `name:${item.entry.name}` : `id:${lc(item.entry.id)}`;
+      const itemKey =
+        item.entry.type === MuteType.BY_NAME
+          ? `name:${item.entry.name}`
+          : `id:${lc(item.entry.id)}`;
       return itemKey !== key;
     });
     this.pendingQueue.push({ kind, entry: { ...entry } });
@@ -315,7 +321,10 @@ export class MuteList extends Utils.EventEmitter {
   private removeFromPending(entry: MuteEntry) {
     const key = entry.type === MuteType.BY_NAME ? `name:${entry.name}` : `id:${lc(entry.id)}`;
     this.pendingQueue = this.pendingQueue.filter((item) => {
-      const itemKey = item.entry.type === MuteType.BY_NAME ? `name:${item.entry.name}` : `id:${lc(item.entry.id)}`;
+      const itemKey =
+        item.entry.type === MuteType.BY_NAME
+          ? `name:${item.entry.name}`
+          : `id:${lc(item.entry.id)}`;
       return itemKey !== key;
     });
   }
@@ -364,4 +373,3 @@ export class MuteList extends Utils.EventEmitter {
     await this.saveToCache();
   }
 }
-

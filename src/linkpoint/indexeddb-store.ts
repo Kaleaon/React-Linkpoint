@@ -541,7 +541,7 @@ export class IndexedDBStore {
 
   public async saveMuteList(
     agentId: string,
-    data: { mutes: any[]; legacy: string[]; pendingQueue?: any[] }
+    data: { mutes: any[]; legacy: string[]; pendingQueue?: any[] },
   ): Promise<void> {
     const key = agentId ? `mutelist_${agentId}` : 'mutelist_local';
     const record = {
@@ -573,7 +573,7 @@ export class IndexedDBStore {
   }
 
   public async getMuteList(
-    agentId: string
+    agentId: string,
   ): Promise<{ agentId: string; mutes: any[]; legacy: string[]; pendingQueue: any[] } | null> {
     const key = agentId ? `mutelist_${agentId}` : 'mutelist_local';
     if (this.memMuteLists.has(key)) {

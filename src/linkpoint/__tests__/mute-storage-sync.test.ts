@@ -12,6 +12,7 @@ describe('Grid RPC mute sync and localStorage fallback', () => {
 
   it('connected event in app.ts calls slBridge.requestMuteList()', async () => {
     await app.init();
+    slBridge.connected = true;
     const spy = vi.spyOn(slBridge, 'requestMuteList').mockResolvedValue({ requested: true });
     app.protocol.emit('connected', { world_data: {} });
     expect(spy).toHaveBeenCalledTimes(1);
@@ -46,14 +47,22 @@ describe('Grid RPC mute sync and localStorage fallback', () => {
     chat.muteUser('user-to-unmute');
     chat.muteObject('object-to-unmute');
 
-    expect(JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]')).toContain('user-to-unmute');
-    expect(JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]')).toContain('object-to-unmute');
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]')).toContain(
+      'user-to-unmute',
+    );
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]')).toContain(
+      'object-to-unmute',
+    );
 
     chat.unmuteUser('user-to-unmute');
     chat.unmuteObject('object-to-unmute');
 
-    expect(JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]')).not.toContain('user-to-unmute');
-    expect(JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]')).not.toContain('object-to-unmute');
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]')).not.toContain(
+      'user-to-unmute',
+    );
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]')).not.toContain(
+      'object-to-unmute',
+    );
   });
 
   it('mute updates made while online send RPC messages to the grid', async () => {
@@ -75,7 +84,7 @@ describe('Grid RPC mute sync and localStorage fallback', () => {
       expect.objectContaining({
         id: testUuid,
         type: MuteType.AGENT,
-      })
+      }),
     );
 
     chat.unmuteUser(testUuid);
@@ -83,7 +92,7 @@ describe('Grid RPC mute sync and localStorage fallback', () => {
     expect(removeSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         id: testUuid,
-      })
+      }),
     );
   });
 });
