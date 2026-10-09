@@ -30,6 +30,7 @@ const {
 } = require('@caspertech/node-metaverse');
 const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
 const actions = require('./sl-actions.cjs');
+const outfit = require('./sl-outfit.cjs');
 const interactions = require('./sl-interactions.cjs');
 const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
 const { watchAvatarAppearance } = require('./sl-appearance.cjs');
@@ -659,6 +660,16 @@ class ViewerSession {
     return { requested: 'home' };
   }
 
+  // ---- outfit, attachments and shape --------------------------------------------------------------
+
+  wearItem(params) { return outfit.wearItem(this.requireBot(), this.currentRegion(), params); }
+  removeWorn(params) { return outfit.removeWorn(this.requireBot(), this.currentRegion(), params); }
+  wearOutfit(params) { return outfit.wearOutfit(this.requireBot(), this.currentRegion(), params); }
+  detachAttachment(params) { return outfit.detachAttachment(this.requireBot(), this.currentRegion(), params); }
+  offerTeleport(params) { return outfit.offerTeleport(this.requireBot(), this.currentRegion(), params); }
+  getShape() { return outfit.getShape(this.requireBot()); }
+  saveShape(params) { return outfit.saveShape(this.requireBot(), this.currentRegion(), params); }
+
   /** Join an open-enrollment group. A group that charges a fee is refused with the library's explanation. */
   async joinGroup({ groupId } = {}) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || '')) throw new Error('Valid group ID required');
@@ -990,6 +1001,7 @@ class ViewerSession {
       const kind = isWearable ? (BODY_PARTS.has(wearableType) ? 'body' : 'clothing') : (item.inventoryType === 6 ? 'attachment' : 'other');
       return {
         id: item.itemID?.toString(),
+        linkedId: item.assetID?.toString(),
         name: item.name || 'Unnamed Item',
         assetType: item.assetType,
         inventoryType: item.inventoryType,

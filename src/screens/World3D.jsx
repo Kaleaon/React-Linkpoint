@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { app } from "../linkpoint/app";
+import { slBridge } from "../linkpoint/sl-bridge";
+import { Utils } from "../linkpoint/utils";
 import ViewportCanvas from "../components/ViewportCanvas";
 import HudControls from "./HudControls.jsx";
 import TouchTarget from "../components/TouchTarget.tsx";
@@ -851,6 +853,16 @@ export default function World3D({ desktopBackdrop = false }) {
             onClose={() => setShowOutfitDrawer(false)}
             outfits={drawerOutfits.outfits}
             emptyMessage={drawerOutfits.message}
+            onSelectOutfit={(outfit) => {
+              if (outfit.worn) return;
+              slBridge.wearOutfit({ folderId: outfit.id }).then(
+                (result) => {
+                  Utils.showToast(result?.baked === false ? "Outfit changed; the appearance rebuild was not confirmed." : `Now wearing ${outfit.name}`, "info");
+                  setShowOutfitDrawer(false);
+                },
+                (error) => Utils.showToast(error instanceof Error ? error.message : "Could not wear that outfit", "error"),
+              );
+            }}
           />
         </>
       )}

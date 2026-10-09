@@ -9,6 +9,62 @@ const makeAnim = (over: Partial<KeyframeAnimation> = {}): KeyframeAnimation => (
 });
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+describe('AvatarAnimator retries', () => {
+  it('asks again for an animation whose download failed while the simulator still wants it, a bounded number of times', async () => {
+    let t = 0;
+    const scheduled: Array<() => void> = [];
+    let attempts = 0;
+    const loader = async () => { attempts++; return attempts < 3 ? null : makeAnim(); };
+    const animator = new AvatarAnimator(loader, () => t, (run) => { scheduled.push(run); });
+    animator.setAnimations('avatar', [{ id: 'a1', seq: 1 }]);
+    await flush();
+    expect(attempts).toBe(1);
+    expect(animator.pose('avatar').size).toBe(0);
+    t = 31; scheduled.shift()!(); await flush(); // second try fails too
+    t = 62; scheduled.shift()!(); await flush(); // third succeeds
+    expect(attempts).toBe(3);
+    t = 63;
+    expect(animator.pose('avatar').get('mHead')).toBeTruthy();
+  });
+
+  it('does not retry an animation the simulator no longer wants, and gives up after the limit', async () => {
+    let t = 0;
+    const scheduled: Array<() => void> = [];
+    let attempts = 0;
+    const animator = new AvatarAnimator(async () => { attempts++; return null; }, () => t, (run) => { scheduled.push(run); });
+    animator.setAnimations('avatar', [{ id: 'gone', seq: 1 }]);
+    await flush();
+    animator.setAnimations('avatar', []);
+    t = 31; scheduled.shift()!(); await flush();
+    expect(attempts).toBe(1);
+
+    animator.setAnimations('avatar', [{ id: 'bad', seq: 1 }]);
+    for (let i = 0; i < 6; i++) { await flush(); t += 31; scheduled.shift()?.(); }
+    await flush();
+    expect(attempts).toBeLessThanOrEqual(1 + 1 + AvatarAnimator.MAX_RETRIES);
+  });
+});
+
+describe('bundled animation fallback', () => {
+  it('falls back to the second source when the first answers with something that is not an animation', async () => {
+    const calls: string[] = [];
+    const real = makeAnim();
+    const parse = await import('../avatar-animation');
+    const spy = (await import('vitest')).vi.spyOn(parse, 'parseAnimation');
+    const fetcher = (async (url: string) => {
+      calls.push(url);
+      return url.startsWith('/anims/') ? { ok: true, arrayBuffer: async () => new TextEncoder().encode('<html>').buffer } : { ok: true, arrayBuffer: async () => new Uint8Array([1]).buffer };
+    }) as unknown as typeof fetch;
+    spy.mockImplementation((bytes: any) => { if (bytes.length === 1) return real; throw new Error('not an animation'); });
+    const loader = bundledAnimationLoader(undefined, fetcher, 'https://raw.githubusercontent.com/Kaleaon/React-Linkpoint/main/public/');
+    const anim = await loader('11111111-2222-3333-4444-555555555555');
+    spy.mockRestore();
+    expect(anim).toBe(real);
+    expect(calls[0].startsWith('/anims/')).toBe(true);
+    expect(calls[1]).toContain('raw.githubusercontent.com');
+  });
+});
+
 describe('AvatarAnimator', () => {
   it('starts animations, blends them, and eases out when the simulator stops them', async () => {
     let t = 0;

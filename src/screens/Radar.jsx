@@ -271,7 +271,14 @@ export default function Radar() {
           (err) => actions.notify(err instanceof Error ? err.message : "Teleport failed"),
         );
       } else {
-        actions.notify(label === "OFFER TP" ? "Offering teleports is not available yet." : `Cannot teleport: the position of ${target.name} is unknown.`);
+        if (label === "OFFER TP") {
+          slBridge.offerTeleport({ id: target.id }).then(
+            () => actions.notify(`Teleport offered to ${target.name}`),
+            (err) => actions.notify(err instanceof Error ? err.message : `Could not offer a teleport to ${target.name}`),
+          );
+        } else {
+          actions.notify(`Cannot teleport: the position of ${target.name} is unknown.`);
+        }
       }
       return;
     }
@@ -302,7 +309,10 @@ export default function Radar() {
     }
 
     if (label === "DETACH") {
-      actions.notify("Detaching worn items is not available yet.");
+      slBridge.detachAttachment({ id: target.id }).then(
+        () => actions.notify(`Detached ${target.name}`),
+        (err) => actions.notify(err instanceof Error ? err.message : `Could not detach ${target.name}`),
+      );
       return;
     }
 
@@ -1162,7 +1172,22 @@ export default function Radar() {
                         >
                           FOCUS ATTACHMENT
                         </button>
-                        {entry.attachedTo !== "you" ? (
+                        {entry.attachedTo === "you" ? (
+                          <button
+                            onClick={() => handleAction("DETACH", entry)}
+                            style={{
+                              padding: "5px 10px",
+                              borderRadius: V.rs,
+                              border: "1px solid " + V.err,
+                              background: "transparent",
+                              color: V.err,
+                              font: "700 10.5px/1 " + t.dfont,
+                              cursor: "pointer",
+                            }}
+                          >
+                            DETACH FROM AVATAR
+                          </button>
+                        ) : (
                           <button
                             onClick={() => handleAction("MUTE OBJECT", entry)}
                             style={{
@@ -1178,7 +1203,7 @@ export default function Radar() {
                           >
                             MUTE SCRIPTS
                           </button>
-                        ) : null}
+                        )}
                       </>
                     )}
                   </div>

@@ -17,16 +17,34 @@ const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 /** Where the app serves its static assets from (Vite's BASE_URL; '/' in tests). */
 export const assetBase = (): string => ((import.meta as any).env?.BASE_URL as string | undefined) ?? '/';
 
-export function bundledAnimationLoader(baseUrl = `${assetBase()}anims/`, fetcher: typeof fetch = (input, init) => fetch(input, init)): AnimationLoader {
+/**
+ * Where the bundled avatar meshes and animations are fetched from when the deployment does not serve
+ * its own `public/` folder (a dev server that answers every unknown path with index.html, or a build
+ * that dropped the folder). Defaults to this project's published files; set VITE_ASSET_FALLBACK_URL to
+ * another folder, or to an empty value to turn the fallback off.
+ */
+export const staticFallbackBase = (): string => {
+  const configured = (import.meta as any).env?.VITE_ASSET_FALLBACK_URL as string | undefined;
+  if (configured !== undefined) return configured && !configured.endsWith('/') ? `${configured}/` : configured;
+  // Tests never reach the network unless one sets the variable explicitly.
+  if ((import.meta as any).env?.MODE === 'test') return '';
+  return 'https://raw.githubusercontent.com/Kaleaon/React-Linkpoint/main/public/';
+};
+
+export function bundledAnimationLoader(baseUrl?: string, fetcher: typeof fetch = (input, init) => fetch(input, init), fallbackBase: string = staticFallbackBase()): AnimationLoader {
+  const bases = baseUrl !== undefined ? [baseUrl] : [`${assetBase()}anims/`, ...(fallbackBase ? [`${fallbackBase}anims/`] : [])];
   return async (id) => {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-    try {
-      const response = await rateLimitedFetch(`${baseUrl}${id.toLowerCase()}`, undefined, fetcher);
-      if (!response.ok) return null;
-      return parseAnimation(new Uint8Array(await response.arrayBuffer()));
-    } catch {
-      return null; // not a bundled animation, or malformed: the avatar simply keeps its other poses
+    for (const base of bases) {
+      try {
+        const response = await rateLimitedFetch(`${base}${id.toLowerCase()}`, undefined, fetcher);
+        if (!response.ok) continue;
+        return parseAnimation(new Uint8Array(await response.arrayBuffer()));
+      } catch {
+        // Not served here, or an HTML fallback page instead of an animation: try the next source.
+      }
     }
+    return null; // not a bundled animation: the avatar simply keeps its other poses
   };
 }
 
@@ -36,7 +54,17 @@ export class AvatarAnimator {
   static readonly RETRY_AFTER = 30;
   private running = new Map<string, Map<string, Entry | { pending: true; seq: number; startedAt: number }>>();
 
-  constructor(private loader: AnimationLoader, private clock: () => number = () => performance.now() / 1000) {}
+  /** What each subject last asked to run, so a failed download can be retried while it is still wanted. */
+  private wanted = new Map<string, Map<string, AnimationRequest>>();
+  private retries = new Map<string, number>();
+  /** A download that fails is tried again this many times before waiting for the simulator to announce it again. */
+  static readonly MAX_RETRIES = 3;
+
+  constructor(
+    private loader: AnimationLoader,
+    private clock: () => number = () => performance.now() / 1000,
+    private schedule: (run: () => void, ms: number) => void = (run, ms) => { setTimeout(run, ms); },
+  ) {}
 
   private load(id: string) {
     const cached = this.cache.get(id);
@@ -50,6 +78,19 @@ export class AvatarAnimator {
     return entry.promise;
   }
 
+  /** A download that failed (a server restart, a dropped connection) is asked for again while it is still wanted. */
+  private retryLater(subjectId: string, id: string, seq: number) {
+    const key = `${subjectId}:${id}`;
+    const attempts = (this.retries.get(key) || 0) + 1;
+    if (attempts > AvatarAnimator.MAX_RETRIES) { this.retries.delete(key); return; }
+    this.retries.set(key, attempts);
+    this.schedule(() => {
+      const request = this.wanted.get(subjectId)?.get(id);
+      if (!request || request.seq !== seq || this.running.get(subjectId)?.has(id)) return;
+      this.setAnimations(subjectId, [...(this.wanted.get(subjectId)?.values() ?? [])]);
+    }, AvatarAnimator.RETRY_AFTER * 1000 + 100);
+  }
+
   /**
    * Replace the set of animations a subject is running. New ids start now, a changed sequence id
    * restarts an animation, and ids that disappeared ease out instead of cutting off.
@@ -60,6 +101,7 @@ export class AvatarAnimator {
     this.running.set(subjectId, current);
     const wanted = new Map<string, AnimationRequest>();
     for (const a of animations) if (a.id && a.id !== ZERO_UUID) wanted.set(a.id, a);
+    this.wanted.set(subjectId, wanted);
 
     for (const [id, entry] of current) {
       if (!wanted.has(id) && !('pending' in entry) && entry.stoppedAt == null) entry.stoppedAt = now;
@@ -73,9 +115,13 @@ export class AvatarAnimator {
       this.load(id).then((anim) => {
         const slot = this.running.get(subjectId)?.get(id);
         if (!anim || !slot || !('pending' in slot) || slot.seq !== request.seq) {
-          if (!anim && slot && 'pending' in slot && slot.seq === request.seq) this.running.get(subjectId)?.delete(id);
+          if (!anim && slot && 'pending' in slot && slot.seq === request.seq) {
+            this.running.get(subjectId)?.delete(id);
+            this.retryLater(subjectId, id, request.seq);
+          }
           return;
         }
+        this.retries.delete(`${subjectId}:${id}`);
         this.running.get(subjectId)!.set(id, { id, seq: request.seq, anim, startedAt: slot.startedAt, stoppedAt: null });
       });
     }
