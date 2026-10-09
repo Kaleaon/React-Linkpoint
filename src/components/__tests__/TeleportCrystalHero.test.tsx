@@ -15,7 +15,7 @@ async function mount(ui: React.ReactNode) {
   const root = createRoot(host);
   await act(async () => {
     root.render(
-      createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, ui))
+      createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, ui)),
     );
   });
   mounted = { host, root };
@@ -50,7 +50,10 @@ describe('<TeleportCrystalHero /> Component', () => {
     expect(bot0?.style.transform).toBe('translateY(10.00px)');
 
     // Unmount
-    await act(async () => { mounted!.root.unmount(); mounted = null; });
+    await act(async () => {
+      mounted!.root.unmount();
+      mounted = null;
+    });
 
     const host50 = await mount(<TeleportCrystalHero stepPercent={50} phase="preparing" />);
     const top50 = host50.querySelector('.tpch-top') as HTMLElement;
@@ -60,7 +63,10 @@ describe('<TeleportCrystalHero /> Component', () => {
     expect(bot50?.style.transform).toBe('translateY(5.00px)');
 
     // Unmount
-    await act(async () => { mounted!.root.unmount(); mounted = null; });
+    await act(async () => {
+      mounted!.root.unmount();
+      mounted = null;
+    });
 
     const host100 = await mount(<TeleportCrystalHero stepPercent={100} phase="arriving" />);
     const top100 = host100.querySelector('.tpch-top') as HTMLElement;

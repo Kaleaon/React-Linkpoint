@@ -171,7 +171,7 @@ export default function SystemDialog() {
           </div>
 
           {/* Teleport Crystal Hero */}
-          <div style={{ display: "flex", justifyContent: "center", margin: "16px 0 10px" }}>
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
             <TeleportCrystalHero stepPercent={percent} phase={teleport.phase} size={120} />
           </div>
 
