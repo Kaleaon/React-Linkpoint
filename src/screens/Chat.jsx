@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext.jsx";
 import Icon from "../components/Icon.jsx";
 import AccessibleChatLog from "../components/AccessibleChatLog.jsx";
 import { app } from "../linkpoint/app";
+import { liveRegionAnnouncer } from "../services/LiveRegionAnnouncer";
 
 export default function Chat() {
   const { V, t } = useTheme();
@@ -151,18 +152,21 @@ export default function Chat() {
     const next = !autoReplyEnabled;
     app.chat.setAutoReplyEnabled(next);
     setAutoReplyEnabled(next);
+    liveRegionAnnouncer.announce(next ? "Away auto-reply enabled" : "Away auto-reply disabled", "polite");
   };
 
   const handleSaveAwayMessage = (e) => {
     e.preventDefault();
     app.chat.setAwayMessage(awayMessage);
     setSavedNotice(true);
+    liveRegionAnnouncer.announce("Away message saved", "polite");
     setTimeout(() => setSavedNotice(false), 2000);
   };
 
   const handleResetRecipients = () => {
     app.chat.clearAutoReplyRecipients();
     setSavedNotice(true);
+    liveRegionAnnouncer.announce("Cleared replied contacts memory", "polite");
     setTimeout(() => setSavedNotice(false), 2000);
   };
 
@@ -211,7 +215,9 @@ export default function Chat() {
       setDraft("");
       setMessages([...app.chat.messages]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Message could not be sent.");
+      const msg = reason instanceof Error ? reason.message : "Message could not be sent.";
+      setError(msg);
+      liveRegionAnnouncer.announce(msg, "assertive");
     } finally {
       setSending(false);
     }
