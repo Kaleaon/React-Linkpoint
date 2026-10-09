@@ -15,10 +15,15 @@ export class PreferencesManager extends Utils.EventEmitter {
   getDefaultPreferences() {
     return {
       graphics: { quality: 'medium', fov: 60 },
-      interface: { theme: 'dark', showFPS: true, designStyle: 'glass', colorPalette: 'linkpoint-blue' },
+      interface: {
+        theme: 'dark',
+        showFPS: true,
+        designStyle: 'glass',
+        colorPalette: 'linkpoint-blue',
+      },
       notifications: { enabled: true, soundEnabled: true },
       // Optional third-party features. Everything is off until the user turns it on in Settings.
-      integrations: { google: false }
+      integrations: { google: false },
     };
   }
 

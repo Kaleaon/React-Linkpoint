@@ -16,8 +16,12 @@ function vector(value, fallback = [0, 0, 0]) {
 function serializableValue(value) {
   if (value == null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (Array.isArray(value) || ArrayBuffer.isView(value)) return Array.from(value, serializableValue);
-  if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]) => [String(key), serializableValue(item)]));
+  if (Array.isArray(value) || ArrayBuffer.isView(value))
+    return Array.from(value, serializableValue);
+  if (value instanceof Map)
+    return Object.fromEntries(
+      [...value].map(([key, item]) => [String(key), serializableValue(item)]),
+    );
   if (typeof value?.toArray === 'function') return value.toArray().map(serializableValue);
   if (typeof value?.toJSON === 'function') return serializableValue(value.toJSON());
   if (typeof value === 'object') {
@@ -34,14 +38,19 @@ function serializeEnvironment(environment) {
   if (!environment) return null;
   const cycle = environment.dayCycle;
   const frames = cycle?.frames instanceof Map ? [...cycle.frames.values()] : [];
-  const sky = frames.find((frame) => frame?.type === 'sky') || frames.find((frame) => frame?.sunlightColor || frame?.blueHorizon);
-  const water = frames.find((frame) => frame?.type === 'water') || frames.find((frame) => frame?.waterFogColor);
+  const sky =
+    frames.find((frame) => frame?.type === 'sky') ||
+    frames.find((frame) => frame?.sunlightColor || frame?.blueHorizon);
+  const water =
+    frames.find((frame) => frame?.type === 'water') || frames.find((frame) => frame?.waterFogColor);
   return {
     regionId: environment.regionID?.toString?.() || null,
     parcelId: (environment.parcelID?.toString?.() || environment.parcelID) ?? null,
-    dayLength: finite(environment.dayLength), dayOffset: finite(environment.dayOffset),
+    dayLength: finite(environment.dayLength),
+    dayOffset: finite(environment.dayOffset),
     trackAltitudes: serializableValue(environment.trackAltitudes) || null,
-    currentSky: serializableValue(sky), water: serializableValue(water),
+    currentSky: serializableValue(sky),
+    water: serializableValue(water),
     dayCycle: serializableValue(cycle),
   };
 }
@@ -50,7 +59,8 @@ function serializeTerrain(region) {
   const size = 256;
   if (!region?.terrain || region.terrain.length < size) return null;
   const heights = new Array(size * size);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) heights[y * size + x] = finite(region.terrain[y]?.[x]);
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) heights[y * size + x] = finite(region.terrain[y]?.[x]);
   return { size, heights };
 }
 
@@ -64,31 +74,73 @@ function primAppearance(object) {
   const reflection = object.ReflectionProbeData || object.extraParams?.reflectionProbeData;
   const flexibleData = object.extraParams?.flexibleData;
   // `Drag` is the air friction; `Softness` (0-3) sets how many segments the chain has.
-  const flexible = flexibleData ? {
-    softness: finite(flexibleData.Softness), tension: finite(flexibleData.Tension), friction: finite(flexibleData.Drag),
-    gravity: finite(flexibleData.Gravity), wind: finite(flexibleData.Wind), force: vector(flexibleData.Force),
-  } : null;
+  const flexible = flexibleData
+    ? {
+        softness: finite(flexibleData.Softness),
+        tension: finite(flexibleData.Tension),
+        friction: finite(flexibleData.Drag),
+        gravity: finite(flexibleData.Gravity),
+        wind: finite(flexibleData.Wind),
+        force: vector(flexibleData.Force),
+      }
+    : null;
   const ps = object.Particles;
-  const particleColor = (color, fallback) => color ? [color.getRed?.() ?? color.red, color.getGreen?.() ?? color.green, color.getBlue?.() ?? color.blue, color.getAlpha?.() ?? color.alpha].map((v, i) => finite(Number(v), fallback[i])) : fallback;
-  const particles = ps ? {
-    pattern: finite(ps.pattern), maxAge: finite(ps.maxAge), burstRate: finite(ps.burstRate, 0.1), burstRadius: finite(ps.burstRadius),
-    burstSpeedMin: finite(ps.burstSpeedMin), burstSpeedMax: finite(ps.burstSpeedMax), burstPartCount: finite(ps.burstPartCount),
-    acceleration: vector(ps.acceleration), targetId: ps.target?.toString?.() || null, textureId: ps.texture?.toString?.() || null,
-    dataFlags: finite(ps.dataFlags), partMaxAge: finite(ps.partMaxAge, 1), startColor: particleColor(ps.startColor, [1, 1, 1, 1]), endColor: particleColor(ps.endColor, [1, 1, 1, 0]),
-    startScale: [finite(ps.startScaleX, 1), finite(ps.startScaleY, 1)], endScale: [finite(ps.endScaleX, 1), finite(ps.endScaleY, 1)],
-    crc: finite(ps.crc), flags: finite(ps.flags), startAge: finite(ps.startAge), innerAngle: finite(ps.innerAngle), outerAngle: finite(ps.outerAngle),
-    angularVelocity: vector(ps.angularVelocity), startGlow: finite(ps.startGlow), endGlow: finite(ps.endGlow),
-    blendSource: finite(ps.blendFuncSource), blendDest: finite(ps.blendFuncDest),
-  } : null;
+  const particleColor = (color, fallback) =>
+    color
+      ? [
+          color.getRed?.() ?? color.red,
+          color.getGreen?.() ?? color.green,
+          color.getBlue?.() ?? color.blue,
+          color.getAlpha?.() ?? color.alpha,
+        ].map((v, i) => finite(Number(v), fallback[i]))
+      : fallback;
+  const particles = ps
+    ? {
+        pattern: finite(ps.pattern),
+        maxAge: finite(ps.maxAge),
+        burstRate: finite(ps.burstRate, 0.1),
+        burstRadius: finite(ps.burstRadius),
+        burstSpeedMin: finite(ps.burstSpeedMin),
+        burstSpeedMax: finite(ps.burstSpeedMax),
+        burstPartCount: finite(ps.burstPartCount),
+        acceleration: vector(ps.acceleration),
+        targetId: ps.target?.toString?.() || null,
+        textureId: ps.texture?.toString?.() || null,
+        dataFlags: finite(ps.dataFlags),
+        partMaxAge: finite(ps.partMaxAge, 1),
+        startColor: particleColor(ps.startColor, [1, 1, 1, 1]),
+        endColor: particleColor(ps.endColor, [1, 1, 1, 0]),
+        startScale: [finite(ps.startScaleX, 1), finite(ps.startScaleY, 1)],
+        endScale: [finite(ps.endScaleX, 1), finite(ps.endScaleY, 1)],
+        crc: finite(ps.crc),
+        flags: finite(ps.flags),
+        startAge: finite(ps.startAge),
+        innerAngle: finite(ps.innerAngle),
+        outerAngle: finite(ps.outerAngle),
+        angularVelocity: vector(ps.angularVelocity),
+        startGlow: finite(ps.startGlow),
+        endGlow: finite(ps.endGlow),
+        blendSource: finite(ps.blendFuncSource),
+        blendDest: finite(ps.blendFuncDest),
+      }
+    : null;
   // The simulator sends meshes as sculpt parameters whose type is 5 (the mesh asset id sits where a
   // sculpt's texture id would); the separate mesh parameter is the same payload. A sculpt is type 1-4.
   const zero = (id) => !id || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(String(id));
   const sculptKind = finite(sculptData?.type) & 0x07;
-  const meshAsset = !zero(meshData?.meshData) ? meshData.meshData : (sculptData && sculptKind === 5 && !zero(sculptData.texture) ? sculptData.texture : null);
-  const sculptAsset = !meshAsset && sculptData && sculptKind >= 1 && sculptKind <= 4 && !zero(sculptData.texture) ? sculptData.texture : null;
+  const meshAsset = !zero(meshData?.meshData)
+    ? meshData.meshData
+    : sculptData && sculptKind === 5 && !zero(sculptData.texture)
+      ? sculptData.texture
+      : null;
+  const sculptAsset =
+    !meshAsset && sculptData && sculptKind >= 1 && sculptKind <= 4 && !zero(sculptData.texture)
+      ? sculptData.texture
+      : null;
   const asset = meshAsset || sculptAsset;
   const rawTextureId = object.TextureEntry?.defaultTexture?.textureID?.toString?.() || null;
-  const textureId = rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
+  const textureId =
+    rawTextureId && rawTextureId !== '00000000-0000-0000-0000-000000000000' ? rawTextureId : null;
   const component = (method, property, fallback) => {
     const value = typeof rgba?.[method] === 'function' ? rgba[method]() : rgba?.[property];
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -96,62 +148,120 @@ function primAppearance(object) {
   // Mesh assets can contain up to eight material slots even when every slot inherits the default
   // TextureEntry. `faces.length` then reports zero, which used to serialize only slot 0: the server
   // never requested the inherited texture for the remaining draws and they rendered plain white.
-  const materialFaces = Math.max(-1, ...(renderMaterials?.params || []).map((param) => finite(param.textureIndex, -1)));
+  const materialFaces = Math.max(
+    -1,
+    ...(renderMaterials?.params || []).map((param) => finite(param.textureIndex, -1)),
+  );
   const overridesMap = object.TextureEntry?.gltfMaterialOverrides;
-  const overrideKeys = overridesMap instanceof Map
-    ? Array.from(overridesMap.keys())
-    : (overridesMap ? Object.keys(overridesMap).map(Number) : []);
+  const overrideKeys =
+    overridesMap instanceof Map
+      ? Array.from(overridesMap.keys())
+      : overridesMap
+        ? Object.keys(overridesMap).map(Number)
+        : [];
   const overrideFaces = Math.max(-1, ...overrideKeys);
   // Generated prims have up to nine faces; each inherits the full default TE,
   // including repeat/offset/rotation/fullbright. Avatars need all legacy bake slots.
-  const faceCount = Math.max(object.PCode === PCode.Avatar ? 21 : asset ? 8 : 9, object.TextureEntry?.faces?.length || 0, materialFaces + 1, overrideFaces + 1);
+  const faceCount = Math.max(
+    object.PCode === PCode.Avatar ? 21 : asset ? 8 : 9,
+    object.TextureEntry?.faces?.length || 0,
+    materialFaces + 1,
+    overrideFaces + 1,
+  );
   const faceTextures = Array.from({ length: faceCount }, (_, faceIndex) => {
-    const face = object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) || object.TextureEntry?.faces?.[faceIndex] || object.TextureEntry?.defaultTexture;
+    const face =
+      object.TextureEntry?.getEffectiveEntryForFace?.(faceIndex) ||
+      object.TextureEntry?.faces?.[faceIndex] ||
+      object.TextureEntry?.defaultTexture;
     const faceRgba = face?.rgba;
     const channel = (method, property, fallback) => {
-      const value = typeof faceRgba?.[method] === 'function' ? faceRgba[method]() : faceRgba?.[property];
+      const value =
+        typeof faceRgba?.[method] === 'function' ? faceRgba[method]() : faceRgba?.[property];
       return Number.isFinite(Number(value)) ? Number(value) : fallback;
     };
     const id = face?.textureID?.toString?.();
-    const materialParam = renderMaterials?.params?.find((param) => Number(param.textureIndex) === faceIndex);
-    const override = overridesMap instanceof Map
-      ? overridesMap.get(faceIndex)
-      : (overridesMap ? overridesMap[faceIndex] ?? overridesMap[String(faceIndex)] : null);
+    const materialParam = renderMaterials?.params?.find(
+      (param) => Number(param.textureIndex) === faceIndex,
+    );
+    const override =
+      overridesMap instanceof Map
+        ? overridesMap.get(faceIndex)
+        : overridesMap
+          ? (overridesMap[faceIndex] ?? overridesMap[String(faceIndex)])
+          : null;
     return {
       textureId: id && id !== '00000000-0000-0000-0000-000000000000' ? id : null,
-      color: [channel('getRed', 'red', 1), channel('getGreen', 'green', 1), channel('getBlue', 'blue', 1), channel('getAlpha', 'alpha', 1)],
+      color: [
+        channel('getRed', 'red', 1),
+        channel('getGreen', 'green', 1),
+        channel('getBlue', 'blue', 1),
+        channel('getAlpha', 'alpha', 1),
+      ],
       repeat: [finite(face?.repeatU, 1), finite(face?.repeatV, 1)],
-      offset: [finite(face?.offsetU), finite(face?.offsetV)], rotation: finite(face?.rotation), fullBright: Boolean(face?.fullBright),
+      offset: [finite(face?.offsetU), finite(face?.offsetV)],
+      rotation: finite(face?.rotation),
+      fullBright: Boolean(face?.fullBright),
       materialId: materialParam?.textureUUID?.toString?.() || null,
       materialOverride: override ? JSON.parse(JSON.stringify(override)) : null,
     };
   });
   return {
-    shape: asset ? 'asset-proxy' : path === 0x20 && profile === 0x05 ? 'sphere' : path === 0x20 ? 'torus' : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04) ? 'prism' : path === 0x10 && profile === 0x00 ? 'cylinder' : 'cube',
+    shape: asset
+      ? 'asset-proxy'
+      : path === 0x20 && profile === 0x05
+        ? 'sphere'
+        : path === 0x20
+          ? 'torus'
+          : path === 0x10 && (profile === 0x02 || profile === 0x03 || profile === 0x04)
+            ? 'prism'
+            : path === 0x10 && profile === 0x00
+              ? 'cylinder'
+              : 'cube',
     assetKind: meshAsset ? 'mesh' : sculptAsset ? 'sculpt' : null,
     sculptType: sculptAsset ? finite(sculptData.type) : null,
     // Animated mesh (Animesh): the ExtendedMesh extra parameter's ANIMATED_MESH_ENABLED flag.
-    animatedMesh: Boolean(meshAsset && ((object.extraParams?.extendedMeshData?.flags ?? 0) & 1)),
+    animatedMesh: Boolean(meshAsset && (object.extraParams?.extendedMeshData?.flags ?? 0) & 1),
     assetId: asset?.toString?.() || null,
     textureId,
     faceTextures,
-    reflectionProbe: reflection ? {
-      ambiance: finite(reflection.ambiance), clipDistance: finite(reflection.clipDistance), flags: finite(reflection.flags),
-      box: Boolean(reflection.flags & 1), dynamic: Boolean(reflection.flags & 2), mirror: Boolean(reflection.flags & 4),
-    } : null,
+    reflectionProbe: reflection
+      ? {
+          ambiance: finite(reflection.ambiance),
+          clipDistance: finite(reflection.clipDistance),
+          flags: finite(reflection.flags),
+          box: Boolean(reflection.flags & 1),
+          dynamic: Boolean(reflection.flags & 2),
+          mirror: Boolean(reflection.flags & 4),
+        }
+      : null,
     particles,
     flexible,
-    color: rgba ? [component('getRed', 'red', 1), component('getGreen', 'green', 1), component('getBlue', 'blue', 1), component('getAlpha', 'alpha', 1)] : [1, 1, 1, 1],
+    color: rgba
+      ? [
+          component('getRed', 'red', 1),
+          component('getGreen', 'green', 1),
+          component('getBlue', 'blue', 1),
+          component('getAlpha', 'alpha', 1),
+        ]
+      : [1, 1, 1, 1],
     shapeParams: {
-      pathCurve: object.PathCurve, profileCurve: object.ProfileCurve,
-      pathBegin: object.PathBegin, pathEnd: object.PathEnd,
-      pathScaleX: object.PathScaleX, pathScaleY: object.PathScaleY,
-      pathShearX: object.PathShearX, pathShearY: object.PathShearY,
-      pathTwist: object.PathTwist, pathTwistBegin: object.PathTwistBegin,
+      pathCurve: object.PathCurve,
+      profileCurve: object.ProfileCurve,
+      pathBegin: object.PathBegin,
+      pathEnd: object.PathEnd,
+      pathScaleX: object.PathScaleX,
+      pathScaleY: object.PathScaleY,
+      pathShearX: object.PathShearX,
+      pathShearY: object.PathShearY,
+      pathTwist: object.PathTwist,
+      pathTwistBegin: object.PathTwistBegin,
       pathRadiusOffset: object.PathRadiusOffset,
-      pathTaperX: object.PathTaperX, pathTaperY: object.PathTaperY,
-      pathRevolutions: object.PathRevolutions, pathSkew: object.PathSkew,
-      profileBegin: object.ProfileBegin, profileEnd: object.ProfileEnd,
+      pathTaperX: object.PathTaperX,
+      pathTaperY: object.PathTaperY,
+      pathRevolutions: object.PathRevolutions,
+      pathSkew: object.PathSkew,
+      profileBegin: object.ProfileBegin,
+      profileEnd: object.ProfileEnd,
       profileHollow: object.ProfileHollow,
     },
   };
@@ -190,4 +300,13 @@ function serializeFriend(friend, rights = {}) {
   };
 }
 
-module.exports = { finite, vector, serializableValue, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend };
+module.exports = {
+  finite,
+  vector,
+  serializableValue,
+  serializeEnvironment,
+  serializeTerrain,
+  primAppearance,
+  serializeObject,
+  serializeFriend,
+};

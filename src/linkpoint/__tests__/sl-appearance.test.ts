@@ -7,12 +7,34 @@ const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message')
 const { ViewerSession } = require('../../../core/viewer-session.cjs');
 const { PCode } = require('@caspertech/node-metaverse');
 
-afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
-const packet = { message: { id: Message.AvatarAppearance, Sender: { ID: { toString: () => 'AVATAR' } }, ObjectData: { TextureEntry: Buffer.from([1]) } } };
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+const packet = {
+  message: {
+    id: Message.AvatarAppearance,
+    Sender: { ID: { toString: () => 'AVATAR' } },
+    ObjectData: { TextureEntry: Buffer.from([1]) },
+  },
+};
 function setup() {
   let receive!: (packet: any) => void;
-  const object = { FullID: { toString: () => 'avatar' }, ID: 7, PCode: PCode.Avatar, TextureEntry: null };
-  const region = { circuit: { subscribeToMessages: vi.fn((ids, callback) => { receive = callback; return { unsubscribe: vi.fn() }; }) }, objects: { getObjectByUUID: vi.fn(() => object) } };
+  const object = {
+    FullID: { toString: () => 'avatar' },
+    ID: 7,
+    PCode: PCode.Avatar,
+    TextureEntry: null,
+  };
+  const region = {
+    circuit: {
+      subscribeToMessages: vi.fn((ids, callback) => {
+        receive = callback;
+        return { unsubscribe: vi.fn() };
+      }),
+    },
+    objects: { getObjectByUUID: vi.fn(() => object) },
+  };
   const inherited = { textureID: { toString: () => 'baked-texture' } };
   const entry = { faces: [], defaultTexture: inherited, getEffectiveEntryForFace: () => inherited };
   vi.spyOn(TextureEntry, 'from').mockReturnValue(entry);
@@ -28,11 +50,17 @@ describe('avatar appearance circuit bridge', () => {
     session.loadObjectAsset = vi.fn();
     session.loadObjectMaterials = vi.fn();
     session.loadTexture = vi.fn();
-    const watcher = watchAvatarAppearance(() => region, (event: any) => session.streamObject('object-update', event));
+    const watcher = watchAvatarAppearance(
+      () => region,
+      (event: any) => session.streamObject('object-update', event),
+    );
     session.appearanceWatcher = watcher;
     receive();
     expect(region.circuit.subscribeToMessages.mock.calls[0][0]).toEqual([Message.AvatarAppearance]);
-    expect(send).toHaveBeenCalledWith('object-update', expect.objectContaining({ id: 'avatar', avatar: true, faceTextures: expect.any(Array) }));
+    expect(send).toHaveBeenCalledWith(
+      'object-update',
+      expect.objectContaining({ id: 'avatar', avatar: true, faceTextures: expect.any(Array) }),
+    );
     const faces = send.mock.calls[0][1].faceTextures;
     expect(faces).toHaveLength(21);
     expect(faces[20].textureId).toBe('baked-texture');
@@ -43,7 +71,9 @@ describe('avatar appearance circuit bridge', () => {
 
   it('retains appearance received before an object, then applies it to object updates and snapshots', () => {
     const { region, object, entry, receive } = setup();
-    region.objects.getObjectByUUID.mockImplementation(() => { throw new Error('not found'); });
+    region.objects.getObjectByUUID.mockImplementation(() => {
+      throw new Error('not found');
+    });
     const update = vi.fn();
     const watcher = watchAvatarAppearance(() => region, update);
     receive();
@@ -60,7 +90,9 @@ describe('avatar appearance circuit bridge', () => {
     receive();
     const old = region.circuit.subscribeToMessages.mock.results[0].value;
     const nextUnsubscribe = vi.fn();
-    region.circuit = { subscribeToMessages: vi.fn(() => ({ unsubscribe: nextUnsubscribe })) } as any;
+    region.circuit = {
+      subscribeToMessages: vi.fn(() => ({ unsubscribe: nextUnsubscribe })),
+    } as any;
     object.TextureEntry = null;
     vi.advanceTimersByTime(100);
     expect(old.unsubscribe).toHaveBeenCalledOnce();
@@ -75,7 +107,9 @@ describe('avatar appearance circuit bridge', () => {
     const update = vi.fn();
     const watcher = watchAvatarAppearance(() => region, update);
     receive({ message: { ...packet.message, ObjectData: { TextureEntry: Buffer.alloc(0) } } });
-    vi.mocked(TextureEntry.from).mockImplementationOnce(() => { throw new Error('truncated'); });
+    vi.mocked(TextureEntry.from).mockImplementationOnce(() => {
+      throw new Error('truncated');
+    });
     receive();
     expect(update).not.toHaveBeenCalled();
     receive();

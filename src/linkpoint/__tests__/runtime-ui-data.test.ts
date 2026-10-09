@@ -15,9 +15,13 @@ class ProtocolStub extends Utils.EventEmitter {
 
 describe('runtime UI manager snapshots', () => {
   it('keeps every design layout and palette while adding Lumiya surfaces', () => {
-    expect(Object.keys(LAYOUTS)).toEqual(expect.arrayContaining(['terminal', 'sweep', 'tiles', 'glass', 'rules', 'press']));
+    expect(Object.keys(LAYOUTS)).toEqual(
+      expect.arrayContaining(['terminal', 'sweep', 'tiles', 'glass', 'rules', 'press']),
+    );
     expect(Object.keys(PALETTES).length).toBeGreaterThanOrEqual(20);
-    expect(NAV_ALL.map((item: any) => item.id)).toEqual(expect.arrayContaining(['Notecards', 'Media', 'Accounts', 'Grids']));
+    expect(NAV_ALL.map((item: any) => item.id)).toEqual(
+      expect.arrayContaining(['Notecards', 'Media', 'Accounts', 'Grids']),
+    );
   });
   it('exposes friend, group and object records without exposing backing maps', () => {
     const friends = new FriendsExtended();
@@ -32,7 +36,10 @@ describe('runtime UI manager snapshots', () => {
 
     const objects = new ObjectManagerExtended();
     objects.setPrimParams('object-id', { shape: 'sphere' });
-    expect(objects.getObjects()[0]).toMatchObject({ id: 'object-id', primParams: { shape: 'sphere' } });
+    expect(objects.getObjects()[0]).toMatchObject({
+      id: 'object-id',
+      primParams: { shape: 'sphere' },
+    });
   });
 
   it('emits friend list mutations and dispatches real friend requests', async () => {
@@ -43,13 +50,18 @@ describe('runtime UI manager snapshots', () => {
     friends.on('friend_added', added);
     friends.on('friend_removed', removed);
 
-    friends.replaceFriends([{ id: 'one', name: 'One Resident' }, { id: 'two', name: 'Two Resident' }]);
+    friends.replaceFriends([
+      { id: 'one', name: 'One Resident' },
+      { id: 'two', name: 'Two Resident' },
+    ]);
     friends.replaceFriends([{ id: 'two', name: 'Two Renamed' }]);
     await friends.sendFriendRequest('three', 'Hello');
 
     expect(added).toHaveBeenCalledTimes(2);
     expect(removed).toHaveBeenCalledWith(expect.objectContaining({ id: 'one' }));
-    expect(friends.getFriends()).toEqual([expect.objectContaining({ id: 'two', name: 'Two Renamed' })]);
+    expect(friends.getFriends()).toEqual([
+      expect.objectContaining({ id: 'two', name: 'Two Renamed' }),
+    ]);
     expect(sendFriendRequest).toHaveBeenCalledWith('three', 'Hello');
   });
 
@@ -87,7 +99,12 @@ describe('runtime UI manager snapshots', () => {
     world.on('region_changed', regionListener);
     world.on('objects_changed', objectListener);
 
-    protocol.emit('RegionHandshake', { regionID: 'region-id', regionName: 'Live Region', regionX: 10, regionY: 20 });
+    protocol.emit('RegionHandshake', {
+      regionID: 'region-id',
+      regionName: 'Live Region',
+      regionX: 10,
+      regionY: 20,
+    });
     protocol.emit('ObjectUpdate', { id: 'object-id', name: 'Live Object' });
 
     expect(world.region).toMatchObject({ id: 'region-id', name: 'Live Region', x: 10, y: 20 });
@@ -106,8 +123,14 @@ describe('runtime UI manager snapshots', () => {
     protocol.emit('connected', { sim_name: 'Grid Region', region_x: 256000, region_y: 256256 });
     expect(world.region).toMatchObject({ name: 'Grid Region', x: 1000, y: 1001 });
 
-    protocol.emit('CoarseAvatarUpdate', { id: 'nearby', name: 'Live Resident', position: [12, 14, 20] });
-    expect(world.nearbyUsers).toMatchObject([{ id: 'nearby', name: 'Live Resident', position: [12, 14, 20] }]);
+    protocol.emit('CoarseAvatarUpdate', {
+      id: 'nearby',
+      name: 'Live Resident',
+      position: [12, 14, 20],
+    });
+    expect(world.nearbyUsers).toMatchObject([
+      { id: 'nearby', name: 'Live Resident', position: [12, 14, 20] },
+    ]);
 
     protocol.connected = false;
     protocol.emit('disconnected');
@@ -126,13 +149,20 @@ describe('runtime UI manager snapshots', () => {
 
     protocol.emit('CoarseLocationUpdate', {
       Index_Field: { You: 0 },
-      Location_Fields: [{ X: 10, Y: 10, Z: 5 }, { X: 13, Y: 14, Z: 5 }],
+      Location_Fields: [
+        { X: 10, Y: 10, Z: 5 },
+        { X: 13, Y: 14, Z: 5 },
+      ],
       AgentData_Fields: [{ AgentID: 'self' }, { AgentID: 'nearby-agent' }],
     });
     protocol.emit('ParcelProperties', { ParcelData: [{ LocalID: 4, Name: 'Live parcel' }] });
 
     expect(world.avatarPosition).toEqual([10, 10, 20]);
-    expect(world.nearbyUsers[0]).toMatchObject({ id: 'nearby-agent', position: [13, 14, 20], distance: 5 });
+    expect(world.nearbyUsers[0]).toMatchObject({
+      id: 'nearby-agent',
+      position: [13, 14, 20],
+      distance: 5,
+    });
     expect(world.region.parcel).toMatchObject({ LocalID: 4, Name: 'Live parcel' });
     expect(nearbyListener).toHaveBeenCalledOnce();
     expect(parcelListener).toHaveBeenCalledOnce();

@@ -1,20 +1,14 @@
 /**
  * LLSD TypeScript/JavaScript Library
- * 
+ *
  * Complete implementation of LLSD (Linden Lab Structured Data) format
  * Based on Java implementation and Second Life/Firestorm viewer code
- * 
+ *
  * Copyright (C) 2024 Linden Lab
  */
 
 // Core types and utilities
-export { 
-    LLSD,
-    LLSDType,
-    LLSDFormat,
-    LLSDException,
-    LLSDUtils
-} from './types';
+export { LLSD, LLSDType, LLSDFormat, LLSDException, LLSDUtils } from './types';
 export type { LLSDValue, LLSDMap, LLSDArray } from './types';
 
 // Parsers
@@ -26,13 +20,25 @@ export { LLSDXMLSerializer } from './xmlSerializer';
 export { LLSDBinarySerializer } from './binarySerializer';
 
 // Second Life extensions
-export { SecondLifeLLSDUtils, SLValidationRules, SLValidationResult } from './secondlife/SecondLifeLLSDUtils';
+export {
+  SecondLifeLLSDUtils,
+  SLValidationRules,
+  SLValidationResult,
+} from './secondlife/SecondLifeLLSDUtils';
 
 // Firestorm extensions
-export { FirestormLLSDUtils, FSValidationRules, FSValidationResult } from './firestorm/FirestormLLSDUtils';
+export {
+  FirestormLLSDUtils,
+  FSValidationRules,
+  FSValidationResult,
+} from './firestorm/FirestormLLSDUtils';
 
 // Lumiya extensions
-export { LumiyaLLSDUtils, LumiyaValidationRules, LumiyaValidationResult } from './lumiya/LumiyaLLSDUtils';
+export {
+  LumiyaLLSDUtils,
+  LumiyaValidationRules,
+  LumiyaValidationResult,
+} from './lumiya/LumiyaLLSDUtils';
 
 // Linkpoint extensions
 export { LinkpointLLSDUtils, GridKind } from './linkpoint/LinkpointLLSDUtils';
@@ -48,7 +54,11 @@ export type { DecodedTexture, JpxRaster } from './texture-decoder';
 
 // Chat Protocol Adapter
 export { ChatProtocolAdapter } from './chat-protocol-adapter';
-export type { QueuedIM, QueuedGroupMessage, ImprovedInstantMessagePayload } from './chat-protocol-adapter';
+export type {
+  QueuedIM,
+  QueuedGroupMessage,
+  ImprovedInstantMessagePayload,
+} from './chat-protocol-adapter';
 
 // Appearance & Skeleton
 export { AppearanceManager } from './appearance-manager';
@@ -62,70 +72,70 @@ import { LLSDBinarySerializer } from './binarySerializer';
 
 // Convenience factory class
 export class LLSDFactory {
-    /**
-     * Parse LLSD from XML string
-     */
-    static parseXML(xmlString: string): LLSD {
-        const parser = new LLSDXMLParser();
-        return parser.parse(xmlString);
-    }
+  /**
+   * Parse LLSD from XML string
+   */
+  static parseXML(xmlString: string): LLSD {
+    const parser = new LLSDXMLParser();
+    return parser.parse(xmlString);
+  }
 
-    /**
-     * Parse LLSD from binary data
-     */
-    static parseBinary(data: Uint8Array): LLSD {
-        const parser = new LLSDBinaryParser();
-        return parser.parse(data);
-    }
+  /**
+   * Parse LLSD from binary data
+   */
+  static parseBinary(data: Uint8Array): LLSD {
+    const parser = new LLSDBinaryParser();
+    return parser.parse(data);
+  }
 
-    /**
-     * Parse LLSD from JSON string
-     */
-    static parseJSON(jsonString: string): LLSD {
-        return LLSD.fromJSON(jsonString);
-    }
+  /**
+   * Parse LLSD from JSON string
+   */
+  static parseJSON(jsonString: string): LLSD {
+    return LLSD.fromJSON(jsonString);
+  }
 
-    /**
-     * Serialize LLSD to XML string
-     */
-    static serializeXML(llsd: LLSD, indent: number = 2): string {
-        const serializer = new LLSDXMLSerializer(indent);
-        return serializer.serialize(llsd);
-    }
+  /**
+   * Serialize LLSD to XML string
+   */
+  static serializeXML(llsd: LLSD, indent: number = 2): string {
+    const serializer = new LLSDXMLSerializer(indent);
+    return serializer.serialize(llsd);
+  }
 
-    /**
-     * Serialize LLSD to binary data
-     */
-    static serializeBinary(llsd: LLSD): Uint8Array {
-        const serializer = new LLSDBinarySerializer();
-        return serializer.serialize(llsd);
-    }
+  /**
+   * Serialize LLSD to binary data
+   */
+  static serializeBinary(llsd: LLSD): Uint8Array {
+    const serializer = new LLSDBinarySerializer();
+    return serializer.serialize(llsd);
+  }
 
-    /**
-     * Serialize LLSD to JSON string
-     */
-    static serializeJSON(llsd: LLSD): string {
-        return llsd.toJSON();
-    }
+  /**
+   * Serialize LLSD to JSON string
+   */
+  static serializeJSON(llsd: LLSD): string {
+    return llsd.toJSON();
+  }
 
-    /**
-     * Create an LLSD document with the given content
-     */
-    static create(content: LLSDValue = null): LLSD {
-        return new LLSD(content);
-    }
+  /**
+   * Create an LLSD document with the given content
+   */
+  static create(content: LLSDValue = null): LLSD {
+    return new LLSD(content);
+  }
 
-    /**
-     * Create an LLSD map
-     */
-    static createMap(data: LLSDMap = {}): LLSD {
-        return new LLSD(data);
-    }
+  /**
+   * Create an LLSD map
+   */
+  static createMap(data: LLSDMap = {}): LLSD {
+    return new LLSD(data);
+  }
 
-    /**
-     * Create an LLSD array
-     */
-    static createArray(data: LLSDArray = []): LLSD {
-        return new LLSD(data);
-    }
+  /**
+   * Create an LLSD array
+   */
+  static createArray(data: LLSDArray = []): LLSD {
+    return new LLSD(data);
+  }
 }

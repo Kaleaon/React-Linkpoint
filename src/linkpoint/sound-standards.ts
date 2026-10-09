@@ -19,32 +19,86 @@
  */
 
 export const SOUND_FLAG = {
-  NONE: 0x0, LOOP: 1 << 0, SYNC_MASTER: 1 << 1, SYNC_SLAVE: 1 << 2, SYNC_PENDING: 1 << 3, QUEUE: 1 << 4, STOP: 1 << 5,
+  NONE: 0x0,
+  LOOP: 1 << 0,
+  SYNC_MASTER: 1 << 1,
+  SYNC_SLAVE: 1 << 2,
+  SYNC_PENDING: 1 << 3,
+  QUEUE: 1 << 4,
+  STOP: 1 << 5,
 } as const;
-export const SOUND_FLAG_SYNC_MASK = SOUND_FLAG.SYNC_MASTER | SOUND_FLAG.SYNC_SLAVE | SOUND_FLAG.SYNC_PENDING;
+export const SOUND_FLAG_SYNC_MASK =
+  SOUND_FLAG.SYNC_MASTER | SOUND_FLAG.SYNC_SLAVE | SOUND_FLAG.SYNC_PENDING;
 
 /** `LLAudioEngine::AUDIO_TYPE_*`. */
-export enum AudioType { None = 0, Sfx = 1, Ui = 2, Ambient = 3 }
+export enum AudioType {
+  None = 0,
+  Sfx = 1,
+  Ui = 2,
+  Ambient = 3,
+}
 
-export interface AudioLevels { master: number; ambient: number; media: number; mic: number; music: number; sfx: number; ui: number; voice: number; wind: number }
+export interface AudioLevels {
+  master: number;
+  ambient: number;
+  media: number;
+  mic: number;
+  music: number;
+  sfx: number;
+  ui: number;
+  voice: number;
+  wind: number;
+}
 /** Defaults of `AudioLevel*` in settings.xml. */
 export const DEFAULT_AUDIO_LEVELS: Readonly<AudioLevels> = {
-  master: 1.0, ambient: 0.5, media: 0.3, mic: 1.0, music: 0.3, sfx: 0.5, ui: 0.5, voice: 0.5, wind: 0.5,
+  master: 1.0,
+  ambient: 0.5,
+  media: 0.3,
+  mic: 1.0,
+  music: 0.3,
+  sfx: 0.5,
+  ui: 0.5,
+  voice: 0.5,
+  wind: 0.5,
 };
 
 /** `MuteAudio`, `MuteSounds`, `MuteUI`, `MuteAmbient` and friends; all default to false. */
-export interface AudioMutes { all: boolean; sounds: boolean; ui: boolean; ambient: boolean; music: boolean; media: boolean; voice: boolean }
-export const DEFAULT_AUDIO_MUTES: Readonly<AudioMutes> = { all: false, sounds: false, ui: false, ambient: false, music: false, media: false, voice: false };
+export interface AudioMutes {
+  all: boolean;
+  sounds: boolean;
+  ui: boolean;
+  ambient: boolean;
+  music: boolean;
+  media: boolean;
+  voice: boolean;
+}
+export const DEFAULT_AUDIO_MUTES: Readonly<AudioMutes> = {
+  all: false,
+  sounds: false,
+  ui: false,
+  ambient: false,
+  music: false,
+  media: false,
+  voice: false,
+};
 
 /** Gain for a sound of `type`: master x category level, or 0 when muted (the viewer's secondary gain). */
-export function categoryGain(type: AudioType, levels: AudioLevels = DEFAULT_AUDIO_LEVELS, mutes: AudioMutes = DEFAULT_AUDIO_MUTES): number {
+export function categoryGain(
+  type: AudioType,
+  levels: AudioLevels = DEFAULT_AUDIO_LEVELS,
+  mutes: AudioMutes = DEFAULT_AUDIO_MUTES,
+): number {
   if (mutes.all) return 0;
   const clamp = (v: number) => Math.max(0, Math.min(1, v));
   switch (type) {
-    case AudioType.Sfx: return mutes.sounds ? 0 : clamp(levels.master) * clamp(levels.sfx);
-    case AudioType.Ui: return mutes.ui ? 0 : clamp(levels.master) * clamp(levels.ui);
-    case AudioType.Ambient: return mutes.ambient ? 0 : clamp(levels.master) * clamp(levels.ambient);
-    default: return clamp(levels.master);
+    case AudioType.Sfx:
+      return mutes.sounds ? 0 : clamp(levels.master) * clamp(levels.sfx);
+    case AudioType.Ui:
+      return mutes.ui ? 0 : clamp(levels.master) * clamp(levels.ui);
+    case AudioType.Ambient:
+      return mutes.ambient ? 0 : clamp(levels.master) * clamp(levels.ambient);
+    default:
+      return clamp(levels.master);
   }
 }
 
@@ -114,7 +168,11 @@ export type Vec3 = readonly [number, number, number];
  * `LLViewerParcelMgr::canHearSound`: hearing needs the same parcel, or neither the agent's nor the
  * source's parcel to be "local sound only".
  */
-export function canHearSound(p: { inAgentParcel: boolean; agentParcelSoundLocal: boolean; sourceParcelSoundLocal: boolean }): boolean {
+export function canHearSound(p: {
+  inAgentParcel: boolean;
+  agentParcelSoundLocal: boolean;
+  sourceParcelSoundLocal: boolean;
+}): boolean {
   if (p.inAgentParcel) return true;
   if (p.agentParcelSoundLocal) return false;
   if (p.sourceParcelSoundLocal) return false;
@@ -129,9 +187,13 @@ export function isBeyondCutOff(distance: number, radius: number): boolean {
 // ---- SoundTrigger filter -------------------------------------------------------------------------
 
 export interface TriggerEvent {
-  soundId: string; objectId: string; ownerId: string; parentId?: string;
+  soundId: string;
+  objectId: string;
+  ownerId: string;
+  parentId?: string;
   /** Region-local position and the region handle, or an already-global position. */
-  position: Vec3; handle?: bigint | number | string;
+  position: Vec3;
+  handle?: bigint | number | string;
 }
 
 export interface SoundPolicy {
@@ -160,10 +222,16 @@ export function shouldPlayTrigger(event: TriggerEvent, policy: SoundPolicy): boo
   if (!policy.canHearAt(global)) return false;
   if (policy.ownerSoundsMuted(event.ownerId)) return false;
   if (policy.isMuted(event.objectId)) return false;
-  if (event.parentId && event.parentId !== NULL_UUID && policy.isMuted(event.parentId)) return false;
+  if (event.parentId && event.parentId !== NULL_UUID && policy.isMuted(event.parentId))
+    return false;
   if (!policy.canAccessMaturityAt(global)) return false;
   // Gesture sounds come from the avatar itself; your own are always played.
-  if (event.objectId === event.ownerId && event.ownerId !== policy.agentId && !policy.enableGestureSounds) return false;
+  if (
+    event.objectId === event.ownerId &&
+    event.ownerId !== policy.agentId &&
+    !policy.enableGestureSounds
+  )
+    return false;
   if (policy.isCollisionSound(event.soundId) && !policy.enableCollisionSounds) return false;
   return true;
 }
@@ -173,14 +241,36 @@ const isNull = (id: string | undefined) => !id || id === NULL_UUID;
 
 // ---- attached sounds -----------------------------------------------------------------------------
 
-export interface AttachedSoundMessage { soundId: string; ownerId: string; gain: number; flags: number }
+export interface AttachedSoundMessage {
+  soundId: string;
+  ownerId: string;
+  gain: number;
+  flags: number;
+}
 
 export type AttachedSoundAction =
-  | { type: 'play'; objectId: string; soundId: string; gain: number; loop: boolean; queue: boolean; syncMaster: boolean; syncSlave: boolean; stopFirst: boolean }
+  | {
+      type: 'play';
+      objectId: string;
+      soundId: string;
+      gain: number;
+      loop: boolean;
+      queue: boolean;
+      syncMaster: boolean;
+      syncSlave: boolean;
+      stopFirst: boolean;
+    }
   | { type: 'stop'; objectId: string }
   | { type: 'cleanup'; objectId: string };
 
-interface AttachedState { soundId: string; loop: boolean; gain: number; muted: boolean; done: boolean; hasPendingPreloads: boolean }
+interface AttachedState {
+  soundId: string;
+  loop: boolean;
+  gain: number;
+  muted: boolean;
+  done: boolean;
+  hasPendingPreloads: boolean;
+}
 
 /**
  * Per-object attached sound state, a port of `LLViewerObject::setAttachedSound` plus the postponement
@@ -190,7 +280,10 @@ export class AttachedSounds {
   private states = new Map<string, AttachedState>();
   private postponed = new Map<string, AttachedSoundMessage & { at: number }>();
 
-  constructor(private now: () => number = () => Date.now(), private objectKnown: (objectId: string) => boolean = () => true) {}
+  constructor(
+    private now: () => number = () => Date.now(),
+    private objectKnown: (objectId: string) => boolean = () => true,
+  ) {}
 
   /** `process_attached_sound` for one message; returns what the audio layer should do. */
   apply(objectId: string, message: AttachedSoundMessage): AttachedSoundAction[] {
@@ -212,7 +305,8 @@ export class AttachedSounds {
   }
 
   private expirePostponed() {
-    for (const [id, held] of this.postponed) if (this.now() - held.at > MAXIMUM_PLAY_DELAY_MS) this.postponed.delete(id);
+    for (const [id, held] of this.postponed)
+      if (this.now() - held.at > MAXIMUM_PLAY_DELAY_MS) this.postponed.delete(id);
   }
 
   gainChange(objectId: string, gain: number): number | null {
@@ -222,33 +316,70 @@ export class AttachedSounds {
     return state.gain;
   }
 
-  private set(objectId: string, { soundId, gain, flags }: AttachedSoundMessage): AttachedSoundAction[] {
+  private set(
+    objectId: string,
+    { soundId, gain, flags }: AttachedSoundMessage,
+  ): AttachedSoundAction[] {
     const state = this.states.get(objectId);
     if (isNull(soundId)) {
       if (!state) return [];
-      if (state.loop && !state.hasPendingPreloads) { this.states.delete(objectId); return [{ type: 'cleanup', objectId }]; }
+      if (state.loop && !state.hasPendingPreloads) {
+        this.states.delete(objectId);
+        return [{ type: 'cleanup', objectId }];
+      }
       if (flags & SOUND_FLAG.STOP) return [{ type: 'stop', objectId }];
       return [];
     }
-    if ((flags & SOUND_FLAG.LOOP) && state?.loop && state.soundId === soundId) return []; // already looping this
+    if (flags & SOUND_FLAG.LOOP && state?.loop && state.soundId === soundId) return []; // already looping this
     const actions: AttachedSoundAction[] = [];
     let current = state;
-    if (current?.done) { actions.push({ type: 'cleanup', objectId }); this.states.delete(objectId); current = undefined; }
+    if (current?.done) {
+      actions.push({ type: 'cleanup', objectId });
+      this.states.delete(objectId);
+      current = undefined;
+    }
     if (current?.muted && current.soundId === soundId) return actions; // already held as a muted sound
     const queue = Boolean(flags & SOUND_FLAG.QUEUE);
-    const next: AttachedState = { soundId, loop: Boolean(flags & SOUND_FLAG.LOOP), gain: Math.max(0, Math.min(1, gain)), muted: false, done: false, hasPendingPreloads: false };
+    const next: AttachedState = {
+      soundId,
+      loop: Boolean(flags & SOUND_FLAG.LOOP),
+      gain: Math.max(0, Math.min(1, gain)),
+      muted: false,
+      done: false,
+      hasPendingPreloads: false,
+    };
     this.states.set(objectId, next);
     actions.push({
-      type: 'play', objectId, soundId, gain: next.gain, loop: next.loop, queue,
-      syncMaster: Boolean(flags & SOUND_FLAG.SYNC_MASTER), syncSlave: Boolean(flags & SOUND_FLAG.SYNC_SLAVE),
+      type: 'play',
+      objectId,
+      soundId,
+      gain: next.gain,
+      loop: next.loop,
+      queue,
+      syncMaster: Boolean(flags & SOUND_FLAG.SYNC_MASTER),
+      syncSlave: Boolean(flags & SOUND_FLAG.SYNC_SLAVE),
       stopFirst: !queue, // "farts of doom" (SL-1541): stop the current sound unless queueing
     });
     return actions;
   }
 
-  markDone(objectId: string) { const s = this.states.get(objectId); if (s) s.done = true; }
-  setMuted(objectId: string, muted: boolean) { const s = this.states.get(objectId); if (s) s.muted = muted; }
-  remove(objectId: string) { this.states.delete(objectId); this.postponed.delete(objectId); }
-  has(objectId: string) { return this.states.has(objectId); }
-  clear() { this.states.clear(); this.postponed.clear(); }
+  markDone(objectId: string) {
+    const s = this.states.get(objectId);
+    if (s) s.done = true;
+  }
+  setMuted(objectId: string, muted: boolean) {
+    const s = this.states.get(objectId);
+    if (s) s.muted = muted;
+  }
+  remove(objectId: string) {
+    this.states.delete(objectId);
+    this.postponed.delete(objectId);
+  }
+  has(objectId: string) {
+    return this.states.has(objectId);
+  }
+  clear() {
+    this.states.clear();
+    this.postponed.clear();
+  }
 }

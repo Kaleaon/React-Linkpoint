@@ -5,7 +5,6 @@
 > status, remaining PRs and validation limits. Old statements about missing skinning,
 > animation, voice, search, PBR or simulator environment must not be treated as current.
 
-
 What is left to bring Linkpoint to the behaviour of the Lumiya viewer it continues, what
 blocks each item, and where Rust or Kotlin would actually help.
 
@@ -17,12 +16,12 @@ historical snapshot; the linked consolidated audit is the current status. See al
 
 ## How to read the status
 
-| Status | Meaning |
-| --- | --- |
-| **Done** | Implemented and covered by automated tests. |
-| **Partial** | Some of it works; the gap is stated. |
+| Status          | Meaning                                                                |
+| --------------- | ---------------------------------------------------------------------- |
+| **Done**        | Implemented and covered by automated tests.                            |
+| **Partial**     | Some of it works; the gap is stated.                                   |
 | **Not started** | No implementation found in this repo (checked by search, noted below). |
-| **Blocked** | Cannot be done as stated; the blocker is named. |
+| **Blocked**     | Cannot be done as stated; the blocker is named.                        |
 
 **Verification debt that applies to everything below:** nothing has been run against a live
 grid. Tests use stubs and synthetic data (node-metaverse objects, generated meshes, rendered
@@ -35,30 +34,30 @@ Asset policy for this project: text assets from Lumiya may be imported; binary a
 
 ## Where things stand
 
-| Area | Lumiya reference | Linkpoint | Status |
-| --- | --- | --- | --- |
-| Login, grid choice, `next_url` redirects | `slproto/auth`, login activity | Login with MFA token and saved MFA hash, structured failure reasons, login channel `Linkpoint Viewer` | **Done** |
-| Viewer identity (TPV rule) | n/a | Channel patched into node-metaverse by `scripts/patch-metaverse.cjs` at install time | **Done**, but fragile (see Infrastructure) |
-| Local chat, IM, group IM | `slproto/chat` | Handled on both backends (IM subscription present) | **Partial**: only text paths verified |
-| Script dialogs and text-box dialogs | `SLChatScriptDialog`, `SLChatTextBoxDialog` | Both backends subscribe, keep the original events behind ids, and answer them (button or typed text); sheet UI with queueing, retry on failure and Escape to ignore. Shared code in `core/sl-interactions.cjs`, manager in `src/linkpoint/interactions.ts` | **Done** (stub-tested; not seen on a live grid) |
-| Teleport lures | `SLChatLureEvent` | Offers are shown with sender, message and position; accepting teleports through the library. Dismissing is local only: the library has no call to decline, so the sender is not told. Lure *requests* (someone asking to be teleported to you) are not handled | **Partial** |
-| Inventory offers, group invites, group notices | `SLChatInventoryItemOffered*`, `SLChatGroupInvitationEvent` | No `onInventoryOffered`, `onGroupInvite`, `onGroupNotice` subscription found; friend requests are handled | **Partial** |
-| Teleport (by name/coordinates), sit, stand, touch, L$ balance | `SLAgentCircuit`, `SLFinancialInfo` | Shared actions layer (`core/sl-actions.cjs`) on web and Electron, with input validation | **Done** (stub-tested) |
-| Inventory | `slproto/inventory` | In-memory tree and operations | **Partial**: folder responses merge rather than replace atomically, as `LUMIYA_FEATURE_AUDIT.md` notes |
-| Contacts and group-notice calendar | n/a (Linkpoint feature) | Device-local address book with photos and Telegram/Discord/web links; group notices kept and turned into `.ics` files; optional Google Contacts/Calendar behind a Settings toggle. See `CONTACTS_AND_CALENDAR.md` | **Done** (not tried against live Google) |
-| Mute list | `modules/mutelist` (fetched from and synced to the grid) | In-memory mute sets in `phase2/chat-extended.ts`; not synced with the grid's mute list, and whether every chat/IM path consults them was not verified | **Partial** |
-| People/group/place search | `modules/search` | Session resident index only; no server-side search | **Partial** |
-| Economy transactions, pay object | `modules/finance` | Balance only; no history, no pay | **Partial** |
-| Terrain, prims, sculpts, LLMesh, textures | `render/`, `slproto/prims`, `slproto/mesh` | Rendered; prim meshes follow Second Life conventions (unit box, Z axis) after this branch's fixes | **Done** (synthetic data) |
-| Sky, water, sun | `render/WindlightSky`, `slproto/windlight` | Windlight fallback day cycle from Lumiya's text presets, simulator environment when present | **Partial** (see Windlight below) |
-| HUDs | `DrawableHUD`, attachment decode | Detection, ortho pass, touch, show/hide UI | **Done** (stub-tested); touch has no face/UV |
-| Rigged mesh and avatars | `slproto/avatar`, `baker`, `render/avatar` | Mesh weights are decoded; nothing is skinned; avatars are placeholder capsules | **Blocked** on binary assets (below) |
-| Animations, AO | `assets/anims` | AO screen is honest about being unavailable; no playback | **Blocked** on binary assets |
-| RLV | `modules/rlv` (27 command classes) | UI-side restriction context exists (`src/viewer/RlvContext.tsx`) but nothing parses commands or feeds it | **Not started** (parser/controller) |
-| Voice | `voice/webrtc`, `modules/voice` | Not implemented | **Not started** |
-| Media on a prim / streaming media | `media/`, `StreamingMediaService` | Browser media pipeline for streaming; no MoaP | **Partial** |
-| Texture upload, asset transfer (Xfer) | `modules/texuploader`, `modules/xfer`, `transfer` | Not found | **Not started** |
-| Particles, flexible prims, texture animation, glow/shiny/bump | `prim_flexible.vsh` and others | Not rendered | **Not started** |
+| Area                                                          | Lumiya reference                                            | Linkpoint                                                                                                                                                                                                                                                      | Status                                                                                                 |
+| ------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Login, grid choice, `next_url` redirects                      | `slproto/auth`, login activity                              | Login with MFA token and saved MFA hash, structured failure reasons, login channel `Linkpoint Viewer`                                                                                                                                                          | **Done**                                                                                               |
+| Viewer identity (TPV rule)                                    | n/a                                                         | Channel patched into node-metaverse by `scripts/patch-metaverse.cjs` at install time                                                                                                                                                                           | **Done**, but fragile (see Infrastructure)                                                             |
+| Local chat, IM, group IM                                      | `slproto/chat`                                              | Handled on both backends (IM subscription present)                                                                                                                                                                                                             | **Partial**: only text paths verified                                                                  |
+| Script dialogs and text-box dialogs                           | `SLChatScriptDialog`, `SLChatTextBoxDialog`                 | Both backends subscribe, keep the original events behind ids, and answer them (button or typed text); sheet UI with queueing, retry on failure and Escape to ignore. Shared code in `core/sl-interactions.cjs`, manager in `src/linkpoint/interactions.ts`     | **Done** (stub-tested; not seen on a live grid)                                                        |
+| Teleport lures                                                | `SLChatLureEvent`                                           | Offers are shown with sender, message and position; accepting teleports through the library. Dismissing is local only: the library has no call to decline, so the sender is not told. Lure _requests_ (someone asking to be teleported to you) are not handled | **Partial**                                                                                            |
+| Inventory offers, group invites, group notices                | `SLChatInventoryItemOffered*`, `SLChatGroupInvitationEvent` | No `onInventoryOffered`, `onGroupInvite`, `onGroupNotice` subscription found; friend requests are handled                                                                                                                                                      | **Partial**                                                                                            |
+| Teleport (by name/coordinates), sit, stand, touch, L$ balance | `SLAgentCircuit`, `SLFinancialInfo`                         | Shared actions layer (`core/sl-actions.cjs`) on web and Electron, with input validation                                                                                                                                                                        | **Done** (stub-tested)                                                                                 |
+| Inventory                                                     | `slproto/inventory`                                         | In-memory tree and operations                                                                                                                                                                                                                                  | **Partial**: folder responses merge rather than replace atomically, as `LUMIYA_FEATURE_AUDIT.md` notes |
+| Contacts and group-notice calendar                            | n/a (Linkpoint feature)                                     | Device-local address book with photos and Telegram/Discord/web links; group notices kept and turned into `.ics` files; optional Google Contacts/Calendar behind a Settings toggle. See `CONTACTS_AND_CALENDAR.md`                                              | **Done** (not tried against live Google)                                                               |
+| Mute list                                                     | `modules/mutelist` (fetched from and synced to the grid)    | In-memory mute sets in `phase2/chat-extended.ts`; not synced with the grid's mute list, and whether every chat/IM path consults them was not verified                                                                                                          | **Partial**                                                                                            |
+| People/group/place search                                     | `modules/search`                                            | Session resident index only; no server-side search                                                                                                                                                                                                             | **Partial**                                                                                            |
+| Economy transactions, pay object                              | `modules/finance`                                           | Balance only; no history, no pay                                                                                                                                                                                                                               | **Partial**                                                                                            |
+| Terrain, prims, sculpts, LLMesh, textures                     | `render/`, `slproto/prims`, `slproto/mesh`                  | Rendered; prim meshes follow Second Life conventions (unit box, Z axis) after this branch's fixes                                                                                                                                                              | **Done** (synthetic data)                                                                              |
+| Sky, water, sun                                               | `render/WindlightSky`, `slproto/windlight`                  | Windlight fallback day cycle from Lumiya's text presets, simulator environment when present                                                                                                                                                                    | **Partial** (see Windlight below)                                                                      |
+| HUDs                                                          | `DrawableHUD`, attachment decode                            | Detection, ortho pass, touch, show/hide UI                                                                                                                                                                                                                     | **Done** (stub-tested); touch has no face/UV                                                           |
+| Rigged mesh and avatars                                       | `slproto/avatar`, `baker`, `render/avatar`                  | Mesh weights are decoded; nothing is skinned; avatars are placeholder capsules                                                                                                                                                                                 | **Blocked** on binary assets (below)                                                                   |
+| Animations, AO                                                | `assets/anims`                                              | AO screen is honest about being unavailable; no playback                                                                                                                                                                                                       | **Blocked** on binary assets                                                                           |
+| RLV                                                           | `modules/rlv` (27 command classes)                          | UI-side restriction context exists (`src/viewer/RlvContext.tsx`) but nothing parses commands or feeds it                                                                                                                                                       | **Not started** (parser/controller)                                                                    |
+| Voice                                                         | `voice/webrtc`, `modules/voice`                             | Not implemented                                                                                                                                                                                                                                                | **Not started**                                                                                        |
+| Media on a prim / streaming media                             | `media/`, `StreamingMediaService`                           | Browser media pipeline for streaming; no MoaP                                                                                                                                                                                                                  | **Partial**                                                                                            |
+| Texture upload, asset transfer (Xfer)                         | `modules/texuploader`, `modules/xfer`, `transfer`           | Not found                                                                                                                                                                                                                                                      | **Not started**                                                                                        |
+| Particles, flexible prims, texture animation, glow/shiny/bump | `prim_flexible.vsh` and others                              | Not rendered                                                                                                                                                                                                                                                   | **Not started**                                                                                        |
 
 ## What blocks what
 
@@ -132,14 +131,14 @@ Be selective: most of the gaps above are TypeScript wiring over node-metaverse a
 benefit from another language. Native code earns its cost where there is compute or a native
 boundary:
 
-| Candidate | Why | Notes |
-| --- | --- | --- |
-| JPEG2000 decode | Currently pure JavaScript (`jpeg2000` package); slow for large textures | A Rust crate compiled to WASM (web/Electron) or a native module is a drop-in behind `decodeJPEG2000`. Measure first. |
-| Mesh and sculpt decode | Runs through node-metaverse's decoder; fine | Only worth moving if profiling shows it blocks the UI. |
-| PBKDF2 fallback | Done in `@noble/hashes` | No native code needed. |
-| Avatar baking | Compositing layers is compute-heavy (`slproto/baker`) | Only relevant once avatars are unblocked. |
-| Voice | WebRTC client (`voice/webrtc`); browsers have native WebRTC, native shells would need one | Largest unknown; protocol caps for voice are not exposed by node-metaverse. |
-| Android shell | Kotlin is the platform language; `Lumiya-redux` already carries a Kotlin modernization plan (`docs/kotlin-migration-plan.md`) and a `rust-mirror/` | A separate effort from this React app; do not mix the two repos' goals. |
+| Candidate              | Why                                                                                                                                                | Notes                                                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| JPEG2000 decode        | Currently pure JavaScript (`jpeg2000` package); slow for large textures                                                                            | A Rust crate compiled to WASM (web/Electron) or a native module is a drop-in behind `decodeJPEG2000`. Measure first. |
+| Mesh and sculpt decode | Runs through node-metaverse's decoder; fine                                                                                                        | Only worth moving if profiling shows it blocks the UI.                                                               |
+| PBKDF2 fallback        | Done in `@noble/hashes`                                                                                                                            | No native code needed.                                                                                               |
+| Avatar baking          | Compositing layers is compute-heavy (`slproto/baker`)                                                                                              | Only relevant once avatars are unblocked.                                                                            |
+| Voice                  | WebRTC client (`voice/webrtc`); browsers have native WebRTC, native shells would need one                                                          | Largest unknown; protocol caps for voice are not exposed by node-metaverse.                                          |
+| Android shell          | Kotlin is the platform language; `Lumiya-redux` already carries a Kotlin modernization plan (`docs/kotlin-migration-plan.md`) and a `rust-mirror/` | A separate effort from this React app; do not mix the two repos' goals.                                              |
 
 No Rust or Kotlin has been written for this repo. The earlier request to build gaps out "in Rust
 or Kotlin as needed" was weighed per item above; none of the finished work needed it.
@@ -182,12 +181,12 @@ Done on this branch:
 
 Remaining, none of it in our code:
 
-| Item | Source | Action |
-| --- | --- | --- |
-| Kotlin deprecation warnings (`react-native-screens`) | Third-party, `node_modules` | Fixed upstream; take newer releases when compatible with the Expo/React Native versions in use. |
-| `RawPropsParser` C++ deprecation (`expo-modules-core`) | Third-party | Same. |
-| `glob@7`, `punycode` (DEP0040) warnings | Transitive, via node-metaverse and others | Cannot be fixed here without an upstream release or dependency overrides; overrides risk breaking the library. |
-| WebGL1 path uses the `OES_vertex_array_object` extension | Our `graphics-3d.ts` | Only taken when WebGL2 is unavailable; not deprecated, and left alone. |
+| Item                                                     | Source                                    | Action                                                                                                         |
+| -------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Kotlin deprecation warnings (`react-native-screens`)     | Third-party, `node_modules`               | Fixed upstream; take newer releases when compatible with the Expo/React Native versions in use.                |
+| `RawPropsParser` C++ deprecation (`expo-modules-core`)   | Third-party                               | Same.                                                                                                          |
+| `glob@7`, `punycode` (DEP0040) warnings                  | Transitive, via node-metaverse and others | Cannot be fixed here without an upstream release or dependency overrides; overrides risk breaking the library. |
+| WebGL1 path uses the `OES_vertex_array_object` extension | Our `graphics-3d.ts`                      | Only taken when WebGL2 is unavailable; not deprecated, and left alone.                                         |
 
 ## Suggested order
 

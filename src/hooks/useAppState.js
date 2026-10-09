@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
-import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from "../theme/constants.js";
-import { decodeSharedTheme, encodeSharedTheme, readSavedTheme, sanitizeTheme, themeFromPalette, THEME_STORAGE_KEY } from "../theme/customTheme.js";
-import { readViewerSettings, saveViewerSettings } from "./viewerSettings.js";
-import { Utils } from "../linkpoint/utils";
-import { localCache } from "../linkpoint/local-cache";
-import { app } from "../linkpoint/app";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
+import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from '../theme/constants.js';
+import {
+  decodeSharedTheme,
+  encodeSharedTheme,
+  readSavedTheme,
+  sanitizeTheme,
+  themeFromPalette,
+  THEME_STORAGE_KEY,
+} from '../theme/customTheme.js';
+import { readViewerSettings, saveViewerSettings } from './viewerSettings.js';
+import { Utils } from '../linkpoint/utils';
+import { localCache } from '../linkpoint/local-cache';
+import { app } from '../linkpoint/app';
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -14,74 +21,112 @@ import { app } from "../linkpoint/app";
 // theme/viewModel.js is the "renderVals()" computation layer that consumes it.
 export function useAppState() {
   const [savedSettings] = useState(readViewerSettings);
-  const [layout, setLayout] = useState(() => LAYOUTS[savedSettings.layout] ? savedSettings.layout : "terminal");
-  const [palette, setPalette] = useState(() => PALETTES[savedSettings.palette] ? savedSettings.palette : "ink");
+  const [layout, setLayout] = useState(() =>
+    LAYOUTS[savedSettings.layout] ? savedSettings.layout : 'terminal',
+  );
+  const [palette, setPalette] = useState(() =>
+    PALETTES[savedSettings.palette] ? savedSettings.palette : 'ink',
+  );
   const [customTheme, setCustomTheme] = useState(() => {
-    const shared = decodeSharedTheme(new URLSearchParams(window.location.search).get("theme") || "");
-    const base = readSavedTheme() || themeFromPalette(PALETTES[savedSettings.palette] || PALETTES.ink);
-    return shared || { ...base, density: savedSettings.density || (savedSettings.dense ? "compact" : base.density) };
+    const shared = decodeSharedTheme(
+      new URLSearchParams(window.location.search).get('theme') || '',
+    );
+    const base =
+      readSavedTheme() || themeFromPalette(PALETTES[savedSettings.palette] || PALETTES.ink);
+    return (
+      shared || {
+        ...base,
+        density: savedSettings.density || (savedSettings.dense ? 'compact' : base.density),
+      }
+    );
   });
   const [viewMode, setViewModeState] = useState(() => {
     try {
-      return localStorage.getItem("linkpoint_view_mode") || "auto";
+      return localStorage.getItem('linkpoint_view_mode') || 'auto';
     } catch {
-      return "auto";
+      return 'auto';
     }
   });
 
   const deviceForViewport = useCallback(() => {
     const width = window.innerWidth;
-    if (width >= 1280) return "desk";
-    if (width >= 900) return "tab";
-    if (width >= 600) return "fold";
-    return width >= 400 ? "and" : "ios";
+    if (width >= 1280) return 'desk';
+    if (width >= 900) return 'tab';
+    if (width >= 600) return 'fold';
+    return width >= 400 ? 'and' : 'ios';
   }, []);
 
-  const resolveDevice = useCallback((mode) => {
-    if (mode === "desktop") return "desk";
-    if (mode === "mobile") return "and";
-    return deviceForViewport();
-  }, [deviceForViewport]);
+  const resolveDevice = useCallback(
+    (mode) => {
+      if (mode === 'desktop') return 'desk';
+      if (mode === 'mobile') return 'and';
+      return deviceForViewport();
+    },
+    [deviceForViewport],
+  );
 
   const [device, setDevice] = useState(() => resolveDevice(viewMode));
 
   useEffect(() => {
-    if (viewMode !== "auto") return;
+    if (viewMode !== 'auto') return;
     const onResize = () => setDevice(deviceForViewport());
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, [viewMode, deviceForViewport]);
-  const [screen, setScreen] = useState("Login");
+  const [screen, setScreen] = useState('Login');
   const [dialog, setDialog] = useState(/** @type {string | null} */ (null));
-  const [dense, setDense] = useState(customTheme.density === "compact");
-  const [tabs, setTabs] = useState({ Chat: "LOCAL", Friends: "ALL", Diagnostics: "AGNI" });
-  const [chip, setChip] = useState("");
+  const [dense, setDense] = useState(customTheme.density === 'compact');
+  const [tabs, setTabs] = useState({ Chat: 'LOCAL', Friends: 'ALL', Diagnostics: 'AGNI' });
+  const [chip, setChip] = useState('');
   const [tileOk, setTileOk] = useState(true);
   const [invOpen, setInvOpen] = useState({ Objects: true });
   const [dismissed, setDismissed] = useState({});
   const [pinned, setPinned] = useState({});
   const [toggles, setToggles] = useState(() => ({
-    largeType: false, push: true, voice: true, chatCmds: true,
-    pttUse: true, pttToggle: false, gamepad: false,
-    rlv: false, shadows: false, battery: true, timestamps: true, imLogs: true, mediaAuto: false,
-    showOnline: true, typingSent: true, cacheOnExit: false,
-    notifyLocal: true, notifyIM: true, notifyGroup: true,
+    largeType: false,
+    push: true,
+    voice: true,
+    chatCmds: true,
+    pttUse: true,
+    pttToggle: false,
+    gamepad: false,
+    rlv: false,
+    shadows: false,
+    battery: true,
+    timestamps: true,
+    imLogs: true,
+    mediaAuto: false,
+    showOnline: true,
+    typingSent: true,
+    cacheOnExit: false,
+    notifyLocal: true,
+    notifyIM: true,
+    notifyGroup: true,
     ...savedSettings.toggles,
-    autoresponse: typeof Utils.storage.get("linkpoint_auto_reply_config")?.enabled === "boolean"
-      ? Utils.storage.get("linkpoint_auto_reply_config").enabled
-      : savedSettings.toggles?.autoresponse ?? app.chat.isAutoReplyEnabled(),
+    autoresponse:
+      typeof Utils.storage.get('linkpoint_auto_reply_config')?.enabled === 'boolean'
+        ? Utils.storage.get('linkpoint_auto_reply_config').enabled
+        : (savedSettings.toggles?.autoresponse ?? app.chat.isAutoReplyEnabled()),
   }));
   // Everything the preferences screens expose as a <select>: one flat bag so a
   // new preference is one entry here plus one card, not a new state key each time.
   const [prefs, setPrefs] = useState(() => ({
-    draw: "96 m", quality: "Balanced", fps: "60 fps", complexity: "80 000",
-    volume: "70%", translate: "Off", maturity: "Moderate", bandwidth: "1 500 kbps",
-    cacheLimit: 512, cacheLoc: "Internal storage", fov: 60,
+    draw: '96 m',
+    quality: 'Balanced',
+    fps: '60 fps',
+    complexity: '80 000',
+    volume: '70%',
+    translate: 'Off',
+    maturity: 'Moderate',
+    bandwidth: '1 500 kbps',
+    cacheLimit: 512,
+    cacheLoc: 'Internal storage',
+    fov: 60,
     ...savedSettings.prefs,
   }));
   const [cacheCleared, setCacheCleared] = useState({});
-  const [camPreset, setCamPreset] = useState("ORBIT");
-  const [cond, setCond] = useState("normal");
+  const [camPreset, setCamPreset] = useState('ORBIT');
+  const [cond, setCond] = useState('normal');
   const [hudOn, setHudOn] = useState({ ...HUD_DEFAULT });
   const [hudPos, setHudPos] = useState({});
   const [hudPicker, setHudPicker] = useState(false);
@@ -89,72 +134,128 @@ export function useAppState() {
   const [targetPicker, setTargetPicker] = useState(false);
   const [navPeek, setNavPeek] = useState(false);
   const [cPad, setCPad] = useState(true);
-  const [cHeld, setCHeld] = useState("");
+  const [cHeld, setCHeld] = useState('');
   const [cRun, setCRun] = useState(false);
   const [cEdit, setCEdit] = useState(false);
-  const [cFlash, setCFlash] = useState("");
-  const [cReason, setCReason] = useState("");
+  const [cFlash, setCFlash] = useState('');
+  const [cReason, setCReason] = useState('');
   const [cTog, setCTog] = useState({});
-  const [rMode, setRMode] = useState("AV");
+  const [rMode, setRMode] = useState('AV');
   const [rOpen, setROpen] = useState(null);
   const [rMenu, setRMenu] = useState(null);
-  const [cDock, setCDock] = useState(["fly", "sit", "snap", "mini", "inv", "home", "ao", "sun"]);
-  const [flOpen, setFlOpen] = useState({ Chat: true, Radar: true, Friends: true, Inventory: true, Map: true, Settings: false, AO: false });
+  const [cDock, setCDock] = useState(['fly', 'sit', 'snap', 'mini', 'inv', 'home', 'ao', 'sun']);
+  const [flOpen, setFlOpen] = useState({
+    Chat: true,
+    Radar: true,
+    Friends: true,
+    Inventory: true,
+    Map: true,
+    Settings: false,
+    AO: false,
+  });
   const [flMin, setFlMin] = useState({});
   const [flRect, setFlRect] = useState({});
-  const [flZ, setFlZ] = useState(["Map", "Inventory", "Friends", "Radar", "Chat"]);
+  const [flZ, setFlZ] = useState(['Map', 'Inventory', 'Friends', 'Radar', 'Chat']);
   const [menu, setMenu] = useState(null);
-  const [loginMode, setLoginModeState] = useState("grid");
-  const [loginGrid, setLoginGrid] = useState("agni");
+  const [loginMode, setLoginModeState] = useState('grid');
+  const [loginGrid, setLoginGrid] = useState('agni');
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState(null);
   const [customGrids, setCustomGrids] = useState([]);
   const [addGrid, setAddGrid] = useState(false);
-  const [addGridName, setAddGridName] = useState("");
-  const [addGridHost, setAddGridHost] = useState("");
-  const [searchFrom, setSearchFrom] = useState("Friends");
-  const [searchTab, setSearchTab] = useState("FRIENDS");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [addGridName, setAddGridName] = useState('');
+  const [addGridHost, setAddGridHost] = useState('');
+  const [searchFrom, setSearchFrom] = useState('Friends');
+  const [searchTab, setSearchTab] = useState('FRIENDS');
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchState, setSearchState] = useState({});
   const [reconnecting, setReconnecting] = useState(false);
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState('');
 
   // ---- movement pad: held buttons move the real camera --------------------
   useEffect(() => {
-    const step = { fwd: [0, 1, 0], bck: [0, -1, 0], lft: [-1, 0, 0], rgt: [1, 0, 0], up: [0, 0, 1], dn: [0, 0, -1] }[cHeld];
+    const step = {
+      fwd: [0, 1, 0],
+      bck: [0, -1, 0],
+      lft: [-1, 0, 0],
+      rgt: [1, 0, 0],
+      up: [0, 0, 1],
+      dn: [0, 0, -1],
+    }[cHeld];
     if (!step) return undefined;
     const metersPerTick = cRun ? 1.4 : 0.55;
-    const timer = setInterval(() => app.world.moveCamera(step[0] * metersPerTick, step[1] * metersPerTick, step[2] * metersPerTick), 50);
+    const timer = setInterval(
+      () =>
+        app.world.moveCamera(
+          step[0] * metersPerTick,
+          step[1] * metersPerTick,
+          step[2] * metersPerTick,
+        ),
+      50,
+    );
     return () => clearInterval(timer);
   }, [cHeld, cRun]);
 
   // The Settings switch is the only place RLV is turned on; turning it off forgets every restriction.
-  useEffect(() => { app.rlv.setEnabled(Boolean(toggles.rlv)); }, [toggles.rlv]);
+  useEffect(() => {
+    app.rlv.setEnabled(Boolean(toggles.rlv));
+  }, [toggles.rlv]);
 
   // JoystickEnabled: a connected gamepad moves the avatar only when the user turns it on.
-  useEffect(() => { app.world.gamepadEnabled = Boolean(toggles.gamepad); }, [toggles.gamepad]);
+  useEffect(() => {
+    app.world.gamepadEnabled = Boolean(toggles.gamepad);
+  }, [toggles.gamepad]);
 
   // Push-to-talk follows the viewer's PTTCurrentlyEnabled / PushToTalkToggle settings.
-  useEffect(() => { app.voice.setUsePtt(Boolean(toggles.pttUse)); }, [toggles.pttUse]);
-  useEffect(() => { app.voice.setPttToggle(Boolean(toggles.pttToggle)); }, [toggles.pttToggle]);
+  useEffect(() => {
+    app.voice.setUsePtt(Boolean(toggles.pttUse));
+  }, [toggles.pttUse]);
+  useEffect(() => {
+    app.voice.setPttToggle(Boolean(toggles.pttToggle));
+  }, [toggles.pttToggle]);
 
   useEffect(() => {
     saveViewerSettings({ layout, palette, dense, density: customTheme.density, toggles, prefs });
   }, [layout, palette, dense, customTheme.density, toggles, prefs]);
 
   useEffect(() => {
-    app.world.configureRendering({ drawDistance: Number.parseInt(prefs.draw, 10), fov: Number(prefs.fov), fps: prefs.fps === "Uncapped" ? 0 : Number.parseInt(prefs.fps, 10), batterySaver: toggles.battery });
+    app.world.configureRendering({
+      drawDistance: Number.parseInt(prefs.draw, 10),
+      fov: Number(prefs.fov),
+      fps: prefs.fps === 'Uncapped' ? 0 : Number.parseInt(prefs.fps, 10),
+      batterySaver: toggles.battery,
+    });
     app.audio.setVolume(Number.parseInt(prefs.volume, 10) / 100 || 0);
-    app.notifications.setFilters({ local: toggles.notifyLocal, im: toggles.notifyIM, group: toggles.notifyGroup });
-  }, [prefs.draw, prefs.fov, prefs.fps, prefs.volume, toggles.battery, toggles.notifyLocal, toggles.notifyIM, toggles.notifyGroup]);
+    app.notifications.setFilters({
+      local: toggles.notifyLocal,
+      im: toggles.notifyIM,
+      group: toggles.notifyGroup,
+    });
+  }, [
+    prefs.draw,
+    prefs.fov,
+    prefs.fps,
+    prefs.volume,
+    toggles.battery,
+    toggles.notifyLocal,
+    toggles.notifyIM,
+    toggles.notifyGroup,
+  ]);
 
   useEffect(() => {
-    const syncAutoReply = ({ enabled }) => setToggles(current => current.autoresponse === enabled ? current : { ...current, autoresponse: enabled });
-    app.chat.on("auto_reply_changed", syncAutoReply);
-    return () => app.chat.off("auto_reply_changed", syncAutoReply);
+    const syncAutoReply = ({ enabled }) =>
+      setToggles((current) =>
+        current.autoresponse === enabled ? current : { ...current, autoresponse: enabled },
+      );
+    app.chat.on('auto_reply_changed', syncAutoReply);
+    return () => app.chat.off('auto_reply_changed', syncAutoReply);
   }, []);
-  useEffect(() => { app.chat.setAutoReplyEnabled(toggles.autoresponse); }, [toggles.autoresponse]);
-  useEffect(() => { app.chat.setHistoryLoggingEnabled(toggles.imLogs); }, [toggles.imLogs]);
+  useEffect(() => {
+    app.chat.setAutoReplyEnabled(toggles.autoresponse);
+  }, [toggles.autoresponse]);
+  useEffect(() => {
+    app.chat.setHistoryLoggingEnabled(toggles.imLogs);
+  }, [toggles.imLogs]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout
@@ -176,7 +277,7 @@ export function useAppState() {
       clearTimeout(reconnectTimerRef.current);
       clearTimeout(toastTimerRef.current);
     },
-    []
+    [],
   );
 
   // ---- transient acknowledgement toast (notify) --------------------------
@@ -186,33 +287,86 @@ export function useAppState() {
   const notify = useCallback((msg) => {
     clearTimeout(toastTimerRef.current);
     setToast(msg);
-    toastTimerRef.current = setTimeout(() => setToast(""), 2200);
+    toastTimerRef.current = setTimeout(() => setToast(''), 2200);
   }, []);
 
-  const setThemeColor = useCallback((key, value) => setCustomTheme((theme) => ({ ...theme, active: true, colors: { ...theme.colors, [key]: value } })), []);
-  const renameTheme = useCallback((name) => setCustomTheme((theme) => ({ ...theme, active: true, name })), []);
-  const setLayoutMode = useCallback((layoutMode) => setCustomTheme((theme) => ({ ...theme, active: true, layoutMode })), []);
+  const setThemeColor = useCallback(
+    (key, value) =>
+      setCustomTheme((theme) => ({
+        ...theme,
+        active: true,
+        colors: { ...theme.colors, [key]: value },
+      })),
+    [],
+  );
+  const renameTheme = useCallback(
+    (name) => setCustomTheme((theme) => ({ ...theme, active: true, name })),
+    [],
+  );
+  const setLayoutMode = useCallback(
+    (layoutMode) => setCustomTheme((theme) => ({ ...theme, active: true, layoutMode })),
+    [],
+  );
   const setDensity = useCallback((density) => {
     setCustomTheme((theme) => ({ ...theme, active: true, density }));
-    setDense(density === "compact");
+    setDense(density === 'compact');
   }, []);
-  const setBreakpoint = useCallback((breakpoint) => setCustomTheme((theme) => ({ ...theme, active: true, breakpoint })), []);
-  const selectPalette = useCallback((key) => { setPalette(key); setCustomTheme(themeFromPalette(PALETTES[key])); localStorage.removeItem(THEME_STORAGE_KEY); }, []);
-  const saveTheme = useCallback(() => { localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(customTheme)); notify("Theme saved to this device."); }, [customTheme, notify]);
-  const resetTheme = useCallback(() => { setCustomTheme(themeFromPalette(PALETTES[palette])); localStorage.removeItem(THEME_STORAGE_KEY); notify("Theme reset to the selected colour pack."); }, [palette, notify]);
-  const importTheme = useCallback(async (json) => {
-    try { const imported = sanitizeTheme(JSON.parse(json)); if (!imported) throw new Error(); setCustomTheme(imported); notify(`Imported “${imported.name}”.`); return true; }
-    catch { notify("That file is not a valid Linkpoint theme."); return false; }
-  }, [notify]);
+  const setBreakpoint = useCallback(
+    (breakpoint) => setCustomTheme((theme) => ({ ...theme, active: true, breakpoint })),
+    [],
+  );
+  const selectPalette = useCallback((key) => {
+    setPalette(key);
+    setCustomTheme(themeFromPalette(PALETTES[key]));
+    localStorage.removeItem(THEME_STORAGE_KEY);
+  }, []);
+  const saveTheme = useCallback(() => {
+    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(customTheme));
+    notify('Theme saved to this device.');
+  }, [customTheme, notify]);
+  const resetTheme = useCallback(() => {
+    setCustomTheme(themeFromPalette(PALETTES[palette]));
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    notify('Theme reset to the selected colour pack.');
+  }, [palette, notify]);
+  const importTheme = useCallback(
+    async (json) => {
+      try {
+        const imported = sanitizeTheme(JSON.parse(json));
+        if (!imported) throw new Error();
+        setCustomTheme(imported);
+        notify(`Imported “${imported.name}”.`);
+        return true;
+      } catch {
+        notify('That file is not a valid Linkpoint theme.');
+        return false;
+      }
+    },
+    [notify],
+  );
   const downloadTheme = useCallback(() => {
-    const blob = new Blob([JSON.stringify(customTheme, null, 2)], { type: "application/json" });
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `${customTheme.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "linkpoint-theme"}.json`; link.click(); URL.revokeObjectURL(link.href);
-    notify("Theme JSON exported.");
+    const blob = new Blob([JSON.stringify(customTheme, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${
+      customTheme.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'linkpoint-theme'
+    }.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    notify('Theme JSON exported.');
   }, [customTheme, notify]);
   const shareTheme = useCallback(async () => {
-    const url = new URL(window.location.href); url.searchParams.set("theme", encodeSharedTheme(customTheme));
-    try { await navigator.clipboard.writeText(url.toString()); notify("Share link copied."); }
-    catch { window.prompt("Copy this theme link", url.toString()); }
+    const url = new URL(window.location.href);
+    url.searchParams.set('theme', encodeSharedTheme(customTheme));
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      notify('Share link copied.');
+    } catch {
+      window.prompt('Copy this theme link', url.toString());
+    }
   }, [customTheme, notify]);
 
   // ---- derived lookups (T()/D()/navMode()) -------------------------------
@@ -220,11 +374,11 @@ export function useAppState() {
     const L = LAYOUTS[layout],
       P = PALETTES[palette];
     return {
-      name: L.name + " / " + P.name,
+      name: L.name + ' / ' + P.name,
       nav: L.nav,
       font: L.font,
       dfont: L.dfont,
-      note: L.note + "   Colour pack: " + P.note + ".",
+      note: L.note + '   Colour pack: ' + P.note + '.',
       v: { ...P.c, ...L.s },
     };
   }, [layout, palette]);
@@ -234,10 +388,10 @@ export function useAppState() {
   const navMode = useCallback(() => {
     const t = T(),
       d = D();
-    if (d.desk) return "floaters";
-    if (t.nav === "SWEEP") return "sweep";
-    if (d.split) return "rail";
-    return t.nav === "TILES" ? "tiles" : t.nav === "RAIL" && d.w > 700 ? "rail" : "tabs";
+    if (d.desk) return 'floaters';
+    if (t.nav === 'SWEEP') return 'sweep';
+    if (d.split) return 'rail';
+    return t.nav === 'TILES' ? 'tiles' : t.nav === 'RAIL' && d.w > 700 ? 'rail' : 'tabs';
   }, [T, D]);
 
   // ---- simple setters (set/setTab/dismiss/toggleSetting/pin/cycle) ------
@@ -265,96 +419,115 @@ export function useAppState() {
     setLoginModeState(m);
     setLoginError(null);
   }, []);
-  const connectLogin = useCallback(async (gridKey, user, pass, remember = true, startLoc = "last") => {
-    setLoginBusy(true);
-    setLoginError(null);
-    try {
-      const gridToUse = gridKey || loginGrid;
-      const gridObj = allGrids().find((g) => g.key === gridToUse);
-      if (!gridObj || ["offline", "gemini"].includes(gridObj.key)) throw new Error("Select a live grid endpoint.");
-      const endpoint = gridObj.key.startsWith("custom-") ? gridObj.host : gridObj.key;
-      await app.auth.login(endpoint, user?.trim() || "", pass, remember, startLoc);
-      setScreen("Chat");
-      notify("Connected as " + app.auth.getUserDisplayName());
-    } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "Unable to connect to grid. Check your connection.");
-    } finally {
-      setLoginBusy(false);
-    }
-  }, [loginGrid, allGrids, notify]);
+  const connectLogin = useCallback(
+    async (gridKey, user, pass, remember = true, startLoc = 'last') => {
+      setLoginBusy(true);
+      setLoginError(null);
+      try {
+        const gridToUse = gridKey || loginGrid;
+        const gridObj = allGrids().find((g) => g.key === gridToUse);
+        if (!gridObj || ['offline', 'gemini'].includes(gridObj.key))
+          throw new Error('Select a live grid endpoint.');
+        const endpoint = gridObj.key.startsWith('custom-') ? gridObj.host : gridObj.key;
+        await app.auth.login(endpoint, user?.trim() || '', pass, remember, startLoc);
+        setScreen('Chat');
+        notify('Connected as ' + app.auth.getUserDisplayName());
+      } catch (err) {
+        setLoginError(
+          err instanceof Error ? err.message : 'Unable to connect to grid. Check your connection.',
+        );
+      } finally {
+        setLoginBusy(false);
+      }
+    },
+    [loginGrid, allGrids, notify],
+  );
 
   // ---- login: add a custom grid ------------------------------------------
   // A resident can point the viewer at any OpenSim grid, not just the
   // built-in presets — this is the mockup's "add custom grid URI" flow.
   const openAddGrid = useCallback(() => {
     setAddGrid(true);
-    setAddGridName("");
-    setAddGridHost("");
+    setAddGridName('');
+    setAddGridHost('');
   }, []);
   const cancelAddGrid = useCallback(() => setAddGrid(false), []);
   const saveCustomGrid = useCallback(() => {
     const name = addGridName.trim(),
       host = addGridHost.trim();
     if (!name || !host) {
-      notify("Grid name and login URI are both required");
+      notify('Grid name and login URI are both required');
       return;
     }
     const key =
-      "custom-" +
-      name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 24) +
-      "-" +
+      'custom-' +
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .slice(0, 24) +
+      '-' +
       (customGrids.length + 1);
     setCustomGrids((g) => g.concat([{ key, label: name, host }]));
     setLoginGrid(key);
     setAddGrid(false);
-    notify("Added grid — " + name);
+    notify('Added grid — ' + name);
   }, [addGridName, addGridHost, customGrids]);
 
   // ---- resident search (openSearch/searchAdd) -----------------------------
   // `tab` picks which of the picker's three panes opens first: FRIENDS (the
   // contacts list, default — matches a real SL viewer's "start a conversation"
   // flow), NEARBY (radar-range residents), or SEARCH (grid-wide name lookup).
-  const openSearch = useCallback((from, tab = "FRIENDS") => {
+  const openSearch = useCallback((from, tab = 'FRIENDS') => {
     setSearchFrom(from);
     setSearchTab(tab);
-    setSearchQuery("");
-    setScreen("Search");
+    setSearchQuery('');
+    setScreen('Search');
   }, []);
   const searchAdd = useCallback((name) => {
-    setSearchState((s) => ({ ...s, [name]: "sending" }));
+    setSearchState((s) => ({ ...s, [name]: 'sending' }));
     clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => setSearchState((s) => ({ ...s, [name]: "sent" })), 700);
+    searchTimerRef.current = setTimeout(
+      () => setSearchState((s) => ({ ...s, [name]: 'sent' })),
+      700,
+    );
   }, []);
   // Start (or resume) an IM thread with a resident picked from Friends/Nearby.
   const startIm = useCallback((name) => {
     if (name) {
       app.chat.openSession(name);
     }
-    setTabs((s) => ({ ...s, Chat: "IM" }));
+    setTabs((s) => ({ ...s, Chat: 'IM' }));
     setChip(name);
-    setScreen("Chat");
+    setScreen('Chat');
   }, []);
 
   // ---- cache management ---------------------------------------------------
   const clearCache = useCallback(
     (key, name) => {
       setCacheCleared((c) => ({ ...c, [key]: true }));
-      notify(name + " cleared \u2014 assets refetch on demand");
+      notify(name + ' cleared \u2014 assets refetch on demand');
     },
-    [notify]
+    [notify],
   );
   const clearAllCache = useCallback(async () => {
     try {
       const result = await localCache.clearCache(app.auth.user?.id);
       setCacheCleared({});
-      notify(result.serverCleared ? "Caches cleared — assets refetch on demand" : "Device cache cleared; server cache could not be cleared.");
-    } catch (error) { notify(error.message || "Cache could not be cleared."); }
+      notify(
+        result.serverCleared
+          ? 'Caches cleared — assets refetch on demand'
+          : 'Device cache cleared; server cache could not be cleared.',
+      );
+    } catch (error) {
+      notify(error.message || 'Cache could not be cleared.');
+    }
   }, [notify]);
 
   // ---- settings: reconnect to grid ---------------------------------------
   const reconnect = useCallback(() => {
-    setScreen("Login");
-    notify("Sign in again to reconnect to your grid.");
+    setScreen('Login');
+    notify('Sign in again to reconnect to your grid.');
   }, [notify]);
 
   // ---- desktop floater window model (flR/flDrag/flFocus/flToggle/flClose) --
@@ -363,7 +536,7 @@ export function useAppState() {
       const f = FLOATERS.find((x) => x.id === id) || { x: 24, y: 24, w: 320, h: 240 };
       return { ...f, ...(flRect[id] || {}) };
     },
-    [flRect]
+    [flRect],
   );
 
   // Focusing a window has to open it as well: only five floaters start open, so
@@ -389,20 +562,20 @@ export function useAppState() {
         const dx = ev.clientX - sx,
           dy = ev.clientY - sy;
         const n =
-          mode === "size"
+          mode === 'size'
             ? { x: r.x, y: r.y, w: Math.max(216, r.w + dx), h: Math.max(96, r.h + dy) }
             : { x: Math.max(0, r.x + dx), y: Math.max(0, r.y + dy), w: r.w, h: r.h };
         setFlRect((st) => ({ ...st, [id]: n }));
       };
       const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', up);
       };
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
       flFocus(id);
     },
-    [flR, flFocus]
+    [flR, flFocus],
   );
 
   const flToggle = useCallback(
@@ -421,31 +594,38 @@ export function useAppState() {
         return { ...open, [id]: true };
       });
     },
-    [flMin]
+    [flMin],
   );
 
   const flClose = useCallback((id) => {
     setFlOpen((o) => ({ ...o, [id]: false }));
-    setScreen((cur) => (cur === id ? (app.auth.isLoggedIn() ? "Chat" : "Login") : cur));
+    setScreen((cur) => (cur === id ? (app.auth.isLoggedIn() ? 'Chat' : 'Login') : cur));
     setMenu(null);
   }, []);
 
   // ---- worn HUDs (hudDrag/toggleHud) -------------------------------------
   const hudDrag = useCallback(
     (id, e) => {
-      const start = hudPos[id] || { x: (HUDS.find((h) => h.id === id) || {}).x || 12, y: (HUDS.find((h) => h.id === id) || {}).y || 90 };
+      const start = hudPos[id] || {
+        x: (HUDS.find((h) => h.id === id) || {}).x || 12,
+        y: (HUDS.find((h) => h.id === id) || {}).y || 90,
+      };
       const sx = e.clientX,
         sy = e.clientY;
-      const move = (ev) => setHudPos((s) => ({ ...s, [id]: { x: start.x + (ev.clientX - sx), y: start.y + (ev.clientY - sy) } }));
+      const move = (ev) =>
+        setHudPos((s) => ({
+          ...s,
+          [id]: { x: start.x + (ev.clientX - sx), y: start.y + (ev.clientY - sy) },
+        }));
       const up = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
       };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
       e.preventDefault();
     },
-    [hudPos]
+    [hudPos],
   );
   const toggleHud = useCallback((id) => setHudOn((s) => ({ ...s, [id]: !s[id] })), []);
 
@@ -455,40 +635,52 @@ export function useAppState() {
       wide = !!d.split && !d.desk;
     const gap = 4,
       cur = wide ? 64 : 40;
-    return { gap, cur, rad: cur - gap, rail: wide ? 132 : 84, bar: wide ? 104 : 70, dock: wide ? 58 : 52, foot: wide ? 36 : 30, wide };
+    return {
+      gap,
+      cur,
+      rad: cur - gap,
+      rail: wide ? 132 : 84,
+      bar: wide ? 104 : 70,
+      dock: wide ? 58 : 52,
+      foot: wide ? 36 : 30,
+      wide,
+    };
   }, [D]);
 
   const cTap = useCallback((id) => {
     clearTimeout(cflRef.current);
     setScreen(id);
     setCFlash(id);
-    cflRef.current = setTimeout(() => setCFlash(""), 200);
+    cflRef.current = setTimeout(() => setCFlash(''), 200);
   }, []);
 
   const cHold = useCallback((k) => {
-    if (k === "run") setCRun((r) => !r);
-    else if (k === "cam") app.world.toggleCameraMode();
+    if (k === 'run') setCRun((r) => !r);
+    else if (k === 'cam') app.world.toggleCameraMode();
     else setCHeld(k);
   }, []);
 
   // Dock buttons either open the matching screen or say plainly that the viewer
   // cannot do that yet. Nothing here pretends to have performed an action or
   // reports permissions (no-fly, not-your-land) the viewer has no way to know.
-  const cPress = useCallback((k) => {
-    const b = CBTN[k];
-    if (k === "ao") {
-      if (navMode() === "floaters") flToggle("AO");
-      else setScreen("AO");
-      return;
-    }
-    if (b.nav) {
-      if (navMode() === "floaters") flFocus(b.nav);
-      else setScreen(b.nav);
-      setCReason("");
-      return;
-    }
-    setCReason(b.label + " — NOT AVAILABLE IN THIS VIEWER YET");
-  }, [navMode, flToggle, flFocus, setScreen]);
+  const cPress = useCallback(
+    (k) => {
+      const b = CBTN[k];
+      if (k === 'ao') {
+        if (navMode() === 'floaters') flToggle('AO');
+        else setScreen('AO');
+        return;
+      }
+      if (b.nav) {
+        if (navMode() === 'floaters') flFocus(b.nav);
+        else setScreen(b.nav);
+        setCReason('');
+        return;
+      }
+      setCReason(b.label + ' — NOT AVAILABLE IN THIS VIEWER YET');
+    },
+    [navMode, flToggle, flFocus, setScreen],
+  );
 
   // ---- console dock hold-to-edit / radar long-press ----------------------
   const holdStart = useCallback(() => {
@@ -498,14 +690,14 @@ export function useAppState() {
   const endEdit = useCallback(() => setCEdit(false), []);
   const togglePad = useCallback(() => setCPad((p) => !p), []);
   const toggleRun = useCallback(() => setCRun((r) => !r), []);
-  const flyUpDown = useCallback(() => setCHeld("up"), []);
-  const flyDnDown = useCallback(() => setCHeld("dn"), []);
-  const flyRelease = useCallback(() => setCHeld(""), []);
+  const flyUpDown = useCallback(() => setCHeld('up'), []);
+  const flyDnDown = useCallback(() => setCHeld('dn'), []);
+  const flyRelease = useCallback(() => setCHeld(''), []);
   const addSlot = useCallback(() => {
     setCDock((dock) => {
       const miss = Object.keys(CBTN).filter((k) => dock.indexOf(k) < 0);
       if (!miss.length) {
-        setCReason("PALETTE EMPTY");
+        setCReason('PALETTE EMPTY');
         return dock;
       }
       return dock.concat(miss[0]);
@@ -538,24 +730,33 @@ export function useAppState() {
     setInvOpen((st) => ({ ...st, [name]: !(st[name] !== false) }));
   }, []);
 
-  const setViewMode = useCallback((mode) => {
-    setViewModeState(mode);
-    try {
-      localStorage.setItem("linkpoint_view_mode", mode);
-    } catch {}
-    const newDev = resolveDevice(mode);
-    setDevice(newDev);
-    notify(mode === "desktop" ? "Switched to Desktop Mode (Firestorm Multi-Window)" : mode === "mobile" ? "Switched to Mobile Mode (Lumiya Touch)" : "Switched to Auto-Responsive Mode");
-  }, [resolveDevice, notify]);
+  const setViewMode = useCallback(
+    (mode) => {
+      setViewModeState(mode);
+      try {
+        localStorage.setItem('linkpoint_view_mode', mode);
+      } catch {}
+      const newDev = resolveDevice(mode);
+      setDevice(newDev);
+      notify(
+        mode === 'desktop'
+          ? 'Switched to Desktop Mode (Firestorm Multi-Window)'
+          : mode === 'mobile'
+            ? 'Switched to Mobile Mode (Lumiya Touch)'
+            : 'Switched to Auto-Responsive Mode',
+      );
+    },
+    [resolveDevice, notify],
+  );
 
   const toggleViewMode = useCallback(() => {
-    const next = device === "desk" ? "mobile" : "desktop";
+    const next = device === 'desk' ? 'mobile' : 'desktop';
     setViewMode(next);
   }, [device, setViewMode]);
 
   const screenPick = useCallback(
     (id) => {
-      if (app.auth.isLoggedIn() && navMode() === "floaters" && FLOATERS.some((f) => f.id === id)) {
+      if (app.auth.isLoggedIn() && navMode() === 'floaters' && FLOATERS.some((f) => f.id === id)) {
         flFocus(id);
         setDialog(null);
         return;
@@ -563,33 +764,150 @@ export function useAppState() {
       setScreen(id);
       setDialog(null);
     },
-    [navMode, flFocus]
+    [navMode, flFocus],
   );
 
   return {
     state: {
-      layout, palette, customTheme, device, viewMode, screen, dialog, dense, tabs, chip, tileOk, invOpen, dismissed, pinned,
-      toggles, cond, hudOn, hudPos, hudPicker, target, targetPicker, navPeek,
-      cPad, cHeld, cRun, cEdit, cFlash, cReason, cTog,
-      rMode, rOpen, rMenu, cDock, flOpen, flMin, flRect, flZ, menu,
-      loginMode, loginGrid, loginBusy, loginError, customGrids, addGrid, addGridName, addGridHost,
-      searchFrom, searchTab, searchQuery, searchState, reconnecting, toast,
-      prefs, cacheCleared, camPreset,
+      layout,
+      palette,
+      customTheme,
+      device,
+      viewMode,
+      screen,
+      dialog,
+      dense,
+      tabs,
+      chip,
+      tileOk,
+      invOpen,
+      dismissed,
+      pinned,
+      toggles,
+      cond,
+      hudOn,
+      hudPos,
+      hudPicker,
+      target,
+      targetPicker,
+      navPeek,
+      cPad,
+      cHeld,
+      cRun,
+      cEdit,
+      cFlash,
+      cReason,
+      cTog,
+      rMode,
+      rOpen,
+      rMenu,
+      cDock,
+      flOpen,
+      flMin,
+      flRect,
+      flZ,
+      menu,
+      loginMode,
+      loginGrid,
+      loginBusy,
+      loginError,
+      customGrids,
+      addGrid,
+      addGridName,
+      addGridHost,
+      searchFrom,
+      searchTab,
+      searchQuery,
+      searchState,
+      reconnecting,
+      toast,
+      prefs,
+      cacheCleared,
+      camPreset,
     },
     actions: {
-      setLayout, setPalette: selectPalette, setThemeColor, renameTheme, setLayoutMode, setDensity, setBreakpoint, saveTheme, resetTheme, importTheme, downloadTheme, shareTheme, setDevice, setViewMode, toggleViewMode, setScreen: screenPick, setDialog, setDense,
-      allGrids, openAddGrid, cancelAddGrid, saveCustomGrid, setAddGridName, setAddGridHost,
-      setTab, setChip, setTileOk, toggleInvFolder, dismiss, toggleSetting, pin,
-      cycleLayout, cyclePalette, setCond, setMenu,
-      flR, flDrag, flFocus, flToggle, flClose,
-      hudDrag, toggleHud, setHudPicker, setTarget, setTargetPicker, setNavPeek,
-      cf, cTap, cHold, cPress,
-      holdStart, holdEnd, endEdit, togglePad, toggleRun, flyUpDown, flyDnDown, flyRelease, addSlot, removeDockSlot,
-      radarTap, radarHold, radarRelease, radarBlipPick,
+      setLayout,
+      setPalette: selectPalette,
+      setThemeColor,
+      renameTheme,
+      setLayoutMode,
+      setDensity,
+      setBreakpoint,
+      saveTheme,
+      resetTheme,
+      importTheme,
+      downloadTheme,
+      shareTheme,
+      setDevice,
+      setViewMode,
+      toggleViewMode,
+      setScreen: screenPick,
+      setDialog,
+      setDense,
+      allGrids,
+      openAddGrid,
+      cancelAddGrid,
+      saveCustomGrid,
+      setAddGridName,
+      setAddGridHost,
+      setTab,
+      setChip,
+      setTileOk,
+      toggleInvFolder,
+      dismiss,
+      toggleSetting,
+      pin,
+      cycleLayout,
+      cyclePalette,
+      setCond,
+      setMenu,
+      flR,
+      flDrag,
+      flFocus,
+      flToggle,
+      flClose,
+      hudDrag,
+      toggleHud,
+      setHudPicker,
+      setTarget,
+      setTargetPicker,
+      setNavPeek,
+      cf,
+      cTap,
+      cHold,
+      cPress,
+      holdStart,
+      holdEnd,
+      endEdit,
+      togglePad,
+      toggleRun,
+      flyUpDown,
+      flyDnDown,
+      flyRelease,
+      addSlot,
+      removeDockSlot,
+      radarTap,
+      radarHold,
+      radarRelease,
+      radarBlipPick,
       setRMode,
-      setLoginMode, setLoginGrid, connectLogin, openSearch, setSearchTab, setSearchQuery, searchAdd, startIm, reconnect, notify,
-      setPref, clearCache, clearAllCache, setCamPreset,
+      setLoginMode,
+      setLoginGrid,
+      connectLogin,
+      openSearch,
+      setSearchTab,
+      setSearchQuery,
+      searchAdd,
+      startIm,
+      reconnect,
+      notify,
+      setPref,
+      clearCache,
+      clearAllCache,
+      setCamPreset,
     },
-    T, D, navMode,
+    T,
+    D,
+    navMode,
   };
 }

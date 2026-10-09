@@ -60,7 +60,8 @@ export interface GroupInviteRequest {
   inviteId: string | null;
 }
 
-export type TeleportPhase = 'initiating' | 'contacting' | 'preparing' | 'arriving' | 'completed' | 'failed' | 'cancelled';
+export type TeleportPhase =
+  'initiating' | 'contacting' | 'preparing' | 'arriving' | 'completed' | 'failed' | 'cancelled';
 
 export interface TeleportSession {
   active: boolean;
@@ -74,7 +75,8 @@ export interface TeleportSession {
   completedAt?: number;
 }
 
-export type Interaction = ScriptDialogRequest | LureRequest | InventoryOfferRequest | GroupInviteRequest;
+export type Interaction =
+  ScriptDialogRequest | LureRequest | InventoryOfferRequest | GroupInviteRequest;
 
 /** The button label a script uses (llTextBox) to ask for typed text instead of a choice. */
 export const TEXT_BOX_MARKER = '!!llTextBox!!';
@@ -82,7 +84,8 @@ export const TEXT_BOX_MARKER = '!!llTextBox!!';
 /** Pending requests kept in the UI; the oldest are dropped past this. */
 export const MAX_INTERACTIONS = 25;
 
-const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error || 'Request failed'));
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error || 'Request failed');
 
 export class InteractionsManager extends Utils.EventEmitter {
   private list: Interaction[] = [];
@@ -108,10 +111,23 @@ export class InteractionsManager extends Utils.EventEmitter {
     this.protocol.on('disconnected', () => this.clear());
     this.protocol.on('connection_failed', () => this.clear());
 
-    this.protocol.on('teleport_started', (data: any) => this.startTeleportSession(data?.destination || 'Destination'));
-    this.protocol.on('teleport_progress', (data: any) => this.updateTeleportProgress(data?.phase, data?.percent ?? data?.stepPercent ?? 0, data?.statusText, data?.regionName));
-    this.protocol.on('teleport_completed', (data: any) => this.completeTeleportSession(data?.regionName));
-    this.protocol.on('teleport_failed', (data: any) => this.failTeleportSession(data?.message || data?.error || 'Teleport failed'));
+    this.protocol.on('teleport_started', (data: any) =>
+      this.startTeleportSession(data?.destination || 'Destination'),
+    );
+    this.protocol.on('teleport_progress', (data: any) =>
+      this.updateTeleportProgress(
+        data?.phase,
+        data?.percent ?? data?.stepPercent ?? 0,
+        data?.statusText,
+        data?.regionName,
+      ),
+    );
+    this.protocol.on('teleport_completed', (data: any) =>
+      this.completeTeleportSession(data?.regionName),
+    );
+    this.protocol.on('teleport_failed', (data: any) =>
+      this.failTeleportSession(data?.message || data?.error || 'Teleport failed'),
+    );
   }
 
   /** Current active teleport session moment, or null when idle. */
@@ -143,7 +159,12 @@ export class InteractionsManager extends Utils.EventEmitter {
     return this.activeTeleport;
   }
 
-  updateTeleportProgress(phase: TeleportPhase, stepPercent: number, statusText: string, regionName?: string) {
+  updateTeleportProgress(
+    phase: TeleportPhase,
+    stepPercent: number,
+    statusText: string,
+    regionName?: string,
+  ) {
     const percent = Math.min(100, Math.max(0, stepPercent ?? 0));
     if (!this.activeTeleport) {
       this.activeTeleport = {
@@ -223,7 +244,9 @@ export class InteractionsManager extends Utils.EventEmitter {
   retryHomeTeleport() {
     this.startTeleportSession('home');
     void this.protocol.teleportTo('home').catch((err) => {
-      this.failTeleportSession(err instanceof Error ? err.message : String(err || 'Failed to teleport home'));
+      this.failTeleportSession(
+        err instanceof Error ? err.message : String(err || 'Failed to teleport home'),
+      );
     });
   }
 
@@ -234,11 +257,15 @@ export class InteractionsManager extends Utils.EventEmitter {
   private add(kind: Interaction['kind'], data: any) {
     if (!data || typeof data.id !== 'string' || !data.id) return;
     if (this.list.some((item) => item.id === data.id)) return;
-    const base = { id: data.id, receivedAt: Number.isFinite(data.receivedAt) ? data.receivedAt : Date.now() };
+    const base = {
+      id: data.id,
+      receivedAt: Number.isFinite(data.receivedAt) ? data.receivedAt : Date.now(),
+    };
     let item: Interaction;
     if (kind === 'script-dialog') {
       item = {
-        ...base, kind,
+        ...base,
+        kind,
         objectId: data.objectId ?? null,
         objectName: String(data.objectName || ''),
         ownerName: String(data.ownerName || ''),
@@ -251,18 +278,23 @@ export class InteractionsManager extends Utils.EventEmitter {
       };
     } else if (kind === 'lure') {
       item = {
-        ...base, kind,
+        ...base,
+        kind,
         fromId: data.fromId ?? null,
         fromName: String(data.fromName || ''),
         message: String(data.message || ''),
         regionId: data.regionId ?? null,
-        position: Array.isArray(data.position) && data.position.length === 3 ? (data.position as [number, number, number]) : null,
+        position:
+          Array.isArray(data.position) && data.position.length === 3
+            ? (data.position as [number, number, number])
+            : null,
         gridX: Number.isFinite(data.gridX) ? data.gridX : null,
         gridY: Number.isFinite(data.gridY) ? data.gridY : null,
       };
     } else if (kind === 'inventory-offer') {
       item = {
-        ...base, kind,
+        ...base,
+        kind,
         fromId: data.fromId ?? null,
         fromName: String(data.fromName || ''),
         requestId: data.requestId ?? null,
@@ -271,7 +303,8 @@ export class InteractionsManager extends Utils.EventEmitter {
       };
     } else {
       item = {
-        ...base, kind,
+        ...base,
+        kind,
         fromId: data.fromId ?? null,
         fromName: String(data.fromName || ''),
         message: String(data.message || ''),
@@ -339,15 +372,22 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   /** Accept a teleport lure. Emits `lure_accepted` with the grid's message once teleported. */
   async acceptLure(id: string) {
-    const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as LureRequest | undefined;
-    const result = await this.run(id, () => this.protocol.acceptLure(id, lure?.fromId ?? undefined));
+    const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as
+      LureRequest | undefined;
+    const result = await this.run(id, () =>
+      this.protocol.acceptLure(id, lure?.fromId ?? undefined),
+    );
     if (result && lure) this.emit('lure_accepted', { lure, message: result.message });
     return Boolean(result);
   }
 
   /** Decline a teleport lure. Sends a decline notification to the inviter. */
   async declineLure(id: string) {
-    const result = await this.run(id, () => typeof (this.protocol as any).declineLure === 'function' ? (this.protocol as any).declineLure({ id }) : this.protocol.dismissInteraction(id));
+    const result = await this.run(id, () =>
+      typeof (this.protocol as any).declineLure === 'function'
+        ? (this.protocol as any).declineLure({ id })
+        : this.protocol.dismissInteraction(id),
+    );
     return Boolean(result);
   }
 
@@ -359,7 +399,11 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   /** Decline an inventory offer. */
   async declineInventoryOffer(id: string) {
-    const result = await this.run(id, () => typeof (this.protocol as any).declineInventoryOffer === 'function' ? (this.protocol as any).declineInventoryOffer({ id }) : this.protocol.dismissInteraction(id));
+    const result = await this.run(id, () =>
+      typeof (this.protocol as any).declineInventoryOffer === 'function'
+        ? (this.protocol as any).declineInventoryOffer({ id })
+        : this.protocol.dismissInteraction(id),
+    );
     return Boolean(result);
   }
 
@@ -371,7 +415,11 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   /** Decline a group invite. */
   async declineGroupInvite(id: string) {
-    const result = await this.run(id, () => typeof (this.protocol as any).declineGroupInvite === 'function' ? (this.protocol as any).declineGroupInvite({ id }) : this.protocol.dismissInteraction(id));
+    const result = await this.run(id, () =>
+      typeof (this.protocol as any).declineGroupInvite === 'function'
+        ? (this.protocol as any).declineGroupInvite({ id })
+        : this.protocol.dismissInteraction(id),
+    );
     return Boolean(result);
   }
 
@@ -379,7 +427,11 @@ export class InteractionsManager extends Utils.EventEmitter {
   async dismiss(id: string) {
     this.remove(id);
     this.busyIds.delete(id);
-    try { await this.protocol.dismissInteraction(id); } catch { /* the server may already have dropped it */ }
+    try {
+      await this.protocol.dismissInteraction(id);
+    } catch {
+      /* the server may already have dropped it */
+    }
   }
 
   /** Dismiss an interaction. Alias for dismiss(id). */

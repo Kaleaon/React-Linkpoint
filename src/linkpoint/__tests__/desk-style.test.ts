@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { deskKind, deskGeometry, elbowPath, floaterStyle, chipStyle, sweepSegmentFills } from '../../theme/deskStyle.js';
+import {
+  deskKind,
+  deskGeometry,
+  elbowPath,
+  floaterStyle,
+  chipStyle,
+  sweepSegmentFills,
+} from '../../theme/deskStyle.js';
 import { LAYOUTS } from '../../theme/layouts.js';
 import { PALETTES } from '../../theme/palettes.js';
 
@@ -10,7 +17,8 @@ describe('desktop layout families', () => {
   it('maps layout navigation models to desktop families', () => {
     expect(deskKind(LAYOUTS.sweep)).toBe('sweep');
     expect(deskKind(LAYOUTS.tiles)).toBe('metro');
-    for (const key of ['terminal', 'glass', 'rules', 'press']) expect(deskKind(LAYOUTS[key])).toBe('default');
+    for (const key of ['terminal', 'glass', 'rules', 'press'])
+      expect(deskKind(LAYOUTS[key])).toBe('default');
   });
 
   it('keeps the established geometry for the default family', () => {
@@ -42,14 +50,26 @@ describe('desktop layout families', () => {
 
   it('styles floaters per family: Sweep caps, Metro flat/borderless, default bordered', () => {
     const args = { V, t: { dfont: 'x', font: 'x' }, act: true, ink };
-    expect(floaterStyle('sweep', args).frame).toMatchObject({ borderLeftStyle: 'solid', borderLeftWidth: '10px', borderTopStyle: 'none' });
+    expect(floaterStyle('sweep', args).frame).toMatchObject({
+      borderLeftStyle: 'solid',
+      borderLeftWidth: '10px',
+      borderTopStyle: 'none',
+    });
     const metro = floaterStyle('metro', args);
-    expect(metro.frame).toMatchObject({ borderLeftStyle: 'none', borderRightStyle: 'none', borderRadius: 0, boxShadow: 'none' });
+    expect(metro.frame).toMatchObject({
+      borderLeftStyle: 'none',
+      borderRightStyle: 'none',
+      borderRadius: 0,
+      boxShadow: 'none',
+    });
     expect(metro.frame).not.toHaveProperty('border');
     expect(metro.bar.textTransform).toBe('lowercase');
     expect(metro.bar.font).toContain('300');
     expect(floaterStyle('default', args).frame.border).toContain('1px solid');
-    expect((floaterStyle('metro', { ...args, act: false }).frame as Record<string, unknown>).borderTopColor).toBe('transparent');
+    expect(
+      (floaterStyle('metro', { ...args, act: false }).frame as Record<string, unknown>)
+        .borderTopColor,
+    ).toBe('transparent');
   });
 
   it('styles dock chips per family', () => {

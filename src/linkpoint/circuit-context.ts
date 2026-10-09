@@ -1,6 +1,6 @@
 /**
  * Linkpoint - Circuit Context Manager
- * 
+ *
  * Circuit identity tracking and AgentData parameter management for SL/OpenSim grid protocol compliance.
  */
 
@@ -75,7 +75,9 @@ export class CircuitContextManager {
   /** Returns true if agentId, sessionId, and circuitCode are all non-zero and valid. */
   public hasValidCircuit(): boolean {
     const validAgent = Boolean(this.agentId && this.agentId !== NULL_UUID && this.agentId !== '0');
-    const validSession = Boolean(this.sessionId && this.sessionId !== NULL_UUID && this.sessionId !== '0');
+    const validSession = Boolean(
+      this.sessionId && this.sessionId !== NULL_UUID && this.sessionId !== '0',
+    );
     const validCode = Boolean(this.circuitCode && this.circuitCode > 0);
     return validAgent && validSession && validCode;
   }
@@ -94,7 +96,7 @@ export class CircuitContextManager {
    * to outgoing UDP packet or LLSD request payloads, ensuring zeroed blocks are replaced.
    */
   public attachAgentData<T extends Record<string, any>>(
-    payload: T
+    payload: T,
   ): T & { AgentData: { AgentID: string; SessionID: string; CircuitCode: number } } {
     if (!payload || typeof payload !== 'object') {
       return payload as any;
@@ -158,7 +160,8 @@ export class CircuitContextManager {
     if (!item || typeof item !== 'object') return;
     const agentId = item.AgentID || item.agent_id || item.agentId || this.agentId;
     const sessionId = item.SessionID || item.session_id || item.sessionId || this.sessionId;
-    const circuitCode = item.CircuitCode || item.circuit_code || item.circuitCode || this.circuitCode;
+    const circuitCode =
+      item.CircuitCode || item.circuit_code || item.circuitCode || this.circuitCode;
 
     if (!agentId || agentId === NULL_UUID || agentId === '0') {
       throw new Error('Zeroed AgentID in mutating request');

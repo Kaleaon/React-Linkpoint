@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { VoiceManager } from '../voice';
 import { VoiceInput } from '../voice-input';
 
-vi.mock('../sl-bridge', () => ({ slBridge: { voiceProvision: vi.fn(), voiceSignal: vi.fn(), voiceLogout: vi.fn() } }));
+vi.mock('../sl-bridge', () => ({
+  slBridge: { voiceProvision: vi.fn(), voiceSignal: vi.fn(), voiceLogout: vi.fn() },
+}));
 
 describe('push-to-talk state (LLVoiceClient)', () => {
   it('starts with the mic closed; holding the key follows it down and up', () => {
@@ -17,15 +19,18 @@ describe('push-to-talk state (LLVoiceClient)', () => {
   it('toggle mode flips on press and ignores release', () => {
     const voice = new VoiceManager();
     voice.setPttToggle(true);
-    voice.inputUserControlState(true); voice.inputUserControlState(false);
+    voice.inputUserControlState(true);
+    voice.inputUserControlState(false);
     expect(voice.muted).toBe(false);
-    voice.inputUserControlState(true); voice.inputUserControlState(false);
+    voice.inputUserControlState(true);
+    voice.inputUserControlState(false);
     expect(voice.muted).toBe(true);
   });
 
   it('turning toggle mode off, or push-to-talk on, closes the mic', () => {
     const voice = new VoiceManager();
-    voice.setPttToggle(true); voice.setUserPttState(true);
+    voice.setPttToggle(true);
+    voice.setUserPttState(true);
     voice.setPttToggle(false);
     expect(voice.muted).toBe(true);
     voice.setUsePtt(false);
@@ -39,9 +44,11 @@ describe('push-to-talk state (LLVoiceClient)', () => {
     voice.setUsePtt(false);
     voice.setMuted(true);
     expect(voice.muted).toBe(true);
-    voice.setUsePtt(true); voice.setUserPttState(true);
+    voice.setUsePtt(true);
+    voice.setUserPttState(true);
     expect(voice.muted).toBe(true); // muteMic still set
-    voice.setUsePtt(false); voice.setMuted(false);
+    voice.setUsePtt(false);
+    voice.setMuted(false);
     expect(voice.muted).toBe(false);
   });
 
@@ -60,9 +67,14 @@ describe('VoiceInput', () => {
   const target = () => {
     const handlers: Record<string, Array<(e: any) => void>> = {};
     return {
-      addEventListener: (type: string, fn: any) => { (handlers[type] ||= []).push(fn); },
-      removeEventListener: (type: string, fn: any) => { handlers[type] = (handlers[type] || []).filter((h) => h !== fn); },
-      fire: (type: string, event: any) => (handlers[type] || []).forEach((h) => h({ preventDefault() {}, target: {}, ...event })),
+      addEventListener: (type: string, fn: any) => {
+        (handlers[type] ||= []).push(fn);
+      },
+      removeEventListener: (type: string, fn: any) => {
+        handlers[type] = (handlers[type] || []).filter((h) => h !== fn);
+      },
+      fire: (type: string, event: any) =>
+        (handlers[type] || []).forEach((h) => h({ preventDefault() {}, target: {}, ...event })),
     };
   };
 

@@ -62,19 +62,36 @@ export function normalizeLink(service: LinkService, input: string): LinkResult {
   if (!text) return { ok: false, error: 'Enter a value for this link.' };
 
   if (service === 'telegram') {
-    const match = text.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([^/?#\s]+)\/?(?:[?#].*)?$/i);
+    const match = text.match(
+      /^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([^/?#\s]+)\/?(?:[?#].*)?$/i,
+    );
     const username = (match ? match[1] : text).replace(/^@/, '');
-    if (!TELEGRAM_USERNAME.test(username)) return { ok: false, error: 'Telegram usernames are 5-32 letters, digits or underscores, starting with a letter.' };
+    if (!TELEGRAM_USERNAME.test(username))
+      return {
+        ok: false,
+        error:
+          'Telegram usernames are 5-32 letters, digits or underscores, starting with a letter.',
+      };
     return { ok: true, link: { service, label: `@${username}`, url: `https://t.me/${username}` } };
   }
 
   if (service === 'discord') {
-    const match = text.match(/^(?:https?:\/\/)?(?:www\.)?discord(?:app)?\.com\/users\/(\d{17,20})\/?$/i);
+    const match = text.match(
+      /^(?:https?:\/\/)?(?:www\.)?discord(?:app)?\.com\/users\/(\d{17,20})\/?$/i,
+    );
     const value = match ? match[1] : text.replace(/^@/, '');
-    if (DISCORD_SNOWFLAKE.test(value)) return { ok: true, link: { service, label: value, url: `https://discord.com/users/${value}` } };
+    if (DISCORD_SNOWFLAKE.test(value))
+      return {
+        ok: true,
+        link: { service, label: value, url: `https://discord.com/users/${value}` },
+      };
     // Discord cannot link to a username, only to a numeric id, so a username is kept as a label.
-    if (DISCORD_USERNAME.test(value.toLowerCase()) && !/^\d+$/.test(value)) return { ok: true, link: { service, label: value, url: null } };
-    return { ok: false, error: 'Enter a Discord user id (17-20 digits), a profile link, or a username.' };
+    if (DISCORD_USERNAME.test(value.toLowerCase()) && !/^\d+$/.test(value))
+      return { ok: true, link: { service, label: value, url: null } };
+    return {
+      ok: false,
+      error: 'Enter a Discord user id (17-20 digits), a profile link, or a username.',
+    };
   }
 
   if (service === 'web') {
@@ -84,11 +101,17 @@ export function normalizeLink(service: LinkService, input: string): LinkResult {
     } catch {
       return { ok: false, error: 'That is not a valid web address.' };
     }
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return { ok: false, error: 'Only http and https links are allowed.' };
-    if (url.username || url.password) return { ok: false, error: 'Links with a username or password are not allowed.' };
-    if (!url.hostname.includes('.')) return { ok: false, error: 'That is not a valid web address.' };
+    if (url.protocol !== 'https:' && url.protocol !== 'http:')
+      return { ok: false, error: 'Only http and https links are allowed.' };
+    if (url.username || url.password)
+      return { ok: false, error: 'Links with a username or password are not allowed.' };
+    if (!url.hostname.includes('.'))
+      return { ok: false, error: 'That is not a valid web address.' };
     const path = url.pathname === '/' ? '' : url.pathname;
-    return { ok: true, link: { service, label: `${url.hostname}${path}`.slice(0, 80), url: url.href } };
+    return {
+      ok: true,
+      link: { service, label: `${url.hostname}${path}`.slice(0, 80), url: url.href },
+    };
   }
 
   return { ok: false, error: 'Unknown link type.' };
@@ -107,17 +130,34 @@ function isLink(value: any): value is ContactLink {
 
 /** Clean one stored record, or null if it is unusable. Stored data is not trusted. */
 function sanitize(raw: any): Contact | null {
-  if (!raw || typeof raw.id !== 'string' || !raw.id.trim() || typeof raw.name !== 'string' || !raw.name.trim()) return null;
+  if (
+    !raw ||
+    typeof raw.id !== 'string' ||
+    !raw.id.trim() ||
+    typeof raw.name !== 'string' ||
+    !raw.name.trim()
+  )
+    return null;
   const seen = new Set<string>();
-  const links = (Array.isArray(raw.links) ? raw.links : []).filter(isLink).filter((link: ContactLink) => !seen.has(link.service) && seen.add(link.service));
+  const links = (Array.isArray(raw.links) ? raw.links : [])
+    .filter(isLink)
+    .filter((link: ContactLink) => !seen.has(link.service) && seen.add(link.service));
   const now = Date.now();
   return {
     id: raw.id.trim(),
     name: raw.name.trim().slice(0, 120),
     note: typeof raw.note === 'string' ? raw.note.slice(0, MAX_NOTE_LENGTH) : '',
     photo: validPhoto(raw.photo) ? raw.photo : null,
-    links: links.map((link: ContactLink) => ({ service: link.service, label: link.label.slice(0, 80), url: link.url })),
-    googleResourceName: typeof raw.googleResourceName === 'string' && /^people\/[A-Za-z0-9_-]+$/.test(raw.googleResourceName) ? raw.googleResourceName : null,
+    links: links.map((link: ContactLink) => ({
+      service: link.service,
+      label: link.label.slice(0, 80),
+      url: link.url,
+    })),
+    googleResourceName:
+      typeof raw.googleResourceName === 'string' &&
+      /^people\/[A-Za-z0-9_-]+$/.test(raw.googleResourceName)
+        ? raw.googleResourceName
+        : null,
     savedAt: Number.isFinite(raw.savedAt) ? raw.savedAt : now,
     updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : now,
   };
@@ -128,7 +168,10 @@ type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 export class ContactsStore extends Utils.EventEmitter {
   private contacts = new Map<string, Contact>();
 
-  constructor(private storage: StorageLike | null = typeof localStorage !== 'undefined' ? localStorage : null, private now: () => number = () => Date.now()) {
+  constructor(
+    private storage: StorageLike | null = typeof localStorage !== 'undefined' ? localStorage : null,
+    private now: () => number = () => Date.now(),
+  ) {
     super();
     this.load();
   }
@@ -152,10 +195,15 @@ export class ContactsStore extends Utils.EventEmitter {
   /** Write to storage. On failure (typically the storage quota) the previous state is restored and the error thrown. */
   private commit(previous: Map<string, Contact>) {
     try {
-      this.storage?.setItem(CONTACTS_STORAGE_KEY, JSON.stringify({ version: 1, contacts: [...this.contacts.values()] }));
+      this.storage?.setItem(
+        CONTACTS_STORAGE_KEY,
+        JSON.stringify({ version: 1, contacts: [...this.contacts.values()] }),
+      );
     } catch {
       this.contacts = previous;
-      throw new Error('This device has no room left to save contacts. Remove a photo or a contact and try again.');
+      throw new Error(
+        'This device has no room left to save contacts. Remove a photo or a contact and try again.',
+      );
     }
 
     // Persist to transactional IndexedDB store off the main thread
@@ -185,14 +233,18 @@ export class ContactsStore extends Utils.EventEmitter {
   }
 
   private mutate(change: () => void) {
-    const previous = new Map([...this.contacts].map(([id, contact]) => [id, { ...contact, links: [...contact.links] }]));
+    const previous = new Map(
+      [...this.contacts].map(([id, contact]) => [id, { ...contact, links: [...contact.links] }]),
+    );
     change();
     this.commit(previous);
   }
 
   /** All saved contacts, sorted by name. */
   list(): Contact[] {
-    return [...this.contacts.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return [...this.contacts.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
   }
 
   get(id: string): Contact | null {
@@ -212,21 +264,44 @@ export class ContactsStore extends Utils.EventEmitter {
    * note, photo and links, and only has its name refreshed. Contacts whose friendship ended
    * are kept: this is an address book, not a mirror.
    */
-  saveFriends(friends: Array<{ id?: string; name?: string }>): { added: number; updated: number; skipped: number; total: number } {
-    let added = 0, updated = 0, skipped = 0;
+  saveFriends(friends: Array<{ id?: string; name?: string }>): {
+    added: number;
+    updated: number;
+    skipped: number;
+    total: number;
+  } {
+    let added = 0,
+      updated = 0,
+      skipped = 0;
     this.mutate(() => {
       for (const friend of friends || []) {
         const id = typeof friend?.id === 'string' ? friend.id.trim() : '';
         const name = typeof friend?.name === 'string' ? friend.name.trim().slice(0, 120) : '';
-        if (!id || !name) { skipped++; continue; }
+        if (!id || !name) {
+          skipped++;
+          continue;
+        }
         const existing = this.contacts.get(id);
         if (existing) {
-          if (existing.name !== name) { existing.name = name; existing.updatedAt = this.now(); updated++; }
+          if (existing.name !== name) {
+            existing.name = name;
+            existing.updatedAt = this.now();
+            updated++;
+          }
         } else if (this.contacts.size >= MAX_CONTACTS) {
           skipped++;
         } else {
           const at = this.now();
-          this.contacts.set(id, { id, name, note: '', photo: null, links: [], googleResourceName: null, savedAt: at, updatedAt: at });
+          this.contacts.set(id, {
+            id,
+            name,
+            note: '',
+            photo: null,
+            links: [],
+            googleResourceName: null,
+            savedAt: at,
+            updatedAt: at,
+          });
           added++;
         }
       }
@@ -242,14 +317,24 @@ export class ContactsStore extends Utils.EventEmitter {
 
   setNote(id: string, note: string) {
     if (typeof note !== 'string') throw new Error('A note must be text.');
-    if (note.length > MAX_NOTE_LENGTH) throw new Error(`Notes can be at most ${MAX_NOTE_LENGTH} characters.`);
-    this.mutate(() => { const contact = this.require(id); contact.note = note; contact.updatedAt = this.now(); });
+    if (note.length > MAX_NOTE_LENGTH)
+      throw new Error(`Notes can be at most ${MAX_NOTE_LENGTH} characters.`);
+    this.mutate(() => {
+      const contact = this.require(id);
+      contact.note = note;
+      contact.updatedAt = this.now();
+    });
   }
 
   /** Set (or with null, clear) the contact's photo. Must be a small image data URL. */
   setPhoto(id: string, photo: string | null) {
-    if (photo !== null && !validPhoto(photo)) throw new Error('That photo is not a supported image, or it is too large.');
-    this.mutate(() => { const contact = this.require(id); contact.photo = photo; contact.updatedAt = this.now(); });
+    if (photo !== null && !validPhoto(photo))
+      throw new Error('That photo is not a supported image, or it is too large.');
+    this.mutate(() => {
+      const contact = this.require(id);
+      contact.photo = photo;
+      contact.updatedAt = this.now();
+    });
   }
 
   /** Add or replace the link for `service`. Returns the validation result; nothing is saved if it failed. */
@@ -265,23 +350,36 @@ export class ContactsStore extends Utils.EventEmitter {
   }
 
   removeLink(id: string, service: LinkService) {
-    this.mutate(() => { const contact = this.require(id); contact.links = contact.links.filter((link) => link.service !== service); contact.updatedAt = this.now(); });
+    this.mutate(() => {
+      const contact = this.require(id);
+      contact.links = contact.links.filter((link) => link.service !== service);
+      contact.updatedAt = this.now();
+    });
   }
 
   setGoogleResource(id: string, resourceName: string | null) {
-    if (resourceName !== null && !/^people\/[A-Za-z0-9_-]+$/.test(resourceName)) throw new Error('That is not a Google contact id.');
-    this.mutate(() => { this.require(id).googleResourceName = resourceName; });
+    if (resourceName !== null && !/^people\/[A-Za-z0-9_-]+$/.test(resourceName))
+      throw new Error('That is not a Google contact id.');
+    this.mutate(() => {
+      this.require(id).googleResourceName = resourceName;
+    });
   }
 
   remove(id: string): boolean {
     if (!this.contacts.has(id)) return false;
-    this.mutate(() => { this.contacts.delete(id); });
+    this.mutate(() => {
+      this.contacts.delete(id);
+    });
     return true;
   }
 
   /** A JSON backup of every contact, for the user to keep or move to another device. */
   exportJson(): string {
-    return JSON.stringify({ version: 1, exportedAt: new Date(this.now()).toISOString(), contacts: this.list() }, null, 2);
+    return JSON.stringify(
+      { version: 1, exportedAt: new Date(this.now()).toISOString(), contacts: this.list() },
+      null,
+      2,
+    );
   }
 
   /**
@@ -297,11 +395,15 @@ export class ContactsStore extends Utils.EventEmitter {
     }
     const list = Array.isArray(parsed?.contacts) ? parsed.contacts : null;
     if (!list) throw new Error('That file is not a Linkpoint contacts backup.');
-    let imported = 0, rejected = 0;
+    let imported = 0,
+      rejected = 0;
     this.mutate(() => {
       for (const raw of list) {
         const contact = sanitize(raw);
-        if (!contact || (!this.contacts.has(contact.id) && this.contacts.size >= MAX_CONTACTS)) { rejected++; continue; }
+        if (!contact || (!this.contacts.has(contact.id) && this.contacts.size >= MAX_CONTACTS)) {
+          rejected++;
+          continue;
+        }
         this.contacts.set(contact.id, contact);
         imported++;
       }
@@ -311,6 +413,8 @@ export class ContactsStore extends Utils.EventEmitter {
 
   /** Forget everything (for example when the user asks to clear local data). */
   clear() {
-    this.mutate(() => { this.contacts.clear(); });
+    this.mutate(() => {
+      this.contacts.clear();
+    });
   }
 }

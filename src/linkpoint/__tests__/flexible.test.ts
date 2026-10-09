@@ -1,13 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import { FLEXIBLE_MAX_FRAME_SECONDS, FlexibleChain, remapSections, type FlexibleFrame, type FlexibleParams } from '../flexible';
+import {
+  FLEXIBLE_MAX_FRAME_SECONDS,
+  FlexibleChain,
+  remapSections,
+  type FlexibleFrame,
+  type FlexibleParams,
+} from '../flexible';
 import { IDENTITY, axisAngle, length, rotate, sub, type Quat } from '../sl-math';
 
-const params = (over: Partial<FlexibleParams> = {}): FlexibleParams => ({ softness: 0, tension: 1, friction: 0, gravity: 0, wind: 0, force: [0, 0, 0], ...over });
-const upright: FlexibleFrame = { position: [0, 0, 10], rotation: [...IDENTITY] as Quat, scale: [1, 1, 4] };
+const params = (over: Partial<FlexibleParams> = {}): FlexibleParams => ({
+  softness: 0,
+  tension: 1,
+  friction: 0,
+  gravity: 0,
+  wind: 0,
+  force: [0, 0, 0],
+  ...over,
+});
+const upright: FlexibleFrame = {
+  position: [0, 0, 10],
+  rotation: [...IDENTITY] as Quat,
+  scale: [1, 1, 4],
+};
 // +90 degrees about y turns the prim's +z axis into world +x: a prim lying on its side.
-const sideways = (length_ = 2): FlexibleFrame => ({ position: [0, 0, 0], rotation: axisAngle(Math.PI / 2, [0, 1, 0]), scale: [1, 1, length_] });
-const near = (a: number[], b: number[], digits = 5) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], digits));
-const run = (chain: FlexibleChain, frame: FlexibleFrame, seconds: number, dt = 1 / 60, windAt?: (p: number[]) => number[]) => {
+const sideways = (length_ = 2): FlexibleFrame => ({
+  position: [0, 0, 0],
+  rotation: axisAngle(Math.PI / 2, [0, 1, 0]),
+  scale: [1, 1, length_],
+});
+const near = (a: number[], b: number[], digits = 5) =>
+  a.forEach((v, i) => expect(v).toBeCloseTo(b[i], digits));
+const run = (
+  chain: FlexibleChain,
+  frame: FlexibleFrame,
+  seconds: number,
+  dt = 1 / 60,
+  windAt?: (p: number[]) => number[],
+) => {
   for (let t = 0; t < seconds - 1e-9; t += dt) chain.step(dt, frame, windAt);
 };
 
@@ -30,13 +59,16 @@ describe('FlexibleChain', () => {
   });
 
   it('keeps every segment at its length and never bends a segment past atan(2 * length)', () => {
-    const chain = new FlexibleChain(params({ softness: 3, gravity: 9, tension: 0.2, force: [3, 1, 0] }));
+    const chain = new FlexibleChain(
+      params({ softness: 3, gravity: 9, tension: 0.2, force: [3, 1, 0] }),
+    );
     const frame = sideways(4);
     let previous: number[] | null = null;
     for (let i = 0; i < 240; i++) {
       chain.step(1 / 60, frame);
       const pts = chain.localSections(3).map((s) => s.position);
-      for (let k = 1; k < pts.length; k++) expect(length(sub(pts[k], pts[k - 1]))).toBeCloseTo(0.5, 3);
+      for (let k = 1; k < pts.length; k++)
+        expect(length(sub(pts[k], pts[k - 1]))).toBeCloseTo(0.5, 3);
       previous = pts[8];
     }
     expect(previous).not.toBeNull();
@@ -101,8 +133,10 @@ describe('FlexibleChain', () => {
   });
 
   it('treats a long frame as at most 0.2 s and ignores a zero-length prim', () => {
-    const a = new FlexibleChain(params({ gravity: 5 })), b = new FlexibleChain(params({ gravity: 5 }));
-    a.step(10, sideways(2)); b.step(FLEXIBLE_MAX_FRAME_SECONDS, sideways(2));
+    const a = new FlexibleChain(params({ gravity: 5 })),
+      b = new FlexibleChain(params({ gravity: 5 }));
+    a.step(10, sideways(2));
+    b.step(FLEXIBLE_MAX_FRAME_SECONDS, sideways(2));
     near(a.localSections(0)[1].position, b.localSections(0)[1].position);
     const flat = new FlexibleChain(params());
     flat.step(0.1, { ...upright, scale: [1, 1, 0] });
@@ -127,7 +161,9 @@ describe('FlexibleChain', () => {
     near(fine[0].position, coarse[0].position);
     near(fine[4].position, coarse[1].position);
     near(fine[8].position, coarse[2].position);
-    const mid = fine[2].position, a = fine[0].position, c = fine[4].position;
+    const mid = fine[2].position,
+      a = fine[0].position,
+      c = fine[4].position;
     expect(length(sub(mid, a))).toBeGreaterThan(0);
     expect(length(sub(mid, a))).toBeLessThan(length(sub(c, a)));
   });
@@ -143,9 +179,14 @@ describe('FlexibleChain', () => {
 });
 
 describe('remapSections', () => {
-  const straight = (n: number, len: number) => Array.from({ length: n + 1 }, (_, i) => ({
-    position: [0, 0, i * len / n], direction: [0, 0, 1], rotation: [...IDENTITY] as Quat, velocity: [0, 0, 0], dPosition: [0, 0, 1],
-  }));
+  const straight = (n: number, len: number) =>
+    Array.from({ length: n + 1 }, (_, i) => ({
+      position: [0, 0, (i * len) / n],
+      direction: [0, 0, 1],
+      rotation: [...IDENTITY] as Quat,
+      velocity: [0, 0, 0],
+      dPosition: [0, 0, 1],
+    }));
 
   it('builds a straight chain from section 0', () => {
     const out = remapSections([straight(1, 1)[0]], -1, 2, 4);

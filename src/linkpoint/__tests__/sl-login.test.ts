@@ -6,9 +6,22 @@ const require = createRequire(import.meta.url);
 const actions = require('../../../core/sl-actions.cjs');
 const patcher = require('../../../scripts/patch-metaverse.cjs');
 
-class LoginParameters { firstName = ''; lastName = ''; password = ''; start = ''; url = ''; token?: string; mfa_hash?: string; }
+class LoginParameters {
+  firstName = '';
+  lastName = '';
+  password = '';
+  start = '';
+  url = '';
+  token?: string;
+  mfa_hash?: string;
+}
 const lib = { LoginParameters };
-const request = (extra: any = {}) => ({ username: 'jane doe', password: 'pw', loginUrl: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi', ...extra });
+const request = (extra: any = {}) => ({
+  username: 'jane doe',
+  password: 'pw',
+  loginUrl: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi',
+  ...extra,
+});
 
 describe('parseLoginName (Lumiya SLAuth.SendLoginRequest, from the original smali)', () => {
   it('splits on the first space, dot or underscore', () => {
@@ -23,7 +36,8 @@ describe('parseLoginName (Lumiya SLAuth.SendLoginRequest, from the original smal
     expect(actions.parseLoginName('jane.')).toEqual({ firstName: 'jane', lastName: 'Resident' });
   });
   it('rejects empty names and control or markup characters', () => {
-    for (const bad of ['', '   ', null, undefined, '.doe', 'jane doe\u0007', 'jane <b>', 'ja"ne']) expect(() => actions.parseLoginName(bad), String(bad)).toThrow();
+    for (const bad of ['', '   ', null, undefined, '.doe', 'jane doe\u0007', 'jane <b>', 'ja"ne'])
+      expect(() => actions.parseLoginName(bad), String(bad)).toThrow();
   });
 });
 
@@ -38,7 +52,15 @@ describe('normalizeStart', () => {
     expect(actions.normalizeStart('uri:Da Boom')).toBe('uri:Da Boom&128&128&30');
   });
   it('refuses a uri that is malformed or tries to carry extra fields', () => {
-    for (const bad of ['uri:Ahern&1&2', 'uri:Ahern&1&2&3&4', 'uri:../x&1&2&3', 'uri:Ahern&a&b&c', 'uri:&1&2&3', 'uri:Ahern<script>&1&2&3', `uri:${'A'.repeat(80)}&1&2&3`]) {
+    for (const bad of [
+      'uri:Ahern&1&2',
+      'uri:Ahern&1&2&3&4',
+      'uri:../x&1&2&3',
+      'uri:Ahern&a&b&c',
+      'uri:&1&2&3',
+      'uri:Ahern<script>&1&2&3',
+      `uri:${'A'.repeat(80)}&1&2&3`,
+    ]) {
       expect(() => actions.normalizeStart(bad), bad).toThrow(/start location/);
     }
   });
@@ -47,7 +69,13 @@ describe('normalizeStart', () => {
 describe('buildLoginParams', () => {
   it('builds validated parameters', () => {
     const p = actions.buildLoginParams(request({ start: 'first' }), lib);
-    expect(p).toMatchObject({ firstName: 'jane', lastName: 'doe', password: 'pw', start: 'home', url: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi' });
+    expect(p).toMatchObject({
+      firstName: 'jane',
+      lastName: 'doe',
+      password: 'pw',
+      start: 'home',
+      url: 'https://login.agni.lindenlab.com/cgi-bin/login.cgi',
+    });
     expect(p.token).toBeUndefined();
     expect(p.mfa_hash).toBeUndefined();
   });
@@ -55,30 +83,52 @@ describe('buildLoginParams', () => {
     const p = actions.buildLoginParams(request({ mfaToken: ' 123 456 ', mfaHash: 'abc' }), lib);
     expect(p.token).toBe('123456');
     expect(p.mfa_hash).toBe('abc');
-    expect(actions.buildLoginParams(request({ mfaToken: '9'.repeat(100) }), lib).token).toHaveLength(32);
+    expect(
+      actions.buildLoginParams(request({ mfaToken: '9'.repeat(100) }), lib).token,
+    ).toHaveLength(32);
   });
   it('rejects missing passwords and unusable login addresses', () => {
     expect(() => actions.buildLoginParams(request({ password: '' }), lib)).toThrow(/password/);
-    expect(() => actions.buildLoginParams(request({ loginUrl: 'not a url' }), lib)).toThrow(/login address/);
-    expect(() => actions.buildLoginParams(request({ loginUrl: 'file:///etc/passwd' }), lib)).toThrow(/http/);
-    expect(() => actions.buildLoginParams(request({ loginUrl: 'javascript:alert(1)' }), lib)).toThrow();
+    expect(() => actions.buildLoginParams(request({ loginUrl: 'not a url' }), lib)).toThrow(
+      /login address/,
+    );
+    expect(() =>
+      actions.buildLoginParams(request({ loginUrl: 'file:///etc/passwd' }), lib),
+    ).toThrow(/http/);
+    expect(() =>
+      actions.buildLoginParams(request({ loginUrl: 'javascript:alert(1)' }), lib),
+    ).toThrow();
   });
 });
 
 describe('describeLoginError / loginFailure', () => {
-  const grid = (reason: string, message = 'grid text') => Object.assign(new Error(message), { reason });
+  const grid = (reason: string, message = 'grid text') =>
+    Object.assign(new Error(message), { reason });
   it('recognises an MFA challenge and a rejected code', () => {
-    expect(actions.describeLoginError(grid('mfa_challenge'))).toMatchObject({ code: 'mfa_required', mfaRequired: true });
-    expect(actions.describeLoginError(grid('mfa_failure'))).toMatchObject({ code: 'mfa_failed', mfaRequired: true });
+    expect(actions.describeLoginError(grid('mfa_challenge'))).toMatchObject({
+      code: 'mfa_required',
+      mfaRequired: true,
+    });
+    expect(actions.describeLoginError(grid('mfa_failure'))).toMatchObject({
+      code: 'mfa_failed',
+      mfaRequired: true,
+    });
   });
   it('maps the other reasons the grid gives', () => {
-    expect(actions.describeLoginError(grid('key'))).toMatchObject({ code: 'bad_credentials', mfaRequired: false });
+    expect(actions.describeLoginError(grid('key'))).toMatchObject({
+      code: 'bad_credentials',
+      mfaRequired: false,
+    });
     expect(actions.describeLoginError(grid('presence')).code).toBe('already_logged_in');
     expect(actions.describeLoginError(grid('tos')).code).toBe('terms');
     expect(actions.describeLoginError(grid('update')).code).toBe('update_required');
   });
   it('falls back to the grid message, then to a generic one, for anything else', () => {
-    expect(actions.describeLoginError(grid('something_new', 'Grid says no'))).toMatchObject({ code: 'login_failed', message: 'Grid says no', gridMessage: 'Grid says no' });
+    expect(actions.describeLoginError(grid('something_new', 'Grid says no'))).toMatchObject({
+      code: 'login_failed',
+      message: 'Grid says no',
+      gridMessage: 'Grid says no',
+    });
     expect(actions.describeLoginError(new Error('')).message).toBe('Login failed');
     expect(actions.describeLoginError(undefined).mfaRequired).toBe(false);
   });
@@ -90,8 +140,9 @@ describe('describeLoginError / loginFailure', () => {
 });
 
 describe('viewer identity patch for node-metaverse (TPV_COMPLIANCE.md section 1)', () => {
-  const sample = "const version = packageJson.version;\n  client.methodCall('login_to_simulator', [{ first: 'x', channel: 'libnmv', major }]);";
-  it('replaces the library channel and version with this viewer\'s', () => {
+  const sample =
+    "const version = packageJson.version;\n  client.methodCall('login_to_simulator', [{ first: 'x', channel: 'libnmv', major }]);";
+  it("replaces the library channel and version with this viewer's", () => {
     const out = patcher.patchLoginIdentity(sample, 'Linkpoint Viewer', '2.0.0');
     expect(out).toContain('channel: "Linkpoint Viewer"');
     expect(out).toContain('const version = "2.0.0";');
@@ -109,7 +160,10 @@ describe('viewer identity patch for node-metaverse (TPV_COMPLIANCE.md section 1)
     expect(channel).not.toMatch(/libnmv|^Second Life/i);
   });
   // After `npm ci` the postinstall patch has run, so the shipped library must not say libnmv.
-  const loginHandler = join(process.cwd(), 'node_modules/@caspertech/node-metaverse/dist/lib/LoginHandler.js');
+  const loginHandler = join(
+    process.cwd(),
+    'node_modules/@caspertech/node-metaverse/dist/lib/LoginHandler.js',
+  );
   it.skipIf(!existsSync(loginHandler))('the installed library identifies as this viewer', () => {
     const text = readFileSync(loginHandler, 'utf8');
     expect(text).not.toContain("channel: 'libnmv'");

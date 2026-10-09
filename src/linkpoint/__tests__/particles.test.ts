@@ -47,7 +47,7 @@ describe('Second Life particle simulation', () => {
     engine.setEmitter(
       'source',
       config({ dataFlags: PARTICLE_FLAGS.wind, acceleration: [0, 0, 0] }),
-      0
+      0,
     );
     engine.update(0, new Map([['source', [0, 0, 0]]]));
     const windVector = [10, 0, 0];
@@ -60,7 +60,7 @@ describe('Second Life particle simulation', () => {
     engine.setEmitter(
       'source',
       config({ dataFlags: PARTICLE_FLAGS.followSource, acceleration: [0, 0, 0] }),
-      0
+      0,
     );
     engine.update(0, new Map([['source', [0, 0, 0]]]));
 
@@ -79,11 +79,23 @@ describe('Second Life particle simulation', () => {
         targetId: 'target-object',
         acceleration: [0, 0, 0],
       }),
-      0
+      0,
     );
-    engine.update(0, new Map([['source', [0, 0, 0]], ['target-object', [100, 0, 0]]]));
+    engine.update(
+      0,
+      new Map([
+        ['source', [0, 0, 0]],
+        ['target-object', [100, 0, 0]],
+      ]),
+    );
 
-    const frame = engine.update(1.0, new Map([['source', [0, 0, 0]], ['target-object', [100, 0, 0]]]))[0];
+    const frame = engine.update(
+      1.0,
+      new Map([
+        ['source', [0, 0, 0]],
+        ['target-object', [100, 0, 0]],
+      ]),
+    )[0];
     // Particle position should move towards target (+x)
     expect(frame.position[0]).toBeGreaterThan(0);
   });
@@ -97,7 +109,7 @@ describe('Second Life particle simulation', () => {
         burstSpeedMin: 5,
         burstSpeedMax: 5,
       }),
-      0
+      0,
     );
     engine.update(0, new Map([['source', [0, 0, 0]]]));
     const frame = engine.update(0.1, new Map([['source', [0, 0, 0]]]))[0];
@@ -113,7 +125,7 @@ describe('Second Life particle simulation', () => {
         dataFlags: PARTICLE_FLAGS.beam | PARTICLE_FLAGS.ribbon | PARTICLE_FLAGS.emissive,
         blendMode: 'ADD',
       }),
-      0
+      0,
     );
     const frame = engine.update(0, new Map([['source', [0, 0, 0]]]))[0];
     expect(frame.beam).toBe(true);

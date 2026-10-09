@@ -9,7 +9,7 @@ function runBenchmark() {
   for (let i = 0; i < numFriends; i++) {
     friendsExt.addFriend(`user-${i}`, {
       name: `User ${i}`,
-      onlineStatus: i % 4 === 0 ? 'online' : 'offline'
+      onlineStatus: i % 4 === 0 ? 'online' : 'offline',
     });
   }
 
@@ -21,14 +21,14 @@ function runBenchmark() {
       id: `req-${i}`,
       targetUserId: `target-${i}`,
       status: i % 5 === 0 ? 'pending' : 'accepted',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
   // Silence console.log to avoid spamming output
   console.log = () => {};
 
-  console.info("Running benchmark...");
+  console.info('Running benchmark...');
   const iterations = 1000;
   const start = performance.now();
   for (let i = 0; i < iterations; i++) {

@@ -1,10 +1,10 @@
-import React, { useId } from "react";
-import { useTheme } from "../context/ThemeContext.jsx";
+import React, { useId } from 'react';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 function findControlId(child, fallbackId) {
   if (!React.isValidElement(child)) return fallbackId;
   if (child.props && child.props.id) return child.props.id;
-  if (typeof child.type === "string" && ["input", "select", "textarea"].includes(child.type)) {
+  if (typeof child.type === 'string' && ['input', 'select', 'textarea'].includes(child.type)) {
     return child.props.id || fallbackId;
   }
   if (child.props && child.props.children) {
@@ -22,14 +22,14 @@ function findControlId(child, fallbackId) {
 function cloneControlWithAria(element, ariaProps) {
   if (!React.isValidElement(element)) return element;
 
-  if (typeof element.type === "string" && ["input", "select", "textarea"].includes(element.type)) {
+  if (typeof element.type === 'string' && ['input', 'select', 'textarea'].includes(element.type)) {
     return React.cloneElement(element, {
       id: element.props.id || ariaProps.id,
-      "aria-invalid": ariaProps["aria-invalid"],
-      "aria-errormessage": ariaProps["aria-errormessage"],
-      "aria-describedby": element.props["aria-describedby"]
-        ? `${element.props["aria-describedby"]} ${ariaProps["aria-describedby"] || ""}`.trim()
-        : ariaProps["aria-describedby"],
+      'aria-invalid': ariaProps['aria-invalid'],
+      'aria-errormessage': ariaProps['aria-errormessage'],
+      'aria-describedby': element.props['aria-describedby']
+        ? `${element.props['aria-describedby']} ${ariaProps['aria-describedby'] || ''}`.trim()
+        : ariaProps['aria-describedby'],
     });
   }
 
@@ -38,7 +38,10 @@ function cloneControlWithAria(element, ariaProps) {
     const processChildren = (children) => {
       return React.Children.map(children, (child) => {
         if (!applied && React.isValidElement(child)) {
-          if (typeof child.type === "string" && ["input", "select", "textarea"].includes(child.type)) {
+          if (
+            typeof child.type === 'string' &&
+            ['input', 'select', 'textarea'].includes(child.type)
+          ) {
             applied = true;
             return cloneControlWithAria(child, ariaProps);
           }
@@ -61,11 +64,11 @@ function cloneControlWithAria(element, ariaProps) {
 
   return React.cloneElement(element, {
     id: ariaProps.id,
-    "aria-invalid": ariaProps["aria-invalid"],
-    "aria-errormessage": ariaProps["aria-errormessage"],
-    "aria-describedby": element.props["aria-describedby"]
-      ? `${element.props["aria-describedby"]} ${ariaProps["aria-describedby"] || ""}`.trim()
-      : ariaProps["aria-describedby"],
+    'aria-invalid': ariaProps['aria-invalid'],
+    'aria-errormessage': ariaProps['aria-errormessage'],
+    'aria-describedby': element.props['aria-describedby']
+      ? `${element.props['aria-describedby']} ${ariaProps['aria-describedby'] || ''}`.trim()
+      : ariaProps['aria-describedby'],
   });
 }
 
@@ -87,7 +90,7 @@ export default function FormField({
   const theme = useTheme();
   const V = theme?.V || {};
   const typography = theme?.t || {};
-  const fontStyle = typography.font || "sans-serif";
+  const fontStyle = typography.font || 'sans-serif';
 
   const fieldId = useId();
   const hasError = Boolean(error);
@@ -96,24 +99,27 @@ export default function FormField({
   const errorId = `${childId}-error`;
   const helpId = `${childId}-help`;
 
-  const describedBy = [
-    helpText ? helpId : null,
-    hasError ? errorId : null,
-  ].filter(Boolean).join(" ") || undefined;
+  const describedBy =
+    [helpText ? helpId : null, hasError ? errorId : null].filter(Boolean).join(' ') || undefined;
 
   const childWithAria = React.isValidElement(children)
     ? cloneControlWithAria(children, {
         id: childId,
-        "aria-invalid": hasError ? "true" : undefined,
-        "aria-errormessage": hasError ? errorId : undefined,
-        "aria-describedby": describedBy,
+        'aria-invalid': hasError ? 'true' : undefined,
+        'aria-errormessage': hasError ? errorId : undefined,
+        'aria-describedby': children.props['aria-describedby']
+          ? `${children.props['aria-describedby']} ${describedBy || ''}`.trim()
+          : describedBy,
       })
     : children;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, ...style }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>
       {label ? (
-        <label htmlFor={childId} style={{ font: `600 10px/1 ${fontStyle}`, letterSpacing: ".16em", color: V.pri }}>
+        <label
+          htmlFor={childId}
+          style={{ font: `600 10px/1 ${fontStyle}`, letterSpacing: '.16em', color: V.pri }}
+        >
           {label}
         </label>
       ) : null}
@@ -124,7 +130,11 @@ export default function FormField({
         </small>
       ) : null}
       {hasError ? (
-        <div id={errorId} role="alert" style={{ color: V.err || "#ff4d4d", fontSize: 12, marginTop: 2 }}>
+        <div
+          id={errorId}
+          role="alert"
+          style={{ color: V.err || '#ff4d4d', fontSize: 12, marginTop: 2 }}
+        >
           {error}
         </div>
       ) : null}

@@ -4,7 +4,6 @@ Reviewed 2026-10-06. See [the consolidated audit](docs/followup-audit.md) and
 [PR #150's rendering reference](docs/rendering-reference.md) for current evidence
 and follow-ups. Automated tests do not establish live-grid visual parity.
 
-
 The renderer is operational, but it is **not yet a complete Second Life scene
 renderer**.
 
@@ -52,6 +51,7 @@ renderer**.
   - `avatar-animator.ts` tracks the simulator's AvatarAnimation / ObjectAnimation messages per avatar and animated object (a changed sequence id restarts an animation; removed ones ease out). Rigged mesh attachments and Animesh (ExtendedMesh `ANIMATED_MESH_ENABLED`) are re-posed every frame.
 
 ## Avatar and mesh limitations (known)
+
 - Avatars wear their baked head, upper, lower, eyes and hair textures once those download; until then (or with a placeholder bake) they are flat colours. Layered clothing is whatever the simulator baked.
 - Shape sliders (morph targets) and body-size deformation are not applied; every avatar has the default shape. Skirt and facial expression bones are not driven.
 - Animations: bundled ones play from `public/anims`; others are downloaded from the simulator's asset service and parsed. The animation listener follows the agent between regions.

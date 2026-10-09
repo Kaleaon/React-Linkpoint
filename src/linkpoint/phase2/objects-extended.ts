@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Object Manager Extensions (Features 17-20)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 1
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 42-47)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/objects/
- * 
+ *
  * Extends object management with prim parameters, permissions, and relationships.
  */
 
@@ -24,7 +24,7 @@ export class ObjectManagerExtended {
     if (!primParams || typeof primParams !== 'object') {
       throw new Error('Valid prim parameters required');
     }
-    
+
     const obj = this.objects.get(objectId) || {};
     obj.primParams = {
       shape: primParams.shape || 'box',
@@ -32,9 +32,9 @@ export class ObjectManagerExtended {
       texture: primParams.texture || null,
       color: primParams.color || [1, 1, 1, 1],
       scale: primParams.scale || [1, 1, 1],
-      ...primParams
+      ...primParams,
     };
-    
+
     this.objects.set(objectId, obj);
     console.log(`[Objects] Set prim params for: ${objectId}`);
   }
@@ -54,7 +54,7 @@ export class ObjectManagerExtended {
     if (!permissions || typeof permissions !== 'object') {
       throw new Error('Valid permissions object required');
     }
-    
+
     const obj = this.objects.get(objectId) || {};
     obj.permissions = {
       baseMask: permissions.baseMask || 0,
@@ -62,9 +62,9 @@ export class ObjectManagerExtended {
       groupMask: permissions.groupMask || 0,
       everyoneMask: permissions.everyoneMask || 0,
       nextOwnerMask: permissions.nextOwnerMask || 0,
-      ...permissions
+      ...permissions,
     };
-    
+
     this.objects.set(objectId, obj);
     console.log(`[Objects] Set permissions for: ${objectId}`);
   }
@@ -82,7 +82,7 @@ export class ObjectManagerExtended {
     if (!objectId || typeof objectId !== 'string') {
       throw new Error('Valid object ID required');
     }
-    
+
     if (selected) {
       this.selectedObjects.add(objectId);
       console.log(`[Objects] Selected: ${objectId}`);
@@ -114,18 +114,18 @@ export class ObjectManagerExtended {
     if (!parentId || !childId) {
       throw new Error('Valid parent and child IDs required');
     }
-    
+
     if (!this.parentChildMap.has(parentId)) {
       this.parentChildMap.set(parentId, new Set());
     }
-    
+
     this.parentChildMap.get(parentId)!.add(childId);
-    
+
     // Store parent reference in child object
     const childObj = this.objects.get(childId) || {};
     childObj.parentId = parentId;
     this.objects.set(childId, childObj);
-    
+
     console.log(`[Objects] Linked ${childId} to parent ${parentId}`);
   }
 

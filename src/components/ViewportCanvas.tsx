@@ -181,8 +181,9 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
         }}
       >
         <p>
-          Interactive 3D viewport canvas displaying {regionName}. Camera position: {posStr}.
-          Use the single-pointer control buttons or keyboard shortcuts (Arrow keys or WASD to move, + and - to zoom, Home to reset) to navigate the 3D scene.
+          Interactive 3D viewport canvas displaying {regionName}. Camera position: {posStr}. Use the
+          single-pointer control buttons or keyboard shortcuts (Arrow keys or WASD to move, + and -
+          to zoom, Home to reset) to navigate the 3D scene.
         </p>
       </canvas>
 

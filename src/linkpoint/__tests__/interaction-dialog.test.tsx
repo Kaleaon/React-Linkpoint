@@ -9,29 +9,76 @@ import { app } from '../app';
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 const dialog = (id: string, over: any = {}) => ({
-  id, receivedAt: 1, objectId: 'o', objectName: 'Vendor', ownerName: 'Pat Resident', message: 'Pick a colour\nthen confirm', channel: 5,
-  imageId: null, buttons: ['Red', 'Blue'], textBox: false, textBoxIndex: -1, ...over,
+  id,
+  receivedAt: 1,
+  objectId: 'o',
+  objectName: 'Vendor',
+  ownerName: 'Pat Resident',
+  message: 'Pick a colour\nthen confirm',
+  channel: 5,
+  imageId: null,
+  buttons: ['Red', 'Blue'],
+  textBox: false,
+  textBoxIndex: -1,
+  ...over,
 });
-const lure = (id: string, over: any = {}) => ({ id, receivedAt: 2, fromId: 'f', fromName: 'Sam Resident', message: 'Come visit', regionId: 'r', position: [10.4, 20.6, 30], gridX: 1000, gridY: 1001, ...over });
+const lure = (id: string, over: any = {}) => ({
+  id,
+  receivedAt: 2,
+  fromId: 'f',
+  fromName: 'Sam Resident',
+  message: 'Come visit',
+  regionId: 'r',
+  position: [10.4, 20.6, 30],
+  gridX: 1000,
+  gridY: 1001,
+  ...over,
+});
 
-beforeAll(() => { app.interactions.init(); }); // App.tsx does this through app.init()
+beforeAll(() => {
+  app.interactions.init();
+}); // App.tsx does this through app.init()
 
 let mounted: { host: HTMLElement; root: Root } | null = null;
 async function mount() {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const r = createRoot(host);
-  await act(async () => { r.render(createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, createElement(InteractionDialog as any)))); });
+  await act(async () => {
+    r.render(
+      createElement(
+        AppProvider as any,
+        null,
+        createElement(ThemeProvider as any, null, createElement(InteractionDialog as any)),
+      ),
+    );
+  });
   mounted = { host, root: r };
   return host;
 }
-const emit = async (type: string, data: any) => { await act(async () => { (app.protocol as any).emit(type, data); }); };
-const button = (host: HTMLElement, label: string) => [...host.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === label) as HTMLButtonElement | undefined;
-const click = async (el: Element | null | undefined) => { await act(async () => { (el as HTMLElement).click(); }); };
+const emit = async (type: string, data: any) => {
+  await act(async () => {
+    (app.protocol as any).emit(type, data);
+  });
+};
+const button = (host: HTMLElement, label: string) =>
+  [...host.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === label) as
+    HTMLButtonElement | undefined;
+const click = async (el: Element | null | undefined) => {
+  await act(async () => {
+    (el as HTMLElement).click();
+  });
+};
 
 afterEach(async () => {
-  if (mounted) { await act(async () => mounted!.root.unmount()); mounted.host.remove(); mounted = null; }
-  await act(async () => { (app.protocol as any).emit('disconnected', {}); });
+  if (mounted) {
+    await act(async () => mounted!.root.unmount());
+    mounted.host.remove();
+    mounted = null;
+  }
+  await act(async () => {
+    (app.protocol as any).emit('disconnected', {});
+  });
   vi.restoreAllMocks();
 });
 
@@ -42,7 +89,9 @@ describe('InteractionDialog', () => {
   });
 
   it('shows an object dialog with its buttons and answers with the tapped button index', async () => {
-    const respond = vi.spyOn(app.protocol, 'respondScriptDialog').mockResolvedValue({ answered: true } as any);
+    const respond = vi
+      .spyOn(app.protocol, 'respondScriptDialog')
+      .mockResolvedValue({ answered: true } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
     await emit('script_dialog', dialog('d1'));
@@ -59,10 +108,20 @@ describe('InteractionDialog', () => {
   });
 
   it('asks for text when a script sends the llTextBox marker, and sends what was typed', async () => {
-    const respond = vi.spyOn(app.protocol, 'respondScriptDialog').mockResolvedValue({ answered: true } as any);
+    const respond = vi
+      .spyOn(app.protocol, 'respondScriptDialog')
+      .mockResolvedValue({ answered: true } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
-    await emit('script_dialog', dialog('t1', { buttons: ['!!llTextBox!!'], textBox: true, textBoxIndex: 0, message: 'Your name?' }));
+    await emit(
+      'script_dialog',
+      dialog('t1', {
+        buttons: ['!!llTextBox!!'],
+        textBox: true,
+        textBoxIndex: 0,
+        message: 'Your name?',
+      }),
+    );
     expect(host.textContent).toContain('TEXT INPUT');
     expect(host.textContent).not.toContain('!!llTextBox!!');
     const send = button(host, 'SEND')!;
@@ -80,7 +139,9 @@ describe('InteractionDialog', () => {
   });
 
   it('shows a teleport offer, accepts it, and says declining notifies the sender', async () => {
-    const accept = vi.spyOn(app.protocol, 'acceptLure').mockResolvedValue({ accepted: true, message: '' } as any);
+    const accept = vi
+      .spyOn(app.protocol, 'acceptLure')
+      .mockResolvedValue({ accepted: true, message: '' } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
     await emit('lure', lure('l1'));
@@ -96,7 +157,9 @@ describe('InteractionDialog', () => {
   });
 
   it('declines a teleport offer with the DECLINE button, notifying the sender', async () => {
-    const decline = vi.spyOn(app.protocol as any, 'declineLure').mockResolvedValue({ declined: true } as any);
+    const decline = vi
+      .spyOn(app.protocol as any, 'declineLure')
+      .mockResolvedValue({ declined: true } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
     await emit('lure', lure('l1'));
@@ -112,13 +175,18 @@ describe('InteractionDialog', () => {
     const host = await mount();
     await emit('script_dialog', dialog('d1'));
     expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
-    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
     expect(respond).not.toHaveBeenCalled();
   });
 
   it('shows the grid failure, keeps the request for a retry, and queues later requests behind it', async () => {
-    const respond = vi.spyOn(app.protocol, 'respondScriptDialog').mockRejectedValueOnce(new Error('The grid did not respond')).mockResolvedValue({ answered: true } as any);
+    const respond = vi
+      .spyOn(app.protocol, 'respondScriptDialog')
+      .mockRejectedValueOnce(new Error('The grid did not respond'))
+      .mockResolvedValue({ answered: true } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
     await emit('script_dialog', dialog('d1'));
@@ -146,12 +214,21 @@ describe('InteractionDialog', () => {
   });
 
   it('renders inventory offer prompt and handles accept and decline actions', async () => {
-    const accept = vi.spyOn(app.protocol, 'acceptInventoryOffer').mockResolvedValue({ accepted: true } as any);
-    const decline = vi.spyOn(app.protocol, 'declineInventoryOffer').mockResolvedValue({ declined: true } as any);
+    const accept = vi
+      .spyOn(app.protocol, 'acceptInventoryOffer')
+      .mockResolvedValue({ accepted: true } as any);
+    const decline = vi
+      .spyOn(app.protocol, 'declineInventoryOffer')
+      .mockResolvedValue({ declined: true } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
 
-    await emit('inventory_offer', { id: 'io1', fromName: 'Alice Resident', message: 'Take this object', type: 1 });
+    await emit('inventory_offer', {
+      id: 'io1',
+      fromName: 'Alice Resident',
+      message: 'Take this object',
+      type: 1,
+    });
     expect(host.textContent).toContain('INVENTORY OFFER');
     expect(host.textContent).toContain('Alice Resident offered you an item');
     expect(host.textContent).toContain('Take this object');
@@ -160,7 +237,12 @@ describe('InteractionDialog', () => {
     expect(accept).toHaveBeenCalledWith({ id: 'io1' });
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
 
-    await emit('inventory-offer', { id: 'io2', fromName: 'Bob Resident', message: 'Take another item', type: 1 });
+    await emit('inventory-offer', {
+      id: 'io2',
+      fromName: 'Bob Resident',
+      message: 'Take another item',
+      type: 1,
+    });
     expect(host.textContent).toContain('Bob Resident offered you an item');
     await click(button(host, 'DECLINE'));
     expect(decline).toHaveBeenCalledWith({ id: 'io2' });
@@ -168,12 +250,20 @@ describe('InteractionDialog', () => {
   });
 
   it('renders group invitation prompt and handles accept and decline actions', async () => {
-    const accept = vi.spyOn(app.protocol, 'acceptGroupInvite').mockResolvedValue({ accepted: true } as any);
-    const decline = vi.spyOn(app.protocol, 'declineGroupInvite').mockResolvedValue({ declined: true } as any);
+    const accept = vi
+      .spyOn(app.protocol, 'acceptGroupInvite')
+      .mockResolvedValue({ accepted: true } as any);
+    const decline = vi
+      .spyOn(app.protocol, 'declineGroupInvite')
+      .mockResolvedValue({ declined: true } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
 
-    await emit('group_invite', { id: 'gi1', fromName: 'Carol Officer', message: 'Join Builders Group' });
+    await emit('group_invite', {
+      id: 'gi1',
+      fromName: 'Carol Officer',
+      message: 'Join Builders Group',
+    });
     expect(host.textContent).toContain('GROUP INVITATION');
     expect(host.textContent).toContain('Carol Officer invited you to join a group');
     expect(host.textContent).toContain('Join Builders Group');
@@ -182,7 +272,11 @@ describe('InteractionDialog', () => {
     expect(accept).toHaveBeenCalledWith({ id: 'gi1' });
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
 
-    await emit('group-invite', { id: 'gi2', fromName: 'Dave Officer', message: 'Join Explorers Group' });
+    await emit('group-invite', {
+      id: 'gi2',
+      fromName: 'Dave Officer',
+      message: 'Join Explorers Group',
+    });
     expect(host.textContent).toContain('Dave Officer invited you to join a group');
     await click(button(host, 'DECLINE'));
     expect(decline).toHaveBeenCalledWith({ id: 'gi2' });

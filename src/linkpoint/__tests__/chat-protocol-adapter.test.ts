@@ -63,14 +63,16 @@ describe('ChatProtocolAdapter', () => {
       const groupUuid = 'group-uuid-1234';
       const payload = await adapter.sendGroupChat(groupUuid, 'Hello Group', 'Builders Guild');
 
-      expect(payload).toEqual(expect.objectContaining({
-        dialog: 17,
-        id: groupUuid,
-        groupId: groupUuid,
-        toAgentId: groupUuid,
-        message: 'Hello Group',
-        type: 'group',
-      }));
+      expect(payload).toEqual(
+        expect.objectContaining({
+          dialog: 17,
+          id: groupUuid,
+          groupId: groupUuid,
+          toAgentId: groupUuid,
+          message: 'Hello Group',
+          type: 'group',
+        }),
+      );
       expect(mockProtocol.sendImprovedInstantMessage).toHaveBeenCalledWith(payload);
     });
 
@@ -85,10 +87,12 @@ describe('ChatProtocolAdapter', () => {
       const payload = await adapter.sendGroupChat(groupUuid, 'Pending msg', 'Group X');
 
       expect(payload.dialog).toBe(17);
-      expect(queuedListener).toHaveBeenCalledWith(expect.objectContaining({
-        groupId: groupUuid,
-        message: 'Pending msg',
-      }));
+      expect(queuedListener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupId: groupUuid,
+          message: 'Pending msg',
+        }),
+      );
 
       const queue = adapter.getPendingGroupQueue(groupUuid);
       expect(queue).toHaveLength(1);
@@ -132,10 +136,12 @@ describe('ChatProtocolAdapter', () => {
 
       expect(res).toEqual({ sent: false, queued: true });
       expect(mockProtocol.sendChat).not.toHaveBeenCalled();
-      expect(imQueuedListener).toHaveBeenCalledWith(expect.objectContaining({
-        recipientId: 'offline-resident',
-        message: 'Offline ping',
-      }));
+      expect(imQueuedListener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientId: 'offline-resident',
+          message: 'Offline ping',
+        }),
+      );
 
       const queue = adapter.getOfflineIMQueue('offline-resident');
       expect(queue).toHaveLength(1);

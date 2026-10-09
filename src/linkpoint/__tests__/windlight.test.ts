@@ -3,17 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  WindlightDay, getDefaultWindlightDay, parseWindlightPreset, presetToSkyFrame, sunDirection,
-  estimatedSunHour, windlightEnvironment, WINDLIGHT_HOUR_TABLE, SL_DAY_SECONDS,
+  WindlightDay,
+  getDefaultWindlightDay,
+  parseWindlightPreset,
+  presetToSkyFrame,
+  sunDirection,
+  estimatedSunHour,
+  windlightEnvironment,
+  WINDLIGHT_HOUR_TABLE,
+  SL_DAY_SECONDS,
 } from '../windlight';
 import { computeSkyUniforms } from '../sky';
 
-const xml = (name: string) => readFileSync(resolve(process.cwd(), 'src/assets/windlight', `${name}.xml`), 'utf8');
+const xml = (name: string) =>
+  readFileSync(resolve(process.cwd(), 'src/assets/windlight', `${name}.xml`), 'utf8');
 
 describe('Windlight preset parsing (Lumiya rules)', () => {
   const preset = parseWindlightPreset(xml('A-6AM'));
 
-  it('divides by Lumiya\'s factors and gamma-encodes ambient and sunlight', () => {
+  it("divides by Lumiya's factors and gamma-encodes ambient and sunlight", () => {
     expect(preset.blueDensity[0]).toBeCloseTo(0.15793180465698242 / 2, 6);
     expect(preset.hazeDensity[0]).toBeCloseTo(0.53999996185302734 / 5, 6);
     expect(preset.hazeHorizon[0]).toBeCloseTo(0.16 / 5, 5);
@@ -23,7 +31,11 @@ describe('Windlight preset parsing (Lumiya rules)', () => {
   });
 
   it('rejects a preset with a missing field instead of inventing a value', () => {
-    expect(() => parseWindlightPreset('<llsd><map><key>ambient</key><array><real>1</real><real>1</real><real>1</real><real>1</real></array></map></llsd>')).toThrow(/sunlight_color/);
+    expect(() =>
+      parseWindlightPreset(
+        '<llsd><map><key>ambient</key><array><real>1</real><real>1</real><real>1</real><real>1</real></array></map></llsd>',
+      ),
+    ).toThrow(/sunlight_color/);
   });
 
   it('rejects non-numeric values', () => {
@@ -41,21 +53,30 @@ describe('Windlight day interpolation', () => {
   });
 
   it('returns a preset exactly at its hour and the midpoint halfway', () => {
-    const noon = day.at(0.5), threePm = day.at(0.625), mid = day.at(0.5625);
+    const noon = day.at(0.5),
+      threePm = day.at(0.625),
+      mid = day.at(0.5625);
     expect(noon.blueDensity[0]).toBeCloseTo(day.presets[4].blueDensity[0], 9);
     expect(threePm.hazeDensity[0]).toBeCloseTo(day.presets[5].hazeDensity[0], 9);
-    expect(mid.ambient[1]).toBeCloseTo((day.presets[4].ambient[1] + day.presets[5].ambient[1]) / 2, 9);
+    expect(mid.ambient[1]).toBeCloseTo(
+      (day.presets[4].ambient[1] + day.presets[5].ambient[1]) / 2,
+      9,
+    );
   });
 
   it('wraps from 9 PM back to midnight and tolerates out-of-range hours', () => {
     const a = day.at(0.9375);
-    expect(a.ambient[0]).toBeCloseTo((day.presets[7].ambient[0] + day.presets[0].ambient[0]) / 2, 9);
+    expect(a.ambient[0]).toBeCloseTo(
+      (day.presets[7].ambient[0] + day.presets[0].ambient[0]) / 2,
+      9,
+    );
     expect(day.at(1.5).blueDensity[0]).toBeCloseTo(day.at(0.5).blueDensity[0], 9);
     expect(day.at(-0.5).blueDensity[0]).toBeCloseTo(day.at(0.5).blueDensity[0], 9);
   });
 
   it('keeps the sun angle continuous across the 6 AM wrap (no spin the long way round)', () => {
-    const before = day.at(0.2).sunAngle, after = day.at(0.3).sunAngle;
+    const before = day.at(0.2).sunAngle,
+      after = day.at(0.3).sunAngle;
     const delta = Math.min(Math.abs(after - before), Math.PI * 2 - Math.abs(after - before));
     expect(delta).toBeLessThan(0.7);
   });

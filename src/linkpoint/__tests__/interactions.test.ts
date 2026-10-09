@@ -13,11 +13,30 @@ class ProtocolStub extends Utils.EventEmitter {
 }
 
 const dialog = (id: string, over: any = {}) => ({
-  id, receivedAt: 1, objectId: 'o', objectName: 'Vendor', ownerName: 'Pat', message: 'Pick', channel: 5,
-  imageId: null, buttons: ['Yes', 'No'], textBox: false, textBoxIndex: -1, ...over,
+  id,
+  receivedAt: 1,
+  objectId: 'o',
+  objectName: 'Vendor',
+  ownerName: 'Pat',
+  message: 'Pick',
+  channel: 5,
+  imageId: null,
+  buttons: ['Yes', 'No'],
+  textBox: false,
+  textBoxIndex: -1,
+  ...over,
 });
 const lure = (id: string, over: any = {}) => ({
-  id, receivedAt: 2, fromId: 'f', fromName: 'Sam', message: 'Come', regionId: 'r', position: [1, 2, 3], gridX: 10, gridY: 11, ...over,
+  id,
+  receivedAt: 2,
+  fromId: 'f',
+  fromName: 'Sam',
+  message: 'Come',
+  regionId: 'r',
+  position: [1, 2, 3],
+  gridX: 10,
+  gridY: 11,
+  ...over,
 });
 const setup = () => {
   const protocol = new ProtocolStub();
@@ -41,10 +60,27 @@ describe('InteractionsManager', () => {
 
   it('normalises sloppy fields instead of passing them on', () => {
     const { protocol, manager } = setup();
-    protocol.emit('script_dialog', { id: 'x', buttons: [1, 'B'], channel: 'nope', textBoxIndex: 'z' });
+    protocol.emit('script_dialog', {
+      id: 'x',
+      buttons: [1, 'B'],
+      channel: 'nope',
+      textBoxIndex: 'z',
+    });
     protocol.emit('lure', { id: 'y', position: [1, 2], gridX: 'q' });
-    expect(manager.items[0]).toMatchObject({ kind: 'script-dialog', buttons: ['1', 'B'], channel: 0, textBoxIndex: -1, objectName: '', message: '' });
-    expect(manager.items[1]).toMatchObject({ kind: 'lure', position: null, gridX: null, fromName: '' });
+    expect(manager.items[0]).toMatchObject({
+      kind: 'script-dialog',
+      buttons: ['1', 'B'],
+      channel: 0,
+      textBoxIndex: -1,
+      objectName: '',
+      message: '',
+    });
+    expect(manager.items[1]).toMatchObject({
+      kind: 'lure',
+      position: null,
+      gridX: null,
+      fromName: '',
+    });
   });
 
   it('keeps at most MAX_INTERACTIONS, dropping the oldest', () => {
@@ -64,7 +100,10 @@ describe('InteractionsManager', () => {
 
   it('sends typed text for a text box', async () => {
     const { protocol, manager } = setup();
-    protocol.emit('script_dialog', dialog('t', { textBox: true, textBoxIndex: 0, buttons: ['!!llTextBox!!'] }));
+    protocol.emit(
+      'script_dialog',
+      dialog('t', { textBox: true, textBoxIndex: 0, buttons: ['!!llTextBox!!'] }),
+    );
     await manager.answerText('t', 'hello');
     expect(protocol.respondScriptDialog).toHaveBeenCalledWith({ id: 't', text: 'hello' });
     expect(manager.items).toHaveLength(0);
@@ -87,7 +126,11 @@ describe('InteractionsManager', () => {
   it('marks a request busy while the call is in flight and ignores a second tap', async () => {
     const { protocol, manager } = setup();
     let release: (value: any) => void = () => undefined;
-    protocol.respondScriptDialog.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    protocol.respondScriptDialog.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
     protocol.emit('script_dialog', dialog('a'));
     const first = manager.answerButton('a', 0);
     expect(manager.isBusy('a')).toBe(true);
@@ -108,7 +151,10 @@ describe('InteractionsManager', () => {
     expect(manager.items).toHaveLength(1);
     expect(accepted).not.toHaveBeenCalled();
     await expect(manager.acceptLure('l1')).resolves.toBe(true);
-    expect(accepted).toHaveBeenCalledWith({ lure: expect.objectContaining({ id: 'l1', fromName: 'Sam' }), message: 'Arrived' });
+    expect(accepted).toHaveBeenCalledWith({
+      lure: expect.objectContaining({ id: 'l1', fromName: 'Sam' }),
+      message: 'Arrived',
+    });
     expect(manager.items).toHaveLength(0);
   });
 
@@ -141,8 +187,16 @@ describe('InteractionsManager', () => {
     protocol.emit('group_invite', { id: 'gi1', fromName: 'Officer' });
     protocol.emit('group-invite', { id: 'gi1', fromName: 'Officer' });
     expect(manager.items).toHaveLength(2);
-    expect(manager.items[0]).toMatchObject({ kind: 'inventory-offer', id: 'io1', fromName: 'Alex' });
-    expect(manager.items[1]).toMatchObject({ kind: 'group-invite', id: 'gi1', fromName: 'Officer' });
+    expect(manager.items[0]).toMatchObject({
+      kind: 'inventory-offer',
+      id: 'io1',
+      fromName: 'Alex',
+    });
+    expect(manager.items[1]).toMatchObject({
+      kind: 'group-invite',
+      id: 'gi1',
+      fromName: 'Officer',
+    });
   });
 
   it('is idempotent when init() is called multiple times', () => {

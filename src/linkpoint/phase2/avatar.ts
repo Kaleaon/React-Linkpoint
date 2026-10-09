@@ -1,10 +1,10 @@
 /**
  * Linkpoint PWA - Avatar Manager (Features 13-16)
- * 
+ *
  * Phase 2: Core Protocol Extensions - Priority 1
  * Roadmap: PWA-demo/ANDROID_PORT_ROADMAP.md (Lines 35-40)
  * Android Source: app/src/main/java/com/lumiyaviewer/lumiya/slproto/users/
- * 
+ *
  * Manages avatar appearance, attachments, and visual parameters.
  */
 
@@ -106,7 +106,7 @@ export class AvatarManager extends Utils.EventEmitter {
       bones: skeletonConfig.bones || [],
       joints: skeletonConfig.joints || [],
       initialized: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     console.log(`[Avatar] Skeleton initialized with ${this.skeletonData.bones.length} bones`);
   }
@@ -121,7 +121,7 @@ export class AvatarManager extends Utils.EventEmitter {
       appearance: Object.fromEntries(this.appearanceParams),
       attachments: Object.fromEntries(this.attachments),
       visualParams: Object.fromEntries(this.visualParams),
-      skeleton: this.skeletonData
+      skeleton: this.skeletonData,
     };
   }
 

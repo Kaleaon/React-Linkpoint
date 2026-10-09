@@ -12,16 +12,19 @@ export const TERRAIN_LAYERS = 4;
 
 const PERM = (() => {
   const base = [
-    151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103, 30, 69, 142, 8, 99, 37, 240, 21, 10, 23,
-    190, 6, 148, 247, 120, 234, 75, 0, 26, 197, 62, 94, 252, 219, 203, 117, 35, 11, 32, 57, 177, 33, 88, 237, 149, 56, 87, 174, 20,
-    125, 136, 171, 168, 68, 175, 74, 165, 71, 134, 139, 48, 27, 166, 77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133, 230, 220,
-    105, 92, 41, 55, 46, 245, 40, 244, 102, 143, 54, 65, 25, 63, 161, 1, 216, 80, 73, 209, 76, 132, 187, 208, 89, 18, 169, 200, 196,
-    135, 130, 116, 188, 159, 86, 164, 100, 109, 198, 173, 186, 3, 64, 52, 217, 226, 250, 124, 123, 5, 202, 38, 147, 118, 126, 255,
-    82, 85, 212, 207, 206, 59, 227, 47, 16, 58, 17, 182, 189, 28, 42, 223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70, 221,
-    153, 101, 155, 167, 43, 172, 9, 129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232, 178, 185, 112, 104, 218, 246, 97, 228,
-    251, 34, 242, 193, 238, 210, 144, 12, 191, 179, 162, 241, 81, 51, 145, 235, 249, 14, 239, 107, 49, 192, 214, 31, 181, 199, 106,
-    157, 184, 84, 204, 176, 115, 121, 50, 45, 127, 4, 150, 254, 138, 236, 205, 93, 222, 114, 67, 29, 24, 72, 243, 141, 128, 195, 78,
-    66, 215, 61, 156, 180,
+    151, 160, 137, 91, 90, 15, 131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103, 30, 69,
+    142, 8, 99, 37, 240, 21, 10, 23, 190, 6, 148, 247, 120, 234, 75, 0, 26, 197, 62, 94, 252, 219,
+    203, 117, 35, 11, 32, 57, 177, 33, 88, 237, 149, 56, 87, 174, 20, 125, 136, 171, 168, 68, 175,
+    74, 165, 71, 134, 139, 48, 27, 166, 77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133, 230,
+    220, 105, 92, 41, 55, 46, 245, 40, 244, 102, 143, 54, 65, 25, 63, 161, 1, 216, 80, 73, 209, 76,
+    132, 187, 208, 89, 18, 169, 200, 196, 135, 130, 116, 188, 159, 86, 164, 100, 109, 198, 173, 186,
+    3, 64, 52, 217, 226, 250, 124, 123, 5, 202, 38, 147, 118, 126, 255, 82, 85, 212, 207, 206, 59,
+    227, 47, 16, 58, 17, 182, 189, 28, 42, 223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70,
+    221, 153, 101, 155, 167, 43, 172, 9, 129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232, 178,
+    185, 112, 104, 218, 246, 97, 228, 251, 34, 242, 193, 238, 210, 144, 12, 191, 179, 162, 241, 81,
+    51, 145, 235, 249, 14, 239, 107, 49, 192, 214, 31, 181, 199, 106, 157, 184, 84, 204, 176, 115,
+    121, 50, 45, 127, 4, 150, 254, 138, 236, 205, 93, 222, 114, 67, 29, 24, 72, 243, 141, 128, 195,
+    78, 66, 215, 61, 156, 180,
   ];
   return [...base, ...base];
 })();
@@ -30,24 +33,32 @@ const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 const lerp = (t: number, a: number, b: number) => a + t * (b - a);
 function grad(hash: number, x: number, y: number) {
   const h = hash & 7;
-  const u = h < 4 ? x : y, v = h < 4 ? y : x;
+  const u = h < 4 ? x : y,
+    v = h < 4 ? y : x;
   return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
 }
 
 /** 2D Perlin noise, deterministic, roughly in -1..1. */
 export function noise2(x: number, y: number): number {
-  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
-  x -= Math.floor(x); y -= Math.floor(y);
-  const u = fade(x), v = fade(y);
-  const a = PERM[X] + Y, b = PERM[X + 1] + Y;
-  return lerp(v,
+  const X = Math.floor(x) & 255,
+    Y = Math.floor(y) & 255;
+  x -= Math.floor(x);
+  y -= Math.floor(y);
+  const u = fade(x),
+    v = fade(y);
+  const a = PERM[X] + Y,
+    b = PERM[X + 1] + Y;
+  return lerp(
+    v,
     lerp(u, grad(PERM[a], x, y), grad(PERM[b], x - 1, y)),
-    lerp(u, grad(PERM[a + 1], x, y - 1), grad(PERM[b + 1], x - 1, y - 1)));
+    lerp(u, grad(PERM[a + 1], x, y - 1), grad(PERM[b + 1], x - 1, y - 1)),
+  );
 }
 
 /** Sum of noise octaves (absolute value), as the viewer's turbulence2. */
 export function turbulence2(x: number, y: number, octaves: number): number {
-  let t = 0, f = 1;
+  let t = 0,
+    f = 1;
   for (let i = 0; i < octaves; i++) {
     t += Math.abs(noise2(x * f, y * f)) / f;
     f *= 2;
@@ -72,15 +83,22 @@ const bilinear = (sw: number, se: number, nw: number, ne: number, fx: number, fy
  * Composition value 0..3 for every height sample. `heights` is size*size, row = y (south to north).
  * Corner order in params is SW, SE, NW, NE.
  */
-export function terrainComposition(heights: ArrayLike<number>, size: number, params: TerrainParams): Float32Array {
+export function terrainComposition(
+  heights: ArrayLike<number>,
+  size: number,
+  params: TerrainParams,
+): Float32Array {
   const out = new Float32Array(size * size);
   const slopeSquared = 1.5 * 1.5;
-  const xyScaleInv = 1 / 4.9215, noiseMagnitude = 2;
-  const [sw, se, nw, ne] = params.startHeights, [rsw, rse, rnw, rne] = params.heightRanges;
+  const xyScaleInv = 1 / 4.9215,
+    noiseMagnitude = 2;
+  const [sw, se, nw, ne] = params.startHeights,
+    [rsw, rse, rnw, rne] = params.heightRanges;
   const scale = 256 / size; // metres per sample
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
-      const fx = i / size, fy = j / size;
+      const fx = i / size,
+        fy = j / size;
       const start = bilinear(sw, se, nw, ne, fx, fy);
       const range = Math.max(bilinear(rsw, rse, rnw, rne, fx, fy), 0.001);
       const height = Number(heights[j * size + i]) || 0;
@@ -125,7 +143,10 @@ export function layerWeights(value: number): [number, number, number, number] {
 
 /** Colours shown for a layer until its detail texture arrives (dirt, grass, mountain, rock). */
 export const FALLBACK_LAYER_COLORS: Array<[number, number, number]> = [
-  [0.45, 0.36, 0.26], [0.33, 0.45, 0.22], [0.5, 0.45, 0.4], [0.58, 0.56, 0.54],
+  [0.45, 0.36, 0.26],
+  [0.33, 0.45, 0.22],
+  [0.5, 0.45, 0.4],
+  [0.58, 0.56, 0.54],
 ];
 
 /** Metres covered by one repeat of a detail texture. */

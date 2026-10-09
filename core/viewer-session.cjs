@@ -13,7 +13,11 @@ const LLSD = require('@caspertech/llsd');
 if (LLSD?.LLSD?.type) {
   const origType = LLSD.LLSD.type;
   LLSD.LLSD.type = function (value) {
-    if (value && typeof value === 'object' && (typeof value.mUUID === 'string' || value.constructor?.name === 'UUID')) {
+    if (
+      value &&
+      typeof value === 'object' &&
+      (typeof value.mUUID === 'string' || value.constructor?.name === 'UUID')
+    ) {
       return 'uuid';
     }
     return origType.call(this, value);
@@ -28,7 +32,12 @@ const {
   ControlFlags,
   UUID,
 } = require('@caspertech/node-metaverse');
-const { decodeLLMesh, decodeGLTFMaterial, decodeSculpt, decodeJPEG2000 } = require('./sl-asset-decoder.cjs');
+const {
+  decodeLLMesh,
+  decodeGLTFMaterial,
+  decodeSculpt,
+  decodeJPEG2000,
+} = require('./sl-asset-decoder.cjs');
 const actions = require('./sl-actions.cjs');
 const outfit = require('./sl-outfit.cjs');
 const interactions = require('./sl-interactions.cjs');
@@ -41,12 +50,24 @@ const { NeighborRegions, observeEventQueue } = require('./sl-neighbors.cjs');
 const { MuteListLoader, MUTE_TYPE, sendMuteUpdate, sendMuteRemove } = require('./sl-mutelist.cjs');
 const { serializeTerrainMaterials } = require('./sl-terrain.cjs');
 const {
-  finite, vector, serializeEnvironment, serializeTerrain, primAppearance, serializeObject, serializeFriend,
+  finite,
+  vector,
+  serializeEnvironment,
+  serializeTerrain,
+  primAppearance,
+  serializeObject,
+  serializeFriend,
 } = require('./serializers.cjs');
-const { DirFindQueryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirFindQuery');
-const { DirPlacesQueryMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirPlacesQuery');
+const {
+  DirFindQueryMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirFindQuery');
+const {
+  DirPlacesQueryMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirPlacesQuery');
 const { DirFindFlags } = require('@caspertech/node-metaverse/dist/lib/enums/DirFindFlags');
-const { TeleportLandmarkRequestMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/TeleportLandmarkRequest');
+const {
+  TeleportLandmarkRequestMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/TeleportLandmarkRequest');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
@@ -58,12 +79,20 @@ const ASSET_AUTO_RETRIES = 4;
 
 const newId = () => crypto.randomUUID();
 
-const VOICE_PROVISION_KEYS = ['jsep', 'parcel_local_id', 'channel_type', 'voice_server_type', 'credentials', 'channel'];
+const VOICE_PROVISION_KEYS = [
+  'jsep',
+  'parcel_local_id',
+  'channel_type',
+  'voice_server_type',
+  'credentials',
+  'channel',
+];
 const VOICE_SIGNAL_KEYS = ['viewer_session', 'voice_server_type', 'candidates', 'candidate'];
 
 /** Keep only the fields the voice capabilities take, and only for the WebRTC voice server. */
 function sanitizeVoiceBody(body, allowed) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('A voice request body is required');
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    throw new Error('A voice request body is required');
   if (body.voice_server_type !== 'webrtc') throw new Error('Only WebRTC voice is supported');
   return Object.fromEntries(Object.entries(body).filter(([key]) => allowed.includes(key)));
 }
@@ -102,10 +131,14 @@ class ViewerSession {
   /** Deliver an event to the client, remembering replayable assets for late joiners. */
   send(type, data) {
     if (this.replay) {
-      if (type === 'asset-ready' && data?.assetId) this.decodedAssets.set(data.assetId, { type, data });
-      else if (type === 'texture-ready' && data?.assetId) this.decodedAssets.set(`texture:${data.assetId}`, { type, data });
-      else if (type === 'material-ready' && data?.assetId) this.decodedAssets.set(`material:${data.assetId}`, { type, data });
-      else if (type === 'terrain' || type === 'world-data') this.decodedAssets.set(type, { type, data });
+      if (type === 'asset-ready' && data?.assetId)
+        this.decodedAssets.set(data.assetId, { type, data });
+      else if (type === 'texture-ready' && data?.assetId)
+        this.decodedAssets.set(`texture:${data.assetId}`, { type, data });
+      else if (type === 'material-ready' && data?.assetId)
+        this.decodedAssets.set(`material:${data.assetId}`, { type, data });
+      else if (type === 'terrain' || type === 'world-data')
+        this.decodedAssets.set(type, { type, data });
     }
     this.sendEvent(type, data);
   }
@@ -117,7 +150,11 @@ class ViewerSession {
 
   /** Reading Bot.currentRegion throws while login/teleport teardown has no active region. */
   currentRegion() {
-    try { return this.bot?.currentRegion || null; } catch { return null; }
+    try {
+      return this.bot?.currentRegion || null;
+    } catch {
+      return null;
+    }
   }
 
   // ---- asset streaming --------------------------------------------------------------------------
@@ -137,10 +174,13 @@ class ViewerSession {
     while (this.activeAssetDownloads < 4 && this.assetDownloadQueue.length) {
       const job = this.assetDownloadQueue.shift();
       this.activeAssetDownloads++;
-      Promise.resolve().then(job.download).then(job.resolve, job.reject).finally(() => {
-        this.activeAssetDownloads--;
-        this.pumpAssetDownloads();
-      });
+      Promise.resolve()
+        .then(job.download)
+        .then(job.resolve, job.reject)
+        .finally(() => {
+          this.activeAssetDownloads--;
+          this.pumpAssetDownloads();
+        });
     }
   }
 
@@ -155,9 +195,9 @@ class ViewerSession {
     const nextRetry = this.assetFailures.get(key) || 0;
     if (Date.now() < nextRetry) return;
     const request = (async () => {
-      const buffer = await this.queueAssetDownload(() => download
-        ? download()
-        : this.bot.clientCommands.asset.downloadAsset(kind, assetId));
+      const buffer = await this.queueAssetDownload(() =>
+        download ? download() : this.bot.clientCommands.asset.downloadAsset(kind, assetId),
+      );
       await ready(buffer);
       this.assetFailures.delete(key);
       this.assetAttempts.delete(key);
@@ -176,7 +216,12 @@ class ViewerSession {
       // malformed block, a stale capability) would stay a placeholder. Retry it a few times by itself.
       const attempts = (this.assetAttempts.get(key) || 0) + 1;
       this.assetAttempts.set(key, attempts);
-      if (!isPermanent && attempts < ASSET_AUTO_RETRIES && this.bot && !this.assetRetryTimers.has(key)) {
+      if (
+        !isPermanent &&
+        attempts < ASSET_AUTO_RETRIES &&
+        this.bot &&
+        !this.assetRetryTimers.has(key)
+      ) {
         const timer = setTimeout(() => {
           this.assetRetryTimers.delete(key);
           if (this.bot) this.streamAsset(key, kind, assetId, download, ready);
@@ -225,11 +270,16 @@ class ViewerSession {
     if (caps?.getCapability && caps?.requestGet) {
       const capability = await caps.getCapability('GetTexture');
       if (capability) {
-        const response = await caps.requestGet(`${String(capability).replace(/\/?$/, '/')}?texture_id=${encodeURIComponent(assetId)}`);
-        if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
+        const response = await caps.requestGet(
+          `${String(capability).replace(/\/?$/, '/')}?texture_id=${encodeURIComponent(assetId)}`,
+        );
+        if (response?.body)
+          return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
       }
     }
-    throw new Error(`Texture ${assetId} unavailable: ViewerAsset and GetTexture capabilities are unavailable`);
+    throw new Error(
+      `Texture ${assetId} unavailable: ViewerAsset and GetTexture capabilities are unavailable`,
+    );
   }
 
   /**
@@ -249,8 +299,12 @@ class ViewerSession {
         try {
           const capability = await caps.getCapability(capName);
           if (capability) {
-            const response = await caps.requestGet(`${String(capability).replace(/\/?$/, '/')}?mesh_id=${encodeURIComponent(assetId)}`, { responseType: 'buffer' });
-            if (response?.body) return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
+            const response = await caps.requestGet(
+              `${String(capability).replace(/\/?$/, '/')}?mesh_id=${encodeURIComponent(assetId)}`,
+              { responseType: 'buffer' },
+            );
+            if (response?.body)
+              return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
           }
         } catch (error) {
           const msg = String(error?.message || error);
@@ -261,31 +315,49 @@ class ViewerSession {
         }
       }
     }
-    throw new Error(`Mesh ${assetId} unavailable: ViewerAsset and mesh capabilities are unavailable`);
+    throw new Error(
+      `Mesh ${assetId} unavailable: ViewerAsset and mesh capabilities are unavailable`,
+    );
   }
 
   loadTexture(assetId) {
     if (!assetId) return;
-    this.streamAsset(`texture:${assetId}`, AssetType.Texture, assetId, () => this.downloadTexture(assetId), async (buffer) => {
-      this.send('texture-ready', { assetId, ...await decodeJPEG2000(buffer) });
-    });
+    this.streamAsset(
+      `texture:${assetId}`,
+      AssetType.Texture,
+      assetId,
+      () => this.downloadTexture(assetId),
+      async (buffer) => {
+        this.send('texture-ready', { assetId, ...(await decodeJPEG2000(buffer)) });
+      },
+    );
   }
 
   loadSound(assetId) {
     if (!assetId || this.soundRequests.has(assetId)) return;
     this.soundRequests.add(assetId);
-    downloadSound(this.bot, assetId, (buffer) => {
-      // Second Life sound assets are Ogg Vorbis. Browsers decode these directly through Web Audio.
-      this.send('sound-asset', { assetId, contentType: 'audio/ogg', data: buffer.toString('base64') });
-    }, (error) => {
-      this.soundRequests.delete(assetId);
-      this.send('asset-error', { assetId, message: error.message });
-    });
+    downloadSound(
+      this.bot,
+      assetId,
+      (buffer) => {
+        // Second Life sound assets are Ogg Vorbis. Browsers decode these directly through Web Audio.
+        this.send('sound-asset', {
+          assetId,
+          contentType: 'audio/ogg',
+          data: buffer.toString('base64'),
+        });
+      },
+      (error) => {
+        this.soundRequests.delete(assetId);
+        this.send('asset-error', { assetId, message: error.message });
+      },
+    );
   }
 
   // Ask for a sound asset by id (UI sounds are not announced by the simulator). It arrives as a 'sound-asset' event.
   fetchSound({ id } = {}) {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''))) throw new Error('A sound asset id is required');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || '')))
+      throw new Error('A sound asset id is required');
     this.requireBot();
     this.loadSound(String(id).toLowerCase());
     return { requested: true };
@@ -295,14 +367,20 @@ class ViewerSession {
     const appearance = primAppearance(object);
     if (!appearance.assetId) return;
     const kind = appearance.assetKind === 'mesh' ? AssetType.Mesh : AssetType.Texture;
-    const download = appearance.assetKind === 'sculpt'
-      ? () => this.downloadTexture(appearance.assetId)
-      : () => this.downloadMesh(appearance.assetId);
+    const download =
+      appearance.assetKind === 'sculpt'
+        ? () => this.downloadTexture(appearance.assetId)
+        : () => this.downloadMesh(appearance.assetId);
     this.streamAsset(appearance.assetId, kind, appearance.assetId, download, async (buffer) => {
-      const geometry = appearance.assetKind === 'mesh'
-        ? await decodeLLMesh(buffer)
-        : await decodeSculpt(buffer, appearance.sculptType);
-      this.send('asset-ready', { assetId: appearance.assetId, assetKind: appearance.assetKind, geometry });
+      const geometry =
+        appearance.assetKind === 'mesh'
+          ? await decodeLLMesh(buffer)
+          : await decodeSculpt(buffer, appearance.sculptType);
+      this.send('asset-ready', {
+        assetId: appearance.assetId,
+        assetKind: appearance.assetKind,
+        geometry,
+      });
     });
   }
 
@@ -316,12 +394,16 @@ class ViewerSession {
       const values = Array.isArray(textures) ? textures : Object.values(textures || {});
       return values.map((texture) => texture?.textureId || texture?.id || texture).filter(Boolean);
     });
-    const ids = new Set([
-      appearance.textureId,
-      appearance.particles?.textureId,
-      ...appearance.faceTextures.map((face) => face.textureId),
-      ...overrideTextures,
-    ].filter(Boolean).map(String));
+    const ids = new Set(
+      [
+        appearance.textureId,
+        appearance.particles?.textureId,
+        ...appearance.faceTextures.map((face) => face.textureId),
+        ...overrideTextures,
+      ]
+        .filter(Boolean)
+        .map(String),
+    );
     for (const assetId of ids) this.loadTexture(assetId);
   }
 
@@ -337,7 +419,8 @@ class ViewerSession {
       this.streamAsset(`material:${assetId}`, AssetType.Material, assetId, null, async (buffer) => {
         const material = decodeGLTFMaterial(buffer);
         this.send('material-ready', { assetId, material });
-        for (const texture of Object.values(material.textures || {})) this.loadTexture(texture?.textureId);
+        for (const texture of Object.values(material.textures || {}))
+          this.loadTexture(texture?.textureId);
       });
     }
   }
@@ -356,12 +439,20 @@ class ViewerSession {
     if (this.objectSounds.get(objectId) !== signature) {
       // The sound fields of an object update are what start looping sounds on objects that were
       // already playing when we arrived. A change to nothing is sent as a null sound with its flags.
-      const hadSound = this.objectSounds.has(objectId) && !this.objectSounds.get(objectId).startsWith(':');
+      const hadSound =
+        this.objectSounds.has(objectId) && !this.objectSounds.get(objectId).startsWith(':');
       this.objectSounds.set(objectId, signature);
       if (liveSound || hadSound) {
-        this.send('sound-event', { action: 'attached', soundId: liveSound || '00000000-0000-0000-0000-000000000000', objectId,
-          ownerId: event.object?.OwnerID?.toString?.() || '', position: vector(event.object?.Position),
-          gain: Number(event.object?.SoundGain) || 0, flags: Number(event.object?.SoundFlags) || 0, radius });
+        this.send('sound-event', {
+          action: 'attached',
+          soundId: liveSound || '00000000-0000-0000-0000-000000000000',
+          objectId,
+          ownerId: event.object?.OwnerID?.toString?.() || '',
+          position: vector(event.object?.Position),
+          gain: Number(event.object?.SoundGain) || 0,
+          flags: Number(event.object?.SoundFlags) || 0,
+          radius,
+        });
       }
       if (liveSound) this.loadSound(liveSound);
     }
@@ -376,8 +467,12 @@ class ViewerSession {
   /** Wire every simulator event the client understands. Emits nothing by itself. */
   subscribeEvents(events) {
     // Objects: the full object store decodes ObjectUpdate, compressed, cached and terse updates.
-    this.subscriptions.push(events.onNewObjectEvent.subscribe((event) => this.streamObject('object-add', event)));
-    this.subscriptions.push(events.onObjectUpdatedEvent.subscribe((event) => this.streamObject('object-update', event)));
+    this.subscriptions.push(
+      events.onNewObjectEvent.subscribe((event) => this.streamObject('object-add', event)),
+    );
+    this.subscriptions.push(
+      events.onObjectUpdatedEvent.subscribe((event) => this.streamObject('object-update', event)),
+    );
     this.subscribe(events.onObjectUpdatedTerseEvent, 'object-update', serializeObject);
     this.subscribe(events.onObjectKilledEvent, 'object-remove', (event) => ({
       id: event.objectID?.toString() || String(event.localID),
@@ -418,15 +513,26 @@ class ViewerSession {
       mediaUrl: parcel.MediaURL || '',
     }));
 
-    this.subscriptions.push(events.onAvatarEnteredRegion.subscribe((avatar) => this.trackAvatar(avatar)));
+    this.subscriptions.push(
+      events.onAvatarEnteredRegion.subscribe((avatar) => this.trackAvatar(avatar)),
+    );
 
-    this.subscriptions.push(events.onFriendOnline.subscribe((event) => {
-      const id = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString() || event.friend?.uuid?.toString();
-      if (id) this.friendPresence.set(id.toLowerCase(), Boolean(event.online));
-      // The name is sent only when the library knows it; the client keeps the one it already has otherwise.
-      const name = event.friend?.name || event.friend?.getName?.();
-      this.send('friend-status', { id, ...(name ? { name } : {}), online: Boolean(event.online) });
-    }));
+    this.subscriptions.push(
+      events.onFriendOnline.subscribe((event) => {
+        const id =
+          event.friend?.getKey?.()?.toString() ||
+          event.friend?.id?.toString() ||
+          event.friend?.uuid?.toString();
+        if (id) this.friendPresence.set(id.toLowerCase(), Boolean(event.online));
+        // The name is sent only when the library knows it; the client keeps the one it already has otherwise.
+        const name = event.friend?.name || event.friend?.getName?.();
+        this.send('friend-status', {
+          id,
+          ...(name ? { name } : {}),
+          online: Boolean(event.online),
+        });
+      }),
+    );
     this.subscribe(events.onFriendRequest, 'friend-request', (event) => ({
       requestId: event.requestID?.toString(),
       fromId: event.from?.toString(),
@@ -443,55 +549,100 @@ class ViewerSession {
     }));
 
     // Script dialogs (llDialog, llTextBox), teleport lures and group notices
-    this.subscriptions.push(...interactions.subscribeInteractions(events, this.pending, (type, data) => this.send(type, data)));
+    this.subscriptions.push(
+      ...interactions.subscribeInteractions(events, this.pending, (type, data) =>
+        this.send(type, data),
+      ),
+    );
     if (events?.onBalanceUpdated) {
-      this.subscriptions.push(events.onBalanceUpdated.subscribe((event) => {
-        const record = {
-          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          balance: event.balance,
-          amount: event.transaction?.amount ?? 0,
-          description: event.transaction?.description || 'Balance updated',
-          from: event.transaction?.from?.toString?.() || '',
-          to: event.transaction?.to?.toString?.() || '',
-          type: event.transaction?.type || 'balance',
-          status: event.transaction?.success !== false ? 'success' : 'failed',
-          timestamp: Date.now(),
-        };
-        this.transactions.unshift(record);
-        this.send('balance_updated', { balance: event.balance, transaction: record });
-      }));
+      this.subscriptions.push(
+        events.onBalanceUpdated.subscribe((event) => {
+          const record = {
+            id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            balance: event.balance,
+            amount: event.transaction?.amount ?? 0,
+            description: event.transaction?.description || 'Balance updated',
+            from: event.transaction?.from?.toString?.() || '',
+            to: event.transaction?.to?.toString?.() || '',
+            type: event.transaction?.type || 'balance',
+            status: event.transaction?.success !== false ? 'success' : 'failed',
+            timestamp: Date.now(),
+          };
+          this.transactions.unshift(record);
+          this.send('balance_updated', { balance: event.balance, transaction: record });
+        }),
+      );
     }
-    this.subscribe(events.onDisconnected, 'disconnected', (event) => ({ message: event.message || 'Disconnected from Second Life' }));
+    this.subscribe(events.onDisconnected, 'disconnected', (event) => ({
+      message: event.message || 'Disconnected from Second Life',
+    }));
   }
 
   /** Nearby avatars: announce arrivals, movement and departures as presence events. */
   trackAvatar(avatar) {
-    const id = avatar.getKey?.()?.toString?.() || avatar.id?.toString?.() || avatar.uuid?.toString?.();
-    const name = avatar.getName?.() || [avatar.firstName, avatar.lastName].filter(Boolean).join(' ') || '';
+    const id =
+      avatar.getKey?.()?.toString?.() || avatar.id?.toString?.() || avatar.uuid?.toString?.();
+    const name =
+      avatar.getName?.() || [avatar.firstName, avatar.lastName].filter(Boolean).join(' ') || '';
     const position = vector(avatar.coarsePosition || avatar.position);
     this.send('coarse-avatar', { id, name, position });
-    this.send('avatar_presence', { id, agentId: id, name, coordinates: position, position, presence: 'entered', online: true });
+    this.send('avatar_presence', {
+      id,
+      agentId: id,
+      name,
+      coordinates: position,
+      position,
+      presence: 'entered',
+      online: true,
+    });
     if (typeof avatar.onMoved?.subscribe === 'function') {
-      this.subscriptions.push(avatar.onMoved.subscribe((moved) => {
-        const at = vector(moved.position || moved.coarsePosition);
-        this.send('avatar_presence', { id, agentId: id, name, coordinates: at, position: at, presence: 'online', online: true });
-      }));
+      this.subscriptions.push(
+        avatar.onMoved.subscribe((moved) => {
+          const at = vector(moved.position || moved.coarsePosition);
+          this.send('avatar_presence', {
+            id,
+            agentId: id,
+            name,
+            coordinates: at,
+            position: at,
+            presence: 'online',
+            online: true,
+          });
+        }),
+      );
     }
     if (typeof avatar.onLeftRegion?.subscribe === 'function') {
-      this.subscriptions.push(avatar.onLeftRegion.subscribe(() => {
-        this.send('avatar_presence', { id, agentId: id, name, presence: 'left', online: false, left: true });
-      }));
+      this.subscriptions.push(
+        avatar.onLeftRegion.subscribe(() => {
+          this.send('avatar_presence', {
+            id,
+            agentId: id,
+            name,
+            presence: 'left',
+            online: false,
+            left: true,
+          });
+        }),
+      );
     }
   }
 
   /** The logged-in agent's UUID, whichever way this node-metaverse build exposes it. */
   agentId() {
     const text = (value) => {
-      try { return value ? String(value.toString()) : ''; } catch { return ''; }
+      try {
+        return value ? String(value.toString()) : '';
+      } catch {
+        return '';
+      }
     };
     const valid = (id) => id && !id.includes('function') && !id.includes('agentID()');
     let id = '';
-    try { if (typeof this.bot.agentID === 'function') id = text(this.bot.agentID()); } catch { /* try the next source */ }
+    try {
+      if (typeof this.bot.agentID === 'function') id = text(this.bot.agentID());
+    } catch {
+      /* try the next source */
+    }
     if (!valid(id)) id = text(this.bot.agent?.agentID);
     return valid(id) ? id : '';
   }
@@ -518,30 +669,66 @@ class ViewerSession {
       console.warn('[SL Session] connectToSim warning:', error);
     }
     const region = this.currentRegion();
-    this.appearanceWatcher = watchAvatarAppearance(() => this.currentRegion(), (event) => this.streamObject('object-update', event));
+    this.appearanceWatcher = watchAvatarAppearance(
+      () => this.currentRegion(),
+      (event) => this.streamObject('object-update', event),
+    );
     this.subscriptions.push(this.appearanceWatcher);
-    const animations = watchAnimations(() => this.currentRegion(), (type, data) => this.send(type, data));
+    const animations = watchAnimations(
+      () => this.currentRegion(),
+      (type, data) => this.send(type, data),
+    );
     if (animations) this.subscriptions.push(animations);
-    this.subscriptions.push(watchSounds(() => this.currentRegion(), (type, data) => this.send(type, data), (id) => this.loadSound(id)));
-    this.subscriptions.push(watchWind(() => this.currentRegion(), (type, data) => this.send(type, data)));
-    this.subscriptions.push(watchParcelSound(() => this.currentRegion(), (type, data) => this.send(type, data)));
+    this.subscriptions.push(
+      watchSounds(
+        () => this.currentRegion(),
+        (type, data) => this.send(type, data),
+        (id) => this.loadSound(id),
+      ),
+    );
+    this.subscriptions.push(
+      watchWind(
+        () => this.currentRegion(),
+        (type, data) => this.send(type, data),
+      ),
+    );
+    this.subscriptions.push(
+      watchParcelSound(
+        () => this.currentRegion(),
+        (type, data) => this.send(type, data),
+      ),
+    );
     // Neighbouring regions, for voice that carries across region borders
-    this.neighbors = new NeighborRegions({ onChange: (list) => this.send('voice-neighbors', { neighbors: list }) });
-    this.subscriptions.push({ unsubscribe: observeEventQueue((events) => this.neighbors.handleEvents(events)) });
+    this.neighbors = new NeighborRegions({
+      onChange: (list) => this.send('voice-neighbors', { neighbors: list }),
+    });
+    this.subscriptions.push({
+      unsubscribe: observeEventQueue((events) => this.neighbors.handleEvents(events)),
+    });
     this.syncNeighborCurrent();
     const neighborTimer = setInterval(() => this.syncNeighborCurrent(), 2000);
     neighborTimer.unref?.();
     this.subscriptions.push({ unsubscribe: () => clearInterval(neighborTimer) });
     // The account's mute list lives on the grid; ask for it once the circuit is up, as the viewer does at login.
-    this.muteLoader = new MuteListLoader(() => this.currentRegion()?.circuit, this.bot.agent?.agentID, (result) => this.send('mute-list', result));
+    this.muteLoader = new MuteListLoader(
+      () => this.currentRegion()?.circuit,
+      this.bot.agent?.agentID,
+      (result) => this.send('mute-list', result),
+    );
     this.subscriptions.push({ unsubscribe: () => this.muteLoader?.cancel() });
     this.muteLoader.request();
 
     let inventoryRootId = '';
-    try { inventoryRootId = this.bot.clientCommands?.inventory?.getInventoryRoot()?.folderID?.toString() || ''; } catch { /* fetched on demand */ }
+    try {
+      inventoryRootId =
+        this.bot.clientCommands?.inventory?.getInventoryRoot()?.folderID?.toString() || '';
+    } catch {
+      /* fetched on demand */
+    }
     this.identity = {
       agentId: this.agentId() || newId(),
-      firstName, lastName,
+      firstName,
+      lastName,
       simName: region?.regionName || '',
       inventoryRootId,
     };
@@ -553,7 +740,10 @@ class ViewerSession {
     };
     queueMicrotask(() => this.send('world-data', worldData));
     this.loadTerrainTextures(worldData.terrainMaterials);
-    region?.waitForTerrain?.().then(() => this.send('terrain', serializeTerrain(region))).catch(() => {});
+    region
+      ?.waitForTerrain?.()
+      .then(() => this.send('terrain', serializeTerrain(region)))
+      .catch(() => {});
 
     return {
       login: true,
@@ -616,21 +806,26 @@ class ViewerSession {
 
   checkMuteEntry(params, { flags = true } = {}) {
     const type = Number(params.type);
-    if (![MUTE_TYPE.BY_NAME, MUTE_TYPE.AGENT, MUTE_TYPE.OBJECT, MUTE_TYPE.GROUP].includes(type)) throw new Error('Mute type must be 0 (name), 1 (resident), 2 (object) or 3 (group)');
+    if (![MUTE_TYPE.BY_NAME, MUTE_TYPE.AGENT, MUTE_TYPE.OBJECT, MUTE_TYPE.GROUP].includes(type))
+      throw new Error('Mute type must be 0 (name), 1 (resident), 2 (object) or 3 (group)');
     const name = String(params.name ?? '');
     if (name.length > 254) throw new Error('Mute name is too long');
     if (type === MUTE_TYPE.BY_NAME && !name) throw new Error('A mute by name needs a name');
-    const id = type === MUTE_TYPE.BY_NAME ? '' : actions.requireUuid(params.id, 'Mute id').toLowerCase();
+    const id =
+      type === MUTE_TYPE.BY_NAME ? '' : actions.requireUuid(params.id, 'Mute id').toLowerCase();
     const mask = flags ? Number(params.flags ?? 0) : 0;
-    if (!Number.isInteger(mask) || mask < 0 || mask > 0xf) throw new Error('Mute flags must be 0 to 15');
+    if (!Number.isInteger(mask) || mask < 0 || mask > 0xf)
+      throw new Error('Mute flags must be 0 to 15');
     return { id, name, type, flags: mask };
   }
 
   async sendGroupMessage({ groupId, message }) {
     const comms = this.requireBot().clientCommands?.comms;
     if (!comms) throw new Error('Second Life communications interface unavailable');
-    if (!groupId || !String(message || '').trim()) throw new Error('Group and message are required');
-    if (typeof comms.sendGroupMessage !== 'function') throw new Error('Group messaging not supported by this connection');
+    if (!groupId || !String(message || '').trim())
+      throw new Error('Group and message are required');
+    if (typeof comms.sendGroupMessage !== 'function')
+      throw new Error('Group messaging not supported by this connection');
     // Starts the group chat session on first use, then sends within it.
     await comms.sendGroupMessage(groupId, message);
   }
@@ -643,17 +838,26 @@ class ViewerSession {
 
   // ---- agent actions ----------------------------------------------------------------------------
 
-  teleport(params) { return actions.teleport(this.requireBot(), params); }
-  touchObject(params) { return actions.touchObject(this.requireBot(), params); }
-  sit(params = {}) { return actions.sit(this.requireBot(), params); }
-  stand() { return actions.stand(this.requireBot()); }
+  teleport(params) {
+    return actions.teleport(this.requireBot(), params);
+  }
+  touchObject(params) {
+    return actions.touchObject(this.requireBot(), params);
+  }
+  sit(params = {}) {
+    return actions.sit(this.requireBot(), params);
+  }
+  stand() {
+    return actions.stand(this.requireBot());
+  }
 
   /** Ask the simulator to teleport home: a landmark teleport with the null landmark, as the official viewer does. */
   teleportHome() {
     const bot = this.requireBot();
     const circuit = this.currentRegion()?.circuit;
     const agentId = bot.agent?.agentID;
-    if (!circuit?.sendMessage || !agentId) throw new Error('Teleport home is unavailable until the region has loaded');
+    if (!circuit?.sendMessage || !agentId)
+      throw new Error('Teleport home is unavailable until the region has loaded');
     const message = new TeleportLandmarkRequestMessage();
     message.Info = { AgentID: agentId, SessionID: circuit.sessionID, LandmarkID: UUID.zero() };
     circuit.sendMessage(message, PacketFlags.Reliable);
@@ -662,17 +866,32 @@ class ViewerSession {
 
   // ---- outfit, attachments and shape --------------------------------------------------------------
 
-  wearItem(params) { return outfit.wearItem(this.requireBot(), this.currentRegion(), params); }
-  removeWorn(params) { return outfit.removeWorn(this.requireBot(), this.currentRegion(), params); }
-  wearOutfit(params) { return outfit.wearOutfit(this.requireBot(), this.currentRegion(), params); }
-  detachAttachment(params) { return outfit.detachAttachment(this.requireBot(), this.currentRegion(), params); }
-  offerTeleport(params) { return outfit.offerTeleport(this.requireBot(), this.currentRegion(), params); }
-  getShape() { return outfit.getShape(this.requireBot()); }
-  saveShape(params) { return outfit.saveShape(this.requireBot(), this.currentRegion(), params); }
+  wearItem(params) {
+    return outfit.wearItem(this.requireBot(), this.currentRegion(), params);
+  }
+  removeWorn(params) {
+    return outfit.removeWorn(this.requireBot(), this.currentRegion(), params);
+  }
+  wearOutfit(params) {
+    return outfit.wearOutfit(this.requireBot(), this.currentRegion(), params);
+  }
+  detachAttachment(params) {
+    return outfit.detachAttachment(this.requireBot(), this.currentRegion(), params);
+  }
+  offerTeleport(params) {
+    return outfit.offerTeleport(this.requireBot(), this.currentRegion(), params);
+  }
+  getShape() {
+    return outfit.getShape(this.requireBot());
+  }
+  saveShape(params) {
+    return outfit.saveShape(this.requireBot(), this.currentRegion(), params);
+  }
 
   /** Join an open-enrollment group. A group that charges a fee is refused with the library's explanation. */
   async joinGroup({ groupId } = {}) {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || '')) throw new Error('Valid group ID required');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || ''))
+      throw new Error('Valid group ID required');
     const groups = this.requireBot().clientCommands?.groups;
     if (!groups?.joinGroup) throw new Error('Group interface unavailable');
     const joined = await groups.joinGroup(groupId);
@@ -680,14 +899,21 @@ class ViewerSession {
   }
   setMovement(params = {}) {
     const agent = this.requireBot().agent;
-    if (!agent?.setControlFlag || !agent?.clearControlFlag || !agent?.sendAgentUpdate) throw new Error('Avatar movement unavailable');
+    if (!agent?.setControlFlag || !agent?.clearControlFlag || !agent?.sendAgentUpdate)
+      throw new Error('Avatar movement unavailable');
     if (params.controlFlags !== undefined) return this.setControlFlags(agent, params.controlFlags);
     const directional = [
-      ControlFlags.AGENT_CONTROL_AT_POS, ControlFlags.AGENT_CONTROL_AT_NEG,
-      ControlFlags.AGENT_CONTROL_LEFT_POS, ControlFlags.AGENT_CONTROL_LEFT_NEG,
-      ControlFlags.AGENT_CONTROL_UP_POS, ControlFlags.AGENT_CONTROL_UP_NEG,
-      ControlFlags.AGENT_CONTROL_TURN_LEFT, ControlFlags.AGENT_CONTROL_TURN_RIGHT,
-      ControlFlags.AGENT_CONTROL_FAST_AT, ControlFlags.AGENT_CONTROL_FAST_LEFT, ControlFlags.AGENT_CONTROL_FAST_UP,
+      ControlFlags.AGENT_CONTROL_AT_POS,
+      ControlFlags.AGENT_CONTROL_AT_NEG,
+      ControlFlags.AGENT_CONTROL_LEFT_POS,
+      ControlFlags.AGENT_CONTROL_LEFT_NEG,
+      ControlFlags.AGENT_CONTROL_UP_POS,
+      ControlFlags.AGENT_CONTROL_UP_NEG,
+      ControlFlags.AGENT_CONTROL_TURN_LEFT,
+      ControlFlags.AGENT_CONTROL_TURN_RIGHT,
+      ControlFlags.AGENT_CONTROL_FAST_AT,
+      ControlFlags.AGENT_CONTROL_FAST_LEFT,
+      ControlFlags.AGENT_CONTROL_FAST_UP,
     ];
     for (const flag of directional) agent.clearControlFlag(flag);
     const choose = (value, positive, negative) => {
@@ -698,7 +924,11 @@ class ViewerSession {
     // SL names strafe flags from the left axis: positive right is LEFT_NEG.
     choose(params.right, ControlFlags.AGENT_CONTROL_LEFT_NEG, ControlFlags.AGENT_CONTROL_LEFT_POS);
     choose(params.up, ControlFlags.AGENT_CONTROL_UP_POS, ControlFlags.AGENT_CONTROL_UP_NEG);
-    choose(params.turn, ControlFlags.AGENT_CONTROL_TURN_RIGHT, ControlFlags.AGENT_CONTROL_TURN_LEFT);
+    choose(
+      params.turn,
+      ControlFlags.AGENT_CONTROL_TURN_RIGHT,
+      ControlFlags.AGENT_CONTROL_TURN_LEFT,
+    );
     if (params.run && params.forward) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_AT);
     if (params.run && params.right) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_LEFT);
     if (params.run && params.up) agent.setControlFlag(ControlFlags.AGENT_CONTROL_FAST_UP);
@@ -709,17 +939,23 @@ class ViewerSession {
   // One-shot flags (stop, stand up, sit on ground, nudges) are cleared right after the update that carries them.
   setControlFlags(agent, requested) {
     const flags = Number(requested);
-    if (!Number.isInteger(flags) || flags < 0 || flags > 0xFFFFFFFF) throw new Error('controlFlags must be an unsigned 32-bit integer');
-    const oneShot = 0x4000 | 0x10000 | 0x20000 | 0x80000 | 0x100000 | 0x200000 | 0x400000 | 0x800000 | 0x1000000;
+    if (!Number.isInteger(flags) || flags < 0 || flags > 0xffffffff)
+      throw new Error('controlFlags must be an unsigned 32-bit integer');
+    const oneShot =
+      0x4000 | 0x10000 | 0x20000 | 0x80000 | 0x100000 | 0x200000 | 0x400000 | 0x800000 | 0x1000000;
     for (let bit = 0; bit < 32; bit++) {
       const flag = (1 << bit) | 0;
-      if ((flags >>> bit) & 1) agent.setControlFlag(flag); else agent.clearControlFlag(flag);
+      if ((flags >>> bit) & 1) agent.setControlFlag(flag);
+      else agent.clearControlFlag(flag);
     }
     agent.sendAgentUpdate();
-    for (let bit = 0; bit < 32; bit++) if ((oneShot >>> bit) & 1) agent.clearControlFlag((1 << bit) | 0);
-    return { moving: Boolean(flags & 0x0600003F), flags };
+    for (let bit = 0; bit < 32; bit++)
+      if ((oneShot >>> bit) & 1) agent.clearControlFlag((1 << bit) | 0);
+    return { moving: Boolean(flags & 0x0600003f), flags };
   }
-  getBalance() { return actions.getBalance(this.requireBot()); }
+  getBalance() {
+    return actions.getBalance(this.requireBot());
+  }
   async payObject(params = {}) {
     const res = await actions.payObject(this.requireBot(), params);
     const record = {
@@ -762,15 +998,33 @@ class ViewerSession {
     }
     return { balance, transactions: this.transactions };
   }
-  respondScriptDialog(params = {}) { return interactions.respondScriptDialog(this.requireBot(), this.pending, params); }
-  acceptLure(params = {}) { return interactions.acceptLure(this.requireBot(), this.pending, params); }
-  declineLure(params = {}) { return interactions.declineLure(this.requireBot(), this.pending, params); }
-  acceptInventoryOffer(params = {}) { return interactions.acceptInventoryOffer(this.requireBot(), this.pending, params); }
-  declineInventoryOffer(params = {}) { return interactions.declineInventoryOffer(this.requireBot(), this.pending, params); }
-  acceptGroupInvite(params = {}) { return interactions.acceptGroupInvite(this.requireBot(), this.pending, params); }
-  declineGroupInvite(params = {}) { return interactions.declineGroupInvite(this.requireBot(), this.pending, params); }
-  acceptGroupNoticeAttachment(params = {}) { return interactions.acceptGroupNoticeAttachment(this.requireBot(), this.pending, params); }
-  dismissInteraction(params) { return interactions.dismissInteraction(this.pending, params); }
+  respondScriptDialog(params = {}) {
+    return interactions.respondScriptDialog(this.requireBot(), this.pending, params);
+  }
+  acceptLure(params = {}) {
+    return interactions.acceptLure(this.requireBot(), this.pending, params);
+  }
+  declineLure(params = {}) {
+    return interactions.declineLure(this.requireBot(), this.pending, params);
+  }
+  acceptInventoryOffer(params = {}) {
+    return interactions.acceptInventoryOffer(this.requireBot(), this.pending, params);
+  }
+  declineInventoryOffer(params = {}) {
+    return interactions.declineInventoryOffer(this.requireBot(), this.pending, params);
+  }
+  acceptGroupInvite(params = {}) {
+    return interactions.acceptGroupInvite(this.requireBot(), this.pending, params);
+  }
+  declineGroupInvite(params = {}) {
+    return interactions.declineGroupInvite(this.requireBot(), this.pending, params);
+  }
+  acceptGroupNoticeAttachment(params = {}) {
+    return interactions.acceptGroupNoticeAttachment(this.requireBot(), this.pending, params);
+  }
+  dismissInteraction(params) {
+    return interactions.dismissInteraction(this.pending, params);
+  }
 
   /**
    * Region names, ratings and map image ids for a block of the grid, as the official map asks for
@@ -780,7 +1034,8 @@ class ViewerSession {
     const bot = this.requireBot();
     const clamp = (value) => Math.max(0, Math.min(65535, Math.floor(Number(value))));
     const [x0, y0, x1, y1] = [minX, minY, maxX, maxY].map(clamp);
-    if (![x0, y0, x1, y1].every(Number.isFinite) || x1 < x0 || y1 < y0) throw new Error('Invalid map range');
+    if (![x0, y0, x1, y1].every(Number.isFinite) || x1 < x0 || y1 < y0)
+      throw new Error('Invalid map range');
     if ((x1 - x0 + 1) * (y1 - y0 + 1) > 400) throw new Error('Map range too large');
     const reply = await bot.clientCommands.grid.getRegionMapInfoRange(x0, y0, x1, y1);
     const seen = new Map();
@@ -788,8 +1043,12 @@ class ViewerSession {
       if (!block?.name || !Number.isFinite(block.x) || !Number.isFinite(block.y)) continue;
       if (seen.has(`${block.x},${block.y}`)) continue; // a block can be repeated across reply packets
       seen.set(`${block.x},${block.y}`, {
-        x: block.x, y: block.y, name: block.name,
-        access: finite(block.accessFlags), waterHeight: finite(block.waterHeight), regionFlags: finite(block.regionFlags),
+        x: block.x,
+        y: block.y,
+        name: block.name,
+        access: finite(block.accessFlags),
+        waterHeight: finite(block.waterHeight),
+        regionFlags: finite(block.regionFlags),
         mapImage: block.mapImage?.toString?.() || null,
       });
     }
@@ -808,7 +1067,10 @@ class ViewerSession {
     const region = this.currentRegion();
     const handle = region?.regionHandle;
     if (!region?.caps || handle === undefined || handle === null) return;
-    this.neighbors?.setCurrent(BigInt.asUintN(64, BigInt(handle.toString())).toString(), region.caps);
+    this.neighbors?.setCurrent(
+      BigInt.asUintN(64, BigInt(handle.toString())).toString(),
+      region.caps,
+    );
   }
 
   /**
@@ -817,7 +1079,8 @@ class ViewerSession {
    */
   voiceCaps(regionHandle) {
     const current = this.currentRegion();
-    if (regionHandle === undefined || regionHandle === null || regionHandle === '') return current?.caps;
+    if (regionHandle === undefined || regionHandle === null || regionHandle === '')
+      return current?.caps;
     const handle = String(regionHandle);
     if (!/^\d{1,20}$/.test(handle)) throw new Error('regionHandle must be a number');
     this.syncNeighborCurrent();
@@ -828,7 +1091,8 @@ class ViewerSession {
 
   async voiceProvision({ body, regionHandle } = {}) {
     const clean = sanitizeVoiceBody(body, VOICE_PROVISION_KEYS);
-    if (clean.jsep?.type !== 'offer' || typeof clean.jsep.sdp !== 'string' || !clean.jsep.sdp) throw new Error('A WebRTC offer is required');
+    if (clean.jsep?.type !== 'offer' || typeof clean.jsep.sdp !== 'string' || !clean.jsep.sdp)
+      throw new Error('A WebRTC offer is required');
     const caps = this.voiceCaps(regionHandle);
     const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
     if (!url) throw new Error('Voice is not available in this region');
@@ -840,8 +1104,10 @@ class ViewerSession {
 
   async voiceSignal({ body } = {}) {
     const clean = sanitizeVoiceBody(body, VOICE_SIGNAL_KEYS);
-    if (typeof clean.viewer_session !== 'string' || !clean.viewer_session) throw new Error('Voice session is required');
-    if (!clean.candidates && !clean.candidate) throw new Error('Voice signaling needs candidates or the completed marker');
+    if (typeof clean.viewer_session !== 'string' || !clean.viewer_session)
+      throw new Error('Voice session is required');
+    if (!clean.candidates && !clean.candidate)
+      throw new Error('Voice signaling needs candidates or the completed marker');
     const caps = this.voiceSessionCaps.get(clean.viewer_session) ?? this.currentRegion()?.caps;
     const url = await caps?.getCapability?.('VoiceSignalingRequest');
     if (!url) throw new Error('Voice signaling is not available in this region');
@@ -853,7 +1119,12 @@ class ViewerSession {
     const caps = this.voiceSessionCaps.get(String(viewerSession)) ?? this.currentRegion()?.caps;
     this.voiceSessionCaps.delete(String(viewerSession));
     const url = await caps?.getCapability?.('ProvisionVoiceAccountRequest');
-    if (url) await caps.capsPerformXMLPost(url, { logout: true, viewer_session: viewerSession, voice_server_type: 'webrtc' });
+    if (url)
+      await caps.capsPerformXMLPost(url, {
+        logout: true,
+        viewer_session: viewerSession,
+        voice_server_type: 'webrtc',
+      });
     return { loggedOut: true };
   }
 
@@ -870,11 +1141,13 @@ class ViewerSession {
       rightsGivenMask: Number(buddy?.buddyRightsGiven) || 0,
       rightsHasMask: Number(buddy?.buddyRightsHas) || 0,
     });
-    const online = (id, fallback = false) => ((this.friendPresence.get(String(id).toLowerCase()) ?? fallback) ? 'online' : 'offline');
+    const online = (id, fallback = false) =>
+      (this.friendPresence.get(String(id).toLowerCase()) ?? fallback) ? 'online' : 'offline';
 
     // The library names a friend 'Unknown Friend' until its own background lookup succeeds, and that
     // lookup is abandoned silently on any error. Placeholders are not names: look those up here.
-    const isPlaceholder = (name) => !name || /^(unknown\s+friend|friend|resident)$/i.test(String(name).trim());
+    const isPlaceholder = (name) =>
+      !name || /^(unknown\s+friend|friend|resident)$/i.test(String(name).trim());
     const unresolved = [];
     for (const buddy of buddyList) {
       const id = buddy.buddyID?.toString();
@@ -882,15 +1155,25 @@ class ViewerSession {
       const known = this.friendNames.get(String(id).toLowerCase());
       if (friend && !isPlaceholder(friend.getName?.())) {
         this.friendNames.set(String(id).toLowerCase(), friend.getName());
-        results.push({ ...serializeFriend(friend, { id }), onlineStatus: online(id, Boolean(friend.online)), ...rights(buddy) });
+        results.push({
+          ...serializeFriend(friend, { id }),
+          onlineStatus: online(id, Boolean(friend.online)),
+          ...rights(buddy),
+        });
       } else if (known) {
-        results.push({ id, name: known, onlineStatus: online(id, Boolean(friend?.online)), ...rights(buddy) });
+        results.push({
+          id,
+          name: known,
+          onlineStatus: online(id, Boolean(friend?.online)),
+          ...rights(buddy),
+        });
       } else {
         unresolved.push(buddy.buddyID);
       }
     }
 
-    const nameOf = (res) => res.getName?.() || `${res.getFirstName?.() || ''} ${res.getLastName?.() || ''}`.trim();
+    const nameOf = (res) =>
+      res.getName?.() || `${res.getFirstName?.() || ''} ${res.getLastName?.() || ''}`.trim();
     const names = new Map();
     const grid = bot.clientCommands?.grid;
     if (unresolved.length && grid) {
@@ -904,10 +1187,14 @@ class ViewerSession {
           }
         } catch (error) {
           // One unknown key fails the whole batch, so ask for each friend on its own.
-          console.warn('[SL Session] avatarKey2Name batch resolution warning:', error?.message || error);
+          console.warn(
+            '[SL Session] avatarKey2Name batch resolution warning:',
+            error?.message || error,
+          );
           const singles = await Promise.allSettled(batch.map((key) => grid.avatarKey2Name(key)));
           singles.forEach((single, index) => {
-            if (single.status === 'fulfilled' && single.value) names.set(batch[index].toString().toLowerCase(), nameOf(single.value));
+            if (single.status === 'fulfilled' && single.value)
+              names.set(batch[index].toString().toLowerCase(), nameOf(single.value));
           });
         }
       }
@@ -930,7 +1217,9 @@ class ViewerSession {
     const bot = this.requireBot();
     if (!bot.clientCommands?.agent) return [];
     try {
-      const raw = await bot.clientCommands.agent.getAvatarGroups(this.identity.agentId || bot.agent?.agentID);
+      const raw = await bot.clientCommands.agent.getAvatarGroups(
+        this.identity.agentId || bot.agent?.agentID,
+      );
       return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).map((group) => ({
         id: group.GroupID?.toString?.() || String(group.GroupID),
         name: group.GroupName || 'Group',
@@ -945,14 +1234,41 @@ class ViewerSession {
   }
 
   async getGroupDetails({ groupId, section = 'profile' } = {}) {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || '')) throw new Error('Valid group ID required');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || ''))
+      throw new Error('Valid group ID required');
     const groups = this.requireBot().clientCommands?.groups;
     if (!groups) throw new Error('Group interface unavailable');
-    if (section === 'members') return (await groups.getMemberList(groupId)).map(m => ({ id: m.AgentID.toString(), title: m.Title, onlineStatus: m.OnlineStatus, isOwner: m.IsOwner, powers: m.AgentPowers?.toString() }));
-    if (section === 'roles') return (await groups.getGroupRoles(groupId)).map(r => ({ id: r.RoleID.toString(), name: r.Name, title: r.Title, description: r.Description, memberCount: r.Members, powers: r.Powers?.toString() }));
+    if (section === 'members')
+      return (await groups.getMemberList(groupId)).map((m) => ({
+        id: m.AgentID.toString(),
+        title: m.Title,
+        onlineStatus: m.OnlineStatus,
+        isOwner: m.IsOwner,
+        powers: m.AgentPowers?.toString(),
+      }));
+    if (section === 'roles')
+      return (await groups.getGroupRoles(groupId)).map((r) => ({
+        id: r.RoleID.toString(),
+        name: r.Name,
+        title: r.Title,
+        description: r.Description,
+        memberCount: r.Members,
+        powers: r.Powers?.toString(),
+      }));
     if (section !== 'profile') throw new Error('Unknown group detail section');
     const g = await groups.getGroupProfile(groupId);
-    return { id: g.GroupID.toString(), name: g.Name, charter: g.Charter, title: g.MemberTitle, insignia: g.InsigniaID?.toString(), founderId: g.FounderID?.toString(), membershipFee: g.MembershipFee, openEnrollment: g.OpenEnrollment, members: g.GroupMembershipCount, roleCount: g.GroupRolesCount };
+    return {
+      id: g.GroupID.toString(),
+      name: g.Name,
+      charter: g.Charter,
+      title: g.MemberTitle,
+      insignia: g.InsigniaID?.toString(),
+      founderId: g.FounderID?.toString(),
+      membershipFee: g.MembershipFee,
+      openEnrollment: g.OpenEnrollment,
+      members: g.GroupMembershipCount,
+      roleCount: g.GroupRolesCount,
+    };
   }
 
   async getInventory({ folderId } = {}) {
@@ -968,18 +1284,36 @@ class ViewerSession {
       try {
         const skeletonFolder = bot.agent?.inventory?.main?.skeleton?.get(folderId);
         folder = skeletonFolder || root.findFolder(new UUID(folderId)) || root;
-      } catch { /* fall back to the root */ }
+      } catch {
+        /* fall back to the root */
+      }
     }
-    try { await folder.populate(); } catch (error) { console.warn('[SL Inventory] folder.populate warning:', error); }
+    try {
+      await folder.populate();
+    } catch (error) {
+      console.warn('[SL Inventory] folder.populate warning:', error);
+    }
 
-    const toFolder = (f) => ({ id: f.folderID?.toString(), name: f.name || 'Unnamed Folder', parent: f.parentID?.toString(), typeDefault: f.typeDefault, folder: true });
+    const toFolder = (f) => ({
+      id: f.folderID?.toString(),
+      name: f.name || 'Unnamed Folder',
+      parent: f.parentID?.toString(),
+      typeDefault: f.typeDefault,
+      folder: true,
+    });
     const skeleton = bot.agent?.inventory?.main?.skeleton;
-    const folders = skeleton && (!folderId || folderId === rootId)
-      ? Array.from(skeleton.values()).map(toFolder)
-      : (folder.getChildFolders() || []).map(toFolder);
+    const folders =
+      skeleton && (!folderId || folderId === rootId)
+        ? Array.from(skeleton.values()).map(toFolder)
+        : (folder.getChildFolders() || []).map(toFolder);
     const items = (folder.items || []).map((item) => ({
-      id: item.itemID?.toString(), name: item.name || 'Unnamed Item', parent: item.parentID?.toString(),
-      assetType: item.assetType, inventoryType: item.inventoryType, description: item.description || '', folder: false,
+      id: item.itemID?.toString(),
+      name: item.name || 'Unnamed Item',
+      parent: item.parentID?.toString(),
+      assetType: item.assetType,
+      inventoryType: item.inventoryType,
+      description: item.description || '',
+      folder: false,
     }));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
   }
@@ -993,13 +1327,37 @@ class ViewerSession {
     const bot = this.requireBot();
     const agent = bot.clientCommands?.agent;
     if (!agent?.getWearables) throw new Error('Second Life outfit interface unavailable');
-    const WEARABLE_TYPES = ['Shape', 'Skin', 'Hair', 'Eyes', 'Shirt', 'Pants', 'Shoes', 'Socks', 'Jacket', 'Gloves', 'Undershirt', 'Underpants', 'Skirt', 'Alpha', 'Tattoo', 'Physics', 'Universal'];
+    const WEARABLE_TYPES = [
+      'Shape',
+      'Skin',
+      'Hair',
+      'Eyes',
+      'Shirt',
+      'Pants',
+      'Shoes',
+      'Socks',
+      'Jacket',
+      'Gloves',
+      'Undershirt',
+      'Underpants',
+      'Skirt',
+      'Alpha',
+      'Tattoo',
+      'Physics',
+      'Universal',
+    ];
     const BODY_PARTS = new Set(['Shape', 'Skin', 'Hair', 'Eyes']);
     const folder = await agent.getWearables();
     const worn = (folder.items || []).map((item) => {
       const isWearable = item.inventoryType === 18;
       const wearableType = isWearable ? WEARABLE_TYPES[Number(item.flags) & 0xff] : undefined;
-      const kind = isWearable ? (BODY_PARTS.has(wearableType) ? 'body' : 'clothing') : (item.inventoryType === 6 ? 'attachment' : 'other');
+      const kind = isWearable
+        ? BODY_PARTS.has(wearableType)
+          ? 'body'
+          : 'clothing'
+        : item.inventoryType === 6
+          ? 'attachment'
+          : 'other';
       return {
         id: item.itemID?.toString(),
         linkedId: item.assetID?.toString(),
@@ -1014,10 +1372,12 @@ class ViewerSession {
 
     const outfits = [];
     const skeleton = bot.agent?.inventory?.main?.skeleton;
-    const myOutfits = skeleton && Array.from(skeleton.values()).find((f) => f.typeDefault === FolderType.MyOutfits);
+    const myOutfits =
+      skeleton && Array.from(skeleton.values()).find((f) => f.typeDefault === FolderType.MyOutfits);
     if (myOutfits) {
       for (const f of skeleton.values()) {
-        if (f.parentID?.toString() === myOutfits.folderID?.toString()) outfits.push({ id: f.folderID?.toString(), name: f.name || 'Unnamed Outfit' });
+        if (f.parentID?.toString() === myOutfits.folderID?.toString())
+          outfits.push({ id: f.folderID?.toString(), name: f.name || 'Unnamed Outfit' });
       }
     }
     return { folderId: folder.folderID?.toString(), items: worn, outfits };
@@ -1027,7 +1387,16 @@ class ViewerSession {
 
   getDiagnostics() {
     if (!this.bot) {
-      return { connected: false, state: 'DISCONNECTED', latencyMs: null, packetLossPct: null, capabilities: 0, circuitCode: null, simAddress: '', simPort: null };
+      return {
+        connected: false,
+        state: 'DISCONNECTED',
+        latencyMs: null,
+        packetLossPct: null,
+        capabilities: 0,
+        circuitCode: null,
+        simAddress: '',
+        simPort: null,
+      };
     }
     const region = this.currentRegion();
     const circuit = region?.circuit;
@@ -1100,12 +1469,18 @@ class ViewerSession {
       msg.QueryData = {
         QueryID: queryID,
         QueryText: Utils.StringToBuffer(query),
-        QueryFlags: DirFindFlags.People | DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
+        QueryFlags:
+          DirFindFlags.People |
+          DirFindFlags.IncludePG |
+          DirFindFlags.IncludeMature |
+          DirFindFlags.IncludeAdult,
         QueryStart: start,
       };
       circuit.sendMessage(msg, PacketFlags.Reliable);
       const reply = await circuit.waitForMessage(Message.DirPeopleReply, 10000, (dpr) => {
-        return dpr.QueryData?.QueryID?.equals(queryID) ? FilterResponse.Finish : FilterResponse.NoMatch;
+        return dpr.QueryData?.QueryID?.equals(queryID)
+          ? FilterResponse.Finish
+          : FilterResponse.NoMatch;
       });
       const results = [];
       for (const p of reply.QueryReplies || []) {
@@ -1113,7 +1488,8 @@ class ViewerSession {
         const firstName = Utils.BufferToStringSimple(p.FirstName || '');
         const lastName = Utils.BufferToStringSimple(p.LastName || '');
         const group = Utils.BufferToStringSimple(p.Group || '');
-        const username = lastName && lastName !== 'Resident' ? `${firstName} ${lastName}` : firstName;
+        const username =
+          lastName && lastName !== 'Resident' ? `${firstName} ${lastName}` : firstName;
         const displayName = `${firstName} ${lastName}`.trim();
         results.push({
           id: p.AgentID.toString(),
@@ -1184,7 +1560,11 @@ class ViewerSession {
 
   async close() {
     for (const subscription of this.subscriptions.splice(0)) {
-      try { subscription.unsubscribe(); } catch { /* already gone */ }
+      try {
+        subscription.unsubscribe();
+      } catch {
+        /* already gone */
+      }
     }
     this.appearanceWatcher = null;
     this.assetRequests.clear();
@@ -1195,8 +1575,20 @@ class ViewerSession {
     if (!this.bot) return;
     const bot = this.bot;
     this.bot = null;
-    try { await bot.close(); } catch { /* circuit may already be closed */ }
+    try {
+      await bot.close();
+    } catch {
+      /* circuit may already be closed */
+    }
   }
 }
 
-module.exports = { ViewerSession, serializeObject, serializeEnvironment, serializeTerrain, serializeFriend, serializeTerrainMaterials, PCode };
+module.exports = {
+  ViewerSession,
+  serializeObject,
+  serializeEnvironment,
+  serializeTerrain,
+  serializeFriend,
+  serializeTerrainMaterials,
+  PCode,
+};

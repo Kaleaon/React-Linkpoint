@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { clampJointIndices, maxSkinJoints, packJointRows, skinnedVertexShader, SL_MAX_RIGGED_JOINTS } from '../skinning';
+import {
+  clampJointIndices,
+  maxSkinJoints,
+  packJointRows,
+  skinnedVertexShader,
+  SL_MAX_RIGGED_JOINTS,
+} from '../skinning';
 import { compose } from '../avatar-skeleton';
 
 describe('GPU skinning helpers', () => {
@@ -21,9 +27,15 @@ describe('GPU skinning helpers', () => {
     const rows = packJointRows([m], 2);
     expect(rows).toHaveLength(24);
     // row 0 = (m00, m01, m02, tx): rotating +X to +Y means row0 = (0, -1, 0, 1)
-    expect(Array.from(rows.slice(0, 4)).map((v) => Math.round(v * 1e4) / 1e4 + 0)).toEqual([0, -1, 0, 1]);
-    expect(Array.from(rows.slice(4, 8)).map((v) => Math.round(v * 1e4) / 1e4 + 0)).toEqual([1, 0, 0, 2]);
-    expect(Array.from(rows.slice(8, 12)).map((v) => Math.round(v * 1e4) / 1e4 + 0)).toEqual([0, 0, 1, 3]);
+    expect(Array.from(rows.slice(0, 4)).map((v) => Math.round(v * 1e4) / 1e4 + 0)).toEqual([
+      0, -1, 0, 1,
+    ]);
+    expect(Array.from(rows.slice(4, 8)).map((v) => Math.round(v * 1e4) / 1e4 + 0)).toEqual([
+      1, 0, 0, 2,
+    ]);
+    expect(Array.from(rows.slice(8, 12)).map((v) => Math.round(v * 1e4) / 1e4 + 0)).toEqual([
+      0, 0, 1, 3,
+    ]);
   });
 
   it('fills unused joint slots with identity and ignores malformed matrices', () => {
@@ -33,7 +45,12 @@ describe('GPU skinning helpers', () => {
   });
 
   it('drops joints beyond the uniform budget', () => {
-    expect(packJointRows(Array.from({ length: 5 }, () => compose([9, 9, 9])), 2)).toHaveLength(24);
+    expect(
+      packJointRows(
+        Array.from({ length: 5 }, () => compose([9, 9, 9])),
+        2,
+      ),
+    ).toHaveLength(24);
   });
 
   it('clamps out-of-range or non-integer joint indices to joint 0', () => {

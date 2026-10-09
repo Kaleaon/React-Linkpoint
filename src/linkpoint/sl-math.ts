@@ -16,9 +16,17 @@ export const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] +
 export const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const scale = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k];
 export const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-export const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+export const cross = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
 export const length = (a: Vec3) => Math.hypot(a[0], a[1], a[2]);
-export const lerpVec = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+export const lerpVec = (a: Vec3, b: Vec3, t: number): Vec3 => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
 
 /** The viewer's `normVec`: leaves a near-zero vector unchanged. */
 export function normalize(a: Vec3): Vec3 {
@@ -33,14 +41,19 @@ export function rotate(v: Vec3, q: Readonly<Quat>): Vec3 {
   const rx = qw * v[0] + qy * v[2] - qz * v[1];
   const ry = qw * v[1] + qz * v[0] - qx * v[2];
   const rz = qw * v[2] + qx * v[1] - qy * v[0];
-  return [-rw * qx + rx * qw - ry * qz + rz * qy, -rw * qy + ry * qw - rz * qx + rx * qz, -rw * qz + rz * qw - rx * qy + ry * qx];
+  return [
+    -rw * qx + rx * qw - ry * qz + rz * qy,
+    -rw * qy + ry * qw - rz * qx + rx * qz,
+    -rw * qz + rz * qw - rx * qy + ry * qx,
+  ];
 }
 
 /** The viewer's `LLQuaternion(angle, axis)`. */
 export function axisAngle(angle: number, axis: Vec3): Quat {
   const mag = length(axis);
   if (mag <= FP_MAG_THRESHOLD) return [...IDENTITY] as Quat;
-  const half = angle * 0.5, s = Math.sin(half) / mag;
+  const half = angle * 0.5,
+    s = Math.sin(half) / mag;
   return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(half)];
 }
 
@@ -68,7 +81,8 @@ export function shortestArc(a: Vec3, b: Vec3): Quat {
       const m = 1 / Math.sqrt(cc + s * s);
       return [c[0] * m, c[1] * m, c[2] * m, s * m];
     }
-    if (ab < 0) { // anti-parallel: choose an axis in the XY plane
+    if (ab < 0) {
+      // anti-parallel: choose an axis in the XY plane
       const d = sub(a, b);
       const m = Math.hypot(d[0], d[1]);
       if (m > FP_MAG_THRESHOLD) return [-d[1] / m, d[0] / m, 0, 0];
@@ -82,8 +96,12 @@ export function shortestArc(a: Vec3, b: Vec3): Quat {
 export function angleAxis(q: Readonly<Quat>): { angle: number; axis: Vec3 } {
   const v = Math.hypot(q[0], q[1], q[2]);
   if (v > FP_MAG_THRESHOLD) {
-    let oomag = 1 / v, w = q[3];
-    if (q[3] < 0) { w = -w; oomag = -oomag; }
+    let oomag = 1 / v,
+      w = q[3];
+    if (q[3] < 0) {
+      w = -w;
+      oomag = -oomag;
+    }
     return { angle: 2 * Math.atan2(v, w), axis: [q[0] * oomag, q[1] * oomag, q[2] * oomag] };
   }
   return { angle: 0, axis: [0, 0, 1] };
@@ -93,14 +111,25 @@ export function angleAxis(q: Readonly<Quat>): { angle: number; axis: Vec3 } {
 export function slerp(u: number, a: Readonly<Quat>, b: Readonly<Quat>): Quat {
   let cos = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
   let flip = false;
-  if (cos < 0) { cos = -cos; flip = true; }
+  if (cos < 0) {
+    cos = -cos;
+    flip = true;
+  }
   let alpha: number, beta: number;
-  if (1 - cos < 0.00001) { beta = 1 - u; alpha = u; }
-  else {
-    const theta = Math.acos(cos), sin = Math.sin(theta);
+  if (1 - cos < 0.00001) {
+    beta = 1 - u;
+    alpha = u;
+  } else {
+    const theta = Math.acos(cos),
+      sin = Math.sin(theta);
     beta = Math.sin(theta - u * theta) / sin;
     alpha = Math.sin(u * theta) / sin;
   }
   if (flip) beta = -beta;
-  return [beta * a[0] + alpha * b[0], beta * a[1] + alpha * b[1], beta * a[2] + alpha * b[2], beta * a[3] + alpha * b[3]];
+  return [
+    beta * a[0] + alpha * b[0],
+    beta * a[1] + alpha * b[1],
+    beta * a[2] + alpha * b[2],
+    beta * a[3] + alpha * b[3],
+  ];
 }

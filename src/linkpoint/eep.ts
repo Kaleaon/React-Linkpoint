@@ -98,7 +98,12 @@ function pick(frame: Raw | null | undefined, ...keys: string[]): any {
 }
 
 function vec3(value: any, fallback: Vec3): Vec3 {
-  if (Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every((v) => finite(Number(v)))) return [Number(value[0]), Number(value[1]), Number(value[2])];
+  if (
+    Array.isArray(value) &&
+    value.length >= 3 &&
+    value.slice(0, 3).every((v) => finite(Number(v)))
+  )
+    return [Number(value[0]), Number(value[1]), Number(value[2])];
   if (value && typeof value === 'object' && 'x' in value) {
     const v: Vec3 = [Number(value.x), Number(value.y), Number(value.z)];
     if (v.every(finite)) return v;
@@ -107,15 +112,18 @@ function vec3(value: any, fallback: Vec3): Vec3 {
 }
 function num(value: any, fallback: number): number {
   const n = Array.isArray(value) ? Number(value[0]) : Number(value);
-  return value === undefined || value === null || value === '' || !Number.isFinite(n) ? fallback : n;
+  return value === undefined || value === null || value === '' || !Number.isFinite(n)
+    ? fallback
+    : n;
 }
 function quat(value: any, fallback: Quat): Quat {
   let q: number[] | null = null;
   if (Array.isArray(value) && value.length >= 4) q = value.slice(0, 4).map(Number);
-  else if (value && typeof value === 'object' && 'w' in value) q = [Number(value.x), Number(value.y), Number(value.z), Number(value.w)];
+  else if (value && typeof value === 'object' && 'w' in value)
+    q = [Number(value.x), Number(value.y), Number(value.z), Number(value.w)];
   if (!q || !q.every(Number.isFinite)) return [...fallback] as Quat;
   const n = Math.hypot(...q);
-  return n > 1e-9 ? [q[0] / n, q[1] / n, q[2] / n, q[3] / n] : [...fallback] as Quat;
+  return n > 1e-9 ? [q[0] / n, q[1] / n, q[2] / n, q[3] / n] : ([...fallback] as Quat);
 }
 
 /** Normalise a raw sky frame (any key spelling, haze values nested or not) to a full set of settings. */
@@ -149,7 +157,9 @@ export function normalizeSky(frame: Raw | null | undefined): SkySettings {
 export function normalizeWater(frame: Raw | null | undefined): WaterSettings {
   const d = DEFAULT_WATER;
   const dir = (value: any, fallback: [number, number]): [number, number] =>
-    Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v) => finite(Number(v))) ? [Number(value[0]), Number(value[1])] : [...fallback] as [number, number];
+    Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v) => finite(Number(v)))
+      ? [Number(value[0]), Number(value[1])]
+      : ([...fallback] as [number, number]);
   const id = pick(frame, 'normalMap', 'normal_map');
   // node-metaverse UUIDs serialise as { mUUID: '...' }
   const raw = id && typeof id === 'object' && 'mUUID' in id ? id.mUUID : id;
@@ -173,44 +183,79 @@ export function normalizeWater(frame: Raw | null | undefined): WaterSettings {
 // ---- blending ---------------------------------------------------------------------------------------
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
+  lerp(a[0], b[0], t),
+  lerp(a[1], b[1], t),
+  lerp(a[2], b[2], t),
+];
 
 export function slerp(a: Quat, b: Quat, t: number): Quat {
   let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
   const bb: Quat = dot < 0 ? [-b[0], -b[1], -b[2], -b[3]] : b;
   dot = Math.abs(dot);
   if (dot > 0.9995) {
-    const q: Quat = [lerp(a[0], bb[0], t), lerp(a[1], bb[1], t), lerp(a[2], bb[2], t), lerp(a[3], bb[3], t)];
+    const q: Quat = [
+      lerp(a[0], bb[0], t),
+      lerp(a[1], bb[1], t),
+      lerp(a[2], bb[2], t),
+      lerp(a[3], bb[3], t),
+    ];
     const n = Math.hypot(...q);
     return [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
   }
   const theta = Math.acos(Math.min(1, dot));
   const s = Math.sin(theta);
-  const wa = Math.sin((1 - t) * theta) / s, wb = Math.sin(t * theta) / s;
-  return [a[0] * wa + bb[0] * wb, a[1] * wa + bb[1] * wb, a[2] * wa + bb[2] * wb, a[3] * wa + bb[3] * wb];
+  const wa = Math.sin((1 - t) * theta) / s,
+    wb = Math.sin(t * theta) / s;
+  return [
+    a[0] * wa + bb[0] * wb,
+    a[1] * wa + bb[1] * wb,
+    a[2] * wa + bb[2] * wb,
+    a[3] * wa + bb[3] * wb,
+  ];
 }
 
 export function blendSky(a: SkySettings, b: SkySettings, t: number): SkySettings {
   return {
-    sunlightColor: lerp3(a.sunlightColor, b.sunlightColor, t), ambient: lerp3(a.ambient, b.ambient, t),
-    blueHorizon: lerp3(a.blueHorizon, b.blueHorizon, t), blueDensity: lerp3(a.blueDensity, b.blueDensity, t),
-    hazeHorizon: lerp(a.hazeHorizon, b.hazeHorizon, t), hazeDensity: lerp(a.hazeDensity, b.hazeDensity, t),
-    densityMultiplier: lerp(a.densityMultiplier, b.densityMultiplier, t), distanceMultiplier: lerp(a.distanceMultiplier, b.distanceMultiplier, t),
-    maxY: lerp(a.maxY, b.maxY, t), glow: lerp3(a.glow, b.glow, t), cloudShadow: lerp(a.cloudShadow, b.cloudShadow, t), gamma: lerp(a.gamma, b.gamma, t),
-    sunRotation: slerp(a.sunRotation, b.sunRotation, t), moonRotation: slerp(a.moonRotation, b.moonRotation, t),
-    moonBrightness: lerp(a.moonBrightness, b.moonBrightness, t), starBrightness: lerp(a.starBrightness, b.starBrightness, t),
-    sunScale: lerp(a.sunScale, b.sunScale, t), moonScale: lerp(a.moonScale, b.moonScale, t), cloudColor: lerp3(a.cloudColor, b.cloudColor, t),
+    sunlightColor: lerp3(a.sunlightColor, b.sunlightColor, t),
+    ambient: lerp3(a.ambient, b.ambient, t),
+    blueHorizon: lerp3(a.blueHorizon, b.blueHorizon, t),
+    blueDensity: lerp3(a.blueDensity, b.blueDensity, t),
+    hazeHorizon: lerp(a.hazeHorizon, b.hazeHorizon, t),
+    hazeDensity: lerp(a.hazeDensity, b.hazeDensity, t),
+    densityMultiplier: lerp(a.densityMultiplier, b.densityMultiplier, t),
+    distanceMultiplier: lerp(a.distanceMultiplier, b.distanceMultiplier, t),
+    maxY: lerp(a.maxY, b.maxY, t),
+    glow: lerp3(a.glow, b.glow, t),
+    cloudShadow: lerp(a.cloudShadow, b.cloudShadow, t),
+    gamma: lerp(a.gamma, b.gamma, t),
+    sunRotation: slerp(a.sunRotation, b.sunRotation, t),
+    moonRotation: slerp(a.moonRotation, b.moonRotation, t),
+    moonBrightness: lerp(a.moonBrightness, b.moonBrightness, t),
+    starBrightness: lerp(a.starBrightness, b.starBrightness, t),
+    sunScale: lerp(a.sunScale, b.sunScale, t),
+    moonScale: lerp(a.moonScale, b.moonScale, t),
+    cloudColor: lerp3(a.cloudColor, b.cloudColor, t),
   };
 }
 
 export function blendWater(a: WaterSettings, b: WaterSettings, t: number): WaterSettings {
-  const lerp2 = (x: [number, number], y: [number, number]): [number, number] => [lerp(x[0], y[0], t), lerp(x[1], y[1], t)];
+  const lerp2 = (x: [number, number], y: [number, number]): [number, number] => [
+    lerp(x[0], y[0], t),
+    lerp(x[1], y[1], t),
+  ];
   return {
-    fogColor: lerp3(a.fogColor, b.fogColor, t), fogDensity: lerp(a.fogDensity, b.fogDensity, t), fogMod: lerp(a.fogMod, b.fogMod, t),
-    fresnelOffset: lerp(a.fresnelOffset, b.fresnelOffset, t), fresnelScale: lerp(a.fresnelScale, b.fresnelScale, t),
-    blurMultiplier: lerp(a.blurMultiplier, b.blurMultiplier, t), normalScale: lerp3(a.normalScale, b.normalScale, t),
-    scaleAbove: lerp(a.scaleAbove, b.scaleAbove, t), scaleBelow: lerp(a.scaleBelow, b.scaleBelow, t),
-    wave1Direction: lerp2(a.wave1Direction, b.wave1Direction), wave2Direction: lerp2(a.wave2Direction, b.wave2Direction),
+    fogColor: lerp3(a.fogColor, b.fogColor, t),
+    fogDensity: lerp(a.fogDensity, b.fogDensity, t),
+    fogMod: lerp(a.fogMod, b.fogMod, t),
+    fresnelOffset: lerp(a.fresnelOffset, b.fresnelOffset, t),
+    fresnelScale: lerp(a.fresnelScale, b.fresnelScale, t),
+    blurMultiplier: lerp(a.blurMultiplier, b.blurMultiplier, t),
+    normalScale: lerp3(a.normalScale, b.normalScale, t),
+    scaleAbove: lerp(a.scaleAbove, b.scaleAbove, t),
+    scaleBelow: lerp(a.scaleBelow, b.scaleBelow, t),
+    wave1Direction: lerp2(a.wave1Direction, b.wave1Direction),
+    wave2Direction: lerp2(a.wave2Direction, b.wave2Direction),
     normalMapId: t < 0.5 ? a.normalMapId : b.normalMapId,
   };
 }
@@ -224,7 +269,10 @@ export function dayFraction(nowSeconds: number, dayLength: number, dayOffset = 0
   return t / length;
 }
 
-interface Keyframe { time: number; frame: Raw }
+interface Keyframe {
+  time: number;
+  frame: Raw;
+}
 
 function trackKeyframes(cycle: Raw, trackIndex: number): Keyframe[] {
   const track = cycle?.tracks?.[trackIndex];
@@ -244,17 +292,38 @@ function trackKeyframes(cycle: Raw, trackIndex: number): Keyframe[] {
  * Raw frames either side of `fraction` on a track, and how far between them (0..1), wrapping around the
  * day. Returns null when the track has no keyframes.
  */
-export function bracket(cycle: Raw, trackIndex: number, fraction: number): { a: Raw; b: Raw; t: number } | null {
+export function bracket(
+  cycle: Raw,
+  trackIndex: number,
+  fraction: number,
+): { a: Raw; b: Raw; t: number } | null {
   const keys = trackKeyframes(cycle, trackIndex);
   if (!keys.length) return null;
   if (keys.length === 1) return { a: keys[0].frame, b: keys[0].frame, t: 0 };
-  let next = keys.findIndex((k) => k.time > fraction);
+  const next = keys.findIndex((k) => k.time > fraction);
   let prev: Keyframe, after: Keyframe, span: number, into: number;
-  if (next === -1) { prev = keys[keys.length - 1]; after = keys[0]; span = 1 - prev.time + after.time; into = fraction - prev.time; }
-  else if (next === 0) { prev = keys[keys.length - 1]; after = keys[0]; span = 1 - prev.time + after.time; into = fraction + 1 - prev.time; }
-  else { prev = keys[next - 1]; after = keys[next]; span = after.time - prev.time; into = fraction - prev.time; }
+  if (next === -1) {
+    prev = keys[keys.length - 1];
+    after = keys[0];
+    span = 1 - prev.time + after.time;
+    into = fraction - prev.time;
+  } else if (next === 0) {
+    prev = keys[keys.length - 1];
+    after = keys[0];
+    span = 1 - prev.time + after.time;
+    into = fraction + 1 - prev.time;
+  } else {
+    prev = keys[next - 1];
+    after = keys[next];
+    span = after.time - prev.time;
+    into = fraction - prev.time;
+  }
   void next;
-  return { a: prev.frame, b: after.frame, t: span > 1e-9 ? Math.min(1, Math.max(0, into / span)) : 0 };
+  return {
+    a: prev.frame,
+    b: after.frame,
+    t: span > 1e-9 ? Math.min(1, Math.max(0, into / span)) : 0,
+  };
 }
 
 /** Sky for the ground-level sky track (track 1) at a point in the day. Falls back to the first sky frame, then defaults. */
@@ -264,8 +333,11 @@ export function skyAt(cycle: Raw | null | undefined, fraction: number): SkySetti
     const span = bracket(cycle, track, fraction);
     if (span) return blendSky(normalizeSky(span.a), normalizeSky(span.b), span.t);
   }
-  const frames = cycle.frames instanceof Map ? [...cycle.frames.values()] : Object.values(cycle.frames || {});
-  const sky = frames.find((frame: any) => pick(frame, 'type') === 'sky' || pick(frame, 'sunlightColor', 'sunlight_color'));
+  const frames =
+    cycle.frames instanceof Map ? [...cycle.frames.values()] : Object.values(cycle.frames || {});
+  const sky = frames.find(
+    (frame: any) => pick(frame, 'type') === 'sky' || pick(frame, 'sunlightColor', 'sunlight_color'),
+  );
   return sky ? normalizeSky(sky as Raw) : { ...DEFAULT_SKY };
 }
 
@@ -274,8 +346,12 @@ export function waterAt(cycle: Raw | null | undefined, fraction: number): WaterS
   if (cycle) {
     const span = bracket(cycle, 0, fraction);
     if (span) return blendWater(normalizeWater(span.a), normalizeWater(span.b), span.t);
-    const frames = cycle.frames instanceof Map ? [...cycle.frames.values()] : Object.values(cycle.frames || {});
-    const water = frames.find((frame: any) => pick(frame, 'type') === 'water' || pick(frame, 'waterFogColor', 'water_fog_color'));
+    const frames =
+      cycle.frames instanceof Map ? [...cycle.frames.values()] : Object.values(cycle.frames || {});
+    const water = frames.find(
+      (frame: any) =>
+        pick(frame, 'type') === 'water' || pick(frame, 'waterFogColor', 'water_fog_color'),
+    );
     if (water) return normalizeWater(water as Raw);
   }
   return { ...DEFAULT_WATER };
@@ -318,21 +394,38 @@ export function skyState(sky: SkySettings, directions: { sun?: Vec3; moon?: Vec3
   };
   const sunDirection = unit(directions.sun) ?? directionFrom(sky.sunRotation);
   const moonDirection = unit(directions.moon) ?? directionFrom(sky.moonRotation);
-  const sunUp = sunDirection[2] >= 0, moonUp = moonDirection[2] >= 0;
+  const sunUp = sunDirection[2] >= 0,
+    moonUp = moonDirection[2] >= 0;
   const lightDirection = sunUp ? sunDirection : moonDirection; // the viewer takes the moon when the sun is down
   const sunMoonGlowFactor = sunUp ? 1 : moonUp ? sky.moonBrightness * 0.25 : 0;
 
-  const lightAtten: Vec3 = sky.blueDensity.map((b) => (b + sky.hazeDensity * 0.25) * sky.densityMultiplier * sky.maxY) as Vec3;
-  const transmittance: Vec3 = sky.blueDensity.map((b) => Math.exp(-(b + sky.hazeDensity) * sky.densityMultiplier * sky.maxY)) as Vec3;
+  const lightAtten: Vec3 = sky.blueDensity.map(
+    (b) => (b + sky.hazeDensity * 0.25) * sky.densityMultiplier * sky.maxY,
+  ) as Vec3;
+  const transmittance: Vec3 = sky.blueDensity.map((b) =>
+    Math.exp(-(b + sky.hazeDensity) * sky.densityMultiplier * sky.maxY),
+  ) as Vec3;
   let lighty = Math.abs(lightDirection[2]);
   if (lighty >= LIGHT_LIMIT) lighty = 1 / lighty;
   lighty = Math.max(LIGHT_LIMIT, lighty);
 
-  const attenuate = (color: Vec3): Vec3 => color.map((c, i) => c * Math.exp(-lightAtten[i] * lighty) * transmittance[i]) as Vec3;
+  const attenuate = (color: Vec3): Vec3 =>
+    color.map((c, i) => c * Math.exp(-lightAtten[i] * lighty) * transmittance[i]) as Vec3;
   const sunDiffuse = attenuate(sky.sunlightColor);
   const sunAmbient = sky.ambient.map((a) => a + (1 - a) * sky.cloudShadow * 0.5) as Vec3;
   const moonBrightness = moonUp ? sky.moonBrightness : 0.001;
   const moonDiffuse = attenuate(sky.sunlightColor).map((c) => c * moonBrightness) as Vec3; // the moon shares the sunlight colour
   const moonAmbient: Vec3 = [0.66 * 0.0125, 0.66 * 0.0125, 1.2 * 0.0125];
-  return { sunDirection, moonDirection, sunUp, moonUp, lightDirection, sunMoonGlowFactor, sunDiffuse, sunAmbient, moonDiffuse, moonAmbient };
+  return {
+    sunDirection,
+    moonDirection,
+    sunUp,
+    moonUp,
+    lightDirection,
+    sunMoonGlowFactor,
+    sunDiffuse,
+    sunAmbient,
+    moonDiffuse,
+    moonAmbient,
+  };
 }

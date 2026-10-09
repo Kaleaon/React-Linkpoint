@@ -1,9 +1,9 @@
-import { useTheme } from "../context/ThemeContext.jsx";
-import { cardLooks, cardAccentStyle, actionButtonStyle } from "../theme/look.js";
-import Icon from "./Icon.jsx";
-import Toggle from "./Toggle.jsx";
-import { Card as SystemCard } from "@linkpoint/design-system/react";
-import { LAYOUTS, PALETTES } from "@linkpoint/design-system/tokens";
+import { useTheme } from '../context/ThemeContext.jsx';
+import { cardLooks, cardAccentStyle, actionButtonStyle } from '../theme/look.js';
+import Icon from './Icon.jsx';
+import Toggle from './Toggle.jsx';
+import { Card as SystemCard } from '@linkpoint/design-system/react';
+import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
 
 // Ported from the CARDS.map(...) block + the `isCards` template section
 // (sc-if value="{{ isCards }}"). One card renders: icon+title+right/badge/
@@ -18,23 +18,44 @@ export default function Card({ c }) {
   // sections instead of thirty identical boxes.
   if (c.sect) {
     return (
-      <div style={{ border: "none", borderRadius: 0, background: "transparent", padding: LK.card === "flat" ? "18px 16px 2px" : "18px 2px 2px" }}>
-        <span style={{ font: "700 10px/1.4 " + t.font, letterSpacing: ".26em", color: V.ink2, textTransform: "uppercase" }}>{c.title}</span>
+      <div
+        style={{
+          border: 'none',
+          borderRadius: 0,
+          background: 'transparent',
+          padding: LK.card === 'flat' ? '18px 16px 2px' : '18px 2px 2px',
+        }}
+      >
+        <span
+          style={{
+            font: '700 10px/1.4 ' + t.font,
+            letterSpacing: '.26em',
+            color: V.ink2,
+            textTransform: 'uppercase',
+          }}
+        >
+          {c.title}
+        </span>
       </div>
     );
   }
 
-  const style = { ...(looks[LK.card] || looks.box), ...cardAccentStyle(LK.card, V, c.accent ? V[c.accent] : null) };
+  const style = {
+    ...(looks[LK.card] || looks.box),
+    ...cardAccentStyle(LK.card, V, c.accent ? V[c.accent] : null),
+  };
   const meterPct = c.meter == null ? null : Math.max(1, Math.min(100, Math.round(c.meter * 100)));
 
   return (
     <div style={style}>
-      <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
         {c.icon && <Icon name={c.icon} size={16} style={{ color: V.pri }} />}
-        <span style={{ flex: 1, font: "600 13px/1.25 " + t.font, color: V.ink }}>{c.title}</span>
-        {c.right != null && c.right !== "" && <span style={{ font: "400 10.5px/1 " + t.font, color: V.ink2 }}>{c.right}</span>}
+        <span style={{ flex: 1, font: '600 13px/1.25 ' + t.font, color: V.ink }}>{c.title}</span>
+        {c.right != null && c.right !== '' && (
+          <span style={{ font: '400 10.5px/1 ' + t.font, color: V.ink2 }}>{c.right}</span>
+        )}
         {c.rights && c.rights.length ? (
-          <span style={{ display: "flex", gap: "4px", flex: "none" }}>
+          <span style={{ display: 'flex', gap: '4px', flex: 'none' }}>
             {c.rights.map((r) => (
               <Icon key={r} name={r} size={13} style={{ color: V.sec2 }} />
             ))}
@@ -43,18 +64,18 @@ export default function Card({ c }) {
         {c.badge ? (
           <span
             style={{
-              minWidth: "20px",
-              height: "20px",
-              padding: "0 6px",
-              borderRadius: LK.card === "flat" ? "0px" : V.rs === "999px" ? "10px" : "4px",
+              minWidth: '20px',
+              height: '20px',
+              padding: '0 6px',
+              borderRadius: LK.card === 'flat' ? '0px' : V.rs === '999px' ? '10px' : '4px',
               background: V.bdg,
               color: V.onbdg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              font: "700 10px/1 " + (LK.card === "cap" || LK.card === "flat" ? t.dfont : t.font),
-              letterSpacing: LK.card === "cap" ? ".08em" : "0em",
-              textTransform: LK.card === "cap" || LK.card === "flat" ? "uppercase" : "none",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              font: '700 10px/1 ' + (LK.card === 'cap' || LK.card === 'flat' ? t.dfont : t.font),
+              letterSpacing: LK.card === 'cap' ? '.08em' : '0em',
+              textTransform: LK.card === 'cap' || LK.card === 'flat' ? 'uppercase' : 'none',
             }}
           >
             {c.badge}
@@ -72,9 +93,17 @@ export default function Card({ c }) {
               c.onChange(opt ? opt.value : e.target.value);
             }}
             style={{
-              marginLeft: "10px", background: V.surf2, color: V.ink, border: "1px solid " + V.outv,
-              borderRadius: V.rs, padding: "4px 8px", font: "400 12px/1 " + t.font,
-              maxWidth: "150px", textOverflow: "ellipsis", whiteSpace: "nowrap", overflow: "hidden",
+              marginLeft: '10px',
+              background: V.surf2,
+              color: V.ink,
+              border: '1px solid ' + V.outv,
+              borderRadius: V.rs,
+              padding: '4px 8px',
+              font: '400 12px/1 ' + t.font,
+              maxWidth: '150px',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
             }}
           >
             {(c.options || []).map((o) => (
@@ -85,15 +114,44 @@ export default function Card({ c }) {
           </select>
         ) : null}
       </div>
-      {c.body ? <div style={{ font: "400 12px/1.6 " + t.font, color: V.ink2, marginTop: "8px" }}>{c.body}</div> : null}
-      {c.big ? <div style={{ font: "700 46px/1 " + t.font, color: c.tone ? V[c.tone] : V.ok, marginTop: "6px" }}>{c.big}</div> : null}
+      {c.body ? (
+        <div style={{ font: '400 12px/1.6 ' + t.font, color: V.ink2, marginTop: '8px' }}>
+          {c.body}
+        </div>
+      ) : null}
+      {c.big ? (
+        <div
+          style={{
+            font: '700 46px/1 ' + t.font,
+            color: c.tone ? V[c.tone] : V.ok,
+            marginTop: '6px',
+          }}
+        >
+          {c.big}
+        </div>
+      ) : null}
       {meterPct != null ? (
-        <div style={{ height: "4px", borderRadius: "2px", background: V.surf2, overflow: "hidden", marginTop: "10px" }}>
-          <div style={{ width: meterPct + "%", height: "100%", background: c.meter > 0.9 ? V.err : c.meter > 0.7 ? V.sec2 : V.pri, transition: "width .2s ease" }} />
+        <div
+          style={{
+            height: '4px',
+            borderRadius: '2px',
+            background: V.surf2,
+            overflow: 'hidden',
+            marginTop: '10px',
+          }}
+        >
+          <div
+            style={{
+              width: meterPct + '%',
+              height: '100%',
+              background: c.meter > 0.9 ? V.err : c.meter > 0.7 ? V.sec2 : V.pri,
+              transition: 'width .2s ease',
+            }}
+          />
         </div>
       ) : null}
       {c.actions && c.actions.length ? (
-        <div style={{ display: "flex", gap: "8px", marginTop: "11px" }}>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '11px' }}>
           {c.actions.map((a, i) => (
             <div key={i} onClick={a.pick} style={actionButtonStyle(V, t.font, a)}>
               {a.label}

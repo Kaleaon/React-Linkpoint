@@ -25,7 +25,7 @@ describe('XMLRPCClient', () => {
         version: '2.0.0',
         macAddress: 'aa:bb:cc:dd:ee:ff',
         id0: 'custom-id0',
-        viewerDigest: 'custom-digest'
+        viewerDigest: 'custom-digest',
       };
 
       const xml = XMLRPCClient.buildLoginRequest(params);
@@ -42,11 +42,19 @@ describe('XMLRPCClient', () => {
       expect(xml).toContain('<name>start</name>\n<value><string>home</string></value>');
       expect(xml).toContain('<name>channel</name>\n<value><string>Custom Client</string></value>');
       expect(xml).toContain('<name>version</name>\n<value><string>2.0.0</string></value>');
-      expect(xml).toContain('<name>mac</name>\n<value><string>' + SparkMD5.hash('aa:bb:cc:dd:ee:ff') + '</string></value>');
+      expect(xml).toContain(
+        '<name>mac</name>\n<value><string>' +
+          SparkMD5.hash('aa:bb:cc:dd:ee:ff') +
+          '</string></value>',
+      );
       expect(xml).toContain('<name>id0</name>\n<value><string>custom-id0</string></value>');
-      expect(xml).toContain('<name>viewer_digest</name>\n<value><string>custom-digest</string></value>');
+      expect(xml).toContain(
+        '<name>viewer_digest</name>\n<value><string>custom-digest</string></value>',
+      );
       expect(xml).toContain('<name>platform</name>\n<value><string>Web</string></value>');
-      expect(xml).toContain('<name>platform_version</name>\n<value><string>Test User Agent</string></value>');
+      expect(xml).toContain(
+        '<name>platform_version</name>\n<value><string>Test User Agent</string></value>',
+      );
 
       // Verify boolean fields
       expect(xml).toContain('<name>agree_to_tos</name>\n<value><boolean>1</boolean></value>');
@@ -62,7 +70,7 @@ describe('XMLRPCClient', () => {
       const params = {
         firstName: 'Default',
         lastName: 'Avatar',
-        passwordHash: '098765fedcba'
+        passwordHash: '098765fedcba',
       };
 
       const xml = XMLRPCClient.buildLoginRequest(params);
@@ -74,42 +82,66 @@ describe('XMLRPCClient', () => {
 
       // Verify default/generated values
       expect(xml).toContain('<name>start</name>\n<value><string>last</string></value>');
-      expect(xml).toContain('<name>channel</name>\n<value><string>Linkpoint Viewer</string></value>');
+      expect(xml).toContain(
+        '<name>channel</name>\n<value><string>Linkpoint Viewer</string></value>',
+      );
       expect(xml).toContain('<name>version</name>\n<value><string>2.0.0</string></value>');
-      expect(xml).toContain('<name>mac</name>\n<value><string>' + SparkMD5.hash('00:11:22:33:44:55') + '</string></value>');
+      expect(xml).toContain(
+        '<name>mac</name>\n<value><string>' +
+          SparkMD5.hash('00:11:22:33:44:55') +
+          '</string></value>',
+      );
       expect(xml).toContain('<name>id0</name>\n<value><string>test-id0-12345</string></value>');
-      expect(xml).toContain('<name>viewer_digest</name>\n<value><string>test-digest-67890</string></value>');
+      expect(xml).toContain(
+        '<name>viewer_digest</name>\n<value><string>test-digest-67890</string></value>',
+      );
     });
 
     it('should correctly escape XML special characters in parameters', () => {
       const params = {
         firstName: 'Test & Name',
         lastName: 'User <"Tag">',
-        passwordHash: 'hash\'123',
+        passwordHash: "hash'123",
       };
 
       const xml = XMLRPCClient.buildLoginRequest(params);
 
       // Verify escaped values
       expect(xml).toContain('<name>first</name>\n<value><string>Test &amp; Name</string></value>');
-      expect(xml).toContain('<name>last</name>\n<value><string>User &lt;&quot;Tag&quot;&gt;</string></value>');
-      expect(xml).toContain('<name>passwd</name>\n<value><string>$1$hash&apos;123</string></value>');
+      expect(xml).toContain(
+        '<name>last</name>\n<value><string>User &lt;&quot;Tag&quot;&gt;</string></value>',
+      );
+      expect(xml).toContain(
+        '<name>passwd</name>\n<value><string>$1$hash&apos;123</string></value>',
+      );
     });
 
     it('supports the next_method used by indeterminate grid login replies', () => {
-      const xml = XMLRPCClient.buildLoginRequest({
-        firstName: 'Redirected',
-        lastName: 'Resident',
-        passwordHash: 'hash',
-      }, 'login_to_simulator_v2');
+      const xml = XMLRPCClient.buildLoginRequest(
+        {
+          firstName: 'Redirected',
+          lastName: 'Resident',
+          passwordHash: 'hash',
+        },
+        'login_to_simulator_v2',
+      );
       expect(xml).toContain('<methodName>login_to_simulator_v2</methodName>');
     });
   });
 
   describe('md5', () => {
     it('hashes the UTF-8 bytes of the string, matching a reference MD5', async () => {
-      for (const text of ['', 'abc', 'p\u00e4ssw\u00f6rd', '\u20ac uro', '\ud83d\ude00 emoji', 'a'.repeat(5000)]) {
-        expect(await XMLRPCClient.md5(text)).toBe(createHash('md5').update(text, 'utf8').digest('hex'));
+      for (const text of [
+        '',
+        'abc',
+        'p\u00e4ssw\u00f6rd',
+        '\u20ac uro',
+        '\ud83d\ude00 emoji',
+        'a'.repeat(5000),
+      ]) {
+        expect(await XMLRPCClient.md5(text)).toBe(
+          createHash('md5').update(text, 'utf8').digest('hex'),
+        );
       }
     });
   });

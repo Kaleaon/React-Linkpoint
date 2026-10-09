@@ -33,7 +33,7 @@ export class CacheManager extends Utils.EventEmitter {
     }
     return {
       maxSizeBytes: CACHE_SIZE_DEFAULT_BYTES,
-      autoClearOnLimit: false
+      autoClearOnLimit: false,
     };
   }
 
@@ -43,17 +43,23 @@ export class CacheManager extends Utils.EventEmitter {
     if (clampedBytes !== requested) {
       this.console.warn(
         LOG_COMPONENTS.CACHE,
-        `Requested cache limit ${Utils.formatFileSize(requested)} is out of range; clamped to ${Utils.formatFileSize(clampedBytes)}.`
+        `Requested cache limit ${Utils.formatFileSize(requested)} is out of range; clamped to ${Utils.formatFileSize(clampedBytes)}.`,
       );
     }
 
     this.settings.maxSizeBytes = clampedBytes;
     const persisted = Utils.storage.set(CACHE_SETTINGS_STORAGE_KEY, this.settings);
     if (!persisted) {
-      this.console.warn(LOG_COMPONENTS.CACHE, 'Cache settings could not be saved; the change applies to this session only.');
+      this.console.warn(
+        LOG_COMPONENTS.CACHE,
+        'Cache settings could not be saved; the change applies to this session only.',
+      );
     }
 
-    this.console.info(LOG_COMPONENTS.CACHE, `Cache limit set to ${Utils.formatFileSize(clampedBytes)}.`);
+    this.console.info(
+      LOG_COMPONENTS.CACHE,
+      `Cache limit set to ${Utils.formatFileSize(clampedBytes)}.`,
+    );
     this.emit('cacheSettingsUpdated', this.settings);
     return this.settings;
   }
@@ -101,7 +107,10 @@ export class CacheManager extends Utils.EventEmitter {
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && (key.startsWith('linkpoint_local_asset_') || key.startsWith('linkpoint_cache_'))) {
+          if (
+            key &&
+            (key.startsWith('linkpoint_local_asset_') || key.startsWith('linkpoint_cache_'))
+          ) {
             keysToRemove.push(key);
           }
         }
@@ -110,7 +119,7 @@ export class CacheManager extends Utils.EventEmitter {
         }
         this.console.info(
           LOG_COMPONENTS.CACHE,
-          `Cleared ${keysToRemove.length} cached item(s), freeing about ${Utils.formatFileSize(usageBefore)}.`
+          `Cleared ${keysToRemove.length} cached item(s), freeing about ${Utils.formatFileSize(usageBefore)}.`,
         );
       }
       this.emit('cacheCleared', { freedBytes: usageBefore });

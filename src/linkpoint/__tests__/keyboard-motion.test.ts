@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isMotionKey, isTypingTarget, resolveKeyMotion, RUN_SPEED_MULTIPLIER } from '../keyboard-motion';
+import {
+  isMotionKey,
+  isTypingTarget,
+  resolveKeyMotion,
+  RUN_SPEED_MULTIPLIER,
+} from '../keyboard-motion';
 
 const keys = (...codes: string[]) => new Set(codes);
 
@@ -20,7 +25,8 @@ describe('resolveKeyMotion', () => {
 
   it('supports several keys for vertical movement', () => {
     for (const code of ['KeyE', 'Space', 'PageUp']) expect(resolveKeyMotion(keys(code)).up).toBe(1);
-    for (const code of ['KeyQ', 'KeyC', 'PageDown']) expect(resolveKeyMotion(keys(code)).up).toBe(-1);
+    for (const code of ['KeyQ', 'KeyC', 'PageDown'])
+      expect(resolveKeyMotion(keys(code)).up).toBe(-1);
   });
 
   it('cancels opposing keys and normalizes diagonals', () => {
@@ -34,7 +40,10 @@ describe('resolveKeyMotion', () => {
 
   it('runs faster with Shift', () => {
     expect(resolveKeyMotion(keys('KeyW'), true).forward).toBe(RUN_SPEED_MULTIPLIER);
-    expect(resolveKeyMotion(keys('KeyW', 'KeyD'), true).forward).toBeCloseTo(RUN_SPEED_MULTIPLIER * Math.SQRT1_2, 6);
+    expect(resolveKeyMotion(keys('KeyW', 'KeyD'), true).forward).toBeCloseTo(
+      RUN_SPEED_MULTIPLIER * Math.SQRT1_2,
+      6,
+    );
   });
 });
 
@@ -47,7 +56,13 @@ describe('key filtering', () => {
   });
 
   it('lets text entry win', () => {
-    const el = (tagName: string, extra: object = {}) => ({ tagName, getAttribute: () => null, isContentEditable: false, ...extra }) as unknown as EventTarget;
+    const el = (tagName: string, extra: object = {}) =>
+      ({
+        tagName,
+        getAttribute: () => null,
+        isContentEditable: false,
+        ...extra,
+      }) as unknown as EventTarget;
     expect(isTypingTarget(el('INPUT'))).toBe(true);
     expect(isTypingTarget(el('TEXTAREA'))).toBe(true);
     expect(isTypingTarget(el('SELECT'))).toBe(true);

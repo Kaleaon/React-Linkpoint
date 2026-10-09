@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CHAT_SOURCE, CHAT_TYPE, RlvHandler, RlvRet, RlvCommand, parseCommand, rlvFailed, rlvSucceeded, type RlvEnvironment } from '../rlv-handler';
+import {
+  CHAT_SOURCE,
+  CHAT_TYPE,
+  RlvHandler,
+  RlvRet,
+  RlvCommand,
+  parseCommand,
+  rlvFailed,
+  rlvSucceeded,
+  type RlvEnvironment,
+} from '../rlv-handler';
 
 const OBJ = '11111111-1111-1111-1111-111111111111';
 const OBJ2 = '22222222-2222-2222-2222-222222222222';
@@ -11,7 +21,12 @@ let env: RlvEnvironment;
 let rlv: RlvHandler;
 beforeEach(() => {
   sent = [];
-  env = { selfId: () => ME, sendChat: (text, channel, type) => { sent.push({ text, channel, type }); } };
+  env = {
+    selfId: () => ME,
+    sendChat: (text, channel, type) => {
+      sent.push({ text, channel, type });
+    },
+  };
   rlv = new RlvHandler(env);
   rlv.setEnabled(true);
 });
@@ -22,17 +37,30 @@ describe('command grammar (RlvCommand::parseCommand)', () => {
     ['detach=n', { behaviour: 'detach', option: '', param: 'n' }],
     ['sendim:abc=add', { behaviour: 'sendim', option: 'abc', param: 'add' }],
     ['getstatus:tp;|=1234', { behaviour: 'getstatus', option: 'tp;|', param: '1234' }],
-    ['tpto:Region/1/2/3;1.5=force', { behaviour: 'tpto', option: 'Region/1/2/3;1.5', param: 'force' }],
+    [
+      'tpto:Region/1/2/3;1.5=force',
+      { behaviour: 'tpto', option: 'Region/1/2/3;1.5', param: 'force' },
+    ],
     ['clear', { behaviour: 'clear', option: '', param: '' }],
     ['clear=tp', { behaviour: 'clear', option: '', param: 'tp' }],
   ])('parses %s', (text, expected) => expect(parseCommand(text)).toEqual(expected));
 
-  it.each(['', '=n', ':x=n', 'detach', 'detach=', 'detach:opt', 'clear:tp'])('rejects %j', (text) => expect(parseCommand(text)).toBeNull());
+  it.each(['', '=n', ':x=n', 'detach', 'detach=', 'detach:opt', 'clear:tp'])('rejects %j', (text) =>
+    expect(parseCommand(text)).toBeNull(),
+  );
 
   it('classifies the param: n/add, y/rem, force, a channel number, or invalid', () => {
     const type = (c: string) => new RlvCommand(OBJ, c).type;
-    expect([type('detach=n'), type('detach=add'), type('detach=y'), type('detach=rem'), type('fly=force'), type('version=2222'), type('clear'), type('x=maybe')])
-      .toEqual(['add', 'add', 'remove', 'remove', 'force', 'reply', 'clear', 'unknown']);
+    expect([
+      type('detach=n'),
+      type('detach=add'),
+      type('detach=y'),
+      type('detach=rem'),
+      type('fly=force'),
+      type('version=2222'),
+      type('clear'),
+      type('x=maybe'),
+    ]).toEqual(['add', 'add', 'remove', 'remove', 'force', 'reply', 'clear', 'unknown']);
     expect(run('detach=maybe')).toBe(RlvRet.FAILED_SYNTAX);
   });
 
@@ -58,7 +86,8 @@ describe('restrictions per object', () => {
   });
 
   it('is reference counted across objects', () => {
-    run('fly=n', OBJ); run('fly=n', OBJ2);
+    run('fly=n', OBJ);
+    run('fly=n', OBJ2);
     run('fly=y', OBJ);
     expect(rlv.hasBehaviour('fly')).toBe(true);
     run('fly=y', OBJ2);
@@ -73,7 +102,10 @@ describe('restrictions per object', () => {
   });
 
   it('@clear removes everything of that object, or only commands containing the filter', () => {
-    run('sendchat=n'); run('recvchat=n'); run('fly=n'); run('tplm=n', OBJ2);
+    run('sendchat=n');
+    run('recvchat=n');
+    run('fly=n');
+    run('tplm=n', OBJ2);
     run('clear=chat');
     expect(rlv.hasBehaviour('sendchat')).toBe(false);
     expect(rlv.hasBehaviour('recvchat')).toBe(false);
@@ -126,7 +158,8 @@ describe('object chat', () => {
 
 describe('exceptions, strict and permissive', () => {
   it('lets an exception through a restriction', () => {
-    run('recvchat=n'); run(`recvchat:${BOB}=n`);
+    run('recvchat=n');
+    run(`recvchat:${BOB}=n`);
     expect(rlv.isException('recvchat', BOB)).toBe(true);
     expect(rlv.hasBehaviour('recvchat')).toBe(true); // the exception is not reference counted
     run(`recvchat:${BOB}=y`);
@@ -134,7 +167,8 @@ describe('exceptions, strict and permissive', () => {
   });
 
   it('a strict restriction needs the exception from every object holding it', () => {
-    run('recvchat_sec=n', OBJ); run('recvchat_sec=n', OBJ2);
+    run('recvchat_sec=n', OBJ);
+    run('recvchat_sec=n', OBJ2);
     run(`recvchat:${BOB}=n`, OBJ);
     expect(rlv.isException('recvchat', BOB)).toBe(false); // OBJ2 holds the restriction and has not excepted BOB
     run(`recvchat:${BOB}=n`, OBJ2);
@@ -148,14 +182,18 @@ describe('exceptions, strict and permissive', () => {
   });
 
   it('exceptions compare uuids case-insensitively', () => {
-    run('recvim=n'); run(`recvim:${BOB.toUpperCase()}=n`);
+    run('recvim=n');
+    run(`recvim:${BOB.toUpperCase()}=n`);
     expect(rlv.canReceiveIM(BOB)).toBe(true);
   });
 });
 
 describe('reply commands', () => {
   it('answers @version, @versionnew and @versionnum on the channel, shouted', () => {
-    run('version=2222'); run('versionnew=2223'); run('versionnum=2224'); run('versionnum:impl=2225');
+    run('version=2222');
+    run('versionnew=2223');
+    run('versionnum=2224');
+    run('versionnum:impl=2225');
     expect(sent).toEqual([
       { text: 'RestrainedLife viewer v3.4.3 (RLVa 2.4.2)', channel: 2222, type: CHAT_TYPE.SHOUT },
       { text: 'RestrainedLove viewer v3.4.3 (RLVa 2.4.2)', channel: 2223, type: CHAT_TYPE.SHOUT },
@@ -171,13 +209,21 @@ describe('reply commands', () => {
     expect(sent).toEqual([]);
   });
 
-  it('@getstatus lists the object\'s own restrictions with a filter and separator; @getstatusall lists everyone\'s', () => {
-    run('detach=n'); run('sendchat=n'); run(`recvim:${BOB}=n`); run('fly=n', OBJ2);
+  it("@getstatus lists the object's own restrictions with a filter and separator; @getstatusall lists everyone's", () => {
+    run('detach=n');
+    run('sendchat=n');
+    run(`recvim:${BOB}=n`);
+    run('fly=n', OBJ2);
     run('getstatus=11');
     run('getstatus:chat=12');
     run('getstatus:;|=13');
     run('getstatusall=14');
-    expect(sent.map((s) => s.text)).toEqual([`/detach/sendchat/recvim:${BOB}`, '/sendchat', `|detach|sendchat|recvim:${BOB}`, `/detach/sendchat/recvim:${BOB}/fly`]);
+    expect(sent.map((s) => s.text)).toEqual([
+      `/detach/sendchat/recvim:${BOB}`,
+      '/sendchat',
+      `|detach|sendchat|recvim:${BOB}`,
+      `/detach/sendchat/recvim:${BOB}/fly`,
+    ]);
   });
 
   it('an object with no rules gets an empty status', () => {
@@ -185,11 +231,19 @@ describe('reply commands', () => {
     expect(sent).toEqual([{ text: '', channel: 11, type: CHAT_TYPE.SHOUT }]);
   });
 
-  it('@getgroup and @getsitid use the viewer, with the viewer\'s fallbacks', () => {
-    run('getgroup=1'); run('getsitid=2');
-    env.activeGroupName = () => 'Cats'; env.sitObjectId = () => OBJ2;
-    run('getgroup=1'); run('getsitid=2');
-    expect(sent.map((s) => s.text)).toEqual(['none', '00000000-0000-0000-0000-000000000000', 'Cats', OBJ2]);
+  it("@getgroup and @getsitid use the viewer, with the viewer's fallbacks", () => {
+    run('getgroup=1');
+    run('getsitid=2');
+    env.activeGroupName = () => 'Cats';
+    env.sitObjectId = () => OBJ2;
+    run('getgroup=1');
+    run('getsitid=2');
+    expect(sent.map((s) => s.text)).toEqual([
+      'none',
+      '00000000-0000-0000-0000-000000000000',
+      'Cats',
+      OBJ2,
+    ]);
   });
 
   it('@getcommand lists known commands, filtered by name and type', () => {
@@ -232,8 +286,12 @@ describe('chat filtering', () => {
   });
 
   it('@emote lifts the emote shortening', () => {
-    run('sendchat=n'); run('emote=n');
-    expect(rlv.prepareOutgoingChat('/me smiles at you for a very long time indeed', CHAT_TYPE.NORMAL, 0)?.text).toBe('/me smiles at you for a very long time indeed');
+    run('sendchat=n');
+    run('emote=n');
+    expect(
+      rlv.prepareOutgoingChat('/me smiles at you for a very long time indeed', CHAT_TYPE.NORMAL, 0)
+        ?.text,
+    ).toBe('/me smiles at you for a very long time indeed');
   });
 
   it('the ellipsis can be turned off', () => {
@@ -244,11 +302,19 @@ describe('chat filtering', () => {
 
   it('@chatshout/@chatnormal/@chatwhisper limit the volume', () => {
     run('chatnormal=n');
-    expect([CHAT_TYPE.WHISPER, CHAT_TYPE.NORMAL, CHAT_TYPE.SHOUT].map((t) => rlv.checkChatVolume(t))).toEqual([0, 0, 0]);
-    run('chatnormal=y'); run('chatshout=n');
-    expect([CHAT_TYPE.WHISPER, CHAT_TYPE.NORMAL, CHAT_TYPE.SHOUT].map((t) => rlv.checkChatVolume(t))).toEqual([0, 1, 1]);
-    run('chatshout=y'); run('chatwhisper=n');
-    expect([CHAT_TYPE.WHISPER, CHAT_TYPE.NORMAL, CHAT_TYPE.SHOUT].map((t) => rlv.checkChatVolume(t))).toEqual([1, 1, 2]);
+    expect(
+      [CHAT_TYPE.WHISPER, CHAT_TYPE.NORMAL, CHAT_TYPE.SHOUT].map((t) => rlv.checkChatVolume(t)),
+    ).toEqual([0, 0, 0]);
+    run('chatnormal=y');
+    run('chatshout=n');
+    expect(
+      [CHAT_TYPE.WHISPER, CHAT_TYPE.NORMAL, CHAT_TYPE.SHOUT].map((t) => rlv.checkChatVolume(t)),
+    ).toEqual([0, 1, 1]);
+    run('chatshout=y');
+    run('chatwhisper=n');
+    expect(
+      [CHAT_TYPE.WHISPER, CHAT_TYPE.NORMAL, CHAT_TYPE.SHOUT].map((t) => rlv.checkChatVolume(t)),
+    ).toEqual([1, 1, 2]);
   });
 
   it('@redirchat sends public chat to the channel instead of saying it, but only chat @sendchat would have filtered', () => {
@@ -257,7 +323,10 @@ describe('chat filtering', () => {
     expect(sent).toEqual([{ text: 'hello world', channel: 7, type: CHAT_TYPE.SHOUT }]);
     sent.length = 0;
     // without @sendchat the OOC form would not be filtered, so it is not redirected either
-    expect(rlv.prepareOutgoingChat('((ooc text))', CHAT_TYPE.NORMAL, 0)).toEqual({ text: '((ooc text))', type: 1 });
+    expect(rlv.prepareOutgoingChat('((ooc text))', CHAT_TYPE.NORMAL, 0)).toEqual({
+      text: '((ooc text))',
+      type: 1,
+    });
     expect(sent).toEqual([]);
   });
 
@@ -273,16 +342,25 @@ describe('chat filtering', () => {
   });
 
   it('@sendchannel blocks other channels unless excepted, and the debug channel under @sendchat', () => {
-    run('sendchannel=n'); run('sendchannel:5=n');
+    run('sendchannel=n');
+    run('sendchannel:5=n');
     expect(rlv.prepareOutgoingChat('x', CHAT_TYPE.NORMAL, 4)).toBeNull();
     expect(rlv.prepareOutgoingChat('x', CHAT_TYPE.NORMAL, 5)).toEqual({ text: 'x', type: 1 });
-    run('sendchannel=y'); run('sendchannel:5=y'); run('sendchat=n');
+    run('sendchannel=y');
+    run('sendchannel:5=y');
+    run('sendchat=n');
     expect(rlv.prepareOutgoingChat('x', CHAT_TYPE.NORMAL, 2147483647)).toBeNull();
   });
 
-  it('@recvchat hides other avatars\' chat unless they are an exception; our own and owner-say are left alone', () => {
-    run('recvchat=n'); run(`recvchat:${BOB}=n`);
-    const incoming = (fromId: string, text: string, sourceType: number = CHAT_SOURCE.AGENT, chatType: number = CHAT_TYPE.NORMAL) => rlv.filterIncomingChat({ fromId, fromName: 'Someone', text, chatType, sourceType }).text;
+  it("@recvchat hides other avatars' chat unless they are an exception; our own and owner-say are left alone", () => {
+    run('recvchat=n');
+    run(`recvchat:${BOB}=n`);
+    const incoming = (
+      fromId: string,
+      text: string,
+      sourceType: number = CHAT_SOURCE.AGENT,
+      chatType: number = CHAT_TYPE.NORMAL,
+    ) => rlv.filterIncomingChat({ fromId, fromName: 'Someone', text, chatType, sourceType }).text;
     expect(incoming('cccccccc-cccc-cccc-cccc-cccccccccccc', 'hello')).toBe('...');
     expect(incoming(BOB, 'hello')).toBe('hello');
     expect(incoming(ME, 'hello')).toBe('hello');
@@ -293,23 +371,53 @@ describe('chat filtering', () => {
 
   it('@recvemote turns emotes into "/me ..."', () => {
     run('recvemote=n');
-    expect(rlv.filterIncomingChat({ fromId: BOB, fromName: 'Bob', text: '/me dances', chatType: 1, sourceType: 1 }).text).toBe('/me ...');
+    expect(
+      rlv.filterIncomingChat({
+        fromId: BOB,
+        fromName: 'Bob',
+        text: '/me dances',
+        chatType: 1,
+        sourceType: 1,
+      }).text,
+    ).toBe('/me ...');
     rlv.showEllipsis = false;
-    expect(rlv.filterIncomingChat({ fromId: BOB, fromName: 'Bob', text: '/me dances', chatType: 1, sourceType: 1 }).text).toBeNull();
+    expect(
+      rlv.filterIncomingChat({
+        fromId: BOB,
+        fromName: 'Bob',
+        text: '/me dances',
+        chatType: 1,
+        sourceType: 1,
+      }).text,
+    ).toBeNull();
   });
 });
 
 describe('instant messages', () => {
   it('@sendim / @recvim / @startim with exceptions and the *from/*to forms', () => {
-    run('sendim=n'); run('recvim=n'); run('startim=n');
-    expect([rlv.canSendIM(BOB), rlv.canReceiveIM(BOB), rlv.canStartIM(BOB)]).toEqual([false, false, false]);
+    run('sendim=n');
+    run('recvim=n');
+    run('startim=n');
+    expect([rlv.canSendIM(BOB), rlv.canReceiveIM(BOB), rlv.canStartIM(BOB)]).toEqual([
+      false,
+      false,
+      false,
+    ]);
     expect(rlv.canStartIM(BOB, true)).toBe(true); // an open session may continue
-    run(`sendim:${BOB}=n`); run(`recvim:${BOB}=n`); run(`startim:${BOB}=n`);
-    expect([rlv.canSendIM(BOB), rlv.canReceiveIM(BOB), rlv.canStartIM(BOB)]).toEqual([true, true, true]);
-    run('sendim=y'); run('sendim:' + BOB + '=y');
+    run(`sendim:${BOB}=n`);
+    run(`recvim:${BOB}=n`);
+    run(`startim:${BOB}=n`);
+    expect([rlv.canSendIM(BOB), rlv.canReceiveIM(BOB), rlv.canStartIM(BOB)]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    run('sendim=y');
+    run('sendim:' + BOB + '=y');
     run(`sendimto:${BOB}=n`);
     expect(rlv.canSendIM(BOB)).toBe(false);
-    run('recvim=y'); run(`recvim:${BOB}=y`);
+    run('recvim=y');
+    run(`recvim:${BOB}=y`);
     run(`recvimfrom:${BOB}=n`);
     expect(rlv.canReceiveIM(BOB)).toBe(false);
     expect(rlv.filterIncomingIM(BOB, 'hi')).toBe('*** IM blocked by your viewer');
@@ -318,8 +426,9 @@ describe('instant messages', () => {
   it('a distance range lets nearby avatars through (squared distances, min <= d <= max)', () => {
     const distances = new Map<string, number>([[BOB, 25]]);
     env.avatarDistanceSquared = (id) => distances.get(id) ?? null;
-    run('recvim=n'); run('recvim:2;10=n'); // between 2 m and 10 m
-    expect(rlv.canReceiveIM(BOB)).toBe(true);  // 5 m
+    run('recvim=n');
+    run('recvim:2;10=n'); // between 2 m and 10 m
+    expect(rlv.canReceiveIM(BOB)).toBe(true); // 5 m
     distances.set(BOB, 400);
     expect(rlv.canReceiveIM(BOB)).toBe(false); // 20 m
     distances.set(BOB, 1);
@@ -331,7 +440,8 @@ describe('instant messages', () => {
 
   it('a minimum with no maximum lets anyone beyond it through', () => {
     env.avatarDistanceSquared = () => 10000;
-    run('sendim=n'); run('sendim:5=n');
+    run('sendim=n');
+    run('sendim:5=n');
     expect(rlv.canSendIM(BOB)).toBe(true);
   });
 
@@ -345,7 +455,10 @@ describe('instant messages', () => {
 describe('movement', () => {
   it('@fly=n blocks flying, @fly=force sets it unless another object forbids', () => {
     const state = { flying: false };
-    env.setFlying = (f) => { state.flying = f; }; env.isFlying = () => state.flying;
+    env.setFlying = (f) => {
+      state.flying = f;
+    };
+    env.isFlying = () => state.flying;
     expect(run('fly=force')).toBe(RlvRet.SUCCESS);
     expect(state.flying).toBe(true);
     run('fly=n', OBJ2);
@@ -355,13 +468,17 @@ describe('movement', () => {
     expect(state.flying).toBe(false);
     expect(run('fly:maybe=force')).toBe(RlvRet.FAILED_OPTION);
     // the issuing object's own @fly=n does not stop its own forced fly
-    run('fly=y', OBJ2); run('fly=n', OBJ);
+    run('fly=y', OBJ2);
+    run('fly=n', OBJ);
     expect(run('fly=force')).toBe(RlvRet.SUCCESS);
   });
 
   it('@unsit=n keeps a seated avatar seated, and @unsit=force stands unless another object forbids', () => {
     let sitting = true;
-    env.isSitting = () => sitting; env.stand = () => { sitting = false; };
+    env.isSitting = () => sitting;
+    env.stand = () => {
+      sitting = false;
+    };
     run('unsit=n', OBJ2);
     expect(rlv.canStand()).toBe(false);
     expect(run('unsit=force', OBJ)).toBe(RlvRet.SUCCESS);
@@ -375,7 +492,10 @@ describe('movement', () => {
 
   it('@sit:<uuid>=force sits unless sitting is forbidden', () => {
     const sat: string[] = [];
-    env.sit = (id) => { sat.push(id); return true; };
+    env.sit = (id) => {
+      sat.push(id);
+      return true;
+    };
     expect(run(`sit:${OBJ2}=force`)).toBe(RlvRet.SUCCESS);
     expect(sat).toEqual([OBJ2]);
     run('sit=n', OBJ2);
@@ -384,22 +504,31 @@ describe('movement', () => {
   });
 
   it('@tploc, @tplm and @tplure', () => {
-    run('tploc=n'); run('tplm=n'); run('tplure=n');
-    expect([rlv.canTeleportToLocation(''), rlv.canTeleportToLandmark(), rlv.canAcceptTpOffer(BOB)]).toEqual([false, false, false]);
+    run('tploc=n');
+    run('tplm=n');
+    run('tplure=n');
+    expect([
+      rlv.canTeleportToLocation(''),
+      rlv.canTeleportToLandmark(),
+      rlv.canAcceptTpOffer(BOB),
+    ]).toEqual([false, false, false]);
     run(`tplure:${BOB}=n`);
     expect(rlv.canAcceptTpOffer(BOB)).toBe(true);
     run('accepttp=n');
     expect(rlv.autoAcceptTeleportOffer(OBJ2)).toBe(true);
   });
 
-  it('@tpto goes where it is told even under the issuing object\'s own @tploc, but not another\'s', () => {
+  it("@tpto goes where it is told even under the issuing object's own @tploc, but not another's", () => {
     const where: unknown[] = [];
     env.teleportToGlobal = (p, a) => where.push(['global', p, a]);
     env.teleportToRegion = (r, p, a) => where.push(['region', r, p, a]);
     run('tploc=n', OBJ);
     expect(run('tpto:256000/256000/30=force', OBJ)).toBe(RlvRet.SUCCESS);
     expect(run('tpto:Ahern/128/64/22;1.5=force', OBJ)).toBe(RlvRet.SUCCESS);
-    expect(where).toEqual([['global', [256000, 256000, 30], undefined], ['region', 'Ahern', [128, 64, 22], 1.5]]);
+    expect(where).toEqual([
+      ['global', [256000, 256000, 30], undefined],
+      ['region', 'Ahern', [128, 64, 22], 1.5],
+    ]);
     expect(run('tpto:Ahern/128/64=force', OBJ)).toBe(RlvRet.FAILED_OPTION);
     run('tploc=n', OBJ2);
     expect(run('tpto:Ahern/1/2/3=force', OBJ)).toBe(RlvRet.FAILED_LOCK);
@@ -410,13 +539,15 @@ describe('movement', () => {
     const from: [number, number, number] = [100, 100, 20];
     expect(rlv.canTeleportToLocal(from, [130, 100, 20], OBJ2)).toBe(true);
     expect(rlv.canTeleportToLocal(from, [180, 100, 20], OBJ2)).toBe(false);
-    run('tplocal:50=y'); run('sittp=n');
+    run('tplocal:50=y');
+    run('sittp=n');
     expect(rlv.canTeleportToLocal(from, [101, 100, 20], OBJ2)).toBe(true);
     expect(rlv.canTeleportToLocal(from, [103, 100, 20], OBJ2)).toBe(false); // default sittp distance is 1.5 m
   });
 
   it('the smallest value wins when several objects set a distance', () => {
-    run('tplocal:100=n', OBJ); run('tplocal:20=n', OBJ2);
+    run('tplocal:100=n', OBJ);
+    run('tplocal:20=n', OBJ2);
     expect(rlv.getModifier('tplocaldist')).toBe(20);
     run('tplocal:20=y', OBJ2);
     expect(rlv.getModifier('tplocaldist')).toBe(100);
@@ -426,20 +557,37 @@ describe('movement', () => {
 });
 
 describe('touch, edit and sit checks', () => {
-  const world = { id: OBJ2, rootId: OBJ2, isAttachment: false, isHud: false, isOwnedByYou: false, isVolume: true, distanceSquared: 4 };
+  const world = {
+    id: OBJ2,
+    rootId: OBJ2,
+    isAttachment: false,
+    isHud: false,
+    isOwnedByYou: false,
+    isVolume: true,
+    distanceSquared: 4,
+  };
   it('@touchall, @touchworld, @fartouch and the @touchme override', () => {
     expect(rlv.canTouch(world)).toBe(true);
     run('touchworld=n');
     expect(rlv.canTouch(world)).toBe(false);
     run(`touchworld:${OBJ2}=n`);
     expect(rlv.canTouch(world)).toBe(true);
-    run('touchworld=y'); run(`touchworld:${OBJ2}=y`);
+    run('touchworld=y');
+    run(`touchworld:${OBJ2}=y`);
     run('fartouch=n');
     expect(rlv.canTouch(world)).toBe(false); // 2 m is beyond the default 1.5 m
     expect(rlv.canTouch({ ...world, distanceSquared: 1 })).toBe(true);
     run('touchall=n');
     expect(rlv.canTouch({ ...world, distanceSquared: 1 })).toBe(false);
-    expect(rlv.canTouch({ ...world, isHud: true, isAttachment: true, isOwnedByYou: true, distanceSquared: 1 })).toBe(true); // HUDs are not touchall
+    expect(
+      rlv.canTouch({
+        ...world,
+        isHud: true,
+        isAttachment: true,
+        isOwnedByYou: true,
+        distanceSquared: 1,
+      }),
+    ).toBe(true); // HUDs are not touchall
     rlv.setObjectRoot(OBJ, OBJ2);
     run('touchme=n', OBJ);
     expect(rlv.canTouch({ ...world, distanceSquared: 1 })).toBe(true); // the object holding @touchme can be touched
@@ -449,17 +597,20 @@ describe('touch, edit and sit checks', () => {
     run('interact=n');
     expect(rlv.canInteract(world)).toBe(false);
     expect(rlv.canInteract({ ...world, isHud: true, isAttachment: true })).toBe(true);
-    run('interact=y'); run('fartouch:5=n');
+    run('interact=y');
+    run('fartouch:5=n');
     expect(rlv.canInteract({ ...world, distanceSquared: 16 })).toBe(true);
     expect(rlv.canInteract({ ...world, distanceSquared: 36 })).toBe(false);
   });
 
   it('@edit with an exception, @editobj and @editattach/@editworld', () => {
-    run('edit=n'); run(`edit:${OBJ2}=n`);
+    run('edit=n');
+    run(`edit:${OBJ2}=n`);
     expect(rlv.canEdit(world)).toBe(true);
     run(`edit:${OBJ2}=y`);
     expect(rlv.canEdit(world)).toBe(false);
-    run('edit=y'); run('editworld=n');
+    run('edit=y');
+    run('editworld=n');
     expect(rlv.canEdit(world)).toBe(false);
     expect(rlv.canEdit({ ...world, isAttachment: true })).toBe(true);
   });
@@ -476,7 +627,9 @@ describe('touch, edit and sit checks', () => {
 
 describe('names and location', () => {
   beforeEach(() => {
-    env.nearbyAvatars = () => [{ id: BOB, displayName: 'Bobby Tables', legacyName: 'Robert Tables' }];
+    env.nearbyAvatars = () => [
+      { id: BOB, displayName: 'Bobby Tables', legacyName: 'Robert Tables' },
+    ];
     env.locationNames = () => ({ regions: ['Ahern'], parcel: 'Sunny Cove' });
   });
 
@@ -489,7 +642,9 @@ describe('names and location', () => {
     run(`shownames:${BOB}=n`);
     expect(rlv.canShowName(BOB)).toBe(true);
     run(`shownames:${BOB}=y`);
-    expect(rlv.filterNames('Bobby Tables waved at robert tables')).toMatch(/^(A|This|That|An|Some|Mysterious|Unidentified)[^]* waved at /);
+    expect(rlv.filterNames('Bobby Tables waved at robert tables')).toMatch(
+      /^(A|This|That|An|Some|Mysterious|Unidentified)[^]* waved at /,
+    );
     expect(rlv.filterNames('Bobby Tables says hi')).not.toContain('Bobby');
   });
 
@@ -502,7 +657,13 @@ describe('names and location', () => {
 
   it('@showloc hides region and parcel names in incoming chat', () => {
     run('showloc=n');
-    const out = rlv.filterIncomingChat({ fromId: BOB, fromName: 'Bob', text: 'Welcome to Sunny Cove in Ahern!', chatType: 1, sourceType: 1 }).text;
+    const out = rlv.filterIncomingChat({
+      fromId: BOB,
+      fromName: 'Bob',
+      text: 'Welcome to Sunny Cove in Ahern!',
+      chatType: 1,
+      sourceType: 1,
+    }).text;
     expect(out).toBe('Welcome to (Hidden parcel) in (Hidden region)!');
   });
 

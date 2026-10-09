@@ -9,9 +9,16 @@ vi.mock('../graphics-3d', () => ({
     rejectInit!: (error: Error) => void;
     destroy = vi.fn();
     resize = vi.fn();
-    initPromise = new Promise<void>((resolve, reject) => { this.resolveInit = resolve; this.rejectInit = reject; });
-    constructor(public canvas: HTMLCanvasElement) { graphicsInstances.push(this); }
-    init() { return this.initPromise; }
+    initPromise = new Promise<void>((resolve, reject) => {
+      this.resolveInit = resolve;
+      this.rejectInit = reject;
+    });
+    constructor(public canvas: HTMLCanvasElement) {
+      graphicsInstances.push(this);
+    }
+    init() {
+      return this.initPromise;
+    }
   },
 }));
 vi.mock('../scene-3d', () => ({
@@ -148,7 +155,9 @@ describe('WorldViewer.init on a canvas it already owns', () => {
     await first;
 
     const startRendering = vi.spyOn(world, 'startRendering');
-    const loadScene = vi.spyOn(world, 'loadScene').mockImplementation(async () => { world.destroyRenderer(canvas); });
+    const loadScene = vi.spyOn(world, 'loadScene').mockImplementation(async () => {
+      world.destroyRenderer(canvas);
+    });
     await world.init(canvas);
     expect(loadScene).toHaveBeenCalled();
     expect(startRendering).not.toHaveBeenCalled();
