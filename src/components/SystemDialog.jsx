@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "../context/AppContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { DIALOGS } from "../theme/dialogs.js";
 import { app } from "../linkpoint/app";
 import Icon from "./Icon.jsx";
-import FocusTrap from "./FocusTrap.jsx";
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -13,6 +12,8 @@ export default function SystemDialog() {
   const { state, actions } = useApp();
   const { V, t } = useTheme();
   const [teleport, setTeleport] = useState(() => app.interactions.teleportSession);
+  const teleportRef = useRef(null);
+  const dlgRef = useRef(null);
 
   useEffect(() => {
     const onUpdate = () => {
@@ -28,6 +29,44 @@ export default function SystemDialog() {
   }, []);
 
   const dlg = state.dialog && DIALOGS[state.dialog];
+
+  useEffect(() => {
+    const node = teleportRef.current;
+    if (teleport && node) {
+      if (!node.open) {
+        if (typeof node.showModal === "function") {
+          node.showModal();
+        } else {
+          node.setAttribute("open", "");
+        }
+      }
+    } else if (!teleport && node?.open) {
+      if (typeof node.close === "function") {
+        node.close();
+      } else {
+        node.removeAttribute("open");
+      }
+    }
+  }, [teleport]);
+
+  useEffect(() => {
+    const node = dlgRef.current;
+    if (dlg && !teleport && node) {
+      if (!node.open) {
+        if (typeof node.showModal === "function") {
+          node.showModal();
+        } else {
+          node.setAttribute("open", "");
+        }
+      }
+    } else if ((!dlg || teleport) && node?.open) {
+      if (typeof node.close === "function") {
+        node.close();
+      } else {
+        node.removeAttribute("open");
+      }
+    }
+  }, [dlg, teleport]);
 
   const btnBase = {
     flex: "1 1 40%",
@@ -66,11 +105,32 @@ export default function SystemDialog() {
     };
 
     return (
-      <div style={{ position: "absolute", inset: 0, zIndex: 90, background: "rgba(0,0,0,.68)", display: "flex", alignItems: "flex-end" }}>
+      <dialog
+        ref={teleportRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="teleport-sheet-title"
+        onCancel={(e) => {
+          e.preventDefault();
+          app.interactions.cancelTeleportSession();
+        }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 90,
+          width: "100%",
+          maxWidth: "100vw",
+          height: "100%",
+          maxHeight: "100vh",
+          background: "rgba(0,0,0,.68)",
+          display: "flex",
+          alignItems: "flex-end",
+          border: "none",
+          padding: 0,
+          margin: 0,
+        }}
+      >
         <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="teleport-sheet-title"
           style={{
             width: "100%",
             background: V.surf,
@@ -187,7 +247,7 @@ export default function SystemDialog() {
             </button>
           </div>
         </div>
-      </div>
+      </dialog>
     );
   }
 
@@ -195,16 +255,33 @@ export default function SystemDialog() {
   if (!dlg) return null;
 
   return (
-    <FocusTrap
-      active={true}
-      onEscape={() => actions.setDialog(null)}
-      style={{ position: "absolute", inset: 0, zIndex: 9, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "flex-end" }}
+    <dialog
+      ref={dlgRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="system-dialog-title"
+      aria-describedby="system-dialog-body"
+      onCancel={(e) => {
+        e.preventDefault();
+        actions.setDialog(null);
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9,
+        width: "100%",
+        maxWidth: "100vw",
+        height: "100%",
+        maxHeight: "100vh",
+        background: "rgba(0,0,0,.62)",
+        display: "flex",
+        alignItems: "flex-end",
+        border: "none",
+        padding: 0,
+        margin: 0,
+      }}
     >
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="system-dialog-title"
-        aria-describedby="system-dialog-body"
         style={{ width: "100%", background: V.surf, borderTop: "1px solid " + V.pri, borderRadius: V.rl + " " + V.rl + " 0 0", padding: "18px 16px 22px" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "10px" }}>
@@ -244,7 +321,7 @@ export default function SystemDialog() {
           ))}
         </div>
       </div>
-    </FocusTrap>
+    </dialog>
   );
 }
 

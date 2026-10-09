@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useErrorRecovery } from '../context/ErrorRecoveryContext';
-import FocusTrap from './FocusTrap';
 
 interface ErrorRecoveryModalProps {
   onNavigateFallback?: (route: 'Chat' | 'Login') => void;
@@ -10,6 +9,26 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
   const { activeError, telemetryLogs, clearError, processRetryQueue } = useErrorRecovery();
   const [showLogs, setShowLogs] = useState(false);
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialogNode = dialogRef.current;
+    if (activeError && dialogNode) {
+      if (!dialogNode.open) {
+        if (typeof dialogNode.showModal === 'function') {
+          dialogNode.showModal();
+        } else {
+          dialogNode.setAttribute('open', '');
+        }
+      }
+    } else if (!activeError && dialogNode?.open) {
+      if (typeof dialogNode.close === 'function') {
+        dialogNode.close();
+      } else {
+        dialogNode.removeAttribute('open');
+      }
+    }
+  }, [activeError]);
 
   if (!activeError) return null;
 
@@ -35,37 +54,29 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
   };
 
   return (
-    <FocusTrap
-      active={!!activeError}
-      onEscape={clearError}
+    <dialog
+      ref={dialogRef}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="recovery-modal-title"
+      data-testid="error-recovery-modal"
+      onCancel={(e) => {
+        e.preventDefault();
+        clearError();
+      }}
       style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        zIndex: 10000,
+        backgroundColor: '#1f2937',
+        color: '#f9fafb',
+        borderRadius: '8px',
+        maxWidth: '520px',
+        width: '100%',
+        padding: '24px',
+        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+        border: '1px solid #374151',
+        margin: 'auto',
       }}
     >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="recovery-modal-title"
-        data-testid="error-recovery-modal"
-        style={{
-          backgroundColor: '#1f2937',
-          color: '#f9fafb',
-          borderRadius: '8px',
-          maxWidth: '520px',
-          width: '100%',
-          padding: '24px',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
-          border: '1px solid #374151',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
           <div
             style={{
               backgroundColor: '#ef4444',
@@ -208,7 +219,6 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
             </button>
           </div>
         </div>
-      </div>
-    </FocusTrap>
+    </dialog>
   );
 };
