@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { app } from "../linkpoint/app.ts";
 import Icon from "./Icon.jsx";
 import FocusTrap from "./FocusTrap.jsx";
+import FormField from "./FormField.jsx";
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -294,10 +295,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
               </div>
 
               {/* Custom Amount */}
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#94a3b8", marginBottom: "6px" }}>
-                  Or enter custom amount
-                </label>
+              <FormField label="Or enter custom amount" error={isCustom && error ? error : null}>
                 <div style={{ position: "relative" }}>
                   <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: "600" }}>{currencySymbol}</span>
                   <input
@@ -321,13 +319,10 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     }}
                   />
                 </div>
-              </div>
+              </FormField>
 
               {/* Payment Description */}
-              <div>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#94a3b8", marginBottom: "6px" }}>
-                  Description / Note
-                </label>
+              <FormField label="Description / Note">
                 <input
                   type="text"
                   placeholder="Note to recipient"
@@ -347,7 +342,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     opacity: isZeroCurrency ? 0.5 : 1,
                   }}
                 />
-              </div>
+              </FormField>
 
               {/* Action Buttons */}
               <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
