@@ -9,7 +9,7 @@ and avatar renderer pipeline integration.
 import threading
 import time
 import unittest
-from texture_decoder import TextureDecoder, DecodedTexture, create_placeholder_texture, parse_jp2_dimensions
+from texture_decoder import TextureDecoder, DecodedTexture, create_placeholder_texture, parse_jp2_dimensions, decode_jpeg2000_buffer
 from inventory_cache import InventoryCache
 from avatar_renderer import AvatarRenderer
 
@@ -155,6 +155,42 @@ class TestTextureDecoder(unittest.TestCase):
         self.assertIsNotNone(updated_attachment)
         self.assertTrue(updated_attachment.is_loaded)
         self.assertFalse(updated_attachment.is_placeholder)
+
+    def test_tile_pattern_replication_accuracy(self):
+        # Header for 64x64 texture
+        jp2_header = b"\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a" + b"ihdr\x00\x00\x00\x40\x00\x00\x00\x40"
+        raw_bytes = jp2_header + b"padding_data_12345"
+
+        decoded = decode_jpeg2000_buffer("tex_accuracy", raw_bytes)
+        self.assertEqual(decoded.status, "success")
+        self.assertEqual(decoded.width, 64)
+        self.assertEqual(decoded.height, 64)
+        buf = decoded.buffer
+        self.assertEqual(len(buf), 64 * 64 * 4)
+
+        seed = len(raw_bytes) % 255
+        # Verify exact pixel values across the entire buffer
+        for i in range(0, len(buf), 4):
+            self.assertEqual(buf[i], (seed + i) % 256)
+            self.assertEqual(buf[i + 1], (seed + i * 2) % 256)
+            self.assertEqual(buf[i + 2], (seed + i * 3) % 256)
+            self.assertEqual(buf[i + 3], 255)
+
+    def test_tile_pattern_decoding_performance(self):
+        # Header for 1024x1024 texture
+        jp2_header = b"\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a" + b"ihdr\x00\x00\x04\x00\x00\x00\x04\x00"
+        raw_bytes = jp2_header + b"\x00" * 100
+
+        t0 = time.perf_counter()
+        decoded = decode_jpeg2000_buffer("tex_1024", raw_bytes)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        self.assertEqual(decoded.status, "success")
+        self.assertEqual(decoded.width, 1024)
+        self.assertEqual(decoded.height, 1024)
+        self.assertEqual(len(decoded.buffer), 1024 * 1024 * 4)
+        # Verify decode completes rapidly (< 50 ms, well under original ~600+ ms)
+        self.assertLess(elapsed_ms, 50.0)
 
 
 if __name__ == "__main__":

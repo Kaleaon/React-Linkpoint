@@ -80,13 +80,18 @@ def decode_jpeg2000_buffer(texture_id: str, raw_bytes: bytes) -> DecodedTexture:
             raise ValueError("Corrupted JPEG2000 payload")
 
         buffer_size = width * height * 4
-        decoded_bytes = bytearray(buffer_size)
         seed = len(raw_bytes) % 255
-        for i in range(0, buffer_size, 4):
-            decoded_bytes[i] = (seed + i) % 256
-            decoded_bytes[i + 1] = (seed + i * 2) % 256
-            decoded_bytes[i + 2] = (seed + i * 3) % 256
-            decoded_bytes[i + 3] = 255
+        tile_size = min(256, buffer_size)
+        tile = bytearray(tile_size)
+        for i in range(0, tile_size, 4):
+            tile[i] = (seed + i) % 256
+            tile[i + 1] = (seed + i * 2) % 256
+            tile[i + 2] = (seed + i * 3) % 256
+            tile[i + 3] = 255
+
+        reps = buffer_size // tile_size
+        rem = buffer_size % tile_size
+        decoded_bytes = bytes(tile) * reps + bytes(tile[:rem])
 
         return DecodedTexture(
             texture_id=texture_id,
