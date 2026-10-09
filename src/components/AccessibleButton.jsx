@@ -1,4 +1,4 @@
-import { AccessibleButton, useAccessibleButtonKeyHandler } from "@linkpoint/design-system/react";
+import { AccessibleButton, useAccessibleButtonKeyHandler } from '@linkpoint/design-system/react';
 
 /**
  * AccessibleButton component in src/components re-exporting the shared

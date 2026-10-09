@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { AccessibleButton, useAccessibleButtonKeyHandler } from '../../components/AccessibleButton.jsx';
+import {
+  AccessibleButton,
+  useAccessibleButtonKeyHandler,
+} from '../../components/AccessibleButton.jsx';
 import { mountScreen, unmount, type Mounted } from './ui-helpers.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,9 +50,7 @@ describe('AccessibleButton Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
 
   it('triggers onClick on mouse click', async () => {
     const handleClick = vi.fn();
-    const Component = () => (
-      <AccessibleButton onClick={handleClick}>Action</AccessibleButton>
-    );
+    const Component = () => <AccessibleButton onClick={handleClick}>Action</AccessibleButton>;
 
     mounted = await mountScreen(Component);
     const btn = mounted.host.querySelector('[role="button"]') as HTMLElement;
@@ -70,7 +71,11 @@ describe('AccessibleButton Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
     mounted = await mountScreen(Component);
     const btn = mounted.host.querySelector('[role="button"]') as HTMLElement;
 
-    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    const enterEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
     await act(async () => {
       btn.dispatchEvent(enterEvent);
     });
@@ -84,7 +89,11 @@ describe('AccessibleButton Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
     expect(spaceEvent.defaultPrevented).toBe(true);
     expect(handleClick).toHaveBeenCalledTimes(2);
 
-    const arrowEvent = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+    const arrowEvent = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    });
     await act(async () => {
       btn.dispatchEvent(arrowEvent);
     });
@@ -111,7 +120,11 @@ describe('AccessibleButton Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
     });
     expect(handleClick).not.toHaveBeenCalled();
 
-    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    const enterEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
     await act(async () => {
       btn.dispatchEvent(enterEvent);
     });
@@ -121,7 +134,10 @@ describe('AccessibleButton Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
 
 describe('AccessibleButton W3C Specification Documentation', () => {
   it('contains official W3C specification URLs in AccessibleButton component files', () => {
-    const dsPath = path.resolve(__dirname, '../../../packages/design-system/src/react/AccessibleButton.tsx');
+    const dsPath = path.resolve(
+      __dirname,
+      '../../../packages/design-system/src/react/AccessibleButton.tsx',
+    );
     const appPath = path.resolve(__dirname, '../../components/AccessibleButton.jsx');
 
     for (const filePath of [dsPath, appPath]) {
