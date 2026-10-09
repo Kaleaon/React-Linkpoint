@@ -79,7 +79,7 @@ describe('InteractionDialog', () => {
     expect(respond).toHaveBeenCalledWith({ id: 't1', text: 'Arapaima' });
   });
 
-  it('shows a teleport offer, accepts it, and says dismissing does not notify the sender', async () => {
+  it('shows a teleport offer, accepts it, and says declining notifies the sender', async () => {
     const accept = vi.spyOn(app.protocol, 'acceptLure').mockResolvedValue({ accepted: true, message: '' } as any);
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     const host = await mount();
@@ -89,21 +89,27 @@ describe('InteractionDialog', () => {
     expect(host.textContent).toContain('Come visit');
     expect(host.textContent).toContain('Position 10, 21, 30');
     expect(host.textContent).toContain('grid 1000, 1001');
-    expect(host.textContent).toContain('does not notify the sender');
+    expect(host.textContent).toContain('Declining notifies the sender');
     await click(button(host, 'ACCEPT'));
     expect(accept).toHaveBeenCalledWith('l1', 'f'); // the offer's sender, so RLV can check @tplure exceptions
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
-  it('dismisses with the DISMISS button and with Escape, without answering the grid', async () => {
+  it('declines a teleport offer with the DECLINE button, notifying the sender', async () => {
+    const decline = vi.spyOn(app.protocol as any, 'declineLure').mockResolvedValue({ declined: true } as any);
+    vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
+    const host = await mount();
+    await emit('lure', lure('l1'));
+    await click(button(host, 'DECLINE'));
+    expect(decline).toHaveBeenCalledWith({ id: 'l1' });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('dismisses with Escape without answering the grid', async () => {
     const respond = vi.spyOn(app.protocol, 'respondScriptDialog');
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
     vi.spyOn(app.protocol, 'dismissInteraction').mockResolvedValue({ dismissed: true } as any);
     const host = await mount();
-    await emit('lure', lure('l1'));
-    await click(button(host, 'DISMISS'));
-    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
-
     await emit('script_dialog', dialog('d1'));
     expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
     await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); });

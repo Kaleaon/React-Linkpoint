@@ -196,6 +196,22 @@ async function acceptLure(bot, pending, params) {
   return { accepted: true, message: result && result.message ? String(result.message) : '' };
 }
 
+/** Decline a teleport lure and notify the sender. */
+async function declineLure(bot, pending, params) {
+  const lure = pending.get('lure', params && params.id);
+  const senderId = idString(lure.from || lure.fromId);
+  const comms = commands(bot).comms;
+  if (senderId && comms && typeof comms.sendInstantMessage === 'function') {
+    try {
+      await comms.sendInstantMessage(senderId, 'Teleport offer declined');
+    } catch {
+      // Ignore network/messaging error during decline, still remove lure locally
+    }
+  }
+  pending.remove(params.id);
+  return { declined: true };
+}
+
 /** Accept an inventory offer. */
 async function acceptInventoryOffer(bot, pending, params) {
   const offer = pending.get('inventory-offer', params && params.id);
@@ -304,6 +320,7 @@ module.exports = {
   subscribeInteractions,
   respondScriptDialog,
   acceptLure,
+  declineLure,
   acceptInventoryOffer,
   declineInventoryOffer,
   acceptGroupInvite,

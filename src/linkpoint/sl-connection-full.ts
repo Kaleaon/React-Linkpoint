@@ -368,6 +368,12 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.acceptLure({ id });
   }
 
+  /** Decline a teleport lure and notify the sender. */
+  async declineLure(request: { id: string }) {
+    this.requireConnected();
+    return slBridge.declineLure(request);
+  }
+
   /** Accept an inventory offer. */
   async acceptInventoryOffer(request: { id: string }) {
     this.requireConnected();

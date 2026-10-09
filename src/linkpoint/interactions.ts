@@ -345,6 +345,12 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
+  /** Decline a teleport lure. Sends a decline notification to the inviter. */
+  async declineLure(id: string) {
+    const result = await this.run(id, () => typeof (this.protocol as any).declineLure === 'function' ? (this.protocol as any).declineLure({ id }) : this.protocol.dismissInteraction(id));
+    return Boolean(result);
+  }
+
   /** Accept an inventory offer. */
   async acceptInventoryOffer(id: string) {
     const result = await this.run(id, () => (this.protocol as any).acceptInventoryOffer({ id }));

@@ -182,6 +182,7 @@ export class SLBridge extends Utils.EventEmitter {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }
   acceptLure(params: { id: string }) { return this.call<{ accepted: boolean; message: string }>('acceptLure', params); }
+  declineLure(params: { id: string }) { return this.call<{ declined: boolean }>('declineLure', params).catch(() => this.dismissInteraction(params) as any); }
   acceptInventoryOffer(params: { id: string }) { return this.call<{ accepted: boolean }>('acceptInventoryOffer', params); }
   declineInventoryOffer(params: { id: string }) { return this.call<{ declined: boolean }>('declineInventoryOffer', params).catch(() => this.dismissInteraction(params) as any); }
   acceptGroupInvite(params: { id: string }) { return this.call<{ accepted: boolean }>('acceptGroupInvite', params); }
