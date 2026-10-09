@@ -145,35 +145,35 @@ describe('RegionWind lookups', () => {
     return wind;
   };
 
-  it('starts every cell at the official 0.5, which is 1 m/s after the scale hack', () => {
-    expect(new RegionWind().velocity([10, 10, 0])).toEqual([1, 1, 0]);
+  it('starts every cell at the official 0.5 m/s physical wind', () => {
+    expect(new RegionWind().velocity([10, 10, 0])).toEqual([0.5, 0.5, 0]);
   });
 
   it('interpolates bilinearly between grid cells (16 m apart in a 256 m region)', () => {
     const wind = field();
     // x = 24 m is halfway between cells 1 and 2; y = 8 m is halfway between rows 0 and 1.
     const [x, y, z] = wind.velocity([24, 8, 30]);
-    expect(x).toBeCloseTo(1.5 * WIND_SCALE_HACK, 5);
-    expect(y).toBeCloseTo(5 * WIND_SCALE_HACK, 5);
+    expect(x).toBeCloseTo(1.5, 5);
+    expect(y).toBeCloseTo(5, 5);
     expect(z).toBe(0);
   });
 
   it('uses the nearest cell on the last row and column, clamps negatives and wraps past the edge', () => {
     const wind = field();
-    expect(wind.velocity([255, 3, 0])[0]).toBeCloseTo(15 * WIND_SCALE_HACK, 5);
+    expect(wind.velocity([255, 3, 0])[0]).toBeCloseTo(15, 5);
     expect(wind.velocity([-40, 3, 0])[0]).toBeCloseTo(0, 5);
-    expect(wind.velocity([DEFAULT_REGION_WIDTH + 16, 0, 0])[0]).toBeCloseTo(1 * WIND_SCALE_HACK, 5);
+    expect(wind.velocity([DEFAULT_REGION_WIDTH + 16, 0, 0])[0]).toBeCloseTo(1, 5);
   });
 
   it('averages the grid and scales it', () => {
     const [x, y] = field().average();
-    expect(x).toBeCloseTo(7.5 * WIND_SCALE_HACK, 5);
-    expect(y).toBeCloseTo(75 * WIND_SCALE_HACK, 5);
+    expect(x).toBeCloseTo(7.5, 5);
+    expect(y).toBeCloseTo(75, 5);
   });
 
   it('sums the grid at dim, dim/2 ... 1 for the noisy lookup, with the viewer\'s norm', () => {
     const wind = new RegionWind();
-    // A uniform grid of 0.5: each octave returns 1 m/s / d, so the sum for dim 4 is 1+1/2+1/4... -> 1*(1/4+1/2+1) = 1.75, norm 1.75, then x2.
-    expect(wind.velocityNoisy([10, 10, 0], 4)[0]).toBeCloseTo((1 * (0.25 + 0.5 + 1)) / 1.75 * 2, 5);
+    // A uniform grid of 0.5: each octave returns 0.5 m/s / d, sum for dim 4 is 0.5*(0.25+0.5+1) = 0.875, norm 1.75 -> 0.5.
+    expect(wind.velocityNoisy([10, 10, 0], 4)[0]).toBeCloseTo(0.5, 5);
   });
 });
