@@ -13,6 +13,57 @@ import time
 from typing import Dict, List, Optional, Any, Tuple
 
 CURRENT_SCHEMA_VERSION = 1
+DEFAULT_CHUNK_SIZE = 100
+
+
+def _execute_chunked_insert(
+    cursor: sqlite3.Cursor,
+    table_name: str,
+    columns: List[str],
+    rows_data: List[Tuple[Any, ...]],
+    on_conflict_suffix: Optional[str] = None,
+    chunk_size: int = DEFAULT_CHUNK_SIZE
+):
+    if not rows_data:
+        return
+    if chunk_size <= 0:
+        chunk_size = DEFAULT_CHUNK_SIZE
+
+    cols_clause = ", ".join(columns)
+    col_count = len(columns)
+    single_row_placeholders = f"({', '.join(['?'] * col_count)})"
+
+    for i in range(0, len(rows_data), chunk_size):
+        chunk = rows_data[i : i + chunk_size]
+        values_clause = ", ".join([single_row_placeholders] * len(chunk))
+        sql = f"INSERT INTO {table_name} ({cols_clause}) VALUES {values_clause}"
+        if on_conflict_suffix:
+            sql += f" {on_conflict_suffix}"
+
+        flat_params = []
+        for row in chunk:
+            flat_params.extend(row)
+
+        cursor.execute(sql, flat_params)
+
+
+def _execute_chunked_delete(
+    cursor: sqlite3.Cursor,
+    table_name: str,
+    id_column: str,
+    ids: List[str],
+    chunk_size: int = DEFAULT_CHUNK_SIZE
+):
+    if not ids:
+        return
+    if chunk_size <= 0:
+        chunk_size = DEFAULT_CHUNK_SIZE
+
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i : i + chunk_size]
+        placeholders = ", ".join(["?"] * len(chunk))
+        sql = f"DELETE FROM {table_name} WHERE {id_column} IN ({placeholders});"
+        cursor.execute(sql, chunk)
 
 
 class InventoryCache:
@@ -195,9 +246,15 @@ class InventoryCache:
             finally:
                 self._close_connection(conn)
 
-    def apply_delta_update(self, delta_data: Dict[str, Any], new_token: str, token_id: str = "default") -> bool:
+    def apply_delta_update(
+        self,
+        delta_data: Dict[str, Any],
+        new_token: str,
+        token_id: str = "default",
+        chunk_size: int = DEFAULT_CHUNK_SIZE
+    ) -> bool:
         """
-        Applies HTTP delta updates (added/updated/removed folders and items) to SQLite cache.
+        Applies HTTP delta updates (added/updated/removed folders and items) to SQLite cache using chunked multi-row SQL execution.
         """
         with self._lock:
             conn = self._get_connection()
@@ -205,61 +262,79 @@ class InventoryCache:
                 cursor = conn.cursor()
                 now = time.time()
 
-                for folder in delta_data.get("folders_to_add_or_update", []):
-                    cursor.execute(
-                        """
-                        INSERT INTO folders (folder_id, parent_id, name, type_default, version, update_token)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(folder_id) DO UPDATE SET
-                            parent_id=excluded.parent_id,
-                            name=excluded.name,
-                            type_default=excluded.type_default,
-                            version=excluded.version,
-                            update_token=excluded.update_token;
-                        """,
-                        (
-                            folder["folder_id"],
-                            folder.get("parent_id"),
-                            folder["name"],
-                            folder.get("type_default", 0),
-                            folder.get("version", 0),
-                            folder.get("update_token")
-                        )
+                folders_to_upsert = [
+                    (
+                        folder["folder_id"],
+                        folder.get("parent_id"),
+                        folder["name"],
+                        folder.get("type_default", 0),
+                        folder.get("version", 0),
+                        folder.get("update_token")
                     )
+                    for folder in delta_data.get("folders_to_add_or_update", [])
+                ]
+                _execute_chunked_insert(
+                    cursor,
+                    table_name="folders",
+                    columns=["folder_id", "parent_id", "name", "type_default", "version", "update_token"],
+                    rows_data=folders_to_upsert,
+                    on_conflict_suffix="""ON CONFLICT(folder_id) DO UPDATE SET
+                        parent_id=excluded.parent_id,
+                        name=excluded.name,
+                        type_default=excluded.type_default,
+                        version=excluded.version,
+                        update_token=excluded.update_token""",
+                    chunk_size=chunk_size
+                )
 
-                for folder_id in delta_data.get("folders_to_remove", []):
-                    cursor.execute("DELETE FROM folders WHERE folder_id=?;", (folder_id,))
+                folders_to_remove = delta_data.get("folders_to_remove", [])
+                _execute_chunked_delete(
+                    cursor,
+                    table_name="folders",
+                    id_column="folder_id",
+                    ids=folders_to_remove,
+                    chunk_size=chunk_size
+                )
 
-                for item in delta_data.get("items_to_add_or_update", []):
-                    cursor.execute(
-                        """
-                        INSERT INTO items (item_id, folder_id, name, asset_id, type, inv_type, flags, creation_date, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(item_id) DO UPDATE SET
-                            folder_id=excluded.folder_id,
-                            name=excluded.name,
-                            asset_id=excluded.asset_id,
-                            type=excluded.type,
-                            inv_type=excluded.inv_type,
-                            flags=excluded.flags,
-                            creation_date=excluded.creation_date,
-                            updated_at=excluded.updated_at;
-                        """,
-                        (
-                            item["item_id"],
-                            item["folder_id"],
-                            item["name"],
-                            item["asset_id"],
-                            item.get("type", 0),
-                            item.get("inv_type", 0),
-                            item.get("flags", 0),
-                            item.get("creation_date", 0),
-                            now
-                        )
+                items_to_upsert = [
+                    (
+                        item["item_id"],
+                        item["folder_id"],
+                        item["name"],
+                        item["asset_id"],
+                        item.get("type", 0),
+                        item.get("inv_type", 0),
+                        item.get("flags", 0),
+                        item.get("creation_date", 0),
+                        now
                     )
+                    for item in delta_data.get("items_to_add_or_update", [])
+                ]
+                _execute_chunked_insert(
+                    cursor,
+                    table_name="items",
+                    columns=["item_id", "folder_id", "name", "asset_id", "type", "inv_type", "flags", "creation_date", "updated_at"],
+                    rows_data=items_to_upsert,
+                    on_conflict_suffix="""ON CONFLICT(item_id) DO UPDATE SET
+                        folder_id=excluded.folder_id,
+                        name=excluded.name,
+                        asset_id=excluded.asset_id,
+                        type=excluded.type,
+                        inv_type=excluded.inv_type,
+                        flags=excluded.flags,
+                        creation_date=excluded.creation_date,
+                        updated_at=excluded.updated_at""",
+                    chunk_size=chunk_size
+                )
 
-                for item_id in delta_data.get("items_to_remove", []):
-                    cursor.execute("DELETE FROM items WHERE item_id=?;", (item_id,))
+                items_to_remove = delta_data.get("items_to_remove", [])
+                _execute_chunked_delete(
+                    cursor,
+                    table_name="items",
+                    id_column="item_id",
+                    ids=items_to_remove,
+                    chunk_size=chunk_size
+                )
 
                 cursor.execute(
                     """
@@ -280,9 +355,15 @@ class InventoryCache:
             finally:
                 self._close_connection(conn)
 
-    def reload_full_inventory(self, full_data: Dict[str, Any], new_token: str, token_id: str = "default") -> bool:
+    def reload_full_inventory(
+        self,
+        full_data: Dict[str, Any],
+        new_token: str,
+        token_id: str = "default",
+        chunk_size: int = DEFAULT_CHUNK_SIZE
+    ) -> bool:
         """
-        Clears existing cache and replaces with full HTTP sync data (used on fallback or initial sync).
+        Clears existing cache and replaces with full HTTP sync data (used on fallback or initial sync) using chunked multi-row SQL execution.
         """
         with self._lock:
             conn = self._get_connection()
@@ -293,40 +374,46 @@ class InventoryCache:
                 cursor.execute("DELETE FROM items;")
                 cursor.execute("DELETE FROM folders;")
 
-                for folder in full_data.get("folders", []):
-                    cursor.execute(
-                        """
-                        INSERT INTO folders (folder_id, parent_id, name, type_default, version, update_token)
-                        VALUES (?, ?, ?, ?, ?, ?);
-                        """,
-                        (
-                            folder["folder_id"],
-                            folder.get("parent_id"),
-                            folder["name"],
-                            folder.get("type_default", 0),
-                            folder.get("version", 0),
-                            folder.get("update_token")
-                        )
+                folders_to_insert = [
+                    (
+                        folder["folder_id"],
+                        folder.get("parent_id"),
+                        folder["name"],
+                        folder.get("type_default", 0),
+                        folder.get("version", 0),
+                        folder.get("update_token")
                     )
+                    for folder in full_data.get("folders", [])
+                ]
+                _execute_chunked_insert(
+                    cursor,
+                    table_name="folders",
+                    columns=["folder_id", "parent_id", "name", "type_default", "version", "update_token"],
+                    rows_data=folders_to_insert,
+                    chunk_size=chunk_size
+                )
 
-                for item in full_data.get("items", []):
-                    cursor.execute(
-                        """
-                        INSERT INTO items (item_id, folder_id, name, asset_id, type, inv_type, flags, creation_date, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                        """,
-                        (
-                            item["item_id"],
-                            item["folder_id"],
-                            item["name"],
-                            item["asset_id"],
-                            item.get("type", 0),
-                            item.get("inv_type", 0),
-                            item.get("flags", 0),
-                            item.get("creation_date", 0),
-                            now
-                        )
+                items_to_insert = [
+                    (
+                        item["item_id"],
+                        item["folder_id"],
+                        item["name"],
+                        item["asset_id"],
+                        item.get("type", 0),
+                        item.get("inv_type", 0),
+                        item.get("flags", 0),
+                        item.get("creation_date", 0),
+                        now
                     )
+                    for item in full_data.get("items", [])
+                ]
+                _execute_chunked_insert(
+                    cursor,
+                    table_name="items",
+                    columns=["item_id", "folder_id", "name", "asset_id", "type", "inv_type", "flags", "creation_date", "updated_at"],
+                    rows_data=items_to_insert,
+                    chunk_size=chunk_size
+                )
 
                 cursor.execute(
                     """
