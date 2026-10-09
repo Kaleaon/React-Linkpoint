@@ -14,8 +14,8 @@ export class XMLRPCClient {
    */
   static buildLoginRequest(params: any, methodName: string = 'login_to_simulator'): string {
     // String fields (non-boolean)
-    const stringFields: { name: string, value: string }[] = [];
-    
+    const stringFields: { name: string; value: string }[] = [];
+
     // Add all login parameters as strings
     stringFields.push({ name: 'first', value: params.firstName });
     stringFields.push({ name: 'last', value: params.lastName });
@@ -30,14 +30,17 @@ export class XMLRPCClient {
     let hashedMac = '';
     // We compute the hash synchronously if possible, or assume it's pre-hashed if it's 32 chars
     if (rawMac.length === 32 && !rawMac.includes(':')) {
-       hashedMac = rawMac;
+      hashedMac = rawMac;
     } else {
-       hashedMac = SparkMD5.hash(rawMac);
+      hashedMac = SparkMD5.hash(rawMac);
     }
     stringFields.push({ name: 'mac', value: hashedMac });
     stringFields.push({ name: 'id0', value: params.id0 || this.generateID0() });
-    stringFields.push({ name: 'viewer_digest', value: params.viewerDigest || this.generateViewerDigest() });
-    
+    stringFields.push({
+      name: 'viewer_digest',
+      value: params.viewerDigest || this.generateViewerDigest(),
+    });
+
     // Add options array
     const options = [
       'inventory-root',
@@ -61,9 +64,9 @@ export class XMLRPCClient {
       'voice-config',
       'tutorial_setting',
       'login-flags',
-      'global-textures'
+      'global-textures',
     ];
-    
+
     // Build XML
     let xml = '<?xml version="1.0"?>\n';
     xml += '<methodCall>\n';
@@ -71,7 +74,7 @@ export class XMLRPCClient {
     xml += '<params>\n';
     xml += '<param>\n';
     xml += '<value><struct>\n';
-    
+
     // Add all string fields
     for (const field of stringFields) {
       xml += '<member>\n';
@@ -79,18 +82,18 @@ export class XMLRPCClient {
       xml += `<value><string>${this.escapeXml(field.value)}</string></value>\n`;
       xml += '</member>\n';
     }
-    
+
     // Add boolean fields - MUST use <boolean>1</boolean> format, NOT <string>true</string>
     xml += '<member>\n';
     xml += '<name>agree_to_tos</name>\n';
     xml += '<value><boolean>1</boolean></value>\n';
     xml += '</member>\n';
-    
+
     xml += '<member>\n';
     xml += '<name>read_critical</name>\n';
     xml += '<value><boolean>1</boolean></value>\n';
     xml += '</member>\n';
-    
+
     // Add options array
     xml += '<member>\n';
     xml += '<name>options</name>\n';
@@ -100,12 +103,12 @@ export class XMLRPCClient {
     }
     xml += '</data></array></value>\n';
     xml += '</member>\n';
-    
+
     xml += '</struct></value>\n';
     xml += '</param>\n';
     xml += '</params>\n';
     xml += '</methodCall>\n';
-    
+
     return xml;
   }
 
@@ -119,27 +122,31 @@ export class XMLRPCClient {
         method: 'POST',
         headers: {
           'Content-Type': 'text/xml',
-          'Accept': 'text/xml, application/xml'
+          Accept: 'text/xml, application/xml',
         },
-        body: xmlRequest
+        body: xmlRequest,
       });
-      
+
       if (!response || !response.ok) {
         const errorText = response ? await response.text() : 'No response';
         console.error('[XMLRPCClient] HTTP error response:', errorText.substring(0, 500));
-        throw new Error(`HTTP ${response ? response.status : 'Error'}: ${response ? response.statusText : 'Unknown'}`);
+        throw new Error(
+          `HTTP ${response ? response.status : 'Error'}: ${response ? response.statusText : 'Unknown'}`,
+        );
       }
-      
+
       const responseText = await response.text();
-      
+
       // Check if response looks like XML
-      if (!responseText.trim().startsWith('<?xml') && !responseText.trim().startsWith('<methodResponse')) {
+      if (
+        !responseText.trim().startsWith('<?xml') &&
+        !responseText.trim().startsWith('<methodResponse')
+      ) {
         console.error('[XMLRPCClient] Response is not XML:', responseText.substring(0, 500));
         throw new Error('Server returned an invalid response. This may be a CORS issue.');
       }
-      
+
       return this.parseLoginResponse(responseText);
-      
     } catch (error: any) {
       console.error('XML-RPC request failed:', error);
       throw error;
@@ -152,7 +159,7 @@ export class XMLRPCClient {
   static parseLoginResponse(xmlText: string): any {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlText, 'text/xml');
-    
+
     const parseError = doc.querySelector('parsererror');
     if (parseError) {
       throw new Error('Invalid server response (XML parse error).');
@@ -184,21 +191,21 @@ export class XMLRPCClient {
    */
   static parseStruct(structElement: Element): any {
     const result: Record<string, any> = {};
-    
+
     if (!structElement) return result;
-    
+
     const members = structElement.querySelectorAll('member');
-    members.forEach(member => {
+    members.forEach((member) => {
       const nameEl = member.querySelector('name');
       const valueEl = member.querySelector('value');
-      
+
       if (nameEl && valueEl) {
         const name = nameEl.textContent?.trim() || '';
         const value = this.parseValue(valueEl);
         result[name] = value;
       }
     });
-    
+
     return result;
   }
 
@@ -207,14 +214,14 @@ export class XMLRPCClient {
    */
   static parseValue(valueElement: Element): any {
     const firstChild = valueElement.firstElementChild;
-    
+
     if (!firstChild) {
       return valueElement.textContent?.trim() || '';
     }
-    
+
     const tagName = firstChild.tagName.toLowerCase();
     const text = firstChild.textContent?.trim() || '';
-    
+
     switch (tagName) {
       case 'string':
         return text;
@@ -240,14 +247,14 @@ export class XMLRPCClient {
   static parseArray(arrayElement: Element): any[] {
     const result: any[] = [];
     const data = arrayElement.querySelector('data');
-    
+
     if (data) {
       const values = data.querySelectorAll(':scope > value');
-      values.forEach(valueEl => {
+      values.forEach((valueEl) => {
         result.push(this.parseValue(valueEl));
       });
     }
-    
+
     return result;
   }
 
@@ -272,7 +279,7 @@ export class XMLRPCClient {
       const bytes = new Uint8Array(6);
       globalThis.crypto.getRandomValues(bytes);
       mac = Array.from(bytes)
-        .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+        .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
         .join(':');
       Utils.storage.set('linkpoint_mac', mac);
     }
@@ -298,7 +305,9 @@ export class XMLRPCClient {
    */
   static async md5(str: string): Promise<string> {
     const bytes = new TextEncoder().encode(str);
-    return SparkMD5.ArrayBuffer.hash(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+    return SparkMD5.ArrayBuffer.hash(
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+    );
   }
 
   /**

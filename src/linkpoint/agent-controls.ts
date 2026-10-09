@@ -13,21 +13,38 @@
  */
 
 export const AGENT_CONTROL = {
-  AT_POS: 0x1, AT_NEG: 0x2,
-  LEFT_POS: 0x4, LEFT_NEG: 0x8,
-  UP_POS: 0x10, UP_NEG: 0x20,
-  PITCH_POS: 0x40, PITCH_NEG: 0x80,
-  YAW_POS: 0x100, YAW_NEG: 0x200,
-  FAST_AT: 0x400, FAST_LEFT: 0x800, FAST_UP: 0x1000,
-  FLY: 0x2000, STOP: 0x4000, FINISH_ANIM: 0x8000,
-  STAND_UP: 0x10000, SIT_ON_GROUND: 0x20000, MOUSELOOK: 0x40000,
-  NUDGE_AT_POS: 0x80000, NUDGE_AT_NEG: 0x100000,
-  NUDGE_LEFT_POS: 0x200000, NUDGE_LEFT_NEG: 0x400000,
-  NUDGE_UP_POS: 0x800000, NUDGE_UP_NEG: 0x1000000,
-  TURN_LEFT: 0x2000000, TURN_RIGHT: 0x4000000,
+  AT_POS: 0x1,
+  AT_NEG: 0x2,
+  LEFT_POS: 0x4,
+  LEFT_NEG: 0x8,
+  UP_POS: 0x10,
+  UP_NEG: 0x20,
+  PITCH_POS: 0x40,
+  PITCH_NEG: 0x80,
+  YAW_POS: 0x100,
+  YAW_NEG: 0x200,
+  FAST_AT: 0x400,
+  FAST_LEFT: 0x800,
+  FAST_UP: 0x1000,
+  FLY: 0x2000,
+  STOP: 0x4000,
+  FINISH_ANIM: 0x8000,
+  STAND_UP: 0x10000,
+  SIT_ON_GROUND: 0x20000,
+  MOUSELOOK: 0x40000,
+  NUDGE_AT_POS: 0x80000,
+  NUDGE_AT_NEG: 0x100000,
+  NUDGE_LEFT_POS: 0x200000,
+  NUDGE_LEFT_NEG: 0x400000,
+  NUDGE_UP_POS: 0x800000,
+  NUDGE_UP_NEG: 0x1000000,
+  TURN_LEFT: 0x2000000,
+  TURN_RIGHT: 0x4000000,
   AWAY: 0x8000000,
-  LBUTTON_DOWN: 0x10000000, LBUTTON_UP: 0x20000000,
-  ML_LBUTTON_DOWN: 0x40000000, ML_LBUTTON_UP: 0x80000000,
+  LBUTTON_DOWN: 0x10000000,
+  LBUTTON_UP: 0x20000000,
+  ML_LBUTTON_DOWN: 0x40000000,
+  ML_LBUTTON_UP: 0x80000000,
 } as const;
 
 /** What the resident is asking the avatar to do right now. Axes are -1..1. */
@@ -63,20 +80,32 @@ const sign = (value: number | undefined) => (value && value > 0 ? 1 : value && v
  */
 export function intentToFlags(intent: MovementIntent): number {
   let flags = 0;
-  const f = sign(intent.forward), r = sign(intent.right), u = sign(intent.up), t = sign(intent.turn);
-  if (f > 0) flags |= AGENT_CONTROL.AT_POS; else if (f < 0) flags |= AGENT_CONTROL.AT_NEG;
-  if (r > 0) flags |= AGENT_CONTROL.LEFT_NEG; else if (r < 0) flags |= AGENT_CONTROL.LEFT_POS;
-  if (u > 0) flags |= AGENT_CONTROL.UP_POS; else if (u < 0) flags |= AGENT_CONTROL.UP_NEG;
-  if (t > 0) flags |= AGENT_CONTROL.TURN_RIGHT; else if (t < 0) flags |= AGENT_CONTROL.TURN_LEFT;
+  const f = sign(intent.forward),
+    r = sign(intent.right),
+    u = sign(intent.up),
+    t = sign(intent.turn);
+  if (f > 0) flags |= AGENT_CONTROL.AT_POS;
+  else if (f < 0) flags |= AGENT_CONTROL.AT_NEG;
+  if (r > 0) flags |= AGENT_CONTROL.LEFT_NEG;
+  else if (r < 0) flags |= AGENT_CONTROL.LEFT_POS;
+  if (u > 0) flags |= AGENT_CONTROL.UP_POS;
+  else if (u < 0) flags |= AGENT_CONTROL.UP_NEG;
+  if (t > 0) flags |= AGENT_CONTROL.TURN_RIGHT;
+  else if (t < 0) flags |= AGENT_CONTROL.TURN_LEFT;
   if (intent.run) {
     if (f) flags |= AGENT_CONTROL.FAST_AT;
     if (r) flags |= AGENT_CONTROL.FAST_LEFT;
     if (u) flags |= AGENT_CONTROL.FAST_UP;
   }
-  const nf = sign(intent.nudgeForward), nr = sign(intent.nudgeRight), nu = sign(intent.nudgeUp);
-  if (nf > 0) flags |= AGENT_CONTROL.NUDGE_AT_POS; else if (nf < 0) flags |= AGENT_CONTROL.NUDGE_AT_NEG;
-  if (nr > 0) flags |= AGENT_CONTROL.NUDGE_LEFT_NEG; else if (nr < 0) flags |= AGENT_CONTROL.NUDGE_LEFT_POS;
-  if (nu > 0) flags |= AGENT_CONTROL.NUDGE_UP_POS; else if (nu < 0) flags |= AGENT_CONTROL.NUDGE_UP_NEG;
+  const nf = sign(intent.nudgeForward),
+    nr = sign(intent.nudgeRight),
+    nu = sign(intent.nudgeUp);
+  if (nf > 0) flags |= AGENT_CONTROL.NUDGE_AT_POS;
+  else if (nf < 0) flags |= AGENT_CONTROL.NUDGE_AT_NEG;
+  if (nr > 0) flags |= AGENT_CONTROL.NUDGE_LEFT_NEG;
+  else if (nr < 0) flags |= AGENT_CONTROL.NUDGE_LEFT_POS;
+  if (nu > 0) flags |= AGENT_CONTROL.NUDGE_UP_POS;
+  else if (nu < 0) flags |= AGENT_CONTROL.NUDGE_UP_NEG;
   if (intent.fly) flags |= AGENT_CONTROL.FLY;
   if (intent.stop) flags |= AGENT_CONTROL.STOP;
   if (intent.standUp) flags |= AGENT_CONTROL.STAND_UP;
@@ -91,9 +120,17 @@ export function intentToFlags(intent: MovementIntent): number {
 
 /** Flags that are one-shot: the sender clears them after the update that carries them. */
 export const ONE_SHOT_FLAGS: number =
-  (AGENT_CONTROL.STOP | AGENT_CONTROL.STAND_UP | AGENT_CONTROL.SIT_ON_GROUND | AGENT_CONTROL.FINISH_ANIM |
-    AGENT_CONTROL.NUDGE_AT_POS | AGENT_CONTROL.NUDGE_AT_NEG | AGENT_CONTROL.NUDGE_LEFT_POS | AGENT_CONTROL.NUDGE_LEFT_NEG |
-    AGENT_CONTROL.NUDGE_UP_POS | AGENT_CONTROL.NUDGE_UP_NEG) >>> 0;
+  (AGENT_CONTROL.STOP |
+    AGENT_CONTROL.STAND_UP |
+    AGENT_CONTROL.SIT_ON_GROUND |
+    AGENT_CONTROL.FINISH_ANIM |
+    AGENT_CONTROL.NUDGE_AT_POS |
+    AGENT_CONTROL.NUDGE_AT_NEG |
+    AGENT_CONTROL.NUDGE_LEFT_POS |
+    AGENT_CONTROL.NUDGE_LEFT_NEG |
+    AGENT_CONTROL.NUDGE_UP_POS |
+    AGENT_CONTROL.NUDGE_UP_NEG) >>>
+  0;
 
 /** AgentUpdate `Flags` bits (`AU_FLAGS_HIDETITLE`, `AU_FLAGS_CLIENT_AUTOPILOT`). */
 export const AGENT_UPDATE_FLAGS = { HIDE_TITLE: 0x1, CLIENT_AUTOPILOT: 0x2 } as const;
@@ -104,17 +141,41 @@ export const FLY_TIME_MS = 500;
 
 /** Keyboard commands (from key_bindings.xml) that act on the agent rather than the camera. */
 export type AgentCommand =
-  | 'push_forward' | 'push_backward' | 'slide_left' | 'slide_right' | 'turn_left' | 'turn_right'
-  | 'jump' | 'push_down' | 'toggle_fly' | 'toggle_run' | 'stop_moving';
+  | 'push_forward'
+  | 'push_backward'
+  | 'slide_left'
+  | 'slide_right'
+  | 'turn_left'
+  | 'turn_right'
+  | 'jump'
+  | 'push_down'
+  | 'toggle_fly'
+  | 'toggle_run'
+  | 'stop_moving';
 
 export const AGENT_COMMANDS: ReadonlySet<string> = new Set<AgentCommand>([
-  'push_forward', 'push_backward', 'slide_left', 'slide_right', 'turn_left', 'turn_right',
-  'jump', 'push_down', 'toggle_fly', 'toggle_run', 'stop_moving',
+  'push_forward',
+  'push_backward',
+  'slide_left',
+  'slide_right',
+  'turn_left',
+  'turn_right',
+  'jump',
+  'push_down',
+  'toggle_fly',
+  'toggle_run',
+  'stop_moving',
 ]);
 
 const MOVE_AXIS: Record<string, string> = {
-  push_forward: 'forward', push_backward: 'back', slide_left: 'left', slide_right: 'right',
-  turn_left: 'turnLeft', turn_right: 'turnRight', jump: 'up', push_down: 'down',
+  push_forward: 'forward',
+  push_backward: 'back',
+  slide_left: 'left',
+  slide_right: 'right',
+  turn_left: 'turnLeft',
+  turn_right: 'turnRight',
+  jump: 'up',
+  push_down: 'down',
 };
 
 /**
@@ -154,20 +215,38 @@ export class AgentController {
   /** An analog source (a gamepad) layered over the keys: it fills any axis the keys leave idle. */
   private analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null = null;
 
-  setAnalog(analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null): void { this.analog = analog; }
+  setAnalog(
+    analog: Pick<MovementIntent, 'forward' | 'right' | 'up' | 'turn' | 'run'> | null,
+  ): void {
+    this.analog = analog;
+  }
 
   command(command: string, down: boolean, time: number): boolean {
     if (!AGENT_COMMANDS.has(command)) return false;
-    if (command === 'toggle_fly') { if (down) this.flying = !this.flying && this.canFly(); return true; }
-    if (command === 'toggle_run') { if (down) this.alwaysRun = !this.alwaysRun && this.canAlwaysRun(); return true; }
-    if (command === 'stop_moving') { this.stopHeld = down; return true; }
+    if (command === 'toggle_fly') {
+      if (down) this.flying = !this.flying && this.canFly();
+      return true;
+    }
+    if (command === 'toggle_run') {
+      if (down) this.alwaysRun = !this.alwaysRun && this.canAlwaysRun();
+      return true;
+    }
+    if (command === 'stop_moving') {
+      this.stopHeld = down;
+      return true;
+    }
     const axis = MOVE_AXIS[command];
-    if (down) this.press(axis, time); else this.release(axis);
+    if (down) this.press(axis, time);
+    else this.release(axis);
     return true;
   }
 
-  private canFly() { return this.restrictions.canFly?.() ?? true; }
-  private canAlwaysRun() { return this.restrictions.canAlwaysRun?.() ?? true; }
+  private canFly() {
+    return this.restrictions.canFly?.() ?? true;
+  }
+  private canAlwaysRun() {
+    return this.restrictions.canAlwaysRun?.() ?? true;
+  }
 
   private press(axis: string, time: number): void {
     if (this.pressedAt.has(axis)) return; // key repeat
@@ -177,7 +256,13 @@ export class AgentController {
     const walk = ['forward', 'back', 'left', 'right'].includes(axis);
     if (!walk) return;
     const running = this.alwaysRun || this.tempRunAxis !== null;
-    if (this.allowTapTapHoldRun && !running && (this.restrictions.canTempRun?.() ?? true) && this.lastWalkTap?.axis === axis && time - this.lastWalkTap.at < NUDGE_TIME_MS) {
+    if (
+      this.allowTapTapHoldRun &&
+      !running &&
+      (this.restrictions.canTempRun?.() ?? true) &&
+      this.lastWalkTap?.axis === axis &&
+      time - this.lastWalkTap.at < NUDGE_TIME_MS
+    ) {
       this.tempRunAxis = axis;
     }
     this.lastWalkTap = { axis, at: time };
@@ -188,31 +273,60 @@ export class AgentController {
     if (this.tempRunAxis === axis) this.tempRunAxis = null;
   }
 
-  releaseAll(): void { this.pressedAt.clear(); this.tempRunAxis = null; this.stopHeld = false; }
+  releaseAll(): void {
+    this.pressedAt.clear();
+    this.tempRunAxis = null;
+    this.stopHeld = false;
+  }
 
-  setFlying(on: boolean): void { this.flying = on; }
-  setMouselook(on: boolean): void { this.mouselook = on; }
-  setAway(on: boolean): void { this.away = on; }
-  standUp(): void { this.pendingOneShots |= AGENT_CONTROL.STAND_UP; }
-  sitOnGround(): void { this.pendingOneShots |= AGENT_CONTROL.SIT_ON_GROUND; }
+  setFlying(on: boolean): void {
+    this.flying = on;
+  }
+  setMouselook(on: boolean): void {
+    this.mouselook = on;
+  }
+  setAway(on: boolean): void {
+    this.away = on;
+  }
+  standUp(): void {
+    this.pendingOneShots |= AGENT_CONTROL.STAND_UP;
+  }
+  sitOnGround(): void {
+    this.pendingOneShots |= AGENT_CONTROL.SIT_ON_GROUND;
+  }
 
-  isMoving(): boolean { return this.pressedAt.size > 0; }
+  isMoving(): boolean {
+    return this.pressedAt.size > 0;
+  }
 
   /** Flags for the next AgentUpdate at `time`; consumes one-shot flags. */
   nextFlags(time: number): number {
     // A restriction that arrives while it is in use takes effect at once (RLVa lands the avatar and stops always-run)
     if (this.flying && !this.canFly()) this.flying = false;
     if (this.alwaysRun && !this.canAlwaysRun()) this.alwaysRun = false;
-    if (this.tempRunAxis !== null && !(this.restrictions.canTempRun?.() ?? true)) this.tempRunAxis = null;
+    if (this.tempRunAxis !== null && !(this.restrictions.canTempRun?.() ?? true))
+      this.tempRunAxis = null;
     const held = (axis: string) => this.pressedAt.has(axis);
     const age = (axis: string) => time - (this.pressedAt.get(axis) ?? time);
     const run = this.alwaysRun || this.tempRunAxis !== null;
-    const intent: MovementIntent = { run, fly: this.flying, mouselook: this.mouselook, away: this.away, stop: this.stopHeld };
-    const walk = (pos: string, neg: string, key: 'forward' | 'right', nudge: 'nudgeForward' | 'nudgeRight') => {
+    const intent: MovementIntent = {
+      run,
+      fly: this.flying,
+      mouselook: this.mouselook,
+      away: this.away,
+      stop: this.stopHeld,
+    };
+    const walk = (
+      pos: string,
+      neg: string,
+      key: 'forward' | 'right',
+      nudge: 'nudgeForward' | 'nudgeRight',
+    ) => {
       const dir = Number(held(pos)) - Number(held(neg));
       if (!dir) return;
       const axis = dir > 0 ? pos : neg;
-      if (age(axis) < NUDGE_TIME_MS) intent[nudge] = dir; else intent[key] = dir;
+      if (age(axis) < NUDGE_TIME_MS) intent[nudge] = dir;
+      else intent[key] = dir;
     };
     walk('forward', 'back', 'forward', 'nudgeForward');
     walk('right', 'left', 'right', 'nudgeRight');
@@ -220,13 +334,23 @@ export class AgentController {
     intent.turn = Number(held('turnRight')) - Number(held('turnLeft'));
     const analog = this.analog;
     if (analog) {
-      if (!intent.forward && !intent.nudgeForward && analog.forward) intent.forward = analog.forward;
+      if (!intent.forward && !intent.nudgeForward && analog.forward)
+        intent.forward = analog.forward;
       if (!intent.right && !intent.nudgeRight && analog.right) intent.right = analog.right;
       if (!intent.up && analog.up) intent.up = analog.up;
       if (!intent.turn && analog.turn) intent.turn = analog.turn;
       if (analog.run) intent.run = true;
     }
-    if (held('up') && !this.flying && this.automaticFly && this.canFly() && age('up') >= FLY_TIME_MS) { this.flying = true; intent.fly = true; }
+    if (
+      held('up') &&
+      !this.flying &&
+      this.automaticFly &&
+      this.canFly() &&
+      age('up') >= FLY_TIME_MS
+    ) {
+      this.flying = true;
+      intent.fly = true;
+    }
     const flags = (intentToFlags(intent) | this.pendingOneShots) >>> 0;
     this.pendingOneShots = 0;
     return flags;

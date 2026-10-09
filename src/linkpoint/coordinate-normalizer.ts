@@ -1,6 +1,6 @@
 /**
  * Linkpoint - Coordinate Normalizer
- * 
+ *
  * Normalizes 3D spatial coordinates between region-local vectors (0 to 256 meters)
  * and global grid coordinates for SL and OpenSim worlds.
  */
@@ -60,7 +60,10 @@ export class CoordinateNormalizer {
       return null;
     }
     if (typeof raw === 'string') {
-      const parts = raw.replace(/[<>[\]()]/g, '').split(',').map((s) => Number(s.trim()));
+      const parts = raw
+        .replace(/[<>[\]()]/g, '')
+        .split(',')
+        .map((s) => Number(s.trim()));
       if (parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
         return [parts[0], parts[1], Number.isFinite(parts[2]) ? parts[2] : 0];
       }
@@ -75,7 +78,7 @@ export class CoordinateNormalizer {
   public static globalToRegionLocal(
     position: any,
     regionOrigin?: RegionOrigin | null,
-    regionSize: number = CoordinateNormalizer.DEFAULT_REGION_SIZE
+    regionSize: number = CoordinateNormalizer.DEFAULT_REGION_SIZE,
   ): Vector3Tuple {
     const vec = CoordinateNormalizer.parseVector(position);
     if (!vec) return [0, 0, 0];
@@ -87,7 +90,7 @@ export class CoordinateNormalizer {
    */
   public static regionLocalToGlobal(
     localPos: any,
-    regionOrigin?: RegionOrigin | null
+    regionOrigin?: RegionOrigin | null,
   ): Vector3Tuple {
     const vec = CoordinateNormalizer.parseVector(localPos) || [0, 0, 0];
     return SpatialPipeline.getInstance().regionLocalToGlobal(vec, regionOrigin);
@@ -98,7 +101,10 @@ export class CoordinateNormalizer {
    */
   public static clampToRegionBounds(
     pos: Vector3Tuple,
-    bounds: [number, number] = [CoordinateNormalizer.DEFAULT_REGION_SIZE, CoordinateNormalizer.DEFAULT_REGION_SIZE]
+    bounds: [number, number] = [
+      CoordinateNormalizer.DEFAULT_REGION_SIZE,
+      CoordinateNormalizer.DEFAULT_REGION_SIZE,
+    ],
   ): Vector3Tuple {
     const clampedX = Math.max(0, Math.min(bounds[0], pos[0]));
     const clampedY = Math.max(0, Math.min(bounds[1], pos[1]));

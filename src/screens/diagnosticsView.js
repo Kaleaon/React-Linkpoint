@@ -1,12 +1,15 @@
 // Display rules for the Diagnostics screen. Anything the session has not
 // reported is shown as "—"; nothing is substituted with a plausible default.
 
-export const UNKNOWN = "—";
+export const UNKNOWN = '—';
 
-export const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+export const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
 /** Text for any value, "—" when unknown. */
-export const show = (v) => (v === null || v === undefined || v === "" || (typeof v === "number" && !Number.isFinite(v)) ? UNKNOWN : String(v));
+export const show = (v) =>
+  v === null || v === undefined || v === '' || (typeof v === 'number' && !Number.isFinite(v))
+    ? UNKNOWN
+    : String(v);
 
 /** Ports, circuit codes and similar identifiers use 0 to mean "not set". */
 export const positiveOrNull = (v) => (isNum(v) && v > 0 ? v : null);
@@ -16,15 +19,20 @@ export const realLatency = (ms) => (isNum(ms) && ms > 0 ? ms : null);
 
 export function latencyBand(ms) {
   const v = realLatency(ms);
-  if (v === null) return { label: "NO DATA", tone: "none", text: UNKNOWN };
-  if (v < 90) return { label: "EXCELLENT", tone: "ok", text: String(Math.round(v)) };
-  if (v < 200) return { label: "NORMAL", tone: "warn", text: String(Math.round(v)) };
-  return { label: "DEGRADED", tone: "err", text: String(Math.round(v)) };
+  if (v === null) return { label: 'NO DATA', tone: 'none', text: UNKNOWN };
+  if (v < 90) return { label: 'EXCELLENT', tone: 'ok', text: String(Math.round(v)) };
+  if (v < 200) return { label: 'NORMAL', tone: 'warn', text: String(Math.round(v)) };
+  return { label: 'DEGRADED', tone: 'err', text: String(Math.round(v)) };
 }
 
 export function lossBand(pct) {
-  if (!isNum(pct) || pct < 0) return { text: UNKNOWN, tone: "none", note: "No connection stability statistics available" };
-  return { text: pct.toFixed(1), tone: pct === 0 ? "ok" : pct < 1.5 ? "warn" : "err", note: pct === 0 ? "Connection stable (no packet loss)" : "Intermittent data loss detected" };
+  if (!isNum(pct) || pct < 0)
+    return { text: UNKNOWN, tone: 'none', note: 'No connection stability statistics available' };
+  return {
+    text: pct.toFixed(1),
+    tone: pct === 0 ? 'ok' : pct < 1.5 ? 'warn' : 'err',
+    note: pct === 0 ? 'Connection stable (no packet loss)' : 'Intermittent data loss detected',
+  };
 }
 
 /** Append a latency sample, keeping only real ones and the most recent `max`. */
@@ -48,13 +56,15 @@ export function packetAgeMs(lastTs, now) {
 /** Notification text for a ping probe result. */
 export function describePing(result) {
   const v = realLatency(result?.latencyMs);
-  return v === null ? "Response check returned no measurement" : `Response check complete: ${Math.round(v)} ms response time`;
+  return v === null
+    ? 'Response check returned no measurement'
+    : `Response check complete: ${Math.round(v)} ms response time`;
 }
 
 /** Event queue state from the connection's real flag. */
 export function eventQueueState(connected, running) {
-  if (!connected) return { text: "Not connected", tone: "none" };
-  return running ? { text: "Active", tone: "ok" } : { text: "Inactive", tone: "err" };
+  if (!connected) return { text: 'Not connected', tone: 'none' };
+  return running ? { text: 'Active', tone: 'ok' } : { text: 'Inactive', tone: 'err' };
 }
 
 /** Dual-mode connection status formatting. */
@@ -62,9 +72,9 @@ export function formatConnectionStatus(isConnected, gridName, simName) {
   const grid = show(gridName);
   const sim = show(simName);
   return {
-    title: "CONNECTION STATUS",
-    statusText: isConnected ? "CONNECTED" : "OFFLINE",
-    summary: isConnected ? `Connected to ${grid} (${sim})` : "Not connected to world",
+    title: 'CONNECTION STATUS',
+    statusText: isConnected ? 'CONNECTED' : 'OFFLINE',
+    summary: isConnected ? `Connected to ${grid} (${sim})` : 'Not connected to world',
     raw: { isConnected, grid, simName: sim },
   };
 }
@@ -73,21 +83,21 @@ export function formatConnectionStatus(isConnected, gridName, simName) {
 export function formatLatencySummary(ms) {
   const band = latencyBand(ms);
   const friendlyLabel =
-    band.tone === "ok"
-      ? "Excellent Response"
-      : band.tone === "warn"
-      ? "Normal Response"
-      : band.tone === "err"
-      ? "Degraded Response"
-      : "No Signal";
+    band.tone === 'ok'
+      ? 'Excellent Response'
+      : band.tone === 'warn'
+        ? 'Normal Response'
+        : band.tone === 'err'
+          ? 'Degraded Response'
+          : 'No Signal';
   return {
-    title: "WORLD RESPONSE TIME",
+    title: 'WORLD RESPONSE TIME',
     value: band.text,
-    unit: "MS",
+    unit: 'MS',
     label: band.label,
     friendlyLabel,
     tone: band.tone,
-    note: "Time taken to communicate with the world",
+    note: 'Time taken to communicate with the world',
   };
 }
 
@@ -95,17 +105,17 @@ export function formatLatencySummary(ms) {
 export function formatLossSummary(pct) {
   const band = lossBand(pct);
   const friendlyLabel =
-    band.tone === "ok"
-      ? "Stable Connection"
-      : band.tone === "warn"
-      ? "Minor Lost Packets"
-      : band.tone === "err"
-      ? "Unstable Connection"
-      : "No Loss Data";
+    band.tone === 'ok'
+      ? 'Stable Connection'
+      : band.tone === 'warn'
+        ? 'Minor Lost Packets'
+        : band.tone === 'err'
+          ? 'Unstable Connection'
+          : 'No Loss Data';
   return {
-    title: "CONNECTION STABILITY",
+    title: 'CONNECTION STABILITY',
     value: band.text,
-    unit: band.text !== UNKNOWN ? "%" : "",
+    unit: band.text !== UNKNOWN ? '%' : '',
     label: friendlyLabel,
     tone: band.tone,
     note: band.note,
@@ -117,21 +127,22 @@ export function formatLastUpdate(lastTs, now) {
   const ageMs = packetAgeMs(lastTs, now);
   if (ageMs === null) {
     return {
-      title: "LAST WORLD UPDATE",
+      title: 'LAST WORLD UPDATE',
       value: UNKNOWN,
-      unit: "",
-      friendlyLabel: "No Activity",
-      tone: "none",
-      note: "No recent activity recorded",
+      unit: '',
+      friendlyLabel: 'No Activity',
+      tone: 'none',
+      note: 'No recent activity recorded',
     };
   }
   const ageSec = (ageMs / 1000).toFixed(1);
-  const tone = ageMs < 3000 ? "ok" : ageMs < 8000 ? "warn" : "err";
-  const friendlyLabel = ageMs < 3000 ? "Recent Update" : ageMs < 8000 ? "Delayed Update" : "Stale Update";
+  const tone = ageMs < 3000 ? 'ok' : ageMs < 8000 ? 'warn' : 'err';
+  const friendlyLabel =
+    ageMs < 3000 ? 'Recent Update' : ageMs < 8000 ? 'Delayed Update' : 'Stale Update';
   return {
-    title: "LAST WORLD UPDATE",
+    title: 'LAST WORLD UPDATE',
     value: ageSec,
-    unit: "SEC AGO",
+    unit: 'SEC AGO',
     friendlyLabel,
     tone,
     note: `Updated ${new Date(lastTs).toLocaleTimeString()}`,
@@ -143,7 +154,7 @@ export function formatTechnicalDetails(diag = {}, protocol = {}, authUser = {}) 
   const isConnected = Boolean(diag?.connected || authUser?.id);
   const eqState = eventQueueState(isConnected, protocol?.eventQueueRunning);
   return {
-    protocolClass: "SLConnectionFull",
+    protocolClass: 'SLConnectionFull',
     udpPort: show(positiveOrNull(diag?.simPort)),
     circuitCode: show(positiveOrNull(diag?.circuitCode)),
     seedCapability: show(protocol?.seedCapability),
@@ -152,4 +163,3 @@ export function formatTechnicalDetails(diag = {}, protocol = {}, authUser = {}) 
     eventQueueTone: eqState.tone,
   };
 }
-

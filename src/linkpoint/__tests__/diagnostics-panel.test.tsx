@@ -34,7 +34,9 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
     expect(text).toContain('WORLD REGION & NETWORK SUMMARY');
 
     // Button visible
-    const toggleBtn = mounted.host.querySelector('button[aria-controls="advanced-technical-details"]') as HTMLButtonElement;
+    const toggleBtn = mounted.host.querySelector(
+      'button[aria-controls="advanced-technical-details"]',
+    ) as HTMLButtonElement;
     expect(toggleBtn).not.toBeNull();
     expect(toggleBtn.textContent).toContain('Show Advanced Technical Details');
     expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
@@ -45,7 +47,9 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
 
   it('expands advanced technical details drawer upon clicking toggle', async () => {
     mounted = await mountScreen(DiagnosticsPanel);
-    const toggleBtn = mounted.host.querySelector('button[aria-controls="advanced-technical-details"]') as HTMLButtonElement;
+    const toggleBtn = mounted.host.querySelector(
+      'button[aria-controls="advanced-technical-details"]',
+    ) as HTMLButtonElement;
 
     await click(toggleBtn);
 
@@ -67,7 +71,9 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
 
   it('persists user disclosure preference in localStorage during session', async () => {
     mounted = await mountScreen(DiagnosticsPanel);
-    const toggleBtn = mounted.host.querySelector('button[aria-controls="advanced-technical-details"]') as HTMLButtonElement;
+    const toggleBtn = mounted.host.querySelector(
+      'button[aria-controls="advanced-technical-details"]',
+    ) as HTMLButtonElement;
 
     // Toggle on
     await click(toggleBtn);
@@ -78,7 +84,9 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
     mounted = await mountScreen(DiagnosticsPanel);
 
     // Should open expanded based on persisted preference
-    const remountedBtn = mounted.host.querySelector('button[aria-controls="advanced-technical-details"]') as HTMLButtonElement;
+    const remountedBtn = mounted.host.querySelector(
+      'button[aria-controls="advanced-technical-details"]',
+    ) as HTMLButtonElement;
     expect(remountedBtn.getAttribute('aria-expanded')).toBe('true');
     expect(mounted.host.querySelector('#advanced-technical-details')).not.toBeNull();
 

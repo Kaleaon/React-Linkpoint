@@ -1,6 +1,6 @@
-import React from "react";
-import { useTheme } from "../context/ThemeContext.jsx";
-import { CRYSTAL } from "./linkpointCrystal.js";
+import React from 'react';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { CRYSTAL } from './linkpointCrystal.js';
 
 // Depth model for the mark.  The camera looks down on the scene at ~20 deg,
 // so everything sorts into three layers:
@@ -20,8 +20,8 @@ function Face({ face, animated, ink }) {
     fill: grad(face.grad),
     stroke: ink,
     strokeWidth: 1.5,
-    strokeLinejoin: "round",
-    strokeLinecap: "round",
+    strokeLinejoin: 'round',
+    strokeLinecap: 'round',
   };
   if (!animated) {
     return <polygon {...common} points={face.points} opacity={face.opacity} />;
@@ -80,7 +80,7 @@ function Pyramid({ className, data, staticData, animated, surf, rim, ink }) {
 }
 
 function Motes({ layer, animated, token }) {
-  const values = layer === "near" ? CRYSTAL.nearOpacity : CRYSTAL.farOpacity;
+  const values = layer === 'near' ? CRYSTAL.nearOpacity : CRYSTAL.farOpacity;
   if (!animated) {
     // Resting placements: one mote parked on the far arc, two on the near arc.
     return (
@@ -94,7 +94,12 @@ function Motes({ layer, animated, token }) {
   return (
     <>
       {CRYSTAL.motes.map((m, i) => (
-        <circle key={i} r={layer === "near" ? m.near : m.far} fill={token(m.token)} filter="url(#rGlow)">
+        <circle
+          key={i}
+          r={layer === 'near' ? m.near : m.far}
+          fill={token(m.token)}
+          filter="url(#rGlow)"
+        >
           <animateMotion dur={CRYSTAL.dur} repeatCount="indefinite" begin={m.begin}>
             <mpath href="#rOrbitTrack" />
           </animateMotion>
@@ -116,7 +121,12 @@ function Motes({ layer, animated, token }) {
 // width/height are applied through `style` rather than as SVG attributes:
 // callers pass CSS keywords such as "auto", which the presentation attributes
 // reject ("Expected length").
-export default function LinkpointLogo({ animated = true, showTitle = true, width = "100%", height = "auto" }) {
+export default function LinkpointLogo({
+  animated = true,
+  showTitle = true,
+  width = '100%',
+  height = 'auto',
+}) {
   const { V, t } = useTheme();
   const token = (name) => V[name];
 
@@ -125,21 +135,21 @@ export default function LinkpointLogo({ animated = true, showTitle = true, width
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
       id="linkpoint-logo-react"
-      viewBox={showTitle ? "0 0 512 580" : "0 0 512 512"}
-      style={{ width, height, filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.3))" }}
+      viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
+      style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
       <style>{`
         /* The halves close into a perfect octahedron: their base centres sit
            172px apart, so each travels exactly 86px to meet at the waist. */
         .top-crystal-r {
-          animation: ${animated ? "topCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite" : "none"};
+          animation: ${animated ? 'topCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none'};
         }
         .bot-crystal-r {
-          animation: ${animated ? "botCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite" : "none"};
+          animation: ${animated ? 'botCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none'};
         }
         .core-anim-r {
           transform-origin: 256px 256px;
-          animation: ${animated ? "corePulseR 6s cubic-bezier(0.4, 0, 0.2, 1) infinite" : "none"};
+          animation: ${animated ? 'corePulseR 6s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none'};
         }
 
         @keyframes topCloseSeq {

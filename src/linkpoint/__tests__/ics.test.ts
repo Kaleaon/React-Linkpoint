@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildIcs, foldLine, icsDate, icsEscape, icsFileName } from '../ics';
 
-const base = { uid: 'notice-1@linkpoint', summary: 'Dance night', start: new Date(Date.UTC(2026, 2, 6, 3, 0)), end: new Date(Date.UTC(2026, 2, 6, 4, 0)), stamp: new Date(Date.UTC(2026, 2, 4, 12, 0)) };
+const base = {
+  uid: 'notice-1@linkpoint',
+  summary: 'Dance night',
+  start: new Date(Date.UTC(2026, 2, 6, 3, 0)),
+  end: new Date(Date.UTC(2026, 2, 6, 4, 0)),
+  stamp: new Date(Date.UTC(2026, 2, 4, 12, 0)),
+};
 
 describe('icsDate and icsEscape', () => {
   it('formats UTC timestamps', () => {
@@ -23,20 +29,28 @@ describe('foldLine', () => {
       expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
       if (index > 0) expect(line.startsWith(' ')).toBe(true);
     }
-    expect(folded.map((line, i) => (i ? line.slice(1) : line)).join('')).toBe(`DESCRIPTION:${'x'.repeat(200)}`);
+    expect(folded.map((line, i) => (i ? line.slice(1) : line)).join('')).toBe(
+      `DESCRIPTION:${'x'.repeat(200)}`,
+    );
   });
 
   it('never splits a multi-byte character', () => {
     const text = `SUMMARY:${'€'.repeat(60)}`;
     const folded = foldLine(text).split('\r\n');
     expect(folded.map((line, i) => (i ? line.slice(1) : line)).join('')).toBe(text);
-    for (const line of folded) expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+    for (const line of folded)
+      expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
   });
 });
 
 describe('buildIcs', () => {
   it('produces a valid single-event calendar with CRLF line endings', () => {
-    const text = buildIcs({ ...base, description: 'Group: Dancers\nBring friends', location: 'Second Life (Dancers)', reminders: [30, 10] });
+    const text = buildIcs({
+      ...base,
+      description: 'Group: Dancers\nBring friends',
+      location: 'Second Life (Dancers)',
+      reminders: [30, 10],
+    });
     expect(text.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
     expect(text.endsWith('END:VEVENT\r\nEND:VCALENDAR\r\n')).toBe(true);
     expect(text).not.toMatch(/[^\r]\n/);
@@ -49,7 +63,11 @@ describe('buildIcs', () => {
   });
 
   it('keeps hostile text from injecting extra calendar properties', () => {
-    const text = buildIcs({ ...base, summary: 'Party\r\nATTENDEE:mailto:evil@example.com', description: 'x\nEND:VEVENT' });
+    const text = buildIcs({
+      ...base,
+      summary: 'Party\r\nATTENDEE:mailto:evil@example.com',
+      description: 'x\nEND:VEVENT',
+    });
     expect(text).not.toMatch(/^ATTENDEE:/m);
     expect(text.match(/^END:VEVENT/gm)).toHaveLength(1);
   });

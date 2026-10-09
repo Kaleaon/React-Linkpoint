@@ -57,7 +57,9 @@ export const RlvProvider: React.FC<{
   initialRestrictions?: RlvRestriction[];
 }> = ({ children, initialEnabled = false, initialRestrictions }) => {
   const [enabled, setEnabledState] = useState(initialEnabled);
-  const [active, setActive] = useState<Set<RlvRestriction>>(() => new Set(initialRestrictions ?? []));
+  const [active, setActive] = useState<Set<RlvRestriction>>(
+    () => new Set(initialRestrictions ?? []),
+  );
   const controllerRef = useRef<RlvController>(new RlvController(initialEnabled));
 
   const setEnabled = useCallback((on: boolean) => {
@@ -76,12 +78,12 @@ export const RlvProvider: React.FC<{
       if (r === 'showinv') return !controllerRef.current.canShowInventory();
       return active.has(r);
     },
-    [enabled, active]
+    [enabled, active],
   );
 
   const reasonFor = useCallback(
     (r: RlvRestriction) => (restricted(r) ? RLV_REASONS[r] : null),
-    [restricted]
+    [restricted],
   );
 
   const setRestriction = useCallback((r: RlvRestriction, on: boolean) => {
@@ -108,7 +110,7 @@ export const RlvProvider: React.FC<{
       controller: controllerRef.current,
       processMessage,
     }),
-    [enabled, setEnabled, active, restricted, reasonFor, setRestriction, processMessage]
+    [enabled, setEnabled, active, restricted, reasonFor, setRestriction, processMessage],
   );
 
   return <RlvContext.Provider value={value}>{children}</RlvContext.Provider>;
@@ -119,4 +121,3 @@ export function useRlv(): RlvContextValue {
   if (!ctx) throw new Error('useRlv must be used inside an RlvProvider');
   return ctx;
 }
-

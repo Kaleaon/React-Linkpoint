@@ -1,6 +1,6 @@
 /**
  * Reactive Delta Selectors for Linkpoint State Management
- * 
+ *
  * Allows components and services to subscribe to targeted delta updates for specific
  * entity IDs (contacts, inventory folders, items). High-frequency status updates (such
  * as presence updates) emit events ONLY to subscribers of changed entity IDs, eliminating
@@ -33,7 +33,7 @@ export class DeltaSelectorStore {
   public subscribeEntity<T = any>(
     entityType: EntityType,
     entityId: string,
-    callback: DeltaCallback<T>
+    callback: DeltaCallback<T>,
   ): () => void {
     const key = `${entityType}:${entityId.toLowerCase()}`;
     if (!this.entitySubscribers.has(key)) {
@@ -54,10 +54,7 @@ export class DeltaSelectorStore {
    * Subscribe to delta updates for all entities of a given EntityType.
    * Returns an unsubscribe function.
    */
-  public subscribeType<T = any>(
-    entityType: EntityType,
-    callback: DeltaCallback<T>
-  ): () => void {
+  public subscribeType<T = any>(entityType: EntityType, callback: DeltaCallback<T>): () => void {
     if (!this.typeSubscribers.has(entityType)) {
       this.typeSubscribers.set(entityType, new Set());
     }
@@ -81,7 +78,7 @@ export class DeltaSelectorStore {
     entityId: string,
     action: DeltaAction,
     payload: Partial<T>,
-    previousPayload?: Partial<T>
+    previousPayload?: Partial<T>,
   ): EntityDelta<T> {
     const id = String(entityId).toLowerCase();
     const delta: EntityDelta<T> = {

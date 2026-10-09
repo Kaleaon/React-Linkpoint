@@ -15,7 +15,10 @@ const EXIT_LABELS = /^(chat|friends|people|radar|nearby|map|inv|inventory|more|s
 
 function Setup({ layout }: { layout: string }) {
   const { actions } = useApp() as any;
-  useEffect(() => { actions.setLayout(layout); actions.setScreen('3D View'); }, []);
+  useEffect(() => {
+    actions.setLayout(layout);
+    actions.setScreen('3D View');
+  }, []);
   return createElement(DeviceFrame as any);
 }
 
@@ -25,30 +28,56 @@ async function renderIn3D(layout: string, width: number) {
   document.body.appendChild(host);
   const root: Root = createRoot(host);
   await act(async () => {
-    root.render(createElement(AppProvider as any, null, createElement(ThemeProvider as any, null, createElement(Setup, { layout }))));
+    root.render(
+      createElement(
+        AppProvider as any,
+        null,
+        createElement(ThemeProvider as any, null, createElement(Setup, { layout })),
+      ),
+    );
   });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
   return { host, root };
 }
 
 const exitControls = (host: HTMLElement) =>
   [...host.querySelectorAll<HTMLElement>('[aria-label], div, button, span')]
-    .map((el) => (el.getAttribute('aria-label') || (el.children.length === 0 ? el.textContent : '') || '').trim())
+    .map((el) =>
+      (
+        el.getAttribute('aria-label') ||
+        (el.children.length === 0 ? el.textContent : '') ||
+        ''
+      ).trim(),
+    )
     .filter((label) => EXIT_LABELS.test(label));
 
 describe('leaving the 3D view', () => {
   let mounted: { host: HTMLElement; root: Root } | null = null;
-  beforeAll(() => { (app.auth as any).isLoggedIn = () => true; });
+  beforeAll(() => {
+    (app.auth as any).isLoggedIn = () => true;
+  });
   afterEach(async () => {
-    if (mounted) { await act(async () => mounted!.root.unmount()); mounted.host.remove(); mounted = null; }
+    if (mounted) {
+      await act(async () => mounted!.root.unmount());
+      mounted.host.remove();
+      mounted = null;
+    }
   });
 
-  for (const [deviceName, width] of [['phone', 412], ['tablet', 1000]] as const) {
+  for (const [deviceName, width] of [
+    ['phone', 412],
+    ['tablet', 1000],
+  ] as const) {
     for (const layout of Object.keys(LAYOUTS)) {
       it(`${layout} layout on a ${deviceName} keeps navigation on the 3D View`, async () => {
         mounted = await renderIn3D(layout, width);
         const found = exitControls(mounted.host);
-        expect(found.length, `no way out of the 3D view in ${layout}/${deviceName}`).toBeGreaterThanOrEqual(3);
+        expect(
+          found.length,
+          `no way out of the 3D view in ${layout}/${deviceName}`,
+        ).toBeGreaterThanOrEqual(3);
       });
     }
   }

@@ -67,7 +67,7 @@ describe('Accessible BottomTabs Navigation Component (WCAG 2.2 SC 2.1.1 & 4.1.2)
     });
 
     const mapTab = [...mounted.host.querySelectorAll('[role="tab"]')].find(
-      (t) => t.getAttribute('aria-label') === 'MAP'
+      (t) => t.getAttribute('aria-label') === 'MAP',
     ) as HTMLElement;
     expect(mapTab).toBeDefined();
 
@@ -77,7 +77,8 @@ describe('Accessible BottomTabs Navigation Component (WCAG 2.2 SC 2.1.1 & 4.1.2)
     expect(mounted.ctx.current.state.screen).toBe('Map');
 
     const worldTab = [...mounted.host.querySelectorAll('[role="tab"]')].find(
-      (t) => t.getAttribute('aria-label') === '3D WORLD' || t.getAttribute('aria-label') === 'WORLD'
+      (t) =>
+        t.getAttribute('aria-label') === '3D WORLD' || t.getAttribute('aria-label') === 'WORLD',
     ) as HTMLElement;
     if (worldTab) {
       await act(async () => {
@@ -108,7 +109,9 @@ describe('Accessible MenuBar Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
       mounted!.ctx.current.actions.setDevice('desk');
     });
 
-    const triggers = [...mounted.host.querySelectorAll('[role="menubar"] > div > [role="menuitem"]')];
+    const triggers = [
+      ...mounted.host.querySelectorAll('[role="menubar"] > div > [role="menuitem"]'),
+    ];
     expect(triggers.length).toBeGreaterThan(0);
 
     const fileTrigger = triggers[0] as HTMLElement;
@@ -128,7 +131,9 @@ describe('Accessible MenuBar Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
       mounted!.ctx.current.actions.setDevice('desk');
     });
 
-    const fileTrigger = mounted.host.querySelector('[role="menubar"] > div > [role="menuitem"]') as HTMLElement;
+    const fileTrigger = mounted.host.querySelector(
+      '[role="menubar"] > div > [role="menuitem"]',
+    ) as HTMLElement;
 
     await act(async () => {
       fileTrigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -149,7 +154,9 @@ describe('Accessible MenuBar Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
       mounted!.ctx.current.actions.setDevice('desk');
     });
 
-    const triggers = [...mounted.host.querySelectorAll('[role="menubar"] > div > [role="menuitem"]')];
+    const triggers = [
+      ...mounted.host.querySelectorAll('[role="menubar"] > div > [role="menuitem"]'),
+    ];
     const fileTrigger = triggers[0] as HTMLElement;
 
     await act(async () => {
@@ -166,14 +173,18 @@ describe('Accessible MenuBar Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', () => {
       mounted!.ctx.current.actions.setDevice('desk');
     });
 
-    const fileTrigger = mounted.host.querySelector('[role="menubar"] > div > [role="menuitem"]') as HTMLElement;
+    const fileTrigger = mounted.host.querySelector(
+      '[role="menubar"] > div > [role="menuitem"]',
+    ) as HTMLElement;
 
     await act(async () => {
       fileTrigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     });
     expect(mounted.ctx.current.state.menu).toBe('File');
 
-    const dropdownItem = mounted.host.querySelector('nav [role="menu"] [role="menuitem"]') as HTMLElement;
+    const dropdownItem = mounted.host.querySelector(
+      'nav [role="menu"] [role="menuitem"]',
+    ) as HTMLElement;
 
     await act(async () => {
       dropdownItem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -200,7 +211,9 @@ describe('Accessible RailNav Navigation Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', 
       mounted!.ctx.current.actions.setScreen('Chat');
     });
 
-    const items = [...mounted.host.querySelectorAll('nav[aria-label="Side Rail Navigation"] [role="button"]')];
+    const items = [
+      ...mounted.host.querySelectorAll('nav[aria-label="Side Rail Navigation"] [role="button"]'),
+    ];
     expect(items.length).toBeGreaterThan(0);
 
     for (const item of items) {
@@ -221,9 +234,9 @@ describe('Accessible RailNav Navigation Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', 
       mounted!.ctx.current.actions.setScreen('Chat');
     });
 
-    const mapButton = [...mounted.host.querySelectorAll('nav[aria-label="Side Rail Navigation"] [role="button"]')].find(
-      (b) => b.getAttribute('aria-label') === 'MAP'
-    ) as HTMLElement;
+    const mapButton = [
+      ...mounted.host.querySelectorAll('nav[aria-label="Side Rail Navigation"] [role="button"]'),
+    ].find((b) => b.getAttribute('aria-label') === 'MAP') as HTMLElement;
     expect(mapButton).toBeDefined();
 
     await act(async () => {
@@ -231,9 +244,9 @@ describe('Accessible RailNav Navigation Component (WCAG 2.2 SC 2.1.1 & 4.1.2)', 
     });
     expect(mounted.ctx.current.state.screen).toBe('Map');
 
-    const chatButton = [...mounted.host.querySelectorAll('nav[aria-label="Side Rail Navigation"] [role="button"]')].find(
-      (b) => b.getAttribute('aria-label') === 'CHAT'
-    ) as HTMLElement;
+    const chatButton = [
+      ...mounted.host.querySelectorAll('nav[aria-label="Side Rail Navigation"] [role="button"]'),
+    ].find((b) => b.getAttribute('aria-label') === 'CHAT') as HTMLElement;
 
     await act(async () => {
       chatButton.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
@@ -285,7 +298,9 @@ describe('Skip Navigation Link and Application Landmarks (WCAG 2.2 SC 2.4.1 & 1.
     expect(skipLink.getAttribute('href')).toBe('#main-content');
     expect(skipLink.textContent?.trim()).toBe('Skip to main content');
 
-    await act(async () => { root.unmount(); });
+    await act(async () => {
+      root.unmount();
+    });
     host.remove();
   });
 
@@ -304,7 +319,9 @@ describe('Skip Navigation Link and Application Landmarks (WCAG 2.2 SC 2.4.1 & 1.
     expect(main).not.toBeNull();
     expect(main?.getAttribute('tabindex')).toBe('-1');
 
-    await act(async () => { root.unmount(); });
+    await act(async () => {
+      root.unmount();
+    });
     host.remove();
   });
 
@@ -340,4 +357,3 @@ describe('Skip Navigation Link and Application Landmarks (WCAG 2.2 SC 2.4.1 & 1.
     expect(locNav).not.toBeNull();
   });
 });
-

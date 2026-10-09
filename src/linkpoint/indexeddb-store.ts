@@ -1,6 +1,6 @@
 /**
  * Transactional IndexedDB Store for Linkpoint
- * 
+ *
  * Provides isolated per-agent ID storage for inventory folders, items, and contacts.
  * Supports paged query methods (getFolderContentsPage, getFriendsPage) and storage quota eviction.
  */
@@ -84,9 +84,9 @@ export class IndexedDBStore {
 
   // In-memory fallback stores when IDB is unavailable (e.g., node / ssr / restricted iframe)
   private memFolders: Map<string, InventoryFolderRecord> = new Map(); // key: `${agentId}:${id}`
-  private memItems: Map<string, InventoryItemRecord> = new Map();     // key: `${agentId}:${id}`
-  private memContacts: Map<string, ContactRecord> = new Map();         // key: `${agentId}:${id}`
-  private memMigration: Map<string, any> = new Map();                  // key: agentId
+  private memItems: Map<string, InventoryItemRecord> = new Map(); // key: `${agentId}:${id}`
+  private memContacts: Map<string, ContactRecord> = new Map(); // key: `${agentId}:${id}`
+  private memMigration: Map<string, any> = new Map(); // key: agentId
 
   constructor() {}
 
@@ -108,7 +108,9 @@ export class IndexedDBStore {
           const db: IDBDatabase = e.target.result;
 
           if (!db.objectStoreNames.contains(STORE_INVENTORY_FOLDERS)) {
-            const folderStore = db.createObjectStore(STORE_INVENTORY_FOLDERS, { keyPath: ['agentId', 'id'] });
+            const folderStore = db.createObjectStore(STORE_INVENTORY_FOLDERS, {
+              keyPath: ['agentId', 'id'],
+            });
             folderStore.createIndex('by_parent', ['agentId', 'parent'], { unique: false });
           } else {
             const folderStore = e.target.transaction.objectStore(STORE_INVENTORY_FOLDERS);
@@ -118,7 +120,9 @@ export class IndexedDBStore {
           }
 
           if (!db.objectStoreNames.contains(STORE_INVENTORY_ITEMS)) {
-            const itemStore = db.createObjectStore(STORE_INVENTORY_ITEMS, { keyPath: ['agentId', 'id'] });
+            const itemStore = db.createObjectStore(STORE_INVENTORY_ITEMS, {
+              keyPath: ['agentId', 'id'],
+            });
             itemStore.createIndex('by_folder', ['agentId', 'folderId'], { unique: false });
           } else {
             const itemStore = e.target.transaction.objectStore(STORE_INVENTORY_ITEMS);
@@ -128,7 +132,9 @@ export class IndexedDBStore {
           }
 
           if (!db.objectStoreNames.contains(STORE_CONTACTS)) {
-            const contactStore = db.createObjectStore(STORE_CONTACTS, { keyPath: ['agentId', 'id'] });
+            const contactStore = db.createObjectStore(STORE_CONTACTS, {
+              keyPath: ['agentId', 'id'],
+            });
             contactStore.createIndex('by_agent', 'agentId', { unique: false });
           } else {
             const contactStore = e.target.transaction.objectStore(STORE_CONTACTS);
@@ -266,7 +272,7 @@ export class IndexedDBStore {
     agentId: string,
     folderId: string,
     page: number = 1,
-    pageSize: number = 50
+    pageSize: number = 50,
   ): Promise<PagedFolderContents> {
     const db = await this.getDB();
     const safePage = Math.max(1, page);
@@ -301,7 +307,9 @@ export class IndexedDBStore {
       const pageSlice = combined.slice(startIndex, startIndex + safePageSize);
 
       return {
-        folders: pageSlice.filter((e) => e.kind === 'folder').map((e) => e.data as InventoryFolderRecord),
+        folders: pageSlice
+          .filter((e) => e.kind === 'folder')
+          .map((e) => e.data as InventoryFolderRecord),
         items: pageSlice.filter((e) => e.kind === 'item').map((e) => e.data as InventoryItemRecord),
         totalFolders,
         totalItems,
@@ -351,7 +359,9 @@ export class IndexedDBStore {
     const pageSlice = combined.slice(startIndex, startIndex + safePageSize);
 
     return {
-      folders: pageSlice.filter((e) => e.kind === 'folder').map((e) => e.data as InventoryFolderRecord),
+      folders: pageSlice
+        .filter((e) => e.kind === 'folder')
+        .map((e) => e.data as InventoryFolderRecord),
       items: pageSlice.filter((e) => e.kind === 'item').map((e) => e.data as InventoryItemRecord),
       totalFolders,
       totalItems,
@@ -431,7 +441,7 @@ export class IndexedDBStore {
     agentId: string,
     page: number = 1,
     pageSize: number = 50,
-    filter?: string
+    filter?: string,
   ): Promise<PagedFriends> {
     const db = await this.getDB();
     const safePage = Math.max(1, page);
@@ -463,7 +473,7 @@ export class IndexedDBStore {
     if (filter) {
       const q = filter.toLowerCase();
       allContacts = allContacts.filter(
-        (c) => c.name.toLowerCase().includes(q) || c.note.toLowerCase().includes(q)
+        (c) => c.name.toLowerCase().includes(q) || c.note.toLowerCase().includes(q),
       );
     }
 
@@ -528,7 +538,9 @@ export class IndexedDBStore {
 
   // --- Quota & Eviction Rules ---
 
-  public async checkQuotaAndEvict(agentId?: string): Promise<{ evicted: number; remainingMb: number }> {
+  public async checkQuotaAndEvict(
+    agentId?: string,
+  ): Promise<{ evicted: number; remainingMb: number }> {
     let evictedCount = 0;
     const db = await this.getDB();
 

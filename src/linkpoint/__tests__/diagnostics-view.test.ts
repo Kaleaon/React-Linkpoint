@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { UNKNOWN, show, positiveOrNull, realLatency, latencyBand, lossBand, pushLatency, latencyRange, packetAgeMs, describePing, eventQueueState, formatConnectionStatus, formatLatencySummary, formatLossSummary, formatLastUpdate, formatTechnicalDetails } from '../../screens/diagnosticsView.js';
+import {
+  UNKNOWN,
+  show,
+  positiveOrNull,
+  realLatency,
+  latencyBand,
+  lossBand,
+  pushLatency,
+  latencyRange,
+  packetAgeMs,
+  describePing,
+  eventQueueState,
+  formatConnectionStatus,
+  formatLatencySummary,
+  formatLossSummary,
+  formatLastUpdate,
+  formatTechnicalDetails,
+} from '../../screens/diagnosticsView.js';
 
 describe('diagnostics display rules', () => {
   it('shows unknown values as a dash, never a placeholder', () => {
@@ -98,9 +115,14 @@ describe('diagnostics display rules', () => {
 
     // formatTechnicalDetails
     const tech = formatTechnicalDetails(
-      { simPort: 13000, circuitCode: 9999, agentId: '00000000-0000-0000-0000-000000000001', connected: true },
+      {
+        simPort: 13000,
+        circuitCode: 9999,
+        agentId: '00000000-0000-0000-0000-000000000001',
+        connected: true,
+      },
       { seedCapability: 'https://sim.example.com/cap/123', eventQueueRunning: true },
-      { id: '00000000-0000-0000-0000-000000000001' }
+      { id: '00000000-0000-0000-0000-000000000001' },
     );
     expect(tech.protocolClass).toBe('SLConnectionFull');
     expect(tech.udpPort).toBe('13000');
@@ -113,7 +135,12 @@ describe('diagnostics display rules', () => {
 
 describe('no fabricated telemetry remains in the source', () => {
   const read = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
-  const sources = ['screens/DiagnosticsPanel.jsx', 'linkpoint/sl-connection-full.ts', 'server/sl-session.ts', 'components/MenuBar.jsx'];
+  const sources = [
+    'screens/DiagnosticsPanel.jsx',
+    'linkpoint/sl-connection-full.ts',
+    'server/sl-session.ts',
+    'components/MenuBar.jsx',
+  ];
   const banned: Array<[string, RegExp]> = [
     ['hardcoded agent UUID', /f496d6bf-8235-4ebf-bd56-4f7f0464a27a/],
     ['fake sim IP', /216\.82\.52\.24/],

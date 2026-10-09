@@ -10,7 +10,8 @@ import { Utils } from './utils';
 
 const KEY = 'linkpoint_mfa_hashes';
 
-const slot = (grid: string, username: string) => `${String(grid).toLowerCase()}|${String(username).trim().toLowerCase()}`;
+const slot = (grid: string, username: string) =>
+  `${String(grid).toLowerCase()}|${String(username).trim().toLowerCase()}`;
 
 export function getMfaHash(grid: string, username: string): string {
   const all = Utils.storage.get(KEY, {}) as Record<string, string>;

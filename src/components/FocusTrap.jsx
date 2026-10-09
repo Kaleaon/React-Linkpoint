@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
 /**
  * @typedef {import("react").HTMLAttributes<HTMLDivElement> & {
@@ -70,8 +70,8 @@ export default function FocusTrap({
     const handleKeyDown = (event) => {
       if (!active || !containerRef.current) return;
 
-      if (event.key === "Escape") {
-        if (typeof onEscape === "function") {
+      if (event.key === 'Escape') {
+        if (typeof onEscape === 'function') {
           event.preventDefault();
           event.stopPropagation();
           onEscape(event);
@@ -79,7 +79,7 @@ export default function FocusTrap({
         return;
       }
 
-      if (event.key === "Tab") {
+      if (event.key === 'Tab') {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
 
         const focusables = getFocusableElements();
@@ -106,14 +106,14 @@ export default function FocusTrap({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
 
       if (
         previousFocusRef.current &&
-        typeof previousFocusRef.current.focus === "function" &&
+        typeof previousFocusRef.current.focus === 'function' &&
         document.body.contains(previousFocusRef.current)
       ) {
         previousFocusRef.current.focus();
@@ -125,7 +125,7 @@ export default function FocusTrap({
     <div
       ref={containerRef}
       tabIndex={-1}
-      style={{ outline: "none", ...style }}
+      style={{ outline: 'none', ...style }}
       className={className}
       {...props}
     >

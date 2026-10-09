@@ -2,11 +2,18 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { LoginFailure, failureFromResponseBody, toLoginFailure } from '../login-failure';
 import { forgetMfaHash, getMfaHash, saveMfaHash } from '../mfa-store';
 
-const details = { reason: 'mfa_challenge', code: 'mfa_required', mfaRequired: true, message: 'Enter the code' };
+const details = {
+  reason: 'mfa_challenge',
+  code: 'mfa_required',
+  mfaRequired: true,
+  message: 'Enter the code',
+};
 
 describe('login failures across process boundaries', () => {
   it('recovers details from an Electron IPC error message', () => {
-    const ipc = new Error(`Error invoking remote method 'linkpoint:viewer-connect': Error: LOGIN_FAILURE:${JSON.stringify(details)}`);
+    const ipc = new Error(
+      `Error invoking remote method 'linkpoint:viewer-connect': Error: LOGIN_FAILURE:${JSON.stringify(details)}`,
+    );
     const failure = toLoginFailure(ipc) as LoginFailure;
     expect(failure).toBeInstanceOf(LoginFailure);
     expect(failure.details.mfaRequired).toBe(true);
@@ -23,7 +30,14 @@ describe('login failures across process boundaries', () => {
     expect(toLoginFailure(undefined)).toBeUndefined();
   });
   it('builds a failure from a server error body only when it has a reason code', () => {
-    expect(failureFromResponseBody({ error: 'x', code: 'bad_credentials', reason: 'key', mfaRequired: false })?.details.code).toBe('bad_credentials');
+    expect(
+      failureFromResponseBody({
+        error: 'x',
+        code: 'bad_credentials',
+        reason: 'key',
+        mfaRequired: false,
+      })?.details.code,
+    ).toBe('bad_credentials');
     expect(failureFromResponseBody({ error: 'plain failure' })).toBeNull();
     expect(failureFromResponseBody(null)).toBeNull();
   });

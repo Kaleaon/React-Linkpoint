@@ -20,7 +20,7 @@ describe('LLSDUtils Extensions', () => {
     const original: LLSDMap = {
       nested: { key: 'value' },
       arr: [1, 2, 3],
-      date: new Date(1700000000000)
+      date: new Date(1700000000000),
     };
     const copy = LLSDUtils.deepCopy(original) as LLSDMap;
 
@@ -35,8 +35,8 @@ describe('LLSDUtils Extensions', () => {
       agent: {
         name: 'Tester Resident',
         age: 42,
-        isPremium: true
-      }
+        isPremium: true,
+      },
     };
 
     expect(LLSDUtils.getString(doc, 'agent.name')).toBe('Tester Resident');
@@ -58,7 +58,7 @@ describe('Second Life Viewer Standards', () => {
       '550e8400-e29b-41d4-a716-446655440000',
       12,
       false,
-      [{ item_id: '123' }]
+      [{ item_id: '123' }],
     );
     expect(app.agent_id).toBe('550e8400-e29b-41d4-a716-446655440000');
     expect(app.serial_number).toBe(12);
@@ -66,7 +66,13 @@ describe('Second Life Viewer Standards', () => {
   });
 
   test('createChatMessage formats chat payload', () => {
-    const chat = SecondLifeLLSDUtils.createChatMessage('Alice Resident', 1, 0, 'Hello world', [10, 20, 30]);
+    const chat = SecondLifeLLSDUtils.createChatMessage(
+      'Alice Resident',
+      1,
+      0,
+      'Hello world',
+      [10, 20, 30],
+    );
     expect(chat.from_name).toBe('Alice Resident');
     expect(chat.source_type).toBe(1);
     expect(chat.chat_type).toBe(0);
@@ -96,7 +102,14 @@ describe('Firestorm Viewer Standards', () => {
   });
 
   test('createRadarData produces radar payload', () => {
-    const radar = FirestormLLSDUtils.createRadarData('agent-1', 'Display Name', 'username.resident', [100, 100, 20], 12.5, true);
+    const radar = FirestormLLSDUtils.createRadarData(
+      'agent-1',
+      'Display Name',
+      'username.resident',
+      [100, 100, 20],
+      12.5,
+      true,
+    );
     expect(radar.agent_id).toBe('agent-1');
     expect(radar.display_name).toBe('Display Name');
     expect(radar.radar_version).toBe('6.0.0');
@@ -115,7 +128,7 @@ describe('Firestorm Viewer Standards', () => {
     const rules = new FSValidationRules().requireFSVersion('6.0.0').requireRLV();
     const data = {
       firestorm_version: '6.5.0',
-      rlv_enabled: true
+      rlv_enabled: true,
     };
     const res = FirestormLLSDUtils.validateFSStructure(data, rules);
     expect(res.isValid()).toBe(true);
@@ -137,7 +150,7 @@ describe('Lumiya Viewer Standards', () => {
       'msg-1',
       1700000000,
       'Sender Resident',
-      'Instant message text'
+      'Instant message text',
     );
 
     expect(im.agent_id).toBe('agent-1');
@@ -190,7 +203,7 @@ describe('Linkpoint Viewer Standards & Contracts', () => {
       GridKind.SECOND_LIFE,
       'https://login.secondlife.com/cgi-bin/login.cgi',
       'user resident',
-      'pass123'
+      'pass123',
     );
 
     expect(contract.grid).toBe('SECOND_LIFE');

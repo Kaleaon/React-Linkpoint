@@ -1,6 +1,6 @@
 /**
  * Spatial Pipeline Engine - WebAssembly SIMD Acceleration & JS Fallback
- * 
+ *
  * Provides high-performance 128-bit SIMD matrix multiplication, frustum extraction,
  * zero-copy SOA bounding box culling, and OpenSim VarRegion coordinate normalization (up to 4096m),
  * with automatic fallback to pure JavaScript when WASM SIMD or SharedArrayBuffer is unavailable.
@@ -8,7 +8,15 @@
 
 import { SPATIAL_WASM_BYTES } from '../wasm/spatial-wasm-binary';
 import { SpatialMemoryBridge } from './spatial-memory-bridge';
-import { extractFrustum, testAABB, transformAABB, multiplyMat4, OUTSIDE, INSIDE, INTERSECT } from './frustum';
+import {
+  extractFrustum,
+  testAABB,
+  transformAABB,
+  multiplyMat4,
+  OUTSIDE,
+  INSIDE,
+  INTERSECT,
+} from './frustum';
 
 export interface Vector3 {
   0: number;
@@ -90,18 +98,22 @@ export class SpatialPipeline {
   /**
    * Column-major 4x4 matrix multiplication (out = a * b)
    */
-  public multiplyMat4(a: ArrayLike<number>, b: ArrayLike<number>, out?: Float32Array): Float32Array {
+  public multiplyMat4(
+    a: ArrayLike<number>,
+    b: ArrayLike<number>,
+    out?: Float32Array,
+  ): Float32Array {
     const result = out || new Float32Array(16);
 
     if (this.isSimdAccelerated() && this.wasmInstance && a.length >= 16 && b.length >= 16) {
       const exports = this.wasmInstance.exports as any;
       const bridge = this.memoryBridge;
-      
+
       for (let i = 0; i < 16; i++) bridge.matrixTemp[i] = a[i];
       const bOffset = bridge.layout.matrixTempOffset + 16 * 4;
       const bView = new Float32Array(bridge.getWasmMemory().buffer, bOffset, 16);
       for (let i = 0; i < 16; i++) bView[i] = b[i];
-      
+
       const outOffset = bOffset + 16 * 4;
       const memSize = bridge.getMemoryByteLength();
 
@@ -109,7 +121,7 @@ export class SpatialPipeline {
         bridge.layout.matrixTempOffset,
         bOffset,
         outOffset,
-        memSize
+        memSize,
       );
 
       if (resCode === 0) {
@@ -139,7 +151,7 @@ export class SpatialPipeline {
       const status = exports.spatial_extract_frustum(
         bridge.layout.matrixTempOffset,
         bridge.layout.frustumPlanesOffset,
-        memSize
+        memSize,
       );
 
       if (status === 1) {
@@ -158,7 +170,11 @@ export class SpatialPipeline {
   /**
    * Transform local AABB box by matrix using Arvo's method.
    */
-  public transformAABB(matrix: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>): { min: [number, number, number]; max: [number, number, number] } {
+  public transformAABB(
+    matrix: ArrayLike<number>,
+    min: ArrayLike<number>,
+    max: ArrayLike<number>,
+  ): { min: [number, number, number]; max: [number, number, number] } {
     if (this.isSimdAccelerated() && this.wasmInstance) {
       const exports = this.wasmInstance.exports as any;
       const bridge = this.memoryBridge;
@@ -176,7 +192,7 @@ export class SpatialPipeline {
         bridge.layout.vectorOutOffset,
         minOutOff,
         maxOutOff,
-        memSize
+        memSize,
       );
 
       if (resCode === 0) {
@@ -202,7 +218,11 @@ export class SpatialPipeline {
    * Test a single box against frustum planes.
    * Returns INSIDE (1), INTERSECT (0), or OUTSIDE (-1).
    */
-  public testAABB(frustumPlanes: ArrayLike<number>, min: ArrayLike<number>, max: ArrayLike<number>): typeof INSIDE | typeof INTERSECT | typeof OUTSIDE {
+  public testAABB(
+    frustumPlanes: ArrayLike<number>,
+    min: ArrayLike<number>,
+    max: ArrayLike<number>,
+  ): typeof INSIDE | typeof INTERSECT | typeof OUTSIDE {
     if (this.isSimdAccelerated() && this.wasmInstance && frustumPlanes.length >= 24) {
       const exports = this.wasmInstance.exports as any;
       const bridge = this.memoryBridge;
@@ -215,7 +235,7 @@ export class SpatialPipeline {
         bridge.layout.frustumPlanesOffset,
         bridge.layout.vectorTempOffset,
         bridge.layout.vectorOutOffset,
-        memSize
+        memSize,
       );
 
       if (result === 1) return INSIDE;
@@ -232,10 +252,15 @@ export class SpatialPipeline {
    * Returns Uint8Array visibility results (1 = visible, 0 = culled).
    */
   public cullSOABoxes(
-    minX: Float32Array, minY: Float32Array, minZ: Float32Array,
-    maxX: Float32Array, maxY: Float32Array, maxZ: Float32Array,
-    frustumPlanes: ArrayLike<number>, count: number,
-    outVisibility?: Uint8Array
+    minX: Float32Array,
+    minY: Float32Array,
+    minZ: Float32Array,
+    maxX: Float32Array,
+    maxY: Float32Array,
+    maxZ: Float32Array,
+    frustumPlanes: ArrayLike<number>,
+    count: number,
+    outVisibility?: Uint8Array,
   ): Uint8Array {
     const visibility = outVisibility || new Uint8Array(count);
     if (count <= 0) return visibility;
@@ -266,7 +291,7 @@ export class SpatialPipeline {
         bridge.layout.visibilityOffset,
         count,
         bridge.layout.frustumPlanesOffset,
-        memSize
+        memSize,
       );
 
       if (status === 0) {
@@ -280,7 +305,7 @@ export class SpatialPipeline {
       const min = [minX[i], minY[i], minZ[i]];
       const max = [maxX[i], maxY[i], maxZ[i]];
       const result = testAABB(frustumPlanes as any, min, max);
-      visibility[i] = (result !== OUTSIDE) ? 1 : 0;
+      visibility[i] = result !== OUTSIDE ? 1 : 0;
     }
 
     return visibility;
@@ -293,9 +318,11 @@ export class SpatialPipeline {
   public globalToRegionLocal(
     position: ArrayLike<number> | { x?: number; y?: number; z?: number },
     regionOrigin?: RegionOrigin | null,
-    regionSize = 256
+    regionSize = 256,
   ): [number, number, number] {
-    let x = 0, y = 0, z = 0;
+    let x = 0,
+      y = 0,
+      z = 0;
     if (Array.isArray(position) || (position && 'length' in position)) {
       const arr = position as ArrayLike<number>;
       x = Number(arr[0] ?? 0);
@@ -317,11 +344,14 @@ export class SpatialPipeline {
       const memSize = bridge.getMemoryByteLength();
 
       const resCode = exports.spatial_global_to_region_local(
-        x, y, z,
-        originX, originY,
+        x,
+        y,
+        z,
+        originX,
+        originY,
         regionSize,
         bridge.layout.vectorOutOffset,
-        memSize
+        memSize,
       );
 
       if (resCode === 0) {
@@ -359,9 +389,11 @@ export class SpatialPipeline {
    */
   public regionLocalToGlobal(
     localPos: ArrayLike<number> | { x?: number; y?: number; z?: number },
-    regionOrigin?: RegionOrigin | null
+    regionOrigin?: RegionOrigin | null,
   ): [number, number, number] {
-    let lx = 0, ly = 0, lz = 0;
+    let lx = 0,
+      ly = 0,
+      lz = 0;
     if (Array.isArray(localPos) || (localPos && 'length' in localPos)) {
       const arr = localPos as ArrayLike<number>;
       lx = Number(arr[0] ?? 0);
@@ -383,10 +415,13 @@ export class SpatialPipeline {
       const memSize = bridge.getMemoryByteLength();
 
       const resCode = exports.spatial_region_local_to_global(
-        lx, ly, lz,
-        originX, originY,
+        lx,
+        ly,
+        lz,
+        originX,
+        originY,
         bridge.layout.vectorOutOffset,
-        memSize
+        memSize,
       );
 
       if (resCode === 0) {

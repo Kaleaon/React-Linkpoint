@@ -5,7 +5,9 @@
 // highest against it (WCAG contrast ratio).
 
 export function lum(c) {
-  const m = String(c).trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  const m = String(c)
+    .trim()
+    .match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
   let r, g, b;
   if (m) {
     let x = m[1];
@@ -34,7 +36,7 @@ export function ratio(a, b) {
 }
 
 export function pickInk(bg, candidates) {
-  const list = (candidates || []).concat(["#FFFFFF", "#000000"]).filter(Boolean);
+  const list = (candidates || []).concat(['#FFFFFF', '#000000']).filter(Boolean);
   let best = list[0],
     score = -1;
   for (const c of list) {

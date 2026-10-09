@@ -3,26 +3,55 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const sharp = require('sharp');
-const { computeNormals, decodeJPEG2000, decodeSculpt, normalizeLLMesh, normalizeGLTFMaterial } = require('../../../core/sl-asset-decoder.cjs');
+const {
+  computeNormals,
+  decodeJPEG2000,
+  decodeSculpt,
+  normalizeLLMesh,
+  normalizeGLTFMaterial,
+} = require('../../../core/sl-asset-decoder.cjs');
 
 describe('Second Life glTF PBR materials', () => {
   it('normalizes metallic-roughness effects and SL texture asset references', () => {
     const material = normalizeGLTFMaterial({
       images: [{ uri: 'asset://base-id' }, { uri: 'uuid:normal-id' }, { uri: 'sl://orm-id' }],
       textures: [{ source: 0 }, { source: 1 }, { source: 2 }],
-      materials: [{
-        alphaMode: 'MASK', alphaCutoff: .35, doubleSided: true, emissiveFactor: [.1, .2, .3],
-        pbrMetallicRoughness: {
-          baseColorFactor: [.8, .7, .6, .5], metallicFactor: .9, roughnessFactor: .25,
-          baseColorTexture: { index: 0, extensions: { KHR_texture_transform: { offset: [.1, .2], scale: [2, 3], rotation: .4 } } },
-          metallicRoughnessTexture: { index: 2 },
+      materials: [
+        {
+          alphaMode: 'MASK',
+          alphaCutoff: 0.35,
+          doubleSided: true,
+          emissiveFactor: [0.1, 0.2, 0.3],
+          pbrMetallicRoughness: {
+            baseColorFactor: [0.8, 0.7, 0.6, 0.5],
+            metallicFactor: 0.9,
+            roughnessFactor: 0.25,
+            baseColorTexture: {
+              index: 0,
+              extensions: {
+                KHR_texture_transform: { offset: [0.1, 0.2], scale: [2, 3], rotation: 0.4 },
+              },
+            },
+            metallicRoughnessTexture: { index: 2 },
+          },
+          normalTexture: { index: 1 },
         },
-        normalTexture: { index: 1 },
-      }],
+      ],
     });
 
-    expect(material).toMatchObject({ metallic: .9, roughness: .25, alphaMode: 'MASK', alphaCutoff: .35, doubleSided: true });
-    expect(material.textures.baseColor).toMatchObject({ textureId: 'base-id', offset: [.1, .2], scale: [2, 3], rotation: .4 });
+    expect(material).toMatchObject({
+      metallic: 0.9,
+      roughness: 0.25,
+      alphaMode: 'MASK',
+      alphaCutoff: 0.35,
+      doubleSided: true,
+    });
+    expect(material.textures.baseColor).toMatchObject({
+      textureId: 'base-id',
+      offset: [0.1, 0.2],
+      scale: [2, 3],
+      rotation: 0.4,
+    });
     expect(material.textures.normal.textureId).toBe('normal-id');
     expect(material.textures.metallicRoughness.textureId).toBe('orm-id');
   });
@@ -35,14 +64,16 @@ describe('UDP-referenced LLMesh asset decoding', () => {
       position: [point(0, 0), point(1, 0), point(0, 1)],
       normal: [point(0, 0, 1), point(0, 0, 1), point(0, 0, 1)],
       texCoord0: [point(0, 0), point(1, 0), point(0, 1)],
-      triangleList: [0, 1, 2], materialIndex,
+      triangleList: [0, 1, 2],
+      materialIndex,
       weights: withWeights ? [{ 2: 32768, 4: 32767 }, { 2: 65535 }, { 4: 65535 }] : undefined,
     });
     const mesh = normalizeLLMesh({
       version: 1,
       lodLevels: { high_lod: [triangle(0, true), triangle(1)], low_lod: [triangle(0)] },
       skin: {
-        jointNames: ['mPelvis', 'mTorso'], bindShapeMatrix: Array.from({ length: 16 }, (_, i) => i),
+        jointNames: ['mPelvis', 'mTorso'],
+        bindShapeMatrix: Array.from({ length: 16 }, (_, i) => i),
         inverseBindMatrix: [Array.from({ length: 16 }, (_, i) => i + 16)],
       },
     });
@@ -50,32 +81,57 @@ describe('UDP-referenced LLMesh asset decoding', () => {
     expect(mesh.selectedLod).toBe('high_lod');
     expect(mesh.parts).toHaveLength(2);
     expect(mesh.lods.low_lod).toHaveLength(1);
-    expect(mesh.parts[0].jointWeights.slice(0, 4).reduce((sum: number, weight: number) => sum + weight, 0)).toBeCloseTo(1);
+    expect(
+      mesh.parts[0].jointWeights
+        .slice(0, 4)
+        .reduce((sum: number, weight: number) => sum + weight, 0),
+    ).toBeCloseTo(1);
     expect(mesh.skin.jointNames).toEqual(['mPelvis', 'mTorso']);
     expect(mesh.skin.inverseBindMatrices[0]).toHaveLength(16);
   });
 
   it('keeps original material slots when an LOD contains empty faces', () => {
-    const mesh = normalizeLLMesh({ lodLevels: { high_lod: [
-      { noGeometry: true },
-      { position: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }], triangleList: [0, 1, 2] },
-    ] } });
+    const mesh = normalizeLLMesh({
+      lodLevels: {
+        high_lod: [
+          { noGeometry: true },
+          {
+            position: [
+              { x: 0, y: 0, z: 0 },
+              { x: 1, y: 0, z: 0 },
+              { x: 0, y: 1, z: 0 },
+            ],
+            triangleList: [0, 1, 2],
+          },
+        ],
+      },
+    });
     expect(mesh.parts).toHaveLength(1);
     expect(mesh.parts[0].materialIndex).toBe(1);
   });
 
   it('rejects corrupt triangle indices instead of sending unsafe geometry to WebGL', () => {
-    expect(() => normalizeLLMesh({
-      lodLevels: { high_lod: [{ position: [{ x: 0, y: 0, z: 0 }], triangleList: [0, 1, 0] }] },
-    })).toThrow(/invalid vertex index/);
+    expect(() =>
+      normalizeLLMesh({
+        lodLevels: { high_lod: [{ position: [{ x: 0, y: 0, z: 0 }], triangleList: [0, 1, 0] }] },
+      }),
+    ).toThrow(/invalid vertex index/);
   });
 
   it('does not mark an unweighted static mesh as skinned', () => {
     const mesh = normalizeLLMesh({
-      lodLevels: { high_lod: [{
-        position: [{ x: -.5, y: -.5, z: 0 }, { x: .5, y: -.5, z: 0 }, { x: 0, y: .5, z: 0 }],
-        triangleList: [0, 1, 2],
-      }] },
+      lodLevels: {
+        high_lod: [
+          {
+            position: [
+              { x: -0.5, y: -0.5, z: 0 },
+              { x: 0.5, y: -0.5, z: 0 },
+              { x: 0, y: 0.5, z: 0 },
+            ],
+            triangleList: [0, 1, 2],
+          },
+        ],
+      },
     });
 
     expect(mesh.parts[0].joints).toBeUndefined();
@@ -87,17 +143,23 @@ describe('simulator image asset decoding', () => {
   it('normalizes decoded image assets to browser-ready RGBA', async () => {
     const source = await sharp({
       create: { width: 2, height: 1, channels: 3, background: { r: 10, g: 20, b: 30 } },
-    }).png().toBuffer();
+    })
+      .png()
+      .toBuffer();
     const result = await decodeJPEG2000(source);
 
     expect(result).toMatchObject({ width: 2, height: 1 });
-    expect(Buffer.from(result.rgba, 'base64')).toEqual(Buffer.from([10, 20, 30, 255, 10, 20, 30, 255]));
+    expect(Buffer.from(result.rgba, 'base64')).toEqual(
+      Buffer.from([10, 20, 30, 255, 10, 20, 30, 255]),
+    );
   });
 
   it('turns decoded sculpt-map pixels into indexed geometry', async () => {
     const source = await sharp({
       create: { width: 8, height: 8, channels: 3, background: { r: 128, g: 64, b: 255 } },
-    }).png().toBuffer();
+    })
+      .png()
+      .toBuffer();
     const geometry = await decodeSculpt(source, 3);
 
     expect(geometry.vertices).toHaveLength(8 * 8 * 3);
@@ -110,22 +172,34 @@ describe('simulator image asset decoding', () => {
   // columns run counter-clockwise around Z, and the last column repeats the first.
   const sphereMap = async (size = 32) => {
     const pixels = Buffer.alloc(size * size * 3);
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const u = (x / (size - 1)) * Math.PI * 2, v = (y / (size - 1)) * Math.PI;
-      const o = (y * size + x) * 3;
-      pixels[o] = Math.round((0.5 + 0.5 * Math.cos(u) * Math.sin(v)) * 255);
-      pixels[o + 1] = Math.round((0.5 + 0.5 * Math.sin(u) * Math.sin(v)) * 255);
-      pixels[o + 2] = Math.round((0.5 + 0.5 * Math.cos(v)) * 255);
-    }
-    return sharp(pixels, { raw: { width: size, height: size, channels: 3 } }).png().toBuffer();
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const u = (x / (size - 1)) * Math.PI * 2,
+          v = (y / (size - 1)) * Math.PI;
+        const o = (y * size + x) * 3;
+        pixels[o] = Math.round((0.5 + 0.5 * Math.cos(u) * Math.sin(v)) * 255);
+        pixels[o + 1] = Math.round((0.5 + 0.5 * Math.sin(u) * Math.sin(v)) * 255);
+        pixels[o + 2] = Math.round((0.5 + 0.5 * Math.cos(v)) * 255);
+      }
+    return sharp(pixels, { raw: { width: size, height: size, channels: 3 } })
+      .png()
+      .toBuffer();
   };
   const outward = (g: any) => {
-    let good = 0, total = 0;
+    let good = 0,
+      total = 0;
     for (let i = 0; i < g.vertices.length; i += 3) {
       const len = Math.hypot(g.vertices[i], g.vertices[i + 1], g.vertices[i + 2]);
-      if (len < 1e-6 || Math.hypot(g.normals[i], g.normals[i + 1], g.normals[i + 2]) < 1e-6) continue;
+      if (len < 1e-6 || Math.hypot(g.normals[i], g.normals[i + 1], g.normals[i + 2]) < 1e-6)
+        continue;
       total++;
-      if (g.vertices[i] * g.normals[i] + g.vertices[i + 1] * g.normals[i + 1] + g.vertices[i + 2] * g.normals[i + 2] > 0) good++;
+      if (
+        g.vertices[i] * g.normals[i] +
+          g.vertices[i + 1] * g.normals[i + 1] +
+          g.vertices[i + 2] * g.normals[i + 2] >
+        0
+      )
+        good++;
     }
     return good / total;
   };
@@ -134,7 +208,9 @@ describe('simulator image asset decoding', () => {
     const geometry = await decodeSculpt(await sphereMap(), 1);
     expect(outward(geometry)).toBeGreaterThan(0.97);
     for (let i = 0; i < geometry.normals.length; i += 3) {
-      expect(Math.hypot(geometry.normals[i], geometry.normals[i + 1], geometry.normals[i + 2])).toBeCloseTo(1, 3);
+      expect(
+        Math.hypot(geometry.normals[i], geometry.normals[i + 1], geometry.normals[i + 2]),
+      ).toBeCloseTo(1, 3);
     }
     expect(new Set(geometry.normals.map((n: number) => n.toFixed(2))).size).toBeGreaterThan(10);
   });
@@ -149,8 +225,12 @@ describe('simulator image asset decoding', () => {
 
   it('mirrors a sculpt across X by negating the coordinate', async () => {
     const source = await sphereMap();
-    const plain = await decodeSculpt(source, 1), mirrored = await decodeSculpt(source, 1 | 0x80);
-    const range = (g: any, k: number) => { const v = g.vertices.filter((_: number, i: number) => i % 3 === k); return [Math.min(...v), Math.max(...v)]; };
+    const plain = await decodeSculpt(source, 1),
+      mirrored = await decodeSculpt(source, 1 | 0x80);
+    const range = (g: any, k: number) => {
+      const v = g.vertices.filter((_: number, i: number) => i % 3 === k);
+      return [Math.min(...v), Math.max(...v)];
+    };
     expect(range(mirrored, 0)[0]).toBeCloseTo(-range(plain, 0)[1], 1);
     expect(range(mirrored, 2)[1]).toBeCloseTo(range(plain, 2)[1], 1);
     // The sphere is symmetric, so the north pole is still on top and still a single point.
@@ -160,19 +240,30 @@ describe('simulator image asset decoding', () => {
 
   it('reads rows from the bottom of the image up, as the viewer does', async () => {
     // Bottom half of the map is z = 0, top half z = 1.
-    const size = 8, pixels = Buffer.alloc(size * size * 3);
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) pixels.set([x * 30, 128, y < size / 2 ? 255 : 0], (y * size + x) * 3);
-    const source = await sharp(pixels, { raw: { width: size, height: size, channels: 3 } }).png().toBuffer();
+    const size = 8,
+      pixels = Buffer.alloc(size * size * 3);
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++)
+        pixels.set([x * 30, 128, y < size / 2 ? 255 : 0], (y * size + x) * 3);
+    const source = await sharp(pixels, { raw: { width: size, height: size, channels: 3 } })
+      .png()
+      .toBuffer();
     const geometry = await decodeSculpt(source, 3);
-    expect(geometry.vertices[2]).toBeLessThan(0);          // first row = bottom of the image = low blue
-    expect(geometry.vertices[(8 * 7) * 3 + 2]).toBeGreaterThan(0); // last row = top of the image
+    expect(geometry.vertices[2]).toBeLessThan(0); // first row = bottom of the image = low blue
+    expect(geometry.vertices[8 * 7 * 3 + 2]).toBeGreaterThan(0); // last row = top of the image
   });
 
   it('closes a torus sculpt around both axes and leaves a plane open', async () => {
-    const size = 8, pixels = Buffer.alloc(size * size * 3);
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) pixels.set([x * 30, y * 30, (x + y) * 10], (y * size + x) * 3);
-    const source = await sharp(pixels, { raw: { width: size, height: size, channels: 3 } }).png().toBuffer();
-    const torus = await decodeSculpt(source, 2), plane = await decodeSculpt(source, 3), cylinder = await decodeSculpt(source, 4);
+    const size = 8,
+      pixels = Buffer.alloc(size * size * 3);
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) pixels.set([x * 30, y * 30, (x + y) * 10], (y * size + x) * 3);
+    const source = await sharp(pixels, { raw: { width: size, height: size, channels: 3 } })
+      .png()
+      .toBuffer();
+    const torus = await decodeSculpt(source, 2),
+      plane = await decodeSculpt(source, 3),
+      cylinder = await decodeSculpt(source, 4);
     expect(torus.indices.length).toBe(8 * 8 * 6);
     expect(cylinder.indices.length).toBe(8 * 7 * 6);
     expect(plane.indices.length).toBe(7 * 7 * 6);
@@ -186,7 +277,11 @@ describe('simulator image asset decoding', () => {
 
 describe('computeNormals', () => {
   it('points counter-clockwise triangles along their right-hand normal and survives degenerate faces', () => {
-    expect(computeNormals([0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 1, 2])).toEqual([0, 0, 1, 0, 0, 1, 0, 0, 1]);
-    expect(computeNormals([0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2])).toEqual([0, 0, 1, 0, 0, 1, 0, 0, 1]);
+    expect(computeNormals([0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 1, 2])).toEqual([
+      0, 0, 1, 0, 0, 1, 0, 0, 1,
+    ]);
+    expect(computeNormals([0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2])).toEqual([
+      0, 0, 1, 0, 0, 1, 0, 0, 1,
+    ]);
   });
 });

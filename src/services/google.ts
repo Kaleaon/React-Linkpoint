@@ -4,7 +4,11 @@
  * the integration on in Settings.
  */
 export async function loadGoogle() {
-  const [auth, contacts, calendar] = await Promise.all([import("./googleAuth"), import("./googleContacts"), import("./googleCalendar")]);
+  const [auth, contacts, calendar] = await Promise.all([
+    import('./googleAuth'),
+    import('./googleContacts'),
+    import('./googleCalendar'),
+  ]);
   return { auth, contacts, calendar };
 }
 

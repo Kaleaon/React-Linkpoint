@@ -1,10 +1,10 @@
-import { useApp } from "../context/AppContext.jsx";
-import { useTheme } from "../context/ThemeContext.jsx";
-import { NAV_ALL } from "../data/content.js";
-import Icon from "./Icon.jsx";
-import { navActive } from "../theme/look.js";
-import { RailNav as SystemRailNav } from "@linkpoint/design-system/react";
-import { LAYOUTS } from "@linkpoint/design-system/tokens";
+import { useApp } from '../context/AppContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
+import { NAV_ALL } from '../data/content.js';
+import Icon from './Icon.jsx';
+import { navActive } from '../theme/look.js';
+import { RailNav as SystemRailNav } from '@linkpoint/design-system/react';
+import { LAYOUTS } from '@linkpoint/design-system/tokens';
 
 /**
  * RailNav component provides accessible side rail navigation.
@@ -26,14 +26,32 @@ export default function RailNav() {
   const { V, t, nav } = useTheme();
   // Navigation stays visible on the 3D View too. Hiding it left no way out of the
   // scene on phones and tablets (the 3D screen has no header or back button).
-  if (nav !== "rail") return null;
+  if (nav !== 'rail') return null;
 
   return (
     <nav
       aria-label="Side Rail Navigation"
-      style={{ flex: "none", width: "104px", minHeight: 0, overflowY: "auto", background: V.surf, borderRight: "1px solid " + V.outv, display: "flex", flexDirection: "column", gap: "5px", padding: "12px 8px" }}
+      style={{
+        flex: 'none',
+        width: '104px',
+        minHeight: 0,
+        overflowY: 'auto',
+        background: V.surf,
+        borderRight: '1px solid ' + V.outv,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
+        padding: '12px 8px',
+      }}
     >
-      <div style={{ font: "700 13px/1.15 " + t.dfont, letterSpacing: ".2em", color: V.pri, padding: "2px 6px 14px" }}>
+      <div
+        style={{
+          font: '700 13px/1.15 ' + t.dfont,
+          letterSpacing: '.2em',
+          color: V.pri,
+          padding: '2px 6px 14px',
+        }}
+      >
         LINK
         <br />
         POINT
@@ -41,7 +59,7 @@ export default function RailNav() {
       {NAV_ALL.map((n) => {
         const active = navActive(state.screen, n.id);
         const handleKeyDown = (e) => {
-          if (e.key === "Enter" || e.key === " ") {
+          if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             actions.setScreen(n.id);
           }
@@ -51,18 +69,28 @@ export default function RailNav() {
             key={n.id}
             role="button"
             tabIndex={0}
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
             aria-label={n.label}
             onClick={() => actions.setScreen(n.id)}
             onKeyDown={handleKeyDown}
-            style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", padding: "10px 4px", cursor: "pointer", borderRadius: V.navr, color: active ? V.onpriC : V.ink2, background: active ? V.priC : undefined }}
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '10px 4px',
+              cursor: 'pointer',
+              borderRadius: V.navr,
+              color: active ? V.onpriC : V.ink2,
+              background: active ? V.priC : undefined,
+            }}
           >
             <Icon name={n.icon} size={20} />
-            <span style={{ font: "600 8.5px/1 " + t.font, letterSpacing: ".1em" }}>{n.label}</span>
+            <span style={{ font: '600 8.5px/1 ' + t.font, letterSpacing: '.1em' }}>{n.label}</span>
           </div>
         );
       })}
     </nav>
   );
 }
-

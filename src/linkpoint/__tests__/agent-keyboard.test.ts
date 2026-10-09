@@ -8,13 +8,25 @@ function harness(extra: Partial<ConstructorParameters<typeof AgentKeyboard>[0]> 
   const target = new EventTarget();
   let t = 0;
   const send = vi.fn();
-  const keyboard = new AgentKeyboard({ send, target: target as unknown as Window, now: () => t, ...extra });
+  const keyboard = new AgentKeyboard({
+    send,
+    target: target as unknown as Window,
+    now: () => t,
+    ...extra,
+  });
   const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) => {
     const event = new KeyboardEvent(type, { code, cancelable: true, bubbles: true, ...init });
     target.dispatchEvent(event);
     return event;
   };
-  return { keyboard, send, key, advance: (ms: number) => { t += ms; } };
+  return {
+    keyboard,
+    send,
+    key,
+    advance: (ms: number) => {
+      t += ms;
+    },
+  };
 }
 
 describe('AgentKeyboard', () => {
@@ -24,7 +36,8 @@ describe('AgentKeyboard', () => {
     const down = h.key('keydown', 'KeyW');
     expect(down.defaultPrevented).toBe(true);
     expect(h.send).toHaveBeenLastCalledWith(AGENT_CONTROL.NUDGE_AT_POS);
-    h.advance(300); vi.advanceTimersByTime(300);
+    h.advance(300);
+    vi.advanceTimersByTime(300);
     expect(h.send).toHaveBeenLastCalledWith(AGENT_CONTROL.AT_POS);
     h.key('keyup', 'KeyW');
     expect(h.send).toHaveBeenLastCalledWith(0);
@@ -91,13 +104,24 @@ describe('ViewerSession.setMovement with a flag word', () => {
     const session = new ViewerSession(() => undefined);
     let word = 0;
     const agent = {
-      setControlFlag: vi.fn((f: number) => { word |= f; }),
-      clearControlFlag: vi.fn((f: number) => { word &= ~f; }),
-      sendAgentUpdate: vi.fn(() => { agent.sent.push(word >>> 0); }),
+      setControlFlag: vi.fn((f: number) => {
+        word |= f;
+      }),
+      clearControlFlag: vi.fn((f: number) => {
+        word &= ~f;
+      }),
+      sendAgentUpdate: vi.fn(() => {
+        agent.sent.push(word >>> 0);
+      }),
       sent: [] as number[],
     };
     session.bot = { agent };
-    const flags = (AGENT_CONTROL.AT_POS | AGENT_CONTROL.FLY | AGENT_CONTROL.STAND_UP | AGENT_CONTROL.NUDGE_AT_POS) >>> 0;
+    const flags =
+      (AGENT_CONTROL.AT_POS |
+        AGENT_CONTROL.FLY |
+        AGENT_CONTROL.STAND_UP |
+        AGENT_CONTROL.NUDGE_AT_POS) >>>
+      0;
     expect(session.setMovement({ controlFlags: flags })).toEqual({ moving: true, flags });
     expect(agent.sent).toEqual([flags]);
     expect(word >>> 0).toBe((AGENT_CONTROL.AT_POS | AGENT_CONTROL.FLY) >>> 0);
@@ -108,10 +132,19 @@ describe('ViewerSession.setMovement with a flag word', () => {
   it('keeps the highest bit intact and rejects invalid words', () => {
     const session = new ViewerSession(() => undefined);
     let word = 0;
-    const agent = { setControlFlag: (f: number) => { word |= f; }, clearControlFlag: (f: number) => { word &= ~f; }, sendAgentUpdate: vi.fn() };
+    const agent = {
+      setControlFlag: (f: number) => {
+        word |= f;
+      },
+      clearControlFlag: (f: number) => {
+        word &= ~f;
+      },
+      sendAgentUpdate: vi.fn(),
+    };
     session.bot = { agent };
     session.setMovement({ controlFlags: AGENT_CONTROL.ML_LBUTTON_UP });
     expect(word >>> 0).toBe(0x80000000);
-    for (const bad of [-1, 1.5, 2 ** 32, 'x']) expect(() => session.setMovement({ controlFlags: bad })).toThrow(/unsigned 32-bit/);
+    for (const bad of [-1, 1.5, 2 ** 32, 'x'])
+      expect(() => session.setMovement({ controlFlags: bad })).toThrow(/unsigned 32-bit/);
   });
 });

@@ -61,14 +61,20 @@ export class ParcelSoundMap extends Utils.EventEmitter {
 
   reset() {
     this.agentFlags = 0;
-    this.overlay.fill(0); this.overlayChunks.clear(); this.agentCells.fill(0);
-    this.agentSequence = 0; this.agentLocalId = -1; this.agentSoundLocal = false; this.hasAgentParcel = false;
+    this.overlay.fill(0);
+    this.overlayChunks.clear();
+    this.agentCells.fill(0);
+    this.agentSequence = 0;
+    this.agentLocalId = -1;
+    this.agentSoundLocal = false;
+    this.hasAgentParcel = false;
   }
 
   /** Feed one forwarded message from the core. */
   accept(event: ParcelSoundEvent) {
     if (event.action === 'reset') this.reset();
-    else if (event.action === 'overlay' && typeof event.data === 'string') this.acceptOverlay(event.sequenceId ?? -1, decode(event.data));
+    else if (event.action === 'overlay' && typeof event.data === 'string')
+      this.acceptOverlay(event.sequenceId ?? -1, decode(event.data));
     else if (event.action === 'parcel') this.acceptParcel(event);
   }
 
@@ -86,7 +92,8 @@ export class ParcelSoundMap extends Utils.EventEmitter {
     if (event.requestResult === -1) return; // PARCEL_RESULT_NO_DATA
     const sequence = event.sequenceId ?? 0;
     const flags = (event.flags ?? 0) >>> 0;
-    const isAgentSequence = !NON_AGENT_SEQUENCES.has(sequence) && (sequence === 0 || sequence > this.agentSequence);
+    const isAgentSequence =
+      !NON_AGENT_SEQUENCES.has(sequence) && (sequence === 0 || sequence > this.agentSequence);
     if (isAgentSequence) {
       // A new agent parcel: take its flags, id and cell bitmap.
       this.agentSequence = sequence;
@@ -99,7 +106,10 @@ export class ParcelSoundMap extends Utils.EventEmitter {
     } else if (this.hasAgentParcel && event.localId === this.agentLocalId) {
       // Another message about the agent's parcel (selected, hovered ...): its flags are current.
       this.agentSoundLocal = (flags & PF_SOUND_LOCAL) !== 0;
-      if (flags !== this.agentFlags) { this.agentFlags = flags; this.emit('agent_parcel', this.agentParcel); }
+      if (flags !== this.agentFlags) {
+        this.agentFlags = flags;
+        this.emit('agent_parcel', this.agentParcel);
+      }
     }
   }
 
@@ -108,7 +118,8 @@ export class ParcelSoundMap extends Utils.EventEmitter {
     this.agentCells.fill(0);
     const expected = (this.cellsPerEdge * this.cellsPerEdge) / 8;
     if (!bitmap || bitmap.length < expected) return;
-    for (let i = 0; i < this.agentCells.length; i++) this.agentCells[i] = (bitmap[i >> 3] >> (i & 7)) & 1;
+    for (let i = 0; i < this.agentCells.length; i++)
+      this.agentCells[i] = (bitmap[i >> 3] >> (i & 7)) & 1;
   }
 
   private cell(position: ArrayLike<number>): number {

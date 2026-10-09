@@ -38,10 +38,8 @@ describe('EventQueueManager', () => {
     eventQueue.enqueueEvent({
       message: 'AvatarPresence',
       body: {
-        AgentData: [
-          { AgentID: 'agent-123', Coordinates: [128, 128, 25], presence: 'online' }
-        ]
-      }
+        AgentData: [{ AgentID: 'agent-123', Coordinates: [128, 128, 25], presence: 'online' }],
+      },
     });
 
     expect(presenceHandler).toHaveBeenCalledTimes(1);
@@ -56,17 +54,17 @@ describe('EventQueueManager', () => {
     eventQueue.enqueueEvents([
       {
         message: 'AvatarPresence',
-        body: { AgentID: 'avatar-1', Coordinates: [100, 100, 20], presence: 'online' }
+        body: { AgentID: 'avatar-1', Coordinates: [100, 100, 20], presence: 'online' },
       },
       {
         message: 'AvatarPresence',
-        body: { AgentID: 'avatar-2', Coordinates: [150, 150, 25], presence: 'online' }
+        body: { AgentID: 'avatar-2', Coordinates: [150, 150, 25], presence: 'online' },
       },
       {
         // Second update for avatar-1 in the same batch
         message: 'AvatarPresence',
-        body: { AgentID: 'avatar-1', Coordinates: [102, 101, 20], presence: 'online' }
-      }
+        body: { AgentID: 'avatar-1', Coordinates: [102, 101, 20], presence: 'online' },
+      },
     ]);
 
     // Should emit a single consolidated avatar_presence pass rather than 3 passes
@@ -95,7 +93,7 @@ describe('EventQueueManager', () => {
     eventQueue.enqueueEvents([
       { message: 'CoarseLocationUpdate', body: { Location_Fields: [{ X: 128, Y: 128, Z: 6 }] } },
       { message: 'AgentMovementComplete', body: { Data: { Position: [128, 128, 25] } } },
-      { message: 'ObjectUpdate', body: { id: 'obj-1', position: [10, 10, 5] } }
+      { message: 'ObjectUpdate', body: { id: 'obj-1', position: [10, 10, 5] } },
     ]);
 
     expect(coarseSpy).toHaveBeenCalledTimes(1);
@@ -116,10 +114,15 @@ describe('EventQueueManager', () => {
         message: 'AvatarPresence',
         body: {
           AgentData: [
-            { AgentID: 'resident-uuid-1', name: 'Alice Resident', position: [130, 135, 26], presence: 'online' }
-          ]
-        }
-      }
+            {
+              AgentID: 'resident-uuid-1',
+              name: 'Alice Resident',
+              position: [130, 135, 26],
+              presence: 'online',
+            },
+          ],
+        },
+      },
     ]);
 
     expect(nearbyChangedSpy).toHaveBeenCalled();
@@ -138,11 +141,9 @@ describe('EventQueueManager', () => {
       {
         message: 'AvatarPresence',
         body: {
-          AgentData: [
-            { AgentID: 'resident-uuid-1', presence: 'left' }
-          ]
-        }
-      }
+          AgentData: [{ AgentID: 'resident-uuid-1', presence: 'left' }],
+        },
+      },
     ]);
 
     expect(world.nearbyUsers.length).toBe(0);
@@ -154,7 +155,10 @@ describe('EventQueueManager', () => {
     eventQueue.updateCapabilityUrl('https://sim1.example.com/caps/eventQueue');
     expect(eventQueue.getStats().queueUrl).toBe('https://sim1.example.com/caps/eventQueue');
 
-    await eventQueue.handleRegionHandoff('https://sim2.example.com/caps/seed', 'https://sim2.example.com/caps/eventQueue');
+    await eventQueue.handleRegionHandoff(
+      'https://sim2.example.com/caps/seed',
+      'https://sim2.example.com/caps/eventQueue',
+    );
     expect(eventQueue.getStats().queueUrl).toBe('https://sim2.example.com/caps/eventQueue');
     expect(eventQueue.getStats().isPolling).toBe(true);
   });

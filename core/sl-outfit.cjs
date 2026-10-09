@@ -6,10 +6,18 @@
  * in the library, so the pieces are the raw messages the official viewer sends.
  */
 const { UUID, AssetType } = require('@caspertech/node-metaverse');
-const { LinkInventoryItemMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/LinkInventoryItem');
-const { RemoveInventoryItemMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryItem');
-const { ObjectDetachMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/ObjectDetach');
-const { StartLureMessage } = require('@caspertech/node-metaverse/dist/lib/classes/messages/StartLure');
+const {
+  LinkInventoryItemMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/LinkInventoryItem');
+const {
+  RemoveInventoryItemMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryItem');
+const {
+  ObjectDetachMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/ObjectDetach');
+const {
+  StartLureMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/StartLure');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
@@ -34,7 +42,8 @@ function requireUuid(value, label) {
 function session(bot, region) {
   const circuit = region?.circuit;
   const agentID = bot?.agent?.agentID;
-  if (!circuit?.sendMessage || !agentID) throw new Error('Not ready: the region has not loaded yet');
+  if (!circuit?.sendMessage || !agentID)
+    throw new Error('Not ready: the region has not loaded yet');
   return { circuit, agentID, sessionID: circuit.sessionID };
 }
 
@@ -48,7 +57,8 @@ function findItem(bot, itemId) {
   const id = idOf(requireUuid(itemId, 'item id'));
   const direct = bot.agent?.inventory?.main?.itemsByID?.get?.(id);
   if (direct) return direct;
-  for (const [key, item] of bot.agent?.inventory?.main?.itemsByID || []) if (idOf(key) === id) return item;
+  for (const [key, item] of bot.agent?.inventory?.main?.itemsByID || [])
+    if (idOf(key) === id) return item;
   return null;
 }
 
@@ -69,9 +79,11 @@ async function addLink(bot, region, cof, item) {
     Description: Utils.StringToBuffer(item.description || ''),
   };
   circuit.sendMessage(message, PacketFlags.Reliable);
-  const reply = await circuit.waitForMessage(Message.UpdateCreateInventoryItem, 10000, (m) => (
-    (m.InventoryData || []).some((d) => d.CallbackID === callbackID) ? FilterResponse.Finish : FilterResponse.NoMatch
-  ));
+  const reply = await circuit.waitForMessage(Message.UpdateCreateInventoryItem, 10000, (m) =>
+    (m.InventoryData || []).some((d) => d.CallbackID === callbackID)
+      ? FilterResponse.Finish
+      : FilterResponse.NoMatch,
+  );
   return (reply.InventoryData || []).find((d) => d.CallbackID === callbackID)?.ItemID;
 }
 
@@ -82,7 +94,11 @@ async function removeLink(bot, region, cof, link) {
   message.AgentData = { AgentID: agentID, SessionID: sessionID };
   message.InventoryData = [{ ItemID: link.itemID }];
   circuit.sendMessage(message, PacketFlags.Reliable);
-  try { await cof.removeItem(link.itemID, false); } catch { /* the cache entry is already gone */ }
+  try {
+    await cof.removeItem(link.itemID, false);
+  } catch {
+    /* the cache entry is already gone */
+  }
 }
 
 /**
@@ -108,10 +124,12 @@ async function updateAppearance(region, cof) {
 
 /** Link `item` into the COF (replacing a body part of the same type) and attach it when it is an object. */
 async function wearOne(bot, region, cof, item) {
-  if (item.inventoryType !== INV_OBJECT && item.inventoryType !== INV_WEARABLE) throw new Error(`${item.name || 'This item'} cannot be worn`);
+  if (item.inventoryType !== INV_OBJECT && item.inventoryType !== INV_WEARABLE)
+    throw new Error(`${item.name || 'This item'} cannot be worn`);
   if (item.inventoryType === INV_WEARABLE && SINGLE_SLOT.has(wearableType(item))) {
     for (const link of [...(cof.items || [])]) {
-      if (link.inventoryType === INV_WEARABLE && wearableType(link) === wearableType(item)) await removeLink(bot, region, cof, link);
+      if (link.inventoryType === INV_WEARABLE && wearableType(link) === wearableType(item))
+        await removeLink(bot, region, cof, link);
     }
   }
   if ((cof.items || []).some((link) => idOf(link.assetID) === idOf(item.itemID))) return;
@@ -130,7 +148,9 @@ async function wearItem(bot, region, { itemId } = {}) {
 /** Take off one worn item, given the id of its link in the Current Outfit folder. Body parts can only be replaced. */
 async function removeOne(bot, region, cof, link) {
   if (link.inventoryType === INV_WEARABLE && BODY_PART.has(wearableType(link))) {
-    throw new Error(`${link.name || 'A body part'} cannot be taken off; wear another one to replace it`);
+    throw new Error(
+      `${link.name || 'A body part'} cannot be taken off; wear another one to replace it`,
+    );
   }
   if (link.inventoryType === INV_OBJECT) {
     const target = findItem(bot, idOf(link.assetID));
@@ -157,7 +177,9 @@ async function wearOutfit(bot, region, { folderId } = {}) {
   await outfit.populate(false);
   const cof = await currentOutfitFolder(bot);
 
-  const wanted = (outfit.items || []).map((link) => findItem(bot, idOf(link.assetID))).filter(Boolean);
+  const wanted = (outfit.items || [])
+    .map((link) => findItem(bot, idOf(link.assetID)))
+    .filter(Boolean);
   if (!wanted.length) throw new Error('That outfit has no items that could be loaded');
   const keep = new Set(wanted.map((item) => idOf(item.itemID)));
   for (const link of [...(cof.items || [])]) {
@@ -175,7 +197,8 @@ function detachAttachment(bot, region, { id } = {}) {
   const avatar = bot.clientCommands?.agent?.getAvatar?.();
   const localId = object?.ID ?? object?.localID;
   if (!object || !Number.isInteger(localId)) throw new Error('That object is not in view');
-  if (!avatar || Number(object.ParentID) !== Number(avatar.ID ?? avatar.localID)) throw new Error('That object is not attached to you');
+  if (!avatar || Number(object.ParentID) !== Number(avatar.ID ?? avatar.localID))
+    throw new Error('That object is not attached to you');
   const message = new ObjectDetachMessage();
   message.AgentData = { AgentID: agentID, SessionID: sessionID };
   message.ObjectData = [{ ObjectLocalID: localId }];
@@ -198,12 +221,18 @@ function offerTeleport(bot, region, { id, message = '' } = {}) {
 async function getShape(bot) {
   const { LLWearable } = require('@caspertech/node-metaverse');
   const cof = await currentOutfitFolder(bot);
-  const link = (cof.items || []).find((item) => item.inventoryType === INV_WEARABLE && wearableType(item) === 0);
+  const link = (cof.items || []).find(
+    (item) => item.inventoryType === INV_WEARABLE && wearableType(item) === 0,
+  );
   if (!link) throw new Error('No shape is worn');
   const target = findItem(bot, idOf(link.assetID)) || link;
   const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Bodypart, target.assetID);
   const wearable = new LLWearable(Buffer.from(buffer).toString('utf8'));
-  return { itemId: idOf(target.itemID), name: wearable.name || target.name, values: { ...wearable.parameters } };
+  return {
+    itemId: idOf(target.itemID),
+    name: wearable.name || target.name,
+    values: { ...wearable.parameters },
+  };
 }
 
 /**
@@ -214,7 +243,9 @@ async function saveShape(bot, region, { values, name } = {}) {
   const { LLWearable, InventoryType } = require('@caspertech/node-metaverse');
   if (!values || typeof values !== 'object') throw new Error('Shape values are required');
   const cof = await currentOutfitFolder(bot);
-  const link = (cof.items || []).find((item) => item.inventoryType === INV_WEARABLE && wearableType(item) === 0);
+  const link = (cof.items || []).find(
+    (item) => item.inventoryType === INV_WEARABLE && wearableType(item) === 0,
+  );
   if (!link) throw new Error('No shape is worn');
   const target = findItem(bot, idOf(link.assetID)) || link;
   const buffer = await bot.clientCommands.asset.downloadAsset(AssetType.Bodypart, target.assetID);
@@ -225,13 +256,32 @@ async function saveShape(bot, region, { values, name } = {}) {
     wearable.parameters[Number(id)] = number;
   }
   const skeleton = bot.agent?.inventory?.main?.skeleton;
-  const folder = skeleton && [...skeleton.values()].find((f) => f.typeDefault === FolderType.BodyPart);
+  const folder =
+    skeleton && [...skeleton.values()].find((f) => f.typeDefault === FolderType.BodyPart);
   if (!folder) throw new Error('The Body Parts folder was not found');
   const title = String(name || `${wearable.name || 'Shape'} (edited)`).slice(0, 63);
   wearable.name = title;
-  const created = await folder.uploadAsset(AssetType.Bodypart, InventoryType.Wearable, Buffer.from(wearable.toAsset()), title, 'Edited in Linkpoint', target.flags);
+  const created = await folder.uploadAsset(
+    AssetType.Bodypart,
+    InventoryType.Wearable,
+    Buffer.from(wearable.toAsset()),
+    title,
+    'Edited in Linkpoint',
+    target.flags,
+  );
   await wearOne(bot, region, cof, created);
   return { saved: title, ...(await updateAppearance(region, cof)) };
 }
 
-module.exports = { wearItem, removeWorn, wearOutfit, detachAttachment, offerTeleport, getShape, saveShape, updateAppearance, SINGLE_SLOT, BODY_PART };
+module.exports = {
+  wearItem,
+  removeWorn,
+  wearOutfit,
+  detachAttachment,
+  offerTeleport,
+  getShape,
+  saveShape,
+  updateAppearance,
+  SINGLE_SLOT,
+  BODY_PART,
+};

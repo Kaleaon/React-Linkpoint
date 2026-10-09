@@ -66,7 +66,8 @@ export interface WindlightSkyFrame {
 
 function vec4(source: any, key: string, divisor: number): Vec4 {
   const values = source?.[key];
-  if (!Array.isArray(values) || values.length < 4) throw new Error(`Windlight preset is missing "${key}"`);
+  if (!Array.isArray(values) || values.length < 4)
+    throw new Error(`Windlight preset is missing "${key}"`);
   const out = values.slice(0, 4).map((value) => Number(value) / divisor);
   if (!out.every(Number.isFinite)) throw new Error(`Windlight preset has a non-numeric "${key}"`);
   return out as Vec4;
@@ -110,7 +111,11 @@ function lerpAngleForward(a: number, b: number, t: number) {
   return lerp(a, end, t) % (Math.PI * 2);
 }
 
-export function interpolateWindlight(a: WindlightPreset, b: WindlightPreset, t: number): WindlightPreset {
+export function interpolateWindlight(
+  a: WindlightPreset,
+  b: WindlightPreset,
+  t: number,
+): WindlightPreset {
   return {
     ambient: lerpVec(a.ambient, b.ambient, t),
     sunlightColor: lerpVec(a.sunlightColor, b.sunlightColor, t),
@@ -132,7 +137,8 @@ export function interpolateWindlight(a: WindlightPreset, b: WindlightPreset, t: 
 /** A day of eight presets. */
 export class WindlightDay {
   constructor(readonly presets: WindlightPreset[]) {
-    if (presets.length !== WINDLIGHT_HOUR_TABLE.length) throw new Error(`A Windlight day needs ${WINDLIGHT_HOUR_TABLE.length} presets`);
+    if (presets.length !== WINDLIGHT_HOUR_TABLE.length)
+      throw new Error(`A Windlight day needs ${WINDLIGHT_HOUR_TABLE.length} presets`);
   }
 
   /** Sky at `hour`, a fraction of the day in [0, 1) where 0 is midnight and 0.5 noon. */
@@ -140,7 +146,10 @@ export class WindlightDay {
     const f = ((hour % 1) + 1) % 1;
     let i = 0;
     for (let k = WINDLIGHT_HOUR_TABLE.length - 1; k >= 0; k--) {
-      if (f >= WINDLIGHT_HOUR_TABLE[k]) { i = k; break; }
+      if (f >= WINDLIGHT_HOUR_TABLE[k]) {
+        i = k;
+        break;
+      }
     }
     const next = (i + 1) % WINDLIGHT_HOUR_TABLE.length;
     const start = WINDLIGHT_HOUR_TABLE[i];
@@ -155,7 +164,9 @@ let defaultDay: WindlightDay | null = null;
 /** The eight bundled presets, parsed once. */
 export function getDefaultWindlightDay(): WindlightDay {
   if (!defaultDay) {
-    defaultDay = new WindlightDay([a12am, a3am, a6am, a9am, a12pm, a3pm, a6pm, a9pm].map(parseWindlightPreset));
+    defaultDay = new WindlightDay(
+      [a12am, a3am, a6am, a9am, a12pm, a3pm, a6pm, a9pm].map(parseWindlightPreset),
+    );
   }
   return defaultDay;
 }
@@ -189,7 +200,7 @@ export function presetToSkyFrame(preset: WindlightPreset): WindlightSkyFrame {
  */
 export function sunHourFromSunPhase(sunPhase: number): number {
   if (!Number.isFinite(sunPhase)) return 0;
-  const hour = (sunPhase / (2 * Math.PI)) + 0.25;
+  const hour = sunPhase / (2 * Math.PI) + 0.25;
   return ((hour % 1) + 1) % 1;
 }
 
@@ -204,5 +215,8 @@ export function estimatedSunHour(nowMs: number): number {
 
 /** Environment object for the scene built from the bundled day at `hour`. */
 export function windlightEnvironment(hour: number) {
-  return { currentSky: presetToSkyFrame(getDefaultWindlightDay().at(hour)), source: 'default-windlight' as const };
+  return {
+    currentSky: presetToSkyFrame(getDefaultWindlightDay().at(hour)),
+    source: 'default-windlight' as const,
+  };
 }

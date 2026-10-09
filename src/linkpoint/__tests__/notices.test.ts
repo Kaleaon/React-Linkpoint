@@ -4,7 +4,15 @@ import { MAX_NOTICES, NOTICES_STORAGE_KEY, NoticeStore } from '../notices';
 import { Utils } from '../utils';
 
 beforeEach(() => localStorage.clear());
-const sent = (over: any = {}) => ({ id: 'n1', groupId: 'g1', fromName: 'Officer', subject: 'Dance Saturday 7pm', message: 'Bring friends', timestamp: 1000, ...over });
+const sent = (over: any = {}) => ({
+  id: 'n1',
+  groupId: 'g1',
+  fromName: 'Officer',
+  subject: 'Dance Saturday 7pm',
+  message: 'Bring friends',
+  timestamp: 1000,
+  ...over,
+});
 
 describe('NoticeStore', () => {
   it('stores notices the grid sends, newest first, ignoring repeats', () => {
@@ -18,7 +26,12 @@ describe('NoticeStore', () => {
     protocol.emit('group_notice', sent());
     expect(store.list().map((n) => n.id)).toEqual(['n2', 'n1']);
     expect(received).toHaveBeenCalledTimes(2);
-    expect(store.get('n1')).toMatchObject({ subject: 'Dance Saturday 7pm', from: 'Officer', groupId: 'g1', calendar: null });
+    expect(store.get('n1')).toMatchObject({
+      subject: 'Dance Saturday 7pm',
+      from: 'Officer',
+      groupId: 'g1',
+      calendar: null,
+    });
   });
 
   it('receives both group_notice and group-notice events idempotently', () => {
@@ -50,8 +63,14 @@ describe('NoticeStore', () => {
   it('remembers what was added to a calendar so it is not added twice', () => {
     const store = new NoticeStore();
     store.receive(sent());
-    store.markAdded('n1', { eventId: 'abc123', link: 'https://www.google.com/calendar/event?eid=xyz' });
-    expect(store.get('n1')!.calendar).toMatchObject({ eventId: 'abc123', link: 'https://www.google.com/calendar/event?eid=xyz' });
+    store.markAdded('n1', {
+      eventId: 'abc123',
+      link: 'https://www.google.com/calendar/event?eid=xyz',
+    });
+    expect(store.get('n1')!.calendar).toMatchObject({
+      eventId: 'abc123',
+      link: 'https://www.google.com/calendar/event?eid=xyz',
+    });
     expect(new NoticeStore().get('n1')!.calendar!.eventId).toBe('abc123');
     store.clearAdded('n1');
     expect(store.get('n1')!.calendar).toBeNull();
@@ -59,10 +78,21 @@ describe('NoticeStore', () => {
   });
 
   it('does not trust stored links or ids', () => {
-    localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify({ notices: [
-      { id: 'x', subject: 'S', calendar: { eventId: '../evil', link: 'javascript:alert(1)', addedAt: 5 } },
-      { id: '', subject: 'no id' }, null, 7,
-    ] }));
+    localStorage.setItem(
+      NOTICES_STORAGE_KEY,
+      JSON.stringify({
+        notices: [
+          {
+            id: 'x',
+            subject: 'S',
+            calendar: { eventId: '../evil', link: 'javascript:alert(1)', addedAt: 5 },
+          },
+          { id: '', subject: 'no id' },
+          null,
+          7,
+        ],
+      }),
+    );
     const notice = new NoticeStore().get('x')!;
     expect(notice.calendar).toEqual({ eventId: null, link: null, addedAt: 5 });
   });
@@ -79,7 +109,12 @@ describe('NoticeStore', () => {
   });
 
   it('keeps working in memory and says so when storage is full', () => {
-    const storage = { getItem: () => null, setItem: () => { throw new DOMException('quota', 'QuotaExceededError'); } };
+    const storage = {
+      getItem: () => null,
+      setItem: () => {
+        throw new DOMException('quota', 'QuotaExceededError');
+      },
+    };
     const store = new NoticeStore(null, storage);
     const failed = vi.fn();
     store.on('storage_error', failed);
@@ -103,14 +138,16 @@ describe('NoticeStore', () => {
 
   it('preserves attachment metadata and updates savedToInventoryAt', () => {
     const store = new NoticeStore();
-    store.receive(sent({
-      id: 'att1',
-      hasAttachment: true,
-      attachmentName: 'Weekly Gift Landmark',
-      attachmentItemId: 'item-100',
-      attachmentType: 3,
-      attachmentOwnerId: 'owner-200',
-    }));
+    store.receive(
+      sent({
+        id: 'att1',
+        hasAttachment: true,
+        attachmentName: 'Weekly Gift Landmark',
+        attachmentItemId: 'item-100',
+        attachmentType: 3,
+        attachmentOwnerId: 'owner-200',
+      }),
+    );
     const notice = store.get('att1')!;
     expect(notice.attachment).toMatchObject({
       hasAttachment: true,
@@ -128,9 +165,20 @@ describe('NoticeStore', () => {
   });
 
   it('sanitizes legacy saved notices without attachment fields cleanly to attachment: null', () => {
-    localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify({ notices: [
-      { id: 'legacy1', subject: 'Old Notice', message: 'Old message', from: 'Old Friend', timestamp: 100 },
-    ] }));
+    localStorage.setItem(
+      NOTICES_STORAGE_KEY,
+      JSON.stringify({
+        notices: [
+          {
+            id: 'legacy1',
+            subject: 'Old Notice',
+            message: 'Old message',
+            from: 'Old Friend',
+            timestamp: 100,
+          },
+        ],
+      }),
+    );
     const notice = new NoticeStore().get('legacy1')!;
     expect(notice.attachment).toBeNull();
     expect(notice.hasAttachment).toBe(false);
@@ -139,7 +187,16 @@ describe('NoticeStore', () => {
   it('enforces 5-minute TTL group notice caching and persistence across reloads', () => {
     const store = new NoticeStore();
     const notices = [
-      { id: 'n10', groupId: 'g1', subject: 'TTL Notice 1', message: 'Msg 1', from: 'Admin', timestamp: 1000, calendar: null, attachment: null },
+      {
+        id: 'n10',
+        groupId: 'g1',
+        subject: 'TTL Notice 1',
+        message: 'Msg 1',
+        from: 'Admin',
+        timestamp: 1000,
+        calendar: null,
+        attachment: null,
+      },
     ];
     store.setGroupCache('g1', notices, Date.now());
 
@@ -169,7 +226,11 @@ describe('NoticeStore', () => {
     expect(store.isHistoryUnavailable('g1')).toBe(false);
     store.setHistoryUnavailable('g1', true);
     expect(store.isHistoryUnavailable('g1')).toBe(true);
-    expect(statusFn).toHaveBeenCalledWith({ groupId: 'g1', unavailable: true, isAnyUnavailable: true });
+    expect(statusFn).toHaveBeenCalledWith({
+      groupId: 'g1',
+      unavailable: true,
+      isAnyUnavailable: true,
+    });
 
     store.setHistoryUnavailable('g1', false);
     expect(store.isHistoryUnavailable('g1')).toBe(false);

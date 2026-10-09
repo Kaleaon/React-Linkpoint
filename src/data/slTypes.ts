@@ -28,7 +28,24 @@ export function chatBand(metres: number): 'WHISPER' | 'CHAT' | 'SHOUT' | 'OUT OF
 }
 
 /** Sixteen-point compass, for radar bearings. */
-export const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+export const COMPASS = [
+  'N',
+  'NNE',
+  'NE',
+  'ENE',
+  'E',
+  'ESE',
+  'SE',
+  'SSE',
+  'S',
+  'SSW',
+  'SW',
+  'WSW',
+  'W',
+  'WNW',
+  'NW',
+  'NNW',
+];
 
 /** Compass point for a bearing in degrees. */
 export function bearingToCompass(degrees: number): string {
@@ -89,7 +106,11 @@ export interface Permissions {
 
 /** Render the permission mask the way the viewer's inventory panel does. */
 export function permissionLabel(p: Permissions): string {
-  return [p.copy ? 'copy' : 'no copy', p.modify ? 'modify' : 'no modify', p.transfer ? 'transfer' : 'no transfer'].join(' · ');
+  return [
+    p.copy ? 'copy' : 'no copy',
+    p.modify ? 'modify' : 'no modify',
+    p.transfer ? 'transfer' : 'no transfer',
+  ].join(' · ');
 }
 
 export interface InventoryNode {

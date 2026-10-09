@@ -57,28 +57,57 @@ export interface GroupNoticeCacheEntry {
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 
-const text = (value: unknown, max: number, fallback = '') => (typeof value === 'string' ? value.slice(0, max) : fallback);
+const text = (value: unknown, max: number, fallback = '') =>
+  typeof value === 'string' ? value.slice(0, max) : fallback;
 
 function sanitize(raw: any): SavedNotice | null {
   if (!raw || typeof raw.id !== 'string' || !raw.id.trim()) return null;
-  const calendar = raw.calendar && Number.isFinite(raw.calendar.addedAt)
+  const calendar =
+    raw.calendar && Number.isFinite(raw.calendar.addedAt)
+      ? {
+          eventId:
+            typeof raw.calendar.eventId === 'string' &&
+            /^[A-Za-z0-9_-]{1,1024}$/.test(raw.calendar.eventId)
+              ? raw.calendar.eventId
+              : null,
+          link:
+            typeof raw.calendar.link === 'string' &&
+            /^https:\/\/(?:www\.)?google\.com\/calendar\//i.test(raw.calendar.link)
+              ? raw.calendar.link
+              : null,
+          addedAt: raw.calendar.addedAt,
+        }
+      : null;
+
+  const rawAtt =
+    raw.attachment ||
+    (raw.hasAttachment ||
+    raw.attachmentName ||
+    raw.attachmentItemId ||
+    raw.attachmentType !== undefined
+      ? raw
+      : null);
+  const hasAtt = Boolean(rawAtt?.hasAttachment ?? raw.hasAttachment ?? false);
+  const attachment: NoticeAttachment | null = hasAtt
     ? {
-        eventId: typeof raw.calendar.eventId === 'string' && /^[A-Za-z0-9_-]{1,1024}$/.test(raw.calendar.eventId) ? raw.calendar.eventId : null,
-        link: typeof raw.calendar.link === 'string' && /^https:\/\/(?:www\.)?google\.com\/calendar\//i.test(raw.calendar.link) ? raw.calendar.link : null,
-        addedAt: raw.calendar.addedAt,
+        hasAttachment: true,
+        attachmentName: text(rawAtt?.attachmentName ?? raw.attachmentName, 300) || null,
+        attachmentItemId:
+          typeof (rawAtt?.attachmentItemId ?? raw.attachmentItemId) === 'string'
+            ? (rawAtt?.attachmentItemId ?? raw.attachmentItemId)
+            : null,
+        attachmentType: Number.isFinite(rawAtt?.attachmentType ?? raw.attachmentType)
+          ? Number(rawAtt?.attachmentType ?? raw.attachmentType)
+          : null,
+        attachmentOwnerId:
+          typeof (rawAtt?.attachmentOwnerId ?? raw.attachmentOwnerId) === 'string'
+            ? (rawAtt?.attachmentOwnerId ?? raw.attachmentOwnerId)
+            : null,
+        savedToInventoryAt: Number.isFinite(rawAtt?.savedToInventoryAt ?? raw.savedToInventoryAt)
+          ? Number(rawAtt?.savedToInventoryAt ?? raw.savedToInventoryAt)
+          : null,
       }
     : null;
-
-  const rawAtt = raw.attachment || (raw.hasAttachment || raw.attachmentName || raw.attachmentItemId || raw.attachmentType !== undefined ? raw : null);
-  const hasAtt = Boolean(rawAtt?.hasAttachment ?? raw.hasAttachment ?? false);
-  const attachment: NoticeAttachment | null = hasAtt ? {
-    hasAttachment: true,
-    attachmentName: text(rawAtt?.attachmentName ?? raw.attachmentName, 300) || null,
-    attachmentItemId: typeof (rawAtt?.attachmentItemId ?? raw.attachmentItemId) === 'string' ? (rawAtt?.attachmentItemId ?? raw.attachmentItemId) : null,
-    attachmentType: Number.isFinite(rawAtt?.attachmentType ?? raw.attachmentType) ? Number(rawAtt?.attachmentType ?? raw.attachmentType) : null,
-    attachmentOwnerId: typeof (rawAtt?.attachmentOwnerId ?? raw.attachmentOwnerId) === 'string' ? (rawAtt?.attachmentOwnerId ?? raw.attachmentOwnerId) : null,
-    savedToInventoryAt: Number.isFinite(rawAtt?.savedToInventoryAt ?? raw.savedToInventoryAt) ? Number(rawAtt?.savedToInventoryAt ?? raw.savedToInventoryAt) : null,
-  } : null;
 
   return {
     id: raw.id.trim().slice(0, 100),
@@ -107,7 +136,10 @@ export class NoticeStore extends Utils.EventEmitter {
   /** A notice another screen asked the calendar to open; read once with `takeFocus`. */
   private focusId: string | null = null;
 
-  constructor(private protocol: SLConnectionFull | null = null, private storage: StorageLike | null = typeof localStorage !== 'undefined' ? localStorage : null) {
+  constructor(
+    private protocol: SLConnectionFull | null = null,
+    private storage: StorageLike | null = typeof localStorage !== 'undefined' ? localStorage : null,
+  ) {
     super();
     this.load();
   }
@@ -140,7 +172,9 @@ export class NoticeStore extends Utils.EventEmitter {
         if (parsedGroupCache && typeof parsedGroupCache === 'object') {
           for (const [gid, entry] of Object.entries(parsedGroupCache)) {
             if (entry && typeof entry === 'object' && Array.isArray((entry as any).notices)) {
-              const cleanNotices = (entry as any).notices.map(sanitize).filter(Boolean) as SavedNotice[];
+              const cleanNotices = (entry as any).notices
+                .map(sanitize)
+                .filter(Boolean) as SavedNotice[];
               this.groupCaches.set(gid, {
                 groupId: gid,
                 notices: cleanNotices,
@@ -158,7 +192,10 @@ export class NoticeStore extends Utils.EventEmitter {
   /** Persist. Storage can be full or blocked; the notice stays available this session either way. */
   private save() {
     try {
-      this.storage?.setItem(NOTICES_STORAGE_KEY, JSON.stringify({ version: 1, notices: [...this.notices.values()] }));
+      this.storage?.setItem(
+        NOTICES_STORAGE_KEY,
+        JSON.stringify({ version: 1, notices: [...this.notices.values()] }),
+      );
     } catch {
       this.emit('storage_error', 'Notices could not be saved on this device.');
     }
@@ -179,11 +216,14 @@ export class NoticeStore extends Utils.EventEmitter {
   }
 
   /** Retrieve cached notices for a group along with TTL validity (default 5 min). */
-  getGroupCache(groupId: string, ttlMs: number = NOTICE_TTL_MS): { valid: boolean; notices: SavedNotice[]; timestamp: number } | null {
+  getGroupCache(
+    groupId: string,
+    ttlMs: number = NOTICE_TTL_MS,
+  ): { valid: boolean; notices: SavedNotice[]; timestamp: number } | null {
     const entry = this.groupCaches.get(groupId);
     if (!entry) return null;
     const now = Date.now();
-    const valid = (now - entry.timestamp) < ttlMs;
+    const valid = now - entry.timestamp < ttlMs;
     return {
       valid,
       notices: entry.notices,
@@ -221,7 +261,11 @@ export class NoticeStore extends Utils.EventEmitter {
     } else {
       this.historyUnavailableGroups.delete(groupId);
     }
-    this.emit('notice_history_status', { groupId, unavailable, isAnyUnavailable: this.isHistoryUnavailable() });
+    this.emit('notice_history_status', {
+      groupId,
+      unavailable,
+      isAnyUnavailable: this.isHistoryUnavailable(),
+    });
   }
 
   isHistoryUnavailable(groupId?: string): boolean {
@@ -256,7 +300,8 @@ export class NoticeStore extends Utils.EventEmitter {
   /** Store a notice the grid sent. A repeat of the same id is ignored. */
   receive(data: any): SavedNotice | null {
     if (!data || typeof data !== 'object') return null;
-    const id = typeof data.id === 'string' && data.id ? data.id : `notice-${Date.now()}-${++this.counter}`;
+    const id =
+      typeof data.id === 'string' && data.id ? data.id : `notice-${Date.now()}-${++this.counter}`;
     if (this.notices.has(id)) return null;
     const notice = sanitize({
       id,
@@ -266,14 +311,18 @@ export class NoticeStore extends Utils.EventEmitter {
       from: data.fromName || data.from,
       timestamp: data.timestamp,
       calendar: null,
-      attachment: data.hasAttachment || data.attachment ? {
-        hasAttachment: Boolean(data.hasAttachment ?? data.attachment?.hasAttachment ?? true),
-        attachmentName: data.attachmentName ?? data.attachment?.attachmentName,
-        attachmentItemId: data.attachmentItemId ?? data.attachment?.attachmentItemId,
-        attachmentType: data.attachmentType ?? data.attachment?.attachmentType,
-        attachmentOwnerId: data.attachmentOwnerId ?? data.attachment?.attachmentOwnerId,
-        savedToInventoryAt: data.savedToInventoryAt ?? data.attachment?.savedToInventoryAt ?? null,
-      } : null,
+      attachment:
+        data.hasAttachment || data.attachment
+          ? {
+              hasAttachment: Boolean(data.hasAttachment ?? data.attachment?.hasAttachment ?? true),
+              attachmentName: data.attachmentName ?? data.attachment?.attachmentName,
+              attachmentItemId: data.attachmentItemId ?? data.attachment?.attachmentItemId,
+              attachmentType: data.attachmentType ?? data.attachment?.attachmentType,
+              attachmentOwnerId: data.attachmentOwnerId ?? data.attachment?.attachmentOwnerId,
+              savedToInventoryAt:
+                data.savedToInventoryAt ?? data.attachment?.savedToInventoryAt ?? null,
+            }
+          : null,
       hasAttachment: data.hasAttachment,
       attachmentName: data.attachmentName,
       attachmentItemId: data.attachmentItemId,
@@ -283,7 +332,8 @@ export class NoticeStore extends Utils.EventEmitter {
     });
     if (!notice) return null;
     this.notices.set(notice.id, notice);
-    while (this.notices.size > MAX_NOTICES) this.notices.delete(this.notices.keys().next().value as string);
+    while (this.notices.size > MAX_NOTICES)
+      this.notices.delete(this.notices.keys().next().value as string);
     this.save();
     this.emit('notice_received', notice);
     return notice;

@@ -20,9 +20,8 @@ async function mount(props: any = {}) {
 }
 
 const buttonByText = (host: HTMLElement, text: string) =>
-  [...host.querySelectorAll('button')].find(
-    (b) => (b.textContent || '').trim().includes(text)
-  ) as HTMLButtonElement | undefined;
+  [...host.querySelectorAll('button')].find((b) => (b.textContent || '').trim().includes(text)) as
+    HTMLButtonElement | undefined;
 
 const click = async (el: Element | null | undefined) => {
   await act(async () => {

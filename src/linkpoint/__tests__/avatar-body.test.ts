@@ -2,13 +2,23 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { AvatarSkeleton } from '../avatar-skeleton';
 import { skinPoint } from '../avatar-skeleton';
-import { bodyPartRows, bodyPartSkin, bodyPartVertexSkin, loadBodyParts, parseBodyPart, type BodyPartMeta } from '../avatar-body';
+import {
+  bodyPartRows,
+  bodyPartSkin,
+  bodyPartVertexSkin,
+  loadBodyParts,
+  parseBodyPart,
+  type BodyPartMeta,
+} from '../avatar-body';
 import { skinMatrices } from '../avatar-skeleton';
 import type { JointPose } from '../avatar-animation';
 
 const dir = `${__dirname}/../../../public/avatar/`;
 const meta = JSON.parse(readFileSync(`${dir}meshes.json`, 'utf8')) as Record<string, BodyPartMeta>;
-const bytes = (part: string) => { const b = readFileSync(`${dir}${part}.bin`); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer; };
+const bytes = (part: string) => {
+  const b = readFileSync(`${dir}${part}.bin`);
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+};
 const skeleton = new AvatarSkeleton();
 
 function skinned(part: string, pose?: Map<string, JointPose>, rigidJoint?: string) {
@@ -18,12 +28,23 @@ function skinned(part: string, pose?: Map<string, JointPose>, rigidJoint?: strin
   const { joints, weights } = bodyPartVertexSkin(geometry);
   const points: number[][] = [];
   for (let v = 0; v < meta[part].vertexCount; v++) {
-    points.push(skinPoint([geometry.vertices[v * 3], geometry.vertices[v * 3 + 1], geometry.vertices[v * 3 + 2]], joints.slice(v * 4, v * 4 + 4), weights.slice(v * 4, v * 4 + 4), matrices));
+    points.push(
+      skinPoint(
+        [geometry.vertices[v * 3], geometry.vertices[v * 3 + 1], geometry.vertices[v * 3 + 2]],
+        joints.slice(v * 4, v * 4 + 4),
+        weights.slice(v * 4, v * 4 + 4),
+        matrices,
+      ),
+    );
   }
   return { geometry, points };
 }
-const bounds = (points: number[][], axis: number) => [Math.min(...points.map((p) => p[axis])), Math.max(...points.map((p) => p[axis]))];
-const mean = (points: number[][], axis: number) => points.reduce((s, p) => s + p[axis], 0) / points.length;
+const bounds = (points: number[][], axis: number) => [
+  Math.min(...points.map((p) => p[axis])),
+  Math.max(...points.map((p) => p[axis])),
+];
+const mean = (points: number[][], axis: number) =>
+  points.reduce((s, p) => s + p[axis], 0) / points.length;
 
 describe('base avatar body meshes', () => {
   it('parses every part with valid indices, joints and weights', () => {
@@ -34,9 +55,11 @@ describe('base avatar body meshes', () => {
       for (let v = 0; v < meta[part].vertexCount; v++) {
         const w = g.jointWeights.slice(v * 4, v * 4 + 4);
         expect(w[0] + w[1] + w[2] + w[3]).toBeCloseTo(1, 4);
-        for (let k = 0; k < 4; k++) expect(g.joints[v * 4 + k]).toBeLessThan(Math.max(1, g.jointNames.length));
+        for (let k = 0; k < 4; k++)
+          expect(g.joints[v * 4 + k]).toBeLessThan(Math.max(1, g.jointNames.length));
       }
-      for (const name of g.jointNames) expect(skeleton.indexOf(name), `${part}:${name}`).toBeGreaterThanOrEqual(0);
+      for (const name of g.jointNames)
+        expect(skeleton.indexOf(name), `${part}:${name}`).toBeGreaterThanOrEqual(0);
     }
   });
 
@@ -45,7 +68,9 @@ describe('base avatar body meshes', () => {
   });
 
   it('reproduces the authored geometry in the rest pose (head above torso above legs, ~1.9 m tall)', () => {
-    const head = skinned('head').points, upper = skinned('upperBody').points, lower = skinned('lowerBody').points;
+    const head = skinned('head').points,
+      upper = skinned('upperBody').points,
+      lower = skinned('lowerBody').points;
     expect(bounds(head, 2)[1]).toBeGreaterThan(1.8);
     expect(bounds(head, 2)[1]).toBeLessThan(1.95);
     expect(mean(head, 2)).toBeGreaterThan(mean(upper, 2));
@@ -61,12 +86,23 @@ describe('base avatar body meshes', () => {
     const upper = skinned('upperBody', posed).points;
     const lower = skinned('lowerBody', posed).points;
     // an arm tip (largest |y|) ends up on the x axis after a 90° turn about Z
-    const tip = restUpper.reduce((best, p, i) => (Math.abs(p[1]) > Math.abs(restUpper[best][1]) ? i : best), 0);
+    const tip = restUpper.reduce(
+      (best, p, i) => (Math.abs(p[1]) > Math.abs(restUpper[best][1]) ? i : best),
+      0,
+    );
     expect(Math.abs(upper[tip][0])).toBeGreaterThan(0.5);
     expect(Math.abs(upper[tip][1])).toBeLessThan(0.3);
     // legs hang from the hips: unaffected by the torso
     let moved = 0;
-    for (let i = 0; i < lower.length; i++) moved = Math.max(moved, Math.hypot(lower[i][0] - restLower[i][0], lower[i][1] - restLower[i][1], lower[i][2] - restLower[i][2]));
+    for (let i = 0; i < lower.length; i++)
+      moved = Math.max(
+        moved,
+        Math.hypot(
+          lower[i][0] - restLower[i][0],
+          lower[i][1] - restLower[i][1],
+          lower[i][2] - restLower[i][2],
+        ),
+      );
     expect(moved).toBeLessThan(0.15); // only the waist seam may blend with the torso
   });
 
@@ -90,29 +126,57 @@ describe('base avatar body meshes', () => {
     const fetcher = (async (url: string) => {
       const file = url.replace('/avatar/', '');
       const body = file === 'meshes.json' ? readFileSync(dir + file) : readFileSync(dir + file);
-      const arrayBuffer = async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
-      return { ok: true, status: 200, json: async () => JSON.parse(body.toString('utf8')), arrayBuffer };
+      const arrayBuffer = async () =>
+        body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => JSON.parse(body.toString('utf8')),
+        arrayBuffer,
+      };
     }) as unknown as typeof fetch;
     const parts = await loadBodyParts('/avatar/', fetcher);
     expect([...parts.keys()].sort()).toEqual(Object.keys(meta).sort());
-    await expect(loadBodyParts('/avatar/', (async () => ({ ok: false, status: 404 })) as unknown as typeof fetch)).rejects.toThrow('404');
+    await expect(
+      loadBodyParts('/avatar/', (async () => ({
+        ok: false,
+        status: 404,
+      })) as unknown as typeof fetch),
+    ).rejects.toThrow('404');
   });
 
   it('falls back to the published meshes when the app does not serve its own avatar folder', async () => {
     const urls: string[] = [];
     const fetcher = (async (url: string) => {
       urls.push(url);
-      if (url.startsWith('/avatar/')) return { ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+      if (url.startsWith('/avatar/'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new SyntaxError('Unexpected token <');
+          },
+        };
       const file = url.split('/').pop()!;
       if (file === 'meshes.json') return { ok: true, status: 200, json: async () => meta };
       const b = readFileSync(`${dir}${file}`);
-      return { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) };
+      return {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+      };
     }) as unknown as typeof fetch;
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const parts = await loadBodyParts(undefined, fetcher, 'https://raw.githubusercontent.com/Kaleaon/React-Linkpoint/main/public/');
+    const parts = await loadBodyParts(
+      undefined,
+      fetcher,
+      'https://raw.githubusercontent.com/Kaleaon/React-Linkpoint/main/public/',
+    );
     expect([...parts.keys()].sort()).toEqual(Object.keys(meta).sort());
     expect(urls[0]).toBe('/avatar/meshes.json');
-    expect(urls.some((u) => u.includes('raw.githubusercontent.com') && u.endsWith('/avatar/head.bin'))).toBe(true);
+    expect(
+      urls.some((u) => u.includes('raw.githubusercontent.com') && u.endsWith('/avatar/head.bin')),
+    ).toBe(true);
     vi.restoreAllMocks();
   });
 });

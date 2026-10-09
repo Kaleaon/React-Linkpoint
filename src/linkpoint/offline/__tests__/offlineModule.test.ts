@@ -85,7 +85,7 @@ describe('Offline OpenSim Grid Module', () => {
       // Shape written by builds before password hashing existed.
       localStorage.setItem(
         LOCAL_GRID_STORAGE_KEYS.USER_ACCOUNT,
-        JSON.stringify({ firstName: 'Legacy', lastName: 'User', passwordHash: 'plaintext' })
+        JSON.stringify({ firstName: 'Legacy', lastName: 'User', passwordHash: 'plaintext' }),
       );
 
       const manager = new LocalGridManager(new GridConsole());
