@@ -1,7 +1,7 @@
 name: CI
 
 # One workflow for everything that checks a change: the web/TypeScript suite (always), the Expo Android debug APK and
-# the native Kotlin app (only when their files changed), and the optional Jules review on pull requests.
+# the native Kotlin app (only when their files changed).
 on:
   push:
     branches: [main, master, development]
@@ -131,23 +131,3 @@ jobs:
           path: android-kotlin/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-
-  jules-review:
-    name: Task 4 - Automated PR Review
-    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: read
-      checks: write
-    env:
-      JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-    steps:
-      # Secrets are not exposed to PRs from forks, and the key may not be set;
-      # skip the review rather than failing the check in those cases.
-      - name: Jules review
-        if: ${{ env.JULES_API_KEY != '' }}
-        uses: thalesraymond/jules-pr-reviewer@47388f11f27513e89e74a068ad51aa7a0d7ea306 # v1.0.0
-        with:
-          jules_api_key: ${{ secrets.JULES_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}

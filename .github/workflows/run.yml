@@ -1,53 +1,28 @@
-- name: Advanced Jules PR Reviewer
-  # You may pin to the exact commit or the version.
-  # uses: thalesraymond/jules-pr-reviewer@04cb0a36e5d1a5939147845003fb99746833f7b0
-  uses: thalesraymond/jules-pr-reviewer@v1
-  with:
-    # Jules API key (create one at jules.google.com).
-    jules_api_key:
-    # GitHub token with pull-requests:write and checks:write. Usually the default GITHUB_TOKEN secret.
-    github_token: 
-    # When to fail the check run: never | blocking | any. Default never — the review is advisory; opt in to gating with blocking/any or block_on.
-    fail_on: # optional, default is never
-    # Minimum severity of findings to post, annotate, and count: info (all, default) | warning | high. Findings below this level are not reported.
-    min_severity_to_report: # optional, default is info
-    # Fail the check run when a reported finding is at or above this severity: high | warning | info. When set, overrides fail_on (which maps the LLM verdict); when unset, fail_on is used unchanged.
-    block_on: # optional, default is 
-    # Review strictness: quiet (High-severity, confident findings only) | chill (balanced, default) | assertive (hunts style/correctness aggressively).
-    strictness: # optional, default is chill
-    # Skip review on draft PRs.
-    skip_drafts: # optional, default is true
-    # Skip review on PRs from forks (prompt-injection risk).
-    skip_forks: # optional, default is true
-    # Label that, when applied to a PR, skips the review entirely.
-    bypass_label: # optional, default is jules-override
-    # JSON array or comma/newline-separated list of case-insensitive title substrings. If the PR title contains any of them, the review is skipped entirely.
-    ignore_title_keywords: # optional, default is 
-    # JSON array or comma/newline-separated list of GitHub usernames. PRs authored by these users are skipped entirely.
-    ignore_authors: # optional, default is 
-    # Allow/deny label filter. Plain entries are allow labels (the PR must have at least one); entries prefixed with '-' are deny labels (the PR must have none). Only enforced when the event payload includes PR labels; otherwise a warning is logged and the review proceeds.
-    review_labels: # optional, default is 
-    # Check run name.
-    status_context: # optional, default is jules/review
-    # Free-form Markdown appended to the review prompt. Use to add project-specific rules, frameworks, or focus areas directly from the workflow.
-    extra_instructions: # optional, default is 
-    # Path (in the repo) to a Markdown file whose contents are injected into the prompt. Default .github/jules-review-rules.md if it exists. Set to empty string to disable.
-    rules_file: # optional, default is .github/jules-review-rules.md
-    # Directory (in the repo, at the base SHA) with per-path review rules. Every .md file is a rule; its path relative to this directory is a glob applied to the PR's changed files (e.g. src/**.md applies to src/**). Only rules matching at least one changed file are injected into the prompt. Default .github/jules-rules if it exists. Set to empty string to disable.
-    rules_directory: # optional, default is .github/jules-rules
-    # JSON array or list of file paths/globs to ignore when reviewing diffs (e.g. '["dist/**", "*.lock"]').
-    ignored_paths: # optional, default is []
-    # How long to wait for Jules to return a review before giving up. Default 30. Real reviews on non-trivial PRs often take 15-25 minutes; do not set below 20 or you will miss legitimate reviews.
-    timeout_minutes: # optional, default is 30
-    # Enable GitHub-native one-click suggested changes in review comments. Default false.
-    enable_suggestions: # optional, default is false
-    # When true and the review verdict is approve, post a GitHub PR approval (event: APPROVE) instead of a comment. Default false. Requires pull-requests: write.
-    enable_approve: # optional, default is false
-    # Avoid re-reporting previously posted, still-open findings on subsequent reviews. Set to false to let Jules re-review and re-report prior findings.
-    dedupe: # optional, default is true
-    # Review pipeline: prompt (embed diff in prompt, default) or agentic (Jules inspects PR branch directly).
-    diff_mode: # optional, default is prompt
-    # Diff size (characters) above which the large-PR strategy kicks in. Default 80000.
-    large_pr_threshold: # optional, default is 80000
-    # How to handle diffs over large_pr_threshold: prioritize (review the highest-churn files that fit in the prompt budget and report which files were not covered) or truncate (keep the first N characters, legacy behaviour). Default prioritize.
-    large_pr_strategy: # optional, default is prioritize
+name: Jules PR Reviewer
+
+on:
+  pull_request:
+
+permissions:
+  pull-requests: write
+  contents: read
+  checks: write
+
+jobs:
+  jules-review:
+    name: Automated PR Review
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      checks: write
+    env:
+      JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+    steps:
+      - name: Jules review
+        if: ${{ env.JULES_API_KEY != '' }}
+        uses: thalesraymond/jules-pr-reviewer@47388f11f27513e89e74a068ad51aa7a0d7ea306 # v1.0.0
+        with:
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
