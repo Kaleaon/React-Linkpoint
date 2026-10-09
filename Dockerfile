@@ -10,9 +10,17 @@ FROM node:22-slim
 
 
 
+
+
+
+
 # git is required: at least one dependency installs from a git URL.
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+
+
+
+
 
 
 
@@ -24,7 +32,15 @@ RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.co
 
 
 
+
+
+
+
 WORKDIR /app
+
+
+
+
 
 
 
@@ -33,16 +49,13 @@ WORKDIR /app
 # The repo has no package-lock.json; .npmrc sets legacy-peer-deps so the
 # install avoids the npm arborist crash ("Cannot read properties of null
 # (reading 'edgesOut')") that broke the Vercel builds.
-COPY package.json .npmrc ./
-COPY scripts ./scripts
-RUN npm install
-
-
-
-
-# Copy the rest and build the frontend; server.ts serves dist/ itself.
 COPY . .
+RUN npm install
 RUN npm run build
+
+
+
+
 
 
 
@@ -50,6 +63,10 @@ RUN npm run build
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
+
+
+
+
 
 
 
