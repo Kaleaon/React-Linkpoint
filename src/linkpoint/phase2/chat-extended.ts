@@ -12,6 +12,33 @@ import { ChatProtocolAdapter } from '../chat-protocol-adapter';
 import { MuteFlag, MuteType, isLinden, type MuteList } from '../mute-list';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const USERS_STORAGE_KEY = 'linkpoint_muted_users';
+const OBJECTS_STORAGE_KEY = 'linkpoint_muted_objects';
+
+function loadStoredMutes(key: string): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed.map((item) => String(item)));
+      }
+    }
+  } catch (e) {
+    console.warn(`[ChatExtended] Error reading ${key} from localStorage:`, e);
+  }
+  return new Set();
+}
+
+function saveStoredMutes(key: string, set: Set<string>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    console.warn(`[ChatExtended] Error saving ${key} to localStorage:`, e);
+  }
+}
 
 export class ChatExtended {
   private protocol: any;
@@ -19,8 +46,8 @@ export class ChatExtended {
   private chatHistory: any[] = [];
   private maxHistorySize: number = 1000;
   private filters: Map<string, Function> = new Map();
-  private muteList: Set<string> = new Set();
-  private mutedObjects: Set<string> = new Set();
+  private muteList: Set<string> = loadStoredMutes(USERS_STORAGE_KEY);
+  private mutedObjects: Set<string> = loadStoredMutes(OBJECTS_STORAGE_KEY);
   private typingUsers: Map<string, number> = new Map();
   private typingTimeout: number = 5000; // milliseconds
 
@@ -117,16 +144,18 @@ export class ChatExtended {
     if (!userId || typeof userId !== 'string') {
       throw new Error('Valid user ID required');
     }
+    const clean = userId.trim();
+    this.muteList.add(clean);
+    saveStoredMutes(USERS_STORAGE_KEY, this.muteList);
+
     if (this.grid) {
       // The account's mute list lives on the grid: a UUID mutes that resident, anything else is a legacy mute by name.
-      const clean = userId.trim();
       if (UUID_PATTERN.test(clean))
         this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.AGENT });
       else this.grid.add({ name: clean, type: MuteType.BY_NAME });
       return;
     }
 
-    this.muteList.add(userId);
     console.log(`[ChatExtended] Muted user: ${userId}`);
   }
 
@@ -134,12 +163,22 @@ export class ChatExtended {
    * Remove user from mute list
    */
   unmuteUser(userId: string) {
+    if (!userId || typeof userId !== 'string') return;
+    const clean = userId.trim();
+    let removed = this.muteList.delete(clean);
+    for (const id of Array.from(this.muteList)) {
+      if (id.trim().toLowerCase() === clean.toLowerCase()) {
+        this.muteList.delete(id);
+        removed = true;
+      }
+    }
+    saveStoredMutes(USERS_STORAGE_KEY, this.muteList);
+
     if (this.grid) {
-      const clean = userId.trim();
       this.grid.remove(UUID_PATTERN.test(clean) ? { id: clean } : { name: clean });
       return;
     }
-    if (this.muteList.delete(userId)) {
+    if (removed) {
       console.log(`[ChatExtended] Unmuted user: ${userId}`);
     }
   }
@@ -202,25 +241,38 @@ export class ChatExtended {
 
   muteObject(nameOrId: string) {
     if (!nameOrId || typeof nameOrId !== 'string') return;
+    const clean = nameOrId.trim();
+    this.mutedObjects.add(clean);
+    saveStoredMutes(OBJECTS_STORAGE_KEY, this.mutedObjects);
+
     if (this.grid) {
-      const clean = nameOrId.trim();
       if (UUID_PATTERN.test(clean))
         this.grid.add({ id: clean, name: this.resolveName(clean) || clean, type: MuteType.OBJECT });
       else this.grid.add({ name: clean, type: MuteType.BY_NAME });
       return;
     }
-    this.mutedObjects.add(nameOrId.trim());
     console.log(`[ChatExtended] Muted object: ${nameOrId}`);
   }
 
   unmuteObject(nameOrId: string) {
+    if (!nameOrId || typeof nameOrId !== 'string') return;
+    const clean = nameOrId.trim();
+    let removed = this.mutedObjects.delete(clean);
+    for (const obj of Array.from(this.mutedObjects)) {
+      if (obj.trim().toLowerCase() === clean.toLowerCase()) {
+        this.mutedObjects.delete(obj);
+        removed = true;
+      }
+    }
+    saveStoredMutes(OBJECTS_STORAGE_KEY, this.mutedObjects);
+
     if (this.grid) {
-      const clean = nameOrId.trim();
       this.grid.remove(UUID_PATTERN.test(clean) ? { id: clean } : { name: clean });
       return;
     }
-    this.mutedObjects.delete(nameOrId.trim());
-    console.log(`[ChatExtended] Unmuted object: ${nameOrId}`);
+    if (removed) {
+      console.log(`[ChatExtended] Unmuted object: ${nameOrId}`);
+    }
   }
 
   isObjectMuted(nameOrId: string): boolean {

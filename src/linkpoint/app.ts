@@ -277,7 +277,12 @@ export class LinkpointApp {
       this.voice.setNeighborRegions(data?.neighbors ?? []),
     );
     this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
-    this.protocol.on('connected', () => this.muteList.setSelfId(this.protocol.agentId || ''));
+    this.protocol.on('connected', () => {
+      this.muteList.setSelfId(this.protocol.agentId || '');
+      void slBridge
+        .requestMuteList()
+        .catch((err) => console.warn('[LinkpointApp] requestMuteList failed:', err));
+    });
     this.protocol.on('friends_loaded', (friends: any[]) => {
       console.log('Real friends loaded from Second Life:', friends.length);
       this.friends.replaceFriends(
