@@ -101,8 +101,8 @@ export class LinkpointApp {
     this.capabilities = new CapabilitiesManager();
     this.avatar = new AvatarManager();
     this.objects = new ObjectManagerExtended();
-    this.inventoryCore = new InventoryCore();
-    this.inventoryOps = new InventoryOperations(this.inventoryCore);
+    this.inventoryCore = this.inventory as any;
+    this.inventoryOps = new InventoryOperations(this.inventory as any);
     this.inventoryTypes = new InventorySpecialTypes();
     this.chatExtended = new ChatExtended(this.chatAdapter);
     this.chat.setMessageFilter((message) => this.chatExtended.shouldDisplayMessage(message));
