@@ -340,15 +340,16 @@ export class SLBridge extends Utils.EventEmitter {
       transaction?: any;
     }>('payAvatar', params);
   }
-  getTransactionHistory() {
+  getTransactionHistory(params?: { since?: number; limit?: number; offset?: number }) {
     return this.call<{
-      balance: number;
+      balance?: number;
       currencySymbol?: string;
       currency_symbol?: string;
       isZeroCurrency?: boolean;
       is_zero_currency?: boolean;
       transactions: any[];
-    }>('getTransactionHistory');
+      hasMore?: boolean;
+    }>('getTransactionHistory', params);
   }
 
   async sendChat(message: string, channel = 0, type = 1) {

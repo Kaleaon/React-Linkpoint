@@ -42,6 +42,7 @@ import { ChatExtended } from './phase2/chat-extended';
 import { GroupsManager } from './phase2/groups';
 import { FriendsExtended } from './phase2/friends-extended';
 import { GroupNoticeSyncEngine } from './group-notice-sync-engine';
+import { EconomySyncEngine } from './phase2/economy-sync-engine';
 
 export class LinkpointApp {
   private balanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -59,6 +60,7 @@ export class LinkpointApp {
   public audio: AudioManager;
   public voice: VoiceManager;
   public economy: EconomyManager;
+  public economySyncEngine: EconomySyncEngine;
   public chatAdapter: ChatProtocolAdapter;
 
   // Phase 2 Managers
@@ -99,10 +101,12 @@ export class LinkpointApp {
     this.audio.setObjectPoseResolver((id) => this.world.getSoundObjectPose(id));
     this.voice = new VoiceManager();
     this.economy = economyManager;
+    this.economySyncEngine = this.economy.syncEngine;
 
     // Initialize Phase 2 Managers
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
     this.capabilities = new CapabilitiesManager();
+    this.economySyncEngine.setCapabilitiesManager(this.capabilities);
     this.avatar = new AvatarManager();
     this.objects = new ObjectManagerExtended();
     this.inventoryCore = this.inventory as any;

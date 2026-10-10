@@ -9,6 +9,7 @@
 import { Utils } from './utils';
 import { localCache } from './local-cache';
 import { slBridge } from './sl-bridge';
+import { EconomySyncEngine, SyncProgressEvent } from './phase2/economy-sync-engine';
 
 export interface TransactionRecord {
   id: string;
@@ -46,10 +47,13 @@ export class EconomyManager extends Utils.EventEmitter {
   public isZeroCurrency: boolean = false;
   public transactions: TransactionRecord[] = [];
   public activeAgentId: string = 'current';
+  public syncEngine: EconomySyncEngine;
 
-  constructor() {
+  constructor(syncEngine?: EconomySyncEngine) {
     super();
+    this.syncEngine = syncEngine || new EconomySyncEngine();
     this.setupListeners();
+    this.setupSyncEngineListeners();
   }
 
   public setGridCurrency(symbol: string = 'L$', isZeroCurrency = false): void {
@@ -58,6 +62,21 @@ export class EconomyManager extends Utils.EventEmitter {
     this.emit('currency_updated', {
       currencySymbol: this.currencySymbol,
       isZeroCurrency: this.isZeroCurrency,
+    });
+  }
+
+  private setupSyncEngineListeners(): void {
+    this.syncEngine.on('delta_batch_received', (event: SyncProgressEvent) => {
+      if (Array.isArray(event.batch)) {
+        for (const tx of event.batch) {
+          void this.recordTransaction(tx, false);
+        }
+        this.emit('transactions_updated', this.getTransactions());
+      }
+    });
+
+    this.syncEngine.on('sync_completed', () => {
+      this.emit('transactions_updated', this.getTransactions());
     });
   }
 
@@ -104,6 +123,7 @@ export class EconomyManager extends Utils.EventEmitter {
     if (agentId) {
       this.activeAgentId = agentId;
     }
+    this.syncEngine.setAgentId(this.activeAgentId);
 
     // Prune entries older than 30 days
     await localCache.pruneOldTransactions(this.activeAgentId, 30);
@@ -246,43 +266,42 @@ export class EconomyManager extends Utils.EventEmitter {
   }
 
   /**
-   * Background transaction reconciliation: fetch remote history and sync with local cache.
+   * Background transaction reconciliation: fetch remote history via EconomySyncEngine and sync with local cache.
    */
   public async fetchHistory(): Promise<TransactionRecord[]> {
-    if (!slBridge.connected) {
-      return this.getTransactions();
+    if (slBridge.connected) {
+      try {
+        const bal = await slBridge.getBalance();
+        if (typeof bal?.balance === 'number' || bal?.balance === null) {
+          this.balance = bal.balance;
+        }
+        if (bal?.currencySymbol || bal?.currency_symbol) {
+          this.currencySymbol = bal.currencySymbol || bal.currency_symbol || this.currencySymbol;
+        }
+        if (
+          typeof bal?.isZeroCurrency === 'boolean' ||
+          typeof bal?.is_zero_currency === 'boolean'
+        ) {
+          this.isZeroCurrency = Boolean(bal.isZeroCurrency ?? bal.is_zero_currency);
+        }
+        this.emit('balance_updated', {
+          balance: this.balance,
+          currencySymbol: this.currencySymbol,
+          isZeroCurrency: this.isZeroCurrency,
+        });
+      } catch {
+        // Balance fetch fallback
+      }
     }
 
     try {
-      const remote = await slBridge.getTransactionHistory();
-      if (typeof remote.balance === 'number' || remote.balance === null) {
-        this.balance = remote.balance;
-      }
-      if (remote.currencySymbol || remote.currency_symbol) {
-        this.currencySymbol =
-          remote.currencySymbol || remote.currency_symbol || this.currencySymbol;
-      }
-      if (
-        typeof remote.isZeroCurrency === 'boolean' ||
-        typeof remote.is_zero_currency === 'boolean'
-      ) {
-        this.isZeroCurrency = Boolean(remote.isZeroCurrency ?? remote.is_zero_currency);
-      }
-      this.emit('balance_updated', {
-        balance: this.balance,
-        currencySymbol: this.currencySymbol,
-        isZeroCurrency: this.isZeroCurrency,
-      });
-
-      if (Array.isArray(remote.transactions)) {
-        for (const tx of remote.transactions) {
-          await this.recordTransaction(tx, false);
-        }
-      }
+      await this.syncEngine.syncTransactions({ agentId: this.activeAgentId });
     } catch {
-      // Offline / fallback to local cache
+      // Sync engine error fallback
     }
 
+    const updated = await localCache.getTransactions(this.activeAgentId);
+    this.transactions = updated;
     return this.getTransactions();
   }
 
