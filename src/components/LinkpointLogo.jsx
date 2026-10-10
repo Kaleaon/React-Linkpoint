@@ -2,7 +2,7 @@ import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { CRYSTAL } from './linkpointCrystal.js';
 
-// Depth model for the mark.  The camera looks down on the scene at ~20 deg,
+// Depth model for the mark. The camera looks down on the scene at ~20 deg,
 // so everything sorts into three layers:
 //
 //   far   - the half of the ground plane / orbit that runs behind the crystal
@@ -10,12 +10,11 @@ import { CRYSTAL } from './linkpointCrystal.js';
 //           further from the camera), then the top pyramid
 //   near  - the half of the ground plane / orbit that passes in front
 //
-// The orbit motes are drawn once per layer and cross-fade at the left and
-// right extremes of the ellipse, where they are clear of the crystal.
+// The orbit motes are animated with GPU-accelerated CSS rotation and opacity keyframes.
 
 const grad = (id) => `url(#r${id[0].toUpperCase()}${id.slice(1)})`;
 
-function Face({ face, animated, ink }) {
+function Face({ face, ink }) {
   const common = {
     fill: grad(face.grad),
     stroke: ink,
@@ -23,66 +22,29 @@ function Face({ face, animated, ink }) {
     strokeLinejoin: 'round',
     strokeLinecap: 'round',
   };
-  if (!animated) {
-    return <polygon {...common} points={face.points} opacity={face.opacity} />;
-  }
-  return (
-    <polygon {...common}>
-      <animate
-        attributeName="points"
-        dur={CRYSTAL.dur}
-        repeatCount="indefinite"
-        calcMode="linear"
-        values={face.points}
-      />
-      <animate
-        attributeName="opacity"
-        dur={CRYSTAL.dur}
-        repeatCount="indefinite"
-        calcMode="linear"
-        values={face.opacity}
-      />
-    </polygon>
-  );
+  return <polygon {...common} points={face.points} opacity={face.opacity} />;
 }
 
-function Pyramid({ className, data, staticData, animated, surf, rim, ink }) {
-  const base = animated ? data.base : staticData.base;
-  const faces = animated ? data.faces : staticData.faces;
+function Pyramid({ className, data, surf, rim, ink }) {
   return (
     <g className={className}>
-      {/* The base doubles as the solid body: for the top half it always faces
-          away from the camera and simply backs the lit faces, for the bottom
-          half it is the one face the camera looks straight down on. */}
       <polygon
         fill={surf}
         stroke={rim}
         strokeOpacity="0.6"
         strokeWidth="1.5"
         strokeLinejoin="round"
-        points={animated ? undefined : base}
-      >
-        {animated && (
-          <animate
-            attributeName="points"
-            dur={CRYSTAL.dur}
-            repeatCount="indefinite"
-            calcMode="linear"
-            values={base}
-          />
-        )}
-      </polygon>
-      {faces.map((f, i) => (
-        <Face key={i} face={f} animated={animated} ink={ink} />
+        points={data.base}
+      />
+      {data.faces.map((f, i) => (
+        <Face key={i} face={f} ink={ink} />
       ))}
     </g>
   );
 }
 
 function Motes({ layer, animated, token }) {
-  const values = layer === 'near' ? CRYSTAL.nearOpacity : CRYSTAL.farOpacity;
   if (!animated) {
-    // Resting placements: one mote parked on the far arc, two on the near arc.
     return (
       <>
         {CRYSTAL.staticMotes[layer].map((m, i) => (
@@ -91,29 +53,34 @@ function Motes({ layer, animated, token }) {
       </>
     );
   }
+
+  const isNear = layer === 'near';
+
   return (
     <>
-      {CRYSTAL.motes.map((m, i) => (
-        <circle
-          key={i}
-          r={layer === 'near' ? m.near : m.far}
-          fill={token(m.token)}
-          filter="url(#rGlow)"
-        >
-          <animateMotion dur={CRYSTAL.dur} repeatCount="indefinite" begin={m.begin}>
-            <mpath href="#rOrbitTrack" />
-          </animateMotion>
-          <animate
-            attributeName="opacity"
-            dur={CRYSTAL.dur}
-            repeatCount="indefinite"
-            begin={m.begin}
-            calcMode="linear"
-            keyTimes={CRYSTAL.keyTimes}
-            values={values}
-          />
-        </circle>
-      ))}
+      {CRYSTAL.motes.map((m, i) => {
+        const radius = isNear ? m.near : m.far;
+        const animationClass = isNear ? 'mote-near-r' : 'mote-far-r';
+        return (
+          <g
+            key={i}
+            className="mote-rotator-group"
+            style={{ transformOrigin: '256px 256px', animationDelay: m.begin }}
+          >
+            <g style={{ transformOrigin: '256px 256px', transform: 'scaleY(0.325)' }}>
+              <circle
+                cx="456"
+                cy="256"
+                r={radius}
+                fill={token(m.token)}
+                filter="url(#rGlow)"
+                className={animationClass}
+                style={{ animationDelay: m.begin }}
+              />
+            </g>
+          </g>
+        );
+      })}
     </>
   );
 }
@@ -139,17 +106,30 @@ export default function LinkpointLogo({
       style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
       <style>{`
-        /* The halves close into a perfect octahedron: their base centres sit
-           172px apart, so each travels exactly 86px to meet at the waist. */
         .top-crystal-r {
-          animation: ${animated ? 'topCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none'};
+          will-change: transform;
+          animation: ${animated ? `topCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .bot-crystal-r {
-          animation: ${animated ? 'botCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none'};
+          will-change: transform;
+          animation: ${animated ? `botCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .core-anim-r {
           transform-origin: 256px 256px;
-          animation: ${animated ? 'corePulseR 6s cubic-bezier(0.4, 0, 0.2, 1) infinite' : 'none'};
+          will-change: transform, opacity;
+          animation: ${animated ? `corePulseR ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
+        }
+        .mote-rotator-group {
+          will-change: transform;
+          animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
+        }
+        .mote-near-r {
+          will-change: opacity;
+          animation: ${animated ? `moteNearFade ${CRYSTAL.dur} linear infinite` : 'none'};
+        }
+        .mote-far-r {
+          will-change: opacity;
+          animation: ${animated ? `moteFarFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
 
         @keyframes topCloseSeq {
@@ -168,6 +148,42 @@ export default function LinkpointLogo({
           0%, 25% { transform: scale(1); opacity: 0.8; }
           35%, 65% { transform: scale(0.6) rotate(180deg); opacity: 1; filter: drop-shadow(0 0 20px ${V.pri}); }
           75%, 100% { transform: scale(1) rotate(0deg); opacity: 0.8; }
+        }
+
+        @keyframes moteRotate {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        @keyframes moteNearFade {
+          0%, 44% { opacity: 1; }
+          56%, 94% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+
+        @keyframes moteFarFade {
+          0%, 44% { opacity: 0; }
+          56%, 94% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .top-crystal-r,
+          .bot-crystal-r,
+          .core-anim-r,
+          .mote-rotator-group,
+          .mote-near-r,
+          .mote-far-r {
+            animation: none !important;
+            transform: none !important;
+            will-change: auto !important;
+          }
+          .mote-near-r {
+            opacity: 1 !important;
+          }
+          .mote-far-r {
+            opacity: 0.6 !important;
+          }
         }
 
         .logo-title-r {
@@ -210,14 +226,10 @@ export default function LinkpointLogo({
           <stop offset="100%" stopColor={V.sec} stopOpacity="0" />
         </radialGradient>
 
-        {/* Wide enough to clear 3 sigma of blur on every side of the mote. */}
         <filter id="rGlow" x="-200%" y="-200%" width="500%" height="500%">
           <feGaussianBlur stdDeviation="3" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
-
-        {/* Path fraction 0 - 0.5 sweeps the near half, 0.5 - 1 the far half. */}
-        <path id="rOrbitTrack" d="M 56 256 A 200 65 0 1 0 456 256 A 200 65 0 1 0 56 256" />
       </defs>
 
       {/* ---- far layer ---------------------------------------------------- */}
@@ -247,24 +259,8 @@ export default function LinkpointLogo({
       </g>
 
       {/* ---- the solid ---------------------------------------------------- */}
-      <Pyramid
-        className="bot-crystal-r"
-        data={CRYSTAL.bot}
-        staticData={CRYSTAL.botStatic}
-        animated={animated}
-        surf={V.surf}
-        rim={V.sec}
-        ink={V.ink}
-      />
-      <Pyramid
-        className="top-crystal-r"
-        data={CRYSTAL.top}
-        staticData={CRYSTAL.topStatic}
-        animated={animated}
-        surf={V.surf}
-        rim={V.pri}
-        ink={V.ink}
-      />
+      <Pyramid className="bot-crystal-r" data={CRYSTAL.bot} surf={V.surf} rim={V.sec} ink={V.ink} />
+      <Pyramid className="top-crystal-r" data={CRYSTAL.top} surf={V.surf} rim={V.pri} ink={V.ink} />
 
       {/* ---- near layer --------------------------------------------------- */}
       <path
