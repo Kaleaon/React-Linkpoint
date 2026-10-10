@@ -145,9 +145,9 @@ export default function LinkpointLogo({
         }
 
         @keyframes corePulseR {
-          0%, 25% { transform: scale(1); opacity: 0.8; }
-          35%, 65% { transform: scale(0.6) rotate(180deg); opacity: 1; filter: drop-shadow(0 0 20px ${V.pri}); }
-          75%, 100% { transform: scale(1) rotate(0deg); opacity: 0.8; }
+          0%, 25% { transform: rotate(0deg) scale(1); opacity: 0.8; }
+          35%, 65% { transform: rotate(180deg) scale(0.6); opacity: 1; filter: drop-shadow(0 0 20px ${V.pri}); }
+          75%, 100% { transform: rotate(0deg) scale(1); opacity: 0.8; }
         }
 
         @keyframes moteRotate {

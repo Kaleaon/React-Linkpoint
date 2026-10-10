@@ -38,6 +38,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
     expect(cssText).toContain('@keyframes corePulseR');
+    expect(cssText).toContain('rotate(180deg) scale(0.6)');
     expect(cssText).toContain('@keyframes moteRotate');
     expect(cssText).toContain('@keyframes moteNearFade');
     expect(cssText).toContain('@keyframes moteFarFade');
