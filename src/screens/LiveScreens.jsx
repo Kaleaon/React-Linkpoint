@@ -416,11 +416,24 @@ export function GroupsScreen() {
   useEffect(() => {
     void refresh();
   }, []);
+
   useEffect(() => {
     const update = () => refreshNotices((value) => value + 1);
     app.notices.on('notices_changed', update);
-    return () => app.notices.off('notices_changed', update);
+    app.notices.on('group_cache_updated', update);
+    app.groupNoticeSyncEngine?.on('group_sync_complete', update);
+    return () => {
+      app.notices.off('notices_changed', update);
+      app.notices.off('group_cache_updated', update);
+      app.groupNoticeSyncEngine?.off('group_sync_complete', update);
+    };
   }, []);
+
+  useEffect(() => {
+    if (selectedId && section === 'NOTICES') {
+      app.groupNoticeSyncEngine?.enqueueGroup(selectedId, 'HIGH');
+    }
+  }, [selectedId, section]);
 
   useEffect(() => {
     let current = true;
@@ -847,6 +860,7 @@ export function GroupsScreen() {
                   empty="No member details have been received for this group."
                   icon="user"
                   V={V}
+                  t={t}
                 />
               ) : null}
               {section === 'ROLES' ? (
@@ -855,6 +869,7 @@ export function GroupsScreen() {
                   empty="No role details have been received for this group."
                   icon="shield"
                   V={V}
+                  t={t}
                 />
               ) : null}
               {section === 'NOTICES' ? (
@@ -1063,39 +1078,54 @@ function GroupDetailList({ items, empty, icon, V }) {
     );
   return (
     <div style={{ display: 'grid', gap: 7 }}>
-      {items.map((item, index) => (
-        <article
-          key={item.id || index}
-          style={{
-            padding: '11px 12px',
-            display: 'flex',
-            gap: 10,
-            border: `1px solid ${V.outv}`,
-            borderRadius: V.rs,
-            background: V.surf,
-          }}
-        >
-          <Icon name={icon} size={16} style={{ color: V.pri, flexShrink: 0 }} />
-          <div style={{ minWidth: 0 }}>
-            <strong style={{ display: 'block', fontSize: 13 }}>
-              {item.name || item.subject || item.title || item.id || 'Group record'}
-            </strong>
-            {item.description || item.message || item.title ? (
-              <small
-                style={{
-                  display: 'block',
-                  marginTop: 4,
-                  color: V.ink2,
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.45,
-                }}
-              >
-                {item.description || item.message || item.title}
-              </small>
+      {items.map((item, index) => {
+        const isNotice = Boolean(item.subject || item.groupId || item.hasAttachment);
+        return (
+          <article
+            key={item.id || index}
+            style={{
+              padding: '11px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              border: `1px solid ${V.outv}`,
+              borderRadius: V.rs,
+              background: V.surf,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <Icon name={icon} size={16} style={{ color: V.pri, flexShrink: 0, marginTop: 2 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={{ display: 'block', fontSize: 13 }}>
+                  {item.name || item.subject || item.title || item.id || 'Group record'}
+                </strong>
+                {item.from ? (
+                  <small style={{ display: 'block', color: V.ink2, marginTop: 2 }}>
+                    From: {item.from}
+                    {item.timestamp ? ` · ${new Date(item.timestamp).toLocaleString()}` : ''}
+                  </small>
+                ) : null}
+                {item.description || item.message || item.title ? (
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: 4,
+                      color: V.ink2,
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {item.description || item.message || item.title}
+                  </small>
+                ) : null}
+              </div>
+            </div>
+            {isNotice && (item.hasAttachment || item.attachment) ? (
+              <NoticeAttachmentBanner notice={item} V={V} t={t} />
             ) : null}
-          </div>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   );
 }
