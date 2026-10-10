@@ -2,6 +2,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { NAV_ALL } from '../data/content.js';
 import Icon from './Icon.jsx';
+import AccessibleButton from './AccessibleButton.jsx';
 import { navActive } from '../theme/look.js';
 import { TileNav as SystemTileNav } from '@linkpoint/design-system/react';
 import { LAYOUTS } from '@linkpoint/design-system/tokens';
@@ -30,19 +31,11 @@ export default function TileNav() {
         const bg = active ? V.pri : V.surf;
         const fg = active ? V.onpri : V.ink;
         return (
-          <div
+          <AccessibleButton
             key={n.id}
             onClick={() => actions.setScreen(n.id)}
-            role="button"
-            tabIndex={0}
             aria-label={'Go to ' + n.id}
             aria-pressed={active}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                actions.setScreen(n.id);
-              }
-            }}
             style={{
               flex: '0 0 90px',
               height: '64px',
@@ -75,7 +68,7 @@ export default function TileNav() {
             >
               {n.tile}
             </span>
-          </div>
+          </AccessibleButton>
         );
       })}
     </nav>

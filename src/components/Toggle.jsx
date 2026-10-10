@@ -1,21 +1,16 @@
 import { useTheme } from '../context/ThemeContext.jsx';
+import AccessibleButton from './AccessibleButton.jsx';
 
 // Ported from CARDS[].toggleStyle/knobStyle in renderVals().
-export default function Toggle({ on, onClick, disabled = false }) {
+export default function Toggle({ on, onClick, disabled = false, ...props }) {
   const { V } = useTheme();
   return (
-    <span
+    <AccessibleButton
+      as="span"
       role="switch"
       aria-checked={on}
-      aria-disabled={disabled || undefined}
-      tabIndex={disabled ? -1 : 0}
-      onClick={disabled ? undefined : onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          if (!disabled && onClick) onClick();
-        }
-      }}
+      disabled={disabled}
+      onClick={onClick}
       style={{
         width: '42px',
         height: '24px',
@@ -27,6 +22,7 @@ export default function Toggle({ on, onClick, disabled = false }) {
         opacity: disabled ? 0.5 : 1,
         background: on === false ? V.surf2 : V.priC,
       }}
+      {...props}
     >
       <span
         style={{
@@ -40,6 +36,6 @@ export default function Toggle({ on, onClick, disabled = false }) {
           transition: 'left .18s ease',
         }}
       />
-    </span>
+    </AccessibleButton>
   );
 }

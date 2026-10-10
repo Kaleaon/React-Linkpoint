@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { NAV_ALL } from '../data/content.js';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import Toggle from '../components/Toggle.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
 import ThemeStudio from '../components/ThemeStudio.jsx';
 import FormField from '../components/FormField.jsx';
 import { loadGoogle } from '../services/google.ts';
@@ -33,9 +34,9 @@ function SwitchSetting({ id, title, description, on, onClick }) {
           <small>{description}</small>
         ) : null}
       </div>
-      <span aria-labelledby={`${id}-label`}>
-        <Toggle on={on} onClick={onClick} disabled={unavailable} />
-      </span>
+      <AccessibleButton as="span" role="none" aria-labelledby={`${id}-label`}>
+        <Toggle aria-labelledby={`${id}-label`} on={on} onClick={onClick} disabled={unavailable} />
+      </AccessibleButton>
     </div>
   );
 }
@@ -203,9 +204,13 @@ export default function Settings() {
                 notices work without it.
               </p>
             </div>
-            <span aria-labelledby="google-label">
-              <Toggle on={googleEnabled} onClick={() => void toggleGoogle()} />
-            </span>
+            <AccessibleButton as="span" role="none" aria-labelledby="google-label">
+              <Toggle
+                aria-labelledby="google-label"
+                on={googleEnabled}
+                onClick={() => void toggleGoogle()}
+              />
+            </AccessibleButton>
           </div>
           {googleNote ? <p role="status">{googleNote}</p> : null}
         </section>

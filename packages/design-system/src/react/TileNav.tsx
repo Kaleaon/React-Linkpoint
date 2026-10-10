@@ -1,6 +1,7 @@
 import React from "react";
 import { useTheme } from "./LayoutContext.js";
 import { type NavItem } from "./BottomTabs.js";
+import { AccessibleButton } from "./AccessibleButton.js";
 
 export interface TileNavProps {
   items?: NavItem[];
@@ -24,19 +25,11 @@ export const TileNav: React.FC<TileNavProps> = ({ items = [], activeId, onSelect
         const bg = active ? V.pri : V.surf;
         const fg = active ? V.onpri : V.ink;
         return (
-          <div
+          <AccessibleButton
             key={n.id}
             onClick={() => onSelect?.(n.id)}
-            role="button"
-            tabIndex={0}
             aria-label={"Go to " + n.id}
             aria-pressed={active}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSelect?.(n.id);
-              }
-            }}
             style={{
               flex: 1,
               height: "64px",
@@ -53,7 +46,7 @@ export const TileNav: React.FC<TileNavProps> = ({ items = [], activeId, onSelect
             }}
           >
             <span style={{ font: "300 11px/1 " + theme.dfont, letterSpacing: ".02em", textTransform: "lowercase" }}>{n.label}</span>
-          </div>
+          </AccessibleButton>
         );
       })}
       {children}
