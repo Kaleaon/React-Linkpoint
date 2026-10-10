@@ -1240,8 +1240,9 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
   );
 }
 
-function GroupDetailList({ items, empty, icon, V }) {
-  const { t } = useTheme();
+function GroupDetailList({ items, empty, icon, V, t: propT }) {
+  const theme = useTheme();
+  const t = propT || theme?.t;
   if (!items.length)
     return (
       <div
