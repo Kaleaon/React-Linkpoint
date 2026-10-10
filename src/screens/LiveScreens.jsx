@@ -35,8 +35,274 @@ function Rows({ rows, icon = 'circle' }) {
   );
 }
 
+function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
+  if (friend && !app.contacts.has(friend.id)) {
+    app.contacts.saveFriends([friend]);
+  }
+  const contact = app.contacts.get(friend.id);
+  const [noteText, setNoteText] = useState(() => contact?.note || '');
+  const [linkInputs, setLinkInputs] = useState({});
+  const [linkErrors, setLinkErrors] = useState({});
+
+  useEffect(() => {
+    setNoteText(contact?.note || '');
+  }, [friend.id, contact?.note]);
+
+  useEffect(() => {
+    if (!contact) return;
+    if (noteText === contact.note) return;
+    const timer = setTimeout(() => {
+      try {
+        app.contacts.setNote(friend.id, noteText);
+      } catch (err) {
+        console.warn('Auto-save note failed:', err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [friend.id, noteText, contact?.note]);
+
+  const saveLink = (service) => {
+    const val = linkInputs[service] || '';
+    const res = app.contacts.setLink(friend.id, service, val);
+    setLinkErrors((prev) => ({ ...prev, [service]: res.ok ? '' : res.error }));
+    if (res.ok) setLinkInputs((prev) => ({ ...prev, [service]: '' }));
+  };
+
+  const removeLink = (service) => {
+    app.contacts.removeLink(friend.id, service);
+  };
+
+  return (
+    <aside
+      className="record-detail contact-inspector-drawer"
+      style={{
+        background: V.surf,
+        borderColor: V.outv,
+        padding: 12,
+        borderRadius: V.rs,
+        border: `1px solid ${V.outv}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, fontSize: '15px' }}>{friend.name}</h2>
+        <button
+          className="detail-close"
+          onClick={onClose}
+          aria-label="Close friend details"
+          style={{
+            background: 'none',
+            border: 0,
+            color: V.ink2,
+            fontSize: '20px',
+            cursor: 'pointer',
+          }}
+        >
+          ×
+        </button>
+      </div>
+
+      <dl style={{ margin: 0, fontSize: '12px' }}>
+        <dt style={{ fontWeight: 700, color: V.ink2 }}>Resident UUID</dt>
+        <dd style={{ margin: '0 0 6px 0' }}>{friend.id}</dd>
+        <dt style={{ fontWeight: 700, color: V.ink2 }}>Status</dt>
+        <dd
+          style={{
+            margin: '0 0 6px 0',
+            color: friend.onlineStatus === 'online' ? '#22c55e' : V.ink2,
+            textTransform: 'capitalize',
+          }}
+        >
+          {friend.onlineStatus || 'offline'}
+        </dd>
+        <dt style={{ fontWeight: 700, color: V.ink2 }}>Permissions</dt>
+        <dd style={{ margin: 0 }}>
+          {friend.permissions?.canSeeOnline ? '✓ See online status ' : ''}
+          {friend.permissions?.canSeeOnMap ? '✓ Map location ' : ''}
+          {friend.permissions?.canModifyObjects ? '✓ Modify objects' : ''}
+          {!friend.permissions?.canSeeOnline &&
+          !friend.permissions?.canSeeOnMap &&
+          !friend.permissions?.canModifyObjects
+            ? 'Standard friendship'
+            : ''}
+        </dd>
+      </dl>
+
+      <div style={{ borderTop: `1px solid ${V.outv}`, paddingTop: 8 }}>
+        <label
+          htmlFor={`inspector-note-${friend.id}`}
+          style={{
+            display: 'block',
+            fontSize: '10.5px',
+            fontWeight: 700,
+            color: V.ink2,
+            marginBottom: 4,
+          }}
+        >
+          NOTES (AUTO-SAVED)
+        </label>
+        <textarea
+          id={`inspector-note-${friend.id}`}
+          value={noteText}
+          onChange={(e) => setNoteText(e.target.value)}
+          placeholder="Add notes for this contact..."
+          maxLength={1000}
+          rows={2}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '6px',
+            fontSize: '12px',
+            background: V.bg,
+            color: V.ink,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            resize: 'vertical',
+          }}
+        />
+      </div>
+
+      <div style={{ borderTop: `1px solid ${V.outv}`, paddingTop: 8 }}>
+        <span
+          style={{
+            display: 'block',
+            fontSize: '10.5px',
+            fontWeight: 700,
+            color: V.ink2,
+            marginBottom: 6,
+          }}
+        >
+          SOCIAL & WEB LINKS
+        </span>
+        {[
+          { service: 'telegram', label: 'Telegram', placeholder: '@username or t.me link' },
+          { service: 'discord', label: 'Discord', placeholder: 'user id or username' },
+          { service: 'web', label: 'Website', placeholder: 'https://...' },
+        ].map(({ service, label, placeholder }) => {
+          const current = contact?.links?.find((l) => l.service === service);
+          return (
+            <div key={service} style={{ marginBottom: 6 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  marginBottom: 2,
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>{label}:</span>
+                {current ? (
+                  current.url ? (
+                    <a
+                      href={current.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: V.pri }}
+                    >
+                      {current.label}
+                    </a>
+                  ) : (
+                    <span style={{ color: V.ink2 }}>{current.label}</span>
+                  )
+                ) : (
+                  <span style={{ color: V.ink2 }}>not set</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input
+                  value={linkInputs[service] || ''}
+                  placeholder={placeholder}
+                  onChange={(e) =>
+                    setLinkInputs((prev) => ({ ...prev, [service]: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveLink(service);
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '3px 6px',
+                    fontSize: '11px',
+                    background: V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => saveLink(service)}
+                  style={{
+                    padding: '2px 6px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    background: V.surf,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {current ? 'REPLACE' : 'ADD'}
+                </button>
+                {current && (
+                  <button
+                    type="button"
+                    onClick={() => removeLink(service)}
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: '10px',
+                      background: V.surf,
+                      color: V.ink2,
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              {linkErrors[service] && (
+                <span style={{ color: V.err, fontSize: '10px', display: 'block', marginTop: 2 }}>
+                  {linkErrors[service]}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginTop: 4 }}>
+        <button
+          type="button"
+          onClick={() => {
+            onStartIm();
+            onClose();
+          }}
+          style={{
+            width: '100%',
+            padding: '8px',
+            background: V.pri,
+            color: V.onpri,
+            border: 0,
+            borderRadius: V.rs,
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          START INSTANT MESSAGE
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 export function FriendsScreen() {
-  const { V } = useTheme();
+  const { V, t } = useTheme();
   const { state, actions } = useApp();
   const [, setRevision] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -74,19 +340,6 @@ export function FriendsScreen() {
   const filterTab = state.tabs?.Friends || 'ALL';
   if (filterTab === 'CONTACTS') return <ContactsScreen />;
 
-  const saveFriends = (list) => {
-    try {
-      const result = app.contacts.saveFriends(list);
-      actions.notify(
-        result.added
-          ? `Saved ${result.added} contact${result.added === 1 ? '' : 's'}.`
-          : 'Already saved.',
-      );
-    } catch (error) {
-      actions.notify(error?.message || 'Could not save contacts.');
-    }
-    setRevision((n) => n + 1);
-  };
   const allFriends = app.friends.getFriends();
   const filtered = allFriends.filter((f) => {
     if (filterTab === 'ONLINE') return f.onlineStatus === 'online';
@@ -111,28 +364,6 @@ export function FriendsScreen() {
           {allFriends.length} TOTAL FRIENDS
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            type="button"
-            disabled={!allFriends.length}
-            onClick={() => saveFriends(allFriends)}
-            style={{
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: 700,
-              background: V.surf,
-              border: `1px solid ${V.outv}`,
-              borderRadius: V.rs,
-              color: V.ink,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-            title="Save your friends list to Contacts on this device"
-          >
-            <Icon name="contact" size={13} />
-            SAVE TO CONTACTS
-          </button>
           <button
             type="button"
             onClick={handleSyncFriends}
@@ -226,26 +457,26 @@ export function FriendsScreen() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     type="button"
-                    disabled={app.contacts.has(friend.id)}
-                    onClick={() => saveFriends([friend])}
+                    onClick={() =>
+                      setSelectedFriend(selectedFriend?.id === friend.id ? null : friend)
+                    }
                     style={{
                       padding: '4px 8px',
                       fontSize: '11px',
                       fontWeight: 700,
                       background: V.surf,
-                      color: V.pri,
+                      color: V.ink,
                       border: `1px solid ${V.outv}`,
                       borderRadius: V.rs,
-                      cursor: app.contacts.has(friend.id) ? 'default' : 'pointer',
-                      opacity: app.contacts.has(friend.id) ? 0.6 : 1,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
                     }}
-                    title={
-                      app.contacts.has(friend.id)
-                        ? 'Already in your contacts'
-                        : 'Save to Contacts on this device'
-                    }
+                    title="Quick-edit contact notes and links"
                   >
-                    {app.contacts.has(friend.id) ? 'SAVED' : 'SAVE'}
+                    <Icon name="contact" size={13} />
+                    INSPECTOR
                   </button>
                   <button
                     type="button"
@@ -275,65 +506,13 @@ export function FriendsScreen() {
       )}
 
       {selectedFriend && (
-        <aside
-          className="record-detail"
-          style={{ background: V.surf, borderColor: V.outv, padding: 12 }}
-        >
-          <button
-            className="detail-close"
-            onClick={() => setSelectedFriend(null)}
-            aria-label="Close friend details"
-          >
-            ×
-          </button>
-          <h2>{selectedFriend.name}</h2>
-          <dl>
-            <dt>Resident UUID</dt>
-            <dd>{selectedFriend.id}</dd>
-            <dt>Status</dt>
-            <dd
-              style={{
-                color: selectedFriend.onlineStatus === 'online' ? '#22c55e' : V.ink2,
-                textTransform: 'capitalize',
-              }}
-            >
-              {selectedFriend.onlineStatus || 'offline'}
-            </dd>
-            <dt>Permissions</dt>
-            <dd>
-              {selectedFriend.permissions?.canSeeOnline ? '✓ See online status ' : ''}
-              {selectedFriend.permissions?.canSeeOnMap ? '✓ Map location ' : ''}
-              {selectedFriend.permissions?.canModifyObjects ? '✓ Modify objects' : ''}
-              {!selectedFriend.permissions?.canSeeOnline &&
-              !selectedFriend.permissions?.canSeeOnMap &&
-              !selectedFriend.permissions?.canModifyObjects
-                ? 'Standard friendship'
-                : ''}
-            </dd>
-          </dl>
-          <div style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={() => {
-                actions.startIm(selectedFriend.name);
-                setSelectedFriend(null);
-              }}
-              style={{
-                width: '100%',
-                padding: '8px',
-                background: V.pri,
-                color: V.onpri,
-                border: 0,
-                borderRadius: V.rs,
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              START INSTANT MESSAGE
-            </button>
-          </div>
-        </aside>
+        <FriendContactInspector
+          friend={selectedFriend}
+          onClose={() => setSelectedFriend(null)}
+          onStartIm={() => actions.startIm(selectedFriend.name)}
+          V={V}
+          t={t}
+        />
       )}
     </div>
   );
@@ -1062,6 +1241,7 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
 }
 
 function GroupDetailList({ items, empty, icon, V }) {
+  const { t } = useTheme();
   if (!items.length)
     return (
       <div

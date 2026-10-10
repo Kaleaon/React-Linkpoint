@@ -149,6 +149,7 @@ export class LinkpointApp {
       },
     );
     this.wireRlv();
+    this.setupEventListeners();
   }
 
   /** `voiceConnectionStateMachine`: pick the spatial voice channel from the avatar's parcel and apply it. */
@@ -277,7 +278,11 @@ export class LinkpointApp {
     console.log('✅ Linkpoint PWA Ready');
   }
 
+  private eventListenersSet = false;
+
   private setupEventListeners() {
+    if (this.eventListenersSet) return;
+    this.eventListenersSet = true;
     this.protocol.on('scene:parcel-sound', (data: any) => this.parcelSound.accept(data));
     this.protocol.on('scene:voice-neighbors', (data: any) =>
       this.voice.setNeighborRegions(data?.neighbors ?? []),
@@ -293,6 +298,13 @@ export class LinkpointApp {
     });
     this.protocol.on('friends_loaded', (friends: any[]) => {
       console.log('Real friends loaded from Second Life:', friends.length);
+      if (Array.isArray(friends) && friends.length) {
+        try {
+          this.contacts.saveFriends(friends);
+        } catch (err) {
+          console.warn('[LinkpointApp] Auto-sync friends on friends_loaded failed:', err);
+        }
+      }
       this.friends.replaceFriends(
         friends.map((f) => ({
           id: f.id,
@@ -314,6 +326,16 @@ export class LinkpointApp {
           },
         })),
       );
+    });
+
+    this.friends.on('friend_added', (friend: any) => {
+      if (friend?.id && friend?.name) {
+        try {
+          this.contacts.saveFriends([friend]);
+        } catch (err) {
+          console.warn('[LinkpointApp] Auto-sync friend on friend_added failed:', err);
+        }
+      }
     });
 
     this.protocol.on('friend_status', (data: any) => {
