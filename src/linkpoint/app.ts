@@ -118,6 +118,7 @@ export class LinkpointApp {
     this.muteList = new MuteList({
       update: (entry) => slBridge.updateMuteEntry(entry),
       remove: (entry) => slBridge.removeMuteEntry(entry),
+      request: () => slBridge.requestMuteList(),
     });
     this.chatExtended.attachGridMuteList(this.muteList, (id) => this.nameOfObjectOrAvatar(id));
     this.audio.setPolicy({
@@ -283,10 +284,12 @@ export class LinkpointApp {
     );
     this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
     this.protocol.on('connected', () => {
-      this.muteList.setSelfId(this.protocol.agentId || '');
-      void slBridge
-        .requestMuteList()
-        .catch((err) => console.warn('[LinkpointApp] requestMuteList failed:', err));
+      const agentId = this.protocol.agentId || '';
+      this.muteList.setSelfId(agentId);
+      if (this.muteList.state === 'unloaded' && slBridge.connected) {
+        void slBridge.requestMuteList().catch(() => {});
+      }
+      void this.muteList.flushPendingQueue();
     });
     this.protocol.on('friends_loaded', (friends: any[]) => {
       console.log('Real friends loaded from Second Life:', friends.length);
@@ -368,6 +371,14 @@ export class LinkpointApp {
       this.notices.setAgentId(agentId);
       this.groupNoticeSyncEngine.setAgentId(agentId);
       await this.economy.init(agentId);
+      if (user?.agent_id) {
+        this.muteList.setSelfId(user.agent_id);
+      }
+      if (this.muteList.state === 'unloaded' && slBridge.connected) {
+        void slBridge.requestMuteList().catch(() => {});
+      }
+      void this.muteList.flushPendingQueue();
+      await this.economy.init(user?.agent_id);
       await this.inventory.load();
       await this.loadFriends();
       try {

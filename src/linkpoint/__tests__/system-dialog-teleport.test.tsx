@@ -105,6 +105,9 @@ describe('SystemDialog Teleport Sheet', () => {
     expect(host.textContent).toContain('Contact');
     expect(host.textContent).toContain('Prepare');
     expect(host.textContent).toContain('Arrive');
+
+    const crystalHero = host.querySelector('[aria-label="Teleport transition progress"]');
+    expect(crystalHero).not.toBeNull();
   });
 
   it('updates progress percentage and status when protocol emits teleport_progress', async () => {
