@@ -229,6 +229,12 @@ export class SLBridge extends Utils.EventEmitter {
   joinGroup(params: { groupId: string }) {
     return this.call<{ joined: boolean }>('joinGroup', params);
   }
+  activateGroup(params: { groupId: string; roleId?: string }) {
+    return this.call<{ success: boolean; groupId: string; roleId?: string }>(
+      'activateGroup',
+      params,
+    );
+  }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }
