@@ -9,6 +9,7 @@
 
 import { Utils } from './utils';
 import type { SLConnectionFull } from './sl-connection-full';
+import { indexedDBStore } from './indexeddb-store';
 
 export const NOTICES_STORAGE_KEY = 'linkpoint.notices.v1';
 export const GROUP_NOTICES_CACHE_KEY = 'linkpoint.group_notices_cache.v1';
@@ -133,6 +134,7 @@ export class NoticeStore extends Utils.EventEmitter {
   private historyUnavailableGroups = new Set<string>();
   private counter = 0;
   private initialized = false;
+  private currentAgentId: string = 'local_user';
   /** A notice another screen asked the calendar to open; read once with `takeFocus`. */
   private focusId: string | null = null;
 
@@ -142,6 +144,54 @@ export class NoticeStore extends Utils.EventEmitter {
   ) {
     super();
     this.load();
+  }
+
+  setAgentId(agentId: string) {
+    if (agentId) {
+      this.currentAgentId = agentId;
+      this.hydrateFromIndexedDB(agentId).catch(() => {});
+    }
+  }
+
+  /** Load persistent group notices from IndexedDB for offline access. */
+  async hydrateFromIndexedDB(agentId: string = this.currentAgentId): Promise<void> {
+    try {
+      this.currentAgentId = agentId || 'local_user';
+      const records = await indexedDBStore.getAllGroupNotices(this.currentAgentId);
+      if (records && records.length) {
+        const byGroup = new Map<string, SavedNotice[]>();
+        for (const raw of records) {
+          const notice = sanitize(raw);
+          if (notice) {
+            if (!this.notices.has(notice.id)) {
+              this.notices.set(notice.id, notice);
+            }
+            if (notice.groupId) {
+              if (!byGroup.has(notice.groupId)) {
+                byGroup.set(notice.groupId, []);
+              }
+              byGroup.get(notice.groupId)!.push(notice);
+            }
+          }
+        }
+        for (const [gid, list] of byGroup.entries()) {
+          if (!this.groupCaches.has(gid)) {
+            const newest = Math.max(
+              ...list.map((n) => n.timestamp),
+              Date.now() - NOTICE_TTL_MS + 10000,
+            );
+            this.groupCaches.set(gid, {
+              groupId: gid,
+              notices: list,
+              timestamp: newest,
+            });
+          }
+        }
+        this.emit('notices_changed', this.list());
+      }
+    } catch {
+      // ignore IDB error
+    }
   }
 
   /** Start listening for notices from the grid. */
@@ -231,8 +281,12 @@ export class NoticeStore extends Utils.EventEmitter {
     };
   }
 
-  /** Store group notices in the 5-minute TTL cache and persist to localStorage. */
-  setGroupCache(groupId: string, notices: SavedNotice[], timestamp: number = Date.now()): void {
+  /** Store group notices in the 5-minute TTL cache and persist to localStorage and IndexedDB. */
+  async setGroupCache(
+    groupId: string,
+    notices: SavedNotice[],
+    timestamp: number = Date.now(),
+  ): Promise<void> {
     const cleanNotices = notices.map(sanitize).filter(Boolean) as SavedNotice[];
     const entry: GroupNoticeCacheEntry = {
       groupId,
@@ -246,7 +300,35 @@ export class NoticeStore extends Utils.EventEmitter {
       }
     }
     this.save();
+    await indexedDBStore
+      .saveGroupNotices(this.currentAgentId, groupId, cleanNotices)
+      .catch(() => {});
     this.emit('group_cache_updated', { groupId, entry });
+  }
+
+  /** Purge notices older than maxAgeDays (default 90 days) or when DB exceeds maxDbSizeBytes (default 50MB). */
+  async purgeExpiredOrExcessNotices(
+    maxAgeDays: number = 90,
+    maxDbSizeBytes: number = 50 * 1024 * 1024,
+  ): Promise<{ purged: number }> {
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - maxAgeMs;
+    let inMemPurged = 0;
+    for (const [id, notice] of this.notices.entries()) {
+      if (notice.timestamp < cutoff) {
+        this.notices.delete(id);
+        inMemPurged++;
+      }
+    }
+    const dbRes = await indexedDBStore.purgeOldGroupNotices(
+      this.currentAgentId,
+      maxAgeMs,
+      maxDbSizeBytes,
+    );
+    if (inMemPurged > 0) {
+      this.save();
+    }
+    return { purged: dbRes.purged + inMemPurged };
   }
 
   isGroupCacheValid(groupId: string, ttlMs: number = NOTICE_TTL_MS): boolean {
