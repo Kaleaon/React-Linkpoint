@@ -87,6 +87,7 @@ export class IndexedDBStore {
   private memItems: Map<string, InventoryItemRecord> = new Map(); // key: `${agentId}:${id}`
   private memContacts: Map<string, ContactRecord> = new Map(); // key: `${agentId}:${id}`
   private memMigration: Map<string, any> = new Map(); // key: agentId
+  private memMuteLists: Map<string, any> = new Map(); // key: `mutelist_${agentId}`
 
   constructor() {}
 
@@ -532,6 +533,72 @@ export class IndexedDBStore {
         tx.onerror = () => resolve();
       } catch {
         resolve();
+      }
+    });
+  }
+
+  // --- Mute List Operations ---
+
+  public async saveMuteList(
+    agentId: string,
+    data: { mutes: any[]; legacy: string[]; pendingQueue?: any[] },
+  ): Promise<void> {
+    const key = agentId ? `mutelist_${agentId}` : 'mutelist_local';
+    const record = {
+      key,
+      agentId,
+      mutes: data.mutes || [],
+      legacy: data.legacy || [],
+      pendingQueue: data.pendingQueue || [],
+      updatedAt: Date.now(),
+    };
+
+    this.memMuteLists.set(key, record);
+
+    const db = await this.getDB();
+    if (!db) return;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_META], 'readwrite');
+        const store = tx.objectStore(STORE_META);
+        store.put(record);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async getMuteList(
+    agentId: string,
+  ): Promise<{ agentId: string; mutes: any[]; legacy: string[]; pendingQueue: any[] } | null> {
+    const key = agentId ? `mutelist_${agentId}` : 'mutelist_local';
+    if (this.memMuteLists.has(key)) {
+      return this.memMuteLists.get(key) || null;
+    }
+
+    const db = await this.getDB();
+    if (!db) return null;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([STORE_META], 'readonly');
+        const store = tx.objectStore(STORE_META);
+        const req = store.get(key);
+        req.onsuccess = () => {
+          if (req.result) {
+            this.memMuteLists.set(key, req.result);
+            resolve(req.result);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
       }
     });
   }

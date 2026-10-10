@@ -12,6 +12,7 @@ describe('Grid RPC mute sync and localStorage fallback', () => {
 
   it('connected event in app.ts calls slBridge.requestMuteList()', async () => {
     await app.init();
+    slBridge.connected = true;
     const spy = vi.spyOn(slBridge, 'requestMuteList').mockResolvedValue({ requested: true });
     app.protocol.emit('connected', { world_data: {} });
     expect(spy).toHaveBeenCalledTimes(1);
