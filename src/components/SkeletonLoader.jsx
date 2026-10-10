@@ -9,6 +9,9 @@ export function SkeletonBox({
   className = '',
 }) {
   const { V } = useTheme?.() || { V: {} };
+  const surf2 = V?.surf2 || 'var(--surf2, rgba(255, 255, 255, 0.08))';
+  const priC = V?.priC || 'var(--priC, rgba(18, 59, 39, 0.4))';
+  const pri = V?.pri || 'var(--pri, rgba(108, 255, 154, 0.35))';
   return (
     <div
       className={`skeleton-box ${className}`}
@@ -16,9 +19,7 @@ export function SkeletonBox({
         width,
         height,
         borderRadius,
-        background: V?.surf2
-          ? `linear-gradient(90deg, ${V.surf2} 25%, ${V.outv || V.surf2} 50%, ${V.surf2} 75%)`
-          : undefined,
+        background: `linear-gradient(90deg, ${surf2} 25%, ${priC} 40%, ${pri} 50%, ${priC} 60%, ${surf2} 75%)`,
         backgroundSize: '200% 100%',
         ...style,
       }}
