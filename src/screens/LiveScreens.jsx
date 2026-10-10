@@ -1061,7 +1061,7 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
   );
 }
 
-function GroupDetailList({ items, empty, icon, V }) {
+function GroupDetailList({ items, empty, icon, V, t }) {
   if (!items.length)
     return (
       <div
