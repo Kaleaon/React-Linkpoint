@@ -69,9 +69,52 @@ const {
   TeleportLandmarkRequestMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/TeleportLandmarkRequest');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
+const { MessageFlags } = require('@caspertech/node-metaverse/dist/lib/enums/MessageFlags');
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
 const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
+const {
+  ActivateGroupMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/ActivateGroup');
+
+class AgentSetGroupTitleMessage {
+  constructor() {
+    this.name = 'AgentSetGroupTitle';
+    this.messageFlags = MessageFlags.Zerocoded | MessageFlags.FrequencyLow;
+    this.id = Message.AgentSetGroupTitle || 4294902178;
+    this.AgentData = {
+      AgentID: UUID.zero(),
+      SessionID: UUID.zero(),
+      GroupID: UUID.zero(),
+      RoleID: UUID.zero(),
+    };
+  }
+  getSize() {
+    return 64;
+  }
+  writeToBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData.AgentID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.SessionID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.GroupID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.RoleID.writeToBuffer(buf, pos);
+    pos += 16;
+    return pos - startPos;
+  }
+  readFromBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData = {
+      AgentID: new UUID(buf, pos),
+      SessionID: new UUID(buf, pos + 16),
+      GroupID: new UUID(buf, pos + 32),
+      RoleID: new UUID(buf, pos + 48),
+    };
+    return 64;
+  }
+}
 
 const NOT_CONNECTED = 'Not connected to Second Life';
 /** How many times a failed (non-permanent) asset is fetched again on its own before waiting for a manual retry. */
@@ -124,6 +167,8 @@ class ViewerSession {
     this.objectSounds = new Map();
     this.transactions = [];
     this.pending = new interactions.PendingInteractions();
+    this.activeGroupId = '00000000-0000-0000-0000-000000000000';
+    this.activeRoleId = '00000000-0000-0000-0000-000000000000';
     /** Filled in by connect(): who is logged in and where. */
     this.identity = { agentId: '', firstName: '', lastName: '', simName: '', inventoryRootId: '' };
   }
@@ -1213,6 +1258,67 @@ class ViewerSession {
     return results;
   }
 
+  async activateGroup({ groupId, roleId } = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId =
+      groupId && typeof groupId === 'string' && groupId.trim()
+        ? groupId.trim().toLowerCase()
+        : ZERO_UUID;
+    const targetRoleId =
+      roleId && typeof roleId === 'string' && roleId.trim()
+        ? roleId.trim().toLowerCase()
+        : ZERO_UUID;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetRoleId)) {
+      throw new Error(`Invalid role ID format: ${targetRoleId}`);
+    }
+
+    this.activeGroupId = targetGroupId;
+    this.activeRoleId = targetRoleId;
+
+    if (this.bot) {
+      const circuit = this.currentRegion()?.circuit;
+      if (circuit) {
+        const agentUUIDStr =
+          this.identity.agentId || this.bot.agent?.agentID?.toString() || ZERO_UUID;
+        const sessionUUIDStr = circuit.sessionID?.toString() || ZERO_UUID;
+
+        const msg = new AgentSetGroupTitleMessage();
+        msg.AgentData = {
+          AgentID: new UUID(agentUUIDStr),
+          SessionID: new UUID(sessionUUIDStr),
+          GroupID: new UUID(targetGroupId),
+          RoleID: new UUID(targetRoleId),
+        };
+        circuit.sendMessage(msg, PacketFlags.Reliable);
+
+        const actMsg = new ActivateGroupMessage();
+        actMsg.AgentData = {
+          AgentID: new UUID(agentUUIDStr),
+          SessionID: new UUID(sessionUUIDStr),
+          GroupID: new UUID(targetGroupId),
+        };
+        circuit.sendMessage(actMsg, PacketFlags.Reliable);
+      }
+    }
+
+    this.send('active_group_changed', {
+      groupId: targetGroupId,
+      roleId: targetRoleId,
+      agentId: this.identity.agentId || this.bot?.agent?.agentID?.toString() || '',
+    });
+
+    return {
+      success: true,
+      groupId: targetGroupId,
+      roleId: targetRoleId,
+    };
+  }
+
   async getGroups() {
     const bot = this.requireBot();
     if (!bot.clientCommands?.agent) return [];
@@ -1220,14 +1326,18 @@ class ViewerSession {
       const raw = await bot.clientCommands.agent.getAvatarGroups(
         this.identity.agentId || bot.agent?.agentID,
       );
-      return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).map((group) => ({
-        id: group.GroupID?.toString?.() || String(group.GroupID),
-        name: group.GroupName || 'Group',
-        title: group.GroupTitle || '',
-        insignia: group.GroupInsigniaID?.toString?.() || '',
-        acceptNotices: Boolean(group.AcceptNotices),
-        powers: group.GroupPowers?.toString?.() || '',
-      }));
+      return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).map((group) => {
+        const id = group.GroupID?.toString?.() || String(group.GroupID);
+        return {
+          id,
+          name: group.GroupName || 'Group',
+          title: group.GroupTitle || '',
+          insignia: group.GroupInsigniaID?.toString?.() || '',
+          acceptNotices: Boolean(group.AcceptNotices),
+          powers: group.GroupPowers?.toString?.() || '',
+          active: id.toLowerCase() === (this.activeGroupId || '').toLowerCase(),
+        };
+      });
     } catch (error) {
       throw new Error('Group list could not be loaded', { cause: error });
     }
