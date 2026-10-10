@@ -57,6 +57,57 @@ describe('ChatProtocolAdapter', () => {
     });
   });
 
+  describe('sendTypingState & sendIMTypingState', () => {
+    it('sends ChatType.START (4) for spatial typing start on channel 0', async () => {
+      const adapter = new ChatProtocolAdapter(mockProtocol);
+      await adapter.sendTypingState(true);
+
+      expect(mockProtocol.sendChat).toHaveBeenCalledWith('', 0, 4);
+    });
+
+    it('sends ChatType.STOP (5) for spatial typing stop on channel 0', async () => {
+      const adapter = new ChatProtocolAdapter(mockProtocol);
+      await adapter.sendTypingState(false);
+
+      expect(mockProtocol.sendChat).toHaveBeenCalledWith('', 0, 5);
+    });
+
+    it('dispatches direct IM typing start (41) and stop (42) signals via sendImprovedInstantMessage', async () => {
+      const adapter = new ChatProtocolAdapter(mockProtocol);
+      await adapter.sendIMTypingState('friend-123', true);
+
+      expect(mockProtocol.sendImprovedInstantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dialog: 41,
+          id: 'friend-123',
+          toAgentId: 'friend-123',
+          message: '',
+          type: 'im_typing',
+        }),
+      );
+
+      await adapter.sendIMTypingState('friend-123', false);
+
+      expect(mockProtocol.sendImprovedInstantMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          dialog: 42,
+          id: 'friend-123',
+          toAgentId: 'friend-123',
+          message: '',
+          type: 'im_typing',
+        }),
+      );
+    });
+
+    it('invokes protocol.sendIMTypingState directly if available', async () => {
+      mockProtocol.sendIMTypingState = vi.fn().mockResolvedValue(undefined);
+      const adapter = new ChatProtocolAdapter(mockProtocol);
+
+      await adapter.sendIMTypingState('friend-456', true);
+      expect(mockProtocol.sendIMTypingState).toHaveBeenCalledWith('friend-456', true);
+    });
+  });
+
   describe('sendGroupChat', () => {
     it('constructs ImprovedInstantMessage Dialog 17 payloads for group messages', async () => {
       const adapter = new ChatProtocolAdapter(mockProtocol);
