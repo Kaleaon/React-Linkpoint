@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { DIALOGS } from '../theme/dialogs.js';
 import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
+import TeleportCrystalHero from './TeleportCrystalHero.jsx';
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -167,6 +168,11 @@ export default function SystemDialog() {
 
           <div id="teleport-sheet-title" style={{ font: '600 15px/1.35 ' + t.font, color: V.ink }}>
             {teleport.regionName || teleport.destination || 'Destination'}
+          </div>
+
+          {/* Teleport Crystal Hero */}
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
+            <TeleportCrystalHero stepPercent={percent} phase={teleport.phase} size={120} />
           </div>
 
           {/* Progress Bar & Percentage */}
