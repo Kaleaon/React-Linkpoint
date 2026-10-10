@@ -72,12 +72,31 @@ describe('group list and details', () => {
     expect(manager.getGroups()).toEqual([]);
     expect(manager.getGroupMembers('g1').size).toBe(0);
   });
-  it('requests profile, members and roles as tabs open and returns to the mobile list', async () => {
+  it('requests profile, members, roles, and notices as tabs open and returns to the mobile list', async () => {
     app.groups.setGroupInfo('g1', { name: 'Builders' });
     vi.spyOn(app, 'loadGroups').mockResolvedValue(app.groups.getGroups());
     const load = vi.spyOn(app, 'loadGroupDetails').mockImplementation(async (id, section) => {
       if (section === 'members')
         app.groups.replaceMembers(id, [{ id: 'resident', title: 'Owner' }]);
+      if (section === 'notices') {
+        const notices = [
+          {
+            id: 'n-hist-1',
+            groupId: id,
+            subject: 'Landmark Giveaway',
+            from: 'Event Organizer',
+            timestamp: 1700000000,
+            message: 'Come get your landmark!',
+            hasAttachment: true,
+            attachmentName: 'Club Landmark',
+            attachmentItemId: 'item-lm-10',
+            attachmentType: 3,
+          },
+        ];
+        app.notices.receiveAll(notices);
+        app.groups.replaceNotices(id, notices);
+        return notices;
+      }
       return {};
     });
     mounted = await mountScreen(GroupsScreen);
@@ -92,7 +111,29 @@ describe('group list and details', () => {
     await click(buttonByText(mounted.host, /Roles/i));
     await flush();
     expect(load).toHaveBeenCalledWith('g1', 'roles');
+    await click(buttonByText(mounted.host, /Notices/i));
+    await flush();
+    expect(load).toHaveBeenCalledWith('g1', 'notices');
+    expect(mounted.host.textContent).toContain('Landmark Giveaway');
+    expect(mounted.host.textContent).toContain('Event Organizer');
+    expect(mounted.host.textContent).toContain('Attachment');
     await click(mounted.host.querySelector('[aria-label="Back to groups"]'));
     expect(mounted.host.querySelector('.group-browser-detail')).toBeNull();
+  });
+
+  it('displays retryable inline error message when notices fail to load', async () => {
+    app.groups.setGroupInfo('g1', { name: 'Builders' });
+    vi.spyOn(app, 'loadGroups').mockResolvedValue(app.groups.getGroups());
+    vi.spyOn(app, 'loadGroupDetails').mockRejectedValue(
+      new Error('Notice history unavailable from grid server.'),
+    );
+
+    mounted = await mountScreen(GroupsScreen);
+    await flush();
+    await click(buttonByText(mounted.host, /Notices/i));
+    await flush();
+
+    expect(mounted.host.textContent).toContain('Notice history unavailable from grid server.');
+    expect(buttonByText(mounted.host, /Retry/i)).toBeTruthy();
   });
 });

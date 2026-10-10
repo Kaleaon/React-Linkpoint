@@ -1255,6 +1255,9 @@ class ViewerSession {
         memberCount: r.Members,
         powers: r.Powers?.toString(),
       }));
+    if (section === 'notices') {
+      return this.getGroupNotices({ groupId });
+    }
     if (section !== 'profile') throw new Error('Unknown group detail section');
     const g = await groups.getGroupProfile(groupId);
     return {
@@ -1269,6 +1272,78 @@ class ViewerSession {
       members: g.GroupMembershipCount,
       roleCount: g.GroupRolesCount,
     };
+  }
+
+  async getGroupNotices({ groupId } = {}) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId || ''))
+      throw new Error('Valid group ID required');
+    const groups = this.requireBot().clientCommands?.groups;
+    if (!groups) throw new Error('Group interface unavailable');
+    if (typeof groups.getGroupNotices === 'function') {
+      const raw = await groups.getGroupNotices(groupId);
+      return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).map((n) => ({
+        id: n.NoticeID?.toString?.() || n.id?.toString?.() || String(n.id || n.NoticeID || ''),
+        groupId: n.GroupID?.toString?.() || n.groupId?.toString?.() || groupId,
+        subject: n.Subject || n.subject || 'Group Notice',
+        message: n.Message || n.message || '',
+        from: n.FromName || n.fromName || n.from || 'Group Admin',
+        timestamp: Number(n.Timestamp || n.timestamp) || Date.now(),
+        hasAttachment: Boolean(
+          n.HasAttachment ??
+          n.hasAttachment ??
+          n.has_attachment ??
+          n.AttachmentItemName ??
+          n.attachmentName,
+        ),
+        attachmentName: n.AttachmentItemName || n.attachmentName || null,
+        attachmentItemId:
+          n.AttachmentItemID?.toString?.() || n.attachmentItemId?.toString?.() || null,
+        attachmentType: n.AttachmentType ?? n.attachmentType ?? null,
+        attachmentOwnerId:
+          n.AttachmentOwnerID?.toString?.() || n.attachmentOwnerId?.toString?.() || null,
+      }));
+    }
+    if (typeof groups.getNotices === 'function') {
+      const raw = await groups.getNotices(groupId);
+      return (Array.isArray(raw) ? raw : [raw]).filter(Boolean).map((n) => ({
+        id: n.NoticeID?.toString?.() || n.id?.toString?.() || String(n.id || n.NoticeID || ''),
+        groupId: n.GroupID?.toString?.() || n.groupId?.toString?.() || groupId,
+        subject: n.Subject || n.subject || 'Group Notice',
+        message: n.Message || n.message || '',
+        from: n.FromName || n.fromName || n.from || 'Group Admin',
+        timestamp: Number(n.Timestamp || n.timestamp) || Date.now(),
+        hasAttachment: Boolean(
+          n.HasAttachment ??
+          n.hasAttachment ??
+          n.has_attachment ??
+          n.AttachmentItemName ??
+          n.attachmentName,
+        ),
+        attachmentName: n.AttachmentItemName || n.attachmentName || null,
+        attachmentItemId:
+          n.AttachmentItemID?.toString?.() || n.attachmentItemId?.toString?.() || null,
+        attachmentType: n.AttachmentType ?? n.attachmentType ?? null,
+        attachmentOwnerId:
+          n.AttachmentOwnerID?.toString?.() || n.attachmentOwnerId?.toString?.() || null,
+      }));
+    }
+    if (typeof groups.requestGroupNotices === 'function') {
+      return await groups.requestGroupNotices(groupId);
+    }
+    throw new Error('Group notices unavailable');
+  }
+
+  async getGroupNoticeDetail({ noticeId, groupId } = {}) {
+    if (!noticeId) throw new Error('Notice ID required');
+    const groups = this.requireBot().clientCommands?.groups;
+    if (!groups) throw new Error('Group interface unavailable');
+    if (typeof groups.getGroupNoticeDetail === 'function') {
+      return await groups.getGroupNoticeDetail(noticeId, groupId);
+    }
+    if (typeof groups.requestGroupNotice === 'function') {
+      return await groups.requestGroupNotice(noticeId, groupId);
+    }
+    return { id: noticeId, groupId };
   }
 
   async getInventory({ folderId } = {}) {

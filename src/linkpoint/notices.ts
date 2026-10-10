@@ -300,34 +300,47 @@ export class NoticeStore extends Utils.EventEmitter {
   /** Store a notice the grid sent. A repeat of the same id is ignored. */
   receive(data: any): SavedNotice | null {
     if (!data || typeof data !== 'object') return null;
+    const rawId = data.id || data.noticeId || data.NoticeID || data.notice_id;
     const id =
-      typeof data.id === 'string' && data.id ? data.id : `notice-${Date.now()}-${++this.counter}`;
-    if (this.notices.has(id)) return null;
+      typeof rawId === 'string' && rawId.trim()
+        ? rawId.trim()
+        : `notice-${Date.now()}-${++this.counter}`;
+    if (this.notices.has(id)) return this.notices.get(id) || null;
     const notice = sanitize({
       id,
-      groupId: data.groupId,
-      subject: data.subject,
-      message: data.message,
-      from: data.fromName || data.from,
-      timestamp: data.timestamp,
+      groupId: data.groupId || data.GroupID || data.group_id,
+      subject: data.subject || data.Subject,
+      message: data.message || data.Message,
+      from: data.fromName || data.from || data.FromName || data.from_name,
+      timestamp: data.timestamp || data.Timestamp,
       calendar: null,
       attachment:
-        data.hasAttachment || data.attachment
+        data.hasAttachment || data.attachment || data.has_attachment
           ? {
-              hasAttachment: Boolean(data.hasAttachment ?? data.attachment?.hasAttachment ?? true),
-              attachmentName: data.attachmentName ?? data.attachment?.attachmentName,
-              attachmentItemId: data.attachmentItemId ?? data.attachment?.attachmentItemId,
-              attachmentType: data.attachmentType ?? data.attachment?.attachmentType,
-              attachmentOwnerId: data.attachmentOwnerId ?? data.attachment?.attachmentOwnerId,
+              hasAttachment: Boolean(
+                data.hasAttachment ?? data.attachment?.hasAttachment ?? data.has_attachment ?? true,
+              ),
+              attachmentName:
+                data.attachmentName ?? data.attachment?.attachmentName ?? data.attachment_name,
+              attachmentItemId:
+                data.attachmentItemId ??
+                data.attachment?.attachmentItemId ??
+                data.attachment_item_id,
+              attachmentType:
+                data.attachmentType ?? data.attachment?.attachmentType ?? data.attachment_type,
+              attachmentOwnerId:
+                data.attachmentOwnerId ??
+                data.attachment?.attachmentOwnerId ??
+                data.attachment_owner_id,
               savedToInventoryAt:
                 data.savedToInventoryAt ?? data.attachment?.savedToInventoryAt ?? null,
             }
           : null,
-      hasAttachment: data.hasAttachment,
-      attachmentName: data.attachmentName,
-      attachmentItemId: data.attachmentItemId,
-      attachmentType: data.attachmentType,
-      attachmentOwnerId: data.attachmentOwnerId,
+      hasAttachment: data.hasAttachment ?? data.has_attachment,
+      attachmentName: data.attachmentName ?? data.attachment_name,
+      attachmentItemId: data.attachmentItemId ?? data.attachment_item_id,
+      attachmentType: data.attachmentType ?? data.attachment_type,
+      attachmentOwnerId: data.attachmentOwnerId ?? data.attachment_owner_id,
       savedToInventoryAt: data.savedToInventoryAt,
     });
     if (!notice) return null;
@@ -337,6 +350,16 @@ export class NoticeStore extends Utils.EventEmitter {
     this.save();
     this.emit('notice_received', notice);
     return notice;
+  }
+
+  receiveAll(list: any[]): SavedNotice[] {
+    if (!Array.isArray(list)) return [];
+    const added: SavedNotice[] = [];
+    for (const item of list) {
+      const notice = this.receive(item);
+      if (notice) added.push(notice);
+    }
+    return added;
   }
 
   /** Record that a notice attachment was saved to inventory. */

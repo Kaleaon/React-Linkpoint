@@ -424,12 +424,12 @@ export function GroupsScreen() {
 
   useEffect(() => {
     let current = true;
-    if (!selectedId || section === 'NOTICES') {
+    if (!selectedId) {
       setDetailStatus('');
       return;
     }
     const requested = section === 'OVERVIEW' ? 'profile' : section.toLowerCase();
-    setDetailStatus('Loading group details…');
+    setDetailStatus(requested === 'notices' ? 'Loading group notices…' : 'Loading group details…');
     app
       .loadGroupDetails(selectedId, requested)
       .then(() => {
@@ -780,7 +780,7 @@ export function GroupsScreen() {
                 padding: 'clamp(14px, 3vw, 24px)',
               }}
             >
-              {detailStatus ? (
+              {detailStatus && section !== 'NOTICES' ? (
                 <p role="status" style={{ color: V.ink2 }}>
                   {detailStatus}
                 </p>
@@ -858,17 +858,190 @@ export function GroupsScreen() {
                 />
               ) : null}
               {section === 'NOTICES' ? (
-                <GroupDetailList
-                  items={[...notices].reverse()}
-                  empty="No notices have been received for this group."
-                  icon="bell"
+                <GroupNoticesDetailList
+                  notices={[...notices].reverse()}
+                  groupId={selected.id}
                   V={V}
+                  t={t}
+                  detailStatus={detailStatus}
+                  onRetry={() => setDetailRefresh((c) => c + 1)}
                 />
               ) : null}
             </div>
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry }) {
+  const [openId, setOpenId] = useState(null);
+
+  const isError = Boolean(detailStatus && !detailStatus.startsWith('Loading'));
+  const isLoading = Boolean(detailStatus && detailStatus.startsWith('Loading'));
+
+  const toggleNotice = async (notice) => {
+    const next = openId === notice.id ? null : notice.id;
+    setOpenId(next);
+    if (next) {
+      if (app.groups && typeof app.groups.fetchGroupNoticeDetail === 'function') {
+        try {
+          await app.groups.fetchGroupNoticeDetail(notice.id, groupId);
+        } catch {}
+      }
+    }
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {isError ? (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 14px',
+            border: `1px solid ${V.err}`,
+            borderRadius: V.rs,
+            background: V.surf,
+            color: V.err,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            fontSize: 13,
+          }}
+        >
+          <span>{detailStatus}</span>
+          <button
+            type="button"
+            onClick={onRetry}
+            style={{
+              minHeight: 28,
+              padding: '0 12px',
+              border: `1px solid ${V.err}`,
+              borderRadius: V.rs,
+              background: 'transparent',
+              color: V.err,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {isLoading ? (
+        <p role="status" style={{ color: V.ink2, margin: 0 }}>
+          {detailStatus}
+        </p>
+      ) : null}
+
+      {!notices.length && !detailStatus ? (
+        <div
+          style={{
+            padding: 18,
+            border: `1px dashed ${V.outv}`,
+            borderRadius: V.rs,
+            color: V.ink2,
+            fontSize: 13,
+          }}
+        >
+          No notices have been received for this group.
+        </div>
+      ) : null}
+
+      {notices.map((notice) => {
+        const open = openId === notice.id;
+        const hasAttachment = Boolean(
+          notice.attachment?.hasAttachment ||
+          notice.hasAttachment ||
+          notice.attachmentName ||
+          notice.attachmentItemId,
+        );
+        return (
+          <article
+            key={notice.id}
+            style={{
+              padding: '11px 13px',
+              border: `1px solid ${open ? V.pri : V.outv}`,
+              borderRadius: V.rs,
+              background: V.surf,
+            }}
+          >
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => toggleNotice(notice)}
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                display: 'block',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                }}
+              >
+                <strong style={{ fontSize: 13.5, color: V.ink }}>{notice.subject}</strong>
+                {hasAttachment ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '2px 7px',
+                      borderRadius: V.rs,
+                      background: V.priC || V.bg,
+                      color: V.pri,
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <Icon name="paperclip" size={12} />
+                    <span>Attachment</span>
+                  </span>
+                ) : null}
+              </div>
+              <small style={{ display: 'block', marginTop: 4, color: V.ink2, fontSize: 11.5 }}>
+                {[notice.from || 'Group Admin', new Date(notice.timestamp).toLocaleString()]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </small>
+            </button>
+            {open ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  paddingTop: 10,
+                  borderTop: `1px solid ${V.outv}`,
+                  display: 'grid',
+                  gap: 10,
+                }}
+              >
+                <div
+                  style={{
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere',
+                    font: `400 12.5px/1.6 ${t.font}`,
+                    color: V.ink2,
+                  }}
+                >
+                  {notice.message || 'No message body.'}
+                </div>
+                {hasAttachment ? <NoticeAttachmentBanner notice={notice} V={V} t={t} /> : null}
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
     </div>
   );
 }

@@ -474,12 +474,29 @@ export class LinkpointApp {
 
   async loadGroupDetails(groupId: string, section: string) {
     const sessionId = slBridge.sessionId;
-    const data = await slBridge.fetchGroupDetails(groupId, section);
-    if (!slBridge.connected || !this.auth.isLoggedIn() || slBridge.sessionId !== sessionId)
-      throw new Error('Session changed while loading group details');
+    let data;
+    if (slBridge.connected) {
+      data = await slBridge.fetchGroupDetails(groupId, section);
+      if (!slBridge.connected || !this.auth.isLoggedIn() || slBridge.sessionId !== sessionId)
+        throw new Error('Session changed while loading group details');
+    } else if (section === 'notices') {
+      data = await this.groups.fetchGroupNotices(groupId);
+    } else if (section === 'members') {
+      data = Array.from(this.groups.getGroupMembers(groupId).values());
+    } else if (section === 'roles') {
+      data = Array.from(this.groups.getGroupRoles(groupId).values());
+    } else {
+      data = this.groups.getGroupInfo(groupId) || {};
+    }
+
     if (section === 'members') this.groups.replaceMembers(groupId, data);
     else if (section === 'roles') this.groups.replaceRoles(groupId, data);
-    else this.groups.setGroupInfo(groupId, { ...this.groups.getGroupInfo(groupId), ...data });
+    else if (section === 'notices') {
+      if (Array.isArray(data)) {
+        this.notices.receiveAll(data);
+        this.groups.replaceNotices(groupId, data);
+      }
+    } else this.groups.setGroupInfo(groupId, { ...this.groups.getGroupInfo(groupId), ...data });
     return data;
   }
 
