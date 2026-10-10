@@ -41,6 +41,7 @@ import { InventorySpecialTypes } from './phase2/inventory-types';
 import { ChatExtended } from './phase2/chat-extended';
 import { GroupsManager } from './phase2/groups';
 import { FriendsExtended } from './phase2/friends-extended';
+import { GroupNoticeSyncEngine } from './group-notice-sync-engine';
 
 export class LinkpointApp {
   private balanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -71,6 +72,8 @@ export class LinkpointApp {
   public chatExtended: ChatExtended;
   public groups: GroupsManager;
   public friends: FriendsExtended;
+  public groupNoticeSyncEngine: GroupNoticeSyncEngine;
+  public syncEngine: GroupNoticeSyncEngine;
   /** RLV (off until the user turns it on). `rlv.handler` holds the restrictions. */
   public rlv: RlvController;
   private voiceInput: VoiceInput | null = null;
@@ -107,6 +110,8 @@ export class LinkpointApp {
     this.chatExtended = new ChatExtended(this.chatAdapter);
     this.chat.setMessageFilter((message) => this.chatExtended.shouldDisplayMessage(message));
     this.groups = new GroupsManager(this.chatAdapter, this.capabilities, this.notices);
+    this.groupNoticeSyncEngine = new GroupNoticeSyncEngine(this.groups, this.notices);
+    this.syncEngine = this.groupNoticeSyncEngine;
     this.friends = new FriendsExtended(this.protocol);
     this.rlv = new RlvController(false, this.rlvEnvironment());
     this.chat.setRlv(this.rlv.handler);
@@ -357,11 +362,17 @@ export class LinkpointApp {
 
     this.auth.on('login_success', async (user: any) => {
       console.log('User logged in:', user);
-      await this.economy.init(user?.agent_id);
+      const agentId = user?.agent_id || user?.agentId || this.protocol.agentId || 'local_user';
+      this.notices.setAgentId(agentId);
+      this.groupNoticeSyncEngine.setAgentId(agentId);
+      await this.economy.init(agentId);
       await this.inventory.load();
       await this.loadFriends();
       try {
-        await this.loadGroups();
+        const groups = await this.loadGroups();
+        if (groups && groups.length) {
+          this.groupNoticeSyncEngine.startSync(groups, { agentId });
+        }
       } catch (err) {
         console.warn('[LinkpointApp] Group loading failed:', err);
       }
@@ -379,6 +390,7 @@ export class LinkpointApp {
       void this.voice.disconnect();
       console.log('User logged out');
       this.eventQueue.stopPolling();
+      this.groupNoticeSyncEngine.stop();
       this.chat.clearHistory();
       this.friends.clear();
       if (this.friendsRetryTimer) {
@@ -457,6 +469,8 @@ export class LinkpointApp {
       throw new Error('Session changed while loading groups');
     if (!Array.isArray(groups)) throw new Error('Group list response was invalid');
     this.groups.replaceGroups(groups);
+    const agentId = this.protocol.agentId || 'local_user';
+    this.groupNoticeSyncEngine.startSync(groups, { agentId });
     return groups;
   }
 

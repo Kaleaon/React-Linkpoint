@@ -64,6 +64,10 @@ export type {
 export { AppearanceManager } from './appearance-manager';
 export { AvatarSkeleton } from './avatar-skeleton';
 
+// Background Group Notice Sync Engine
+export { GroupNoticeSyncEngine } from './group-notice-sync-engine';
+export type { SyncPriority, SyncQueueItem, SyncEngineConfig } from './group-notice-sync-engine';
+
 import { LLSD, LLSDValue, LLSDMap, LLSDArray } from './types';
 import { LLSDXMLParser } from './xmlParser';
 import { LLSDBinaryParser } from './binaryParser';
