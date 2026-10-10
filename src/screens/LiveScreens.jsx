@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { app } from '../linkpoint/app.ts';
 import { Utils } from '../linkpoint/utils.ts';
+import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -1322,14 +1323,44 @@ export function MuteListScreen() {
   const [entry, setEntry] = useState('');
   const [revision, setRevision] = useState(0);
 
-  const isObjects = sub === 'OBJECTS';
-  const mutedUsers = useMemo(() => app.chatExtended.getMutedUsers?.() || [], [revision]);
-  const mutedObjects = useMemo(() => app.chatExtended.getMutedObjects?.() || [], [revision]);
-  const activeList = isObjects ? mutedObjects : mutedUsers;
+  useEffect(() => {
+    const refresh = () => setRevision((n) => n + 1);
+    app.muteList.on('changed', refresh);
+    return () => {
+      app.muteList.off('changed', refresh);
+    };
+  }, []);
+
+  const snapshot = useMemo(() => app.muteList.snapshot(), [revision]);
+
+  const { agents, objects, groups, legacy } = useMemo(() => {
+    const ag = [];
+    const ob = [];
+    const gr = [];
+    for (const m of snapshot.mutes) {
+      if (m.type === MuteType.OBJECT) ob.push(m);
+      else if (m.type === MuteType.GROUP) gr.push(m);
+      else ag.push(m);
+    }
+    return {
+      agents: ag,
+      objects: ob,
+      groups: gr,
+      legacy: snapshot.legacy.map((name) => ({ id: name, name, type: MuteType.BY_NAME, flags: 0 })),
+    };
+  }, [snapshot]);
+
+  const activeEntries = useMemo(() => {
+    if (sub === 'OBJECTS') return objects;
+    if (sub === 'GROUPS') return groups;
+    if (sub === 'BY NAME' || sub === 'LEGACY') return legacy;
+    if (sub === 'ALL') return [...agents, ...objects, ...groups, ...legacy];
+    return agents;
+  }, [sub, agents, objects, groups, legacy]);
 
   const add = () => {
     if (!entry.trim()) return;
-    if (isObjects) {
+    if (sub === 'OBJECTS') {
       app.chatExtended.muteObject(entry.trim());
     } else {
       app.chatExtended.muteUser(entry.trim());
@@ -1338,13 +1369,52 @@ export function MuteListScreen() {
     setRevision((n) => n + 1);
   };
 
-  const remove = (nameOrId) => {
-    if (isObjects) {
-      app.chatExtended.unmuteObject(nameOrId);
+  const remove = (item) => {
+    if (item.type === MuteType.OBJECT) {
+      app.chatExtended.unmuteObject(item.id || item.name);
     } else {
-      app.chatExtended.unmuteUser(nameOrId);
+      app.chatExtended.unmuteUser(item.id || item.name);
     }
     setRevision((n) => n + 1);
+  };
+
+  const renderFlags = (item) => {
+    if (item.type === MuteType.BY_NAME) {
+      return <span className="mute-flag-badge">All Properties (By Name)</span>;
+    }
+    const f = item.flags;
+    const isChatMuted = !(f & MuteFlag.TEXT_CHAT);
+    const isVoiceMuted = !(f & MuteFlag.VOICE_CHAT);
+    const isParticlesMuted = !(f & MuteFlag.PARTICLES);
+    const isSoundsMuted = !(f & MuteFlag.OBJECT_SOUNDS);
+
+    if (isChatMuted && isVoiceMuted && isParticlesMuted && isSoundsMuted) {
+      return <span className="mute-flag-badge">All Properties Muted</span>;
+    }
+
+    const badges = [];
+    if (isChatMuted) badges.push('Chat');
+    if (isVoiceMuted) badges.push('Voice');
+    if (isParticlesMuted) badges.push('Particles');
+    if (isSoundsMuted) badges.push('Sounds');
+
+    if (badges.length === 0) return <span className="mute-flag-badge">None</span>;
+    return <span className="mute-flag-badge">Muted: {badges.join(', ')}</span>;
+  };
+
+  const getTypeName = (type) => {
+    switch (type) {
+      case MuteType.AGENT:
+        return 'Avatar';
+      case MuteType.OBJECT:
+        return 'Object';
+      case MuteType.GROUP:
+        return 'Group';
+      case MuteType.BY_NAME:
+        return 'By Name';
+      default:
+        return 'Entity';
+    }
   };
 
   return (
@@ -1354,15 +1424,15 @@ export function MuteListScreen() {
           aria-label="Avatar UUID or name to mute"
           value={entry}
           onChange={(e) => setEntry(e.target.value)}
-          placeholder={isObjects ? 'Object or HUD name (e.g. av)' : 'Avatar UUID or Name'}
+          placeholder={sub === 'OBJECTS' ? 'Object or HUD name (e.g. Box)' : 'Avatar UUID or Name'}
         />
-        <button onClick={add}>Mute {isObjects ? 'Object' : 'Avatar'}</button>
+        <button onClick={add}>Mute {sub === 'OBJECTS' ? 'Object' : 'Avatar'}</button>
       </div>
-      {activeList.length ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
-          {activeList.map((id) => (
+      {activeEntries.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+          {activeEntries.map((item) => (
             <div
-              key={id}
+              key={item.id || item.name}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1372,10 +1442,23 @@ export function MuteListScreen() {
                 borderRadius: 4,
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{id}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name || item.id}</span>
+                  <small style={{ opacity: 0.6, fontSize: 11 }}>[{getTypeName(item.type)}]</small>
+                </div>
+                {item.id && item.id !== item.name ? (
+                  <small style={{ opacity: 0.5, fontSize: 10, fontFamily: 'monospace' }}>
+                    {item.id}
+                  </small>
+                ) : null}
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #aaa)' }}>
+                  {renderFlags(item)}
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => remove(id)}
+                onClick={() => remove(item)}
                 style={{
                   padding: '3px 8px',
                   fontSize: 11,
@@ -1391,7 +1474,7 @@ export function MuteListScreen() {
           ))}
         </div>
       ) : (
-        <Empty icon="volume-x">No {isObjects ? 'objects or HUDs' : 'avatars'} are muted.</Empty>
+        <Empty icon="volume-x">No muted entries found in {sub.toLowerCase()}.</Empty>
       )}
     </div>
   );

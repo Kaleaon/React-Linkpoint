@@ -1,4 +1,5 @@
 import { Utils } from './utils';
+import { indexedDBStore } from './indexeddb-store';
 
 /**
  * The account's mute list, following the official viewer (`indra/newview/llmutelist.cpp` / `.h`, github.com/secondlife/viewer
@@ -52,6 +53,7 @@ export interface MuteTransport {
 export class MuteList extends Utils.EventEmitter {
   private mutes = new Map<string, MuteEntry>();
   private legacy = new Set<string>();
+  private pendingQueue: Array<{ kind: 'update' | 'remove'; entry: MuteEntry }> = [];
   state: MuteLoadState = 'unloaded';
   /** Our own id: a mute by name never silences ourselves (FIRE-8540). */
   selfId = '';
@@ -65,9 +67,70 @@ export class MuteList extends Utils.EventEmitter {
   }
   setSelfId(id: string) {
     this.selfId = lc(id);
+    void this.loadFromCache();
   }
 
-  /** Replace the list with what the grid sent (`loadFromFile`). */
+  /** Load persisted mutes and pending write queue from IndexedDB (`mutelist_<agent_id>`). */
+  async loadFromCache(): Promise<boolean> {
+    const key = this.selfId || 'local';
+    try {
+      const cached = await indexedDBStore.getMuteList(key);
+      if (
+        cached &&
+        (cached.mutes?.length || cached.legacy?.length || cached.pendingQueue?.length)
+      ) {
+        if (this.state === 'unloaded') {
+          for (const m of cached.mutes || []) {
+            this.mutes.set(lc(m.id), { ...m, id: lc(m.id) });
+          }
+          for (const name of cached.legacy || []) {
+            this.legacy.add(name);
+          }
+          this.state = 'loaded';
+        }
+        if (Array.isArray(cached.pendingQueue)) {
+          this.pendingQueue = cached.pendingQueue.map((item) => ({
+            kind: item.kind,
+            entry: { ...item.entry, id: lc(item.entry.id) },
+          }));
+        }
+        this.emit('changed', this.snapshot());
+        return true;
+      }
+    } catch (err) {
+      console.warn('[MuteList] loadFromCache failed:', err);
+    }
+    return false;
+  }
+
+  /** Persist current active mutes and pending queue to IndexedDB key `mutelist_<agent_id>`. */
+  async saveToCache(): Promise<void> {
+    const key = this.selfId || 'local';
+    try {
+      await indexedDBStore.saveMuteList(key, {
+        mutes: [...this.mutes.values()].map((m) => ({ ...m })),
+        legacy: [...this.legacy],
+        pendingQueue: [...this.pendingQueue],
+      });
+    } catch (err) {
+      console.warn('[MuteList] saveToCache failed:', err);
+    }
+  }
+
+  /** Request mute list from grid bridge if available. */
+  requestGridSync(): boolean {
+    if (this.transport?.request) {
+      this.state = 'requested';
+      void Promise.resolve(this.transport.request()).catch((err) => {
+        console.warn('[MuteList] requestGridSync failed:', err);
+        this.state = 'failed';
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /** Replace the list with what the grid sent (`loadFromFile`), reconciling local pending queue. */
   load(result: { state: 'loaded' | 'failed'; mutes?: MuteEntry[]; legacy?: string[] }) {
     if (result.state !== 'loaded') {
       this.state = 'failed';
@@ -78,14 +141,35 @@ export class MuteList extends Utils.EventEmitter {
     this.legacy.clear();
     for (const m of result.mutes ?? []) this.mutes.set(lc(m.id), { ...m, id: lc(m.id) });
     for (const name of result.legacy ?? []) this.legacy.add(name);
+
+    // Reconcile pending queue entries made while offline/disconnected
+    for (const queued of this.pendingQueue) {
+      if (queued.kind === 'update') {
+        if (queued.entry.type === MuteType.BY_NAME) {
+          if (queued.entry.name) this.legacy.add(queued.entry.name);
+        } else if (queued.entry.id) {
+          this.mutes.set(lc(queued.entry.id), { ...queued.entry, id: lc(queued.entry.id) });
+        }
+      } else if (queued.kind === 'remove') {
+        if (queued.entry.type === MuteType.BY_NAME || !queued.entry.id) {
+          if (queued.entry.name) this.legacy.delete(queued.entry.name);
+        } else if (queued.entry.id) {
+          this.mutes.delete(lc(queued.entry.id));
+        }
+      }
+    }
+
     this.state = 'loaded';
+    void this.saveToCache();
     this.emit('changed', this.snapshot());
+    void this.flushPendingQueue();
   }
 
   /** Forget everything (logout). */
   clear() {
     this.mutes.clear();
     this.legacy.clear();
+    this.pendingQueue = [];
     this.state = 'unloaded';
     this.emit('changed', this.snapshot());
   }
@@ -95,6 +179,7 @@ export class MuteList extends Utils.EventEmitter {
       state: this.state,
       mutes: [...this.mutes.values()].map((m) => ({ ...m })),
       legacy: [...this.legacy],
+      pendingQueue: [...this.pendingQueue].map((p) => ({ ...p, entry: { ...p.entry } })),
     };
   }
   get count() {
@@ -108,6 +193,11 @@ export class MuteList extends Utils.EventEmitter {
     if (key && key === this.selfId) return false;
     const entry = this.mutes.get(key);
     if (entry) return !(flags & entry.flags); // any flag passed that the entry has set means "not muted for this"
+    if (key) {
+      for (const leg of this.legacy) {
+        if (leg.toLowerCase() === key) return true;
+      }
+    }
     if (!name) return false;
     return this.legacy.has(name);
   }
@@ -115,9 +205,15 @@ export class MuteList extends Utils.EventEmitter {
   /** `LLMuteList::isMuted(username)`: by account name, ignoring case. */
   isMutedByName(name: string): boolean {
     const wanted = (name || '').toLowerCase();
-    for (const m of this.mutes.values())
-      if (m.type === MuteType.AGENT && m.name.toLowerCase() === wanted) return true;
-    return this.legacy.has(name);
+    for (const m of this.mutes.values()) {
+      if (m.type === MuteType.AGENT && m.name.toLowerCase() === wanted) {
+        return !(MuteFlag.TEXT_CHAT & m.flags);
+      }
+    }
+    for (const leg of this.legacy) {
+      if (leg.toLowerCase() === wanted) return true;
+    }
+    return false;
   }
 
   /**
@@ -210,12 +306,70 @@ export class MuteList extends Utils.EventEmitter {
     this.emit('changed', this.snapshot());
   }
 
-  private send(kind: 'update' | 'remove', entry: MuteEntry) {
-    if (!this.transport) return;
-    const result = kind === 'update' ? this.transport.update(entry) : this.transport.remove(entry);
-    void Promise.resolve(result).catch((error: unknown) => {
-      console.warn(`[MuteList] could not ${kind} ${entry.name} on the grid:`, error);
-      this.emit('sync_error', { kind, entry, error });
+  private enqueuePending(kind: 'update' | 'remove', entry: MuteEntry) {
+    const key = entry.type === MuteType.BY_NAME ? `name:${entry.name}` : `id:${lc(entry.id)}`;
+    this.pendingQueue = this.pendingQueue.filter((item) => {
+      const itemKey =
+        item.entry.type === MuteType.BY_NAME
+          ? `name:${item.entry.name}`
+          : `id:${lc(item.entry.id)}`;
+      return itemKey !== key;
     });
+    this.pendingQueue.push({ kind, entry: { ...entry } });
+  }
+
+  private removeFromPending(entry: MuteEntry) {
+    const key = entry.type === MuteType.BY_NAME ? `name:${entry.name}` : `id:${lc(entry.id)}`;
+    this.pendingQueue = this.pendingQueue.filter((item) => {
+      const itemKey =
+        item.entry.type === MuteType.BY_NAME
+          ? `name:${item.entry.name}`
+          : `id:${lc(item.entry.id)}`;
+      return itemKey !== key;
+    });
+  }
+
+  private send(kind: 'update' | 'remove', entry: MuteEntry) {
+    void this.saveToCache();
+    if (entry.type === MuteType.EXTERNAL) return; // Mute entries for external or local-only items MUST NOT trigger grid network sync calls
+
+    if (!this.transport) {
+      this.enqueuePending(kind, entry);
+      void this.saveToCache();
+      return;
+    }
+
+    const result = kind === 'update' ? this.transport.update(entry) : this.transport.remove(entry);
+    void Promise.resolve(result)
+      .then(() => {
+        this.removeFromPending(entry);
+        void this.saveToCache();
+      })
+      .catch((error: unknown) => {
+        console.warn(`[MuteList] could not ${kind} ${entry.name} on the grid:`, error);
+        this.enqueuePending(kind, entry);
+        void this.saveToCache();
+        this.emit('sync_error', { kind, entry, error });
+      });
+  }
+
+  /** Flush the offline write queue to the backend grid circuit. */
+  async flushPendingQueue(): Promise<void> {
+    if (!this.transport || this.pendingQueue.length === 0) return;
+    const queueToFlush = [...this.pendingQueue];
+    for (const item of queueToFlush) {
+      try {
+        if (item.kind === 'update') {
+          await this.transport.update(item.entry);
+        } else {
+          await this.transport.remove(item.entry);
+        }
+        this.removeFromPending(item.entry);
+      } catch (err) {
+        console.warn('[MuteList] flushPendingQueue item failed:', err);
+        break;
+      }
+    }
+    await this.saveToCache();
   }
 }
