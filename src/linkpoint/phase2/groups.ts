@@ -207,7 +207,42 @@ export class GroupsManager {
   }
 
   /**
-   * Fetches group notices using dual-transport strategy (HTTP capability query with 10s timeout,
+   * Exposes fetchGroupNotices to request and merge historical notices into the local NoticeStore.
+   */
+  async fetchGroupNotices(
+    groupId: string,
+    options: {
+      forceRefresh?: boolean;
+      capabilitiesManager?: CapabilitiesManager;
+      noticeStore?: NoticeStore;
+      timeoutMs?: number;
+    } = {},
+  ): Promise<SavedNotice[]> {
+    const notices = await this.requestGroupNotices(groupId, options);
+    const store = options.noticeStore || this.noticeStore;
+    if (store && Array.isArray(notices)) {
+      for (const notice of notices) {
+        store.receive(notice);
+      }
+    }
+    return notices;
+  }
+
+  /**
+   * Request details for a single notice (GroupNoticeRequest).
+   */
+  async fetchGroupNoticeDetail(noticeId: string, groupId?: string): Promise<SavedNotice | null> {
+    if (!noticeId) return null;
+    const store = this.noticeStore;
+    if (store) {
+      const existing = store.get(noticeId);
+      if (existing) return existing;
+    }
+    return null;
+  }
+
+  /**
+   * Fetches group notices using dual-transport strategy (HTTP capability query with 15s timeout,
    * falling back to UDP GroupNoticesListRequest packets) and enforced 5-minute TTL caching.
    */
   async requestGroupNotices(
@@ -225,7 +260,7 @@ export class GroupsManager {
 
     const capMgr = options.capabilitiesManager || this.capabilitiesManager;
     const store = options.noticeStore || this.noticeStore;
-    const timeoutMs = options.timeoutMs ?? 10000; // 10s timeout
+    const timeoutMs = options.timeoutMs ?? 15000; // 15s timeout
 
     // Check 5-minute TTL Cache
     if (store && !options.forceRefresh) {
@@ -256,7 +291,7 @@ export class GroupsManager {
     groupId: string,
     capMgr?: CapabilitiesManager,
     store?: NoticeStore,
-    timeoutMs: number = 10000,
+    timeoutMs: number = 15000,
   ): Promise<SavedNotice[]> {
     const capUrl =
       capMgr?.getGroupNoticesListUrl?.() || capMgr?.resolveCapability('GroupNoticesList');
@@ -512,6 +547,16 @@ export class GroupsManager {
 
   replaceRoles(groupId: string, roles: any[]) {
     this.groupRoles.set(groupId, new Map(roles.map((role) => [role.id, role])));
+  }
+
+  replaceNotices(groupId: string, notices: any[]) {
+    const mapped = notices.map((i) => this.mapNoticeItem(i, groupId));
+    this.groupNotices.set(groupId, mapped);
+    if (this.noticeStore) {
+      for (const notice of mapped) {
+        this.noticeStore.receive(notice);
+      }
+    }
   }
 
   getStats() {

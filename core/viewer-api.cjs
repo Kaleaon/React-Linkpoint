@@ -41,6 +41,8 @@ const METHODS = new Set([
   'getFriends',
   'getGroups',
   'getGroupDetails',
+  'getGroupNotices',
+  'getGroupNoticeDetail',
   'getInventory',
   'getOutfit',
   'getShape',
