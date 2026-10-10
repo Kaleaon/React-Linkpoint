@@ -215,4 +215,31 @@ describe('Search component UI', () => {
     expect(mounted.host.textContent).toContain('Connection timeout');
     expect(mounted.host.textContent).toContain('Alice Friend');
   });
+
+  it('displays inline crystal loader during active search directory query', async () => {
+    let resolveSearch: (res: any) => void = () => {};
+    const searchPromise = new Promise((resolve) => {
+      resolveSearch = resolve;
+    });
+
+    vi.spyOn(slBridge, 'searchDir').mockImplementation(() => searchPromise as any);
+
+    mounted = await mountScreen(Search);
+    const input = mounted.host.querySelector('input') as HTMLInputElement;
+
+    await act(async () => {
+      await typeInto(input, 'Searching');
+    });
+
+    // Loading indicator with CrystalLoader should be visible while searchPromise is pending
+    const crystal = mounted.host.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(crystal).not.toBeNull();
+    expect(crystal.getAttribute('data-variant')).toBe('inline');
+    expect(mounted.host.textContent).toContain('Searching Second Life grid directory...');
+
+    await act(async () => {
+      resolveSearch({ results: [], hasMore: false });
+      await flush();
+    });
+  });
 });
