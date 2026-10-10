@@ -1240,8 +1240,9 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
   );
 }
 
-function GroupDetailList({ items, empty, icon, V }) {
-  const { t } = useTheme();
+function GroupDetailList({ items, empty, icon, V, t: propT }) {
+  const { t: themeT } = useTheme();
+  const t = propT || themeT;
   if (!items.length)
     return (
       <div
@@ -1317,7 +1318,10 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V, t }) {
+function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+  const theme = useTheme();
+  const V = propV || theme.V;
+  const t = propT || theme.t;
   const [saving, setSaving] = useState(false);
   const attachment =
     notice.attachment ||
