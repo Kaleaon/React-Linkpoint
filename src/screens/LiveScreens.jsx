@@ -1062,6 +1062,7 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
 }
 
 function GroupDetailList({ items, empty, icon, V }) {
+  const { t } = useTheme();
   if (!items.length)
     return (
       <div

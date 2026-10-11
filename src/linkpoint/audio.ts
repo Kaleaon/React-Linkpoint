@@ -35,6 +35,23 @@ type SoundEvent = {
   sounds?: Array<{ soundId: string }>;
 };
 
+interface AttachedPlayback {
+  soundId: string;
+  gain: number;
+  loop: boolean;
+  syncMaster: boolean;
+  syncSlave: boolean;
+}
+
+export interface SoundObjectPose {
+  position: Vec3;
+  /** Attachment cut-off/parcel tests use the avatar position, not the joint offset. */
+  policyPosition?: Vec3;
+  avatarId?: string;
+  hud?: boolean;
+  unavailable?: boolean;
+}
+
 interface Playing {
   objectId: string;
   gain: GainNode;
@@ -44,8 +61,15 @@ interface Playing {
   soundId: string;
   loop: boolean;
   muted: boolean;
+  syncMaster: boolean;
+  syncSlave: boolean;
+  syncPending: boolean;
+  syncMasterId: string | null;
+  startedAt: number | null;
+  duration: number;
+  loading: boolean;
   /** Sounds waiting for the current one to finish (the QUEUE flag). */
-  queue: Array<{ soundId: string; gain: number; loop: boolean }>;
+  queue: AttachedPlayback[];
 }
 
 /**
@@ -54,9 +78,9 @@ interface Playing {
  * queue and stop flags, gain changes, cut-off radius, parcel and mute rules, per-category levels
  * (master x SFX / UI / ambient), OpenAL's default inverse-distance rolloff, and UI sounds.
  *
- * Not implemented: SYNC_MASTER / SYNC_SLAVE alignment, Doppler (Web Audio has none), wind and
- * footsteps, positions of attachments (an attachment sounds from its own position, not its avatar's),
- * and the grid mute list (supply it through `setPolicy`). Not exercised against a live grid.
+ * Synchronized slaves wait for the highest-priority audible master's loop boundary. Object poses
+ * may be resolved by the world to include linksets, attachment joints and HUDs.
+ * Doppler (Web Audio has none) and footsteps are not implemented. Not exercised against a live grid.
  */
 export class AudioManager extends Utils.EventEmitter {
   private context: AudioContext | null = null;
@@ -66,6 +90,8 @@ export class AudioManager extends Utils.EventEmitter {
   private waiting = new Map<string, Array<() => void>>();
   private requested = new Set<string>();
   private playing = new Map<string, Playing>();
+  private oneShots = new Map<AudioBufferSourceNode, () => void>();
+  private sessionToken = 0;
   private positions = new Map<string, Vec3>();
   private radii = new Map<string, number>();
   private owners = new Map<string, string>();
@@ -83,6 +109,7 @@ export class AudioManager extends Utils.EventEmitter {
   private underwater = false;
   private muteTimer: ReturnType<typeof setInterval> | null = null;
   private initialised = false;
+  private objectPose: ((id: string) => SoundObjectPose | null) | null = null;
 
   constructor(
     private protocol: {
@@ -120,6 +147,7 @@ export class AudioManager extends Utils.EventEmitter {
       const live = this.playing.get(id);
       if (live) this.place(live, object.position as Vec3);
       if (!known) this.run(this.attached.objectArrived(id));
+      this.refreshMutes(); // moving an avatar/root also moves sounds on its children
     };
     this.protocol.on('scene:object-add', seen);
     this.protocol.on('scene:object-update', seen);
@@ -129,9 +157,12 @@ export class AudioManager extends Utils.EventEmitter {
       this.radii.delete(id);
       this.owners.delete(id);
       this.attached.remove(id);
-      this.stopObject(id);
+      this.stopObject(id, true);
     });
-    const unlock = () => void this.context?.resume();
+    this.protocol.on('disconnected', () => this.stopAll());
+    const unlock = () => {
+      void this.context?.resume()?.catch((error: unknown) => this.emit('error', { error }));
+    };
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
   }
@@ -158,9 +189,21 @@ export class AudioManager extends Utils.EventEmitter {
   /** Mute list, parcel, maturity and "enable gesture / collision sounds" settings. */
   setPolicy(policy: Partial<SoundPolicy>) {
     Object.assign(this.policy, policy);
+    this.refreshMutes();
   }
   setSelfId(id: string) {
     this.policy.agentId = id;
+  }
+
+  setObjectPoseResolver(resolve: (id: string) => SoundObjectPose | null) {
+    this.objectPose = resolve;
+  }
+
+  private pose(id: string): SoundObjectPose | null {
+    return (
+      this.objectPose?.(id) ??
+      (this.positions.has(id) ? { position: this.positions.get(id)! } : null)
+    );
   }
 
   /** Global metres of the current region's south-west corner; positions from the scene are region-local. */
@@ -238,6 +281,7 @@ export class AudioManager extends Utils.EventEmitter {
 
   private async acceptAsset(asset: any) {
     if (!asset?.assetId || !asset.data) return;
+    const token = this.sessionToken;
     try {
       const bytes = Uint8Array.from(atob(asset.data), (char) => char.charCodeAt(0));
       const buffer = await this.audioContext().decodeAudioData(bytes.buffer);
@@ -245,6 +289,10 @@ export class AudioManager extends Utils.EventEmitter {
       for (const resume of this.waiting.get(asset.assetId) ?? []) resume();
       this.waiting.delete(asset.assetId);
     } catch (error) {
+      if (token === this.sessionToken) {
+        this.requested.delete(asset.assetId);
+        this.waiting.delete(asset.assetId);
+      }
       this.emit('error', { assetId: asset.assetId, error });
     }
   }
@@ -258,7 +306,9 @@ export class AudioManager extends Utils.EventEmitter {
     this.waiting.set(soundId, [...(this.waiting.get(soundId) ?? []), play]);
     if (!this.requested.has(soundId)) {
       this.requested.add(soundId);
+      const token = this.sessionToken;
       void this.protocol.fetchSound?.(soundId)?.catch?.(() => {
+        if (token !== this.sessionToken) return;
         this.requested.delete(soundId);
         this.waiting.delete(soundId);
       });
@@ -295,6 +345,7 @@ export class AudioManager extends Utils.EventEmitter {
         const live = this.playing.get(String(event.objectId));
         if (gain !== null && live)
           live.gain.gain.setTargetAtTime(gain, this.audioContext().currentTime, 0.02);
+        this.refreshMutes();
         break;
       }
       case 'stop':
@@ -336,10 +387,19 @@ export class AudioManager extends Utils.EventEmitter {
     level.gain.value = gain;
     source.buffer = buffer;
     source.connect(level);
-    if (position) {
-      const panner = this.makePanner(ctx, position);
+    const panner = position ? this.makePanner(ctx, position) : null;
+    if (panner) {
       level.connect(panner).connect(out);
     } else level.connect(out);
+    const cleanup = () => {
+      source.onended = null;
+      source.disconnect();
+      level.disconnect();
+      panner?.disconnect();
+      this.oneShots.delete(source);
+    };
+    this.oneShots.set(source, cleanup);
+    source.onended = cleanup;
     source.start();
   }
 
@@ -385,10 +445,8 @@ export class AudioManager extends Utils.EventEmitter {
       else if (action.type === 'stop') this.stopObject(action.objectId);
       else {
         if (action.stopFirst) this.supersede(action.objectId); // a non-queued sound replaces any still downloading
-        const epoch = this.epoch(action.objectId);
-        this.whenLoaded(action.soundId, () => {
-          if (this.epoch(action.objectId) === epoch) this.startAttached(action);
-        });
+        // Reserve the current/queue slots in message order, not download order.
+        this.startAttached(action);
       }
     }
   }
@@ -396,7 +454,7 @@ export class AudioManager extends Utils.EventEmitter {
   private startAttached(action: Extract<AttachedSoundAction, { type: 'play' }>) {
     const ctx = this.audioContext();
     const out = this.categories.get(AudioType.Sfx);
-    const position = this.positions.get(action.objectId);
+    const position = this.pose(action.objectId)?.position;
     if (!out || !position) return;
     let live = this.playing.get(action.objectId);
     if (!live) {
@@ -413,6 +471,13 @@ export class AudioManager extends Utils.EventEmitter {
         soundId: '',
         loop: false,
         muted: false,
+        syncMaster: false,
+        syncSlave: false,
+        syncPending: false,
+        syncMasterId: null,
+        startedAt: null,
+        duration: 0,
+        loading: false,
         queue: [],
       };
       this.playing.set(action.objectId, live);
@@ -421,45 +486,111 @@ export class AudioManager extends Utils.EventEmitter {
     if (action.stopFirst) {
       live.queue.length = 0;
       this.stopSource(live);
-    } else if (live.source) {
-      live.queue.push({ soundId: action.soundId, gain: action.gain, loop: action.loop });
+    } else if (live.source || live.syncPending || live.loading) {
+      // LLAudioSource::addAudioData has one FIFO slot, and ignores the same looping sound.
+      if (!live.queue.length && !(live.loop && live.soundId === action.soundId)) {
+        live.queue.push(action);
+        this.whenLoaded(action.soundId, () => {}); // preload the one pending FIFO slot
+      }
       return;
     }
-    this.playOn(live, action.soundId, action.gain, action.loop);
+    this.playOn(live, action);
     this.refreshMutes();
   }
 
-  private playOn(live: Playing, soundId: string, gain: number, loop: boolean) {
+  private playOn(live: Playing, playback: AttachedPlayback) {
+    const { soundId, gain, loop } = playback;
     if (this.playing.get(live.objectId) !== live) return; // the object was cleaned up while this waited
     const buffer = this.buffers.get(soundId);
+    live.gain.gain.value = gain;
+    live.soundId = soundId;
+    live.loop = loop;
+    live.syncMaster = playback.syncMaster;
+    live.syncSlave = playback.syncSlave;
+    live.syncPending = playback.syncSlave;
+    live.duration = buffer?.duration ?? 0;
+    live.loading = !buffer;
+    live.startedAt = null;
+    live.syncMasterId = null;
     if (!buffer) {
       const epoch = this.epoch(live.objectId);
       this.whenLoaded(soundId, () => {
-        if (this.epoch(live.objectId) === epoch) this.playOn(live, soundId, gain, loop);
+        if (this.epoch(live.objectId) === epoch) this.playOn(live, playback);
+        this.refreshMutes();
       });
       return;
     }
+    if (!live.syncSlave) this.startSource(live, this.audioContext().currentTime);
+  }
+
+  private startSource(live: Playing, when: number) {
     const source = this.audioContext().createBufferSource();
-    source.buffer = buffer;
-    source.loop = loop;
-    live.gain.gain.value = gain;
+    source.buffer = this.buffers.get(live.soundId)!;
+    source.loop = live.loop;
     source.connect(live.gain);
     live.source = source;
-    live.soundId = soundId;
-    live.loop = loop;
+    live.startedAt = when;
     source.onended = () => {
       if (live.source !== source) return;
+      source.disconnect();
       live.source = null;
+      live.syncPending = false;
+      live.startedAt = null;
       const next = live.queue.shift();
-      if (next) this.playOn(live, next.soundId, next.gain, next.loop);
-      else this.attached.markDone(live.objectId);
+      if (next) {
+        this.playOn(live, next);
+        this.refreshMutes();
+      } else this.attached.markDone(live.objectId);
     };
-    source.start();
+    source.start(when);
+  }
+
+  /** LLAudioEngine::idle: one global master, selected by gain / max(1, distance²).
+   * Web Audio schedules the loop boundary on its clock rather than polling a backend loop flag. */
+  private refreshSync() {
+    if (!this.context) return;
+    const now = this.context.currentTime;
+    let master: Playing | null = null;
+    let priority = -1;
+    for (const live of this.playing.values()) {
+      if (
+        !live.syncMaster ||
+        live.muted ||
+        !live.source ||
+        live.duration <= 0 ||
+        live.startedAt === null
+      )
+        continue;
+      const position = this.pose(live.objectId)?.position;
+      const ear = this.listener?.position;
+      const distance2 =
+        position && ear ? position.reduce((sum, v, axis) => sum + (v - ear[axis]) ** 2, 0) : 0;
+      const p = live.gain.gain.value / Math.max(1, distance2);
+      if (p > priority) {
+        master = live;
+        priority = p;
+      }
+    }
+    for (const live of this.playing.values()) {
+      if (!live.syncPending) continue;
+      if (live.source && live.startedAt !== null && live.startedAt <= now) {
+        live.syncPending = false;
+        continue;
+      }
+      if (live.source && (live.muted || live.syncMasterId !== master?.objectId))
+        this.stopSource(live);
+      if (live.source || live.loading || live.muted || !master?.loop) continue;
+      const start = master.startedAt!;
+      const loop = Math.max(1, Math.floor((now - start) / master.duration) + 1);
+      live.syncMasterId = master.objectId;
+      this.startSource(live, start + loop * master.duration);
+    }
   }
 
   private stopSource(live: Playing) {
     const source = live.source;
     live.source = null;
+    live.startedAt = null;
     if (source) {
       source.onended = null;
       try {
@@ -467,17 +598,23 @@ export class AudioManager extends Utils.EventEmitter {
       } catch {
         /* already ended */
       }
+      source.disconnect();
     }
   }
 
   private stopObject(objectId: string, cleanup = false) {
     this.supersede(objectId); // even with nothing playing yet: a sound still downloading must not start
+    if (!cleanup) this.attached.markDone(objectId);
     const live = this.playing.get(objectId);
     if (!live) return;
     live.queue.length = 0;
+    live.syncPending = false;
+    live.loading = false;
     this.stopSource(live);
     if (cleanup) {
       try {
+        live.gain.disconnect();
+        live.mute.disconnect();
         live.panner.disconnect();
       } catch {
         /* ignore */
@@ -485,11 +622,29 @@ export class AudioManager extends Utils.EventEmitter {
       this.playing.delete(objectId);
       if (!this.playing.size) this.stopMuteTimer();
     }
+    this.refreshSync();
   }
 
   stopAll() {
+    this.sessionToken++;
+    this.waiting.clear();
+    this.requested.clear();
+    for (const [source, cleanup] of this.oneShots) {
+      source.onended = null;
+      try {
+        source.stop();
+      } catch {
+        /* already ended */
+      }
+      cleanup();
+    }
     for (const id of [...this.playing.keys()]) this.stopObject(id, true);
     this.attached.clear();
+    this.positions.clear();
+    this.radii.clear();
+    this.owners.clear();
+    this.epochs.clear();
+    this.stopMuteTimer();
   }
 
   private place(live: Playing, position: Vec3) {
@@ -508,18 +663,26 @@ export class AudioManager extends Utils.EventEmitter {
 
   /** `LLAudioSourceVO::updateMute`: a sound is silenced beyond its cut-off radius, across a local-sound parcel, or when muted. */
   private refreshMutes() {
-    if (!this.listener || !this.context) return;
+    if (!this.context) return;
+    if (!this.listener) {
+      this.refreshSync();
+      return;
+    }
     const ear = this.listener.position;
     const [ox, oy] = this.regionOrigin;
     for (const live of this.playing.values()) {
-      const position = this.positions.get(live.objectId);
-      if (!position) continue;
+      const pose = this.pose(live.objectId);
+      if (!pose) continue;
+      this.place(live, pose.hud ? ear : pose.position);
+      const position = pose.policyPosition ?? pose.position;
       const distance = Math.hypot(position[0] - ear[0], position[1] - ear[1], position[2] - ear[2]);
       const global: Vec3 = [position[0] + ox, position[1] + oy, position[2]];
       const muted =
+        Boolean(pose.unavailable) ||
         isBeyondCutOff(distance, this.radii.get(live.objectId) ?? 0) ||
         !this.policy.canHearAt(global) ||
         this.policy.isMuted(live.objectId) ||
+        Boolean(pose.avatarId && this.policy.isMuted(pose.avatarId)) ||
         this.policy.ownerSoundsMuted(this.owners.get(live.objectId) ?? '');
       if (muted !== live.muted) {
         live.muted = muted;
@@ -527,6 +690,7 @@ export class AudioManager extends Utils.EventEmitter {
         this.attached.setMuted(live.objectId, muted);
       }
     }
+    this.refreshSync();
   }
 }
 

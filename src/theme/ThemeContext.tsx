@@ -3,6 +3,7 @@ import {
   DEVICES,
   LAYOUTS,
   PALETTES,
+  computeThemeTokens,
   type DeviceKey,
   type LayoutKey,
   type LayoutLook,
@@ -114,7 +115,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const L = LAYOUTS[state.layout];
     const P = PALETTES[state.palette];
     const pad = state.dense ? '8px' : L.s.pad;
-    const v = { ...P.c, ...L.s };
+    const v = computeThemeTokens(state.layout, state.palette, { dense: state.dense });
     return {
       layout: state.layout,
       palette: state.palette,

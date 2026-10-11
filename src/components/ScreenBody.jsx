@@ -47,8 +47,8 @@ export default function ScreenBody() {
   const { norm, scr, consoleScene } = useTheme();
 
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', position: 'relative' }}>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {scr !== 'Login' && <Header />}
         <SegmentedTabs />
         <ChipRow />

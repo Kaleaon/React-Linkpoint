@@ -215,9 +215,14 @@ export class AvatarAnimator {
 
   remove(subjectId: string) {
     this.running.delete(subjectId);
+    this.wanted.delete(subjectId);
+    for (const key of this.retries.keys())
+      if (key.startsWith(`${subjectId}:`)) this.retries.delete(key);
   }
   clear() {
     this.running.clear();
+    this.wanted.clear();
+    this.retries.clear();
   }
   subjects() {
     return [...this.running.keys()];

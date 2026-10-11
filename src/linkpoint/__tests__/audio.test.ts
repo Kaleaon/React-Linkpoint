@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { AudioManager } from '../audio';
-import { UI_SOUNDS } from '../sound-standards';
+import { SOUND_FLAG, UI_SOUNDS } from '../sound-standards';
 
 class Param {
   value = 0;
@@ -208,6 +208,237 @@ describe('AudioManager', () => {
     expect(() => sound({ action: 'gain', objectId: 'nobody', gain: 0.5 })).not.toThrow();
   });
 
+  it('holds a sync slave until a master loops, then schedules on the audio clock', async () => {
+    object('slave');
+    object('master');
+    await asset(SOUND);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'slave',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_SLAVE,
+    });
+    expect(sources).toHaveLength(0);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'master',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    expect(sources).toHaveLength(2);
+    expect(sources[0].start).toHaveBeenCalledWith(0);
+    expect(sources[1].start).toHaveBeenCalledWith(1);
+  });
+
+  it('aligns a late slave with the next loop instead of starting at an arbitrary offset', async () => {
+    object('slave');
+    object('master');
+    await asset(SOUND);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'master',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    lastContext.currentTime = 2.4;
+    sound({ action: 'attached', soundId: SOUND, objectId: 'slave', flags: SOUND_FLAG.SYNC_SLAVE });
+    expect(sources[1].start).toHaveBeenCalledWith(3);
+  });
+
+  it('cancels a scheduled slave if its master stops and waits for another master', async () => {
+    object('slave');
+    object('master');
+    await asset(SOUND);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'master',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    sound({ action: 'attached', soundId: SOUND, objectId: 'slave', flags: SOUND_FLAG.SYNC_SLAVE });
+    sound({ action: 'stop', objectId: 'master' });
+    expect(sources[1].stop).toHaveBeenCalledOnce();
+    expect(sources).toHaveLength(2);
+    lastContext.currentTime = 0.2;
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'master',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    expect(sources[3].start).toHaveBeenCalledWith(1.2);
+  });
+
+  it('restarts the same loop after stopping it while its asset is still downloading', async () => {
+    object('obj');
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: SOUND_FLAG.LOOP });
+    sound({ action: 'stop', objectId: 'obj' });
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: SOUND_FLAG.LOOP });
+    await asset(SOUND);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].loop).toBe(true);
+  });
+
+  it('does not discard a new session request when an older decode fails late', async () => {
+    await asset(SOUND2);
+    let reject!: (error: Error) => void;
+    lastContext.decodeAudioData.mockReturnValueOnce(
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+    );
+    emit('scene:sound-asset', { assetId: SOUND, data: btoa('x') });
+    audio.stopAll();
+    sound({ action: 'trigger', soundId: SOUND, objectId: 'o', position: [1, 2, 3] });
+    reject(new Error('Old asset decode failed'));
+    await flush();
+    await asset(SOUND);
+    expect(sources).toHaveLength(1);
+  });
+
+  it('chooses the highest gain/distance² master and ignores a muted master', async () => {
+    audio.setListener({ position: [0, 0, 0] });
+    object('near', [1, 0, 0]);
+    object('far', [10, 0, 0]);
+    object('slave');
+    await asset(SOUND);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'near',
+      gain: 0.5,
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    lastContext.currentTime = 0.3;
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'far',
+      gain: 1,
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    sound({ action: 'attached', soundId: SOUND, objectId: 'slave', flags: SOUND_FLAG.SYNC_SLAVE });
+    expect(sources[2].start).toHaveBeenCalledWith(1);
+    audio.setPolicy({ isMuted: (id) => id === 'near' });
+    audio.setListener({ position: [0, 0, 0] });
+    expect(sources[2].stop).toHaveBeenCalledOnce();
+    expect(sources[3].start).toHaveBeenCalledWith(1.3);
+  });
+
+  it('does not restart a slave that is already playing when the master disappears', async () => {
+    object('master');
+    object('slave');
+    await asset(SOUND);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'master',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_MASTER,
+    });
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'slave',
+      flags: SOUND_FLAG.LOOP | SOUND_FLAG.SYNC_SLAVE,
+    });
+    lastContext.currentTime = 1.1;
+    sound({ action: 'stop', objectId: 'master' });
+    expect(sources[1].stop).not.toHaveBeenCalled();
+  });
+
+  it('keeps one queued sound and ignores a repeat of the current loop', async () => {
+    object('obj');
+    await asset(SOUND);
+    await asset(SOUND2);
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: SOUND_FLAG.LOOP });
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: SOUND_FLAG.QUEUE });
+    sound({ action: 'attached', soundId: SOUND2, objectId: 'obj', flags: SOUND_FLAG.QUEUE });
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: SOUND_FLAG.QUEUE });
+    sources[0].onended!();
+    expect(sources[1].buffer).toBe((audio as any).buffers.get(SOUND2));
+    sources[1].onended!();
+    expect(sources).toHaveLength(2);
+  });
+
+  it('reserves the pending FIFO slot before its download finishes', async () => {
+    object('obj');
+    await asset(SOUND);
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: 0 });
+    sound({ action: 'attached', soundId: SOUND2, objectId: 'obj', flags: SOUND_FLAG.QUEUE });
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: SOUND_FLAG.QUEUE });
+    sources[0].onended!();
+    expect(sources).toHaveLength(1);
+    await asset(SOUND2);
+    expect(sources).toHaveLength(2);
+    expect(sources[1].buffer).toBe((audio as any).buffers.get(SOUND2));
+    sources[1].onended!();
+    expect(sources).toHaveLength(2);
+  });
+
+  it('preserves current/queued message order when the queued asset arrives first', async () => {
+    object('obj');
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: 0 });
+    sound({ action: 'attached', soundId: SOUND2, objectId: 'obj', flags: SOUND_FLAG.QUEUE });
+    await asset(SOUND2);
+    expect(sources).toHaveLength(0);
+    await asset(SOUND);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].buffer).toBe((audio as any).buffers.get(SOUND));
+    sources[0].onended!();
+    expect(sources[1].buffer).toBe((audio as any).buffers.get(SOUND2));
+  });
+
+  it('resolves moving linkset sounds, uses avatar parcel/cutoff tests, and mutes by ancestor avatar', async () => {
+    let position: [number, number, number] = [50, 20, 10];
+    audio.setObjectPoseResolver(() => ({
+      position,
+      policyPosition: [1, 0, 0],
+      avatarId: 'avatar',
+    }));
+    const canHearAt = vi.fn(() => true);
+    audio.setPolicy({ canHearAt });
+    audio.setListener({ position: [0, 0, 0] });
+    object('obj');
+    await asset(SOUND);
+    sound({
+      action: 'attached',
+      soundId: SOUND,
+      objectId: 'obj',
+      flags: SOUND_FLAG.LOOP,
+      radius: 2,
+    });
+    const panner = lastContext.panners[0];
+    expect([panner.positionX.value, panner.positionY.value, panner.positionZ.value]).toEqual([
+      50, 10, -20,
+    ]);
+    expect(canHearAt).toHaveBeenLastCalledWith([1, 0, 0]);
+    expect((audio as any).playing.get('obj').muted).toBe(false);
+    position = [80, 30, 10];
+    await vi.advanceTimersByTimeAsync(250);
+    expect(panner.positionX.value).toBe(80);
+    audio.setPolicy({ isMuted: (id) => id === 'avatar' });
+    audio.setListener({ position: [0, 0, 0] });
+    expect((audio as any).playing.get('obj').muted).toBe(true);
+  });
+
+  it('places HUD sounds at the camera while retaining avatar parcel policy', async () => {
+    audio.setObjectPoseResolver(() => ({
+      position: [0, 0, 0],
+      policyPosition: [1, 2, 3],
+      avatarId: 'avatar',
+      hud: true,
+    }));
+    audio.setListener({ position: [12, 34, 56] });
+    object('hud');
+    await asset(SOUND);
+    sound({ action: 'attached', soundId: SOUND, objectId: 'hud', flags: SOUND_FLAG.LOOP });
+    expect([
+      lastContext.panners[0].positionX.value,
+      lastContext.panners[0].positionY.value,
+      lastContext.panners[0].positionZ.value,
+    ]).toEqual([12, 56, -34]);
+  });
+
   it('holds a sound for an object that has not arrived and plays it when it does', async () => {
     await asset(SOUND);
     sound({ action: 'attached', soundId: SOUND, objectId: 'late', gain: 1, flags: 1 });
@@ -393,5 +624,53 @@ describe('AudioManager', () => {
     const mute = (sources[0].connect.mock.calls[0][0] as FakeGain).connect.mock
       .calls[0][0] as FakeGain;
     expect(mute.gain.setTargetAtTime).toHaveBeenCalledWith(0, expect.any(Number), 0.02);
+  });
+
+  it('cancels downloaded-later triggers, UI sounds and attached sounds on disconnect', async () => {
+    object('obj');
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: 1 });
+    sound({ action: 'trigger', soundId: SOUND2, position: [1, 2, 3] });
+    audio.playUi('UISndMoneyChangeUp');
+    bus.emit('disconnected');
+    await asset(SOUND);
+    await asset(SOUND2);
+    await asset(UI_SOUNDS.UISndMoneyChangeUp);
+    expect(sources).toHaveLength(0);
+  });
+
+  it('stops active one-shots and disconnects their audio nodes', async () => {
+    await asset(SOUND);
+    sound({ action: 'trigger', soundId: SOUND, position: [1, 2, 3] });
+    const source = sources[0];
+    const gain = source.connect.mock.calls[0][0] as FakeGain;
+    audio.stopAll();
+    expect(source.stop).toHaveBeenCalledOnce();
+    expect(source.disconnect).toHaveBeenCalledOnce();
+    expect(gain.disconnect).toHaveBeenCalledOnce();
+    expect(lastContext.panners[0].disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('releases attached audio graphs when objects disappear', async () => {
+    object('obj');
+    await asset(SOUND);
+    sound({ action: 'attached', soundId: SOUND, objectId: 'obj', flags: 1 });
+    emit('scene:object-remove', { id: 'obj' });
+    expect(sources[0].stop).toHaveBeenCalledOnce();
+    expect(lastContext.panners[0].disconnect).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('allows a sound to be requested again after its bytes cannot be decoded', async () => {
+    const error = vi.fn();
+    audio.on('error', error);
+    await asset(SOUND2); // create the audio context
+    lastContext.decodeAudioData.mockRejectedValueOnce(new Error('bad audio'));
+    sound({ action: 'trigger', soundId: SOUND, position: [1, 2, 3] });
+    await asset(SOUND);
+    expect(error).toHaveBeenCalledOnce();
+    sound({ action: 'trigger', soundId: SOUND, position: [1, 2, 3] });
+    expect(fetchSound).toHaveBeenCalledTimes(2);
+    await asset(SOUND);
+    expect(sources).toHaveLength(1);
   });
 });

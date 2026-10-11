@@ -52,6 +52,7 @@ describe('terrain materials in the world', () => {
       setTerrain: vi.fn(),
       setTerrainMaterials: vi.fn(),
       setWaterHeight: vi.fn(),
+      resetWorld: vi.fn(),
       objects: new Map(),
     };
     (world as any).scene3d = scene;

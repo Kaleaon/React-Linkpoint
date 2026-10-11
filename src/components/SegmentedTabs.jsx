@@ -2,6 +2,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { segLooks } from '../theme/look.js';
 import { CSUB, subView, setSub } from '../theme/constants.js';
+import { inkOn } from '@linkpoint/design-system/tokens';
 import { app } from '../linkpoint/app';
 
 // Ported from `segTabs`/`segWrap`/`hasSeg`. The labels come from CSUB — the one
@@ -34,50 +35,64 @@ export default function SegmentedTabs() {
   const segLook = LK.seg || 'fill';
   const looks = segLooks(V, t.font);
   const base = looks[segLook];
+  const consoleLayout = t.nav === 'SWEEP';
   const on = { background: V.priC, color: V.onpriC, borderBottom: '2px solid ' + V.pri };
   const onLook =
     segLook === 'fill'
-      ? { ...on, color: V.onpriC }
+      ? consoleLayout
+        ? { background: V.pri, color: V.onpri, border: 'none' }
+        : { ...on, color: V.onpriC }
       : segLook === 'pivot'
-        ? { color: V.pri, fontWeight: 400 }
-        : { color: V.pri, boxShadow: 'inset 0 -2px 0 ' + V.pri, letterSpacing: V.tls };
+        ? { color: V.priText, fontWeight: 400 }
+        : { color: V.priText, boxShadow: 'inset 0 -2px 0 ' + V.pri, letterSpacing: V.tls };
 
-  const wrap = isFloat
-    ? {
-        flex: 'none',
-        display: 'flex',
-        flexWrap: 'wrap',
-        margin: 0,
-        borderBottom: '1px solid ' + V.outv,
-        background: V.surf,
-      }
-    : segLook === 'fill'
+  const wrap = consoleLayout
+    ? { flex: 'none', display: 'flex', gap: 4, margin: '8px 4px', overflowX: 'auto' }
+    : isFloat
       ? {
           flex: 'none',
           display: 'flex',
-          margin: nav === 'sweep' ? '12px 12px 10px 4px' : '2px 16px 10px',
-          border: '1px solid ' + V.outv,
-          borderRadius: V.rs,
-          overflow: 'hidden',
+          flexWrap: 'wrap',
+          margin: 0,
+          borderBottom: '1px solid ' + V.outv,
+          background: V.surf,
         }
-      : {
-          flex: 'none',
-          display: 'flex',
-          margin: '0 16px 8px',
-          borderBottom: segLook === 'text' ? '1px solid ' + V.outv : 'none',
-          overflowX: 'auto',
-        };
+      : segLook === 'fill'
+        ? {
+            flex: 'none',
+            display: 'flex',
+            margin: nav === 'sweep' ? '12px 12px 10px 4px' : '2px 16px 10px',
+            border: '1px solid ' + V.outv,
+            borderRadius: V.rs,
+            overflow: 'hidden',
+          }
+        : {
+            flex: 'none',
+            display: 'flex',
+            margin: '0 16px 8px',
+            borderBottom: segLook === 'text' ? '1px solid ' + V.outv : 'none',
+            overflowX: 'auto',
+          };
 
   const isActive = (label) => curSub === label;
 
   return (
-    <div style={wrap}>
+    <div role="tablist" aria-label={scr + ' views'} style={wrap}>
       {tabs.map((x) => {
         const active = isActive(x.label);
         const style = {
           ...base,
+          ...(consoleLayout
+            ? {
+                flex: '1 0 auto',
+                padding: '8px 12px',
+                letterSpacing: '.04em',
+                background: V.sec2,
+                color: inkOn(V.sec2),
+              }
+            : null),
           ...(active ? onLook : null),
-          ...(isFloat
+          ...(isFloat && !consoleLayout
             ? {
                 minHeight: '24px',
                 height: '24px',

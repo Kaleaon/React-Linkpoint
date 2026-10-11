@@ -5,7 +5,8 @@
  * Zero runtime dependencies on React or DOM global objects.
  */
 
-import { ensureMinContrast } from "./contrast.js";
+import { ensureContrastOnSurfaces, inkOn } from "./contrast.js";
+export * from "./lcars.js";
 export * from "./contrast.js";
 export * from "./tokens.js";
 
@@ -96,7 +97,7 @@ export interface DevicePack {
   desk?: boolean;
 }
 
-export type ThemeTokens = PaletteColors & LayoutScale & { font?: string; dfont?: string };
+export type ThemeTokens = PaletteColors & LayoutScale & { font?: string; dfont?: string; priText: string };
 
 export const LAYOUTS: Record<string, LayoutPack> = {
   terminal: {
@@ -245,11 +246,11 @@ export const PALETTES: Record<string, PalettePack> = {
   },
   lcars: {
     name: "LCARS Amber",
-    note: "lcars, amber + violet + mauve on aubergine",
+    note: "lcars, amber + violet + mauve on a black field (CleverFerret reference)",
     light: false,
     c: {
-      bg: "#120C1C", surf: "#1C132A", surf2: "#3D1F5C",
-      ink: "#F3E9FF", ink2: "#D0B3E6",
+      bg: "#000000", surf: "#000000", surf2: "#1C132A",
+      ink: "#F3E9FF", ink2: "#FFCC99",
       pri: "#F2A65A", onpri: "#120C1C", priC: "#CC7A2B", onpriC: "#120C1C",
       sec: "#A485F7", onsec: "#120C1C", sec2: "#C5678D",
       bdg: "#A485F7", onbdg: "#120C1C",
@@ -638,20 +639,24 @@ export function computeThemeTokens(
     s.pad = "8px";
   }
 
-  const V: ThemeTokens = { font: L.font, dfont: L.dfont, ...c, ...s };
+  const V: ThemeTokens = { font: L.font, dfont: L.dfont, ...c, ...s, priText: c.pri };
 
   // WCAG 2.2 Criterion 1.4.3 & 1.4.11 contrast enforcement
   const bgSurface = V.bg || "#000000";
   const surfSurface = V.surf || bgSurface;
-  const targetTokens: (keyof PaletteColors)[] = ["ink2", "sec", "sec2", "bdg", "outv", "ok", "err", "warn", "info"];
+  const surfaces = [bgSurface, surfSurface, V.surf2];
+  const targetTokens: (keyof PaletteColors)[] = ["ink", "ink2", "sec", "sec2", "bdg", "outv", "ok", "err", "warn", "info"];
 
   for (const tok of targetTokens) {
     if (V[tok]) {
-      let adj = ensureMinContrast(V[tok], bgSurface, 4.5);
-      adj = ensureMinContrast(adj, surfSurface, 4.5);
-      V[tok] = adj;
+      V[tok] = ensureContrastOnSurfaces(V[tok], surfaces);
     }
   }
 
+  V.priText = ensureContrastOnSurfaces(V.pri, surfaces);
+  V.onpri = inkOn(V.pri, [V.onpri]);
+  V.onpriC = inkOn(V.priC, [V.onpriC]);
+  V.onsec = inkOn(V.sec, [V.onsec]);
+  V.onbdg = inkOn(V.bdg, [V.onbdg]);
   return V;
 }

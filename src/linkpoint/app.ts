@@ -96,6 +96,7 @@ export class LinkpointApp {
     this.contacts = new ContactsStore();
     this.notices = new NoticeStore(this.protocol);
     this.audio = new AudioManager(this.protocol);
+    this.audio.setObjectPoseResolver((id) => this.world.getSoundObjectPose(id));
     this.voice = new VoiceManager();
     this.economy = economyManager;
 
@@ -359,6 +360,7 @@ export class LinkpointApp {
       }, 60000);
     });
     this.protocol.on('disconnected', () => {
+      void this.voice.disconnect();
       if (this.balanceTimer) clearInterval(this.balanceTimer);
       this.balanceTimer = null;
       this.protocol.balance = null;

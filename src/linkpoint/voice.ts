@@ -100,6 +100,9 @@ export class VoiceManager extends Utils.EventEmitter {
   muted = true;
 
   private peer: RTCPeerConnection | null = null;
+  private connectTask: Promise<void> | null = null;
+  private generation = 0;
+  private cancelSignaling: (() => void) | null = null;
   /** The caller wants voice on: set by connect, cleared by disconnect. Only then are failures retried. */
   private wanted = false;
   private retry = new RetryBackoff();
@@ -117,6 +120,15 @@ export class VoiceManager extends Utils.EventEmitter {
   private options: VoiceConnectOptions = {};
   private joined = false;
   private speakerVolume = 1;
+  private inputDeviceId = '';
+  private inputSelection = 0;
+  private inputReplacement: Promise<void> = Promise.resolve();
+  private outputDeviceId = '';
+  private readonly unlockPlayback = () => {
+    void this.audioContext?.resume().catch(() => {});
+    if (this.remoteAudio) void this.remoteAudio.play().catch(() => {});
+    for (const audio of this.neighborAudio.values()) void audio.play().catch(() => {});
+  };
 
   private audioContext: AudioContext | null = null;
   private localSource: MediaStreamAudioSourceNode | null = null;
@@ -160,9 +172,25 @@ export class VoiceManager extends Utils.EventEmitter {
 
   // ---- connection ---------------------------------------------------------------------------------
 
-  async connect(options: VoiceConnectOptions = {}) {
-    if (this.peer) return;
+  connect(options: VoiceConnectOptions = {}): Promise<void> {
+    if (this.connectTask) return this.connectTask;
+    if (this.peer) return Promise.resolve();
+    const task = this.connectAttempt(options);
+    this.connectTask = task;
+    void task
+      .finally(() => {
+        if (this.connectTask === task) this.connectTask = null;
+      })
+      .catch(() => {});
+    return task;
+  }
+
+  private async connectAttempt(options: VoiceConnectOptions) {
+    const generation = ++this.generation;
+    const stale = () => generation !== this.generation;
     this.wanted = true;
+    window.addEventListener('pointerdown', this.unlockPlayback, { passive: true });
+    window.addEventListener('keydown', this.unlockPlayback);
     this.clearRetryTimer();
     this.options = options;
     const explicit = options.channel !== undefined || options.parcelLocalId !== undefined;
@@ -182,16 +210,23 @@ export class VoiceManager extends Utils.EventEmitter {
     if (options.earLocation !== undefined) this.earLocation = options.earLocation;
     this.setState('connecting');
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         // The viewer's defaults: echo cancellation, automatic gain control and noise suppression on.
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          ...(options.inputDeviceId ? { deviceId: { exact: options.inputDeviceId } } : {}),
+          ...((options.inputDeviceId ?? this.inputDeviceId)
+            ? { deviceId: { exact: options.inputDeviceId ?? this.inputDeviceId } }
+            : {}),
         },
         video: false,
       });
+      if (stale()) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.stream = stream;
       this.startLocalMeter();
 
       const peer = new RTCPeerConnection({ iceServers: iceServersForGrid(options.grid) });
@@ -218,7 +253,7 @@ export class VoiceManager extends Utils.EventEmitter {
       const pending: RTCIceCandidateInit[] = [];
       let gatheringDone = false;
       const flush = async () => {
-        if (!this.viewerSession) return;
+        if (stale() || !this.viewerSession) return;
         if (pending.length) {
           const body = signalingBody(this.viewerSession, pending.splice(0), false);
           if (body) await slBridge.voiceSignal(body).catch((e: unknown) => this.emit('error', e));
@@ -230,6 +265,11 @@ export class VoiceManager extends Utils.EventEmitter {
         }
       };
       let flushTimer: ReturnType<typeof setTimeout> | undefined;
+      this.cancelSignaling = () => {
+        if (flushTimer !== undefined) clearTimeout(flushTimer);
+        peer.onicecandidate = null;
+        peer.ontrack = null;
+      };
       peer.onicecandidate = ({ candidate }) => {
         if (candidate) {
           pending.push(candidate.toJSON());
@@ -251,18 +291,30 @@ export class VoiceManager extends Utils.EventEmitter {
       };
 
       const offer = await peer.createOffer({ offerToReceiveAudio: true });
+      if (stale()) return;
       const sdp = mungeOpusSdp(offer.sdp || '');
       await peer.setLocalDescription({ type: 'offer', sdp });
+      if (stale()) return;
 
       const response = await slBridge.voiceProvision(provisionBody(sdp, this.channel));
+      if (stale()) {
+        if (response?.viewer_session)
+          await slBridge.voiceLogout(String(response.viewer_session)).catch(() => {});
+        return;
+      }
       const answer = response?.jsep;
       if (!response?.viewer_session || answer?.type !== 'answer' || !answer?.sdp)
         throw new Error('The voice server returned an invalid answer');
       this.viewerSession = String(response.viewer_session);
       await peer.setRemoteDescription(answer);
+      if (stale()) return;
       await flush();
     } catch (error) {
-      await this.teardown();
+      if (stale()) return;
+      const closing = this.teardown();
+      const cleanupGeneration = this.generation;
+      await closing;
+      if (cleanupGeneration !== this.generation || !this.wanted) return;
       this.setState('error', error instanceof Error ? error.message : 'Voice connection failed');
       // A refused microphone will not be fixed by trying again; anything else follows the viewer's retry schedule.
       if (isMicrophoneError(error)) this.wanted = false;
@@ -281,7 +333,10 @@ export class VoiceManager extends Utils.EventEmitter {
   /** The connection dropped after it was up: tear it down and come back on the retry schedule. */
   private async connectionLost(message: string) {
     if (!this.wanted || this.retryTimer) return;
-    await this.teardown();
+    const closing = this.teardown();
+    const generation = this.generation;
+    await closing;
+    if (generation !== this.generation || !this.wanted) return;
     this.setState('error', message);
     this.scheduleRetry();
   }
@@ -333,7 +388,10 @@ export class VoiceManager extends Utils.EventEmitter {
     if (!choice.enabled) {
       if (live && this.channel.kind === 'local') {
         this.suspended = true;
-        await this.teardown();
+        const closing = this.teardown();
+        const generation = this.generation;
+        await closing;
+        if (generation !== this.generation || !this.wanted) return;
         this.setState('off', choice.reason);
         this.emit('suspended', { reason: choice.reason });
       }
@@ -355,8 +413,10 @@ export class VoiceManager extends Utils.EventEmitter {
       : this.channel.parcelLocalId === choice.parcelLocalId;
     if (channelMatches && this.connectedRegionHandle === this.regionHandle) return;
     const options = { ...this.options, channel: undefined, parcelLocalId: undefined };
-    await this.teardown();
-    this.wanted = true;
+    const closing = this.teardown();
+    const generation = this.generation;
+    await closing;
+    if (generation !== this.generation || !this.wanted) return;
     try {
       await this.connect(options);
       this.emit('reprovisioned', { viewerSession: this.viewerSession });
@@ -404,10 +464,13 @@ export class VoiceManager extends Utils.EventEmitter {
         grid: this.options.grid,
         onData: (raw, source) => this.onNeighborData(raw, source),
         onRemoteStream: (stream, source) => this.playNeighbor(stream, source),
-        onLost: (source) => this.neighborLost(source),
+        onLost: (source) => {
+          if (this.neighbors.get(source) === connection) this.neighborLost(source);
+        },
       });
       this.neighbors.set(handle, connection);
       connection.connect().catch((error: unknown) => {
+        if (this.neighbors.get(handle) !== connection) return;
         console.warn('[VoiceManager] neighbouring region voice unavailable:', error);
         if (this.neighbors.get(handle) === connection) this.neighbors.delete(handle);
         this.neighborRetryAt.set(handle, performance.now() + 15000);
@@ -463,7 +526,7 @@ export class VoiceManager extends Utils.EventEmitter {
     audio.autoplay = true;
     audio.volume = this.speakerVolume;
     audio.srcObject = stream;
-    void audio.play().catch(() => {});
+    this.startPlayback(audio);
   }
 
   private onNeighborData(raw: string, source: string) {
@@ -483,18 +546,26 @@ export class VoiceManager extends Utils.EventEmitter {
 
   async disconnect() {
     this.wanted = false;
+    this.suspended = false;
+    window.removeEventListener('pointerdown', this.unlockPlayback);
+    window.removeEventListener('keydown', this.unlockPlayback);
     this.clearRetryTimer();
     this.retryAttempts = 0;
     this.retry.reset();
-    await this.teardown();
     this.setState('off');
+    await this.teardown();
+    this.emitSpeakers();
   }
 
   private async teardown() {
+    this.generation++;
+    this.connectTask = null;
+    this.cancelSignaling?.();
+    this.cancelSignaling = null;
     this.stopTimers();
     this.joined = false;
     this.participants.clear();
-    await this.closeNeighbors();
+    const closingNeighbors = this.closeNeighbors();
     if (this.peer) this.peer.onconnectionstatechange = null;
     if (this.dataChannel) {
       this.dataChannel.onopen = null;
@@ -526,8 +597,9 @@ export class VoiceManager extends Utils.EventEmitter {
     }
     const session = this.viewerSession;
     this.viewerSession = '';
-    if (session) await slBridge.voiceLogout(session).catch(() => {});
     this.lastSpatialSent = -Infinity;
+    await closingNeighbors;
+    if (session) await slBridge.voiceLogout(session).catch(() => {});
   }
 
   // ---- data channel -------------------------------------------------------------------------------
@@ -592,7 +664,7 @@ export class VoiceManager extends Utils.EventEmitter {
       // Re-apply what the resident chose for this person (the viewer does the same on join).
       if (this.userMutes.get(update.id)) this.sendEverywhere(muteMessage({ [update.id]: true }));
       const gain = this.userGains.get(update.id);
-      if (gain !== undefined) this.sendEverywhere(userGainMessage({ [update.id]: gain }));
+      if (gain !== undefined) this.sendEverywhere(userGainMessage({ [update.id]: gain }, true));
     }
     if (!participant) return false;
     if (update.left) {
@@ -700,8 +772,9 @@ export class VoiceManager extends Utils.EventEmitter {
   /** Per-person playback gain 0..1, applied by the voice server (`ug`). */
   setUserVolume(id: string, volume: number) {
     const key = id.toLowerCase();
-    this.userGains.set(key, volume);
-    this.sendEverywhere(userGainMessage({ [key]: volume }));
+    const gain = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0;
+    this.userGains.set(key, gain);
+    this.sendEverywhere(userGainMessage({ [key]: gain }));
   }
 
   /** Mute one person for yourself (`m`). */
@@ -713,13 +786,103 @@ export class VoiceManager extends Utils.EventEmitter {
 
   /** Send the output to a specific speaker, where the browser supports it. */
   async setOutputDevice(deviceId: string) {
-    const audio = this.remoteAudio as
-      (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    // Validate permission/device availability even before the first remote track.
+    const audio = (this.remoteAudio ?? new Audio()) as HTMLAudioElement & {
+      setSinkId?: (id: string) => Promise<void>;
+    };
+    if (deviceId && !audio.setSinkId)
+      throw new Error(
+        'This browser does not support speaker selection. Use your system sound settings.',
+      );
     if (audio?.setSinkId) await audio.setSinkId(deviceId);
     for (const neighbor of this.neighborAudio.values()) {
       const sink = neighbor as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
       if (sink.setSinkId) await sink.setSinkId(deviceId);
     }
+    this.outputDeviceId = deviceId;
+  }
+
+  getDevices() {
+    return { inputDeviceId: this.inputDeviceId, outputDeviceId: this.outputDeviceId };
+  }
+
+  /** Replace the microphone track without leaving the parcel/channel. A failed
+   * selection leaves the existing microphone intact; disconnect cancels late permission grants. */
+  async setInputDevice(deviceId: string) {
+    const selection = ++this.inputSelection;
+    if (this.state === 'connecting')
+      throw new Error('Wait for voice to connect before changing the microphone.');
+    const peer = this.peer;
+    if (!peer) {
+      this.inputDeviceId = deviceId;
+      if (this.options) this.options = { ...this.options, inputDeviceId: deviceId };
+      return;
+    }
+    const generation = this.generation;
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      },
+      video: false,
+    });
+    const discard = () => stream.getTracks().forEach((track) => track.stop());
+    if (selection !== this.inputSelection || generation !== this.generation || this.peer !== peer) {
+      discard();
+      return;
+    }
+    // Serialize replaceTrack calls: an older slow replacement must never
+    // overwrite a newer selected device with a track we have already stopped.
+    const replacement = this.inputReplacement
+      .catch(() => {})
+      .then(async () => {
+        if (
+          selection !== this.inputSelection ||
+          generation !== this.generation ||
+          this.peer !== peer
+        ) {
+          discard();
+          return;
+        }
+        const track = stream.getAudioTracks()[0];
+        const sender = peer.getSenders().find((sender) => sender.track?.kind === 'audio');
+        if (!track || !sender) {
+          discard();
+          throw new Error('No active microphone sender is available.');
+        }
+        track.enabled = this.joined && !this.muted;
+        try {
+          await sender.replaceTrack(track);
+        } catch (error) {
+          discard();
+          throw error;
+        }
+        if (generation !== this.generation || this.peer !== peer) {
+          discard();
+          return;
+        }
+        track.enabled = this.joined && !this.muted;
+        this.localSource?.disconnect();
+        this.localSource = null;
+        this.localAnalyser = null;
+        this.stream?.getTracks().forEach((old) => old.stop());
+        this.stream = stream;
+        this.inputDeviceId = deviceId;
+        this.options = { ...this.options, inputDeviceId: deviceId };
+        this.startLocalMeter();
+      });
+    this.inputReplacement = replacement;
+    await replacement;
+  }
+
+  private startPlayback(audio: HTMLAudioElement) {
+    const sink = audio as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+    void (async () => {
+      if (this.outputDeviceId && sink.setSinkId) await sink.setSinkId(this.outputDeviceId);
+      if (audio.srcObject) await audio.play();
+    })().catch((error: unknown) => this.emit('playback_error', error));
   }
 
   private playRemote(stream: MediaStream) {
@@ -727,7 +890,7 @@ export class VoiceManager extends Utils.EventEmitter {
     this.remoteAudio.autoplay = true;
     this.remoteAudio.volume = this.speakerVolume;
     this.remoteAudio.srcObject = stream;
-    void this.remoteAudio.play().catch(() => {});
+    this.startPlayback(this.remoteAudio);
   }
 
   // ---- positions ----------------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 {
+  "exclude": ["node_modules", "dist", "build", "build-desktop", "coverage", "work"],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

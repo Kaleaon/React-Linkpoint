@@ -9,6 +9,65 @@ class ProtocolStub extends Utils.EventEmitter {
 }
 
 describe('WorldViewer data status', () => {
+  it('resolves sound positions through rotated linksets and ancestor avatar policy', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    protocol.emit('scene:object-add', {
+      id: 'root',
+      localId: 1,
+      position: [10, 20, 30],
+      rotation: [0, 0, Math.SQRT1_2, Math.SQRT1_2],
+    });
+    protocol.emit('scene:object-add', {
+      id: 'child',
+      localId: 2,
+      parentId: 1,
+      position: [2, 0, 0],
+    });
+    const pose = world.getSoundObjectPose('child')!;
+    expect(pose.position[0]).toBeCloseTo(10);
+    expect(pose.position[1]).toBeCloseTo(22);
+    expect(pose.position[2]).toBeCloseTo(30);
+    protocol.emit('scene:object-add', {
+      id: 'avatar',
+      localId: 3,
+      avatar: true,
+      position: [40, 50, 60],
+    });
+    protocol.emit('scene:object-add', {
+      id: 'hud',
+      localId: 4,
+      parentId: 3,
+      attachment: true,
+      attachmentPoint: 31,
+      position: [0.1, 0.2, 0.3],
+    });
+    protocol.emit('scene:object-add', {
+      id: 'hud-child',
+      localId: 5,
+      parentId: 4,
+      position: [1, 0, 0],
+    });
+    expect(world.getSoundObjectPose('hud-child')).toMatchObject({
+      avatarId: 'avatar',
+      policyPosition: [40, 50, 60],
+      hud: true,
+      unavailable: false,
+    });
+    protocol.emit('scene:object-update', { id: 'avatar', localId: 3, position: [70, 80, 90] });
+    expect(world.getSoundObjectPose('hud-child')!.policyPosition).toEqual([70, 80, 90]);
+    protocol.emit('scene:object-remove', { id: 'avatar', localId: 3 });
+    expect(world.getSoundObjectPose('hud-child')!.unavailable).toBe(true);
+  });
+  it('clears the rendered scene as well as simulator objects on disconnect', () => {
+    const protocol = new ProtocolStub();
+    const world = new WorldViewer(protocol);
+    const resetWorld = vi.fn();
+    world.scene3d = { resetWorld } as any;
+    protocol.emit('disconnected');
+    expect(resetWorld).toHaveBeenCalledOnce();
+    expect(world.objects).toEqual([]);
+  });
   it('reports the live simulator stream after the protocol connects', () => {
     const protocol = new ProtocolStub();
     const world = new WorldViewer(protocol);
@@ -365,6 +424,12 @@ describe('WorldViewer data status', () => {
       normalTexture: undefined,
       metallicRoughnessTexture: undefined,
       emissiveTexture: undefined,
+      textureTransforms: {
+        baseColor: { scale: [1, 1], offset: [0, 0], rotation: 0 },
+        normal: { scale: [1, 1], offset: [0, 0], rotation: 0 },
+        metallicRoughness: { scale: [1, 1], offset: [0, 0], rotation: 0 },
+        emissive: { scale: [1, 1], offset: [0, 0], rotation: 0 },
+      },
     });
     expect(obj.decodedFaceTextures[0].texture).toBe('texture:pbr-base');
   });

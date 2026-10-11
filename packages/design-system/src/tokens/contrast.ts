@@ -145,6 +145,29 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+/** Correct one text role against all of its surfaces together, preserving hue. */
+export function ensureContrastOnSurfaces(fg: string, surfaces: string[], min = 4.5): string {
+  const score = (color: string) => Math.min(...surfaces.map(bg => contrastRatio(color, bg)));
+  if (!surfaces.length || score(fg) >= min) return fg;
+  const [h, s, l] = rgbToHsl(...parseRgb(fg));
+  let best = fg, bestScore = score(fg);
+  // Prefer the closest lightness at the original saturation, then reduce saturation.
+  for (let saturation = s; saturation >= 0; saturation = Math.max(-1, saturation - 5)) {
+    for (let distance = 0; distance <= 100; distance++) {
+      for (const lightness of [l + distance, l - distance]) {
+        if (lightness < 0 || lightness > 100) continue;
+        const candidate = hslToHex(h, saturation, lightness);
+        const ratio = score(candidate);
+        if (ratio > bestScore) { best = candidate; bestScore = ratio; }
+        if (ratio >= min) return candidate;
+      }
+    }
+    if (saturation > 0 && saturation < 5) saturation = 5;
+  }
+  // Arbitrary custom surfaces can make AA mathematically impossible for one ink.
+  return best;
+}
+
 /**
  * Adjust lightness of a foreground color while preserving its hue identity to guarantee
  * a minimum contrast ratio against a background surface (WCAG 2.2 Criterion 1.4.3 & 1.4.11).

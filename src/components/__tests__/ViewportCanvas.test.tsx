@@ -29,6 +29,43 @@ afterEach(async () => {
 });
 
 describe('ViewportCanvas Component', () => {
+  it('leaves SL movement and Home bindings to the world controller while keeping zoom', async () => {
+    const move = vi.fn();
+    const reset = vi.fn();
+    const zoom = vi.fn();
+    const host = await mount({
+      manageMovementKeys: false,
+      onCameraMove: move,
+      onResetView: reset,
+      onZoom: zoom,
+    });
+    const canvas = host.querySelector('canvas')!;
+    const bubbled = vi.fn();
+    window.addEventListener('keydown', bubbled);
+    try {
+      canvas.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true, cancelable: true }),
+      );
+      canvas.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'Home',
+          key: 'Home',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      expect(move).not.toHaveBeenCalled();
+      expect(reset).not.toHaveBeenCalled();
+      expect(bubbled).toHaveBeenCalledTimes(2);
+      canvas.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Equal', key: '+', bubbles: true, cancelable: true }),
+      );
+      expect(zoom).toHaveBeenCalledWith(0.2);
+      expect(bubbled).toHaveBeenCalledTimes(2);
+    } finally {
+      window.removeEventListener('keydown', bubbled);
+    }
+  });
   it('renders canvas with ARIA attributes and tabIndex', async () => {
     const host = await mount({ regionName: 'Arah', position: [128, 128, 25] });
     const canvas = host.querySelector('canvas') as HTMLCanvasElement;

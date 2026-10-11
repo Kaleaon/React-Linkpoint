@@ -27,8 +27,8 @@ blocked), so these were found by probing likely names. Other official repositori
 
 ## Known differences from the official viewer
 
-- Voice: the viewer sends `volume * 220` for a per-person gain change but `volume * 200` when
-  re-sending a stored gain on join (both in `llvoicewebrtc.cpp`). We use 220 for both.
+- Voice: both per-person gain conversions now match `llvoicewebrtc.cpp`: `volume * 220`
+  for a change and `volume * 200` when re-sending a stored gain on join.
 - Voice: the viewer's SDP rewrite appends its `fmtp` after the original on one line; we replace the line.
 - Voice: the default ear is the avatar, not the camera, because a camera quaternion in the SL frame
   is not available; set `EarLocation.Camera` once it is.
@@ -38,6 +38,22 @@ blocked), so these were found by probing likely names. Other official repositori
 - Flexible prims: the viewer's distance-based update throttling is not implemented; twist and taper are
   baked into the mesh, not applied per section.
 - Sound: the ear follows the camera (the viewer's default); Doppler is not available in Web Audio.
+- Sound sync follows `LLAudioEngine::idle` / `LLAudioSource::updatePriority` in
+  `indra/llaudio/llaudioengine.cpp` at the same commit: one global audible master
+  chosen by gain/distance²; slaves wait for its next loop boundary. Web Audio
+  schedules that boundary on its own clock. Already-playing slaves continue;
+  pending slaves are rescheduled if their master disappears or becomes muted.
+  The official engine's channel limits and priority eviction are not implemented.
+- Attached sound placement follows `llaudiosourcevo.cpp`: ordinary sources use
+  the rendered world transform, HUDs follow the camera, and attachment parcel,
+  cut-off and ancestor mute checks use the avatar position/identity. The exception
+  allowing sounds on the object the avatar is riding across a parcel boundary
+  remains unimplemented.
+- PBR channel transforms follow `llgltfmaterial.cpp` and
+  `app_settings/shaders/class1/deferred/textureUtilV.glsl`: independent scale,
+  rotation and offset, with conversion between SL and glTF UV conventions.
+  Normal frames are reconstructed from derivatives rather than imported
+  MikkTSpace tangents. Full PBR lighting and live visual parity remain unverified.
 
 - Wind: the viewer starts a region with a 0.5 grid before its wind layer arrives; here there is no wind
   until a layer has been decoded (`RegionWind.loaded`). Only the current region's layer is used, and the
@@ -73,9 +89,10 @@ blocked), so these were found by probing likely names. Other official repositori
 
 ## Not implemented
 
-- Voice: mute click-fade, device settings UI.
-- Sound: `SYNC_MASTER` / `SYNC_SLAVE` alignment, footsteps, attachments sounding from their
-  avatar's position, collision-sound list.
+- Voice: mute click-fade. Device selection is available in Settings; speaker routing
+  depends on browser `setSinkId` support and device permissions. Selections last for
+  the current app session; category volumes persist across reloads.
+- Sound: footsteps, collision-sound list.
 - Controls: 6-axis joystick (SpaceNavigator) hardware, flycam and build-mode joystick modes.
 - RLV: not part of the official viewer; implemented from Firestorm's RLVa instead, see [rlv.md](rlv.md).
 

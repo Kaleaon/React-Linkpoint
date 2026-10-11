@@ -140,6 +140,30 @@ describe('WorldViewer.init when the view goes away mid-initialisation', () => {
     expect((world as any).cameraControls).not.toBeNull();
     expect(canvas.style.touchAction).toBe('none');
   });
+
+  it('rebuilds GPU resources and resumes rendering after WebGL context recovery', async () => {
+    const world = new WorldViewer(new ProtocolStub());
+    const canvas = makeCanvas();
+    const initialising = world.init(canvas);
+    graphicsInstances[0].resolveInit();
+    await initialising;
+    const states = vi.fn();
+    world.on('renderer_state', states);
+    const lost = new Event('webglcontextlost', { cancelable: true });
+    canvas.dispatchEvent(lost);
+    expect(lost.defaultPrevented).toBe(true);
+    expect(cancelAnimationFrame).toHaveBeenCalled();
+    expect(states).toHaveBeenLastCalledWith(expect.objectContaining({ ready: false }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(graphicsInstances).toHaveLength(2);
+    graphicsInstances[1].resolveInit();
+    await vi.waitFor(() => expect(states).toHaveBeenLastCalledWith({ ready: true, message: '' }));
+    expect(graphicsInstances[0].destroy).toHaveBeenCalledOnce();
+    expect(world.graphics3d).toBe(graphicsInstances[1]);
+    world.destroyRenderer(canvas);
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(graphicsInstances).toHaveLength(2);
+  });
 });
 
 describe('WorldViewer.init on a canvas it already owns', () => {

@@ -166,6 +166,7 @@ describe('Flexible Prim Dynamics', () => {
         addObject: (id: string, c: any) => objects.set(id, c),
         updateObject,
         removeObject: (id: string) => objects.delete(id),
+        resetWorld: () => objects.clear(),
         objects,
       } as any;
       return { world, protocol, updateObject, objects };

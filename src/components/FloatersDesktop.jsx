@@ -26,7 +26,7 @@ export default function FloatersDesktop() {
   const DESKTOP_TOP = G.top;
   const DESKTOP_RAIL = G.rail;
   // Sweep floaters have a 10px cap down the left edge; Metro ones a 3px accent line on top.
-  const btnRadius = kind === 'sweep' ? '999px' : kind === 'metro' ? 0 : V.rs;
+  const btnRadius = kind === 'default' ? V.rs : 0;
   const bodyInsetX = kind === 'sweep' ? 10 : 0;
   const bodyInsetTop = kind === 'metro' ? 3 : 0;
   const [quickMsg, setQuickMsg] = useState('');
@@ -105,7 +105,10 @@ export default function FloatersDesktop() {
   };
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: V.bg }}>
+    <div
+      data-layout={kind === 'sweep' ? 'sweep' : state.layout}
+      style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: V.bg }}
+    >
       <div onClick={() => state.menu && actions.setMenu(null)} style={flScene}>
         {/* Desktop uses the same live WebGL scene and simulator object stream as
             mobile. Floaters and desktop chrome remain layered above it. */}
@@ -143,7 +146,7 @@ export default function FloatersDesktop() {
               ...(kind === 'sweep'
                 ? {
                     ...sideBorder('Left', '10px', V.pri),
-                    borderRadius: '26px 18px 18px 18px',
+                    borderRadius: 0,
                     boxShadow: 'none',
                   }
                 : kind === 'metro'
@@ -368,7 +371,7 @@ export default function FloatersDesktop() {
                     padding: '0 8px',
                     background: act ? V.sec : V.sec2,
                     color: act ? V.bg : V.onsec,
-                    borderRadius: '18px 0 10px 0',
+                    borderRadius: 0,
                     font: '700 9.5px/1 ' + t.dfont,
                     letterSpacing: '.1em',
                     flex: 'none',
@@ -531,7 +534,7 @@ export default function FloatersDesktop() {
             background: V.surf,
             ...floaterStyle(kind, { V, t, act: true, ink }).bodyBorder,
             borderBottomLeftRadius: kind === 'default' ? V.rp : 0,
-            borderBottomRightRadius: kind === 'default' ? V.rp : kind === 'sweep' ? 14 : 0,
+            borderBottomRightRadius: kind === 'default' ? V.rp : 0,
             boxSizing: 'border-box',
             zIndex: 50,
           }}
@@ -563,7 +566,7 @@ export default function FloatersDesktop() {
               : kind === 'metro'
                 ? 'none'
                 : '1px solid ' + V.outv,
-          borderTopRightRadius: kind === 'sweep' ? 999 : 0,
+          borderTopRightRadius: 0,
           zIndex: 60,
         }}
       >
@@ -592,7 +595,7 @@ export default function FloatersDesktop() {
                 background: 'var(--chat-bg-scrim, ' + V.bg + ')',
                 color: 'var(--chat-text, ' + V.ink + ')',
                 border: '1px solid ' + V.outv,
-                borderRadius: kind === 'sweep' ? '999px' : kind === 'metro' ? 0 : V.rs,
+                borderRadius: kind === 'default' ? V.rs : 0,
                 font: '400 11px/1 ' + t.font,
               }}
             />
@@ -605,7 +608,7 @@ export default function FloatersDesktop() {
               background: V.pri,
               color: ink(V.pri, [V.bg, V.onpri, V.ink]),
               border: 'none',
-              borderRadius: kind === 'sweep' ? '999px' : kind === 'metro' ? 0 : V.rs,
+              borderRadius: kind === 'default' ? V.rs : 0,
               font: kind === 'metro' ? '300 12px/1 ' + t.dfont : '700 9.5px/1 ' + t.dfont,
               letterSpacing: kind === 'metro' ? '0' : '.12em',
               textTransform: kind === 'metro' ? 'lowercase' : 'none',

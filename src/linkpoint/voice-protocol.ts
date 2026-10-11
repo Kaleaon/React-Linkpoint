@@ -9,7 +9,7 @@
  *
  * Known inconsistency in the official viewer itself: a per-user volume change is sent as
  * `volume * 220` (`PEER_GAIN_CONVERSION_FACTOR`, `setUserVolume`), but the value re-sent when a
- * participant joins is `volume * 200`. This module uses 220 for both and exposes the constant.
+ * participant joins is `volume * 200`. Both conversions are preserved.
  * Not exercised against a live voice server.
  */
 
@@ -18,6 +18,7 @@ export const VOICE_SERVER_TYPE = 'webrtc';
 export const MAX_AUDIO_DIST = 50;
 /** `ug` (per-participant gain) = volume (0..1) * this, as an unsigned integer. */
 export const PEER_GAIN_CONVERSION_FACTOR = 220;
+export const JOIN_GAIN_CONVERSION_FACTOR = 200;
 /** The viewer's own level meter maps a raw level to 0..1 with these constants. */
 export const LEVEL_SCALE = 0.005;
 export const LEVEL_START_POINT = 0.18;
@@ -196,12 +197,15 @@ export const joinMessage = (primary: boolean) => JSON.stringify({ j: primary ? {
 export const muteMessage = (muted: Readonly<Record<string, boolean>>) =>
   JSON.stringify({ m: muted });
 /** Per-participant playback gain as a 0..1 fraction. */
-export const userGainMessage = (gains: Readonly<Record<string, number>>) =>
+export const userGainMessage = (gains: Readonly<Record<string, number>>, onJoin = false) =>
   JSON.stringify({
     ug: Object.fromEntries(
       Object.entries(gains).map(([id, v]) => [
         id,
-        Math.max(0, Math.trunc(Math.max(0, v) * PEER_GAIN_CONVERSION_FACTOR)),
+        Math.trunc(
+          (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0) *
+            (onJoin ? JOIN_GAIN_CONVERSION_FACTOR : PEER_GAIN_CONVERSION_FACTOR),
+        ),
       ]),
     ),
   });

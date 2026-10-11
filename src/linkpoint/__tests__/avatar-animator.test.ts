@@ -25,6 +25,33 @@ const makeAnim = (over: Partial<KeyframeAnimation> = {}): KeyframeAnimation => (
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('AvatarAnimator retries', () => {
+  it.each(['remove', 'clear'] as const)(
+    'does not resurrect an avatar after %s while a retry is pending',
+    async (cleanup) => {
+      let t = 0;
+      let attempts = 0;
+      const scheduled: Array<() => void> = [];
+      const animator = new AvatarAnimator(
+        async () => {
+          attempts++;
+          return null;
+        },
+        () => t,
+        (run) => {
+          scheduled.push(run);
+        },
+      );
+      animator.setAnimations('avatar', [{ id: 'failed', seq: 1 }]);
+      await flush();
+      if (cleanup === 'remove') animator.remove('avatar');
+      else animator.clear();
+      t = 31;
+      scheduled.shift()!();
+      await flush();
+      expect(attempts).toBe(1);
+      expect(animator.subjects()).toEqual([]);
+    },
+  );
   it('asks again for an animation whose download failed while the simulator still wants it, a bounded number of times', async () => {
     let t = 0;
     const scheduled: Array<() => void> = [];

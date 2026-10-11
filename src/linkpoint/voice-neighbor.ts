@@ -28,6 +28,7 @@ export class VoiceNeighborConnection {
   private dataChannel: RTCDataChannel | null = null;
   private viewerSession = '';
   private closed = false;
+  private cancelSignaling: (() => void) | null = null;
   joined = false;
 
   constructor(
@@ -40,6 +41,7 @@ export class VoiceNeighborConnection {
   }
 
   async connect() {
+    if (this.closed || this.peer) return;
     const peer = new RTCPeerConnection({ iceServers: iceServersForGrid(this.options.grid) });
     this.peer = peer;
     try {
@@ -64,7 +66,7 @@ export class VoiceNeighborConnection {
       const pending: RTCIceCandidateInit[] = [];
       let gatheringDone = false;
       const flush = async () => {
-        if (!this.viewerSession) return;
+        if (this.closed || !this.viewerSession) return;
         if (pending.length) {
           const body = signalingBody(this.viewerSession, pending.splice(0), false);
           if (body) await slBridge.voiceSignal(body).catch(() => {});
@@ -76,6 +78,11 @@ export class VoiceNeighborConnection {
         }
       };
       let flushTimer: ReturnType<typeof setTimeout> | undefined;
+      this.cancelSignaling = () => {
+        if (flushTimer !== undefined) clearTimeout(flushTimer);
+        peer.onicecandidate = null;
+        peer.ontrack = null;
+      };
       peer.onicecandidate = ({ candidate }) => {
         if (candidate) {
           pending.push(candidate.toJSON());
@@ -93,8 +100,10 @@ export class VoiceNeighborConnection {
       };
 
       const offer = await peer.createOffer({ offerToReceiveAudio: true });
+      if (this.closed) return;
       const sdp = mungeOpusSdp(offer.sdp || '');
       await peer.setLocalDescription({ type: 'offer', sdp });
+      if (this.closed) return;
       // Estate channel: provisioned on the neighbour without a parcel id.
       const response = await slBridge.voiceProvision(
         provisionBody(sdp, { kind: 'local' }),
@@ -109,6 +118,7 @@ export class VoiceNeighborConnection {
         return;
       }
       await peer.setRemoteDescription(answer);
+      if (this.closed) return;
       await flush();
     } catch (error) {
       await this.close();
@@ -122,6 +132,8 @@ export class VoiceNeighborConnection {
 
   async close() {
     this.closed = true;
+    this.cancelSignaling?.();
+    this.cancelSignaling = null;
     this.joined = false;
     if (this.peer) this.peer.onconnectionstatechange = null;
     if (this.dataChannel) {
