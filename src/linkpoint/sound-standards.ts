@@ -330,7 +330,8 @@ export class AttachedSounds {
       if (flags & SOUND_FLAG.STOP) return [{ type: 'stop', objectId }];
       return [];
     }
-    if (flags & SOUND_FLAG.LOOP && state?.loop && state.soundId === soundId) return []; // already looping this
+    if (flags & SOUND_FLAG.LOOP && state?.loop && !state.done && state.soundId === soundId)
+      return []; // already looping this
     const actions: AttachedSoundAction[] = [];
     let current = state;
     if (current?.done) {

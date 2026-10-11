@@ -11,6 +11,7 @@ import Toast from './Toast.jsx';
 import BottomTabs from './BottomTabs.jsx';
 import TileNav from './TileNav.jsx';
 import { DeviceFrame as SystemDeviceFrame } from '@linkpoint/design-system/react';
+import { generateCssVariables } from '@linkpoint/design-system/css';
 import { LAYOUTS } from '@linkpoint/design-system/tokens';
 
 // The React deliverable is the application itself, not the GitHub Pages
@@ -22,6 +23,7 @@ export default function DeviceFrame() {
   const loggedIn = app.auth.isLoggedIn();
 
   const frameStyle = {
+    ...generateCssVariables(V),
     position: 'relative',
     overflow: 'hidden',
     background: V.bg,
@@ -44,7 +46,7 @@ export default function DeviceFrame() {
   };
 
   return (
-    <div className="device-frame">
+    <div className="device-frame" data-layout={t.nav === 'SWEEP' ? 'sweep' : state.layout}>
       <div style={frameStyle}>
         {loggedIn && state.screen !== 'Login' && <MenuBar />}
         <div style={cfWrap}>

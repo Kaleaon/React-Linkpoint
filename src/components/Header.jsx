@@ -128,7 +128,7 @@ function StackHead({ title, subtitle, scr }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: V.pri,
+                color: V.priText,
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
@@ -177,7 +177,7 @@ function SweepHead({ title, subtitle }) {
           style={{
             font: '700 22px/1 ' + t.dfont,
             letterSpacing: '.14em',
-            color: V.pri,
+            color: V.priText,
             flex: '0 1 auto',
             minWidth: 0,
             overflow: 'hidden',
@@ -295,7 +295,7 @@ function RuleHead({ title, subtitle }) {
           padding: '12px 0 10px',
           font: '600 15px/1.1 ' + t.dfont,
           letterSpacing: V.tls,
-          color: V.pri,
+          color: V.priText,
           textIndent: V.tls,
         }}
       >

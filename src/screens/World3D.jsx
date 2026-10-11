@@ -14,6 +14,7 @@ import Icon from '../components/Icon.jsx';
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
   const canvasRef = useRef(null);
+  const sectionRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [position, setPosition] = useState([0, 0, 0]);
@@ -82,12 +83,30 @@ export default function World3D({ desktopBackdrop = false }) {
   }, [showOutfitDrawer]);
 
   useEffect(() => {
-    const handleResize = () => setViewportWidth(window.innerWidth);
+    const handleResize = () =>
+      setViewportWidth(sectionRef.current?.clientWidth || window.innerWidth);
+    const observer =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
+    if (sectionRef.current) observer?.observe(sectionRef.current);
+    handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateRenderer = ({ ready, message }) => {
+      setReady(ready);
+      setError(message || '');
+    };
+    app.world.on('renderer_state', updateRenderer);
+    return () => app.world.off('renderer_state', updateRenderer);
   }, []);
 
   const isSmallViewport = viewportWidth < 480;
+  const isCompactViewport = viewportWidth < 1000;
   const isDesktopViewport = viewportWidth >= 768;
 
   useEffect(() => {
@@ -136,17 +155,12 @@ export default function World3D({ desktopBackdrop = false }) {
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
           target.isContentEditable);
-      if (isInput) return;
+      if (isInput || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey)
+        return;
 
       if (event.key === 'h' || event.key === 'H') {
         event.preventDefault();
         toggleOverlays();
-      } else if (
-        event.key === 'Home' ||
-        ((event.ctrlKey || event.metaKey) && (event.key === 'r' || event.key === 'R'))
-      ) {
-        event.preventDefault();
-        handleResetView();
       } else if (event.key === 'Escape') {
         if (selection) {
           event.preventDefault();
@@ -278,7 +292,7 @@ export default function World3D({ desktopBackdrop = false }) {
     : { flex: 1, minHeight: 0, position: 'relative', background: '#000' };
 
   return (
-    <section aria-label="3D world view" style={sceneStyle}>
+    <section ref={sectionRef} aria-label="3D world view" style={sceneStyle}>
       <ViewportCanvas
         ref={canvasRef}
         id={desktopBackdrop ? 'world-canvas-backdrop' : 'world-canvas'}
@@ -290,6 +304,7 @@ export default function World3D({ desktopBackdrop = false }) {
           refresh();
         }}
         onResetView={handleResetView}
+        manageMovementKeys={false}
         onPan={(dx, dy) => {
           app.world.camera3d?.pan(-dx * 0.02, dy * 0.02);
           refresh();
@@ -312,7 +327,7 @@ export default function World3D({ desktopBackdrop = false }) {
           <TouchTarget
             minSize={44}
             aria-label="Reset Camera View"
-            title="Reset Camera View (Home key)"
+            title="Reset Camera View"
             onClick={handleResetView}
             style={{
               display: 'flex',
@@ -377,7 +392,7 @@ export default function World3D({ desktopBackdrop = false }) {
             <TouchTarget
               minSize={44}
               aria-label="Reset Camera View"
-              title="Reset View (Home key)"
+              title="Reset View"
               onClick={handleResetView}
               style={{
                 display: 'flex',
@@ -429,7 +444,7 @@ export default function World3D({ desktopBackdrop = false }) {
                 style={{
                   position: 'absolute',
                   left: 12,
-                  top: 12,
+                  top: isCompactViewport ? 280 : 66,
                   padding: 8,
                   maxWidth: 'min(280px, calc(100% - 24px))',
                   maxHeight: '38%',
@@ -572,7 +587,10 @@ export default function World3D({ desktopBackdrop = false }) {
                 style={{
                   position: 'absolute',
                   left: 12,
-                  top: 12,
+                  top: isCompactViewport ? 66 : 12,
+                  maxWidth: isCompactViewport ? 'calc(100% - 24px)' : 'calc(50% - 220px)',
+                  minHeight: 44,
+                  boxSizing: 'border-box',
                   padding: '4px 8px',
                   background: 'rgba(0, 0, 0, 0.7)',
                   color: V.ink,
@@ -586,7 +604,14 @@ export default function World3D({ desktopBackdrop = false }) {
                   gap: 6,
                 }}
               >
-                <span>
+                <span
+                  style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   <strong>{region}</strong> · {position.join(', ')}
                 </span>
                 <button
@@ -633,7 +658,7 @@ export default function World3D({ desktopBackdrop = false }) {
               style={{
                 position: 'absolute',
                 left: 12,
-                top: 12,
+                top: isCompactViewport ? 66 : 12,
                 zIndex: 22,
                 background: 'rgba(0, 0, 0, 0.65)',
                 color: V.pri,
@@ -658,10 +683,13 @@ export default function World3D({ desktopBackdrop = false }) {
             data-testid="interaction-mode-selector"
             style={{
               position: 'absolute',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              top: 12,
+              left: isCompactViewport ? 12 : '50%',
+              right: isCompactViewport ? 12 : undefined,
+              transform: isCompactViewport ? undefined : 'translateX(-50%)',
+              top: isCompactViewport ? 118 : 12,
               display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
               alignItems: 'center',
               gap: 4,
               background: 'rgba(0, 0, 0, 0.7)',
@@ -850,6 +878,7 @@ export default function World3D({ desktopBackdrop = false }) {
 
           {/* Mobile Overlay Controls (D-pad, camera presets, side toolbars) */}
           <MobileOverlayControls
+            style={{ paddingTop: isCompactViewport ? 174 : 70 }}
             cameraPreset={cameraPreset}
             onCameraChange={(preset) => {
               app.world.setCameraPreset(preset);
@@ -858,7 +887,6 @@ export default function World3D({ desktopBackdrop = false }) {
             }}
             onMove={move}
             onRefreshScene={handleRefreshScene}
-            onToggleOverlays={toggleOverlays}
             showDpad={showDpad}
             onToggleDpad={() => setShowDpad((prev) => !prev)}
             panMode={panMode}
@@ -887,7 +915,9 @@ export default function World3D({ desktopBackdrop = false }) {
             style={{
               position: 'absolute',
               left: 14,
-              top: showDiagnostics ? (diagnosticsExpanded ? '42%' : 46) : 14,
+              bottom: showDpad ? 160 : 14,
+              maxWidth: 'calc(100% - 28px)',
+              flexWrap: 'wrap',
               zIndex: 25,
               display: 'flex',
               alignItems: 'center',

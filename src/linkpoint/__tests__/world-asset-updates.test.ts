@@ -121,7 +121,14 @@ describe('simulator asset replacement and material hydration', () => {
     protocol.emit('scene:texture-ready', image('normal'));
     protocol.emit('scene:material-ready', {
       assetId: 'material',
-      material: { textures: { baseColor: { scale: [2, 3], offset: [0.1, 0.2], rotation: 0.7 } } },
+      material: {
+        textures: {
+          baseColor: { scale: [2, 3], offset: [0.1, 0.2], rotation: 0.7 },
+          normal: { scale: [4, 5], offset: [0.6, 0.7], rotation: 1.2 },
+          metallicRoughness: { scale: [6, 7], offset: [0.2, 0.3], rotation: 0.8 },
+          emissive: { scale: [8, 9], offset: [0.3, 0.4], rotation: 0.9 },
+        },
+      },
     });
     protocol.emit('scene:object-add', {
       ...prim,
@@ -129,7 +136,11 @@ describe('simulator asset replacement and material hydration', () => {
         {
           materialId: 'material',
           materialOverride: {
-            textureTransforms: [{ offset: [0.4, 0.5] }],
+            textureTransforms: {
+              0: { offset: [0.4, 0.5] },
+              1: { rotation: 0 },
+              3: { scale: [1, 2] },
+            },
             textures: { 1: 'normal' },
           },
         },
@@ -139,7 +150,16 @@ describe('simulator asset replacement and material hydration', () => {
       repeat: [2, 3],
       offset: [0.4, 0.5],
       rotation: 0.7,
-      pbr: { normalTexture: 'texture:normal', baseColorTexture: undefined },
+      pbr: {
+        normalTexture: 'texture:normal',
+        baseColorTexture: undefined,
+        textureTransforms: {
+          baseColor: { scale: [2, 3], offset: [0.4, 0.5], rotation: 0.7 },
+          normal: { scale: [4, 5], offset: [0.6, 0.7], rotation: 0 },
+          metallicRoughness: { scale: [6, 7], offset: [0.2, 0.3], rotation: 0.8 },
+          emissive: { scale: [1, 2], offset: [0.3, 0.4], rotation: 0.9 },
+        },
+      },
     });
   });
 

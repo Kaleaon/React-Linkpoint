@@ -17,7 +17,7 @@ export default function Toast() {
     }
   }, [state.toast]);
 
-  if (!state.toast) return null;
+  if (!state.toast || t.nav === 'SWEEP') return null;
 
   const toastStyle = {
     position: 'absolute',

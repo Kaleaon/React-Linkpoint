@@ -12,16 +12,16 @@ Copy the contents of `scripts/codex-setup.sh` into the Codex setup-script field,
 or run it from anywhere inside the checkout. It fetches the exact Bun binary
 through npm's user cache (without requiring a global or privileged install),
 installs locked dependencies, creates a credential-free local environment
-file, and directly runs the TypeScript check, complete Vitest suite, and
+file. Add `--check` to run the TypeScript check, complete Vitest suite, and
 production web build:
 
 ```bash
-./scripts/codex-setup.sh
+./scripts/codex-setup.sh --check
 ```
 
 The script is self-contained and does not call another test/setup script (it only runs the dependency patcher `scripts/patch-metaverse.cjs`, and falls back to npm if Bun cannot fetch GitHub dependencies). Use
 `./scripts/codex-setup.sh --skip-check` when a Codex environment should only be
-provisioned, then re-run without that flag to validate it. The automated checks
+provisioned, then re-run with `--check` to validate it. The automated checks
 do not need Second Life or Gemini credentials. The setup intentionally skips
 the Electron runtime download because the standard checks do not launch
 Electron; omit `ELECTRON_SKIP_BINARY_DOWNLOAD` and reinstall dependencies when
@@ -83,7 +83,7 @@ executable; macOS users can extract the `.zip` and open the app bundle.
 
 ### Design system & common reference frame
 
-This application implements the universal **[Linkpoint Design](https://github.com/Kaleaon/linkpoint-design)** reference frame (`docs/DESIGN_LANGUAGE.md`). Design tokens, 24 Ktheme palette packs, layout packs (Tabs, Rail, Sweep Console/LCARS, Metro Tiles, Aero Glass, Floaters Desktop), and component definitions are synchronized from `linkpoint-design` via `npm run sync-design`.
+This application implements the universal **[Linkpoint Design](https://github.com/Kaleaon/linkpoint-design)** reference frame (`docs/DESIGN_LANGUAGE.md`). The viewer combines 24 Ktheme palette packs with independent layout packs. The shared components now follow CleverFerret Design’s revised LCARS split frame for Sweep Console, with a black LCARS reference field, unboxed readouts, and concentric opposing elbows. `npm run sync-design` validates the local package integration. Reference snapshots and adapter differences are documented in `docs/DESIGN_LANGUAGE.md`.
 
 To review the interactive design canvas during local development, run the dev server and add `?design`:
 
@@ -140,7 +140,8 @@ targets are rejected.
 
 ## GitHub Pages deployment
 
-This repo is configured to build with a production base path of `/React-Linkpoint/` by default.
+The production base path defaults to `/`. For GitHub Pages repository hosting,
+set `VITE_BASE_PATH=/React-Linkpoint/` when building.
 
 If your repository name/path is different, set a custom base at build time:
 
@@ -229,16 +230,38 @@ the client never sends credentials through a public proxy.
 
 ### 3D world support
 
-The packaged desktop viewer uses `@caspertech/node-metaverse` to establish the
+The shared viewer session uses `@caspertech/node-metaverse` to establish the
 simulator UDP circuit, handle reliable packets/ACKs, decode object updates, and
-send/receive nearby chat. Decoded object and avatar transforms are streamed
-through the isolated Electron bridge and applied to the WebGL scene.
+send/receive nearby chat. Desktop calls use the isolated Electron bridge.
+Browser/PWA calls use the Node backend over HTTP and server-sent events;
+the backend holds the UDP circuit and streams scene updates to WebGL.
+Static hosting alone cannot provide that connection: deploy and route `/api/*`
+to the backend as described in [backend deployment](docs/backend-deployment.md).
 
-The browser/PWA build cannot open a simulator UDP circuit and therefore remains
-limited to login/capability metadata. It labels this state explicitly. The
-desktop scene currently represents decoded objects with basic cube/avatar
-geometry; complete Firestorm-equivalent terrain, prim parameter meshing,
-textures, mesh/sculpt assets, avatar appearance/animation, spatial sound, and
-Vivox voice rendering remain separate renderer/media work. Vivox voice also
-requires service credentials and the licensed Vivox SDK supplied to approved
-viewer projects; it cannot be implemented by substituting ordinary WebRTC.
+The WebGL renderer supports simulator terrain, parametric prims, mesh/sculpt assets,
+textures and materials, avatar skinning/animation, particles and flexible prims.
+Spatial sounds use Web Audio; voice implements Second Life's current WebRTC
+capabilities and `SLData` protocol, including parcel channels and neighboring
+regions. This is distinct from the older Vivox voice backend.
+
+Renderer resources are rebuilt after WebGL context recovery. Disconnect clears
+session geometry and cancels sound/voice work, including late downloads and
+microphone requests. Phone and narrow-panel controls use separate overlay rows;
+movement keys follow the SL controller while canvas zoom remains available.
+
+PBR base-color, normal, metallic/roughness and emissive maps have independent
+transforms, including partial simulator overrides and SL/glTF UV conversion.
+Normal maps use a tangent frame derived from their own UVs; WebGL 1 and 2 compile
+compatible shader stages. Shader failures surface as renderer errors.
+Attached sounds resolve linkset/joint positions, HUD camera placement and ancestor
+avatar parcel/mute rules. Synchronized slaves wait for the audible master's next
+loop boundary. Sound queues use the official viewer's single pending slot.
+Settings includes voice microphone/speaker selection and persistent voice,
+object, interface and ambient volumes; master mute also silences voice playback.
+Changing a microphone retains the current voice connection and mute state.
+
+These implementations do not establish full official-viewer parity. Live simulator
+and voice-server testing, full avatar shape morphing, complete PBR lighting,
+footsteps, voice mute click-fade and native platform validation remain outstanding.
+See [official sources and known differences](docs/official-sources.md) and the
+[viewer parity audit](docs/viewer-parity.md) for the documented scope.

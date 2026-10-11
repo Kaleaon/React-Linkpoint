@@ -20,6 +20,19 @@ function makeScene() {
 }
 
 describe('Scene3D rendering state', () => {
+  it('drops session objects, HUD, terrain and wind when the grid disconnects', () => {
+    const { scene, graphics } = makeScene();
+    scene.addObject('old-object', { position: [1, 2, 3] });
+    scene.setTerrain([1, 2, 3, 4], 2);
+    scene.setWindVector([1, 2, 3]);
+    scene.setDisplayedHud('old-hud', 1);
+    scene.resetWorld();
+    expect(scene.objects.size).toBe(0);
+    expect(scene.displayedHud).toBeNull();
+    expect(scene.windVector).toBeNull();
+    scene.renderGrid(new Float32Array(16), new Float32Array(16));
+    expect(graphics.drawMesh.mock.calls.at(-1)![0]).toBe('grid');
+  });
   it('keeps every simulator terrain sample so ground and prim positions agree', () => {
     const { scene, graphics } = makeScene();
     const size = 256;
@@ -87,8 +100,53 @@ describe('Scene3D rendering state', () => {
       uFullBright: false,
       uUseNormalTexture: false,
       uAlphaMode: 0,
+      uUsePbr: false,
     });
     expect(Array.from(uniforms.uTexTransform)).toEqual([1, 1, 0, 0]);
+  });
+
+  it('passes independent PBR transforms and resets missing channels between faces', () => {
+    const { scene, graphics } = makeScene();
+    scene.addObject('pbr', {
+      meshes: [
+        { mesh: 'first', materialIndex: 0 },
+        { mesh: 'second', materialIndex: 1 },
+      ],
+      faces: [
+        {
+          pbr: {
+            textureTransforms: {
+              baseColor: { scale: [2, 3], offset: [0.1, 0.2], rotation: 0.4 },
+              normal: { scale: [4, 5], offset: [0.3, 0.4], rotation: 0.7 },
+              emissive: { scale: [6, 7], offset: [0.5, 0.6], rotation: 0.9 },
+            },
+          },
+        },
+        { pbr: {} },
+      ],
+    });
+    scene.renderObject(scene.objects.get('pbr'), new Float32Array(16), new Float32Array(16));
+    const first = graphics.drawMesh.mock.calls[0][2],
+      second = graphics.drawMesh.mock.calls[1][2];
+    expect(first.uUsePbr).toBe(true);
+    expect(Array.from(first.uBaseColorTransform)).toEqual([
+      2,
+      3,
+      expect.closeTo(0.1),
+      expect.closeTo(0.2),
+    ]);
+    expect(Array.from(first.uNormalTransform)).toEqual([
+      4,
+      5,
+      expect.closeTo(0.3),
+      expect.closeTo(0.4),
+    ]);
+    expect(first.uNormalRotation).toBe(0.7);
+    expect(first.uEmissiveRotation).toBe(0.9);
+    for (const role of ['BaseColor', 'Normal', 'MetallicRoughness', 'Emissive']) {
+      expect(Array.from(second[`u${role}Transform`])).toEqual([1, 1, 0, 0]);
+      expect(second[`u${role}Rotation`]).toBe(0);
+    }
   });
 
   it('persists the environment sky color through the graphics clear path', () => {

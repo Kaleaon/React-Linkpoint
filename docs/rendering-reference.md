@@ -17,8 +17,24 @@ Apktool 2.11.1 decoded the DEX into smali using baksmali. JADX 1.5.2 produced Ja
 
 The newer GLTF/PBR override fixes are grounded in this repository's node-metaverse structures and renderer tests, not in the 2019 Lumiya APK. Partial overrides now preserve inherited base-color transform components and honor standalone emissive, alpha-cutoff, and double-sided values.
 
+The follow-up renderer also resolves independent base-color, normal,
+metallic/roughness and emissive transforms from material assets and sparse
+simulator overrides. UV conversion follows the official viewer's
+`class1/deferred/textureUtilV.glsl` at `7dd6de6120ce`: flip the SL V coordinate,
+apply scale/rotation/offset from the glTF origin, and flip it back. PBR maps do
+not inherit the legacy face transform. Normal maps use derivatives of their
+own UVs to build a tangent frame. GLSL ES 3.00 is used on WebGL 2; WebGL 1 uses
+the standard derivatives extension where available. Shader compilation failures
+prevent the renderer from reporting successful initialization.
+
+Chromium pixel checks on both WebGL versions verify independent base/emissive
+offsets, rotation, and normal-map orientation. These supplement material merge,
+uniform isolation and renderer recovery regressions. Software WebGL testing
+does not replace real GPU/device or live-grid validation. Complete PBR lighting,
+environment reflections and imported tangent parity remain unverified.
+
 A failed base-body download now exposes the existing avatar marker until a retry installs the real skinned body. Successful loading still hides the marker. This is a recovery fix for this viewer, not a claim that Lumiya draws the same fallback geometry.
 
 The viewport change restores the single-canvas World3D integration because its renderer lifecycle does not support remounting canvases through the split-pane compositor. The compositor implementation remains available for future integration with explicit renderer ownership.
 
-These checks cover decoded geometry, simulator event propagation, material uniforms/state, and UI lifecycle. They do not establish live-grid visual parity, full avatar shape morphing, or independent transforms for every PBR texture channel.
+These checks cover decoded geometry, simulator event propagation, material uniforms/state, and UI lifecycle. They do not establish live-grid visual parity or full avatar shape morphing.

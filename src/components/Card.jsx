@@ -3,7 +3,7 @@ import { cardLooks, cardAccentStyle, actionButtonStyle } from '../theme/look.js'
 import Icon from './Icon.jsx';
 import Toggle from './Toggle.jsx';
 import AccessibleButton from './AccessibleButton.jsx';
-import { Card as SystemCard } from '@linkpoint/design-system/react';
+import { SectionHeading } from '@linkpoint/design-system/react';
 import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
 
 // Ported from the CARDS.map(...) block + the `isCards` template section
@@ -18,27 +18,7 @@ export default function Card({ c }) {
   // card chrome and prints a tracked label, so a long preferences screen reads as
   // sections instead of thirty identical boxes.
   if (c.sect) {
-    return (
-      <div
-        style={{
-          border: 'none',
-          borderRadius: 0,
-          background: 'transparent',
-          padding: LK.card === 'flat' ? '18px 16px 2px' : '18px 2px 2px',
-        }}
-      >
-        <span
-          style={{
-            font: '700 10px/1.4 ' + t.font,
-            letterSpacing: '.26em',
-            color: V.ink2,
-            textTransform: 'uppercase',
-          }}
-        >
-          {c.title}
-        </span>
-      </div>
-    );
+    return <SectionHeading title={c.title} tokens={V} font={t.dfont} console={LK.card === 'cap'} />;
   }
 
   const style = {
@@ -50,10 +30,10 @@ export default function Card({ c }) {
   return (
     <div style={style}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-        {c.icon && <Icon name={c.icon} size={16} style={{ color: V.pri }} />}
+        {c.icon && <Icon name={c.icon} size={16} style={{ color: V.priText }} />}
         <span style={{ flex: 1, font: '600 13px/1.25 ' + t.font, color: V.ink }}>{c.title}</span>
         {c.right != null && c.right !== '' && (
-          <span style={{ font: '400 10.5px/1 ' + t.font, color: V.ink2 }}>{c.right}</span>
+          <span style={{ font: '400 12px/1.3 ' + t.font, color: V.ink2 }}>{c.right}</span>
         )}
         {c.rights && c.rights.length ? (
           <span style={{ display: 'flex', gap: '4px', flex: 'none' }}>
@@ -97,9 +77,10 @@ export default function Card({ c }) {
               marginLeft: '10px',
               background: V.surf2,
               color: V.ink,
-              border: '1px solid ' + V.outv,
-              borderRadius: V.rs,
+              border: LK.card === 'cap' ? 'none' : '1px solid ' + V.outv,
+              borderRadius: LK.card === 'cap' ? 0 : V.rs,
               padding: '4px 8px',
+              minHeight: '48px',
               font: '400 12px/1 ' + t.font,
               maxWidth: '150px',
               textOverflow: 'ellipsis',

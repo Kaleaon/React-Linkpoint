@@ -3,6 +3,7 @@ build/
 build-desktop/
 dist/
 coverage/
+work/
 .DS_Store
 *.log
 .env*

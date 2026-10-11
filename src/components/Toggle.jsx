@@ -1,9 +1,34 @@
 import { useTheme } from '../context/ThemeContext.jsx';
+import { inkOn } from '@linkpoint/design-system/tokens';
 import AccessibleButton from './AccessibleButton.jsx';
 
 // Ported from CARDS[].toggleStyle/knobStyle in renderVals().
 export default function Toggle({ on, onClick, disabled = false, ...props }) {
-  const { V } = useTheme();
+  const { V, t } = useTheme();
+  if (t.nav === 'SWEEP')
+    return (
+      <AccessibleButton
+        as="button"
+        role="switch"
+        aria-checked={on}
+        disabled={disabled}
+        onClick={onClick}
+        style={{
+          minWidth: 64,
+          minHeight: 48,
+          flex: 'none',
+          border: 0,
+          borderRadius: 0,
+          background: on ? V.pri : V.sec2,
+          color: on ? V.onpri : inkOn(V.sec2),
+          font: '700 12px/1 ' + t.dfont,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+        {...props}
+      >
+        {on ? 'ON' : 'OFF'}
+      </AccessibleButton>
+    );
   return (
     <AccessibleButton
       as="span"

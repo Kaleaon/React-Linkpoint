@@ -10,6 +10,7 @@ import { loadGoogle } from '../services/google.ts';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
+import VoiceDevices from '../components/VoiceDevices.jsx';
 import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from '@linkpoint/design-system/tokens';
 
 function SwitchSetting({ id, title, description, on, onClick }) {
@@ -43,8 +44,23 @@ function SwitchSetting({ id, title, description, on, onClick }) {
 
 export default function Settings() {
   const { state, actions } = useApp();
-  const { V, t } = useTheme();
+  const { V, t, LK } = useTheme();
   const contentRef = useRef(null);
+  const browserRef = useRef(null);
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const element = browserRef.current;
+    if (!element) return;
+    const resize = () => setCompact(element.getBoundingClientRect().width <= 600);
+    resize();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+    observer?.observe(element);
+    window.addEventListener('resize', resize);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [matches, setMatches] = useState(11);
@@ -113,14 +129,22 @@ export default function Settings() {
 
   return (
     <div
-      className="settings-browser"
+      ref={browserRef}
+      data-layout={t.nav === 'SWEEP' ? 'sweep' : state.layout}
+      className={`settings-browser${compact ? ' settings-browser-compact' : ''}`}
       style={{
         color: V.ink,
         background: V.bg,
         fontFamily: t.font,
         '--settings-surface': V.surf,
         '--settings-border': V.outv,
-        '--settings-radius': V.rs,
+        '--settings-radius': t.nav === 'SWEEP' ? '0px' : V.rp,
+        '--control-radius': t.nav === 'SWEEP' ? '0px' : V.rs,
+        '--settings-card-border':
+          LK.card === 'quiet' || LK.card === 'rule' ? 'transparent' : V.outv,
+        '--settings-rail': V.sec2,
+        '--surf': V.surf,
+        '--surf2': V.surf2,
         '--settings-accent': V.pri,
       }}
     >
@@ -403,7 +427,26 @@ export default function Settings() {
                 ))}
               </select>
             </FormField>
+            {[
+              ['voiceVolume', 'Voice volume'],
+              ['sfxVolume', 'Object sounds'],
+              ['uiVolume', 'Interface sounds'],
+              ['ambientVolume', 'Ambient sounds'],
+            ].map(([key, label]) => (
+              <FormField key={key} label={label}>
+                <select
+                  id={`settings-${key}`}
+                  value={state.prefs[key]}
+                  onChange={(event) => actions.setPref(key, event.target.value)}
+                >
+                  {['Muted', '25%', '50%', '70%', '100%'].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </FormField>
+            ))}
           </div>
+          <VoiceDevices />
           <SwitchSetting
             id="voice-indicator"
             title="Voice indicator"

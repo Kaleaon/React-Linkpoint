@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useTickContext } from '../context/TickContext.jsx';
 import { NAV_ALL, HEAD } from '../data/content.js';
 import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
-import { ConsoleFrame as SystemConsoleFrame } from '@linkpoint/design-system/react';
+import { LcarsChrome } from '@linkpoint/design-system/react';
 import { CBTN, CSUB, CPAD, CPADR, subView, setSub } from '../theme/constants.js';
 import Icon from './Icon.jsx';
 import ScreenBody from './ScreenBody.jsx';
@@ -11,12 +11,10 @@ import World3D from '../screens/World3D.jsx';
 import { navActive } from '../theme/look.js';
 import { formatHeading, formatLiveStats, useCameraState } from './cameraReadout.js';
 import { app } from '../linkpoint/app';
+import { holdControl } from './holdControl.js';
 
-// Ported from the `isConsole` block (lines ~140-222 of the source template)
-// plus the matching `cf*`/`consoleNav`/`cdock`/`cfPad`/`cfFly` computations in
-// renderVals(). This is the LCARS-manifesto "sweep console" frame: the swept
-// elbow IS the chrome (bar -> curve -> rail), rail segments ARE the nav
-// buttons, and every screen (not just 3D View) renders inside the elbow.
+// Shared opposing split frame follows CleverFerret’s LCARS correction.
+// Every screen stays inside the frame; labels/readouts stay off its bars.
 export default function ConsoleFrame() {
   const { state, actions } = useApp();
   const { V, t, C, ink, consoleScene } = useTheme();
@@ -42,87 +40,12 @@ export default function ConsoleFrame() {
       }
     : null;
 
-  const cfBar = {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    right: 0,
-    height: C.bar + 'px',
-    background: V.pri,
-    borderRadius: Math.round(C.bar * 0.66) + 'px 0 0 0',
-  };
-  const cfBarEnd = {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    width: (C.wide ? 104 : 66) + 'px',
-    height: C.bar + 'px',
-    background: V.sec2,
-  };
-  const cfBarGap = {
-    position: 'absolute',
-    right: (C.wide ? 108 : 70) + 'px',
-    top: 0,
-    width: C.gap + 'px',
-    height: C.bar + 'px',
-    background: V.bg,
-  };
   const headMap = HEAD(LAYOUTS[state.layout].name, PALETTES[state.palette].name, {
     cleared: state.cacheCleared,
     limit: state.prefs.cacheLimit,
     loc: state.prefs.cacheLoc,
   });
   const cfTitleText = consoleScene ? simName : (headMap[state.screen] || ['', ''])[0];
-  const cfTitle = {
-    position: 'absolute',
-    right: (C.wide ? 128 : 84) + 'px',
-    left: C.rail + C.gap + 'px',
-    top: 0,
-    height: C.bar + 'px',
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'flex-end',
-    paddingBottom: (C.wide ? 11 : 7) + 'px',
-    font: '700 ' + (C.wide ? 36 : 24) + 'px/1 ' + t.dfont,
-    letterSpacing: '.05em',
-    overflow: 'hidden',
-    color: ink(V.pri, [V.bg, V.onpri, V.ink]),
-    textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
-  };
-  const cfPlate = {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    height: C.bar + 'px',
-    width: (C.wide ? 104 : 66) + 'px',
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingBottom: (C.wide ? 12 : 8) + 'px',
-    overflow: 'hidden',
-    font: '500 ' + (C.wide ? 13 : 10) + 'px/1 ' + t.font,
-    color: ink(V.sec2, [V.bg, V.onsec, V.ink]),
-    whiteSpace: 'nowrap',
-  };
-  // Telemetry row, LCARS-style, following the manifesto's three-tier font
-  // scale (lcars-terminal.de/tutorial/guideline/font_size.gif): Main Title
-  // size is the big bold cfTitle above (sim name on 3D View, screen name
-  // elsewhere); this row is Normal Data size, the small supporting
-  // readouts underneath it. Rule (matches cdock/cfFoot below): a row of
-  // segments is ONE bar — rounding lives only on the two outer ends,
-  // square joints between segments — sitting in the extra headroom
-  // `cf().bar` reserves above the (bottom-anchored) title so it can never
-  // collide with a long screen name.
-  const cfNetWrap = {
-    position: 'absolute',
-    left: C.rail + C.gap * 3 + 'px',
-    right: C.gap * 3 + 'px',
-    top: (C.wide ? 10 : 6) + 'px',
-    height: (C.wide ? 22 : 16) + 'px',
-    display: 'flex',
-    overflow: 'hidden',
-  };
   const cfNet = (() => {
     // On 3D View the sim name is already the big title above, so this row
     // carries the supporting world telemetry (location, height, ping)
@@ -138,80 +61,44 @@ export default function ConsoleFrame() {
           { label: 'OBJECTS', value: String(app.world.objects.length) },
           { label: 'CAPS', value: String(Object.keys(app.protocol.capabilities || {}).length) },
         ];
-    const last = items.length - 1;
-    return items.map((n, i) => {
-      const bg = [V.sec2, V.surf2, V.sec][i % 3];
+    return items.map((n) => {
       return {
         ...n,
         style: {
-          flex: 'none',
           display: 'flex',
           alignItems: 'baseline',
-          gap: '5px',
-          height: (C.wide ? 22 : 16) + 'px',
-          padding: '0 ' + (C.wide ? 10 : 7) + 'px',
-          background: bg,
-          marginLeft: i === 0 ? 0 : '2px',
-          borderRadius:
-            i === 0
-              ? (C.wide ? 11 : 8) + 'px 0 0 ' + (C.wide ? 11 : 8) + 'px'
-              : i === last
-                ? '0 ' + (C.wide ? 11 : 8) + 'px ' + (C.wide ? 11 : 8) + 'px 0'
-                : '0',
-          color: ink(bg, [V.bg, V.onsec, V.ink]),
+          gap: 5,
+          minWidth: 0,
+          maxWidth: '100%',
+          whiteSpace: 'nowrap',
+          color: V.ink2,
         },
         labelStyle: {
-          font: '700 ' + (C.wide ? 9 : 7.5) + 'px/1 ' + t.font,
+          font: '700 12px/1 ' + t.font,
           letterSpacing: '.14em',
           opacity: 0.8,
         },
-        valStyle: { font: '700 ' + (C.wide ? 11 : 9) + 'px/1 ' + t.dfont, letterSpacing: '.02em' },
+        valStyle: {
+          font: '700 12px/1 ' + t.dfont,
+          letterSpacing: '.02em',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        },
       };
     });
   })();
-  const cfCurveFill = {
-    position: 'absolute',
-    left: C.rail + 'px',
-    top: C.bar + 'px',
-    width: C.cur + 'px',
-    height: C.cur + 'px',
-    background: V.pri,
-  };
-  const cfCurveCut = {
-    position: 'absolute',
-    left: C.rail + 'px',
-    top: C.bar + 'px',
-    width: C.cur + 'px',
-    height: C.cur + 'px',
-    background: V.bg,
-    borderRadius: C.cur + 'px 0 0 0',
-  };
   const cfRailCol = {
     overflowY: 'auto',
     minHeight: 0,
     position: 'absolute',
     left: 0,
-    top: C.bar + 'px',
+    top: C.railTop + 'px',
     width: C.rail + 'px',
     bottom: C.foot + C.gap + 'px',
     display: 'flex',
     flexDirection: 'column',
     gap: C.gap + 'px',
   };
-  const cfArm = {
-    flex: 'none',
-    boxSizing: 'border-box',
-    height: (C.wide ? 42 : 32) + 'px',
-    width: C.rail + 'px',
-    background: V.pri,
-    color: ink(V.pri, [V.bg, V.onpri, V.ink]),
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0 0 0 10px',
-    font: '700 ' + (C.wide ? 12 : 10) + 'px/1.05 ' + t.dfont,
-    letterSpacing: '.14em',
-  };
-
   const consoleNav = buildConsoleNav({ state, actions, V, t, C, ink });
 
   const shellStyle = consoleScene
@@ -226,30 +113,29 @@ export default function ConsoleFrame() {
         minWidth: 0,
         borderRadius: C.rad + 'px 0 0 0',
         overflow: 'hidden',
-        background: V.surf,
+        background: V.bg,
         zIndex: 2,
       };
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: V.bg }}>
-      <div style={cfBar} />
-      <div style={cfBarEnd} />
-      <div style={cfBarGap} />
-      <div style={cfNetWrap}>
-        {cfNet.map((n, i) => (
-          <div key={i} style={n.style}>
+    <div
+      data-layout="sweep"
+      style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: V.bg }}
+    >
+      <LcarsChrome
+        geometry={C}
+        tokens={V}
+        font={t.dfont}
+        title={cfTitleText}
+        readouts={cfNet.map((n) => (
+          <span key={n.label} style={n.style}>
             <span style={n.labelStyle}>{n.label}</span>
             <span style={n.valStyle}>{n.value}</span>
-          </div>
+          </span>
         ))}
-      </div>
-      <div style={cfTitle}>{cfTitleText}</div>
-      <div style={cfPlate}>LINKPOINT</div>
-      <div style={cfCurveFill} />
-      <div style={cfCurveCut} />
+      />
 
-      <div style={cfRailCol}>
-        <div style={cfArm}>LCARS 4701</div>
+      <nav aria-label="Console navigation" style={cfRailCol}>
         {consoleNav.map((n, i) => (
           <div
             key={i}
@@ -257,6 +143,7 @@ export default function ConsoleFrame() {
             role="button"
             tabIndex={0}
             aria-label={n.label}
+            aria-current={n.on ? 'page' : undefined}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -269,7 +156,7 @@ export default function ConsoleFrame() {
             <span style={{ font: 'inherit', letterSpacing: 'inherit' }}>{n.label}</span>
           </div>
         ))}
-      </div>
+      </nav>
 
       {consoleScene ? (
         <main id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
@@ -286,6 +173,7 @@ export default function ConsoleFrame() {
               height: C.dock + 'px',
               display: 'flex',
               gap: C.gap + 'px',
+              overflowX: 'auto',
               zIndex: state.cEdit ? 6 : 1,
             }}
           >
@@ -297,10 +185,13 @@ export default function ConsoleFrame() {
               return (
                 <div
                   key={k}
-                  onClick={() => actions.cPress(k)}
+                  onClick={() => {
+                    if (!dis) actions.cPress(k);
+                  }}
                   role="button"
                   tabIndex={dis ? -1 : 0}
                   aria-label={k}
+                  aria-disabled={dis || undefined}
                   onKeyDown={(e) => {
                     if (dis) return;
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -310,8 +201,8 @@ export default function ConsoleFrame() {
                   }}
                   style={{
                     position: 'relative',
-                    flex: '1 1 0',
-                    minWidth: 0,
+                    flex: '1 0 48px',
+                    minWidth: 48,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -426,7 +317,7 @@ export default function ConsoleFrame() {
             justifyContent: 'space-between',
             gap: '10px',
             padding: '0 12px',
-            background: V.surf,
+            background: V.bg,
             color: V.ink2,
             borderRadius: '0 ' + Math.round(C.foot / 2) + 'px ' + Math.round(C.foot / 2) + 'px 0',
             font: '500 ' + (C.wide ? 11.5 : 9.5) + 'px/1 ' + t.font,
@@ -435,8 +326,8 @@ export default function ConsoleFrame() {
             whiteSpace: 'nowrap',
           }}
         >
-          <span>{state.cReason || liveStats.join(' · ')}</span>
-          <span>{state.cReason ? '' : sessionNote}</span>
+          <span>{state.toast || state.cReason || liveStats.join(' · ')}</span>
+          <span>{state.toast || state.cReason ? '' : sessionNote}</span>
         </span>
       </div>
 
@@ -542,7 +433,7 @@ function buildConsoleNav({ state, actions, V, t, C, ink }) {
         justifyContent: 'flex-end',
         padding: '0 8px 5px 0',
         cursor: 'pointer',
-        font: '700 ' + (C.wide ? 11 : 10) + 'px/1 ' + t.dfont,
+        font: '700 12px/1 ' + t.dfont,
         letterSpacing: '.1em',
         transition: 'background .16s ease',
       },
@@ -570,7 +461,7 @@ function buildConsoleNav({ state, actions, V, t, C, ink }) {
         position: 'relative',
         flex: 'none',
         boxSizing: 'border-box',
-        height: (C.wide ? 34 : 30) + 'px',
+        height: '48px',
         width: C.rail - 26 + 'px',
         marginLeft: '26px',
         background: sbg,
@@ -691,8 +582,8 @@ function ConsoleScene() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3,' + (C.wide ? 52 : 46) + 'px)',
-              gridTemplateRows: 'repeat(3,' + (C.wide ? 52 : 46) + 'px)',
+              gridTemplateColumns: 'repeat(3,' + (C.wide ? 52 : 48) + 'px)',
+              gridTemplateRows: 'repeat(3,' + (C.wide ? 52 : 48) + 'px)',
               gap: C.gap + 'px',
             }}
           >
@@ -705,9 +596,21 @@ function ConsoleScene() {
               return (
                 <div
                   key={i}
-                  onMouseDown={() => actions.cHold(p.k)}
-                  onMouseUp={() => actions.cHold('')}
-                  onMouseLeave={() => actions.cHold('')}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={
+                    {
+                      fwd: 'Move camera forward',
+                      bck: 'Move camera backward',
+                      lft: 'Move camera left',
+                      rgt: 'Move camera right',
+                      cam: 'Toggle camera mode',
+                    }[p.k]
+                  }
+                  {...holdControl(
+                    () => actions.cHold(p.k),
+                    () => actions.cHold(''),
+                  )}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -715,6 +618,7 @@ function ConsoleScene() {
                     justifyContent: 'center',
                     gap: '2px',
                     cursor: 'pointer',
+                    touchAction: 'none',
                     background: bg,
                     color: ink(bg, [V.bg, V.onpri, V.ink]),
                     opacity: 0.92,
@@ -734,8 +638,8 @@ function ConsoleScene() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {(() => {
               const mk = (on, bg) => ({
-                width: (C.wide ? 60 : 52) + 'px',
-                height: (C.wide ? 44 : 46) + 'px',
+                width: (C.wide ? 60 : 48) + 'px',
+                height: (C.wide ? 48 : 48) + 'px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -749,21 +653,24 @@ function ConsoleScene() {
               return (
                 <>
                   <div
-                    onMouseDown={actions.flyUpDown}
-                    onMouseUp={actions.flyRelease}
-                    onMouseLeave={actions.flyRelease}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Move camera up"
+                    {...holdControl(actions.flyUpDown, actions.flyRelease)}
                     style={{
                       ...mk(state.cHeld === 'up', V.sec),
+                      touchAction: 'none',
                       borderRadius: '0 ' + C.rad + 'px 0 0',
                     }}
                   >
                     UP
                   </div>
                   <div
-                    onMouseDown={actions.flyDnDown}
-                    onMouseUp={actions.flyRelease}
-                    onMouseLeave={actions.flyRelease}
-                    style={mk(state.cHeld === 'dn', V.sec)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Move camera down"
+                    {...holdControl(actions.flyDnDown, actions.flyRelease)}
+                    style={{ ...mk(state.cHeld === 'dn', V.sec), touchAction: 'none' }}
                   >
                     DN
                   </div>

@@ -43,7 +43,17 @@ describe('Theme Token Contrast Engine (WCAG 2.2 SC 1.4.3 & SC 1.4.11)', () => {
     };
     const mockCf = () => ({});
 
-    const targetTokens = ['ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
+    const targetTokens = [
+      'ink2',
+      'sec',
+      'sec2',
+      'bdg',
+      'outv',
+      'ok',
+      'err',
+      'warn',
+      'info',
+    ] as const;
 
     for (const paletteKey of Object.keys(PALETTES)) {
       const { V } = computeTheme({ ...mockState, palette: paletteKey }, mockCf);

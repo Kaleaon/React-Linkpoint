@@ -1,4 +1,4 @@
-import { ensureMinContrast } from './contrast.js';
+import { ensureContrastOnSurfaces } from './contrast.js';
 
 export const THEME_STORAGE_KEY = 'linkpoint.custom-theme.v1';
 
@@ -29,12 +29,10 @@ export function sanitizeTheme(input) {
 
   const bgSurface = colors.bg || '#000000';
   const surfSurface = colors.surf || bgSurface;
-  const targetTokens = ['ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
+  const targetTokens = ['ink', 'ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
   for (const tok of targetTokens) {
     if (colors[tok]) {
-      let adj = ensureMinContrast(colors[tok], bgSurface, 4.5);
-      adj = ensureMinContrast(adj, surfSurface, 4.5);
-      colors[tok] = adj;
+      colors[tok] = ensureContrastOnSurfaces(colors[tok], [bgSurface, surfSurface, colors.surf2]);
     }
   }
 
@@ -66,12 +64,10 @@ export function themeFromPalette(palette, name = 'My Linkpoint theme') {
   const colors = Object.fromEntries(EDITABLE_THEME_TOKENS.map(([key]) => [key, palette.c[key]]));
   const bgSurface = colors.bg || '#000000';
   const surfSurface = colors.surf || bgSurface;
-  const targetTokens = ['ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
+  const targetTokens = ['ink', 'ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
   for (const tok of targetTokens) {
     if (colors[tok]) {
-      let adj = ensureMinContrast(colors[tok], bgSurface, 4.5);
-      adj = ensureMinContrast(adj, surfSurface, 4.5);
-      colors[tok] = adj;
+      colors[tok] = ensureContrastOnSurfaces(colors[tok], [bgSurface, surfSurface, colors.surf2]);
     }
   }
 

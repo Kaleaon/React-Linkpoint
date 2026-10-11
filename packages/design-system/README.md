@@ -7,3 +7,8 @@ This package provides shared visual primitives, tokens, and theme definitions fo
 - Token mapping supports 24 Ktheme palette packs across four aesthetic families (Terminal & Neon, Console & Amber, Metal & Jewel, Daylight) and six interchangeable layout packs.
 
 Do not edit synchronized JSON here without making the equivalent upstream design-source change in `linkpoint-design`. Components, accessibility behavior, and typed token adapters belong in `src/`.
+
+The typed viewer adapter follows CleverFerret Design's revised black-field LCARS reference; this
+intentionally differs from the unchanged imported Ktheme JSON. Shared split-frame geometry and
+all-surface contrast correction live in `src/`. See `../../docs/DESIGN_LANGUAGE.md` for pinned
+reference sources, adapter rules, and remaining native/typography validation.

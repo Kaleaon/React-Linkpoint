@@ -11,6 +11,7 @@ const OTHER = '99999999-2222-3333-4444-555555555555';
 
 class FakeTrack {
   id = 't';
+  kind = 'audio';
   enabled = true;
   stop = vi.fn();
   toJSON() {
@@ -223,7 +224,114 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     expect(sent).toContainEqual({ ug: { [OTHER]: 110 } });
     lastPeer.channel.sent.length = 0;
     lastPeer.channel.onmessage!({ data: JSON.stringify({ [OTHER]: { j: { p: true } } }) });
-    expect(parsed(lastPeer.channel)).toEqual([{ m: { [OTHER]: true } }, { ug: { [OTHER]: 110 } }]);
+    expect(parsed(lastPeer.channel)).toEqual([{ m: { [OTHER]: true } }, { ug: { [OTHER]: 100 } }]);
+    await voice.disconnect();
+  });
+
+  it('uses a selected microphone for the next connection and retry', async () => {
+    const voice = new VoiceManager();
+    await voice.setInputDevice('mic-2');
+    await voice.connect({ parcelLocalId: 12 });
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenLastCalledWith({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        deviceId: { exact: 'mic-2' },
+      },
+      video: false,
+    });
+    expect(voice.getDevices().inputDeviceId).toBe('mic-2');
+    await voice.disconnect();
+  });
+
+  it('changes microphones without leaving voice and retains the current mute state', async () => {
+    const voice = await connected();
+    lastPeer.channel.onopen!();
+    const original = stream;
+    const next = new FakeStream();
+    const sender = { track: original.tracks[0], replaceTrack: vi.fn(async () => {}) };
+    (lastPeer as any).getSenders = () => [sender];
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce(next as any);
+    await voice.setInputDevice('mic-2');
+    expect(sender.replaceTrack).toHaveBeenCalledWith(next.tracks[0]);
+    expect(next.tracks[0].enabled).toBe(false);
+    expect(original.tracks[0].stop).toHaveBeenCalledOnce();
+    expect(lastPeer.close).not.toHaveBeenCalled();
+    voice.setMuted(false);
+    expect(next.tracks[0].enabled).toBe(true);
+    await voice.disconnect();
+    expect(next.tracks[0].stop).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the existing microphone when a replacement fails', async () => {
+    const voice = await connected();
+    const next = new FakeStream();
+    (lastPeer as any).getSenders = () => [
+      {
+        track: stream.tracks[0],
+        replaceTrack: vi.fn(async () => {
+          throw new Error('device lost');
+        }),
+      },
+    ];
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockResolvedValueOnce(next as any);
+    await expect(voice.setInputDevice('mic-2')).rejects.toThrow('device lost');
+    expect(next.tracks[0].stop).toHaveBeenCalledOnce();
+    expect(stream.tracks[0].stop).not.toHaveBeenCalled();
+    expect(voice.getDevices().inputDeviceId).toBe('');
+    await voice.disconnect();
+  });
+
+  it('stops a replacement microphone granted after disconnect', async () => {
+    const voice = await connected();
+    const next = new FakeStream();
+    let grant!: (stream: MediaStream) => void;
+    vi.mocked(navigator.mediaDevices.getUserMedia).mockReturnValueOnce(
+      new Promise((resolve) => {
+        grant = resolve;
+      }),
+    );
+    const changing = voice.setInputDevice('mic-2');
+    await voice.disconnect();
+    grant(next as any);
+    await changing;
+    expect(next.tracks[0].stop).toHaveBeenCalledOnce();
+    expect(voice.state).toBe('off');
+  });
+
+  it('serializes pending microphone replacements so the newest selection wins', async () => {
+    const voice = await connected();
+    const first = new FakeStream(),
+      second = new FakeStream();
+    let release!: () => void;
+    const sender = {
+      track: stream.tracks[0],
+      replaceTrack: vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              release = resolve;
+            }),
+        )
+        .mockResolvedValueOnce(undefined),
+    };
+    (lastPeer as any).getSenders = () => [sender];
+    vi.mocked(navigator.mediaDevices.getUserMedia)
+      .mockResolvedValueOnce(first as any)
+      .mockResolvedValueOnce(second as any);
+    const old = voice.setInputDevice('mic-1');
+    await vi.advanceTimersByTimeAsync(0);
+    const newer = voice.setInputDevice('mic-2');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sender.replaceTrack).toHaveBeenCalledTimes(1);
+    release();
+    await Promise.all([old, newer]);
+    expect(sender.replaceTrack).toHaveBeenLastCalledWith(second.tracks[0]);
+    expect(first.tracks[0].stop).toHaveBeenCalledOnce();
+    expect(second.tracks[0].stop).not.toHaveBeenCalled();
+    expect(voice.getDevices().inputDeviceId).toBe('mic-2');
     await voice.disconnect();
   });
 
@@ -273,6 +381,56 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     expect(stream.tracks[0].stop).toHaveBeenCalled();
   });
 
+  it('does not reconnect a changing parcel when disconnect interrupts logout', async () => {
+    const voice = await connected();
+    let finishLogout!: () => void;
+    (slBridge.voiceLogout as any).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishLogout = resolve;
+        }),
+    );
+    const changing = voice.reprovision(34);
+    await vi.waitFor(() => expect(slBridge.voiceLogout).toHaveBeenCalledOnce());
+    await voice.disconnect();
+    finishLogout();
+    await changing;
+    expect(slBridge.voiceProvision).toHaveBeenCalledOnce();
+    expect(voice.state).toBe('off');
+  });
+
+  it('applies the selected output device to a remote stream that arrives later', async () => {
+    vi.stubGlobal(
+      'Audio',
+      class {
+        srcObject: unknown = null;
+        setSinkId = vi.fn(async () => {});
+        play = vi.fn(async () => {});
+      },
+    );
+    const voice = await connected();
+    await voice.setOutputDevice('speaker-2');
+    lastPeer.ontrack?.({ track: stream.tracks[0], streams: [stream] });
+    const audio = (voice as any).remoteAudio;
+    await vi.waitFor(() => expect(audio.play).toHaveBeenCalledOnce());
+    expect(audio.setSinkId).toHaveBeenCalledWith('speaker-2');
+    await voice.disconnect();
+  });
+
+  it('validates output device permission before a remote stream arrives', async () => {
+    vi.stubGlobal(
+      'Audio',
+      class {
+        setSinkId = vi.fn(async () => {
+          throw new Error('Speaker access denied');
+        });
+      },
+    );
+    const voice = new VoiceManager();
+    await expect(voice.setOutputDevice('speaker-2')).rejects.toThrow('Speaker access denied');
+    expect(voice.getDevices().outputDeviceId).toBe('');
+  });
+
   it('disconnect logs out and clears participants', async () => {
     const voice = await connected();
     lastPeer.channel.onmessage!({ data: JSON.stringify({ [OTHER]: { j: { p: true } } }) });
@@ -280,6 +438,69 @@ describe('VoiceManager (official SL WebRTC voice)', () => {
     expect(slBridge.voiceLogout).toHaveBeenCalledWith('vs-1');
     expect(voice.state).toBe('off');
     expect(voice.getActiveSpeakers()).toEqual([]);
+  });
+
+  it('shares a pending microphone request between concurrent connect calls', async () => {
+    let release!: (stream: FakeStream) => void;
+    const microphone = vi.fn(
+      () =>
+        new Promise<FakeStream>((resolve) => {
+          release = resolve;
+        }),
+    );
+    navigator.mediaDevices.getUserMedia = microphone as any;
+    const voice = new VoiceManager();
+    const first = voice.connect();
+    const second = voice.connect();
+    expect(microphone).toHaveBeenCalledOnce();
+    release(stream);
+    await Promise.all([first, second]);
+    expect(slBridge.voiceProvision).toHaveBeenCalledOnce();
+    await voice.disconnect();
+  });
+
+  it('stops a late microphone stream instead of reconnecting after disconnect', async () => {
+    let release!: (stream: FakeStream) => void;
+    navigator.mediaDevices.getUserMedia = vi.fn(
+      () =>
+        new Promise<FakeStream>((resolve) => {
+          release = resolve;
+        }),
+    ) as any;
+    const voice = new VoiceManager();
+    const connecting = voice.connect();
+    await voice.disconnect();
+    release(stream);
+    await connecting;
+    expect(stream.tracks[0].stop).toHaveBeenCalledOnce();
+    expect(slBridge.voiceProvision).not.toHaveBeenCalled();
+    expect(voice.state).toBe('off');
+  });
+
+  it('logs out a late provisioned session without tearing down a newer connection', async () => {
+    let answer!: (response: unknown) => void;
+    (slBridge.voiceProvision as any).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    const voice = new VoiceManager();
+    const old = voice.connect();
+    await vi.waitFor(() => expect(slBridge.voiceProvision).toHaveBeenCalledOnce());
+    const oldPeer = lastPeer;
+    await voice.disconnect();
+    stream = new FakeStream();
+    await voice.connect();
+    const newPeer = lastPeer;
+    answer({ viewer_session: 'old-session', jsep: { type: 'answer', sdp: 'old-answer' } });
+    await old;
+    expect(slBridge.voiceLogout).toHaveBeenCalledWith('old-session');
+    expect(oldPeer.setRemoteDescription).not.toHaveBeenCalled();
+    expect(newPeer.close).not.toHaveBeenCalled();
+    expect(stream.tracks[0].stop).not.toHaveBeenCalled();
+    expect(voice.state).toBe('connected');
+    await voice.disconnect();
   });
 });
 

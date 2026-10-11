@@ -59,8 +59,8 @@ export function cardLooks(V, pad) {
       padding: '4px 0 ' + pad,
     },
     cap: {
-      ...sideBorder('Left', '10px', V.sec2 || V.pri),
-      borderRadius: '0 ' + (V.rp || '22px') + ' ' + (V.rp || '22px') + ' 0',
+      ...sideBorder('Left', '8px', V.sec2 || V.pri),
+      borderRadius: '0',
       background: V.surf,
       padding: pad,
     },
@@ -87,11 +87,12 @@ export function actionButtonStyle(V, font, a) {
   const isFlat = V.rs === '0px';
   const base = {
     flex: 1,
-    height: '44px',
-    borderWidth: isFlat ? 0 : '1px',
-    borderStyle: isFlat ? 'none' : 'solid',
+    minHeight: '48px',
+    minWidth: '48px',
+    borderWidth: isFlat || isPill ? 0 : '1px',
+    borderStyle: isFlat || isPill ? 'none' : 'solid',
     borderColor: V.outv,
-    borderRadius: V.rs,
+    borderRadius: isPill ? 0 : V.rs,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -115,12 +116,15 @@ export function segLooks(V, font) {
       justifyContent: 'center',
       gap: '6px',
       padding: '12px 0',
+      minHeight: '48px',
+      minWidth: '48px',
+      boxSizing: 'border-box',
       cursor: 'pointer',
       background: V.surf,
       color: V.ink2,
       font: '600 12px/1 ' + font,
       letterSpacing: '.22em',
-      borderRadius: V.rs === '999px' ? '999px' : '0',
+      borderRadius: '0',
     },
     pivot: {
       flex: 'none',
@@ -155,8 +159,8 @@ export function segLooks(V, font) {
 export function segOnLooks(V) {
   return {
     fill: { background: undefined }, // filled in by caller with `on` shared style
-    pivot: { color: V.pri, fontWeight: 400 },
-    text: { color: V.pri, boxShadow: 'inset 0 -2px 0 ' + V.pri },
+    pivot: { color: V.priText, fontWeight: 400 },
+    text: { color: V.priText, boxShadow: 'inset 0 -2px 0 ' + V.pri },
   };
 }
 

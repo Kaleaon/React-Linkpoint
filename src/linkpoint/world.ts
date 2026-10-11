@@ -244,6 +244,8 @@ export class WorldViewer extends Utils.EventEmitter {
       this.renderedParticles.clear();
       this.avatarBakes.clear();
       this.localObjectIds.clear();
+      this.animator.clear();
+      this.scene3d?.resetWorld();
       this.objects = [];
       this.emit('region_changed', null);
       this.emit('nearby_changed', []);
@@ -786,7 +788,20 @@ export class WorldViewer extends Utils.EventEmitter {
         (rawTexId ? `texture:${rawTexId}` : face.texture);
       return { ...face, texture: resolvedTexture };
     }
-    const baseTransform = { ...base?.textures?.baseColor, ...override.textureTransforms?.[0] };
+    const textureTransforms = Object.fromEntries(
+      ['baseColor', 'normal', 'metallicRoughness', 'emissive'].map((role, index) => {
+        const transform = { ...base?.textures?.[role], ...override.textureTransforms?.[index] };
+        return [
+          role,
+          {
+            scale: transform.scale ?? [1, 1],
+            offset: transform.offset ?? [0, 0],
+            rotation: transform.rotation ?? 0,
+          },
+        ];
+      }),
+    );
+    const baseTransform = textureTransforms.baseColor;
     const texture = (role: string, index: number) => {
       const textureId = overrideTextureId(index) || base?.textures?.[role]?.textureId;
       return findTexture(textureId);
@@ -812,6 +827,7 @@ export class WorldViewer extends Utils.EventEmitter {
       normalTexture: normalTex,
       metallicRoughnessTexture: metallicRoughnessTex,
       emissiveTexture: emissiveTex,
+      textureTransforms,
     };
     const resolvedTexture =
       baseColorTex || findTexture(rawTexId) || (rawTexId ? `texture:${rawTexId}` : face.texture);
@@ -862,6 +878,32 @@ export class WorldViewer extends Utils.EventEmitter {
   private resizeObserver: any = null;
   /** Bumped whenever the renderer is destroyed, so an in-flight init() can tell it has been superseded. */
   private renderToken = 0;
+  private contextLost = false;
+  private readonly handleContextLost = (event: Event) => {
+    event.preventDefault(); // Allow the browser to restore the WebGL context.
+    this.contextLost = true;
+    this.renderToken++;
+    this.stopRendering();
+    this.emit('renderer_state', {
+      ready: false,
+      message: 'Graphics context lost. Waiting for recovery…',
+    });
+  };
+  private readonly handleContextRestored = () => {
+    const canvas = this.canvas;
+    if (!canvas) return;
+    void this.init(canvas)
+      .then(() => {
+        if (this.canvas === canvas && this.graphics3d)
+          this.emit('renderer_state', { ready: true, message: '' });
+      })
+      .catch((error: unknown) => {
+        this.emit('renderer_state', {
+          ready: false,
+          message: error instanceof Error ? error.message : 'Graphics recovery failed',
+        });
+      });
+  };
 
   async init(targetCanvas?: HTMLCanvasElement | null) {
     this.use3D = true;
@@ -871,7 +913,7 @@ export class WorldViewer extends Utils.EventEmitter {
         ? (document.getElementById('world-canvas') as HTMLCanvasElement)
         : null);
     if (!canvas) return;
-    if (this.graphics3d && this.canvas === canvas) {
+    if (this.graphics3d && this.canvas === canvas && !this.contextLost) {
       this.resizeCanvas();
       const reuseToken = this.renderToken;
       await this.loadScene();
@@ -880,6 +922,8 @@ export class WorldViewer extends Utils.EventEmitter {
     }
     this.destroyRenderer();
     this.canvas = canvas;
+    canvas.addEventListener('webglcontextlost', this.handleContextLost);
+    canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
     // The view can go away (or be replaced) while this async setup is awaiting.
     // destroyRenderer() bumps the token, and every await below re-checks it so a
     // stale init stops instead of touching state that now belongs to someone else.
@@ -1049,6 +1093,7 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   public startRendering() {
+    if (this.contextLost) return;
     if (this.animationId !== null) return;
     let lastFrame = -Infinity;
     const render = (time: number) => {
@@ -1090,6 +1135,9 @@ export class WorldViewer extends Utils.EventEmitter {
       return;
     }
     this.renderToken++;
+    this.canvas?.removeEventListener('webglcontextlost', this.handleContextLost);
+    this.canvas?.removeEventListener('webglcontextrestored', this.handleContextRestored);
+    this.contextLost = false;
     this.stopRendering();
     if (this.resizeAttached) window.removeEventListener('resize', this.handleResize);
     this.resizeAttached = false;
@@ -1601,6 +1649,36 @@ export class WorldViewer extends Utils.EventEmitter {
         avatarTransform.rotation,
         this.multiplyQuaternion(jointRotation, localRotation),
       ),
+    };
+  }
+
+  /** Sound placement and attachment policy follow LLAudioSourceVO: spatial sources
+   * use their world transform, HUDs follow the camera, and attachment parcel/mute
+   * checks use the ancestor avatar. Resolve through the same hierarchy as rendering. */
+  getSoundObjectPose(id: string) {
+    const object = this.sceneObjects.get(id);
+    if (!object) return null;
+    let current = object;
+    let attachment = false;
+    const visited = new Set<string>();
+    while (current && !visited.has(current.id)) {
+      visited.add(current.id);
+      if (current.avatar) break;
+      attachment ||= Boolean(current.attachment || Number(current.attachmentPoint) > 0);
+      const parentId = this.localObjectIds.get(Number(current.parentId));
+      current = parentId ? this.sceneObjects.get(parentId) : null;
+    }
+    const avatar = attachment && current?.avatar ? current : null;
+    return {
+      position: this.worldTransform(object).position as [number, number, number],
+      ...(avatar
+        ? {
+            policyPosition: this.worldTransform(avatar).position as [number, number, number],
+            avatarId: String(avatar.id),
+          }
+        : {}),
+      hud: Boolean(this.hudRootOf(object)),
+      unavailable: attachment && !avatar,
     };
   }
 

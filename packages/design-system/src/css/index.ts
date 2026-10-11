@@ -16,7 +16,7 @@ export function generateCssVariables(tokens: TokenInput): Record<string, string>
   if (!tokens || typeof tokens !== "object") return vars;
 
   const colorKeys = new Set([
-    "bg", "surf", "surf2", "ink", "ink2", "pri", "onpri", "priC", "onpriC",
+    "bg", "surf", "surf2", "ink", "ink2", "pri", "priText", "onpri", "priC", "onpriC",
     "sec", "onsec", "sec2", "bdg", "onbdg", "info", "outv", "ok", "err", "warn",
     "sky1", "sky2", "gnd", "gnd2"
   ]);

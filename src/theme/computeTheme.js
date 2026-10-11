@@ -1,4 +1,4 @@
-import { LAYOUTS, PALETTES, DEVICES, ensureMinContrast } from '@linkpoint/design-system/tokens';
+import { LAYOUTS, PALETTES, DEVICES, computeThemeTokens } from '@linkpoint/design-system/tokens';
 import { STATES } from './constants.js';
 import { pickInk } from './color.js';
 
@@ -23,7 +23,9 @@ export function computeTheme(state, cf) {
     font: L.font,
     dfont: L.dfont,
     note: L.note + '   Colour pack: ' + P.note + '.',
-    v: { ...P.c, ...L.s },
+    v: computeThemeTokens(state.layout, state.palette, {
+      customColors: state.customTheme?.active ? state.customTheme.colors : undefined,
+    }),
   };
   const d = DEVICES[state.device];
 
@@ -34,18 +36,6 @@ export function computeTheme(state, cf) {
   else nav = t.nav === 'TILES' ? 'tiles' : t.nav === 'RAIL' && d.w > 700 ? 'rail' : 'tabs';
 
   const V = t.v;
-
-  // Dynamic token contrast enforcement (WCAG 2.2 Criterion 1.4.3 & 1.4.11)
-  const bgSurface = V.bg || '#000000';
-  const surfSurface = V.surf || bgSurface;
-  const targetTokens = ['ink2', 'sec', 'sec2', 'bdg', 'outv', 'ok', 'err', 'warn', 'info'];
-  for (const tok of targetTokens) {
-    if (V[tok]) {
-      let adj = ensureMinContrast(V[tok], bgSurface, 4.5);
-      adj = ensureMinContrast(adj, surfSurface, 4.5);
-      V[tok] = adj;
-    }
-  }
 
   const density = state.customTheme?.density || (state.dense ? 'compact' : 'standard');
   const pad = density === 'compact' ? '6px' : density === 'comfortable' ? '18px' : V.pad;

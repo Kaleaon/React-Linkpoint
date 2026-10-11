@@ -115,6 +115,22 @@ export class Scene3D extends Utils.EventEmitter {
     }
   }
 
+  /** Forget session geometry and region state while keeping reusable GPU assets. */
+  resetWorld() {
+    this.objects.clear();
+    this.lights = [];
+    this.displayedHud = null;
+    this.windVector = null;
+    this.terrainLoaded = false;
+    this.terrainHeights = null;
+    this.terrainSize = 0;
+    this.terrainMaterials = null;
+    this.terrainCompositionReady = false;
+    this.showGrid = true;
+    this.underWater = false;
+    this.setEnvironment(null);
+  }
+
   constructor(graphics: Graphics3D, camera: Camera3D) {
     super();
     this.graphics = graphics;
@@ -982,6 +998,7 @@ export class Scene3D extends Utils.EventEmitter {
       // object's alpha mask, full-bright, or PBR material on the next frame.
       uTexTransform: new Float32Array([1, 1, 0, 0]),
       uTexRotation: 0,
+      uUsePbr: false,
       uFullBright: false,
       uCameraPos: new Float32Array(this.camera.position),
       uMetallic: 0,
@@ -1044,6 +1061,23 @@ export class Scene3D extends Utils.EventEmitter {
         uTextureName: object.mirrorTexture || face?.texture || object.texture,
         uTexTransform: new Float32Array([...(face?.repeat || [1, 1]), ...(face?.offset || [0, 0])]),
         uTexRotation: face?.rotation || 0,
+        uUsePbr: Boolean(face?.pbr),
+        ...Object.fromEntries(
+          ['baseColor', 'normal', 'metallicRoughness', 'emissive'].flatMap((role) => {
+            const transform = pbr.textureTransforms?.[role];
+            const name = role[0].toUpperCase() + role.slice(1);
+            return [
+              [
+                `u${name}Transform`,
+                new Float32Array([
+                  ...(transform?.scale ?? [1, 1]),
+                  ...(transform?.offset ?? [0, 0]),
+                ]),
+              ],
+              [`u${name}Rotation`, transform?.rotation ?? 0],
+            ];
+          }),
+        ),
         uFullBright: Boolean(options.fullBright || face?.fullBright),
         uCameraPos: new Float32Array(this.camera.position),
         uMetallic: pbr.metallic ?? 0,

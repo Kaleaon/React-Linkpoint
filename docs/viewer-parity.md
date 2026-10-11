@@ -37,11 +37,20 @@ and extensions to the merged behavior above, not claims of full competitor parit
 
 ## Remaining gaps
 
+The subsequent standards pass adds independent PBR channel transforms and
+normal-map UV frames, GLSL compatibility/error reporting, synchronized attached
+sounds, linkset/attachment/HUD sound placement, the single-slot sound queue,
+voice device selection, persistent category volumes and master mute for voice.
+Microphone changes retain the current connection and cancel late permission
+results after disconnect. Per-person gain now preserves the official viewer's
+separate change/join conversions. These have local regression/browser coverage;
+live grid and device validation remains outstanding.
+
 Complete Lumiya/Firestorm/official parity requires further implementation and live-grid validation. Existing Linkpoint screens often cover inspection or a subset of actions. In particular:
 
 - Group activation/titles, join/leave, invitations, member/role administration, group accounting/land and historical notice retrieval are not implemented by this change. Member IDs/statuses are available; name resolution is not added.
 - Object create/build/edit/link, terrain editing, estate administration, asset uploads, full appearance editing, inventory permission workflows and gesture editing/activation are not brought to competitor parity.
-- Graphics quality, avatar complexity, bandwidth, shadows, chat translation, global maturity updates, online visibility, browser push, typing controls, automatic cache clearing on logout, and RLV enforcement settings still need backend wiring. Controls without a runtime implementation are disabled and identified in Settings; old saved values do not establish runtime support. Full avatar shape morphing and independent PBR channel transforms remain unverified.
+- Graphics quality, avatar complexity, bandwidth, shadows, chat translation, global maturity updates, online visibility, browser push, typing controls, automatic cache clearing on logout, and RLV enforcement settings still need backend wiring. Controls without a runtime implementation are disabled and identified in Settings; old saved values do not establish runtime support. Full avatar shape morphing and complete PBR lighting remain unverified.
 - Native platform controls such as Android Wi-Fi locks, filesystem paths and desktop crash-report configuration require platform-specific equivalents rather than cosmetic toggles.
 - Snapshot publishing/email, camera key-binding editing, custom EEP asset editors, and account-specific settings import/export are outside the implemented screen behavior.
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
+import { LAYOUTS, PALETTES, lcarsGeometry } from '@linkpoint/design-system/tokens';
 import { DEVICES, FLOATERS, HUD_DEFAULT, HUDS, CBTN, GRIDS } from '../theme/constants.js';
 import {
   decodeSharedTheme,
@@ -116,6 +116,10 @@ export function useAppState() {
     fps: '60 fps',
     complexity: '80 000',
     volume: '70%',
+    voiceVolume: '50%',
+    sfxVolume: '50%',
+    uiVolume: '50%',
+    ambientVolume: '50%',
     translate: 'Off',
     maturity: 'Moderate',
     bandwidth: '1 500 kbps',
@@ -226,6 +230,15 @@ export function useAppState() {
       batterySaver: toggles.battery,
     });
     app.audio.setVolume(Number.parseInt(prefs.volume, 10) / 100 || 0);
+    app.audio.setLevels({
+      sfx: Number.parseInt(prefs.sfxVolume, 10) / 100 || 0,
+      ui: Number.parseInt(prefs.uiVolume, 10) / 100 || 0,
+      ambient: Number.parseInt(prefs.ambientVolume, 10) / 100 || 0,
+    });
+    app.voice.setSpeakerVolume(
+      (Number.parseInt(prefs.volume, 10) / 100 || 0) *
+        (Number.parseInt(prefs.voiceVolume, 10) / 100 || 0),
+    );
     app.notifications.setFilters({
       local: toggles.notifyLocal,
       im: toggles.notifyIM,
@@ -236,6 +249,10 @@ export function useAppState() {
     prefs.fov,
     prefs.fps,
     prefs.volume,
+    prefs.voiceVolume,
+    prefs.sfxVolume,
+    prefs.uiVolume,
+    prefs.ambientVolume,
     toggles.battery,
     toggles.notifyLocal,
     toggles.notifyIM,
@@ -633,18 +650,7 @@ export function useAppState() {
   const cf = useCallback(() => {
     const d = D(),
       wide = !!d.split && !d.desk;
-    const gap = 4,
-      cur = wide ? 64 : 40;
-    return {
-      gap,
-      cur,
-      rad: cur - gap,
-      rail: wide ? 132 : 84,
-      bar: wide ? 104 : 70,
-      dock: wide ? 58 : 52,
-      foot: wide ? 36 : 30,
-      wide,
-    };
+    return lcarsGeometry(wide);
   }, [D]);
 
   const cTap = useCallback((id) => {

@@ -1,3 +1,4 @@
+import { lcarsGeometry } from '@linkpoint/design-system/tokens';
 import { sideBorder } from './look.js';
 // Desktop (floater) chrome styles per layout family.
 //
@@ -17,9 +18,16 @@ export function deskKind(t) {
   return 'default';
 }
 
+const consoleGeometry = lcarsGeometry(true, { rail: 128, arm: 32, header: 44 });
 const GEOMETRY = {
   // `frame` is the thickness of the top bar that the elbow sweeps out of.
-  sweep: { top: 54, rail: 128, bar: 28, dock: 40, frame: 14, elbow: 26 },
+  sweep: {
+    ...consoleGeometry,
+    top: consoleGeometry.shellTop + 4,
+    bar: 28,
+    dock: 48,
+    elbow: consoleGeometry.inner,
+  },
   metro: { top: 40, rail: 78, bar: 40, dock: 44, frame: 0, elbow: 0 },
   default: { top: 38, rail: 42, bar: 26, dock: 40, frame: 0, elbow: 0 },
 };
@@ -51,7 +59,7 @@ export function floaterStyle(kind, { V, t, act, ink }) {
     return {
       frame: {
         ...sideBorder('Left', '10px', act ? V.pri : V.sec2),
-        borderRadius: '26px 22px 14px 14px',
+        borderRadius: '0',
         boxShadow: 'none',
       },
       bar: {
@@ -61,11 +69,11 @@ export function floaterStyle(kind, { V, t, act, ink }) {
         letterSpacing: '.16em',
         textTransform: 'uppercase',
         padding: '0 6px 0 4px',
-        borderRadius: '0 22px 0 0',
+        borderRadius: '0',
       },
       control: {
         border: 'none',
-        borderRadius: '999px',
+        borderRadius: '0',
         background: act ? V.bg : V.surf,
         color: act ? V.pri : V.ink2,
       },
@@ -140,7 +148,7 @@ export function chipStyle(kind, { V, t, on, ink, dim }) {
       height: '26px',
       padding: '0 10px',
       border: 'none',
-      borderRadius: '999px',
+      borderRadius: '0',
       font: '700 10px/1 ' + t.dfont,
       letterSpacing: '.08em',
       textTransform: 'uppercase',

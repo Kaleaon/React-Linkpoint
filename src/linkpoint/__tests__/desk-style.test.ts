@@ -74,7 +74,7 @@ describe('desktop layout families', () => {
 
   it('styles dock chips per family', () => {
     const args = { V, t: { dfont: 'x', font: 'x' }, on: false, ink, dim: false };
-    expect(chipStyle('sweep', args).borderRadius).toBe('999px');
+    expect(chipStyle('sweep', args).borderRadius).toBe('0');
     expect(chipStyle('metro', args).borderRadius).toBe(0);
     expect(chipStyle('metro', args).textTransform).toBe('lowercase');
     expect(chipStyle('default', { ...args, dim: true }).background).toBe('transparent');

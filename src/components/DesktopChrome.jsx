@@ -5,7 +5,8 @@ import { app } from '../linkpoint/app';
 import { slBridge } from '../linkpoint/sl-bridge';
 import { sideBorder } from '../theme/look.js';
 import Icon from './Icon.jsx';
-import { deskKind, deskGeometry, elbowPath, sweepSegmentFills } from '../theme/deskStyle.js';
+import { LcarsChrome } from '@linkpoint/design-system/react';
+import { deskKind, deskGeometry, sweepSegmentFills } from '../theme/deskStyle.js';
 
 const TOOLBAR = [
   ['message-square', 'Chat', 'Chat'],
@@ -64,7 +65,7 @@ export default function DesktopChrome() {
     width: 28,
     height: 28,
     border: kind === 'default' ? `1px solid ${V.outv}` : 'none',
-    borderRadius: kind === 'sweep' ? 999 : kind === 'metro' ? 0 : V.rs,
+    borderRadius: kind === 'default' ? V.rs : 0,
     background: kind === 'metro' ? 'transparent' : kind === 'sweep' ? V.sec2 : V.surf2,
     color: kind === 'sweep' ? ink(V.sec2, [V.bg, V.onsec, V.ink]) : V.ink2,
     display: 'inline-flex',
@@ -76,10 +77,10 @@ export default function DesktopChrome() {
   const locationBarStyle =
     kind === 'sweep'
       ? {
-          top: G.frame,
-          left: G.rail + G.elbow + 10,
+          top: 0,
+          left: G.rail + 8,
           right: 10,
-          height: G.top - G.frame - 2,
+          height: G.arm,
           background: 'transparent',
           borderBottom: 'none',
           boxShadow: 'none',
@@ -96,7 +97,7 @@ export default function DesktopChrome() {
         : { background: V.surf, borderBottomColor: V.outv };
   const formStyle =
     kind === 'sweep'
-      ? { border: 'none', borderRadius: 999, background: V.surf, paddingLeft: 14 }
+      ? { border: 'none', borderRadius: 0, background: V.bg, paddingLeft: 8 }
       : kind === 'metro'
         ? { ...sideBorder('Bottom', '2px', V.pri), borderRadius: 0, background: V.surf }
         : null;
@@ -106,7 +107,7 @@ export default function DesktopChrome() {
     background: kind === 'sweep' ? V.pri : kind === 'metro' ? V.surf : V.surf2,
     fontFamily: kind === 'sweep' ? t.dfont : t.font,
     ...(kind === 'sweep'
-      ? { borderStyle: 'none', borderRadius: 999, letterSpacing: '.12em' }
+      ? { borderStyle: 'none', borderRadius: 0, letterSpacing: '.12em' }
       : kind === 'metro'
         ? { borderStyle: 'none', borderRadius: 0 }
         : null),
@@ -115,29 +116,28 @@ export default function DesktopChrome() {
   return (
     <>
       {kind === 'sweep' && (
-        <>
-          <svg
-            aria-hidden="true"
-            width={G.rail + G.elbow}
-            height={G.frame + G.elbow + 2}
-            style={{ position: 'absolute', left: 0, top: 0, zIndex: 57, pointerEvents: 'none' }}
-          >
-            <path d={elbowPath(G)} fill={V.pri} />
-          </svg>
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: G.rail + G.elbow - 1,
-              right: 0,
-              height: G.frame,
-              background: V.pri,
-              borderRadius: '0 999px 999px 0',
-              zIndex: 57,
-            }}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: V.bg,
+            height: G.top,
+            zIndex: 54,
+            pointerEvents: 'none',
+          }}
+        >
+          <LcarsChrome
+            geometry={{ ...G, bar: G.shellTop }}
+            tokens={V}
+            font={t.dfont}
+            readouts={
+              <span>
+                {state.toast ||
+                  `${app.protocol.connected ? 'CONNECTED' : 'DISCONNECTED'} · ${canonicalLocation}`}
+              </span>
+            }
           />
-        </>
+        </div>
       )}
       <nav className="desktop-location-bar" aria-label="Location bar" style={locationBarStyle}>
         <div className="desktop-history-controls" aria-label="Navigation history">
@@ -270,7 +270,7 @@ export default function DesktopChrome() {
 // label bottom-right, a rounded end cap, and a closing bar below the last one.
 function SweepRail({ G, V, t, ink, state, actions }) {
   const inactive = sweepSegmentFills(V).slice(1);
-  const top = G.frame + G.elbow + 2;
+  const top = G.railTop;
   return (
     <nav
       aria-label="Viewer tools"
@@ -283,7 +283,8 @@ function SweepRail({ G, V, t, ink, state, actions }) {
         width: G.rail,
         display: 'flex',
         flexDirection: 'column',
-        gap: 4,
+        gap: G.gap,
+        overflowY: 'auto',
       }}
     >
       {TOOLBAR.map(([icon, label, screen], i) => {
@@ -299,7 +300,7 @@ function SweepRail({ G, V, t, ink, state, actions }) {
             onClick={() => actions.flFocus(screen)}
             style={{
               flex: 'none',
-              height: 44,
+              height: 48,
               width: '100%',
               display: 'flex',
               alignItems: 'flex-end',

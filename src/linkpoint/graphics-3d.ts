@@ -24,6 +24,19 @@ const ATTRIBUTE_SLOTS: Record<string, number> = {
   aWeights: 5,
 };
 
+/** WebGL 2 derivatives are core only in GLSL ES 3.00. Keep the shared shader
+ * sources compatible with WebGL 1, and translate both stages together for 2. */
+export function webgl2ShaderSource(source: string, fragment: boolean) {
+  if (/^\s*#version\s+300\s+es/m.test(source)) return source;
+  const body = source
+    .replace(/^\s*#extension\s+GL_OES_standard_derivatives\s*:\s*enable\s*$/gm, '')
+    .replace(/\battribute\b/g, 'in')
+    .replace(/\bvarying\b/g, fragment ? 'in' : 'out')
+    .replace(/\btexture2D\b|\btextureCube\b/g, 'texture')
+    .replace(/\bgl_FragColor\b/g, 'fragmentColor');
+  return '#version 300 es\n' + (fragment ? 'out highp vec4 fragmentColor;\n' : '') + body;
+}
+
 export interface DrawOptions {
   mode?: 'triangles' | 'points';
   /** Defaults to true. Ignored (forced off) for blended alpha mode 2. */
@@ -117,6 +130,15 @@ const BASIC_FRAGMENT_SHADER = `
         uniform bool uUseTexture;
         uniform vec4 uTexTransform;
         uniform float uTexRotation;
+        uniform bool uUsePbr;
+        uniform vec4 uBaseColorTransform;
+        uniform vec4 uNormalTransform;
+        uniform vec4 uMetallicRoughnessTransform;
+        uniform vec4 uEmissiveTransform;
+        uniform float uBaseColorRotation;
+        uniform float uNormalRotation;
+        uniform float uMetallicRoughnessRotation;
+        uniform float uEmissiveRotation;
         uniform bool uFullBright;
         uniform vec3 uCameraPos;
         uniform float uMetallic;
@@ -131,6 +153,16 @@ const BASIC_FRAGMENT_SHADER = `
         uniform float uAlphaCutoff;
         uniform int uAlphaMode;
         
+        // Official textureUtilV.glsl: SL UVs are right-handed; KHR transforms
+        // operate from the top-left in left-handed UV space. Do not reuse the
+        // legacy face transform or the base-color channel for other PBR maps.
+        vec2 pbrUV(vec4 transform, float rotation) {
+          vec2 uv = vec2(vTexCoord.x, 1.0 - vTexCoord.y) * transform.xy;
+          float s = sin(rotation), c = cos(rotation);
+          uv = mat2(c, -s, s, c) * uv + transform.zw;
+          return vec2(uv.x, 1.0 - uv.y);
+        }
+
         void main() {
           // SL applies repeats first, then rotates around the texture centre,
           // then applies the face offset. Rotating before repeat distorted
@@ -140,9 +172,31 @@ const BASIC_FRAGMENT_SHADER = `
           float texCos = cos(uTexRotation);
           vec2 rotated = mat2(texCos, -texSin, texSin, texCos) * centered + vec2(0.5);
           vec2 transformedUV = rotated + uTexTransform.zw;
+          vec2 baseUV = uUsePbr ? pbrUV(uBaseColorTransform, uBaseColorRotation) : transformedUV;
+          vec2 normalUV = uUsePbr ? pbrUV(uNormalTransform, uNormalRotation) : transformedUV;
+          vec2 ormUV = uUsePbr ? pbrUV(uMetallicRoughnessTransform, uMetallicRoughnessRotation) : transformedUV;
+          vec2 emissiveUV = uUsePbr ? pbrUV(uEmissiveTransform, uEmissiveRotation) : transformedUV;
 
           vec3 normal = normalize(vNormal);
-          if (uUseNormalTexture) normal = normalize(normal + (texture2D(uNormalTexture, transformedUV).xyz * 2.0 - 1.0));
+          #ifdef HAS_NORMAL_DERIVATIVES
+          if (uUseNormalTexture) {
+            // Reconstruct the tangent frame from the normal channel's own UVs.
+            // This also accounts for its rotation and mirrored repeats on meshes
+            // without imported tangents, including skinned and flexible geometry.
+            vec3 px = dFdx(vPosition), py = dFdy(vPosition);
+            vec2 tx = dFdx(normalUV), ty = dFdy(normalUV);
+            float determinant = tx.x * ty.y - tx.y * ty.x;
+            if (abs(determinant) > 0.0000001) {
+              vec3 tangent = (px * ty.y - py * tx.y) / determinant;
+              tangent = normalize(tangent - normal * dot(normal, tangent));
+              vec3 bitangent = (py * tx.x - px * ty.x) / determinant;
+              bitangent = normalize(bitangent - normal * dot(normal, bitangent) - tangent * dot(tangent, bitangent));
+              vec3 sampleNormal = texture2D(uNormalTexture, normalUV).xyz * 2.0 - 1.0;
+              normal = normalize(mat3(tangent, bitangent, normal) * sampleNormal);
+            }
+          }
+          #endif
+          if (!gl_FrontFacing) normal = -normal;
           vec3 lightDir = normalize(uLightPos - vPosition);
           
           // Ambient
@@ -153,9 +207,9 @@ const BASIC_FRAGMENT_SHADER = `
           vec3 diffuse = diff * uLightColor;
           
           // Final color
-          vec4 baseColor = uUseTexture ? texture2D(uTexture, transformedUV) * uColor : uColor;
+          vec4 baseColor = uUseTexture ? texture2D(uTexture, baseUV) * uColor : uColor;
           if (uAlphaMode == 1 && baseColor.a < uAlphaCutoff) discard;
-          vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, transformedUV).rgb : vec3(1.0);
+          vec3 orm = uUseMetallicRoughnessTexture ? texture2D(uMetallicRoughnessTexture, ormUV).rgb : vec3(1.0);
           float metallic = clamp(uMetallic * orm.b, 0.0, 1.0);
           float roughness = clamp(uRoughness * orm.g, 0.04, 1.0);
           vec3 viewDir = normalize(uCameraPos - vPosition);
@@ -167,7 +221,7 @@ const BASIC_FRAGMENT_SHADER = `
           // lights in linear space and converts to sRGB at the end, which for sRGB surface colours
           // is the same as scaling them by light^(1/2.2).
           vec3 diffusePbr = baseColor.rgb * (1.0 - metallic) * pow(min(ambient + diffuse, vec3(1.0)), vec3(1.0 / 2.2));
-          vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, transformedUV).rgb : vec3(1.0));
+          vec3 emission = uEmissive * (uUseEmissiveTexture ? texture2D(uEmissiveTexture, emissiveUV).rgb : vec3(1.0));
           vec3 result = uFullBright ? baseColor.rgb : diffusePbr + f0 * specular + emission;
           
           gl_FragColor = vec4(result, baseColor.a);
@@ -282,6 +336,13 @@ export class Graphics3D extends Utils.EventEmitter {
    * Create default shader programs
    */
   async createDefaultShaders() {
+    const webgl2 =
+      typeof WebGL2RenderingContext !== 'undefined' && this.gl instanceof WebGL2RenderingContext;
+    const derivatives = webgl2 || this.gl!.getExtension('OES_standard_derivatives');
+    const fragment =
+      (derivatives
+        ? '#extension GL_OES_standard_derivatives : enable\n#define HAS_NORMAL_DERIVATIVES\n'
+        : '') + BASIC_FRAGMENT_SHADER;
     // Basic shader
     this.createShaderProgram('basic', {
       vertex: `
@@ -306,7 +367,7 @@ export class Graphics3D extends Utils.EventEmitter {
           gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
         }
       `,
-      fragment: BASIC_FRAGMENT_SHADER,
+      fragment,
     });
 
     // Skinned (rigged mesh / avatar) variant: same lighting, joint-driven vertices.
@@ -315,7 +376,7 @@ export class Graphics3D extends Utils.EventEmitter {
     );
     this.createShaderProgram('skinned', {
       vertex: skinnedVertexShader(this.maxJoints),
-      fragment: BASIC_FRAGMENT_SHADER,
+      fragment,
     });
     this.createShaderProgram('terrain', {
       vertex: TERRAIN_VERTEX_SHADER,
@@ -336,8 +397,19 @@ export class Graphics3D extends Utils.EventEmitter {
     // Flexible prim program
     this.createShaderProgram('prim_flexible', {
       vertex: FLEXIBLE_VERTEX_SHADER,
-      fragment: BASIC_FRAGMENT_SHADER,
+      fragment,
     });
+    const missing = [
+      'basic',
+      'skinned',
+      'terrain',
+      'sky',
+      'stars',
+      'water',
+      'prim_flexible',
+    ].filter((name) => !this.programs.has(name));
+    if (missing.length)
+      throw new Error(`Renderer shaders failed to compile: ${missing.join(', ')}`);
   }
 
   /**
@@ -345,11 +417,21 @@ export class Graphics3D extends Utils.EventEmitter {
    */
   createShaderProgram(name: string, source: { vertex: string; fragment: string }) {
     const gl = this.gl!;
+    if (typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext) {
+      source = {
+        vertex: webgl2ShaderSource(source.vertex, false),
+        fragment: webgl2ShaderSource(source.fragment, true),
+      };
+    }
 
     const vertexShader = this.compileShader(gl.VERTEX_SHADER, source.vertex);
     const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, source.fragment);
 
-    if (!vertexShader || !fragmentShader) return null;
+    if (!vertexShader || !fragmentShader) {
+      if (vertexShader) gl.deleteShader(vertexShader);
+      if (fragmentShader) gl.deleteShader(fragmentShader);
+      return null;
+    }
 
     const program = gl.createProgram()!;
     gl.attachShader(program, vertexShader);
@@ -360,9 +442,12 @@ export class Graphics3D extends Utils.EventEmitter {
     for (const [name, slot] of Object.entries(ATTRIBUTE_SLOTS))
       gl.bindAttribLocation(program, slot, name);
     gl.linkProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       console.error('Shader program link error:', gl.getProgramInfoLog(program));
+      gl.deleteProgram(program);
       return null;
     }
 

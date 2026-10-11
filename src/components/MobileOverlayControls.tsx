@@ -155,19 +155,6 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
             </TouchTarget>
           )}
 
-          {onResetView && (
-            <TouchTarget
-              minSize={44}
-              enhanced={enhanced}
-              aria-label="Reset Camera View"
-              title="Reset Camera View (Home key)"
-              onClick={onResetView}
-              style={buttonStyle}
-            >
-              <Icon name="home" size={14} />
-            </TouchTarget>
-          )}
-
           {onToggleDpad && (
             <TouchTarget
               minSize={44}
@@ -344,7 +331,7 @@ export const MobileOverlayControls: React.FC<MobileOverlayControlsProps> = ({
               minSize={44}
               enhanced={enhanced}
               aria-label="Reset Camera View"
-              title="Reset View (Home key)"
+              title="Reset View"
               onClick={onResetView}
               style={buttonStyle}
             >

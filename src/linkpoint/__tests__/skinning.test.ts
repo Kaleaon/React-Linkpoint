@@ -6,9 +6,26 @@ import {
   skinnedVertexShader,
   SL_MAX_RIGGED_JOINTS,
 } from '../skinning';
-import { compose } from '../avatar-skeleton';
+import { compose, multiply } from '../avatar-skeleton';
 
 describe('GPU skinning helpers', () => {
+  it.each(['separate', 'left', 'right'] as const)(
+    'multiplies dense matrices correctly with %s output storage',
+    (storage) => {
+      const a = Float32Array.from({ length: 16 }, (_, i) => (i - 7) / 3);
+      const b = Float32Array.from({ length: 16 }, (_, i) => (17 - i) / 5);
+      const expected = new Float32Array(16);
+      for (let column = 0; column < 4; column++)
+        for (let row = 0; row < 4; row++) {
+          let sum = 0;
+          for (let term = 0; term < 4; term++) sum += a[term * 4 + row] * b[column * 4 + term];
+          expected[column * 4 + row] = sum;
+        }
+      const output = storage === 'left' ? a : storage === 'right' ? b : new Float32Array(16);
+      expect(multiply(a, b, output)).toBe(output);
+      expect(Array.from(output)).toEqual(Array.from(expected));
+    },
+  );
   it('sizes the joint array from the GPU uniform budget and caps it at the SL maximum', () => {
     expect(maxSkinJoints(4096)).toBe(SL_MAX_RIGGED_JOINTS);
     expect(maxSkinJoints(254)).toBe(Math.floor((254 - 24) / 3));

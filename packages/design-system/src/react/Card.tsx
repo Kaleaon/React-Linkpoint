@@ -1,6 +1,7 @@
 import React from "react";
 import { useTheme } from "./LayoutContext.js";
 import { type PaletteColors } from "../tokens/index.js";
+import { SectionHeading } from "./SectionHeading.js";
 import { AccessibleButton } from "./AccessibleButton.js";
 
 export interface CardAction {
@@ -56,11 +57,7 @@ export const Card: React.FC<CardProps> = ({ c, children }) => {
   }
 
   if (c.sect) {
-    return (
-      <div style={{ border: "none", borderRadius: 0, background: "transparent", padding: LK.card === "flat" ? "18px 16px 2px" : "18px 2px 2px" }}>
-        <span style={{ font: "700 10px/1.4 " + theme.font, letterSpacing: ".26em", color: V.ink2, textTransform: "uppercase" }}>{c.title}</span>
-      </div>
-    );
+    return <SectionHeading title={c.title} tokens={V} font={theme.dfont} console={LK.card === "cap"} />;
   }
 
   const accentColor = c.accent ? V[c.accent] : null;
@@ -73,13 +70,18 @@ export const Card: React.FC<CardProps> = ({ c, children }) => {
     borderLeft: accentColor ? `4px solid ${accentColor}` : `1px solid ${V.outv}`
   };
 
+  if (LK.card === "cap") Object.assign(cardStyle, { border: "none", borderLeft: `8px solid ${accentColor || V.sec2}`, borderRadius: 0 });
+  if (LK.card === "flat") Object.assign(cardStyle, { border: "none", borderLeft: `4px solid ${accentColor || V.pri}`, borderRadius: 0 });
+  if (LK.card === "rule" || LK.card === "quiet") Object.assign(cardStyle, { border: "none", [LK.card === "rule" ? "borderTop" : "borderBottom"]: `1px solid ${accentColor || V.outv}`, borderRadius: 0, background: "transparent" });
+  if (LK.card === "box") cardStyle.borderRadius = V.rs;
+
   const meterPct = c.meter == null ? null : Math.max(1, Math.min(100, Math.round(c.meter * 100)));
 
   return (
     <div style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
         {c.title && <span style={{ flex: 1, font: "600 13px/1.25 " + theme.font, color: V.ink }}>{c.title}</span>}
-        {c.right != null && c.right !== "" && <span style={{ font: "400 10.5px/1 " + theme.font, color: V.ink2 }}>{c.right}</span>}
+        {c.right != null && c.right !== "" && <span style={{ font: "400 12px/1.3 " + theme.font, color: V.ink2 }}>{c.right}</span>}
         {c.badge ? (
           <span
             style={{
@@ -115,7 +117,9 @@ export const Card: React.FC<CardProps> = ({ c, children }) => {
               onClick={a.pick}
               style={{
                 padding: "6px 12px",
-                borderRadius: V.rs,
+                borderRadius: LK.card === "cap" ? 0 : V.rs,
+                minHeight: 48,
+                minWidth: 48,
                 background: a.accent ? V.pri : V.surf2,
                 color: a.accent ? V.onpri : V.ink,
                 font: "600 11px/1 " + theme.font,

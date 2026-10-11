@@ -21,6 +21,8 @@ export interface ViewportCanvasProps {
   onKeyDown?: (event: React.KeyboardEvent<HTMLCanvasElement>) => void;
   /** Whether to render single-pointer overlay controls (default: true) */
   showOverlayControls?: boolean;
+  /** Let the world controller own movement/reset bindings when embedded in the live viewer. */
+  manageMovementKeys?: boolean;
   /** Custom canvas style overrides */
   style?: React.CSSProperties;
   /** Custom class name for outer container */
@@ -47,6 +49,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
     onPan,
     onKeyDown,
     showOverlayControls = true,
+    manageMovementKeys = true,
     style,
     className,
   } = props;
@@ -59,7 +62,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
 
   const computedAriaLabel =
     ariaLabel ||
-    `Interactive 3D viewport canvas for ${regionName}. Position: ${posStr}. Drag or use single-pointer controls to navigate. Arrow keys or WASD move camera, + and - keys zoom, Home key resets view.`;
+    `Interactive 3D viewport canvas for ${regionName}. Position: ${posStr}. Drag or use single-pointer controls to navigate. ${manageMovementKeys ? 'Arrow keys or WASD move camera, Home key resets view.' : 'Movement keys follow the Second Life viewer bindings.'} + and - keys zoom.`;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
     // Respect modifier keys and text input focus
@@ -73,7 +76,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
 
     let handled = false;
 
-    switch (code) {
+    switch (manageMovementKeys ? code : '') {
       case 'ArrowUp':
       case 'KeyW':
         onCameraMove?.(1, 0, 0);
@@ -119,7 +122,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
       } else if (key === '-' || key === '_' || code === 'NumpadSubtract') {
         onZoom?.(-0.2);
         handled = true;
-      } else if (code === 'KeyR') {
+      } else if (manageMovementKeys && code === 'KeyR') {
         onResetView?.();
         handled = true;
       }
@@ -127,6 +130,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
 
     if (handled) {
       event.preventDefault();
+      event.stopPropagation();
     }
 
     onKeyDown?.(event);

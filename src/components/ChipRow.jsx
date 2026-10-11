@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { inkOn } from '@linkpoint/design-system/tokens';
 import { app } from '../linkpoint/app';
 
 // Ported from `chips`/`chipList`/`activeChip` — Chat's IM/GROUP thread picker.
@@ -42,20 +43,21 @@ export default function ChipRow() {
 
   const activeChip = chipList.includes(state.chip) ? state.chip : chipList[0];
 
+  const consoleLayout = t.nav === 'SWEEP';
   const chipBase = {
     flex: 'none',
-    height: '36px',
+    height: '48px',
     padding: '0 10px',
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    borderWidth: '1px',
+    borderWidth: consoleLayout ? 0 : '1px',
     borderStyle: 'solid',
     borderColor: V.outv,
-    borderRadius: V.rs,
-    background: V.surf,
+    borderRadius: consoleLayout ? 0 : V.rs,
+    background: consoleLayout ? V.sec2 : V.surf,
     cursor: 'pointer',
-    color: V.ink2,
+    color: consoleLayout ? inkOn(V.sec2) : V.ink2,
   };
 
   const handleCloseSession = (e, name) => {
@@ -76,7 +78,7 @@ export default function ChipRow() {
         padding: '8px 12px',
         overflowX: 'auto',
         background: V.bg,
-        borderBottom: `1px solid ${V.outv}`,
+        borderBottom: consoleLayout ? 'none' : `1px solid ${V.outv}`,
       }}
     >
       {chipList.map((n) => {
@@ -168,7 +170,11 @@ export default function ChipRow() {
               actions.openSearch('Chat', 'FRIENDS');
             }
           }}
-          style={{ ...chipBase, borderStyle: 'dashed', color: V.pri }}
+          style={{
+            ...chipBase,
+            borderStyle: consoleLayout ? 'none' : 'dashed',
+            color: consoleLayout ? inkOn(V.sec2) : V.priText,
+          }}
           title="Start conversation with friend or resident"
         >
           <span style={{ font: '700 12px/1 ' + t.font, flex: 'none' }}>+</span>
