@@ -108,7 +108,14 @@ export class IndexedDBStore {
   constructor() {}
 
   public async getDB(): Promise<IDBDatabase | null> {
-    if (typeof window === 'undefined' || !window.indexedDB) {
+    let factory: IDBFactory | undefined;
+    try {
+      factory = typeof window === 'undefined' ? undefined : window.indexedDB;
+    } catch {
+      // Restricted iframe storage uses the same memory fallback as an unavailable API.
+      return null;
+    }
+    if (!factory) {
       return null;
     }
     if (this.db) {
@@ -120,7 +127,7 @@ export class IndexedDBStore {
 
     this.initPromise = new Promise<IDBDatabase | null>((resolve) => {
       try {
-        const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+        const req = factory.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = (e: any) => {
           const db: IDBDatabase = e.target.result;
 
