@@ -146,7 +146,7 @@ describe("screens that switch sub-tabs do not break React's hook order", () => {
     await act(async () => {
       mounted!.ctx.current.actions.setTab('Friends', 'CONTACTS');
     });
-    expect(mounted.host.textContent).toContain('SAVE FRIENDS LIST');
+    expect(mounted.host.textContent).toContain('EXPORT');
     await act(async () => {
       mounted!.ctx.current.actions.setTab('Friends', 'ALL');
     });
@@ -252,27 +252,17 @@ describe('Notices list', () => {
   });
 });
 
-describe('Friends: saving to Contacts', () => {
-  it('saves one friend or everyone, and marks saved friends', async () => {
+describe('Friends: auto-syncing to Contacts', () => {
+  it('automatically syncs friends into contacts when friends are loaded', async () => {
     mounted = await mountScreen(FriendsScreen);
     await act(async () => {
-      app.friends.replaceFriends([
+      app.protocol.emit('friends_loaded', [
         { id: 'f-1', name: 'Pat Resident' },
         { id: 'f-2', name: 'Sam Linden' },
       ]);
     });
-    await click(
-      [...mounted.host.querySelectorAll('button')].find(
-        (b) => (b.textContent || '').trim() === 'SAVE',
-      ),
-    );
-    expect(app.contacts.size).toBe(1);
-    expect(
-      [...mounted.host.querySelectorAll('button')].some(
-        (b) => (b.textContent || '').trim() === 'SAVED',
-      ),
-    ).toBe(true);
-    await click(buttonByText(mounted.host, /SAVE TO CONTACTS/));
     expect(app.contacts.size).toBe(2);
+    expect(app.contacts.has('f-1')).toBe(true);
+    expect(app.contacts.has('f-2')).toBe(true);
   });
 });

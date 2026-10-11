@@ -178,19 +178,6 @@ export default function ContactsScreen() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
         <button
           type="button"
-          disabled={busy || !friends.length}
-          style={button(true)}
-          onClick={() => saveFriends(friends)}
-          title={
-            friends.length
-              ? 'Save everyone on your friends list'
-              : 'Connect and load your friends first'
-          }
-        >
-          SAVE FRIENDS LIST{friends.length ? ` (${friends.length})` : ''}
-        </button>
-        <button
-          type="button"
           disabled={busy || !contacts.length}
           style={button(false)}
           onClick={exportContacts}
@@ -273,213 +260,123 @@ export default function ContactsScreen() {
         </div>
       ) : null}
 
-      {tab === 'ADD FROM SL' ? (
-        <FriendsToAdd
-          friends={unsaved}
-          total={friends.length}
-          onlineIds={onlineIds}
-          busy={busy}
-          button={button}
-          onSave={saveFriends}
-          loggedIn={app.auth.isLoggedIn()}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search contacts"
+          aria-label="Search contacts"
+          style={{
+            minHeight: 36,
+            padding: '0 10px',
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            background: V.surf,
+            color: V.ink,
+            font: `400 12.5px/1 ${t.font}`,
+          }}
         />
-      ) : (
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search contacts"
-            aria-label="Search contacts"
+        {!contacts.length ? (
+          <div className="honest-empty">
+            <Icon name="contact" size={30} />
+            <p>No contacts saved yet. Save your friends list to start your address book.</p>
+          </div>
+        ) : !shown.length ? (
+          <div className="honest-empty">
+            <p>No contact matches “{query}”.</p>
+          </div>
+        ) : (
+          <ul
+            aria-label="Saved contacts"
             style={{
-              minHeight: 36,
-              padding: '0 10px',
-              border: `1px solid ${V.outv}`,
-              borderRadius: V.rs,
-              background: V.surf,
-              color: V.ink,
-              font: `400 12.5px/1 ${t.font}`,
-            }}
-          />
-          {!contacts.length ? (
-            <div className="honest-empty">
-              <Icon name="contact" size={30} />
-              <p>No contacts saved yet. Save your friends list to start your address book.</p>
-            </div>
-          ) : !shown.length ? (
-            <div className="honest-empty">
-              <p>No contact matches “{query}”.</p>
-            </div>
-          ) : (
-            <ul
-              aria-label="Saved contacts"
-              style={{
-                listStyle: 'none',
-                margin: 0,
-                padding: 0,
-                flex: selected ? '0 0 38%' : 1,
-                minHeight: 90,
-                overflowY: 'auto',
-                display: 'grid',
-                gap: 6,
-                alignContent: 'start',
-              }}
-            >
-              {shown.map((contact) => (
-                <li key={contact.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(selectedId === contact.id ? null : contact.id)}
-                    aria-pressed={selectedId === contact.id}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '8px 10px',
-                      textAlign: 'left',
-                      background: V.surf,
-                      border: `1px solid ${selectedId === contact.id ? V.pri : V.outv}`,
-                      borderRadius: V.rs,
-                      color: V.ink,
-                      cursor: 'pointer',
-                      font: `400 12px/1.3 ${t.font}`,
-                    }}
-                  >
-                    <ContactAvatar name={contact.name} photo={contact.photo} size={36} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <strong style={{ display: 'block', fontSize: 13 }}>
-                        {contact.name}
-                        {onlineIds.has(contact.id) ? (
-                          <span style={{ color: V.pri, fontWeight: 600 }}> · online</span>
-                        ) : null}
-                      </strong>
-                      <small
-                        style={{
-                          color: V.ink2,
-                          display: 'block',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {[contact.note, ...contact.links.map((link) => link.label)]
-                          .filter(Boolean)
-                          .join(' · ') || 'No note or links yet'}
-                      </small>
-                    </span>
-                    {contact.googleResourceName ? (
-                      <span
-                        title="Copied to Google Contacts"
-                        style={{
-                          color: V.pri,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          letterSpacing: '.08em',
-                        }}
-                      >
-                        GOOGLE
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {selected ? (
-            <ContactDetail
-              key={selected.id}
-              contact={selected}
-              online={onlineIds.has(selected.id)}
-              googleEnabled={googleEnabled}
-              busy={busy}
-              run={run}
-              say={say}
-              button={button}
-              copyToGoogle={copyToGoogle}
-              onClose={() => setSelectedId(null)}
-            />
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FriendsToAdd({ friends, total, onlineIds, busy, button, onSave, loggedIn }) {
-  const { V, t } = useTheme();
-  if (!loggedIn && !total)
-    return (
-      <div className="honest-empty">
-        <Icon name="users" size={30} />
-        <p>Connect to a grid to see your friends.</p>
-      </div>
-    );
-  if (!total)
-    return (
-      <div className="honest-empty">
-        <Icon name="users" size={30} />
-        <p>No friends have been loaded from the grid yet.</p>
-      </div>
-    );
-  if (!friends.length)
-    return (
-      <div className="honest-empty">
-        <Icon name="check" size={30} />
-        <p>All {total} of your friends are saved.</p>
-      </div>
-    );
-  return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <button
-        type="button"
-        disabled={busy}
-        style={{ ...button(true), alignSelf: 'flex-start' }}
-        onClick={() => onSave(friends)}
-      >
-        SAVE ALL {friends.length}
-      </button>
-      <ul
-        aria-label="Friends not yet saved"
-        style={{
-          listStyle: 'none',
-          margin: 0,
-          padding: 0,
-          overflowY: 'auto',
-          display: 'grid',
-          gap: 6,
-          alignContent: 'start',
-        }}
-      >
-        {friends.map((friend) => (
-          <li
-            key={friend.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '8px 10px',
-              background: V.surf,
-              border: `1px solid ${V.outv}`,
-              borderRadius: V.rs,
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+              flex: selected ? '0 0 38%' : 1,
+              minHeight: 90,
+              overflowY: 'auto',
+              display: 'grid',
+              gap: 6,
+              alignContent: 'start',
             }}
           >
-            <ContactAvatar name={friend.name} size={32} />
-            <span style={{ flex: 1, font: `600 13px/1.3 ${t.font}` }}>
-              {friend.name}
-              {onlineIds.has(friend.id) ? <small style={{ color: V.pri }}> · online</small> : null}
-            </span>
-            <button
-              type="button"
-              disabled={busy}
-              style={button(false)}
-              onClick={() => onSave([friend])}
-            >
-              SAVE
-            </button>
-          </li>
-        ))}
-      </ul>
+            {shown.map((contact) => (
+              <li key={contact.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(selectedId === contact.id ? null : contact.id)}
+                  aria-pressed={selectedId === contact.id}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '8px 10px',
+                    textAlign: 'left',
+                    background: V.surf,
+                    border: `1px solid ${selectedId === contact.id ? V.pri : V.outv}`,
+                    borderRadius: V.rs,
+                    color: V.ink,
+                    cursor: 'pointer',
+                    font: `400 12px/1.3 ${t.font}`,
+                  }}
+                >
+                  <ContactAvatar name={contact.name} photo={contact.photo} size={36} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ display: 'block', fontSize: 13 }}>
+                      {contact.name}
+                      {onlineIds.has(contact.id) ? (
+                        <span style={{ color: V.pri, fontWeight: 600 }}> · online</span>
+                      ) : null}
+                    </strong>
+                    <small
+                      style={{
+                        color: V.ink2,
+                        display: 'block',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {[contact.note, ...contact.links.map((link) => link.label)]
+                        .filter(Boolean)
+                        .join(' · ') || 'No note or links yet'}
+                    </small>
+                  </span>
+                  {contact.googleResourceName ? (
+                    <span
+                      title="Copied to Google Contacts"
+                      style={{
+                        color: V.pri,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: '.08em',
+                      }}
+                    >
+                      GOOGLE
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {selected ? (
+          <ContactDetail
+            key={selected.id}
+            contact={selected}
+            online={onlineIds.has(selected.id)}
+            googleEnabled={googleEnabled}
+            busy={busy}
+            run={run}
+            say={say}
+            button={button}
+            copyToGoogle={copyToGoogle}
+            onClose={() => setSelectedId(null)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -502,7 +399,22 @@ function ContactDetail({
   const [linkErrors, setLinkErrors] = useState({});
   const [confirmRemove, setConfirmRemove] = useState(false);
   const fileRef = useRef(null);
-  const noteDirty = note !== contact.note;
+
+  useEffect(() => {
+    setNote(contact.note);
+  }, [contact.id, contact.note]);
+
+  useEffect(() => {
+    if (note === contact.note) return;
+    const timer = setTimeout(() => {
+      try {
+        app.contacts.setNote(contact.id, note);
+      } catch (err) {
+        console.warn('Auto-save note failed:', err);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contact.id, note, contact.note]);
 
   const setPhoto = (file) =>
     run(async () => {
@@ -628,7 +540,7 @@ function ContactDetail({
 
       <div style={{ display: 'grid', gap: 6 }}>
         <label htmlFor={`note-${contact.id}`} style={label}>
-          NOTE
+          NOTE (AUTO-SAVED)
         </label>
         <textarea
           id={`note-${contact.id}`}
@@ -644,19 +556,6 @@ function ContactDetail({
             font: `400 12.5px/1.5 ${t.font}`,
           }}
         />
-        <button
-          type="button"
-          disabled={!noteDirty || busy}
-          style={{ ...button(false), justifySelf: 'start', opacity: noteDirty ? 1 : 0.5 }}
-          onClick={() =>
-            run(async () => {
-              app.contacts.setNote(contact.id, note);
-              say('info', 'Note saved.');
-            })
-          }
-        >
-          SAVE NOTE
-        </button>
       </div>
 
       <div style={{ display: 'grid', gap: 10 }}>

@@ -160,10 +160,7 @@ export const CSUB = {
     ['ONLINE', '· 02'],
     ['CONTACTS', '· 03'],
   ],
-  Contacts: [
-    ['SAVED', '· 01'],
-    ['ADD FROM SL', '· 02'],
-  ],
+  Contacts: [['SAVED', '· 01']],
   Calendar: [
     ['NOTICES', '· 01'],
     ['GOOGLE CALENDAR', '· 02'],
