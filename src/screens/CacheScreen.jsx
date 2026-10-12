@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
+import { useErrorRecovery } from '../context/ErrorRecoveryContext';
 import { app } from '../linkpoint/app';
-import { localCache } from '../linkpoint/local-cache';
+import { localCache, COMMON_FLASHDRIVE_PRESETS, validateMountPath } from '../linkpoint/local-cache';
 import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
 
 export default function CacheScreen() {
   const { V, t } = useTheme();
-  const { state, actions } = useApp();
+  const { actions } = useApp();
+  const { enqueueRetry, logTelemetry } = useErrorRecovery();
   const fileInputRef = useRef(null);
 
   const [stats, setStats] = useState({
@@ -26,7 +28,7 @@ export default function CacheScreen() {
   const [customPath, setCustomPath] = useState(localCache.customFlashdrivePath);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [recoveryError, setRecoveryError] = useState(null);
 
   const agentId = app.auth.user?.id || 'current';
 
@@ -45,12 +47,43 @@ export default function CacheScreen() {
     localCache.on('cache_updated', handleUpdate);
     localCache.on('cache_cleared', handleUpdate);
     localCache.on('cache_location_changed', handleUpdate);
+    localCache.on('cache_auto_synced', handleUpdate);
     return () => {
       localCache.off('cache_updated', handleUpdate);
       localCache.off('cache_cleared', handleUpdate);
       localCache.off('cache_location_changed', handleUpdate);
+      localCache.off('cache_auto_synced', handleUpdate);
     };
   }, [agentId]);
+
+  const executeOperation = async ({ code, description, action }) => {
+    setBusy(true);
+    setRecoveryError(null);
+    setMessage('');
+    try {
+      return await enqueueRetry({
+        action,
+        category: 'cache',
+        code,
+        description,
+        maxRetries: 3,
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logTelemetry('cache', code, `Cache operation '${description}' failed: ${errorMsg}`, {
+        error: errorMsg,
+      });
+      setRecoveryError({
+        code,
+        description,
+        message: errorMsg,
+        retryAction: () => executeOperation({ code, description, action }),
+      });
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleSelectLocation = (type) => {
     setLocType(type);
@@ -62,156 +95,189 @@ export default function CacheScreen() {
   };
 
   const handlePickDirectory = async () => {
-    setBusy(true);
-    setError('');
-    setMessage('');
     try {
-      const res = await localCache.pickFlashdriveDirectory();
-      if (res.success) {
-        setLocType('flashdrive_fs');
-        setMessage(`Selected flashdrive folder: ${res.name}`);
-        actions.notify(`Flashdrive folder mounted: ${res.name}`);
-        await refreshStats();
-      } else if (res.error) {
-        setError(res.error);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to select folder');
-    } finally {
-      setBusy(false);
+      await executeOperation({
+        code: 'CACHE_PICK_DIRECTORY_FAILED',
+        description: 'Select flashdrive directory folder',
+        action: async () => {
+          const res = await localCache.pickFlashdriveDirectory();
+          if (res.success) {
+            setLocType('flashdrive_fs');
+            setMessage(`Selected flashdrive folder: ${res.name}`);
+            actions.notify(`Flashdrive folder mounted: ${res.name}`);
+            await refreshStats();
+          } else if (res.error) {
+            throw new Error(res.error);
+          }
+        },
+      });
+    } catch {
+      // Recovery card state handled in executeOperation
     }
   };
 
-  const handleSaveCustomPath = () => {
-    localCache.setLocation('flashdrive_path', customPath);
-    setLocType('flashdrive_path');
-    actions.notify(`Flashdrive custom path saved: ${customPath}`);
-    setMessage(`Flashdrive path configured: ${customPath}`);
-    refreshStats();
+  const handleSaveCustomPath = async () => {
+    const val = validateMountPath(customPath);
+    if (!val.valid) {
+      setRecoveryError({
+        code: 'CACHE_PATH_INVALID',
+        description: 'Configure flashdrive mount path',
+        message: val.message,
+        retryAction: () => handleSaveCustomPath(),
+      });
+      return;
+    }
+    try {
+      await executeOperation({
+        code: 'CACHE_PATH_SAVE_FAILED',
+        description: 'Save flashdrive custom mount path',
+        action: async () => {
+          localCache.setLocation('flashdrive_path', customPath);
+          setLocType('flashdrive_path');
+          actions.notify(`Flashdrive custom path saved: ${customPath}`);
+          setMessage(`Flashdrive path configured: ${customPath}`);
+          await refreshStats();
+        },
+      });
+    } catch {
+      // Recovery card state handled
+    }
   };
 
   const handleSaveInventoryNow = async () => {
-    setBusy(true);
-    setError('');
-    setMessage('');
     try {
-      const foldersArr = Array.from(app.inventory.folders.values());
-      const itemsArr = Array.from(app.inventory.items.values());
+      await executeOperation({
+        code: 'CACHE_SAVE_INVENTORY_FAILED',
+        description: 'Save inventory data to active cache',
+        action: async () => {
+          const foldersArr = Array.from(app.inventory.folders.values());
+          const itemsArr = Array.from(app.inventory.items.values());
 
-      if (foldersArr.length === 0) {
-        throw new Error('No inventory loaded to save. Connect to Second Life first.');
-      }
+          if (foldersArr.length === 0) {
+            throw new Error('No inventory loaded to save. Connect to Second Life first.');
+          }
 
-      await localCache.saveInventory(agentId, {
-        folders: foldersArr,
-        items: itemsArr,
-        rootId: app.inventory.rootFolder?.id,
-        rootName: app.inventory.rootFolder?.name,
+          await localCache.saveInventory(agentId, {
+            folders: foldersArr,
+            items: itemsArr,
+            rootId: app.inventory.rootFolder?.id,
+            rootName: app.inventory.rootFolder?.name,
+          });
+
+          setMessage(
+            `Saved ${foldersArr.length} folders and ${itemsArr.length} items to flashdrive cache!`,
+          );
+          actions.notify(`Saved ${foldersArr.length} folders to cache`);
+          await refreshStats();
+        },
       });
-
-      setMessage(
-        `Saved ${foldersArr.length} folders and ${itemsArr.length} items to flashdrive cache!`,
-      );
-      actions.notify(`Saved ${foldersArr.length} folders to cache`);
-      await refreshStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setBusy(false);
+    } catch {
+      // Recovery card state handled
     }
   };
 
   const handleLoadFromCacheNow = async () => {
-    setBusy(true);
-    setError('');
-    setMessage('');
     try {
-      await app.inventory.load(false);
-      setMessage(`Loaded inventory from cache without network rebuild!`);
-      actions.notify('Inventory loaded from flashdrive cache');
-      await refreshStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Load failed');
-    } finally {
-      setBusy(false);
+      await executeOperation({
+        code: 'CACHE_LOAD_INVENTORY_FAILED',
+        description: 'Load inventory from cache',
+        action: async () => {
+          await app.inventory.load(false);
+          setMessage(`Loaded inventory from cache without network rebuild!`);
+          actions.notify('Inventory loaded from flashdrive cache');
+          await refreshStats();
+        },
+      });
+    } catch {
+      // Recovery card state handled
     }
   };
 
   const handleRebuildFromGrid = async () => {
-    setBusy(true);
-    setError('');
-    setMessage('');
     try {
-      await app.inventory.load(true);
-      setMessage('Inventory rebuild completed from Second Life grid!');
-      actions.notify('Inventory re-fetched from Second Life grid');
-      await refreshStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rebuild failed');
-    } finally {
-      setBusy(false);
+      await executeOperation({
+        code: 'CACHE_REBUILD_GRID_FAILED',
+        description: 'Rebuild inventory from Second Life grid',
+        action: async () => {
+          await app.inventory.load(true);
+          setMessage('Inventory rebuild completed from Second Life grid!');
+          actions.notify('Inventory re-fetched from Second Life grid');
+          await refreshStats();
+        },
+      });
+    } catch {
+      // Recovery card state handled
     }
   };
 
   const handleExportBundle = async () => {
-    setBusy(true);
     try {
-      const blob = await localCache.exportCacheBundle(agentId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `secondlife-cache-${agentId.slice(0, 8)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setMessage('Cache export initiated. Save file to your flashdrive.');
-      actions.notify('Cache bundle exported to file');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed');
-    } finally {
-      setBusy(false);
+      await executeOperation({
+        code: 'CACHE_EXPORT_FAILED',
+        description: 'Export cache bundle to file',
+        action: async () => {
+          const blob = await localCache.exportCacheBundle(agentId);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `secondlife-cache-${agentId.slice(0, 8)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          setMessage('Cache export initiated. Save file to your flashdrive.');
+          actions.notify('Cache bundle exported to file');
+        },
+      });
+    } catch {
+      // Recovery card state handled
     }
   };
 
   const handleImportFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBusy(true);
-    setError('');
     try {
-      const res = await localCache.importCacheBundle(file);
-      if (res.success) {
-        setMessage(`Successfully imported ${res.foldersCount} folders from flashdrive!`);
-        actions.notify(`Imported ${res.foldersCount} folders from flashdrive`);
-        await app.inventory.load(false);
-        await refreshStats();
-      } else {
-        setError(res.error || 'Import failed');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed');
+      await executeOperation({
+        code: 'CACHE_IMPORT_FAILED',
+        description: 'Import cache bundle from file',
+        action: async () => {
+          const res = await localCache.importCacheBundle(file);
+          if (res.success) {
+            setMessage(`Successfully imported ${res.foldersCount} folders from flashdrive!`);
+            actions.notify(`Imported ${res.foldersCount} folders from flashdrive`);
+            await app.inventory.load(false);
+            await refreshStats();
+          } else {
+            throw new Error(res.error || 'Import failed');
+          }
+        },
+      });
+    } catch {
+      // Recovery card state handled
     } finally {
-      setBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handleClearCache = async () => {
     if (!confirm('Are you sure you want to clear the local/flashdrive cache?')) return;
-    setBusy(true);
     try {
-      const result = await localCache.clearCache(agentId);
-      const message = result.serverCleared
-        ? 'Caches cleared. Assets will refetch from Second Life; transaction history was preserved.'
-        : 'Device cache cleared; server cache could not be cleared. Transaction history was preserved.';
-      setMessage(message);
-      actions.notify(message);
-      await refreshStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Clear failed');
-    } finally {
-      setBusy(false);
+      await executeOperation({
+        code: 'CACHE_CLEAR_FAILED',
+        description: 'Clear device and flashdrive cache',
+        action: async () => {
+          const result = await localCache.clearCache(agentId);
+          const msg = result.serverCleared
+            ? 'Caches cleared. Assets will refetch from Second Life; transaction history was preserved.'
+            : 'Device cache cleared; server cache could not be cleared. Transaction history was preserved.';
+          setMessage(msg);
+          actions.notify(msg);
+          await refreshStats();
+        },
+      });
+    } catch {
+      // Recovery card state handled
     }
   };
 
@@ -279,7 +345,7 @@ export default function CacheScreen() {
             }}
           >
             <Icon name="hard-drive" size={22} />
-            CACHE & FLASHDRIVE STORAGE
+            CACHE &amp; FLASHDRIVE STORAGE
           </h2>
           <div style={{ fontSize: 12, color: V.ink2, marginTop: 4 }}>
             Store inventory skeletons, textures, and assets on a removable flashdrive to eliminate
@@ -307,19 +373,91 @@ export default function CacheScreen() {
         </div>
       )}
 
-      {error && (
+      {/* Interactive Error Recovery Card */}
+      {recoveryError && (
         <div
+          data-testid="cache-error-recovery-card"
+          role="alert"
           style={{
-            background: 'rgba(255,108,108,0.1)',
-            color: V.err,
-            border: `1px solid ${V.err}`,
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: `1px solid ${V.err || '#ef4444'}`,
             borderRadius: V.rs,
-            padding: 12,
-            fontSize: 12,
-            fontWeight: 600,
+            padding: 16,
+            display: 'grid',
+            gap: 12,
           }}
         >
-          ⚠ {error}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                background: V.err || '#ef4444',
+                color: '#fff',
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                fontSize: 14,
+              }}
+            >
+              !
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: V.ink || '#fff' }}>
+                Cache Operation Recovery ({recoveryError.code})
+              </div>
+              <div style={{ fontSize: 12, color: V.ink2 || '#9ca3af' }}>
+                {recoveryError.description || 'A cache storage error occurred.'}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: V.surf2 || '#1f2937',
+              padding: 10,
+              borderRadius: V.rs,
+              fontSize: 12,
+              color: V.ink || '#f3f4f6',
+            }}
+          >
+            <strong>Details:</strong> {recoveryError.message}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {recoveryError.retryAction && (
+              <button
+                type="button"
+                onClick={() => recoveryError.retryAction()}
+                disabled={busy}
+                style={btnStyle(true)}
+              >
+                <Icon name="refresh-cw" size={14} /> Retry Operation
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                handleSelectLocation('internal');
+                setRecoveryError(null);
+              }}
+              style={btnStyle(false)}
+            >
+              <Icon name="database" size={14} /> Change Location
+            </button>
+            <button type="button" onClick={handlePickDirectory} style={btnStyle(false)}>
+              <Icon name="folder-open" size={14} /> Select Directory
+            </button>
+            <button
+              type="button"
+              onClick={() => setRecoveryError(null)}
+              style={{ ...btnStyle(false), color: V.ink2 }}
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
@@ -490,9 +628,56 @@ export default function CacheScreen() {
                 Specify an exact mount point or drive letter (e.g. <code>E:\SL_Cache</code> or{' '}
                 <code>/media/usb/sl-cache</code>).
               </div>
-              <div style={{ marginTop: 8 }}>
+
+              <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+                <div>
+                  <label
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: V.ink2,
+                      display: 'block',
+                      marginBottom: 4,
+                    }}
+                  >
+                    Preset Mount Path Choices
+                  </label>
+                  <select
+                    aria-label="Preset mount paths"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setCustomPath(e.target.value);
+                        localCache.setLocation('flashdrive_path', e.target.value);
+                        setLocType('flashdrive_path');
+                        actions.notify(`Preset path selected: ${e.target.value}`);
+                        refreshStats();
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: 34,
+                      padding: '0 10px',
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                      background: V.bg,
+                      color: V.ink,
+                      font: `400 13px ${t.font}`,
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>
+                      -- Choose a standard system preset --
+                    </option>
+                    {COMMON_FLASHDRIVE_PRESETS.map((p, idx) => (
+                      <option key={idx} value={p.path}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                  <FormField label="Flashdrive Mount Path" error={error} style={{ flex: 1 }}>
+                  <FormField label="Flashdrive Mount Path" style={{ flex: 1 }}>
                     <input
                       aria-label="Custom cache mount path"
                       type="text"
@@ -519,6 +704,28 @@ export default function CacheScreen() {
                     SAVE PATH
                   </button>
                 </div>
+
+                {customPath && (
+                  <div
+                    data-testid="mount-path-validation-status"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: validateMountPath(customPath).valid
+                        ? V.pri || '#10b981'
+                        : V.err || '#ef4444',
+                    }}
+                  >
+                    <Icon
+                      name={validateMountPath(customPath).valid ? 'check-circle' : 'alert-triangle'}
+                      size={14}
+                    />
+                    <span>{validateMountPath(customPath).message}</span>
+                  </div>
+                )}
               </div>
             </div>
           </label>

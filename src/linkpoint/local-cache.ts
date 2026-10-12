@@ -10,6 +10,7 @@ import { Utils } from './utils';
 import { indexedDBStore } from './indexeddb-store';
 import { idbWorkerBridge } from './idb-worker';
 import { migrationUtility } from './migration';
+import { errorRecovery } from './errorRecovery';
 
 export type CacheLocationType = 'internal' | 'flashdrive_fs' | 'flashdrive_path' | 'indexeddb';
 
@@ -22,6 +23,44 @@ export interface CacheStats {
   totalSizeMb: number;
   lastUpdated: string | null;
   flashdriveReady: boolean;
+}
+
+export interface MountPathValidationResult {
+  valid: boolean;
+  message: string;
+}
+
+export const COMMON_FLASHDRIVE_PRESETS = [
+  { label: '/media/usb/sl-cache (Linux Removable)', path: '/media/usb/sl-cache' },
+  { label: '/mnt/usb/sl-cache (Linux Mount)', path: '/mnt/usb/sl-cache' },
+  { label: 'E:\\SL_Cache (Windows Removable E:)', path: 'E:\\SL_Cache' },
+  { label: 'F:\\SL_Cache (Windows Removable F:)', path: 'F:\\SL_Cache' },
+  { label: 'D:\\SL_Cache (Windows External D:)', path: 'D:\\SL_Cache' },
+  { label: '/Volumes/USB/sl-cache (macOS External)', path: '/Volumes/USB/sl-cache' },
+  { label: '/Volumes/FlashDrive/sl-cache (macOS Flash)', path: '/Volumes/FlashDrive/sl-cache' },
+];
+
+export function validateMountPath(path: string): MountPathValidationResult {
+  if (!path || typeof path !== 'string' || path.trim() === '') {
+    return { valid: false, message: 'Mount path cannot be empty' };
+  }
+  const trimmed = path.trim();
+  const isWindowsPath = /^[a-zA-Z]:[\\/].*/.test(trimmed);
+  const isUnixPath = /^\/[^<>:"|?*]*/.test(trimmed);
+
+  if (!isWindowsPath && !isUnixPath) {
+    return {
+      valid: false,
+      message: 'Path must be an absolute path (e.g. E:\\SL_Cache or /media/usb/sl-cache)',
+    };
+  }
+
+  const pathBody = isWindowsPath ? trimmed.slice(2) : trimmed;
+  if (/[<>:"|?*]/.test(pathBody)) {
+    return { valid: false, message: 'Path contains invalid characters (< > : " | ? *)' };
+  }
+
+  return { valid: true, message: 'Valid mount path format' };
 }
 
 const DB_NAME = 'linkpoint_sl_cache_db';
@@ -90,11 +129,81 @@ class LocalCacheManager extends Utils.EventEmitter {
   private dirHandle: any = null; // FileSystemDirectoryHandle if using Web File System API
   private idb: IDBDatabase | null = null;
   private memoryCache: Map<string, any> = new Map();
+  private boundInventory: any = null;
+  private autoSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoSyncThrottleMs: number = 800; // Throttle write operations to prevent disk thrashing
 
   constructor() {
     super();
     this.loadSavedConfig();
     this.initIDB().catch(() => {});
+  }
+
+  /**
+   * Subscribes to inventory change events to automatically persist updated inventory data.
+   */
+  public bindInventory(inventoryManager: any) {
+    if (!inventoryManager || this.boundInventory === inventoryManager) return;
+    if (this.boundInventory) {
+      if (typeof this.boundInventory.off === 'function') {
+        this.boundInventory.off('inventory_updated', this.handleInventoryChange);
+        this.boundInventory.off('inventory_loaded', this.handleInventoryChange);
+      }
+    }
+    this.boundInventory = inventoryManager;
+    if (typeof this.boundInventory.on === 'function') {
+      this.boundInventory.on('inventory_updated', this.handleInventoryChange);
+      this.boundInventory.on('inventory_loaded', this.handleInventoryChange);
+    }
+  }
+
+  private handleInventoryChange = () => {
+    // If offline, pause automatic grid rebuilds/sync gracefully
+    if (errorRecovery && !errorRecovery.getSnapshot().isOnline) {
+      return;
+    }
+    this.scheduleAutoSync();
+  };
+
+  public scheduleAutoSync() {
+    if (this.autoSyncTimer) {
+      clearTimeout(this.autoSyncTimer);
+    }
+    this.autoSyncTimer = setTimeout(() => {
+      this.autoSyncTimer = null;
+      void this.performAutoSync();
+    }, this.autoSyncThrottleMs);
+  }
+
+  public async performAutoSync(): Promise<void> {
+    if (!this.boundInventory) return;
+    if (errorRecovery && !errorRecovery.getSnapshot().isOnline) {
+      return;
+    }
+    const agentId =
+      this.boundInventory.auth?.user?.id || this.boundInventory.protocol?.agentId || 'current';
+    const foldersArr = Array.from(this.boundInventory.folders?.values() || []);
+    const itemsArr = Array.from(this.boundInventory.items?.values() || []);
+
+    if (foldersArr.length === 0) return;
+
+    try {
+      await this.saveInventory(agentId, {
+        folders: foldersArr,
+        items: itemsArr,
+        rootId: this.boundInventory.rootFolder?.id,
+        rootName: this.boundInventory.rootFolder?.name,
+      });
+      this.emit('cache_auto_synced', {
+        agentId,
+        foldersCount: foldersArr.length,
+        itemsCount: itemsArr.length,
+      });
+    } catch (err: any) {
+      errorRecovery.logTelemetry('cache', 'CACHE_AUTOSYNC_ERROR', 'Auto-sync inventory failed', {
+        error: err?.message || String(err),
+      });
+    }
   }
 
   private loadSavedConfig() {
