@@ -246,7 +246,10 @@ export const subView = (state, scr) => {
   const subs = (CSUB[scr] || []).map((x) => x[0]);
   if (!subs.length) return null;
   if (scr === 'Radar')
-    return state.rMode === 'OBJ' || state.rMode === 'item' || state.rMode === 'ITEM' || state.rMode === 'OBJECT'
+    return state.rMode === 'OBJ' ||
+      state.rMode === 'item' ||
+      state.rMode === 'ITEM' ||
+      state.rMode === 'OBJECT'
       ? 'OBJECT'
       : 'AVATAR';
   if (scr === 'Search') {

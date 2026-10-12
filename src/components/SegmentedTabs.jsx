@@ -14,11 +14,6 @@ export default function SegmentedTabs({ screen } = {}) {
   const { V, t, LK, nav, isFloat, norm, scr: themeScr } = useTheme();
   const scr = screen || themeScr;
 
-  // Search and Radar render SegmentedTabs internally within their screen bodies.
-  // When SegmentedTabs is invoked without an explicit screen prop from top-level
-  // ScreenBody, skip rendering for Search and Radar to prevent double-rendering.
-  if (!screen && (scr === 'Search' || scr === 'Radar')) return null;
-
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -32,6 +27,11 @@ export default function SegmentedTabs({ screen } = {}) {
       app.chat?.off?.('message', forceUpdate);
     };
   }, []);
+
+  // Search and Radar render SegmentedTabs internally within their screen bodies.
+  // When SegmentedTabs is invoked without an explicit screen prop from top-level
+  // ScreenBody, skip rendering for Search and Radar to prevent double-rendering.
+  if (!screen && (scr === 'Search' || scr === 'Radar')) return null;
 
   if (!norm) return null;
   const curSub = subView(state, scr);
