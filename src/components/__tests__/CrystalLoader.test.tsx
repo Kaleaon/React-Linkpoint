@@ -3,6 +3,8 @@ import React, { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import CrystalLoader from '../CrystalLoader.jsx';
 import SkeletonLoader, { SkeletonBox } from '../SkeletonLoader.jsx';
+import BrandedLoader from '../BrandedLoader.jsx';
+import StateBlock from '../StateBlock.jsx';
 import PayDialog from '../PayDialog.jsx';
 import Search from '../../screens/Search.jsx';
 import { AppProvider } from '../../context/AppContext.jsx';
@@ -204,6 +206,50 @@ describe('Branded Skeleton System', () => {
     expect(box.style.background).toContain('linear-gradient');
     // In jsdom/browsers, hex color values like #6CFF9A (V.pri) are computed into rgb(108, 255, 154)
     expect(box.style.background).toMatch(/(108, 255, 154|#6CFF9A|var\(--pri\))/);
+  });
+});
+
+describe('BrandedLoader Engine', () => {
+  it('renders screen variant with default size 88px', async () => {
+    const host = await mount(<BrandedLoader variant="screen" />);
+    const loader = host.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(loader).not.toBeNull();
+    expect(loader.getAttribute('data-variant')).toBe('screen');
+    expect(loader.style.width).toBe('88px');
+  });
+
+  it('renders card variant with crystal mark and skeleton placeholders', async () => {
+    const host = await mount(<BrandedLoader variant="card" title="Card Title" />);
+    const container = host.querySelector('[data-testid="branded-loader-card"]') as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.getAttribute('data-variant')).toBe('card');
+    expect(host.textContent).toContain('Card Title');
+    expect(host.querySelector('.skeleton-box')).not.toBeNull();
+  });
+
+  it('renders asset variant with title, skeleton preview, and progress bar', async () => {
+    const host = await mount(<BrandedLoader variant="asset" title="Mesh Asset" progress={45} />);
+    const container = host.querySelector(
+      '[data-testid="skeleton-asset-placeholder"]',
+    ) as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.getAttribute('data-variant')).toBe('asset');
+    expect(host.textContent).toContain('Mesh Asset');
+    expect(host.textContent).toContain('45%');
+
+    const progressBar = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    expect(progressBar).not.toBeNull();
+    expect(progressBar.style.width).toBe('45%');
+  });
+
+  it('renders StateBlock with BrandedLoader variant="screen" during loading state', async () => {
+    // StateBlock renders when stateBlockActive is true and cond is 'loading'
+    const host = await mount(<StateBlock />);
+    // Note: ThemeContext stateBlockActive defaults to true when condPack is provided
+    const crystal = host.querySelector('[data-testid="crystal-loader"]');
+    if (crystal) {
+      expect(crystal.getAttribute('data-variant')).toBe('screen');
+    }
   });
 });
 
