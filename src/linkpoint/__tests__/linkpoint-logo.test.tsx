@@ -2,6 +2,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import LinkpointLogo from '../../components/LinkpointLogo.jsx';
 import { CRYSTAL } from '../../components/linkpointCrystal.js';
+import Login from '../../screens/Login.jsx';
+import DesktopChrome from '../../components/DesktopChrome.jsx';
+import {
+  StackHead,
+  SweepHead,
+  PivotHead,
+  RuleHead,
+  EditorialHead,
+} from '../../components/Header.jsx';
 import { mountScreen, unmount, type Mounted } from './ui-helpers';
 
 let mounted: Mounted | null = null;
@@ -73,5 +82,68 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
     const serialized = JSON.stringify(CRYSTAL);
     expect(serialized.length).toBeLessThan(3000);
+  });
+
+  it('renders LinkpointLogo in Login screen above title text', async () => {
+    mounted = await mountScreen(Login);
+    const header = mounted.host.querySelector('header');
+    expect(header).not.toBeNull();
+    const logoSvg = header?.querySelector('#linkpoint-logo-react');
+    expect(logoSvg).not.toBeNull();
+    const title = header?.querySelector('h1');
+    expect(title?.textContent).toBe('LINKPOINT');
+  });
+
+  it('renders LinkpointLogo crystal mark in all header modes with max height <= 28px', async () => {
+    const modes = [
+      {
+        name: 'StackHead',
+        Component: () => <StackHead title="CHAT" subtitle="Global channel" scr="Chat" />,
+        maxHeight: 28,
+      },
+      {
+        name: 'SweepHead',
+        Component: () => <SweepHead title="FRIENDS" subtitle="Contacts list" />,
+        maxHeight: 24,
+      },
+      {
+        name: 'PivotHead',
+        Component: () => <PivotHead title="RADAR" subtitle="Nearby avatars" scr="Radar" />,
+        maxHeight: 28,
+      },
+      {
+        name: 'RuleHead',
+        Component: () => <RuleHead title="SETTINGS" subtitle="Preferences" />,
+        maxHeight: 20,
+      },
+      {
+        name: 'EditorialHead',
+        Component: () => <EditorialHead title="INVENTORY" subtitle="Assets" />,
+        maxHeight: 28,
+      },
+    ];
+
+    for (const mode of modes) {
+      mounted = await mountScreen(mode.Component);
+      const svg = mounted.host.querySelector('#linkpoint-logo-react') as SVGElement | null;
+      expect(svg, `${mode.name} should render LinkpointLogo`).not.toBeNull();
+      const styleHeight = svg?.style.height;
+      const numericHeight = styleHeight ? parseInt(styleHeight, 10) : 0;
+      expect(numericHeight).toBeGreaterThan(0);
+      expect(numericHeight).toBeLessThanOrEqual(28);
+      await unmount(mounted);
+      mounted = null;
+    }
+  });
+
+  it('renders 20px LinkpointLogo brand mark emblem in DesktopChrome location bar', async () => {
+    mounted = await mountScreen(DesktopChrome);
+    const locationBar = mounted.host.querySelector('.desktop-location-bar');
+    expect(locationBar).not.toBeNull();
+    const emblem = locationBar?.querySelector('.desktop-brand-emblem');
+    expect(emblem).not.toBeNull();
+    const logoSvg = emblem?.querySelector('#linkpoint-logo-react') as SVGElement | null;
+    expect(logoSvg).not.toBeNull();
+    expect(logoSvg?.style.height).toBe('20px');
   });
 });
