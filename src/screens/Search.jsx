@@ -6,6 +6,7 @@ import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
+import SegmentedTabs from '../components/SegmentedTabs.jsx';
 
 const TABS = [
   { id: 'PEOPLE', category: 'people', label: 'People', icon: 'users' },
@@ -32,7 +33,7 @@ export default function Search() {
     app.world?.getNearbyUsers ? app.world.getNearbyUsers() : [],
   );
 
-  const [activeTabId, setActiveTabId] = useState(() => normalizeTab(state.searchTab));
+  const activeTabId = normalizeTab(state.searchTab || state.tabs?.Search);
   const [serverResults, setServerResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -59,11 +60,6 @@ export default function Search() {
       }
     };
   }, []);
-
-  // Sync activeTabId if state.searchTab changes externally
-  useEffect(() => {
-    setActiveTabId(normalizeTab(state.searchTab));
-  }, [state.searchTab]);
 
   const activeTabObj = TABS.find((tb) => tb.id === activeTabId) || TABS[0];
   const query = (state.searchQuery || '').trim();
@@ -121,14 +117,6 @@ export default function Search() {
       cancelled = true;
     };
   }, [query, activeTabId, page, activeTabObj.category, actions]);
-
-  const handleTabClick = (tabId) => {
-    setActiveTabId(tabId);
-    if (typeof actions?.setSearchTab === 'function') {
-      actions.setSearchTab(tabId);
-    }
-    setPage(0);
-  };
 
   const startIm = (name) => {
     if (typeof actions.startIm === 'function') {
@@ -260,37 +248,7 @@ export default function Search() {
         </div>
       </div>
 
-      {/* Category Tabs ("People", "Groups", "Places") */}
-      <div style={{ flex: 'none', display: 'flex', gap: '8px', padding: '0 16px 10px' }}>
-        {TABS.map((tb) => {
-          const on = activeTabId === tb.id;
-          return (
-            <button
-              key={tb.id}
-              data-tab={tb.id}
-              onClick={() => handleTabClick(tb.id)}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                height: '38px',
-                borderRadius: V.rs,
-                border: '1px solid ' + (on ? V.pri : V.outv),
-                background: on ? V.priC : V.surf,
-                color: on ? V.onpriC : V.ink2,
-                font: '700 10.5px/1 ' + t.font,
-                letterSpacing: '.12em',
-                cursor: 'pointer',
-              }}
-            >
-              <Icon name={tb.icon} size={14} />
-              <div style={{ display: 'inline' }}>{tb.label.toUpperCase()}</div>
-            </button>
-          );
-        })}
-      </div>
+      <SegmentedTabs screen="Search" />
 
       {/* Query Input */}
       <div style={{ flex: 'none', margin: '0 16px 10px' }}>

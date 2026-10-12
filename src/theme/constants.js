@@ -226,6 +226,12 @@ export const CSUB = {
     ['AVATARS', '· 01'],
     ['OBJECTS', '· 02'],
   ],
+  Search: [
+    ['PEOPLE', '· 01'],
+    ['GROUPS', '· 02'],
+    ['PLACES', '· 03'],
+    ['SEARCH', '· 04'],
+  ],
 };
 
 // The screen's current sub-view: `tabs[screen]` when it is one of that screen's
@@ -233,18 +239,36 @@ export const CSUB = {
 // sub-view rather than to an implicit "no filter", so the tab strip and the
 // LCARS sub-nav always agree on what is highlighted.
 //  - Radar's sub-view predates this table and still lives in `rMode`.
+//  - Search's sub-view is stored in `searchTab` and mirrored in `tabs.Search`.
 //  - Preferences and Cache are two screens, not two tabs, so the sub-view is
 //    simply which of them you are on.
 export const subView = (state, scr) => {
   const subs = (CSUB[scr] || []).map((x) => x[0]);
   if (!subs.length) return null;
-  if (scr === 'Radar') return state.rMode === 'OBJ' ? 'OBJECT' : 'AVATAR';
+  if (scr === 'Radar')
+    return state.rMode === 'OBJ' || state.rMode === 'item' || state.rMode === 'ITEM' || state.rMode === 'OBJECT'
+      ? 'OBJECT'
+      : 'AVATAR';
+  if (scr === 'Search') {
+    const raw = state.searchTab || state.tabs?.Search;
+    if (!raw) return 'PEOPLE';
+    const u = String(raw).toUpperCase();
+    if (u === 'GROUPS') return 'GROUPS';
+    if (u === 'PLACES') return 'PLACES';
+    if (u === 'SEARCH') return 'SEARCH';
+    return 'PEOPLE';
+  }
   if (scr === 'Settings' || scr === 'Cache') return scr === 'Cache' ? 'CACHE' : 'PREFS';
   const cur = state.tabs[scr];
   return subs.includes(cur) ? cur : subs[0];
 };
 export const setSub = (actions, scr, label) => {
   if (scr === 'Radar') return actions.setRMode(label === 'AVATAR' ? 'AV' : 'OBJ');
+  if (scr === 'Search') {
+    if (typeof actions.setSearchTab === 'function') actions.setSearchTab(label);
+    if (typeof actions.setTab === 'function') actions.setTab('Search', label);
+    return;
+  }
   if (scr === 'Settings' || scr === 'Cache')
     return actions.setScreen(label === 'CACHE' ? 'Cache' : 'Settings');
   return actions.setTab(scr, label);
