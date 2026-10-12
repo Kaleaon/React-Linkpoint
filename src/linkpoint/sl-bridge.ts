@@ -215,6 +215,17 @@ export class SLBridge extends Utils.EventEmitter {
   saveShape(params: { values: Record<string, number>; name?: string }) {
     return this.call<{ saved: string; baked: boolean; reason?: string }>('saveShape', params);
   }
+  setAppearance(params: {
+    visualParams?: Record<string | number, number>;
+    bakedTextures?: Record<string, string>;
+  }) {
+    return this.call<{
+      dispatched: boolean;
+      agentSetAppearanceSent: boolean;
+      baked?: boolean;
+      reason?: string;
+    }>('setAppearance', params);
+  }
   joinGroup(params: { groupId: string }) {
     return this.call<{ joined: boolean }>('joinGroup', params);
   }

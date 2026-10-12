@@ -18,6 +18,15 @@ const {
 const {
   StartLureMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/StartLure');
+const {
+  AgentSetAppearanceMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentSetAppearance');
+const { Vector3 } = require('@caspertech/node-metaverse/dist/lib/classes/Vector3');
+const { TextureEntry } = require('@caspertech/node-metaverse/dist/lib/classes/TextureEntry');
+const {
+  TextureEntryFace,
+} = require('@caspertech/node-metaverse/dist/lib/classes/TextureEntryFace');
+const { Color4 } = require('@caspertech/node-metaverse/dist/lib/classes/Color4');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
@@ -273,6 +282,75 @@ async function saveShape(bot, region, { values, name } = {}) {
   return { saved: title, ...(await updateAppearance(region, cof)) };
 }
 
+/** Dispatch AgentSetAppearance packet and trigger appearance capability updates. */
+async function setAppearance(bot, region, { visualParams = {}, bakedTextures = {} } = {}) {
+  const { circuit, agentID, sessionID } = session(bot, region);
+  const msg = new AgentSetAppearanceMessage();
+  const agentUuid = typeof agentID === 'string' ? new UUID(agentID) : agentID;
+  const sessionUuid = typeof sessionID === 'string' ? new UUID(sessionID) : sessionID;
+
+  msg.AgentData = {
+    AgentID: agentUuid,
+    SessionID: sessionUuid,
+    SerialNum: Math.floor(Date.now() / 1000),
+    Size: new Vector3(0.45, 0.6, 1.9),
+  };
+
+  const wearableData = [];
+  for (let i = 0; i < 21; i++) {
+    wearableData.push({
+      CacheID: UUID.zero(),
+      TextureIndex: i,
+    });
+  }
+  msg.WearableData = wearableData;
+
+  const visualParamData = [];
+  for (let i = 0; i < 218; i++) {
+    const val = Number(visualParams[i] ?? visualParams[String(i)] ?? 0);
+    const clamped = Math.max(0, Math.min(255, Math.round(val > 1 ? val : val * 255)));
+    visualParamData.push({ ParamValue: clamped });
+  }
+  msg.VisualParam = visualParamData;
+
+  const textureEntry = new TextureEntry();
+  const def = new TextureEntryFace(null);
+  def.textureID = UUID.zero();
+  def.rgba = Color4.white;
+  def.repeatU = 1;
+  def.repeatV = 1;
+  def.offsetU = 0;
+  def.offsetV = 0;
+  def.rotation = 0;
+  def.materialID = UUID.zero();
+  textureEntry.defaultTexture = def;
+  if (bakedTextures && typeof bakedTextures === 'object') {
+    const slotMap = { head: 0, upper: 1, lower: 2, eyes: 3, skirt: 4, hair: 5 };
+    for (const [slot, id] of Object.entries(bakedTextures)) {
+      const idx = slotMap[slot];
+      if (idx !== undefined && id) {
+        try {
+          textureEntry.createFace(idx);
+          if (textureEntry.faces[idx]) {
+            textureEntry.faces[idx].textureID = new UUID(String(id));
+          }
+        } catch {}
+      }
+    }
+  }
+  msg.ObjectData = { TextureEntry: textureEntry.toBuffer() };
+
+  circuit.sendMessage(msg, PacketFlags.Reliable);
+
+  const cof = await currentOutfitFolder(bot).catch(() => null);
+  let capResult = { baked: false };
+  if (cof) {
+    capResult = await updateAppearance(region, cof);
+  }
+
+  return { dispatched: true, agentSetAppearanceSent: true, ...capResult };
+}
+
 module.exports = {
   wearItem,
   removeWorn,
@@ -282,6 +360,7 @@ module.exports = {
   getShape,
   saveShape,
   updateAppearance,
+  setAppearance,
   SINGLE_SLOT,
   BODY_PART,
 };

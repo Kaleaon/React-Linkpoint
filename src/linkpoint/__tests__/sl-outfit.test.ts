@@ -157,4 +157,21 @@ describe('outfits, detach and teleport offers', () => {
     expect(message.Info.LureType).toBe(0);
     expect(() => outfit.offerTeleport(w.bot, w.region, { id: 'nope' })).toThrow(/UUID/);
   });
+
+  it('dispatches AgentSetAppearance UDP packets with visual parameter weights and baked texture UUIDs', async () => {
+    const w = world([], []);
+    const result = await outfit.setAppearance(w.bot, w.region, {
+      visualParams: { 33: 128, 12: 200 },
+      bakedTextures: { head: uuid(99) },
+    });
+
+    expect(result.dispatched).toBe(true);
+    expect(result.agentSetAppearanceSent).toBe(true);
+    expect(w.sent.some((m: any) => m.name === 'AgentSetAppearance')).toBe(true);
+
+    const appearanceMsg = w.sent.find((m: any) => m.name === 'AgentSetAppearance');
+    expect(appearanceMsg.VisualParam).toHaveLength(218);
+    expect(appearanceMsg.WearableData).toHaveLength(21);
+    expect(appearanceMsg.ObjectData.TextureEntry).toBeInstanceOf(Buffer);
+  });
 });
