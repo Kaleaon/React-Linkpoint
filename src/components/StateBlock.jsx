@@ -1,7 +1,7 @@
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
-import CrystalLoader from './CrystalLoader.jsx';
+import BrandedLoader from './BrandedLoader.jsx';
 
 // Ported from the `stateBlock` computation + its <sc-if> template block —
 // the shared loading/empty/error UI shown in place of a screen's normal body.
@@ -29,7 +29,7 @@ export default function StateBlock() {
       {/* Loading swaps the lucide glyph for the crystal loader; empty/error keep the
           glyph, which carries the specific meaning (inbox, plug-zap, cloud-off, …). */}
       {isLoading ? (
-        <CrystalLoader />
+        <BrandedLoader variant="screen" />
       ) : (
         <div
           style={{
