@@ -156,6 +156,7 @@ export class WorldViewer extends Utils.EventEmitter {
   private hudSignature = '';
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
+  private subjectCache = new Map<string, string>();
   private decodedAssets = new Map<string, any>();
   private decodedTextures = new Map<string, any>();
   private decodedMaterials = new Map<string, any>();
@@ -246,6 +247,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.renderedParticles.clear();
       this.avatarBakes.clear();
       this.localObjectIds.clear();
+      this.subjectCache.clear();
       this.animator.clear();
       this.scene3d?.resetWorld();
       this.objects = [];
@@ -587,13 +589,43 @@ export class WorldViewer extends Utils.EventEmitter {
 
   /** The avatar a rigged attachment is worn by, or the object itself (an animated object is its own subject). */
   private animationSubject(object: any): string {
+    if (!object?.id) return '';
+    const cached = this.subjectCache.get(object.id);
+    if (cached !== undefined) return cached;
     let current = object;
     for (let depth = 0; depth < 16 && current; depth++) {
-      if (current.avatar) return current.id;
+      if (current.avatar) {
+        this.subjectCache.set(object.id, current.id);
+        return current.id;
+      }
       const parentId = this.localObjectIds.get(Number(current.parentId));
       current = parentId ? this.sceneObjects.get(parentId) : null;
     }
+    this.subjectCache.set(object.id, object.id);
     return object.id;
+  }
+
+  private invalidateSubjectCache(targetId?: string) {
+    if (!targetId) {
+      this.subjectCache.clear();
+      return;
+    }
+    this.subjectCache.delete(targetId);
+    for (const [id, cachedSubject] of Array.from(this.subjectCache.entries())) {
+      if (cachedSubject === targetId || this.isSubjectAncestorOf(targetId, id)) {
+        this.subjectCache.delete(id);
+      }
+    }
+  }
+
+  private isSubjectAncestorOf(ancestorId: string, objectId: string): boolean {
+    let current = this.sceneObjects.get(objectId);
+    for (let depth = 0; depth < 16 && current; depth++) {
+      if (current.id === ancestorId) return true;
+      const parentId = this.localObjectIds.get(Number(current.parentId));
+      current = parentId ? this.sceneObjects.get(parentId) : null;
+    }
+    return false;
   }
 
   /**
@@ -1464,6 +1496,23 @@ export class WorldViewer extends Utils.EventEmitter {
     // material and link metadata learned from the full ObjectUpdate packet.
     const previous = this.sceneObjects.get(object.id);
     const merged = previous ? { ...previous, ...object } : { ...object };
+    if (!previous) {
+      if (merged.localId) {
+        for (const child of this.sceneObjects.values()) {
+          if (Number(child.parentId) === Number(merged.localId)) {
+            this.invalidateSubjectCache(child.id);
+          }
+        }
+      }
+    } else {
+      if (
+        previous.parentId !== merged.parentId ||
+        Boolean(previous.avatar) !== Boolean(merged.avatar) ||
+        previous.localId !== merged.localId
+      ) {
+        this.invalidateSubjectCache(merged.id);
+      }
+    }
     const flexi = parseFlexibleParams(object) || previous?.flexi;
     if (flexi) merged.flexi = flexi;
     // A full update can replace an asset; terse motion updates must retain it.
@@ -2227,6 +2276,7 @@ export class WorldViewer extends Utils.EventEmitter {
     if (!id) return;
     const removed = this.sceneObjects.get(id);
     const affectedSubject = removed && !removed.avatar ? this.animationSubject(removed) : null;
+    this.invalidateSubjectCache(id);
     this.sceneObjects.delete(id);
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
