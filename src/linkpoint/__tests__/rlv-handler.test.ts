@@ -8,6 +8,8 @@ import {
   parseCommand,
   rlvFailed,
   rlvSucceeded,
+  regexCache,
+  getCachedRegex,
   type RlvEnvironment,
 } from '../rlv-handler';
 
@@ -676,6 +678,53 @@ describe('names and location', () => {
     expect(rlv.canShowNameTag(BOB, 400)).toBe(false);
     run(`shownametags:${BOB}=n`);
     expect(rlv.canShowNameTag(BOB, 400)).toBe(true);
+  });
+
+  it('uses fast-path substring check and memoizes regexes in regexCache', () => {
+    regexCache.clear();
+    run('shownames=n');
+    run('showloc=n');
+
+    // 1. Text with NO avatar or location matches should NOT populate regexCache
+    const cleanMsg = 'Hello world, nice weather today!';
+    const filteredClean = rlv.filterNames(cleanMsg);
+    expect(filteredClean).toBe(cleanMsg);
+    expect(regexCache.size).toBe(0);
+
+    const cleanLoc = rlv.filterLocation(cleanMsg);
+    expect(cleanLoc).toBe(cleanMsg);
+    expect(regexCache.size).toBe(0);
+
+    // 2. Text with an avatar name SHOULD populate regexCache and memoize the RegExp
+    const nameMsg = 'Bobby Tables says hello';
+    const filteredName = rlv.filterNames(nameMsg);
+    expect(filteredName).not.toContain('Bobby');
+    expect(regexCache.size).toBeGreaterThan(0);
+
+    const firstCachedRegex = regexCache.get('gi:\\bBobby Tables\\b');
+    expect(firstCachedRegex).toBeDefined();
+
+    // Re-evaluating should reuse the exact same RegExp object instance
+    rlv.filterNames('Bobby Tables is here again');
+    const secondCachedRegex = regexCache.get('gi:\\bBobby Tables\\b');
+    expect(secondCachedRegex).toBe(firstCachedRegex);
+
+    // 3. Text with location name SHOULD populate regexCache
+    const locMsg = 'I am in Ahern at Sunny Cove';
+    const filteredLoc = rlv.filterLocation(locMsg);
+    expect(filteredLoc).toBe('I am in (Hidden region) at (Hidden parcel)');
+    expect(regexCache.has('gi:\\bAhern\\b')).toBe(true);
+    expect(regexCache.has('gi:\\bSunny Cove\\b')).toBe(true);
+
+    // 4. Short display names (<= 2 chars) are skipped and not cached
+    env.nearbyAvatars = () => [{ id: '111', displayName: 'Jo', legacyName: 'Jo Resident' }];
+    regexCache.clear();
+    rlv.filterNames('Jo says hello');
+    expect(regexCache.has('gi:\\bJo\\b')).toBe(false);
+
+    // 5. rlv.reset() clears regexCache
+    rlv.reset();
+    expect(regexCache.size).toBe(0);
   });
 });
 
