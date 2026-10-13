@@ -48,3 +48,15 @@ export const CRYSTAL = {
     ],
   },
 };
+
+export const MINI_CRYSTAL = {
+  top: {
+    faceA: '60,6 12,60 60,76',
+    faceB: '60,6 60,76 108,60',
+    ridge: '12,60 60,44 108,60',
+  },
+  bot: {
+    faceA: '60,114 12,60 60,76',
+    faceB: '60,114 60,76 108,60',
+  },
+};

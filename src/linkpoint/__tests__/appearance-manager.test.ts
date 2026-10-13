@@ -37,4 +37,16 @@ describe('AppearanceManager & Hierarchical Matrix Propagation', () => {
     const perCall = elapsed / 50;
     expect(perCall).toBeLessThan(2.0); // Success Metric: < 2 ms
   });
+
+  it('maps shape visual parameters to joint position and scale overrides', () => {
+    const mgr = new AppearanceManager();
+    mgr.setVisualParams({ 12: 1.0, 33: 1.0, 25: 1.0 });
+
+    const scaleOverrides = mgr.getScaleOverrides();
+    const positionOverrides = mgr.getPositionOverrides();
+
+    expect(scaleOverrides.size).toBeGreaterThan(0);
+    expect(scaleOverrides.get('mHead')).toBeDefined();
+    expect(positionOverrides.get('mPelvis')).toBeDefined();
+  });
 });

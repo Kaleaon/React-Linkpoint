@@ -18,6 +18,7 @@ const METHODS = new Set([
   'detachAttachment',
   'offerTeleport',
   'saveShape',
+  'setAppearance',
   'touchObject',
   'sit',
   'stand',

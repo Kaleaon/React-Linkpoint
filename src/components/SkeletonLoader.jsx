@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 
 export function SkeletonBox({
   width = '100%',
@@ -66,7 +67,14 @@ export function SkeletonCard({ height = '120px', style = {} }) {
   );
 }
 
+/**
+ * @param {{ title?: string, progress?: number | null }} props
+ */
 export function SkeletonAssetPlaceholder({ title = 'Loading Asset...', progress = null }) {
+  const { V } = useTheme?.() || { V: {} };
+  const pri = V?.pri || 'var(--pri, #6CFF9A)';
+  const priC = V?.priC || 'var(--priC, #123B27)';
+
   return (
     <div
       className="skeleton-container"
@@ -76,7 +84,7 @@ export function SkeletonAssetPlaceholder({ title = 'Loading Asset...', progress 
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '60%' }}>
-          <SkeletonBox width="20px" height="20px" borderRadius="4px" />
+          <CrystalLoader size={20} variant="inline" />
           <SkeletonBox width="80%" height="14px" />
         </div>
         <SkeletonBox width="15%" height="12px" />
@@ -102,7 +110,7 @@ export function SkeletonAssetPlaceholder({ title = 'Loading Asset...', progress 
               style={{
                 width: `${Math.max(0, Math.min(100, progress))}%`,
                 height: '100%',
-                background: 'var(--pri, #6CFF9A)',
+                background: `linear-gradient(90deg, ${pri}, ${priC})`,
                 transition: 'width 0.2s ease-out',
               }}
             />

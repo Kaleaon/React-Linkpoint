@@ -82,11 +82,91 @@ describe('<TeleportCrystalHero /> Component', () => {
 
     expect(hero?.getAttribute('data-phase')).toBe('failed');
 
-    const coreGradient = host.querySelector('#tpch-core-glow');
+    const coreGradient = host.querySelector('[id$="-core-glow"]');
     expect(coreGradient).not.toBeNull();
 
     const stops = coreGradient?.querySelectorAll('stop');
     expect(stops?.[1].getAttribute('stop-color')).toContain('var(--err');
+  });
+
+  it('renders SVG gradient elements with valid colon-free dynamic IDs', async () => {
+    const host = await mount(<TeleportCrystalHero stepPercent={50} phase="preparing" />);
+    const linearGradients = Array.from(host.querySelectorAll('linearGradient'));
+    const radialGradients = Array.from(host.querySelectorAll('radialGradient'));
+
+    expect(linearGradients).toHaveLength(2);
+    expect(radialGradients).toHaveLength(1);
+
+    const ids = [
+      ...linearGradients.map((el) => el.getAttribute('id')),
+      ...radialGradients.map((el) => el.getAttribute('id')),
+    ];
+
+    ids.forEach((id) => {
+      expect(id).toBeTruthy();
+      expect(id).not.toContain(':');
+    });
+
+    const polygons = Array.from(host.querySelectorAll('polygon'));
+    expect(polygons.length).toBeGreaterThan(0);
+    polygons.forEach((poly) => {
+      const fill = poly.getAttribute('fill');
+      expect(fill).toMatch(/^url\(#tpch-[^:]+-grad-(a|b)\)$/);
+    });
+
+    const coreCircle = host.querySelector('circle.tpch-core');
+    expect(coreCircle?.getAttribute('fill')).toMatch(/^url\(#tpch-[^:]+-core-glow\)$/);
+  });
+
+  it('generates unique SVG IDs when rendered concurrently in multi-pane views', async () => {
+    const host = await mount(
+      <div>
+        <TeleportCrystalHero stepPercent={0} />
+        <TeleportCrystalHero stepPercent={50} />
+        <TeleportCrystalHero stepPercent={100} />
+      </div>,
+    );
+
+    const heroContainers = Array.from(
+      host.querySelectorAll('[data-testid="teleport-crystal-hero"]'),
+    );
+    expect(heroContainers).toHaveLength(3);
+
+    const allGradients = Array.from(host.querySelectorAll('linearGradient, radialGradient'));
+    const allIds = allGradients.map((el) => el.getAttribute('id'));
+
+    expect(allIds).toHaveLength(9);
+    expect(new Set(allIds).size).toBe(9);
+
+    heroContainers.forEach((container) => {
+      const localGradients = Array.from(
+        container.querySelectorAll('linearGradient, radialGradient'),
+      ).map((el) => el.getAttribute('id'));
+
+      const localFills = Array.from(container.querySelectorAll('[fill^="url(#"]')).map((el) =>
+        el.getAttribute('fill'),
+      );
+
+      localFills.forEach((fill) => {
+        const referencedId = fill?.replace(/^url\(#|\)$/g, '');
+        expect(localGradients).toContain(referencedId);
+      });
+    });
+  });
+
+  it('supports explicit idPrefix prop for deterministic testing and overrides', async () => {
+    const host = await mount(<TeleportCrystalHero idPrefix="custom-hero:1" stepPercent={30} />);
+
+    const gradA = host.querySelector('linearGradient#custom-hero1-grad-a');
+    const gradB = host.querySelector('linearGradient#custom-hero1-grad-b');
+    const coreGlow = host.querySelector('radialGradient#custom-hero1-core-glow');
+
+    expect(gradA).not.toBeNull();
+    expect(gradB).not.toBeNull();
+    expect(coreGlow).not.toBeNull();
+
+    const coreCircle = host.querySelector('circle.tpch-core');
+    expect(coreCircle?.getAttribute('fill')).toBe('url(#custom-hero1-core-glow)');
   });
 
   it('includes prefers-reduced-motion media query styles', async () => {

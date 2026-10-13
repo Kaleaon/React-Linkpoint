@@ -202,6 +202,7 @@ export default function OutfitViewer() {
       const values = Object.fromEntries(
         Object.entries(result.values || {}).map(([id, weight]) => [id, Number(weight)]),
       );
+      app.world.setVisualParams(values);
       setShape({
         state: 'ready',
         error: '',
@@ -895,12 +896,14 @@ export default function OutfitViewer() {
                           max={param.max}
                           step={(param.max - param.min) / 100}
                           value={value}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
                             setShape((prev) => ({
                               ...prev,
-                              edited: { ...prev.edited, [param.id]: Number(e.target.value) },
-                            }))
-                          }
+                              edited: { ...prev.edited, [param.id]: val },
+                            }));
+                            app.world.setVisualParam(param.id, val);
+                          }}
                           style={{ gridColumn: '1 / span 2' }}
                         />
                         <span style={small({ fontSize: 9 })}>{param.labelMin}</span>
@@ -914,9 +917,10 @@ export default function OutfitViewer() {
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() =>
-                        setShape((prev) => ({ ...prev, edited: { ...prev.original } }))
-                      }
+                      onClick={() => {
+                        setShape((prev) => ({ ...prev, edited: { ...prev.original } }));
+                        app.world.setVisualParams(shape.original);
+                      }}
                       style={{
                         padding: '4px 10px',
                         fontSize: 11,
