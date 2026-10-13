@@ -826,7 +826,7 @@ export function GroupsScreen() {
             filtered.map((group) => {
               const selectedActive = group.id === selectedId;
               const isGroupActive =
-                Boolean(group.id) &&
+                Boolean(group?.id) &&
                 group.id.toLowerCase() === (activeGroupId || '').toLowerCase() &&
                 activeGroupId !== '00000000-0000-0000-0000-000000000000';
               return (
@@ -975,7 +975,7 @@ export function GroupsScreen() {
                 </h2>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                {selected.id.toLowerCase() === (activeGroupId || '').toLowerCase() &&
+                {selected?.id?.toLowerCase() === (activeGroupId || '').toLowerCase() &&
                 activeGroupId !== '00000000-0000-0000-0000-000000000000' ? (
                   <button
                     type="button"
@@ -1099,7 +1099,7 @@ export function GroupsScreen() {
                       ['YOUR TITLE', selected.title || selected.role || 'Member'],
                       [
                         'ACTIVE STATUS',
-                        selected.id.toLowerCase() === (activeGroupId || '').toLowerCase() &&
+                        selected?.id?.toLowerCase() === (activeGroupId || '').toLowerCase() &&
                         activeGroupId !== '00000000-0000-0000-0000-000000000000'
                           ? 'ACTIVE'
                           : 'Inactive',
