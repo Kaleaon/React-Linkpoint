@@ -332,6 +332,55 @@ describe('GamepadInput', () => {
 
     removeListenerSpy.mockRestore();
   });
+
+  it('updates last time continuously during inactive active() state to prevent delta time spikes', () => {
+    let active = true;
+    let time = 1000;
+    const pad = fakePad([0, -1, 0, 0]);
+    const calls: any[] = [];
+
+    const input = new GamepadInput(
+      { setAnalog: (a) => calls.push(a), setFlying: () => {}, isFlying: () => false },
+      {
+        enabled: () => true,
+        active: () => active,
+        getGamepads: () => [pad],
+        now: () => time,
+      },
+    );
+
+    input.start();
+    expect(input.isPolling()).toBe(true);
+
+    // Initial poll at t=1000
+    input.poll();
+    expect(calls.at(-1)).not.toBeNull();
+
+    // Window becomes inactive for 10 seconds (300 poll ticks)
+    active = false;
+    for (let i = 0; i < 300; i++) {
+      time += 33;
+      input.poll();
+    }
+    // Analog controls released while inactive
+    expect(calls.at(-1)).toBeNull();
+
+    // Window becomes active again
+    active = true;
+    time += 33;
+    const stepSpy = vi.spyOn((input as any).joystick, 'step');
+    input.poll();
+
+    // dt passed to joystick step should be 0.033s, not 10+ seconds
+    expect(stepSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dt: expect.closeTo(0.033, 3),
+      }),
+    );
+
+    stepSpy.mockRestore();
+    input.stop();
+  });
 });
 
 describe('AgentController analog layer', () => {

@@ -126,6 +126,10 @@ export class GamepadInput {
   }
 
   poll() {
+    const time = this.now();
+    const dt = Math.max(0, (time - this.last) / 1000);
+    this.last = time;
+
     if (!this.options.enabled()) {
       this.stopTimer();
       return;
@@ -141,10 +145,6 @@ export class GamepadInput {
       this.release();
       return;
     }
-
-    const time = this.now();
-    const dt = Math.max(0, (time - this.last) / 1000);
-    this.last = time;
 
     const flying = this.target.isFlying();
     const out = this.joystick.step({
