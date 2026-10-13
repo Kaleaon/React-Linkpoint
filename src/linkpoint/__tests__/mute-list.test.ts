@@ -238,3 +238,83 @@ describe('mute list in chat, sound and voice', () => {
     ]);
   });
 });
+
+describe('O(1) normalized index maps and performance', () => {
+  it('supports case-insensitive name lookups for agent mutes and legacy mutes', () => {
+    list.add({ id: BOB, name: 'Alice Resident', type: MuteType.AGENT });
+    list.add({ name: 'Spam Bot', type: MuteType.BY_NAME });
+
+    expect(list.isMutedByName('Alice Resident')).toBe(true);
+    expect(list.isMutedByName('ALICE RESIDENT')).toBe(true);
+    expect(list.isMutedByName('alice resident')).toBe(true);
+
+    expect(list.isMutedByName('Spam Bot')).toBe(true);
+    expect(list.isMutedByName('SPAM BOT')).toBe(true);
+    expect(list.isMutedByName('spam bot')).toBe(true);
+
+    expect(list.isMutedByName('nonexistent')).toBe(false);
+  });
+
+  it('updates normalized index map when an agent is renamed', () => {
+    list.add({ id: BOB, name: 'Old Agent Name', type: MuteType.AGENT });
+    expect(list.isMutedByName('old agent name')).toBe(true);
+
+    list.rename(BOB, 'New Agent Name');
+    expect(list.isMutedByName('old agent name')).toBe(false);
+    expect(list.isMutedByName('new agent name')).toBe(true);
+    expect(list.isMutedByName('NEW AGENT NAME')).toBe(true);
+  });
+
+  it('handles deletion edge cases and partial flag unmuting', () => {
+    list.add({ id: BOB, name: 'Charlie Resident', type: MuteType.AGENT });
+    list.add({ name: 'Griefing Object', type: MuteType.BY_NAME });
+
+    // Partial unmute - unmuting VOICE_CHAT keeps text chat muted
+    list.remove({ id: BOB }, MuteFlag.VOICE_CHAT);
+    expect(list.isMutedByName('charlie resident')).toBe(true);
+
+    // Full unmute by ID
+    list.remove({ id: BOB });
+    expect(list.isMutedByName('charlie resident')).toBe(false);
+
+    // Full unmute by legacy name
+    expect(list.isMutedByName('griefing object')).toBe(true);
+    list.remove({ name: 'Griefing Object' });
+    expect(list.isMutedByName('griefing object')).toBe(false);
+  });
+
+  it('completes 10,000 lookup calls across 1,000 mute entries in under 10 milliseconds', () => {
+    const perfList = new MuteList(null);
+    const mutes: MuteEntry[] = [];
+    for (let i = 0; i < 900; i++) {
+      const id = `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`;
+      mutes.push({
+        id,
+        name: `Agent_${i}`,
+        type: MuteType.AGENT,
+        flags: 0,
+      });
+    }
+    const legacy: string[] = [];
+    for (let i = 0; i < 100; i++) {
+      legacy.push(`Legacy_Object_${i}`);
+    }
+
+    perfList.load({ state: 'loaded', mutes, legacy });
+    expect(perfList.count).toBe(1000);
+
+    const start = performance.now();
+    for (let i = 0; i < 10000; i++) {
+      const index = i % 1000;
+      if (index < 900) {
+        perfList.isMuted(`00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`);
+        perfList.isMutedByName(`agent_${index}`);
+      } else {
+        perfList.isMutedByName(`legacy_object_${index - 900}`);
+      }
+    }
+    const duration = performance.now() - start;
+
+    expect(duration).toBeLessThan(10);
+  });
+});
