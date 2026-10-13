@@ -261,9 +261,13 @@ export class MuteList extends Utils.EventEmitter {
   /** `LLMuteList::isMuted(id, name, flags)`. */
   isMuted(id: string, name = '', flags = 0): boolean {
     if (this.mutes.size === 0 && this.legacy.size === 0) return false;
-    const key = lc(id);
+    let entry = id ? this.mutes.get(id) : undefined;
+    let key = id;
+    if (!entry && id) {
+      key = lc(id);
+      entry = this.mutes.get(key);
+    }
     if (key && key === this.selfId) return false;
-    const entry = this.mutes.get(key);
     if (entry) return !(flags & entry.flags); // any flag passed that the entry has set means "not muted for this"
     if (key && this.legacyLower.has(key)) return true;
     if (!name) return false;
