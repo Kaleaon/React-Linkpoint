@@ -101,8 +101,17 @@ export const ErrorRecoveryProvider: React.FC<{
 
 export function useErrorRecovery(): ErrorRecoveryContextValue {
   const ctx = useContext(ErrorRecoveryContext);
-  if (!ctx) {
-    throw new Error('useErrorRecovery must be used within an ErrorRecoveryProvider');
+  if (ctx) {
+    return ctx;
   }
-  return ctx;
+  return {
+    ...errorRecovery.getSnapshot(),
+    service: errorRecovery,
+    enqueueRetry: (options) => errorRecovery.enqueueRetry(options),
+    logTelemetry: (category, code, message, details) =>
+      errorRecovery.logTelemetry(category, code, message, details),
+    clearError: () => errorRecovery.clearActiveError(),
+    processRetryQueue: () => errorRecovery.processRetryQueue(),
+    setOnlineStatus: (online) => errorRecovery.setOnlineStatus(online),
+  };
 }

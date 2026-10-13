@@ -27,6 +27,7 @@ import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
+import { localCache } from './local-cache';
 
 import { ChatProtocolAdapter } from './chat-protocol-adapter';
 
@@ -93,6 +94,7 @@ export class LinkpointApp {
     this.world = new WorldViewer(this.protocol);
     this.chat = new ChatManager(this.chatAdapter, this.auth);
     this.inventory = new InventoryManager(this.protocol, this.auth);
+    localCache.bindInventory(this.inventory);
     this.notifications = new NotificationsManager(this.protocol);
     this.interactions = new InteractionsManager(this.protocol);
     this.contacts = new ContactsStore();
