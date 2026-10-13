@@ -208,6 +208,60 @@ export class ChatManager extends Utils.EventEmitter {
     }
   }
 
+  private typingSentOverride: boolean | null = null;
+
+  setTypingSentEnabled(enabled: boolean) {
+    this.typingSentOverride = Boolean(enabled);
+  }
+
+  isTypingSentEnabled(): boolean {
+    if (this.typingSentOverride !== null) {
+      return this.typingSentOverride;
+    }
+    try {
+      const settings = Utils.storage.get('linkpoint_viewer_settings', null);
+      if (settings?.toggles && typeof settings.toggles.typingSent === 'boolean') {
+        return settings.toggles.typingSent;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return true;
+  }
+
+  async sendTypingState(isTyping: boolean, recipientId?: string): Promise<void> {
+    if (recipientId) {
+      return this.sendIMTypingState(recipientId, isTyping);
+    }
+    if (!this.auth?.isLoggedIn()) return;
+    if (!this.isTypingSentEnabled()) return;
+    if (this.rlv?.isEnabled() && !this.rlv.canSendTypingStart()) return;
+
+    try {
+      await this.adapter.sendTypingState(isTyping);
+    } catch (error) {
+      console.warn('[ChatManager] Failed to send spatial typing state:', error);
+    }
+  }
+
+  async sendIMTypingState(recipientId: string, isTyping: boolean): Promise<void> {
+    if (!recipientId) return;
+    if (!this.auth?.isLoggedIn()) return;
+    if (!this.isTypingSentEnabled()) return;
+    if (
+      this.rlv?.isEnabled() &&
+      (!this.rlv.canSendTypingStart() || !this.rlv.canSendIM(recipientId))
+    ) {
+      return;
+    }
+
+    try {
+      await this.adapter.sendIMTypingState(recipientId, isTyping);
+    } catch (error) {
+      console.warn(`[ChatManager] Failed to send IM typing state for ${recipientId}:`, error);
+    }
+  }
+
   async sendMessage(message: string, channel: number = 0, type: ChatType = ChatType.NORMAL) {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');

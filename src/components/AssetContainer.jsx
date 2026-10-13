@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 import { SkeletonAssetPlaceholder } from './SkeletonLoader.jsx';
 
 /**
@@ -110,7 +111,7 @@ export default function AssetContainer({
         data-testid="asset-downloading-state"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Icon name="download-cloud" size={18} style={{ color: V?.pri || '#6CFF9A' }} />
+          <CrystalLoader size={18} variant="inline" />
           <span style={{ fontWeight: 700, fontSize: '13px', color: V?.ink || '#fff' }}>
             {displayTitle}
           </span>

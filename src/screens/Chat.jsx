@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import Icon from '../components/Icon.jsx';
@@ -191,37 +191,114 @@ export default function Chat() {
     setTimeout(() => setSavedNotice(false), 2000);
   };
 
+  const resolveIMTarget = (contact, friendsList, threads) => {
+    let targetId = contact;
+    let targetName = contact;
+    const matchedFriend = friendsList.find(
+      (f) => f.id === contact || f.name?.toLowerCase() === contact.toLowerCase(),
+    );
+    if (matchedFriend) {
+      targetId = matchedFriend.id;
+      targetName = matchedFriend.name;
+    } else {
+      const matchedThread = threads.find(
+        (t) => t.contactId === contact || t.contactName?.toLowerCase() === contact.toLowerCase(),
+      );
+      if (matchedThread) {
+        targetId = matchedThread.contactId;
+        targetName = matchedThread.contactName;
+      }
+    }
+    return { targetId, targetName };
+  };
+
+  // Typing indicator state and helpers
+  const isTypingRef = useRef(false);
+  const typingTimeoutRef = useRef(null);
+  const activeTypingTargetRef = useRef(null);
+
+  const stopTypingTimer = () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const sendTypingSignal = useCallback(
+    (isTyping, targetOverride = null) => {
+      const target = targetOverride || {
+        tab: activeTab,
+        recipientId:
+          activeTab === 'IM' ? resolveIMTarget(selectedContact, friends, imThreads).targetId : null,
+      };
+
+      if (isTyping) {
+        isTypingRef.current = true;
+        activeTypingTargetRef.current = target;
+        if (target.tab === 'LOCAL') {
+          app.chat.sendTypingState(true);
+        } else if (target.tab === 'IM' && target.recipientId) {
+          app.chat.sendIMTypingState(target.recipientId, true);
+        }
+      } else {
+        if (!isTypingRef.current && !targetOverride) return;
+        isTypingRef.current = false;
+        const currentTarget = targetOverride || activeTypingTargetRef.current || target;
+        if (currentTarget?.tab === 'LOCAL') {
+          app.chat.sendTypingState(false);
+        } else if (currentTarget?.tab === 'IM' && currentTarget?.recipientId) {
+          app.chat.sendIMTypingState(currentTarget.recipientId, false);
+        }
+        activeTypingTargetRef.current = null;
+      }
+    },
+    [activeTab, selectedContact, friends, imThreads],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (isTypingRef.current && activeTypingTargetRef.current) {
+        stopTypingTimer();
+        sendTypingSignal(false, activeTypingTargetRef.current);
+      }
+    };
+  }, [activeTab, selectedContact, sendTypingSignal]);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setDraft(val);
+
+    if (!connected) return;
+
+    if (!val.trim()) {
+      stopTypingTimer();
+      sendTypingSignal(false);
+      return;
+    }
+
+    if (!isTypingRef.current) {
+      sendTypingSignal(true);
+    }
+
+    stopTypingTimer();
+    typingTimeoutRef.current = setTimeout(() => {
+      sendTypingSignal(false);
+    }, 5000);
+  };
+
   const send = async (event) => {
     event.preventDefault();
     const text = draft.trim();
     if (!text || sending) return;
     if (!connected) return setError('Chat is unavailable while disconnected.');
+    stopTypingTimer();
+    sendTypingSignal(false);
     setSending(true);
     setError('');
 
     try {
       if (activeTab === 'IM') {
-        // Resolve recipient ID
-        let targetId = selectedContact;
-        let targetName = selectedContact;
-        const matchedFriend = friends.find(
-          (f) =>
-            f.id === selectedContact || f.name?.toLowerCase() === selectedContact.toLowerCase(),
-        );
-        if (matchedFriend) {
-          targetId = matchedFriend.id;
-          targetName = matchedFriend.name;
-        } else {
-          const matchedThread = imThreads.find(
-            (t) =>
-              t.contactId === selectedContact ||
-              t.contactName?.toLowerCase() === selectedContact.toLowerCase(),
-          );
-          if (matchedThread) {
-            targetId = matchedThread.contactId;
-            targetName = matchedThread.contactName;
-          }
-        }
+        const { targetId, targetName } = resolveIMTarget(selectedContact, friends, imThreads);
 
         if (!targetId) {
           throw new Error('Please select a friend or recipient to send an Instant Message.');
@@ -727,7 +804,7 @@ export default function Chat() {
           <input
             id="chat-input"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={handleInputChange}
             disabled={!connected || sending}
             placeholder={
               !connected
