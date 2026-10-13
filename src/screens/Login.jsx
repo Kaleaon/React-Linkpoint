@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
-import Icon from '../components/Icon.jsx';
+import LinkpointLogo from '../components/LinkpointLogo.jsx';
 import FormField from '../components/FormField.jsx';
 
 export default function Login() {
@@ -120,8 +120,17 @@ export default function Login() {
         onSubmit={connect}
         style={{ maxWidth: 460, margin: '0 auto', display: 'grid', gap: 15 }}
       >
-        <header style={{ textAlign: 'center' }}>
-          <Icon name="box" size={28} />
+        <header
+          style={{
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ width: 96, height: 96, marginBottom: 8, flexShrink: 0 }}>
+            <LinkpointLogo animated={true} showTitle={false} width="100%" height="100%" />
+          </div>
           <h1 style={{ color: V.pri, font: `700 28px/1.1 ${t.dfont}`, letterSpacing: '.12em' }}>
             LINKPOINT
           </h1>
