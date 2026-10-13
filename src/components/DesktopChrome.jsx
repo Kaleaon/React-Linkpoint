@@ -5,6 +5,7 @@ import { app } from '../linkpoint/app';
 import { slBridge } from '../linkpoint/sl-bridge';
 import { sideBorder } from '../theme/look.js';
 import Icon from './Icon.jsx';
+import LinkpointLogo from './LinkpointLogo.jsx';
 import { LcarsChrome } from '@linkpoint/design-system/react';
 import { deskKind, deskGeometry, sweepSegmentFills } from '../theme/deskStyle.js';
 
@@ -140,6 +141,12 @@ export default function DesktopChrome() {
         </div>
       )}
       <nav className="desktop-location-bar" aria-label="Location bar" style={locationBarStyle}>
+        <div
+          className="desktop-brand-emblem"
+          style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
+        >
+          <LinkpointLogo animated={false} showTitle={false} width={20} height={20} />
+        </div>
         <div className="desktop-history-controls" aria-label="Navigation history">
           <button
             type="button"

@@ -42,6 +42,7 @@ import { ChatExtended } from './phase2/chat-extended';
 import { GroupsManager } from './phase2/groups';
 import { FriendsExtended } from './phase2/friends-extended';
 import { GroupNoticeSyncEngine } from './group-notice-sync-engine';
+import { EconomySyncEngine } from './phase2/economy-sync-engine';
 
 export class LinkpointApp {
   private balanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -59,6 +60,7 @@ export class LinkpointApp {
   public audio: AudioManager;
   public voice: VoiceManager;
   public economy: EconomyManager;
+  public economySyncEngine: EconomySyncEngine;
   public chatAdapter: ChatProtocolAdapter;
 
   // Phase 2 Managers
@@ -99,10 +101,12 @@ export class LinkpointApp {
     this.audio.setObjectPoseResolver((id) => this.world.getSoundObjectPose(id));
     this.voice = new VoiceManager();
     this.economy = economyManager;
+    this.economySyncEngine = this.economy.syncEngine;
 
     // Initialize Phase 2 Managers
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
     this.capabilities = new CapabilitiesManager();
+    this.economySyncEngine.setCapabilitiesManager(this.capabilities);
     this.avatar = new AvatarManager();
     this.objects = new ObjectManagerExtended();
     this.inventoryCore = this.inventory as any;
@@ -498,17 +502,42 @@ export class LinkpointApp {
   }
 
   async loadGroups() {
-    if (!this.auth.isLoggedIn()) return [];
-    if (!slBridge.connected) return this.groups.getGroups();
-    const sessionId = slBridge.sessionId;
-    const groups = await slBridge.fetchGroups();
-    if (!slBridge.connected || !this.auth.isLoggedIn() || slBridge.sessionId !== sessionId)
-      throw new Error('Session changed while loading groups');
-    if (!Array.isArray(groups)) throw new Error('Group list response was invalid');
-    this.groups.replaceGroups(groups);
-    const agentId = this.protocol.agentId || 'local_user';
-    this.groupNoticeSyncEngine.startSync(groups, { agentId });
-    return groups;
+    this.groups.emit('groups_loading_start');
+    try {
+      if (!this.auth.isLoggedIn()) {
+        this.groups.emit('groups_loading_end', { itemCount: 0, status: 'empty' });
+        return [];
+      }
+      if (!slBridge.connected) {
+        const local = this.groups.getGroups();
+        this.groups.emit('groups_loading_end', {
+          itemCount: local.length,
+          status: local.length > 0 ? 'ready' : 'empty',
+        });
+        return local;
+      }
+      const sessionId = slBridge.sessionId;
+      const groups = await slBridge.fetchGroups();
+      if (!slBridge.connected || !this.auth.isLoggedIn() || slBridge.sessionId !== sessionId) {
+        const err = new Error('Session changed while loading groups');
+        this.groups.emit('groups_loading_error', { error: err.message });
+        throw err;
+      }
+      if (!Array.isArray(groups)) {
+        const err = new Error('Group list response was invalid');
+        this.groups.emit('groups_loading_error', { error: err.message });
+        throw err;
+      }
+      this.groups.replaceGroups(groups);
+      const agentId = this.protocol.agentId || 'local_user';
+      this.groupNoticeSyncEngine.startSync(groups, { agentId });
+      return groups;
+    } catch (err) {
+      this.groups.emit('groups_loading_error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   }
 
   async loadGroupDetails(groupId: string, section: string) {
@@ -556,6 +585,7 @@ export class LinkpointApp {
       clearTimeout(this.friendsRetryTimer);
       this.friendsRetryTimer = null;
     }
+    this.friends.emit('friends_loading_start');
     const run = async () => {
       try {
         if (typeof this.protocol.fetchFriends === 'function') {
@@ -564,16 +594,32 @@ export class LinkpointApp {
             this.friendsError = null;
             if (friends.length) this.protocol.emit('friends_loaded', friends);
             else if (attempts > 1) this.scheduleFriendsRetry(attempts - 1);
-            return friends.length ? friends : this.friends.getFriends();
+            const res = friends.length ? friends : this.friends.getFriends();
+            const count = res.length;
+            this.friends.emit('friends_loaded', res);
+            this.friends.emit('friends_loading_end', {
+              itemCount: count,
+              status: count > 0 ? 'ready' : 'empty',
+            });
+            return res;
           }
         }
         this.friendsError = 'The friends list response was invalid.';
+        this.friends.emit('friends_loading_error', { error: this.friendsError });
       } catch (err) {
         console.warn('[LinkpointApp] loadFriends warning:', err);
         this.friendsError = err instanceof Error ? err.message : 'Friends could not be loaded.';
+        this.friends.emit('friends_loading_error', { error: this.friendsError });
         if (attempts > 1) this.scheduleFriendsRetry(attempts - 1);
       }
-      return this.friends.getFriends();
+      const finalFriends = this.friends.getFriends();
+      const count = finalFriends.length;
+      this.friends.emit('friends_loading_end', {
+        itemCount: count,
+        status: this.friendsError ? 'error' : count > 0 ? 'ready' : 'empty',
+        error: this.friendsError,
+      });
+      return finalFriends;
     };
     this.friendsLoad = run().finally(() => {
       this.friendsLoad = null;

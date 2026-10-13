@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { MINI_CRYSTAL } from './linkpointCrystal.js';
 
 // The Linkpoint crystal from the login screen, reduced to a loading indicator:
 // two pyramid halves close into the octahedron and the core lights as they meet.
@@ -83,14 +84,14 @@ export default function CrystalLoader({
         />
         <g className="lpld-bot">
           <polygon
-            points="60,114 12,60 60,76"
+            points={MINI_CRYSTAL.bot.faceA}
             fill={`url(#${gradB})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
             strokeLinejoin="round"
           />
           <polygon
-            points="60,114 60,76 108,60"
+            points={MINI_CRYSTAL.bot.faceB}
             fill={`url(#${gradA})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
@@ -100,14 +101,14 @@ export default function CrystalLoader({
         </g>
         <g className="lpld-top">
           <polygon
-            points="60,6 12,60 60,76"
+            points={MINI_CRYSTAL.top.faceA}
             fill={`url(#${gradA})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
             strokeLinejoin="round"
           />
           <polygon
-            points="60,6 60,76 108,60"
+            points={MINI_CRYSTAL.top.faceB}
             fill={`url(#${gradB})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
@@ -115,7 +116,7 @@ export default function CrystalLoader({
             opacity=".72"
           />
           <polyline
-            points="12,60 60,44 108,60"
+            points={MINI_CRYSTAL.top.ridge}
             fill="none"
             stroke="var(--pri,#6CFF9A)"
             strokeOpacity=".45"

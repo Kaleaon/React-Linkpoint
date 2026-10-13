@@ -64,6 +64,7 @@ export class ChatManager extends Utils.EventEmitter {
   }
 
   loadSessions() {
+    this.emit('chat_loading_start');
     try {
       const savedOpen = Utils.storage.get('linkpoint_open_im_sessions', null);
       if (Array.isArray(savedOpen)) {
@@ -80,8 +81,12 @@ export class ChatManager extends Utils.EventEmitter {
       if (Array.isArray(savedClosed)) {
         this.closedSessions = new Set(savedClosed.map((n: string) => n.toLowerCase().trim()));
       }
-    } catch {
-      // Storage error ignored
+      const count = this.openSessions.size;
+      const status = count > 0 ? 'ready' : 'empty';
+      this.emit('chat_loading_end', { itemCount: count, status });
+    } catch (err) {
+      this.emit('chat_loading_error', { error: err instanceof Error ? err.message : String(err) });
+      this.emit('chat_loading_end', { itemCount: 0, status: 'error' });
     }
   }
 
