@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 import { app } from '../linkpoint/app.ts';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
@@ -10,6 +11,7 @@ import { COMPASS } from '../data/content.js';
 export default function Radar() {
   const { V, t } = useTheme();
   const { state, actions } = useApp();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   // Mode: "person" (Avatars) vs "item" (Objects & Attachments)
   // Synchronized with state.rMode ("person" / "item" or "AV" / "OBJ")
@@ -900,7 +902,9 @@ export default function Radar() {
               borderRadius: '50%',
               background: V.pri,
               opacity: 0.3,
-              animation: 'ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite',
+              animation: prefersReducedMotion
+                ? 'none'
+                : 'ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite',
             }}
           />
           <div

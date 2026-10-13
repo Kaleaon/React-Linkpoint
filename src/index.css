@@ -148,8 +148,8 @@ a:focus-visible,
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
+    transform: none !important;
   }
 }
 
@@ -881,8 +881,8 @@ dialog {
   [data-layout] *,
   [data-layout] *::before,
   [data-layout] *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
+    transform: none !important;
     transition-duration: 0.01ms !important;
   }
 }
