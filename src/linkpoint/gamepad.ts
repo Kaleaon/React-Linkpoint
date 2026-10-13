@@ -31,6 +31,7 @@ export class GamepadInput {
   private timer: ReturnType<typeof setInterval> | null = null;
   private last = 0;
   private wasActive = false;
+  private listening = false;
 
   constructor(
     private readonly target: GamepadTarget,
@@ -44,15 +45,61 @@ export class GamepadInput {
     return this.options.now ? this.options.now() : performance.now();
   }
 
+  private onGamepadChange = () => {
+    this.checkConnection();
+  };
+
+  private addEventListeners() {
+    if (this.listening) return;
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('gamepadconnected', this.onGamepadChange);
+      window.addEventListener('gamepaddisconnected', this.onGamepadChange);
+      this.listening = true;
+    }
+  }
+
+  private removeEventListeners() {
+    if (!this.listening) return;
+    if (typeof window !== 'undefined' && window.removeEventListener) {
+      window.removeEventListener('gamepadconnected', this.onGamepadChange);
+      window.removeEventListener('gamepaddisconnected', this.onGamepadChange);
+      this.listening = false;
+    }
+  }
+
   start() {
+    this.addEventListeners();
+    this.checkConnection();
+  }
+
+  stop() {
+    this.removeEventListeners();
+    this.stopTimer();
+  }
+
+  checkConnection() {
+    if (this.options.enabled() && this.pad() !== null) {
+      this.startTimer();
+    } else {
+      this.stopTimer();
+    }
+  }
+
+  isPolling(): boolean {
+    return this.timer !== null;
+  }
+
+  private startTimer() {
     if (this.timer) return;
     this.last = this.now();
     this.timer = setInterval(() => this.poll(), this.options.intervalMs ?? 33);
   }
 
-  stop() {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
+  private stopTimer() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
     this.release();
   }
 
@@ -79,14 +126,26 @@ export class GamepadInput {
   }
 
   poll() {
-    const time = this.now();
-    const dt = Math.max(0, (time - this.last) / 1000);
-    this.last = time;
-    const pad = this.options.enabled() && (this.options.active?.() ?? true) ? this.pad() : null;
+    if (!this.options.enabled()) {
+      this.stopTimer();
+      return;
+    }
+
+    const pad = this.pad();
     if (!pad) {
+      this.stopTimer();
+      return;
+    }
+
+    if (this.options.active && !this.options.active()) {
       this.release();
       return;
     }
+
+    const time = this.now();
+    const dt = Math.max(0, (time - this.last) / 1000);
+    this.last = time;
+
     const flying = this.target.isFlying();
     const out = this.joystick.step({
       hardwareAxes: hardwareAxesFromStandardGamepad(pad.axes, pad.buttons),

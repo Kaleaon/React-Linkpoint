@@ -114,8 +114,15 @@ export class WorldViewer extends Utils.EventEmitter {
   private cameraControls: CameraControls | null = null;
   private agentKeyboard: AgentKeyboard | null = null;
   private gamepad: GamepadInput | null = null;
+  private _gamepadEnabled = false;
   /** `JoystickEnabled`: gamepad control of the avatar, off until the user turns it on. */
-  public gamepadEnabled = false;
+  public get gamepadEnabled(): boolean {
+    return this._gamepadEnabled;
+  }
+  public set gamepadEnabled(val: boolean) {
+    this._gamepadEnabled = val;
+    this.gamepad?.checkConnection();
+  }
   /** The name of a scene object by id, when it is loaded. */
   public objectName(id: string): string | undefined {
     const object =
