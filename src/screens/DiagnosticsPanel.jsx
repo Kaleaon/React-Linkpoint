@@ -306,9 +306,17 @@ export default function DiagnosticsPanel() {
       {/* Latency History Graph */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+          <h3
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: V.pri,
+              letterSpacing: '.08em',
+              margin: 0,
+            }}
+          >
             WORLD RESPONSE TIME HISTORY
-          </div>
+          </h3>
           <div style={{ fontSize: 11, color: V.ink2 }}>
             {range ? `Min: ${Math.round(minL)} ms · Max: ${Math.round(maxL)} ms` : 'No samples yet'}
           </div>
@@ -354,9 +362,11 @@ export default function DiagnosticsPanel() {
 
       {/* World Region & Network Summary */}
       <div style={cardStyle}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+        <h3
+          style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em', margin: 0 }}
+        >
           WORLD REGION & NETWORK SUMMARY
-        </div>
+        </h3>
         <div
           style={{
             display: 'grid',
@@ -478,9 +488,17 @@ export default function DiagnosticsPanel() {
           style={cardStyle}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+            <h3
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: V.pri,
+                letterSpacing: '.08em',
+                margin: 0,
+              }}
+            >
               ADVANCED TECHNICAL PROTOCOL DETAILS
-            </div>
+            </h3>
             <div
               style={{
                 fontSize: 10,
