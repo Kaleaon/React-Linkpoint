@@ -19,9 +19,13 @@ const TeleportProgressDisplay = memo(function TeleportProgressDisplay({ phase, i
     const onUpdate = () => {
       const session = app.interactions.teleportSession;
       if (session) {
-        setProgress({
-          stepPercent: session.stepPercent ?? 0,
-          statusText: session.statusText || 'Teleport in progress...',
+        const stepPercent = session.stepPercent ?? 0;
+        const statusText = session.statusText || 'Teleport in progress...';
+        setProgress((prev) => {
+          if (prev.stepPercent === stepPercent && prev.statusText === statusText) {
+            return prev;
+          }
+          return { stepPercent, statusText };
         });
       }
     };
