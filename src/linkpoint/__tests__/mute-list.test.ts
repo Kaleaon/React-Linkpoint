@@ -217,6 +217,20 @@ describe('secondary index maps O(1) performance and edge cases', () => {
     expect(l.isMutedByName('spambot')).toBe(false);
   });
 
+  it('prevents counter drift when exact duplicate legacy entries are present in load or loadFromCache', async () => {
+    const l = new MuteList(null);
+    l.load({
+      state: 'loaded',
+      mutes: [],
+      legacy: ['DuplicateBot', 'DuplicateBot'],
+    });
+
+    expect(l.isMutedByName('duplicatebot')).toBe(true);
+    // Unmuting once should fully unmute since it was a duplicate entry in the payload
+    l.remove({ name: 'DuplicateBot' });
+    expect(l.isMutedByName('duplicatebot')).toBe(false);
+  });
+
   it('performs O(1) constant-time lookups across a large set of mutes', () => {
     const l = new MuteList(null);
     const count = 500;

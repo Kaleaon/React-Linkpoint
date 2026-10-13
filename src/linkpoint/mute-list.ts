@@ -111,8 +111,10 @@ export class MuteList extends Utils.EventEmitter {
             }
           }
           for (const name of cached.legacy || []) {
-            this.legacy.add(name);
-            this.addLegacyLowerCase(name);
+            if (!this.legacy.has(name)) {
+              this.legacy.add(name);
+              this.addLegacyLowerCase(name);
+            }
           }
           this.state = 'loaded';
         }
@@ -177,8 +179,10 @@ export class MuteList extends Utils.EventEmitter {
       }
     }
     for (const name of result.legacy ?? []) {
-      this.legacy.add(name);
-      this.addLegacyLowerCase(name);
+      if (!this.legacy.has(name)) {
+        this.legacy.add(name);
+        this.addLegacyLowerCase(name);
+      }
     }
 
     // Reconcile pending queue entries made while offline/disconnected
