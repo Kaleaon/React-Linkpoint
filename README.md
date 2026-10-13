@@ -42,6 +42,27 @@ interactive desktop testing is required.
    bun run dev
    ```
 
+### Google AI Studio preview
+
+Run the full-stack app with `npm run dev`; the Express server serves both the viewer
+and its API on port 3000 (or `PORT` when set). Gemini credentials are optional for
+the viewer and are only used by the server-side LLSD assistant.
+
+If AI Studio reports `[vite] failed to connect to websocket` or
+`WebSocket closed without opened`, use `npm run dev:aistudio`, or set
+`DISABLE_HMR=true` and restart `npm run dev`. This disables Vite's live-reload and
+console WebSocket transport; reload the preview after editing files. This mode is
+also selected automatically when `APP_URL` is an AI Studio `ais-dev-*.run.app`
+preview URL. Normal development shares Vite's socket with the app's HTTP port.
+
+Embedded previews that deny browser storage still load the viewer. Preferences,
+contacts, notices and cache data can remain in memory for that session; reloads
+cannot preserve data when persistent storage is unavailable.
+
+If Vite reports `Blocked request. This host ... is not allowed`, add the exact
+preview hostname using `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` in the server's
+environment, then restart `npm run dev`.
+
 ## Packaging
 
 `.github/workflows/release.yml` builds every distributable package. It runs on
