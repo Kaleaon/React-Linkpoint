@@ -2,7 +2,25 @@
  * Linkpoint PWA - Utility Functions
  */
 
+/**
+ * Pick the first defined non-null property value from a source object,
+ * checking key candidates in order.
+ */
+export function pickProperty(source: any, ...keys: string[]): any {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export const Utils = {
+  pickProperty,
   generateUUID() {
     if (
       typeof globalThis.crypto !== 'undefined' &&
