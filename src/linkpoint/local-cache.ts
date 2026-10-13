@@ -25,7 +25,7 @@ export interface CacheStats {
 }
 
 const DB_NAME = 'linkpoint_sl_cache_db';
-const DB_VERSION = 2;
+const DB_VERSION = 5;
 const STORE_INVENTORY = 'inventory';
 const STORE_TEXTURES = 'textures';
 const STORE_META = 'metadata';
