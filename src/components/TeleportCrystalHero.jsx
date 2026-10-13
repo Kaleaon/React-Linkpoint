@@ -1,16 +1,30 @@
-import React from 'react';
+import React, { useId } from 'react';
+import { MINI_CRYSTAL } from './linkpointCrystal.js';
 
 /**
  * TeleportCrystalHero
  *
  * State-reactive Linkpoint crystal mark for the teleport modal sheet.
  *
- * Props:
- * - stepPercent: Progress percentage (0 - 100)
- * - phase: Teleport session phase string ('initiating' | 'contacting' | 'preparing' | 'arriving' | 'failed' | etc.)
- * - size: Hero graphic size in pixels (default: 120)
+ * @param {Object} props
+ * @param {number} [props.stepPercent]
+ * @param {string} [props.phase]
+ * @param {number} [props.size]
+ * @param {string} [props.idPrefix]
  */
-export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiating', size = 120 }) {
+export default function TeleportCrystalHero({
+  stepPercent = 0,
+  phase = 'initiating',
+  size = 120,
+  idPrefix = undefined,
+}) {
+  const reactId = useId();
+  const cleanId = reactId.replace(/:/g, '');
+  const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `tpch-${cleanId}`;
+  const gradA = `${prefix}-grad-a`;
+  const gradB = `${prefix}-grad-b`;
+  const coreGlow = `${prefix}-core-glow`;
+
   const isFailed = phase === 'failed';
   const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
   const p = Math.min(100, Math.max(0, rawP));
@@ -69,7 +83,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
           }
         `}</style>
         <defs>
-          <linearGradient id="tpch-grad-a" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={gradA} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop
               offset="0%"
               stopColor={isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)'}
@@ -77,12 +91,12 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
             <stop offset="100%" stopColor={isFailed ? '#7F1D1D' : 'var(--priC, #123B27)'} />
           </linearGradient>
 
-          <linearGradient id="tpch-grad-b" x1="100%" y1="0%" x2="0%" y2="100%">
+          <linearGradient id={gradB} x1="100%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={isFailed ? '#F87171' : 'var(--sec2, #8AD0B0)'} />
             <stop offset="100%" stopColor={isFailed ? '#991B1B' : 'var(--sec, #365047)'} />
           </linearGradient>
 
-          <radialGradient id="tpch-core-glow" cx="50%" cy="50%" r="50%">
+          <radialGradient id={coreGlow} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#ffffff" stopOpacity=".95" />
             <stop
               offset="50%"
@@ -119,15 +133,15 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
           }}
         >
           <polygon
-            points="60,114 12,60 60,76"
-            fill="url(#tpch-grad-b)"
+            points={MINI_CRYSTAL.bot.faceA}
+            fill={`url(#${gradB})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
           />
           <polygon
-            points="60,114 60,76 108,60"
-            fill="url(#tpch-grad-a)"
+            points={MINI_CRYSTAL.bot.faceB}
+            fill={`url(#${gradA})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
@@ -144,22 +158,22 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
           }}
         >
           <polygon
-            points="60,6 12,60 60,76"
-            fill="url(#tpch-grad-a)"
+            points={MINI_CRYSTAL.top.faceA}
+            fill={`url(#${gradA})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
           />
           <polygon
-            points="60,6 60,76 108,60"
-            fill="url(#tpch-grad-b)"
+            points={MINI_CRYSTAL.top.faceB}
+            fill={`url(#${gradB})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
             opacity=".75"
           />
           <polyline
-            points="12,60 60,44 108,60"
+            points={MINI_CRYSTAL.top.ridge}
             fill="none"
             stroke={priColor}
             strokeOpacity={isFailed ? '.6' : '.45'}
@@ -173,7 +187,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
           cx="60"
           cy="60"
           r={coreRadius}
-          fill="url(#tpch-core-glow)"
+          fill={`url(#${coreGlow})`}
           opacity={coreOpacity}
         />
       </svg>

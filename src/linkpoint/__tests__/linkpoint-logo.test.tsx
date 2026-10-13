@@ -14,7 +14,7 @@ afterEach(async () => {
 describe('Modernized CSS LinkpointLogo Component', () => {
   it('renders SVG logo without any SMIL tags', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const svg = mounted.host.querySelector('#linkpoint-logo-react');
+    const svg = mounted.host.querySelector('svg');
     expect(svg).not.toBeNull();
 
     // SMIL tag checks
@@ -25,6 +25,80 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(animates.length).toBe(0);
     expect(animateMotions.length).toBe(0);
     expect(mpaths.length).toBe(0);
+  });
+
+  it('renders SVG gradients and filters with valid colon-free dynamic IDs', async () => {
+    mounted = await mountScreen(LinkpointLogo);
+    const svg = mounted.host.querySelector('svg');
+    expect(svg).not.toBeNull();
+
+    const linearGradients = Array.from(mounted.host.querySelectorAll('linearGradient'));
+    const radialGradients = Array.from(mounted.host.querySelectorAll('radialGradient'));
+    const filters = Array.from(mounted.host.querySelectorAll('filter'));
+
+    expect(linearGradients).toHaveLength(4);
+    expect(radialGradients).toHaveLength(1);
+    expect(filters).toHaveLength(1);
+
+    const ids = [
+      ...linearGradients.map((el) => el.getAttribute('id')),
+      ...radialGradients.map((el) => el.getAttribute('id')),
+      ...filters.map((el) => el.getAttribute('id')),
+    ];
+
+    ids.forEach((id) => {
+      expect(id).toBeTruthy();
+      expect(id).not.toContain(':');
+    });
+
+    const polygons = Array.from(mounted.host.querySelectorAll('polygon'));
+    polygons.forEach((poly) => {
+      const fill = poly.getAttribute('fill');
+      if (fill && fill.startsWith('url(#')) {
+        expect(fill).toMatch(/^url\(#lplg-[^:]+-face[1-4]\)$/);
+      }
+    });
+
+    const coreCircle = mounted.host.querySelector('.core-anim-r circle');
+    expect(coreCircle?.getAttribute('fill')).toMatch(/^url\(#lplg-[^:]+-core-glow\)$/);
+  });
+
+  it('generates unique SVG element IDs when rendered concurrently', async () => {
+    mounted = await mountScreen(() => (
+      <div>
+        <LinkpointLogo />
+        <LinkpointLogo />
+      </div>
+    ));
+
+    const svgs = Array.from(mounted.host.querySelectorAll('svg'));
+    expect(svgs).toHaveLength(2);
+
+    const allGradientsAndFilters = Array.from(
+      mounted.host.querySelectorAll('linearGradient, radialGradient, filter'),
+    );
+    const allIds = allGradientsAndFilters.map((el) => el.getAttribute('id'));
+
+    expect(allIds).toHaveLength(12);
+    expect(new Set(allIds).size).toBe(12);
+  });
+
+  it('supports explicit idPrefix prop for deterministic testing and overrides', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo idPrefix="test-logo:1" />);
+
+    const svg = mounted.host.querySelector('svg#test-logo1');
+    expect(svg).not.toBeNull();
+
+    const grad1 = mounted.host.querySelector('linearGradient#test-logo1-face1');
+    const coreGlow = mounted.host.querySelector('radialGradient#test-logo1-core-glow');
+    const filter = mounted.host.querySelector('filter#test-logo1-glow');
+
+    expect(grad1).not.toBeNull();
+    expect(coreGlow).not.toBeNull();
+    expect(filter).not.toBeNull();
+
+    const coreCircle = mounted.host.querySelector('.core-anim-r circle');
+    expect(coreCircle?.getAttribute('fill')).toBe('url(#test-logo1-core-glow)');
   });
 
   it('includes GPU compositor properties and will-change performance hints in SVG CSS', async () => {
