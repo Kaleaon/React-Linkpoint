@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useNavigationAnnouncer } from '../useNavigationAnnouncer.js';
-import { liveRegionAnnouncer } from '../../services/LiveRegionAnnouncer';
+import { liveRegionAnnouncer } from '../../services/LiveRegionAnnouncer.ts';
 import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import ScreenBody from '../../components/ScreenBody.jsx';

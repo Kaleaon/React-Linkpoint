@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer.ts';
 
 export function useNavigationAnnouncer(screen) {
   const isFirstRender = useRef(true);
@@ -7,16 +7,20 @@ export function useNavigationAnnouncer(screen) {
   useEffect(() => {
     if (!screen) return;
     const title = screen === 'Login' ? 'Linkpoint' : `${screen} - Linkpoint`;
-    document.title = title;
+    if (typeof document !== 'undefined') {
+      document.title = title;
+    }
 
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
 
-    const mainEl = document.getElementById('main-content');
-    if (mainEl) {
-      mainEl.focus({ preventScroll: true });
+    if (typeof document !== 'undefined') {
+      const mainEl = document.getElementById('main-content');
+      if (mainEl) {
+        mainEl.focus({ preventScroll: true });
+      }
     }
 
     liveRegionAnnouncer.announce(`Navigated to ${screen} screen`, 'polite');
