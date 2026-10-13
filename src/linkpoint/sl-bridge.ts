@@ -215,6 +215,17 @@ export class SLBridge extends Utils.EventEmitter {
   saveShape(params: { values: Record<string, number>; name?: string }) {
     return this.call<{ saved: string; baked: boolean; reason?: string }>('saveShape', params);
   }
+  setAppearance(params: {
+    visualParams?: Record<string | number, number>;
+    bakedTextures?: Record<string, string>;
+  }) {
+    return this.call<{
+      dispatched: boolean;
+      agentSetAppearanceSent: boolean;
+      baked?: boolean;
+      reason?: string;
+    }>('setAppearance', params);
+  }
   joinGroup(params: { groupId: string }) {
     return this.call<{ joined: boolean }>('joinGroup', params);
   }
@@ -329,15 +340,16 @@ export class SLBridge extends Utils.EventEmitter {
       transaction?: any;
     }>('payAvatar', params);
   }
-  getTransactionHistory() {
+  getTransactionHistory(params?: { since?: number; limit?: number; offset?: number }) {
     return this.call<{
-      balance: number;
+      balance?: number;
       currencySymbol?: string;
       currency_symbol?: string;
       isZeroCurrency?: boolean;
       is_zero_currency?: boolean;
       transactions: any[];
-    }>('getTransactionHistory');
+      hasMore?: boolean;
+    }>('getTransactionHistory', params);
   }
 
   async sendChat(message: string, channel = 0, type = 1) {

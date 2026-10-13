@@ -325,9 +325,11 @@ export class InventoryManager extends Utils.EventEmitter {
 
             this.loadedFromCache = true;
             this.isLoading = false;
+            const itemCount = this.items.size + this.folders.size;
+            const status = itemCount > 0 ? 'ready' : 'empty';
             this.emit('inventory_loaded');
             this.emit('inventory_updated');
-            this.emit('inventory_loading_end');
+            this.emit('inventory_loading_end', { itemCount, status });
             if (cached.folders.length > 50) {
               return;
             }
@@ -367,9 +369,11 @@ export class InventoryManager extends Utils.EventEmitter {
             });
 
             this.isLoading = false;
+            const itemCount = this.items.size + this.folders.size;
+            const status = itemCount > 0 ? 'ready' : 'empty';
             this.emit('inventory_loaded');
             this.emit('inventory_updated');
-            this.emit('inventory_loading_end');
+            this.emit('inventory_loading_end', { itemCount, status });
             return;
           }
         } catch (err) {
@@ -380,7 +384,11 @@ export class InventoryManager extends Utils.EventEmitter {
       const inventoryRoot = this.protocol.inventoryRoot;
       if (!inventoryRoot) {
         this.isLoading = false;
-        this.emit('inventory_loading_end');
+        const itemCount = this.items.size + this.folders.size;
+        this.emit('inventory_loading_end', {
+          itemCount,
+          status: itemCount > 0 ? 'ready' : 'empty',
+        });
         return;
       }
 
@@ -391,11 +399,14 @@ export class InventoryManager extends Utils.EventEmitter {
       });
       await this.fetchFolderContents(inventoryRoot);
       this.isLoading = false;
+      const itemCount = this.items.size + this.folders.size;
       this.emit('inventory_loaded');
-      this.emit('inventory_loading_end');
+      this.emit('inventory_loading_end', { itemCount, status: itemCount > 0 ? 'ready' : 'empty' });
     } catch (error) {
       this.isLoading = false;
-      this.emit('inventory_loading_end');
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.emit('inventory_loading_error', { error: errMsg });
+      this.emit('inventory_loading_end', { itemCount: 0, status: 'error', error: errMsg });
       console.error('Failed to load inventory:', error);
     }
   }

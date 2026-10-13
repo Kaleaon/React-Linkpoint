@@ -5,6 +5,7 @@ import { app } from '../linkpoint/app.ts';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
+import SegmentedTabs from '../components/SegmentedTabs.jsx';
 import { COMPASS } from '../data/content.js';
 
 export default function Radar() {
@@ -362,13 +363,6 @@ export default function Radar() {
     cursor: 'pointer',
   });
 
-  // Switch between PERSON and ITEM
-  const switchRadarMode = (mode) => {
-    actions.setRMode(mode);
-    setSelectedId(null);
-    setLongPressMenuId(null);
-  };
-
   // Render Scope Rings & Blips
   // Sqrt scale allows close range (10m) to stay clear while 150m still fits nicely
   const rPix = (dm) => Math.min(88, 76 * Math.sqrt(Math.min(Math.max(dm, 0), 160) / 100));
@@ -406,128 +400,7 @@ export default function Radar() {
         overflow: 'hidden',
       }}
     >
-      {/* 1. PRIMARY TOGGLE: PERSON VS ITEM */}
-      <div
-        style={{
-          flex: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px 12px',
-          background: V.surf,
-          borderBottom: '1px solid ' + V.outv,
-          zIndex: 10,
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            background: V.surf2,
-            borderRadius: V.rs,
-            padding: '3px',
-            gap: '4px',
-            border: '1px solid ' + V.outv,
-          }}
-        >
-          {/* PERSON TOGGLE BUTTON */}
-          <button
-            onClick={() => switchRadarMode('person')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '7px',
-              padding: '7px 10px',
-              borderRadius: V.rs,
-              border: activeMode === 'person' ? '1px solid ' + V.pri : '1px solid transparent',
-              background: activeMode === 'person' ? V.pri : 'transparent',
-              color: activeMode === 'person' ? V.onpri : V.ink,
-              cursor: 'pointer',
-              font: '700 11.5px/1 ' + t.dfont,
-              letterSpacing: '.08em',
-              transition: 'all .15s ease',
-            }}
-            role="tab"
-            aria-selected={activeMode === 'person'}
-          >
-            <Icon name="user" size={15} />
-            <span>PERSON</span>
-            <span
-              style={{
-                padding: '2px 6px',
-                borderRadius: '999px',
-                fontSize: '10px',
-                background: activeMode === 'person' ? 'rgba(0,0,0,0.22)' : V.surf,
-                color: activeMode === 'person' ? V.onpri : V.pri,
-                fontWeight: 700,
-              }}
-            >
-              {peopleList.length}
-            </span>
-          </button>
-
-          {/* ITEM TOGGLE BUTTON */}
-          <button
-            onClick={() => switchRadarMode('item')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '7px',
-              padding: '7px 10px',
-              borderRadius: V.rs,
-              border: activeMode === 'item' ? '1px solid ' + V.pri : '1px solid transparent',
-              background: activeMode === 'item' ? V.pri : 'transparent',
-              color: activeMode === 'item' ? V.onpri : V.ink,
-              cursor: 'pointer',
-              font: '700 11.5px/1 ' + t.dfont,
-              letterSpacing: '.08em',
-              transition: 'all .15s ease',
-            }}
-            role="tab"
-            aria-selected={activeMode === 'item'}
-          >
-            <Icon name="box" size={15} />
-            <span>ITEM</span>
-            <span
-              style={{
-                padding: '2px 6px',
-                borderRadius: '999px',
-                fontSize: '10px',
-                background: activeMode === 'item' ? 'rgba(0,0,0,0.22)' : V.surf,
-                color: activeMode === 'item' ? V.onpri : V.pri,
-                fontWeight: 700,
-              }}
-            >
-              {itemsList.length}
-            </span>
-          </button>
-        </div>
-
-        {/* Toggle Radar Scope Visibility */}
-        <button
-          onClick={() => setShowScope((s) => !s)}
-          title={showScope ? 'Collapse Radar Scope' : 'Expand Radar Scope'}
-          style={{
-            flex: 'none',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid ' + V.outv,
-            borderRadius: V.rs,
-            background: showScope ? V.surf2 : 'transparent',
-            color: showScope ? V.pri : V.ink2,
-            cursor: 'pointer',
-          }}
-        >
-          <Icon name="radar" size={16} />
-        </button>
-      </div>
+      <SegmentedTabs screen="Radar" />
 
       {/* 2. SUB-FILTERS: WHEN IN ITEM MODE -> IN SIM VS ON-AVATAR DISTINCTION */}
       {activeMode === 'item' && (
@@ -763,6 +636,27 @@ export default function Radar() {
           <option value="name">SORT: NAME</option>
           {activeMode === 'item' && <option value="impact">SORT: PRIMS / IMPACT</option>}
         </select>
+
+        {/* Toggle Radar Scope Visibility */}
+        <button
+          onClick={() => setShowScope((s) => !s)}
+          title={showScope ? 'Collapse Radar Scope' : 'Expand Radar Scope'}
+          style={{
+            flex: 'none',
+            width: '28px',
+            height: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid ' + V.outv,
+            borderRadius: V.rs,
+            background: showScope ? V.surf : 'transparent',
+            color: showScope ? V.pri : V.ink2,
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="radar" size={15} />
+        </button>
       </div>
 
       {/* 4. CIRCULAR RADAR SCOPE (FIRESTORM CONCENTRIC RINGS & BLIPS) */}

@@ -298,4 +298,85 @@ describe('ChatManager', () => {
     expect(sendInstantMessage).not.toHaveBeenCalled();
     expect(sendChat).not.toHaveBeenCalled();
   });
+
+  describe('Typing Indicator Transmission', () => {
+    it('sends spatial and IM typing indicators when connected, setting is enabled, and RLV permits', async () => {
+      const sendChat = vi.fn().mockResolvedValue(undefined);
+      const sendImprovedInstantMessage = vi.fn().mockResolvedValue(undefined);
+      const manager = new ChatManager(
+        { sendChat, sendImprovedInstantMessage },
+        { isLoggedIn: () => true, user: { id: 'agent-1' } },
+      );
+
+      await manager.sendTypingState(true);
+      expect(sendChat).toHaveBeenCalledWith('', 0, 4);
+
+      await manager.sendTypingState(false);
+      expect(sendChat).toHaveBeenLastCalledWith('', 0, 5);
+
+      await manager.sendIMTypingState('friend-uuid', true);
+      expect(sendImprovedInstantMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ dialog: 41, id: 'friend-uuid' }),
+      );
+
+      await manager.sendIMTypingState('friend-uuid', false);
+      expect(sendImprovedInstantMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ dialog: 42, id: 'friend-uuid' }),
+      );
+    });
+
+    it('suppresses typing indicators when disconnected from grid', async () => {
+      const sendChat = vi.fn().mockResolvedValue(undefined);
+      const sendImprovedInstantMessage = vi.fn().mockResolvedValue(undefined);
+      const manager = new ChatManager(
+        { sendChat, sendImprovedInstantMessage },
+        { isLoggedIn: () => false, user: { id: 'agent-1' } },
+      );
+
+      await manager.sendTypingState(true);
+      await manager.sendIMTypingState('friend-uuid', true);
+
+      expect(sendChat).not.toHaveBeenCalled();
+      expect(sendImprovedInstantMessage).not.toHaveBeenCalled();
+    });
+
+    it('suppresses typing indicators when user typingSent setting toggle is disabled', async () => {
+      const sendChat = vi.fn().mockResolvedValue(undefined);
+      const sendImprovedInstantMessage = vi.fn().mockResolvedValue(undefined);
+      const manager = new ChatManager(
+        { sendChat, sendImprovedInstantMessage },
+        { isLoggedIn: () => true, user: { id: 'agent-1' } },
+      );
+
+      manager.setTypingSentEnabled(false);
+
+      await manager.sendTypingState(true);
+      await manager.sendIMTypingState('friend-uuid', true);
+
+      expect(sendChat).not.toHaveBeenCalled();
+      expect(sendImprovedInstantMessage).not.toHaveBeenCalled();
+    });
+
+    it('suppresses typing indicators when RLV canSendTypingStart() returns false', async () => {
+      const sendChat = vi.fn().mockResolvedValue(undefined);
+      const sendImprovedInstantMessage = vi.fn().mockResolvedValue(undefined);
+      const manager = new ChatManager(
+        { sendChat, sendImprovedInstantMessage },
+        { isLoggedIn: () => true, user: { id: 'agent-1' } },
+      );
+
+      const mockRlv: any = {
+        isEnabled: () => true,
+        canSendTypingStart: () => false,
+        canSendIM: () => true,
+      };
+      manager.setRlv(mockRlv);
+
+      await manager.sendTypingState(true);
+      await manager.sendIMTypingState('friend-uuid', true);
+
+      expect(sendChat).not.toHaveBeenCalled();
+      expect(sendImprovedInstantMessage).not.toHaveBeenCalled();
+    });
+  });
 });

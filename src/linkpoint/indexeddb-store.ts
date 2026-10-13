@@ -104,6 +104,7 @@ export class IndexedDBStore {
   private memNotices: Map<string, GroupNoticeRecord> = new Map(); // key: `${agentId}:${id}`
   private memMigration: Map<string, any> = new Map(); // key: agentId
   private memMuteLists: Map<string, any> = new Map(); // key: `mutelist_${agentId}`
+  private memMeta: Map<string, any> = new Map(); // key: metadata key
 
   constructor() {}
 
@@ -795,6 +796,55 @@ export class IndexedDBStore {
           if (req.result) {
             this.memMuteLists.set(key, req.result);
             resolve(req.result);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  // --- Key-Value Metadata Operations ---
+
+  public async setMeta(key: string, value: any): Promise<void> {
+    const record = { key, value, updatedAt: Date.now() };
+    this.memMeta.set(key, record);
+    const db = await this.getDB();
+    if (!db) return;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_META], 'readwrite');
+        const store = tx.objectStore(STORE_META);
+        store.put(record);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async getMeta(key: string): Promise<any> {
+    if (this.memMeta.has(key)) {
+      return this.memMeta.get(key)?.value ?? null;
+    }
+    const db = await this.getDB();
+    if (!db) return null;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([STORE_META], 'readonly');
+        const store = tx.objectStore(STORE_META);
+        const req = store.get(key);
+        req.onsuccess = () => {
+          if (req.result) {
+            this.memMeta.set(key, req.result);
+            resolve(req.result.value);
           } else {
             resolve(null);
           }

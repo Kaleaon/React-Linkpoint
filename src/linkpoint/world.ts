@@ -12,6 +12,7 @@ import { AgentKeyboard } from './agent-keyboard';
 import { GamepadInput } from './gamepad';
 import type { MovementRestrictions } from './agent-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
+import { AppearanceManager } from './appearance-manager';
 import {
   AvatarSkeleton,
   jointPositionOverrides,
@@ -129,6 +130,7 @@ export class WorldViewer extends Utils.EventEmitter {
   private resizeAttached = false;
   private readonly handleResize = () => this.resizeCanvas();
   public use3D: boolean = true;
+  public readonly appearanceManager = new AppearanceManager();
   public interactionMode: 'navigate' | 'interact' = 'navigate';
   private dragVelocityThreshold = 0.05;
   private dragDisplacementThreshold = 3;
@@ -548,11 +550,39 @@ export class WorldViewer extends Utils.EventEmitter {
   private avatarWorldMatrices(subject: string, pose = this.animator.pose(subject)) {
     this.skeleton ||= new AvatarSkeleton();
     const deformation = this.avatarDeformation(subject);
-    return this.skeleton.worldMatrices(pose, deformation.overrides, [
-      0,
-      0,
-      deformation.pelvisOffset,
-    ]);
+    const combinedOverrides = new Map(this.appearanceManager.getPositionOverrides());
+    for (const [k, v] of deformation.overrides) {
+      combinedOverrides.set(k, v);
+    }
+    const scaleOverrides = this.appearanceManager.getScaleOverrides();
+    return this.skeleton.worldMatrices(
+      pose,
+      combinedOverrides,
+      [0, 0, deformation.pelvisOffset],
+      scaleOverrides,
+    );
+  }
+
+  public setVisualParam(paramId: number | string, value: number) {
+    this.appearanceManager.setVisualParam(paramId, value);
+    this.updateAvatarGeometry();
+  }
+
+  public setVisualParams(params: Map<number | string, number> | Record<string | number, number>) {
+    this.appearanceManager.setVisualParams(params);
+    this.updateAvatarGeometry();
+  }
+
+  public updateAvatarGeometry() {
+    const self = this.protocol?.agentId;
+    if (self) {
+      this.reapplyAvatarSubject(self);
+    }
+    for (const object of this.sceneObjects.values()) {
+      if (object.avatar) {
+        this.reapplyAvatarSubject(object.id);
+      }
+    }
   }
 
   /** The avatar a rigged attachment is worn by, or the object itself (an animated object is its own subject). */
