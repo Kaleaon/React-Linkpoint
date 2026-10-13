@@ -5,20 +5,12 @@ import React from 'react';
  *
  * State-reactive Linkpoint crystal mark for the teleport modal sheet.
  *
- * Props:
- * - stepPercent: Progress percentage (0 - 100)
- * - phase: Teleport session phase string ('initiating' | 'contacting' | 'preparing' | 'arriving' | 'failed' | etc.)
- * - size: Hero graphic size in pixels (default: 120)
+ * @param {{ stepPercent?: number; phase?: string; size?: number }} props
  */
-export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiating', size = 120 }) {
+function TeleportCrystalHero({ stepPercent = 0, phase = 'initiating', size = 120 }) {
   const isFailed = phase === 'failed';
   const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
   const p = Math.min(100, Math.max(0, rawP));
-
-  // Requirement 2: Closing gap from 20px at 0% to 0px at 100%
-  const gap = 20 * (1 - p / 100);
-  const topY = -gap / 2;
-  const botY = gap / 2;
 
   // Core glow intensity reacts to progress
   const coreRadius = isFailed ? 14 : 8 + (p / 100) * 8;
@@ -43,6 +35,12 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
         justifyContent: 'center',
         position: 'relative',
         margin: '0 auto',
+        '--tpch-progress': p,
+        '--tpch-gap': 'calc(20px * (1 - var(--tpch-progress) / 100))',
+        '--tpch-top-y': 'calc(var(--tpch-gap) / -2)',
+        '--tpch-bot-y': 'calc(var(--tpch-gap) / 2)',
+        '--tpch-core-radius': `${coreRadius}px`,
+        '--tpch-core-opacity': `${coreOpacity}`,
       }}
     >
       <svg
@@ -114,7 +112,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
         <g
           className="tpch-bot"
           style={{
-            transform: `translateY(${botY.toFixed(2)}px)`,
+            transform: 'translateY(var(--tpch-bot-y))',
             transition: 'transform 0.3s ease-out',
           }}
         >
@@ -139,7 +137,7 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
         <g
           className="tpch-top"
           style={{
-            transform: `translateY(${topY.toFixed(2)}px)`,
+            transform: 'translateY(var(--tpch-top-y))',
             transition: 'transform 0.3s ease-out',
           }}
         >
@@ -175,8 +173,14 @@ export default function TeleportCrystalHero({ stepPercent = 0, phase = 'initiati
           r={coreRadius}
           fill="url(#tpch-core-glow)"
           opacity={coreOpacity}
+          style={{
+            r: 'var(--tpch-core-radius)',
+            opacity: 'var(--tpch-core-opacity)',
+          }}
         />
       </svg>
     </div>
   );
 }
+
+export default React.memo(TeleportCrystalHero);
