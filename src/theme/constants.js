@@ -228,9 +228,11 @@ export const CSUB = {
   ],
   Search: [
     ['PEOPLE', '· 01'],
-    ['GROUPS', '· 02'],
-    ['PLACES', '· 03'],
-    ['SEARCH', '· 04'],
+    ['EVENTS', '· 02'],
+    ['CLASSIFIEDS', '· 03'],
+    ['GROUPS', '· 04'],
+    ['PLACES', '· 05'],
+    ['SEARCH', '· 06'],
   ],
 };
 
@@ -256,6 +258,8 @@ export const subView = (state, scr) => {
     const raw = state.searchTab || state.tabs?.Search;
     if (!raw) return 'PEOPLE';
     const u = String(raw).toUpperCase();
+    if (u === 'EVENTS') return 'EVENTS';
+    if (u === 'CLASSIFIEDS') return 'CLASSIFIEDS';
     if (u === 'GROUPS') return 'GROUPS';
     if (u === 'PLACES') return 'PLACES';
     if (u === 'SEARCH') return 'SEARCH';

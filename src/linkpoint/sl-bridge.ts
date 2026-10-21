@@ -439,8 +439,14 @@ export class SLBridge extends Utils.EventEmitter {
       return null;
     }
   }
-  /** Directory search capabilities across grid categories ('people', 'groups', 'places'). */
-  async searchDir(params: { category: string; query: string; start?: number }): Promise<{
+  /** Directory search capabilities across grid categories ('people', 'events', 'classifieds', 'groups', 'places'). */
+  async searchDir(params: {
+    category: string;
+    query: string;
+    start?: number;
+    categoryFilter?: number;
+    timeFilter?: string;
+  }): Promise<{
     results: Array<{
       id: string;
       name?: string;
@@ -456,6 +462,16 @@ export class SLBridge extends Utils.EventEmitter {
       forSale?: boolean;
       type: string;
       simName?: string;
+      eventId?: number;
+      ownerId?: string;
+      date?: string;
+      unixTime?: number;
+      eventFlags?: number;
+      classifiedId?: string;
+      price?: number;
+      creationDate?: number;
+      expirationDate?: number;
+      classifiedFlags?: number;
     }>;
     hasMore?: boolean;
   }> {
