@@ -201,4 +201,23 @@ describe('SystemDialog Teleport Sheet', () => {
     expect(button(host, 'RETRY HOME')).toBeDefined();
     expect(button(host, 'CANCEL')).toBeDefined();
   });
+
+  it('does not emit interaction_changed event on progress ticks within the same phase', async () => {
+    const interactionChangedSpy = vi.fn();
+    app.interactions.on('interaction_changed', interactionChangedSpy);
+
+    await act(async () => {
+      app.interactions.startTeleportSession('Decoupled Progress Region');
+    });
+
+    const callsAfterStart = interactionChangedSpy.mock.calls.length;
+
+    // Emit progress tick within the same phase 'initiating'
+    await act(async () => {
+      app.interactions.updateTeleportProgress('initiating', 25, 'Resolving address...');
+    });
+
+    expect(interactionChangedSpy.mock.calls.length).toBe(callsAfterStart);
+    expect(app.interactions.teleportSession?.stepPercent).toBe(25);
+  });
 });

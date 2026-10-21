@@ -16,6 +16,13 @@ export default function SystemDialog() {
   const teleportRef = useRef(null);
   const dlgRef = useRef(null);
 
+  const percentTextRef = useRef(null);
+  const progressBarRef = useRef(null);
+  const statusTextRef = useRef(null);
+  const heroRef = useRef(null);
+  const milestoneRefs = useRef({});
+  const dialogRafIdRef = useRef(null);
+
   useEffect(() => {
     const onUpdate = () => {
       setTeleport(app.interactions.teleportSession);
@@ -23,11 +30,63 @@ export default function SystemDialog() {
     app.interactions.on('interactions_changed', onUpdate);
     app.interactions.on('interaction_changed', onUpdate);
     setTeleport(app.interactions.teleportSession);
+
+    const stagesDef = [
+      { key: 'initiating', minPercent: 15 },
+      { key: 'contacting', minPercent: 40 },
+      { key: 'preparing', minPercent: 65 },
+      { key: 'arriving', minPercent: 90 },
+    ];
+
+    const handleTick = (data) => {
+      if (!data) return;
+      const pct = Math.min(100, Math.max(0, data.stepPercent ?? data.percent ?? 0));
+      const statusText = data.statusText || '';
+
+      if (dialogRafIdRef.current) {
+        cancelAnimationFrame(dialogRafIdRef.current);
+      }
+
+      dialogRafIdRef.current = requestAnimationFrame(() => {
+        dialogRafIdRef.current = null;
+        if (percentTextRef.current) {
+          percentTextRef.current.textContent = `${pct}%`;
+        }
+        if (progressBarRef.current) {
+          progressBarRef.current.style.width = `${pct}%`;
+        }
+        if (statusTextRef.current && statusText) {
+          statusTextRef.current.textContent = statusText;
+        }
+        if (heroRef.current?.updateProgress) {
+          heroRef.current.updateProgress(pct);
+        }
+        stagesDef.forEach((st) => {
+          const node = milestoneRefs.current[st.key];
+          if (node) {
+            const reached = pct >= st.minPercent;
+            node.style.borderColor = reached ? V.pri : V.outv;
+            node.style.background = reached ? V.surf : V.bg;
+            node.style.opacity = reached ? '1' : '0.5';
+          }
+        });
+      });
+    };
+
+    app.interactions.on('teleport_tick', handleTick);
+    app.interactions.on('teleport_progress_tick', handleTick);
+
     return () => {
       app.interactions.off('interactions_changed', onUpdate);
       app.interactions.off('interaction_changed', onUpdate);
+      app.interactions.off('teleport_tick', handleTick);
+      app.interactions.off('teleport_progress_tick', handleTick);
+      if (dialogRafIdRef.current) {
+        cancelAnimationFrame(dialogRafIdRef.current);
+        dialogRafIdRef.current = null;
+      }
     };
-  }, []);
+  }, [V]);
 
   const dlg = state.dialog && DIALOGS[state.dialog];
 
@@ -172,7 +231,12 @@ export default function SystemDialog() {
 
           {/* Teleport Crystal Hero */}
           <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
-            <TeleportCrystalHero stepPercent={percent} phase={teleport.phase} size={120} />
+            <TeleportCrystalHero
+              ref={heroRef}
+              stepPercent={percent}
+              phase={teleport.phase}
+              size={120}
+            />
           </div>
 
           {/* Progress Bar & Percentage */}
@@ -185,10 +249,13 @@ export default function SystemDialog() {
                 marginBottom: '6px',
               }}
             >
-              <span style={{ font: '500 12px/1 ' + t.font, color: V.ink2 }}>
+              <span ref={statusTextRef} style={{ font: '500 12px/1 ' + t.font, color: V.ink2 }}>
                 {teleport.statusText || 'Teleport in progress...'}
               </span>
-              <span style={{ font: '700 12px/1 ' + t.font, color: isFailed ? V.err : V.pri }}>
+              <span
+                ref={percentTextRef}
+                style={{ font: '700 12px/1 ' + t.font, color: isFailed ? V.err : V.pri }}
+              >
                 {percent}%
               </span>
             </div>
@@ -203,6 +270,7 @@ export default function SystemDialog() {
               }}
             >
               <div
+                ref={progressBarRef}
                 style={{
                   width: `${percent}%`,
                   height: '100%',
@@ -228,6 +296,9 @@ export default function SystemDialog() {
               return (
                 <div
                   key={st.key}
+                  ref={(el) => {
+                    milestoneRefs.current[st.key] = el;
+                  }}
                   style={{
                     padding: '6px 2px',
                     borderRadius: V.rs,
