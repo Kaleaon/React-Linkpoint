@@ -71,9 +71,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
 
   const currentAmount = isCustom ? parseInt(customAmount, 10) || 0 : selectedPreset;
   const isExceedingBalance =
-    availableBalance !== null &&
-    availableBalance !== undefined &&
-    currentAmount > availableBalance;
+    availableBalance !== null && availableBalance !== undefined && currentAmount > availableBalance;
 
   const handlePresetSelect = (amount) => {
     if (loading || isZeroCurrency) return;
