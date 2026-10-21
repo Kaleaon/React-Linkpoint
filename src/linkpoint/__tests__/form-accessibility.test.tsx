@@ -110,6 +110,12 @@ describe('Form Label Associations and Accessible Names Across Viewer Tooling Scr
   it('Settings screen preference select controls have explicit id and htmlFor attributes', async () => {
     mounted = await mountScreen(Settings);
 
+    const devModeToggle = mounted.host
+      .querySelector('#devMode-label')
+      ?.closest('.settings-switch-row')
+      ?.querySelector('[role="switch"]');
+    if (devModeToggle) await click(devModeToggle as HTMLElement);
+
     const selectIds = [
       'settings-draw-distance-select',
       'settings-graphics-quality-select',
