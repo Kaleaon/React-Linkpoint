@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-// @ts-expect-error - CJS module import in TS test file
 import slActions from '../../../core/sl-actions.cjs';
 
 describe('sl-actions getTransactionHistory capability fetcher', () => {
