@@ -135,7 +135,7 @@ export default function LinkpointLogo({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
-      id={prefix}
+      id={idPrefix ? prefix : 'linkpoint-logo-react'}
       viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
       style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
