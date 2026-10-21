@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import { LocalGridManager } from './LocalGridManager';
 import { LocalAssetManager, AssetType } from './LocalAssetManager';
 import { CacheManager } from './CacheManager';
@@ -22,6 +23,7 @@ export const OfflineManagerView: React.FC<Props> = ({
   cacheManager,
   console: consoleProp,
 }) => {
+  const { V } = useTheme();
   const gridLog = consoleProp ?? sharedGridConsole;
 
   const [isRunning, setIsRunning] = useState(gridManager.isGridRunning());
@@ -135,29 +137,39 @@ export const OfflineManagerView: React.FC<Props> = ({
     }
   };
 
+  const cardStyle: React.CSSProperties = {
+    background: V.surf,
+    border: `1px solid ${V.outv || V.surf2}`,
+    padding: '15px',
+    borderRadius: V.rp || '8px',
+    marginBottom: '20px',
+    color: V.ink,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: V.bg,
+    color: V.ink,
+    border: `1px solid ${V.outv || V.sec2}`,
+    borderRadius: V.rs || '4px',
+    padding: '4px 8px',
+  };
+
   return (
     <div
       style={{
         padding: '20px',
-        fontFamily: 'sans-serif',
+        fontFamily: V.font || 'sans-serif',
         maxWidth: '800px',
         margin: '0 auto',
-        color: '#333',
+        color: V.ink,
       }}
     >
       <h2>Offline OpenSim Grid Control Center</h2>
 
-      <div
-        style={{
-          background: '#f5f5f5',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-        }}
-      >
+      <div style={cardStyle}>
         <h3>
           Local Grid Status:{' '}
-          <span style={{ color: isRunning ? 'green' : 'red' }}>
+          <span style={{ color: isRunning ? V.ok : V.err }}>
             {isRunning ? 'WORKING (ONLINE)' : 'SHUTDOWN (OFFLINE)'}
           </span>
         </h3>
@@ -166,10 +178,10 @@ export const OfflineManagerView: React.FC<Props> = ({
           style={{
             padding: '10px 20px',
             fontSize: '16px',
-            background: isRunning ? '#d9534f' : '#5cb85c',
-            color: '#fff',
+            background: isRunning ? V.err : V.ok,
+            color: isRunning ? (V as any).onerr || V.bg : (V as any).onok || V.bg,
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: V.rs || '4px',
             cursor: 'pointer',
           }}
         >
@@ -180,11 +192,12 @@ export const OfflineManagerView: React.FC<Props> = ({
       {needsAccountSetup && (
         <div
           style={{
-            background: '#fff3cd',
-            border: '1px solid #ffe8a1',
+            background: (V as any).warnC || `${V.warn}20`,
+            border: `1px solid ${V.warn}`,
             padding: '15px',
-            borderRadius: '8px',
+            borderRadius: V.rp || '8px',
             marginBottom: '20px',
+            color: V.ink,
           }}
         >
           <h3>First Time Offline Account Setup</h3>
@@ -197,6 +210,7 @@ export const OfflineManagerView: React.FC<Props> = ({
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 placeholder="e.g. Local"
+                style={inputStyle}
                 required
               />
             </div>
@@ -208,6 +222,7 @@ export const OfflineManagerView: React.FC<Props> = ({
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 placeholder="e.g. Resident"
+                style={inputStyle}
               />
             </div>
             <div style={{ marginBottom: '10px' }}>
@@ -219,15 +234,16 @@ export const OfflineManagerView: React.FC<Props> = ({
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={MIN_PASSWORD_LENGTH}
                 autoComplete="new-password"
+                style={inputStyle}
                 required
               />
-              <p style={{ fontSize: '12px', color: '#666', margin: '4px 0 0' }}>
+              <p style={{ fontSize: '12px', color: V.ink2, margin: '4px 0 0' }}>
                 Stored on this device as a salted PBKDF2-SHA256 hash. It is never saved in readable
                 form and cannot be recovered.
               </p>
             </div>
             {accountError && (
-              <p style={{ color: '#c9302c', margin: '0 0 10px' }} role="alert">
+              <p style={{ color: V.err, margin: '0 0 10px' }} role="alert">
                 {accountError}
               </p>
             )}
@@ -236,10 +252,11 @@ export const OfflineManagerView: React.FC<Props> = ({
               disabled={isSavingAccount}
               style={{
                 padding: '8px 16px',
-                background: '#0275d8',
-                color: '#fff',
+                background: V.pri,
+                color: V.onpri,
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: V.rs || '4px',
+                cursor: 'pointer',
               }}
             >
               {isSavingAccount ? 'Securing Account...' : 'Save Account'}
@@ -250,19 +267,20 @@ export const OfflineManagerView: React.FC<Props> = ({
 
       <GridConsolePanel console={gridLog} />
 
-      <div
-        style={{
-          background: '#f8f9fa',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-        }}
-      >
+      <div style={cardStyle}>
         <h3>OAR Backup Importer</h3>
         <p>Paste SceneObjectGroup XML string or OAR data to populate local region scene:</p>
         <textarea
           rows={4}
-          style={{ width: '100%', marginBottom: '10px' }}
+          style={{
+            width: '100%',
+            marginBottom: '10px',
+            background: V.bg,
+            color: V.ink,
+            border: `1px solid ${V.outv || V.sec2}`,
+            borderRadius: V.rs || '4px',
+            padding: '8px',
+          }}
           value={oarXmlInput}
           onChange={(e) => setOarXmlInput(e.target.value)}
           placeholder="<SceneObjectGroup>...</SceneObjectGroup>"
@@ -272,25 +290,19 @@ export const OfflineManagerView: React.FC<Props> = ({
           onClick={handleImportOar}
           style={{
             padding: '8px 16px',
-            background: '#6c757d',
-            color: '#fff',
+            background: V.sec || V.outv,
+            color: V.onsec || V.ink,
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: V.rs || '4px',
+            cursor: 'pointer',
           }}
         >
           Import OAR Scene
         </button>
-        {importedStatus && <p style={{ color: 'green', marginTop: '10px' }}>{importedStatus}</p>}
+        {importedStatus && <p style={{ color: V.ok, marginTop: '10px' }}>{importedStatus}</p>}
       </div>
 
-      <div
-        style={{
-          background: '#f8f9fa',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-        }}
-      >
+      <div style={cardStyle}>
         <h3>Local Asset Upload</h3>
         <form onSubmit={handleAssetUpload}>
           <div style={{ marginBottom: '10px' }}>
@@ -301,6 +313,7 @@ export const OfflineManagerView: React.FC<Props> = ({
               value={assetName}
               onChange={(e) => setAssetName(e.target.value)}
               placeholder="e.g. Custom Texture"
+              style={inputStyle}
               required
             />
           </div>
@@ -310,6 +323,7 @@ export const OfflineManagerView: React.FC<Props> = ({
               id="asset-type"
               value={assetType}
               onChange={(e) => setAssetType(e.target.value as AssetType)}
+              style={inputStyle}
             >
               <option value="texture">Texture</option>
               <option value="sound">Sound</option>
@@ -325,7 +339,7 @@ export const OfflineManagerView: React.FC<Props> = ({
               type="text"
               value={assetData}
               onChange={(e) => setAssetData(e.target.value)}
-              style={{ width: '60%' }}
+              style={{ ...inputStyle, width: '60%' }}
               required
             />
           </div>
@@ -333,17 +347,18 @@ export const OfflineManagerView: React.FC<Props> = ({
             type="submit"
             style={{
               padding: '8px 16px',
-              background: '#0275d8',
-              color: '#fff',
+              background: V.pri,
+              color: V.onpri,
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: V.rs || '4px',
+              cursor: 'pointer',
             }}
           >
             Upload Asset
           </button>
         </form>
         <h4>Persisted Local Assets ({assetsList.length})</h4>
-        <ul>
+        <ul style={{ color: V.ink2 }}>
           {assetsList.map((a) => (
             <li key={a.id}>
               <strong>{a.name}</strong> ({a.assetType}) - {a.sizeBytes} bytes - ID: {a.id}
@@ -352,14 +367,7 @@ export const OfflineManagerView: React.FC<Props> = ({
         </ul>
       </div>
 
-      <div
-        style={{
-          background: '#f8f9fa',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-        }}
-      >
+      <div style={cardStyle}>
         <h3>Storage &amp; Cache Sizing Options</h3>
         <p>Customizable cache storage size limit (256 MB up to 1,000,000 MB [~1 TB]):</p>
         <div style={{ marginBottom: '15px' }}>
@@ -371,7 +379,7 @@ export const OfflineManagerView: React.FC<Props> = ({
             max={1000000}
             value={cacheMB}
             onChange={(e) => handleCacheChange(Number(e.target.value))}
-            style={{ width: '120px', padding: '4px', marginRight: '10px' }}
+            style={{ ...inputStyle, width: '120px', marginRight: '10px' }}
           />
           <span>({(cacheMB / 1024).toFixed(2)} GB)</span>
         </div>
@@ -390,10 +398,11 @@ export const OfflineManagerView: React.FC<Props> = ({
           onClick={handleClearCache}
           style={{
             padding: '8px 16px',
-            background: '#f0ad4e',
-            color: '#fff',
+            background: V.warn,
+            color: V.bg,
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: V.rs || '4px',
+            cursor: 'pointer',
           }}
         >
           Clear Offline Cache
