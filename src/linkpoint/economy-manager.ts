@@ -31,6 +31,90 @@ export interface PaymentParams {
   description?: string;
 }
 
+export interface MoneyTransferParams {
+  agentId: string;
+  sessionId?: string;
+  sourceId?: string;
+  destinationId: string;
+  amount: number;
+  transactionType?: number;
+  aggregateAmount?: number;
+  transactionFlags?: number;
+  description?: string;
+}
+
+/**
+ * Serializes a MoneyTransferRequest packet for L$ transfer over UDP (Message ID: 0xFFFF00FC).
+ */
+export function serializeMoneyTransferRequest(params: MoneyTransferParams): Uint8Array {
+  if (!params.agentId || !params.destinationId) {
+    throw new Error('agentId and destinationId are required for MoneyTransferRequest');
+  }
+
+  const parseUuid = (uuid: string): Uint8Array => {
+    const hex = (uuid || '00000000-0000-0000-0000-000000000000').replace(/-/g, '');
+    const bytes = new Uint8Array(16);
+    if (hex.length !== 32) {
+      return bytes;
+    }
+    for (let i = 0; i < 16; i++) {
+      bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16) || 0;
+    }
+    return bytes;
+  };
+
+  const agentIdBytes = parseUuid(params.agentId);
+  const sessionIdBytes = parseUuid(params.sessionId || '00000000-0000-0000-0000-000000000000');
+  const sourceIdBytes = parseUuid(params.sourceId || params.agentId);
+  const destIdBytes = parseUuid(params.destinationId);
+
+  const descStr = params.description || '';
+  const descBytes = new TextEncoder().encode(descStr);
+  const descLen = Math.min(descBytes.length, 255);
+
+  const totalSize = 4 + 16 + 16 + 16 + 16 + 4 + 4 + 4 + 1 + 1 + descLen;
+  const buffer = new Uint8Array(totalSize);
+  const view = new DataView(buffer.buffer);
+
+  // Low frequency Message ID 252 (0xFFFF00FC)
+  view.setUint32(0, 0xffff00fc, false);
+
+  let offset = 4;
+  // AgentData
+  buffer.set(agentIdBytes, offset);
+  offset += 16;
+  buffer.set(sessionIdBytes, offset);
+  offset += 16;
+
+  // MoneyData
+  buffer.set(sourceIdBytes, offset);
+  offset += 16;
+  buffer.set(destIdBytes, offset);
+  offset += 16;
+
+  const transType = params.transactionType ?? 5001; // 5001 = TRANS_OBJECT_PAY
+  view.setInt32(offset, transType, true);
+  offset += 4;
+
+  const amount = Math.floor(params.amount || 0);
+  view.setInt32(offset, amount, true);
+  offset += 4;
+
+  const aggregateAmount = Math.floor(params.aggregateAmount || 0);
+  view.setInt32(offset, aggregateAmount, true);
+  offset += 4;
+
+  view.setUint8(offset, params.transactionFlags ?? 0);
+  offset += 1;
+
+  view.setUint8(offset, descLen);
+  offset += 1;
+
+  buffer.set(descBytes.subarray(0, descLen), offset);
+
+  return buffer;
+}
+
 export interface EconomyStats {
   balance: number | null;
   currencySymbol?: string;
@@ -142,6 +226,13 @@ export class EconomyManager extends Utils.EventEmitter {
   }
 
   /**
+   * Helper method to serialize a MoneyTransferRequest UDP packet.
+   */
+  public serializeMoneyTransferRequest(params: MoneyTransferParams): Uint8Array {
+    return serializeMoneyTransferRequest(params);
+  }
+
+  /**
    * Send payment to an in-world Object (tip jar, vendor, rental box, etc.)
    */
   public async payObject(params: PaymentParams): Promise<TransactionRecord> {
@@ -157,18 +248,33 @@ export class EconomyManager extends Utils.EventEmitter {
       throw new Error('Payment amount must be a positive integer');
     }
 
+    if (this.balance !== null && amount > this.balance) {
+      throw new Error(
+        `Insufficient L$ balance: available L$ ${this.balance}, required L$ ${amount}`,
+      );
+    }
+
     const description = params.description || `Payment to object ${params.targetName || targetId}`;
     const targetName = params.targetName || 'Object';
 
     try {
-      const res = await slBridge.payObject({
-        targetId,
-        amount,
-        description,
-        targetName,
-        currencySymbol: this.currencySymbol,
-        isZeroCurrency: this.isZeroCurrency,
-      });
+      let res: any;
+      if (this.syncEngine?.capabilitiesManager?.getPayObjectUrl?.()) {
+        res = await this.syncEngine.capabilitiesManager.executePayObjectCapability(
+          targetId,
+          amount,
+          description,
+        );
+      } else {
+        res = await slBridge.payObject({
+          targetId,
+          amount,
+          description,
+          targetName,
+          currencySymbol: this.currencySymbol,
+          isZeroCurrency: this.isZeroCurrency,
+        });
+      }
 
       const record: TransactionRecord = {
         id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -184,6 +290,16 @@ export class EconomyManager extends Utils.EventEmitter {
       };
 
       await this.recordTransaction(record);
+
+      if (this.balance !== null) {
+        this.balance = Math.max(0, this.balance - amount);
+        this.emit('balance_updated', {
+          balance: this.balance,
+          currencySymbol: this.currencySymbol,
+          isZeroCurrency: this.isZeroCurrency,
+        });
+      }
+
       return record;
     } catch (err: any) {
       const failedRecord: TransactionRecord = {
@@ -219,6 +335,12 @@ export class EconomyManager extends Utils.EventEmitter {
       throw new Error('Payment amount must be a positive integer');
     }
 
+    if (this.balance !== null && amount > this.balance) {
+      throw new Error(
+        `Insufficient L$ balance: available L$ ${this.balance}, required L$ ${amount}`,
+      );
+    }
+
     const description = params.description || `Gift to ${params.targetName || targetId}`;
     const targetName = params.targetName || 'Resident';
 
@@ -246,6 +368,16 @@ export class EconomyManager extends Utils.EventEmitter {
       };
 
       await this.recordTransaction(record);
+
+      if (this.balance !== null) {
+        this.balance = Math.max(0, this.balance - amount);
+        this.emit('balance_updated', {
+          balance: this.balance,
+          currencySymbol: this.currencySymbol,
+          isZeroCurrency: this.isZeroCurrency,
+        });
+      }
+
       return record;
     } catch (err: any) {
       const failedRecord: TransactionRecord = {

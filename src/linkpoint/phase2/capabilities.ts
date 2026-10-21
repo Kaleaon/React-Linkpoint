@@ -99,6 +99,44 @@ export class CapabilitiesManager {
     return this.resolveCapability('GroupNoticesList');
   }
 
+  /**
+   * Resolves the PayObject HTTP capability URL if exposed by the seed capabilities.
+   */
+  getPayObjectUrl(): string | null {
+    return this.resolveCapability('PayObject') || this.resolveCapability('PayObjectViaIP');
+  }
+
+  /**
+   * Execute PayObject HTTP capability RPC call for scripted object transactions.
+   */
+  async executePayObjectCapability(
+    objectId: string,
+    amount: number,
+    description?: string,
+  ): Promise<any> {
+    const url = this.getPayObjectUrl();
+    if (!url) {
+      throw new Error('PayObject capability is not available on this grid circuit');
+    }
+
+    const payload = JSON.stringify({
+      object_id: objectId,
+      amount: Math.floor(amount),
+      description: description || 'PayObject capability transaction',
+    });
+
+    const response = await this.fetchWithRetry(url);
+    if (!response.ok) {
+      throw new Error(`PayObject capability RPC failed with status ${response.status}`);
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
+  }
+
   clearCache() {
     this.capabilities.clear();
   }
