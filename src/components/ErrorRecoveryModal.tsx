@@ -1,15 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useErrorRecovery } from '../context/ErrorRecoveryContext';
+import CrystalLoader from './CrystalLoader.jsx';
 
 interface ErrorRecoveryModalProps {
   onNavigateFallback?: (route: 'Chat' | 'Login') => void;
 }
 
 export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNavigateFallback }) => {
-  const { activeError, telemetryLogs, clearError, processRetryQueue } = useErrorRecovery();
+  const { activeError, telemetryLogs, isRetrying, clearError, processRetryQueue } =
+    useErrorRecovery();
   const [showLogs, setShowLogs] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  const retrying = isRetrying || isProcessing;
 
   useEffect(() => {
     const dialogNode = dialogRef.current;
@@ -79,18 +84,19 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
         <div
           style={{
-            backgroundColor: '#ef4444',
-            color: '#fff',
+            backgroundColor: 'var(--pri-bg, rgba(108, 255, 154, 0.12))',
+            border: '1px solid var(--outv, #365047)',
             borderRadius: '50%',
-            width: '36px',
-            height: '36px',
+            width: '40px',
+            height: '40px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontWeight: 'bold',
+            flexShrink: 0,
           }}
+          data-testid="recovery-modal-header-badge"
         >
-          !
+          <CrystalLoader size={32} variant="inline" />
         </div>
         <div>
           <h2 id="recovery-modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
@@ -162,22 +168,41 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => {
-              clearError();
-              void processRetryQueue();
+            onClick={async () => {
+              setIsProcessing(true);
+              try {
+                await processRetryQueue();
+              } catch {
+                // error handled in recovery service
+              } finally {
+                setIsProcessing(false);
+              }
             }}
+            disabled={retrying}
             style={{
               flex: 1,
-              backgroundColor: '#2563eb',
+              backgroundColor: retrying ? '#1e3a8a' : '#2563eb',
               color: '#fff',
               border: 'none',
               padding: '10px',
               borderRadius: '6px',
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: retrying ? 'not-allowed' : 'pointer',
+              opacity: retrying ? 0.75 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
             }}
           >
-            Retry Operation
+            {retrying ? (
+              <>
+                <CrystalLoader size={16} variant="inline" />
+                <span>Retrying...</span>
+              </>
+            ) : (
+              <span>Retry Operation</span>
+            )}
           </button>
           <button
             onClick={handleCopyTelemetry}
