@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TouchTarget from './TouchTarget';
+import PayDialog from './PayDialog.jsx';
 
 export interface ObjectInspectorProps {
   style?: React.CSSProperties;
@@ -14,6 +15,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   const [selection, setSelection] = useState<any>(() => app.world.selectedObject);
   const [objects, setObjects] = useState<any[]>(() => app.world.objects || []);
   const [nearbyUsers, setNearbyUsers] = useState<any[]>(() => app.world.nearbyUsers || []);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -310,6 +312,19 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             <span>SIT ON OBJECT</span>
           </TouchTarget>
         </div>
+
+        <TouchTarget
+          onClick={() => setPayDialogOpen(true)}
+          style={{
+            ...btnStyle,
+            background: '#0284c7',
+            color: '#ffffff',
+            border: '1px solid #0284c7',
+          }}
+        >
+          <Icon name="banknote" size={12} />
+          <span>PAY OBJECT</span>
+        </TouchTarget>
       </div>
 
       <div
@@ -339,6 +354,23 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           <span style={{ color: V.ink }}>{selection.physics || 'Convex Hull'}</span>
         </div>
       </div>
+
+      <PayDialog
+        isOpen={payDialogOpen}
+        onClose={() => setPayDialogOpen(false)}
+        target={{
+          id: selection.id || selection.uuid || '',
+          name: selection.name || selection.id || 'Simulator object',
+          type: 'object',
+          sellerName: selection.owner || selection.seller || selection.ownerName || null,
+          price:
+            typeof selection.price === 'number'
+              ? selection.price
+              : typeof selection.itemPrice === 'number'
+                ? selection.itemPrice
+                : null,
+        }}
+      />
     </div>
   );
 };
