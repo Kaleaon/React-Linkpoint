@@ -110,9 +110,11 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(coreCircle?.getAttribute('fill')).toBe('url(#test-logo1-core-glow)');
   });
 
-  it('includes GPU compositor properties and will-change performance hints in SVG CSS', async () => {
+  it('includes GPU compositor properties and will-change performance hints in SVG CSS in document.head', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const styleEl = mounted.host.querySelector('style');
+    expect(mounted.host.querySelector('style')).toBeNull();
+
+    const styleEl = document.getElementById('linkpoint-logo-styles');
     expect(styleEl).not.toBeNull();
     const cssText = styleEl?.textContent || '';
 
@@ -127,9 +129,9 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(cssText).toContain('@keyframes moteFarFade');
   });
 
-  it('contains prefers-reduced-motion media query for accessibility', async () => {
+  it('contains prefers-reduced-motion media query for accessibility in document.head', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const styleEl = mounted.host.querySelector('style');
+    const styleEl = document.getElementById('linkpoint-logo-styles');
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('@media (prefers-reduced-motion: reduce)');
