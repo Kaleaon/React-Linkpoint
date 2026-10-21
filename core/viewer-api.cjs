@@ -7,6 +7,8 @@
 const METHODS = new Set([
   'sendChat',
   'sendInstantMessage',
+  'sendTypingState',
+  'sendIMTypingState',
   'sendGroupMessage',
   'sendFriendRequest',
   'teleport',

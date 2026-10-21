@@ -31,6 +31,7 @@ const {
   FolderType,
   ControlFlags,
   UUID,
+  PacketFlags,
 } = require('@caspertech/node-metaverse');
 const {
   decodeLLMesh,
@@ -69,7 +70,6 @@ const {
   TeleportLandmarkRequestMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/TeleportLandmarkRequest');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
-const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
 const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
 
@@ -491,14 +491,32 @@ class ViewerSession {
       position: vector(event.position),
       timestamp: Date.now(),
     }));
-    this.subscribe(events.onInstantMessage, 'im', (event) => ({
-      id: newId(),
-      fromId: event.from?.toString(),
-      fromName: event.fromName || 'Resident',
-      message: event.message,
-      dialog: event.dialog,
-      timestamp: Date.now(),
-    }));
+    this.subscribe(events.onInstantMessage, 'im', (event) => {
+      if (event.dialog === 41 || event.dialog === 42) {
+        this.send('im_typing', {
+          fromId: event.from?.toString(),
+          fromName: event.fromName || 'Resident',
+          isTyping: event.dialog === 41,
+          timestamp: Date.now(),
+        });
+      }
+      return {
+        id: newId(),
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Resident',
+        message: event.message,
+        dialog: event.dialog,
+        timestamp: Date.now(),
+      };
+    });
+    if (events.onAgentTyping) {
+      this.subscribe(events.onAgentTyping, 'typing', (event) => ({
+        agentId: event.from?.toString() || event.agentId?.toString(),
+        fromId: event.from?.toString() || event.agentId?.toString(),
+        isTyping: Boolean(event.isTyping ?? event.typing),
+        timestamp: Date.now(),
+      }));
+    }
 
     this.subscribe(events.onParcelPropertiesEvent, 'parcel-properties', (parcel) => ({
       id: parcel.LocalID,
@@ -766,6 +784,9 @@ class ViewerSession {
   // ---- communication ----------------------------------------------------------------------------
 
   async sendChat({ message, channel = 0, type = 1 }) {
+    if (type === 4 || type === 5) {
+      return this.sendTypingState({ isTyping: type === 4 });
+    }
     const comms = this.requireBot().clientCommands?.comms;
     if (!comms) throw new Error('Second Life communications interface unavailable');
     if (type === 0) await comms.whisper(message, channel);
@@ -773,10 +794,64 @@ class ViewerSession {
     else await comms.say(message, channel);
   }
 
-  async sendInstantMessage({ recipientId, message }) {
+  async sendInstantMessage({ recipientId, message, dialog }) {
     const comms = this.requireBot().clientCommands?.comms;
     if (!comms) throw new Error('Second Life communications interface unavailable');
-    await comms.sendInstantMessage(recipientId, message);
+    if (typeof dialog === 'number') {
+      await comms.sendInstantMessage(recipientId, message || '', dialog);
+    } else {
+      await comms.sendInstantMessage(recipientId, message);
+    }
+  }
+
+  async sendTypingState(params = {}) {
+    const isTyping = typeof params === 'boolean' ? params : Boolean(params.isTyping);
+    if (params && typeof params === 'object' && params.recipientId) {
+      return this.sendIMTypingState({ recipientId: params.recipientId, isTyping });
+    }
+
+    const circuit = this.currentRegion()?.circuit;
+    const agentId = this.identity?.agent_id || this.bot?.agent?.agentID;
+
+    if (circuit?.sendMessage && agentId) {
+      try {
+        const {
+          AgentTypingMessage,
+        } = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentTyping');
+        const msg = new AgentTypingMessage();
+        msg.AgentData = {
+          AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+          SessionID: circuit.sessionID
+            ? typeof circuit.sessionID === 'string'
+              ? new UUID(circuit.sessionID)
+              : circuit.sessionID
+            : UUID.zero(),
+        };
+        msg.Data = {
+          Typing: isTyping,
+        };
+        circuit.sendMessage(msg, PacketFlags.Reliable);
+      } catch (err) {
+        console.warn('[ViewerSession] AgentTyping packet dispatch warning:', err);
+      }
+    }
+
+    const comms = this.bot?.clientCommands?.comms;
+    if (comms) {
+      if (isTyping) comms.startTypingLocal?.().catch(() => {});
+      else comms.stopTypingLocal?.().catch(() => {});
+    }
+
+    return { sent: true };
+  }
+
+  async sendIMTypingState({ recipientId, isTyping } = {}) {
+    if (!recipientId) throw new Error('Recipient ID required');
+    const comms = this.requireBot().clientCommands?.comms;
+    if (!comms) throw new Error('Second Life communications interface unavailable');
+    const dialog = isTyping ? 41 : 42; // InstantMessageDialog.TYPING_START (41) / TYPING_STOP (42)
+    await comms.sendInstantMessage(recipientId, '', dialog);
+    return { sent: true };
   }
 
   /** Ask the grid for the account's mute list again; it arrives as a 'mute-list' event. */

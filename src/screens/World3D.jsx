@@ -205,6 +205,21 @@ export default function World3D({ desktopBackdrop = false }) {
     };
   }, []);
 
+  const [nearbyTypingUsers, setNearbyTypingUsers] = useState([]);
+  useEffect(() => {
+    const updateTyping = () => {
+      const typing = (app.world?.nearbyUsers || []).filter((u) => u.typing);
+      setNearbyTypingUsers(typing);
+    };
+    app.world?.on?.('nearby_changed', updateTyping);
+    app.world?.on?.('typing_changed', updateTyping);
+    updateTyping();
+    return () => {
+      app.world?.off?.('nearby_changed', updateTyping);
+      app.world?.off?.('typing_changed', updateTyping);
+    };
+  }, []);
+
   const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
     let active = true;
@@ -378,6 +393,48 @@ export default function World3D({ desktopBackdrop = false }) {
       {/* Overlays when enabled */}
       {!desktopBackdrop && showOverlays && (
         <>
+          {/* Overhead Typing Status Banner */}
+          {nearbyTypingUsers.length > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'absolute',
+                top: isCompactViewport ? 54 : 14,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 30,
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: V.info,
+                border: `1px solid ${V.info}`,
+                borderRadius: V.rs || 6,
+                padding: '4px 12px',
+                fontSize: '11px',
+                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                pointerEvents: 'none',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: V.info,
+                }}
+              />
+              <span>
+                {nearbyTypingUsers.length === 1
+                  ? `${nearbyTypingUsers[0].name || 'Resident'} is typing…`
+                  : `${nearbyTypingUsers.length} residents are typing…`}
+              </span>
+            </div>
+          )}
+
           {/* Top-Right Quick Action Buttons */}
           <div
             style={{
