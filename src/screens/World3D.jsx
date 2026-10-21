@@ -9,6 +9,7 @@ import TouchTarget from '../components/TouchTarget.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
+import MediaControlsOverlay from '../components/MediaControlsOverlay.jsx';
 import Icon from '../components/Icon.jsx';
 
 export default function World3D({ desktopBackdrop = false }) {
@@ -1060,6 +1061,7 @@ export default function World3D({ desktopBackdrop = false }) {
           )}
 
           {/* HUD Controls */}
+          <MediaControlsOverlay />
           <HudControls
             bottomOffset={isSmallViewport && showDpad ? 110 : 14}
             outfitDrawerOpen={showOutfitDrawer}

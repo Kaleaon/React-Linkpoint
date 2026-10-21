@@ -757,6 +757,38 @@ export class Graphics3D extends Utils.EventEmitter {
     return name;
   }
 
+  updateCanvasTexture(
+    name: string,
+    source: HTMLCanvasElement | HTMLVideoElement | HTMLImageElement | ImageData,
+  ): string {
+    const gl = this.gl;
+    if (!gl || !source) return name;
+
+    let texture = this.textures.get(name) || this.textures.get(name.toLowerCase());
+    if (!texture) {
+      texture = gl.createTexture()!;
+      this.textures.set(name, texture);
+      this.textures.set(name.toLowerCase(), texture);
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+
+    try {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source as any);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    } catch (e) {
+      console.warn(`[Graphics3D] Failed to update canvas texture ${name}:`, e);
+    }
+
+    this.textureAlpha.set(name, false);
+    this.textureAlpha.set(name.toLowerCase(), false);
+    return name;
+  }
+
   hasTexture(name: string | undefined | null): boolean {
     return Boolean(
       name && (this.textures.has(name) || this.textures.has(String(name).toLowerCase())),
