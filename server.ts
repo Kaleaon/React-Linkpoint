@@ -10,7 +10,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import dgram from 'dgram';
 import { createRequire } from 'module';
 const requireCjs = createRequire(import.meta.url);
-const { fetchProfilePhoto } = requireCjs('./core/sl-profile-photo.cjs') as {
+const { fetchProfilePhoto } = requireCjs(
+  path.resolve(process.cwd(), 'core/sl-profile-photo.cjs'),
+) as {
   fetchProfilePhoto: (
     name: string,
     options?: { thumbnail?: boolean },
