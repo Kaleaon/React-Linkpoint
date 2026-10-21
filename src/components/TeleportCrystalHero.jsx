@@ -12,7 +12,7 @@ import { MINI_CRYSTAL } from './linkpointCrystal.js';
  * @param {number} [props.size]
  * @param {string} [props.idPrefix]
  */
-export default function TeleportCrystalHero({
+function TeleportCrystalHero({
   stepPercent = 0,
   phase = 'initiating',
   size = 120,
@@ -67,9 +67,21 @@ export default function TeleportCrystalHero({
           height: '100%',
           display: 'block',
           overflow: 'visible',
+          '--tpch-gap': `${gap.toFixed(2)}px`,
+          '--tpch-top-y': `${topY.toFixed(2)}px`,
+          '--tpch-bot-y': `${botY.toFixed(2)}px`,
+          '--tpch-progress': `${p}%`,
         }}
       >
         <style>{`
+          .tpch-top {
+            transform: translateY(var(--tpch-top-y, ${topY.toFixed(2)}px));
+            transition: transform 0.3s ease-out;
+          }
+          .tpch-bot {
+            transform: translateY(var(--tpch-bot-y, ${botY.toFixed(2)}px));
+            transition: transform 0.3s ease-out;
+          }
           @media (prefers-reduced-motion: reduce) {
             .tpch-top,
             .tpch-bot {
@@ -194,3 +206,5 @@ export default function TeleportCrystalHero({
     </div>
   );
 }
+
+export default React.memo(TeleportCrystalHero);
