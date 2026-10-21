@@ -214,3 +214,158 @@ export function commandFor(
 export function commandsFor(mode: KeyMode): string[] {
   return [...new Set(DEFAULT_KEY_BINDINGS[mode].map(([, , command]) => command))];
 }
+
+export interface ParsedKeyBinding {
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+  meta: boolean;
+  baseKey: string;
+  isSingleCharacter: boolean;
+}
+
+/** Parse a key string like 'Alt+M', 'Ctrl+KeyH', 'Shift+M', or 'M' into its modifier and base key parts. */
+export function parseKeyString(binding: string): ParsedKeyBinding | null {
+  if (!binding || typeof binding !== 'string') return null;
+  const parts = binding
+    .trim()
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+
+  let ctrl = false;
+  let alt = false;
+  let shift = false;
+  let meta = false;
+  let baseKey = '';
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const lower = part.toLowerCase();
+    if (lower === 'ctrl' || lower === 'control') {
+      ctrl = true;
+    } else if (lower === 'alt' || lower === 'option') {
+      alt = true;
+    } else if (lower === 'shift') {
+      shift = true;
+    } else if (lower === 'meta' || lower === 'cmd' || lower === 'command') {
+      meta = true;
+    } else {
+      baseKey = part;
+    }
+  }
+
+  if (!baseKey) return null;
+
+  const isSingleCharacter = !ctrl && !alt && !shift && !meta;
+
+  return {
+    ctrl,
+    alt,
+    shift,
+    meta,
+    baseKey,
+    isSingleCharacter,
+  };
+}
+
+/** Formats a parsed key binding or key string into a standard display string e.g. "Alt+M", "Ctrl+H", "M". */
+export function formatKeyString(binding: string | ParsedKeyBinding): string {
+  const parsed = typeof binding === 'string' ? parseKeyString(binding) : binding;
+  if (!parsed) return '';
+  const parts: string[] = [];
+  if (parsed.ctrl) parts.push('Ctrl');
+  if (parsed.alt) parts.push('Alt');
+  if (parsed.shift) parts.push('Shift');
+  if (parsed.meta) parts.push('Cmd');
+
+  let keyDisplay = parsed.baseKey;
+  if (/^Key[A-Z]$/i.test(keyDisplay)) {
+    keyDisplay = keyDisplay.slice(3);
+  }
+  parts.push(keyDisplay.toUpperCase());
+  return parts.join('+');
+}
+
+/** Validates if a key string represents a valid, non-empty binding with a base key. */
+export function isValidKeyBinding(binding: string): boolean {
+  const parsed = parseKeyString(binding);
+  if (!parsed || !parsed.baseKey) return false;
+  const lowerBase = parsed.baseKey.toLowerCase();
+  if (['ctrl', 'control', 'alt', 'option', 'shift', 'meta', 'cmd', 'command'].includes(lowerBase)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Evaluates whether a keyboard event matches a given key binding string, taking into account
+ * modifier keys and whether single-character shortcuts are enabled.
+ */
+export function matchesKeyBinding(
+  event:
+    | KeyboardEvent
+    | {
+        key?: string;
+        code?: string;
+        ctrlKey?: boolean;
+        altKey?: boolean;
+        shiftKey?: boolean;
+        metaKey?: boolean;
+      },
+  bindingString: string,
+  singleCharShortcutsEnabled = true,
+): boolean {
+  const parsed = parseKeyString(bindingString);
+  if (!parsed) return false;
+
+  const eventCtrl = Boolean(event.ctrlKey);
+  const eventAlt = Boolean(event.altKey);
+  const eventShift = Boolean(event.shiftKey);
+  const eventMeta = Boolean(event.metaKey);
+
+  if (
+    parsed.ctrl !== eventCtrl ||
+    parsed.alt !== eventAlt ||
+    parsed.shift !== eventShift ||
+    parsed.meta !== eventMeta
+  ) {
+    return false;
+  }
+
+  if (parsed.isSingleCharacter && !singleCharShortcutsEnabled) {
+    return false;
+  }
+
+  const code = event.code || '';
+  const key = event.key || '';
+  const targetBase = parsed.baseKey;
+
+  if (/^Key[A-Z]$/i.test(code)) {
+    const letterFromCode = code.slice(3);
+    if (
+      targetBase.toUpperCase() === letterFromCode.toUpperCase() ||
+      targetBase.toUpperCase() === `KEY${letterFromCode.toUpperCase()}` ||
+      targetBase.toUpperCase() === key.toUpperCase()
+    ) {
+      return true;
+    }
+  }
+
+  if (
+    targetBase.toUpperCase() === code.toUpperCase() ||
+    targetBase.toUpperCase() === key.toUpperCase()
+  ) {
+    return true;
+  }
+
+  if (/^Key[A-Z]$/i.test(targetBase)) {
+    const letter = targetBase.slice(3).toUpperCase();
+    if (code.toUpperCase() === `KEY${letter}` || key.toUpperCase() === letter) {
+      return true;
+    }
+  }
+
+  return false;
+}
