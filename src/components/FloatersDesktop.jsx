@@ -587,6 +587,7 @@ export default function FloatersDesktop() {
               value={quickMsg}
               onChange={(e) => setQuickMsg(e.target.value)}
               placeholder="Nearby Chat..."
+              aria-label="Nearby Chat"
               className="chat-input-field search-input"
               style={{
                 width: '100%',
