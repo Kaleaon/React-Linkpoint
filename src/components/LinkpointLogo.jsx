@@ -141,28 +141,28 @@ export default function LinkpointLogo({
     >
       <style>{`
         .top-crystal-r {
-          will-change: transform;
+          will-change: ${animated ? 'transform' : 'auto'};
           animation: ${animated ? `topCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .bot-crystal-r {
-          will-change: transform;
+          will-change: ${animated ? 'transform' : 'auto'};
           animation: ${animated ? `botCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .core-anim-r {
           transform-origin: 256px 256px;
-          will-change: transform, opacity;
+          will-change: ${animated ? 'transform, opacity' : 'auto'};
           animation: ${animated ? `corePulseR ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .mote-rotator-group {
-          will-change: transform;
+          will-change: ${animated ? 'transform' : 'auto'};
           animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-near-r {
-          will-change: opacity;
+          will-change: ${animated ? 'opacity' : 'auto'};
           animation: ${animated ? `moteNearFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-far-r {
-          will-change: opacity;
+          will-change: ${animated ? 'opacity' : 'auto'};
           animation: ${animated ? `moteFarFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
 
