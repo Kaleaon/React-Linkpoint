@@ -992,6 +992,16 @@ class ViewerSession {
     return { ...res, transaction: record };
   }
   async getTransactionHistory(params = {}) {
+    if (this.bot) {
+      try {
+        const res = await actions.getTransactionHistory(this.bot, params);
+        if (res && Array.isArray(res.transactions) && res.transactions.length > 0) {
+          return res;
+        }
+      } catch (err) {
+        console.warn('[viewer-session] getTransactionHistory action error:', err?.message || err);
+      }
+    }
     let balance = 0;
     try {
       const b = await this.getBalance();
@@ -999,7 +1009,7 @@ class ViewerSession {
     } catch {
       // Ignore if offline/mock
     }
-    return { balance, transactions: this.transactions };
+    return { balance, transactions: this.transactions || [] };
   }
   respondScriptDialog(params = {}) {
     return interactions.respondScriptDialog(this.requireBot(), this.pending, params);
