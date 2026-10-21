@@ -1,10 +1,11 @@
 import React, { useId } from 'react';
-import { MINI_CRYSTAL } from './linkpointCrystal.js';
+import { CRYSTAL } from './linkpointCrystal.js';
 
 /**
  * TeleportCrystalHero
  *
  * State-reactive Linkpoint crystal mark for the teleport modal sheet.
+ * Consumes 512x512 master geometry definitions from CRYSTAL.
  *
  * @param {Object} props
  * @param {number} [props.stepPercent]
@@ -29,13 +30,13 @@ export default function TeleportCrystalHero({
   const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
   const p = Math.min(100, Math.max(0, rawP));
 
-  // Requirement 2: Closing gap from 20px at 0% to 0px at 100%
-  const gap = 20 * (1 - p / 100);
+  // Requirement 2: Closing gap from 85.33px at 0% to 0px at 100% in 512-space
+  const gap = (256 / 3) * (1 - p / 100);
   const topY = -gap / 2;
   const botY = gap / 2;
 
-  // Core glow intensity reacts to progress
-  const coreRadius = isFailed ? 14 : 8 + (p / 100) * 8;
+  // Core glow intensity reacts to progress (scaled to 512-space)
+  const coreRadius = isFailed ? (14 * 512) / 120 : (8 * 512) / 120 + (p / 100) * ((8 * 512) / 120);
   const coreOpacity = isFailed ? 0.95 : 0.4 + (p / 100) * 0.55;
 
   const priColor = isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)';
@@ -60,7 +61,7 @@ export default function TeleportCrystalHero({
       }}
     >
       <svg
-        viewBox="0 0 120 120"
+        viewBox="0 0 512 512"
         aria-hidden="true"
         style={{
           width: '100%',
@@ -114,17 +115,18 @@ export default function TeleportCrystalHero({
         {/* Ambient Ring */}
         <circle
           className="tpch-ring"
-          cx="60"
-          cy="60"
-          r="48"
+          cx="256"
+          cy="256"
+          r="204.8"
           fill="none"
           stroke={priColor}
           strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
           strokeDasharray="4 8"
           opacity={isFailed ? '0.35' : '0.25'}
         />
 
-        {/* Bottom Pyramid Half */}
+        {/* Bottom Pyramid Half (4-face master geometry) */}
         <g
           className="tpch-bot"
           style={{
@@ -133,23 +135,44 @@ export default function TeleportCrystalHero({
           }}
         >
           <polygon
-            points={MINI_CRYSTAL.bot.faceA}
+            points={CRYSTAL.bot.faces[0].points}
             fill={`url(#${gradB})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.bot.faces[0].opacity}
           />
           <polygon
-            points={MINI_CRYSTAL.bot.faceB}
+            points={CRYSTAL.bot.faces[1].points}
             fill={`url(#${gradA})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
-            opacity=".75"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.bot.faces[1].opacity}
+          />
+          <polygon
+            points={CRYSTAL.bot.faces[2].points}
+            fill={`url(#${gradB})`}
+            stroke={strokeColor}
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity="0.6"
+          />
+          <polygon
+            points={CRYSTAL.bot.faces[3].points}
+            fill={`url(#${gradA})`}
+            stroke={strokeColor}
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity="0.6"
           />
         </g>
 
-        {/* Top Pyramid Half */}
+        {/* Top Pyramid Half (4-face master geometry) */}
         <g
           className="tpch-top"
           style={{
@@ -158,34 +181,56 @@ export default function TeleportCrystalHero({
           }}
         >
           <polygon
-            points={MINI_CRYSTAL.top.faceA}
+            points={CRYSTAL.top.faces[0].points}
             fill={`url(#${gradA})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.top.faces[0].opacity}
           />
           <polygon
-            points={MINI_CRYSTAL.top.faceB}
+            points={CRYSTAL.top.faces[1].points}
             fill={`url(#${gradB})`}
             stroke={strokeColor}
             strokeWidth="1"
             strokeLinejoin="round"
-            opacity=".75"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.top.faces[1].opacity}
+          />
+          <polygon
+            points={CRYSTAL.top.faces[2].points}
+            fill={`url(#${gradA})`}
+            stroke={strokeColor}
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity="0.6"
+          />
+          <polygon
+            points={CRYSTAL.top.faces[3].points}
+            fill={`url(#${gradB})`}
+            stroke={strokeColor}
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity="0.6"
           />
           <polyline
-            points={MINI_CRYSTAL.top.ridge}
+            points={CRYSTAL.top.ridge}
             fill="none"
             stroke={priColor}
             strokeOpacity={isFailed ? '.6' : '.45'}
             strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
           />
         </g>
 
         {/* Core Lighting Node */}
         <circle
           className="tpch-core"
-          cx="60"
-          cy="60"
+          cx="256"
+          cy="256"
           r={coreRadius}
           fill={`url(#${coreGlow})`}
           opacity={coreOpacity}
