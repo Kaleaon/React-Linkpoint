@@ -19,6 +19,7 @@ function Face({ face, ink, gradMap }) {
     strokeWidth: 1.5,
     strokeLinejoin: 'round',
     strokeLinecap: 'round',
+    vectorEffect: 'non-scaling-stroke',
   };
   return <polygon {...common} points={face.points} opacity={face.opacity} />;
 }
@@ -32,6 +33,7 @@ function Pyramid({ className, data, surf, rim, ink, gradMap }) {
         strokeOpacity="0.6"
         strokeWidth="1.5"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
         points={data.base}
       />
       {data.faces.map((f, i) => (

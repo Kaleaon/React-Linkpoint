@@ -46,8 +46,8 @@ describe('<TeleportCrystalHero /> Component', () => {
     const top0 = host0.querySelector('.tpch-top') as HTMLElement;
     const bot0 = host0.querySelector('.tpch-bot') as HTMLElement;
 
-    expect(top0?.style.transform).toBe('translateY(-10.00px)');
-    expect(bot0?.style.transform).toBe('translateY(10.00px)');
+    expect(top0?.style.transform).toBe('translateY(-42.67px)');
+    expect(bot0?.style.transform).toBe('translateY(42.67px)');
 
     // Unmount
     await act(async () => {
@@ -59,8 +59,8 @@ describe('<TeleportCrystalHero /> Component', () => {
     const top50 = host50.querySelector('.tpch-top') as HTMLElement;
     const bot50 = host50.querySelector('.tpch-bot') as HTMLElement;
 
-    expect(top50?.style.transform).toBe('translateY(-5.00px)');
-    expect(bot50?.style.transform).toBe('translateY(5.00px)');
+    expect(top50?.style.transform).toBe('translateY(-21.33px)');
+    expect(bot50?.style.transform).toBe('translateY(21.33px)');
 
     // Unmount
     await act(async () => {
