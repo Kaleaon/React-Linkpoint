@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
+import CrystalProgressBar from './CrystalProgressBar.jsx';
 
 export function SkeletonBox({
   width = '100%',
@@ -91,31 +92,7 @@ export function SkeletonAssetPlaceholder({ title = 'Loading Asset...', progress 
       </div>
       <SkeletonBox width="100%" height="140px" borderRadius="6px" />
       {progress !== null && progress !== undefined && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-            <span>Downloading asset data...</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <div
-            style={{
-              width: '100%',
-              height: '6px',
-              background: 'var(--surf2, rgba(255,255,255,0.1))',
-              borderRadius: '3px',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              data-testid="asset-progress-bar"
-              style={{
-                width: `${Math.max(0, Math.min(100, progress))}%`,
-                height: '100%',
-                background: `linear-gradient(90deg, ${pri}, ${priC})`,
-                transition: 'width 0.2s ease-out',
-              }}
-            />
-          </div>
-        </div>
+        <CrystalProgressBar progress={progress} showLabel={true} />
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <SkeletonBox width="90%" height="12px" />
