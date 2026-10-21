@@ -2,6 +2,8 @@
  * Linkpoint PWA - Utility Functions
  */
 
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
+
 export const Utils = {
   generateUUID() {
     if (
@@ -23,6 +25,13 @@ export const Utils = {
   },
 
   showToast(message: string, type: string = 'info', duration: number = 3000) {
+    const isError = type === 'error';
+    liveRegionAnnouncer.announce(
+      message,
+      isError ? 'assertive' : 'polite',
+      isError ? 'alert' : 'status',
+    );
+
     if (typeof document === 'undefined') return;
     const container = document.getElementById('toast-container');
     if (!container) return;
