@@ -423,13 +423,127 @@ async function payAvatar(bot, params = {}, lib) {
   return { paid: true, targetId, amount, description };
 }
 
-async function getTransactionHistory(bot, params) {
-  const balance = await getBalance(bot);
+async function getTransactionHistory(bot, params = {}) {
+  let balance;
+  try {
+    balance = await getBalance(bot);
+  } catch {
+    const currencySymbol =
+      bot?.gridInfo?.currencySymbol ||
+      bot?.gridInfo?.currency_symbol ||
+      params_currency_symbol(bot) ||
+      'L$';
+    const isZeroCurrency = Boolean(
+      bot?.gridInfo?.isZeroCurrency || bot?.gridInfo?.is_zero_currency || bot?.isZeroCurrency,
+    );
+    balance = { balance: 0, currencySymbol, isZeroCurrency };
+  }
+  const caps = bot?.currentRegion?.caps || bot?.caps;
+
+  const possibleCaps = [
+    'UserTransactionHistory',
+    'TransactionHistory',
+    'UserTransactionStatement',
+    'GetTransactionHistory',
+  ];
+
+  let capName = null;
+  if (caps) {
+    for (const c of possibleCaps) {
+      if (typeof caps.isCapAvailable === 'function') {
+        try {
+          if (await caps.isCapAvailable(c)) {
+            capName = c;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      } else if (typeof caps.getCapability === 'function') {
+        try {
+          const u = await caps.getCapability(c);
+          if (u) {
+            capName = c;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  let rawTxs = [];
+  let hasMore = false;
+
+  if (capName && caps) {
+    const queryParams = {};
+    if (params.since !== undefined) queryParams.since = String(params.since);
+    if (params.limit !== undefined) queryParams.limit = String(params.limit);
+    if (params.offset !== undefined) queryParams.offset = String(params.offset);
+
+    try {
+      let res;
+      if (typeof caps.capsGetXML === 'function') {
+        res = await caps.capsGetXML([capName, queryParams]);
+      } else if (typeof caps.getCapability === 'function') {
+        const url = await caps.getCapability(capName);
+        if (caps.requestGet) {
+          const queryStr = new URLSearchParams(queryParams).toString();
+          const fullUrl = queryStr ? `${url}?${queryStr}` : url;
+          const resp = await caps.requestGet(fullUrl);
+          res = resp?.body;
+        } else if (typeof fetch === 'function') {
+          const queryStr = new URLSearchParams(queryParams).toString();
+          const fullUrl = queryStr ? `${url}?${queryStr}` : url;
+          const resp = await fetch(fullUrl, {
+            headers: { Accept: 'application/json, text/xml, application/llsd+xml' },
+          });
+          if (resp.ok) {
+            const contentType = resp.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              res = await resp.json();
+            } else {
+              const text = await resp.text();
+              try {
+                res = JSON.parse(text);
+              } catch {
+                res = { raw: text };
+              }
+            }
+          }
+        }
+      }
+
+      if (res) {
+        if (Array.isArray(res)) {
+          rawTxs = res;
+        } else if (typeof res === 'object') {
+          rawTxs = Array.isArray(res.transactions)
+            ? res.transactions
+            : Array.isArray(res.records)
+              ? res.records
+              : Array.isArray(res.history)
+                ? res.history
+                : [];
+          if (typeof res.hasMore === 'boolean') hasMore = res.hasMore;
+          if (typeof res.balance === 'number') balance.balance = res.balance;
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[sl-actions] Capability getTransactionHistory fetch failed:',
+        err.message || err,
+      );
+    }
+  }
+
   return {
     balance: balance.balance,
     currencySymbol: balance.currencySymbol,
     isZeroCurrency: balance.isZeroCurrency,
-    transactions: [],
+    transactions: rawTxs,
+    hasMore,
   };
 }
 
