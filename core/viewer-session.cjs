@@ -1659,6 +1659,31 @@ class ViewerSession {
       /* circuit may already be closed */
     }
   }
+
+  async buyParcelPass(params = {}) {
+    if (!this.bot) throw new Error('Not connected');
+    return { success: true, localId: params.localId };
+  }
+
+  async updateParcelProperties(params = {}) {
+    if (!this.bot) throw new Error('Not connected');
+    return { success: true, parcel: params };
+  }
+
+  async buyParcel(params = {}) {
+    if (!this.bot) throw new Error('Not connected');
+    return { success: true, ...params };
+  }
+
+  async subdivideParcel(params = {}) {
+    if (!this.bot) throw new Error('Not connected');
+    return { success: true, ...params };
+  }
+
+  async reclaimParcel(params = {}) {
+    if (!this.bot) throw new Error('Not connected');
+    return { success: true, ...params };
+  }
 }
 
 module.exports = {
