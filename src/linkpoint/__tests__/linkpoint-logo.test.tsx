@@ -162,7 +162,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     mounted = await mountScreen(Login);
     const header = mounted.host.querySelector('header');
     expect(header).not.toBeNull();
-    const logoSvg = header?.querySelector('#linkpoint-logo-react');
+    const logoSvg = header?.querySelector('svg');
     expect(logoSvg).not.toBeNull();
     const title = header?.querySelector('h1');
     expect(title?.textContent).toBe('LINKPOINT');
@@ -199,7 +199,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
     for (const mode of modes) {
       mounted = await mountScreen(mode.Component);
-      const svg = mounted.host.querySelector('#linkpoint-logo-react') as SVGElement | null;
+      const svg = mounted.host.querySelector('svg') as SVGElement | null;
       expect(svg, `${mode.name} should render LinkpointLogo`).not.toBeNull();
       const styleHeight = svg?.style.height;
       const numericHeight = styleHeight ? parseInt(styleHeight, 10) : 0;
@@ -216,7 +216,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(locationBar).not.toBeNull();
     const emblem = locationBar?.querySelector('.desktop-brand-emblem');
     expect(emblem).not.toBeNull();
-    const logoSvg = emblem?.querySelector('#linkpoint-logo-react') as SVGElement | null;
+    const logoSvg = emblem?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
     expect(logoSvg?.style.height).toBe('20px');
   });
