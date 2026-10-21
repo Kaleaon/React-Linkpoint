@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { app } from '../linkpoint/app';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon';
 
 export default function MediaControlsOverlay() {
@@ -16,16 +16,24 @@ export default function MediaControlsOverlay() {
       }
     };
 
-    const handlePlaybackChanged = () => {
-      if (app.world.focusedMediaFace) {
-        setFocusedMedia({ ...app.world.focusedMediaFace });
+    const handlePlaybackChanged = (evt) => {
+      const focused = app.world.focusedMediaFace;
+      if (
+        focused &&
+        (!evt || (evt.objectId === focused.objectId && evt.faceIndex === focused.faceIndex))
+      ) {
+        setFocusedMedia({ ...focused });
       }
     };
 
-    const handleUrlChanged = () => {
-      if (app.world.focusedMediaFace) {
-        setFocusedMedia({ ...app.world.focusedMediaFace });
-        setUrlInput(app.world.focusedMediaFace.state.url || '');
+    const handleUrlChanged = (evt) => {
+      const focused = app.world.focusedMediaFace;
+      if (
+        focused &&
+        (!evt || (evt.objectId === focused.objectId && evt.faceIndex === focused.faceIndex))
+      ) {
+        setFocusedMedia({ ...focused });
+        setUrlInput(focused.state?.url || '');
       }
     };
 

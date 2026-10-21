@@ -51,6 +51,25 @@ export class MediaTexturePipeline {
     this.dirtyTextures.delete(key);
   }
 
+  public unregisterAllForObject(objectId: string) {
+    const prefix = `${objectId}:`;
+    for (const key of Array.from(this.mediaFaces.keys())) {
+      if (key.startsWith(prefix)) {
+        this.mediaFaces.delete(key);
+        this.playbackStates.delete(key);
+        this.canvases.delete(key);
+        this.dirtyTextures.delete(key);
+      }
+    }
+  }
+
+  public clear() {
+    this.mediaFaces.clear();
+    this.playbackStates.clear();
+    this.canvases.clear();
+    this.dirtyTextures.clear();
+  }
+
   public getMediaTextureName(objectId: string, faceIndex: number): string | null {
     const key = this.makeKey(objectId, faceIndex);
     if (this.mediaFaces.has(key)) {

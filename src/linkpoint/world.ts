@@ -414,6 +414,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.displayedHud = null;
       this.hudSignature = '';
       this.sceneObjects.clear();
+      this.mediaPipeline.clear();
       this.particles.clear();
       this.flexChains.clear();
       this.lostAssetWarned.clear();
@@ -2403,6 +2404,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const removed = this.sceneObjects.get(id);
     const affectedSubject = removed && !removed.avatar ? this.animationSubject(removed) : null;
     this.sceneObjects.delete(id);
+    this.mediaPipeline.unregisterAllForObject(id);
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
     this.particles.removeEmitter(id);
