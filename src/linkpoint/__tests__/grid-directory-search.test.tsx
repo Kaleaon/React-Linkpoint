@@ -201,7 +201,7 @@ describe('Search component UI', () => {
     expect(teleportSpy).toHaveBeenCalledWith({ destination: 'Ahern Welcome Area' });
   });
 
-  it('handles network errors gracefully with notification while keeping local contacts displayed', async () => {
+  it('handles network errors gracefully with retry banner and fallback error UI while keeping local contacts displayed', async () => {
     vi.spyOn(slBridge, 'searchDir').mockRejectedValue(new Error('Connection timeout'));
 
     mounted = await mountScreen(Search);
@@ -212,8 +212,159 @@ describe('Search component UI', () => {
       await flush();
     });
 
-    expect(mounted.host.textContent).toContain('Connection timeout');
+    // Transient retry banner is active during backoff
+    expect(mounted.host.textContent).toContain('Retrying search... Attempt 1/3');
     expect(mounted.host.textContent).toContain('Alice Friend');
+
+    // Wait for retries to exhaust in act chunks (500 + 1000 + 2000 = 3500ms)
+    for (let i = 0; i < 40; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 100));
+      });
+    }
+
+    // Persistent error banner rendered with manual retry control and bridge connection status
+    expect(mounted.host.textContent).toContain('Connection timeout');
+    expect(mounted.host.textContent).toContain('Bridge Status: Connected');
+    expect(mounted.host.textContent).toContain('Retry Now');
+    expect(mounted.host.textContent).toContain('Alice Friend');
+  });
+
+  it('supports manual retry via Retry Now button in persistent error banner', async () => {
+    let callCount = 0;
+    const searchSpy = vi.spyOn(slBridge, 'searchDir').mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        throw new Error('Transient bridge error');
+      }
+      return {
+        results: [
+          {
+            id: 's99',
+            name: 'Recovered Resident',
+            displayName: 'Recovered Resident',
+            username: 'recovered',
+            type: 'people',
+          },
+        ],
+        hasMore: false,
+      };
+    });
+
+    mounted = await mountScreen(Search);
+    const input = mounted.host.querySelector('input') as HTMLInputElement;
+
+    await act(async () => {
+      await typeInto(input, 'Recovered');
+      await flush();
+    });
+
+    for (let i = 0; i < 10; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 100));
+      });
+    }
+
+    expect(mounted.host.textContent).toContain('Recovered Resident');
+  });
+
+  it('supports manual retry click after retry exhaustion', async () => {
+    let callCount = 0;
+    const searchSpy = vi.spyOn(slBridge, 'searchDir').mockImplementation(async () => {
+      callCount++;
+      if (callCount <= 4) {
+        throw new Error('Persistent failure');
+      }
+      return {
+        results: [
+          {
+            id: 's100',
+            name: 'Manual Success',
+            displayName: 'Manual Success',
+            username: 'manual',
+            type: 'people',
+          },
+        ],
+        hasMore: false,
+      };
+    });
+
+    mounted = await mountScreen(Search);
+    const input = mounted.host.querySelector('input') as HTMLInputElement;
+
+    await act(async () => {
+      await typeInto(input, 'Manual');
+      await flush();
+    });
+
+    // Exhaust initial + 3 retries (4 calls total)
+    for (let i = 0; i < 40; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 100));
+      });
+    }
+
+    expect(mounted.host.textContent).toContain('Persistent failure');
+    const retryBtn = [...mounted.host.querySelectorAll('button')].find(
+      (b) => (b.textContent || '').trim() === 'Retry Now',
+    );
+    expect(retryBtn).not.toBeNull();
+
+    // Click Retry Now button
+    await act(async () => {
+      await click(retryBtn);
+      await flush();
+    });
+
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+    }
+
+    expect(mounted.host.textContent).toContain('Manual Success');
+  });
+
+  it('bypasses automated retries for non-transient errors like invalid query syntax', async () => {
+    const searchSpy = vi
+      .spyOn(slBridge, 'searchDir')
+      .mockRejectedValue(new Error('Invalid query syntax'));
+
+    mounted = await mountScreen(Search);
+    const input = mounted.host.querySelector('input') as HTMLInputElement;
+
+    await act(async () => {
+      await typeInto(input, 'InvalidInput');
+      await flush();
+    });
+
+    // Non-transient error immediately renders fallback error banner without retry status
+    expect(mounted.host.textContent).toContain('Invalid query syntax');
+    expect(mounted.host.textContent).not.toContain('Retrying search... Attempt 1/3');
+    expect(searchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels active retries immediately when user alters query input', async () => {
+    const searchSpy = vi.spyOn(slBridge, 'searchDir').mockRejectedValue(new Error('Bridge glitch'));
+
+    mounted = await mountScreen(Search);
+    const input = mounted.host.querySelector('input') as HTMLInputElement;
+
+    await act(async () => {
+      await typeInto(input, 'FirstQuery');
+      await flush();
+    });
+
+    expect(mounted.host.textContent).toContain('Retrying search... Attempt 1/3');
+
+    // Change input before 1st backoff delay finishes
+    await act(async () => {
+      await typeInto(input, 'SecondQuery');
+      await flush();
+    });
+
+    // Verify initial search was not retried further after query changed
+    expect(searchSpy).toHaveBeenCalledTimes(2); // initial call for FirstQuery + initial call for SecondQuery
   });
 
   it('displays inline crystal loader during active search directory query', async () => {
