@@ -11,7 +11,20 @@ import {
   X,
 } from 'lucide-react';
 import { app } from '../linkpoint/app';
+import { useTheme } from '../context/ThemeContext.jsx';
 import FocusTrap from './FocusTrap';
+
+function useSafeTheme() {
+  try {
+    const context = useTheme();
+    if (context && context.V) {
+      return context;
+    }
+  } catch {
+    // Fallback if rendered outside ThemeProvider
+  }
+  return { V: {} as any };
+}
 
 export interface InventoryTreeProps {
   rootFolderId?: string;
@@ -57,6 +70,7 @@ const srOnlyStyle: React.CSSProperties = {
 
 const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
   ({ flatNode, onSelect, toggleExpand, openMenuId, setOpenMenuId, openMoveModal, announce }) => {
+    const { V } = useSafeTheme();
     const { id, depth, isFolder, isOpen, isSelected, node } = flatNode;
     const isMenuOpen = openMenuId === id;
     const labelId = `inventory-label-${id}`;
@@ -139,8 +153,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
           cursor: 'pointer',
           borderRadius: '4px',
           position: 'relative',
-          backgroundColor: isSelected ? 'rgba(52, 118, 255, 0.15)' : 'transparent',
-          color: isSelected ? '#ffffff' : '#e2e8f0',
+          backgroundColor: isSelected ? V.priC || 'rgba(52, 118, 255, 0.15)' : 'transparent',
+          color: isSelected ? V.onpriC || '#ffffff' : V.ink || '#e2e8f0',
         }}
       >
         {isFolder ? (
@@ -152,7 +166,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: '#94a3b8',
+              color: V.ink2 || '#94a3b8',
               display: 'flex',
               alignItems: 'center',
               padding: '2px',
@@ -166,9 +180,15 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         )}
 
         {isFolder ? (
-          <Folder size={18} style={{ color: '#38bdf8', marginRight: '8px', flexShrink: 0 }} />
+          <Folder
+            size={18}
+            style={{ color: V.sec || '#38bdf8', marginRight: '8px', flexShrink: 0 }}
+          />
         ) : (
-          <File size={16} style={{ color: '#4ade80', marginRight: '8px', flexShrink: 0 }} />
+          <File
+            size={16}
+            style={{ color: V.ok || V.sec2 || '#4ade80', marginRight: '8px', flexShrink: 0 }}
+          />
         )}
 
         <span
@@ -198,7 +218,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: '#94a3b8',
+              color: V.ink2 || '#94a3b8',
               padding: '2px 4px',
               display: 'flex',
               alignItems: 'center',
@@ -218,8 +238,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 right: 0,
                 top: '100%',
                 zIndex: 50,
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                backgroundColor: V.surf || '#1e293b',
+                border: `1px solid ${V.bdg || '#334155'}`,
                 borderRadius: '6px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                 minWidth: '150px',
@@ -235,7 +255,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#f8fafc',
+                  color: V.ink || '#f8fafc',
                   padding: '8px 12px',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -255,7 +275,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#f8fafc',
+                  color: V.ink || '#f8fafc',
                   padding: '8px 12px',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -275,7 +295,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#f8fafc',
+                  color: V.ink || '#f8fafc',
                   padding: '8px 12px',
                   textAlign: 'left',
                   cursor: 'pointer',
@@ -303,6 +323,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   className,
   filter,
 }) => {
+  const { V } = useSafeTheme();
   const [revision, setRevision] = useState(0);
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -505,7 +526,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
         width: '100%',
         height: '100%',
         overflowY: 'auto',
-        backgroundColor: '#0f172a',
+        backgroundColor: V.bg || '#0f172a',
         padding: '0.5rem',
         boxSizing: 'border-box',
         position: 'relative',
@@ -557,7 +578,12 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
           </div>
         ) : (
           <div
-            style={{ color: '#94a3b8', padding: '1rem', textAlign: 'center', fontSize: '0.875rem' }}
+            style={{
+              color: V.ink2 || '#94a3b8',
+              padding: '1rem',
+              textAlign: 'center',
+              fontSize: '0.875rem',
+            }}
           >
             No inventory loaded.
           </div>
@@ -585,14 +611,14 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
             aria-modal="true"
             aria-labelledby="move-modal-title"
             style={{
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
+              backgroundColor: V.surf || '#1e293b',
+              border: `1px solid ${V.bdg || '#334155'}`,
               borderRadius: '8px',
               padding: '1.25rem',
               maxWidth: '420px',
               width: '100%',
               boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-              color: '#f8fafc',
+              color: V.ink || '#f8fafc',
             }}
           >
             <div
@@ -610,13 +636,18 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 type="button"
                 aria-label="Close dialog"
                 onClick={() => setMoveTargetItem(null)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: V.ink2 || '#94a3b8',
+                  cursor: 'pointer',
+                }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.875rem', color: '#cbd5e1', marginBottom: '1rem' }}>
+            <p style={{ fontSize: '0.875rem', color: V.ink2 || '#cbd5e1', marginBottom: '1rem' }}>
               Select target folder for <strong>{moveTargetItem.name}</strong>:
             </p>
 
@@ -627,10 +658,10 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
               style={{
                 width: '100%',
                 padding: '0.5rem',
-                backgroundColor: '#0f172a',
-                border: '1px solid #475569',
+                backgroundColor: V.bg || '#0f172a',
+                border: `1px solid ${V.bdg || '#475569'}`,
                 borderRadius: '4px',
-                color: '#f8fafc',
+                color: V.ink || '#f8fafc',
                 fontSize: '0.875rem',
                 marginBottom: '1.25rem',
               }}
@@ -648,10 +679,10 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 onClick={() => setMoveTargetItem(null)}
                 style={{
                   padding: '0.5rem 1rem',
-                  backgroundColor: '#334155',
+                  backgroundColor: V.bdg || '#334155',
                   border: 'none',
                   borderRadius: '4px',
-                  color: '#f8fafc',
+                  color: V.ink || '#f8fafc',
                   fontSize: '0.875rem',
                   cursor: 'pointer',
                 }}
@@ -663,10 +694,10 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 onClick={handleConfirmMoveToFolder}
                 style={{
                   padding: '0.5rem 1rem',
-                  backgroundColor: '#2563eb',
+                  backgroundColor: V.pri || '#2563eb',
                   border: 'none',
                   borderRadius: '4px',
-                  color: '#ffffff',
+                  color: V.onpri || '#ffffff',
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: 'pointer',

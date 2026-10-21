@@ -3,6 +3,8 @@ import { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { app } from '../app';
 import { InventoryTree } from '../../components/InventoryTree';
+import { AppProvider } from '../../context/AppContext.jsx';
+import { ThemeProvider } from '../../context/ThemeContext.jsx';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -216,5 +218,47 @@ describe('InventoryTree Accessibility & Single-Pointer Movement', () => {
     // Live region check
     const statusRegion = host.querySelector('[role="status"]');
     expect(statusRegion?.textContent).toContain('Moved Welcome Notecard to folder Objects');
+  });
+
+  it('applies theme tokens from ThemeProvider to InventoryTree container, rows, icons, and menus', async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        createElement(
+          AppProvider,
+          null,
+          createElement(
+            ThemeProvider,
+            null,
+            createElement(InventoryTree, { rootFolderId: 'root-id', selectedId: 'folder-clothes' }),
+          ),
+        ),
+      );
+    });
+
+    const container = host.querySelector('.inventory-tree-container') as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.style.backgroundColor).toBeTruthy();
+
+    const selectedRow = host.querySelector('#inventory-node-folder-clothes') as HTMLElement;
+    expect(selectedRow).not.toBeNull();
+    expect(selectedRow.style.backgroundColor).toBeTruthy();
+
+    // Open context menu to check popover theme tokens
+    const actionBtn = selectedRow.querySelector(
+      'button[aria-label="Actions for Clothing"]',
+    ) as HTMLButtonElement;
+    expect(actionBtn).not.toBeNull();
+    await click(actionBtn);
+
+    const menu = host.querySelector('[role="menu"]') as HTMLElement;
+    expect(menu).not.toBeNull();
+    expect(menu.style.backgroundColor).toBeTruthy();
+    expect(menu.style.border).toBeTruthy();
+
+    root.unmount();
+    document.body.removeChild(host);
   });
 });
