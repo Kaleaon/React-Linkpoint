@@ -1,4 +1,5 @@
 import React from 'react';
+import CrystalLoader from './CrystalLoader.jsx';
 import { useErrorRecovery } from '../context/ErrorRecoveryContext';
 
 export const ErrorRecoveryBanner: React.FC = () => {
@@ -29,15 +30,7 @@ export const ErrorRecoveryBanner: React.FC = () => {
       data-testid="error-recovery-banner"
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span
-          style={{
-            display: 'inline-block',
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: !isOnline ? '#ef4444' : '#f97316',
-          }}
-        />
+        <CrystalLoader variant="inline" size={16} />
         <span>
           {!isOnline
             ? 'Network disconnected. Auto-reconnecting when signal restores…'
