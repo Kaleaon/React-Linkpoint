@@ -121,9 +121,12 @@ export class LinkpointApp {
     this.rlv = new RlvController(false, this.rlvEnvironment());
     this.chat.setRlv(this.rlv.handler);
     this.muteList = new MuteList({
-      update: (entry) => slBridge.updateMuteEntry(entry),
-      remove: (entry) => slBridge.removeMuteEntry(entry),
-      request: () => slBridge.requestMuteList(),
+      update: (entry) =>
+        slBridge.connected ? slBridge.updateMuteEntry(entry) : Promise.resolve({ sent: false }),
+      remove: (entry) =>
+        slBridge.connected ? slBridge.removeMuteEntry(entry) : Promise.resolve({ sent: false }),
+      request: () =>
+        slBridge.connected ? slBridge.requestMuteList() : Promise.resolve({ requested: false }),
     });
     this.chatExtended.attachGridMuteList(this.muteList, (id) => this.nameOfObjectOrAvatar(id));
     this.audio.setPolicy({
@@ -292,7 +295,10 @@ export class LinkpointApp {
     this.protocol.on('scene:voice-neighbors', (data: any) =>
       this.voice.setNeighborRegions(data?.neighbors ?? []),
     );
-    this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
+    this.protocol.on('scene:mute-list', (data: any) => {
+      this.muteList.load(data);
+      this.chatExtended.reconcileGridMutes(data);
+    });
     this.protocol.on('connected', () => {
       const agentId = this.protocol.agentId || '';
       this.muteList.setSelfId(agentId);
