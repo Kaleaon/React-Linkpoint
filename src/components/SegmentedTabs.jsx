@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { segLooks } from '../theme/look.js';
@@ -8,16 +9,35 @@ import { app } from '../linkpoint/app';
 // Ported from `segTabs`/`segWrap`/`hasSeg`. The labels come from CSUB — the one
 // sub-view table the LCARS rail also renders — so a screen gains a tab strip by
 // appearing there, not by being named here.
-export default function SegmentedTabs() {
+export default function SegmentedTabs({ screen } = {}) {
   const { state, actions } = useApp();
-  const { V, t, LK, nav, isFloat, norm, scr } = useTheme();
+  const { V, t, LK, nav, isFloat, norm, scr: themeScr } = useTheme();
+  const scr = screen || themeScr;
+
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const forceUpdate = () => setTick((v) => v + 1);
+    app.world?.on?.('objects_changed', forceUpdate);
+    app.world?.on?.('nearby_changed', forceUpdate);
+    app.chat?.on?.('message', forceUpdate);
+    return () => {
+      app.world?.off?.('objects_changed', forceUpdate);
+      app.world?.off?.('nearby_changed', forceUpdate);
+      app.chat?.off?.('message', forceUpdate);
+    };
+  }, []);
+
+  // Search and Radar render SegmentedTabs internally within their screen bodies.
+  // When SegmentedTabs is invoked without an explicit screen prop from top-level
+  // ScreenBody, skip rendering for Search and Radar to prevent double-rendering.
+  if (!screen && (scr === 'Search' || scr === 'Radar')) return null;
 
   if (!norm) return null;
   const curSub = subView(state, scr);
-  // Radar draws its own AVATARS/OBJECTS pill row inside the screen body, and 3D
-  // View is immersive with no header to hang a strip under — it carries its
-  // CAM/GFX switch in-scene instead. Both still get the LCARS sub-nav.
-  if (!CSUB[scr] || scr === 'Radar' || scr === '3D View') return null;
+  // 3D View is immersive with no header to hang a strip under — it carries its
+  // CAM/GFX switch in-scene instead. All other CSUB screens get standard SegmentedTabs.
+  if (!CSUB[scr] || scr === '3D View') return null;
 
   // Real unread counts from live Second Life chat session
   const unreadIM = app.chat?.messages?.filter((m) => m.type === 'im' && m.unread)?.length || 0;
@@ -27,9 +47,18 @@ export default function SegmentedTabs() {
   if (unreadIM > 0) chatBadges.IM = unreadIM;
   if (unreadGroup > 0) chatBadges.GROUP = unreadGroup;
 
+  // Real entity counts for Radar sub-views
+  const nearbyAvatars = app.world?.nearbyUsers?.length || 0;
+  const sceneObjects =
+    app.world?.objects?.filter?.((obj) => !obj.avatar)?.length ?? app.world?.objects?.length ?? 0;
+  const radarBadges = {
+    AVATAR: nearbyAvatars,
+    OBJECT: sceneObjects,
+  };
+
   const tabs = CSUB[scr].map(([label]) => ({
     label,
-    badge: scr === 'Chat' ? chatBadges[label] : undefined,
+    badge: scr === 'Chat' ? chatBadges[label] : scr === 'Radar' ? radarBadges[label] : undefined,
   }));
 
   const segLook = LK.seg || 'fill';
@@ -105,8 +134,10 @@ export default function SegmentedTabs() {
             : null),
         };
         return (
-          <div
+          <button
             key={x.label}
+            type="button"
+            data-tab={x.label}
             onClick={() => setSub(actions, scr, x.label)}
             role="tab"
             tabIndex={0}
@@ -117,10 +148,10 @@ export default function SegmentedTabs() {
                 setSub(actions, scr, x.label);
               }
             }}
-            style={style}
+            style={{ cursor: 'pointer', outline: 'none', border: 'none', ...style }}
           >
             <span style={{ font: 'inherit', letterSpacing: 'inherit' }}>{x.label}</span>
-            {x.badge ? (
+            {x.badge !== undefined ? (
               <span
                 style={{
                   minWidth: '18px',
@@ -138,7 +169,7 @@ export default function SegmentedTabs() {
                 {x.badge}
               </span>
             ) : null}
-          </div>
+          </button>
         );
       })}
     </div>

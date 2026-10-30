@@ -64,6 +64,7 @@ export class ChatManager extends Utils.EventEmitter {
   }
 
   loadSessions() {
+    this.emit('chat_loading_start');
     try {
       const savedOpen = Utils.storage.get('linkpoint_open_im_sessions', null);
       if (Array.isArray(savedOpen)) {
@@ -80,8 +81,12 @@ export class ChatManager extends Utils.EventEmitter {
       if (Array.isArray(savedClosed)) {
         this.closedSessions = new Set(savedClosed.map((n: string) => n.toLowerCase().trim()));
       }
-    } catch {
-      // Storage error ignored
+      const count = this.openSessions.size;
+      const status = count > 0 ? 'ready' : 'empty';
+      this.emit('chat_loading_end', { itemCount: count, status });
+    } catch (err) {
+      this.emit('chat_loading_error', { error: err instanceof Error ? err.message : String(err) });
+      this.emit('chat_loading_end', { itemCount: 0, status: 'error' });
     }
   }
 
@@ -205,6 +210,60 @@ export class ChatManager extends Utils.EventEmitter {
       if (typeof config.awayMessage === 'string' && config.awayMessage.trim()) {
         this.awayMessage = config.awayMessage;
       }
+    }
+  }
+
+  private typingSentOverride: boolean | null = null;
+
+  setTypingSentEnabled(enabled: boolean) {
+    this.typingSentOverride = Boolean(enabled);
+  }
+
+  isTypingSentEnabled(): boolean {
+    if (this.typingSentOverride !== null) {
+      return this.typingSentOverride;
+    }
+    try {
+      const settings = Utils.storage.get('linkpoint_viewer_settings', null);
+      if (settings?.toggles && typeof settings.toggles.typingSent === 'boolean') {
+        return settings.toggles.typingSent;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return true;
+  }
+
+  async sendTypingState(isTyping: boolean, recipientId?: string): Promise<void> {
+    if (recipientId) {
+      return this.sendIMTypingState(recipientId, isTyping);
+    }
+    if (!this.auth?.isLoggedIn()) return;
+    if (!this.isTypingSentEnabled()) return;
+    if (this.rlv?.isEnabled() && !this.rlv.canSendTypingStart()) return;
+
+    try {
+      await this.adapter.sendTypingState(isTyping);
+    } catch (error) {
+      console.warn('[ChatManager] Failed to send spatial typing state:', error);
+    }
+  }
+
+  async sendIMTypingState(recipientId: string, isTyping: boolean): Promise<void> {
+    if (!recipientId) return;
+    if (!this.auth?.isLoggedIn()) return;
+    if (!this.isTypingSentEnabled()) return;
+    if (
+      this.rlv?.isEnabled() &&
+      (!this.rlv.canSendTypingStart() || !this.rlv.canSendIM(recipientId))
+    ) {
+      return;
+    }
+
+    try {
+      await this.adapter.sendIMTypingState(recipientId, isTyping);
+    } catch (error) {
+      console.warn(`[ChatManager] Failed to send IM typing state for ${recipientId}:`, error);
     }
   }
 

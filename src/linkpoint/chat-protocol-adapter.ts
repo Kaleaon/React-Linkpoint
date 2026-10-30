@@ -95,12 +95,8 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
     channelOrRange: number | string = 0,
     chatType: ChatType = ChatType.NORMAL,
   ): Promise<void> {
-    if (!message || !message.trim()) {
-      throw new Error('Message cannot be empty');
-    }
-
-    let channel = 0;
-    let type: ChatType = ChatType.NORMAL;
+    let channel: number;
+    let type: ChatType;
 
     if (typeof channelOrRange === 'string') {
       const range = channelOrRange.toLowerCase().trim();
@@ -119,11 +115,67 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
       type = chatType;
     }
 
+    if ((!message || !message.trim()) && type !== ChatType.START && type !== ChatType.STOP) {
+      throw new Error('Message cannot be empty');
+    }
+
     if (!this.protocol || typeof this.protocol.sendChat !== 'function') {
       throw new Error('Spatial chat protocol handler unavailable');
     }
 
     await this.protocol.sendChat(message, channel, type);
+  }
+
+  /**
+   * Transmit spatial chat typing start (ChatType.START = 4) or stop (ChatType.STOP = 5) packet.
+   */
+  async sendTypingState(isTyping: boolean): Promise<void> {
+    const type = isTyping ? ChatType.START : ChatType.STOP;
+    if (typeof this.protocol?.sendChat === 'function') {
+      await this.protocol.sendChat('', 0, type);
+    } else {
+      await this.sendSpatialChat('', 0, type);
+    }
+  }
+
+  /**
+   * Transmit direct IM typing status signal (TYPING_START = 41, TYPING_STOP = 42).
+   */
+  async sendIMTypingState(recipientId: string, isTyping: boolean): Promise<boolean> {
+    if (!recipientId) return false;
+    if (!this.isTransportAvailable()) return false;
+
+    const dialog = isTyping ? InstantMessageDialog.TYPING_START : InstantMessageDialog.TYPING_STOP;
+
+    try {
+      if (typeof this.protocol?.sendIMTypingState === 'function') {
+        await this.protocol.sendIMTypingState(recipientId, isTyping);
+        return true;
+      } else if (typeof this.protocol?.sendImprovedInstantMessage === 'function') {
+        await this.protocol.sendImprovedInstantMessage({
+          dialog,
+          id: recipientId,
+          toAgentId: recipientId,
+          message: '',
+          timestamp: Date.now(),
+          type: 'im_typing',
+        });
+        return true;
+      } else if (typeof this.protocol?.sendInstantMessage === 'function') {
+        if (this.protocol.sendInstantMessage.length >= 3) {
+          await this.protocol.sendInstantMessage(recipientId, '', dialog);
+        } else {
+          await this.protocol.sendInstantMessage(recipientId, '');
+        }
+        return true;
+      }
+    } catch (error) {
+      console.warn(
+        `[ChatProtocolAdapter] IM typing state dispatch failed for ${recipientId}:`,
+        error,
+      );
+    }
+    return false;
   }
 
   /**

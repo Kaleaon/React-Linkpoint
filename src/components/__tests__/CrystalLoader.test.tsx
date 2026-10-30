@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import CrystalLoader from '../CrystalLoader.jsx';
-import SkeletonLoader, { SkeletonBox } from '../SkeletonLoader.jsx';
+import SkeletonLoader, { SkeletonBox, SkeletonAssetPlaceholder } from '../SkeletonLoader.jsx';
 import BrandedLoader from '../BrandedLoader.jsx';
 import StateBlock from '../StateBlock.jsx';
+import AssetContainer from '../AssetContainer.jsx';
 import PayDialog from '../PayDialog.jsx';
 import Search from '../../screens/Search.jsx';
 import { AppProvider } from '../../context/AppContext.jsx';
@@ -206,6 +207,76 @@ describe('Branded Skeleton System', () => {
     expect(box.style.background).toContain('linear-gradient');
     // In jsdom/browsers, hex color values like #6CFF9A (V.pri) are computed into rgb(108, 255, 154)
     expect(box.style.background).toMatch(/(108, 255, 154|#6CFF9A|var\(--pri\))/);
+  });
+
+  it('renders a 20px CrystalLoader instance in SkeletonAssetPlaceholder header slot', async () => {
+    const host = await mount(
+      createElement(SkeletonAssetPlaceholder, { title: 'Test Asset', progress: 50 }),
+    );
+    const container = host.querySelector(
+      '[data-testid="skeleton-asset-placeholder"]',
+    ) as HTMLElement;
+    expect(container).not.toBeNull();
+
+    const crystal = container.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(crystal).not.toBeNull();
+    expect(crystal.getAttribute('data-variant')).toBe('inline');
+    expect(crystal.style.width).toBe('20px');
+    expect(crystal.style.height).toBe('20px');
+    expect(crystal.getAttribute('role')).toBe('img');
+    expect(crystal.getAttribute('aria-label')).toBe('Loading');
+
+    const progressBar = container.querySelector(
+      '[data-testid="asset-progress-bar"]',
+    ) as HTMLElement;
+    expect(progressBar).not.toBeNull();
+    expect(progressBar.style.background).toContain('linear-gradient');
+  });
+});
+
+describe('AssetContainer downloading state CrystalLoader integration', () => {
+  it('displays inline CrystalLoader instead of download-cloud icon in container header during asset download', async () => {
+    let progressListener: ((loaded: number, total: number) => void) | null = null;
+    const mockFetch = vi.fn((_asset, onProgress) => {
+      progressListener = onProgress;
+      return new Promise(() => {}); // stay pending
+    });
+
+    const host = await mount(
+      createElement(AssetContainer, {
+        asset: { id: 'asset-123', name: 'Mesh Avatar' },
+        onFetch: mockFetch,
+      }),
+    );
+
+    // Put AssetContainer into downloading state
+    await act(async () => {
+      if (progressListener) {
+        progressListener(300, 1000);
+      }
+    });
+
+    const downloadingState = host.querySelector(
+      '[data-testid="asset-downloading-state"]',
+    ) as HTMLElement;
+    expect(downloadingState).not.toBeNull();
+
+    // Verify download-cloud icon is replaced
+    const downloadIcon = downloadingState.querySelector('[data-lucide="download-cloud"]');
+    expect(downloadIcon).toBeNull();
+
+    // Verify inline CrystalLoader renders in header
+    const crystals = Array.from(
+      downloadingState.querySelectorAll('[data-testid="crystal-loader"]'),
+    );
+    expect(crystals.length).toBeGreaterThanOrEqual(1);
+
+    const headerCrystal = crystals[0] as HTMLElement;
+    expect(headerCrystal).not.toBeNull();
+    expect(headerCrystal.getAttribute('data-variant')).toBe('inline');
+    expect(headerCrystal.style.width).toBe('18px');
+    expect(headerCrystal.style.height).toBe('18px');
+    expect(headerCrystal.getAttribute('role')).toBe('img');
   });
 });
 

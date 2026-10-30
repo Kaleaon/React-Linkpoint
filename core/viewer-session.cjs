@@ -887,6 +887,9 @@ class ViewerSession {
   saveShape(params) {
     return outfit.saveShape(this.requireBot(), this.currentRegion(), params);
   }
+  setAppearance(params) {
+    return outfit.setAppearance(this.requireBot(), this.currentRegion(), params);
+  }
 
   /** Join an open-enrollment group. A group that charges a fee is refused with the library's explanation. */
   async joinGroup({ groupId } = {}) {

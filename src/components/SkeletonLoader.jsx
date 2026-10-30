@@ -25,6 +25,9 @@ export function SkeletonCard({ height = '120px', style = {} }) {
   return <BrandedLoader variant="card" style={{ height, ...style }} />;
 }
 
+/**
+ * @param {{ title?: string, progress?: number | null }} props
+ */
 export function SkeletonAssetPlaceholder({ title = 'Loading Asset...', progress = null }) {
   return <BrandedLoader variant="asset" title={title} progress={progress} />;
 }

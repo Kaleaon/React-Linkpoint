@@ -328,7 +328,7 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
                 style={{
                   width: `${Math.max(0, Math.min(100, progress))}%`,
                   height: "100%",
-                  background: "var(--pri, #6CFF9A)",
+                  background: "linear-gradient(90deg, var(--pri, #6CFF9A), var(--priC, #123B27))",
                   transition: "width 0.2s ease-out"
                 }}
               />
