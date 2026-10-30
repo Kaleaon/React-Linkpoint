@@ -5,6 +5,7 @@ import { PALETTES } from '../tokens';
 import { contrastRatio, ensureMinContrast } from '../contrast';
 import { computeTheme } from '../computeTheme';
 import { sanitizeTheme } from '../customTheme.js';
+import * as palettesExports from '../palettes';
 
 describe('Theme Token Contrast Engine (WCAG 2.2 SC 1.4.3 & SC 1.4.11)', () => {
   it('ensureMinContrast returns original color when contrast is already >= 4.5', () => {
@@ -138,3 +139,12 @@ describe('Universal Focus Rings & Outline Suppression Audit', () => {
     }
   });
 });
+
+describe('Theme Palette Exports', () => {
+  it('exports canonical PALETTES and FAMILIES without deprecated LEGACY_PALETTES alias', () => {
+    expect(palettesExports.PALETTES).toBeDefined();
+    expect(palettesExports.FAMILIES).toBeDefined();
+    expect((palettesExports as Record<string, unknown>).LEGACY_PALETTES).toBeUndefined();
+  });
+});
+
