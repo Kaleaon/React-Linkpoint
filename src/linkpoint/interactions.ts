@@ -9,6 +9,7 @@
 
 import { Utils } from './utils';
 import type { SLConnectionFull } from './sl-connection-full';
+import { serializeDeclineTeleportPacket } from './phase2/friends-extended';
 
 export interface ScriptDialogRequest {
   kind: 'script-dialog';
@@ -37,6 +38,8 @@ export interface LureRequest {
   position: [number, number, number] | null;
   gridX: number | null;
   gridY: number | null;
+  sessionId?: string | null;
+  status?: 'pending' | 'accepted' | 'declined';
 }
 
 export interface InventoryOfferRequest {
@@ -284,6 +287,8 @@ export class InteractionsManager extends Utils.EventEmitter {
         fromName: String(data.fromName || ''),
         message: String(data.message || ''),
         regionId: data.regionId ?? null,
+        sessionId: data.sessionId ?? null,
+        status: data.status ?? 'pending',
         position:
           Array.isArray(data.position) && data.position.length === 3
             ? (data.position as [number, number, number])
@@ -381,13 +386,29 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
-  /** Decline a teleport lure. Sends a decline notification to the inviter. */
+  /** Decline a teleport lure. Sends a decline notification and DeclineTeleport packet to the inviter. */
   async declineLure(id: string) {
+    const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as
+      | LureRequest
+      | undefined;
+    if (!lure || lure.status === 'declined') {
+      return false;
+    }
+
+    lure.status = 'declined';
+    const agentId = lure.fromId || '00000000-0000-0000-0000-000000000000';
+    const sessionId = lure.sessionId || '00000000-0000-0000-0000-000000000000';
+    const packet = serializeDeclineTeleportPacket(agentId, sessionId);
+
     const result = await this.run(id, () =>
       typeof (this.protocol as any).declineLure === 'function'
-        ? (this.protocol as any).declineLure({ id })
+        ? (this.protocol as any).declineLure({ id, agentId, sessionId, packet })
         : this.protocol.dismissInteraction(id),
     );
+
+    if (result) {
+      this.emit('lure_declined', { lure, packet });
+    }
     return Boolean(result);
   }
 
@@ -423,8 +444,12 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
-  /** Dismiss locally. */
+  /** Dismiss locally. If dismissing a teleport lure popup, dispatches DeclineTeleport packet. */
   async dismiss(id: string) {
+    const item = this.list.find((x) => x.id === id);
+    if (item && item.kind === 'lure') {
+      await this.declineLure(id);
+    }
     this.remove(id);
     this.busyIds.delete(id);
     try {
