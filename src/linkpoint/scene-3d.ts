@@ -1057,8 +1057,10 @@ export class Scene3D extends Utils.EventEmitter {
         uLightColor: new Float32Array(light.color),
         uAmbientColor: new Float32Array(this.ambientColor),
         uColor: new Float32Array(face?.color || object.color),
-        uUseTexture: Boolean(object.mirrorTexture || face?.texture || object.texture),
-        uTextureName: object.mirrorTexture || face?.texture || object.texture,
+        uUseTexture: Boolean(
+          face?.mediaTexture || object.mirrorTexture || face?.texture || object.texture,
+        ),
+        uTextureName: face?.mediaTexture || object.mirrorTexture || face?.texture || object.texture,
         uTexTransform: new Float32Array([...(face?.repeat || [1, 1]), ...(face?.offset || [0, 0])]),
         uTexRotation: face?.rotation || 0,
         uUsePbr: Boolean(face?.pbr),
