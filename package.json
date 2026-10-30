@@ -10,6 +10,7 @@
   "author": "Linkpoint Contributors",
   "scripts": {
     "dev": "tsx server.ts",
+    "dev:aistudio": "tsx scripts/dev-aistudio.mts",
     "start": "tsx server.ts",
     "build": "node scripts/build-wasm.mjs --check && node scripts/check-source-imports.mjs && vite build",
     "build:wasm": "node scripts/build-wasm.mjs",
@@ -106,6 +107,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^17.13.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.1",

@@ -22,6 +22,8 @@ export class GroupsManager extends Utils.EventEmitter {
   private groupMembers: Map<string, Map<string, any>> = new Map();
   private groupRoles: Map<string, Map<string, any>> = new Map();
   private groupNotices: Map<string, any[]> = new Map();
+  private activeGroupId: string = '00000000-0000-0000-0000-000000000000';
+  private activeRoleId: string = '00000000-0000-0000-0000-000000000000';
 
   constructor(
     protocolManager?: any,
@@ -36,6 +38,40 @@ export class GroupsManager extends Utils.EventEmitter {
     this.protocol = this.adapter.protocol || protocolManager;
     this.capabilitiesManager = capabilitiesManager;
     this.noticeStore = noticeStore;
+  }
+
+  getActiveGroupId(): string {
+    return this.activeGroupId;
+  }
+
+  getActiveRoleId(): string {
+    return this.activeRoleId;
+  }
+
+  getActiveGroup(): any {
+    if (!this.activeGroupId || this.activeGroupId === '00000000-0000-0000-0000-000000000000') {
+      return null;
+    }
+    return this.groups.get(this.activeGroupId) || null;
+  }
+
+  setActiveGroupId(groupId: string, roleId?: string): void {
+    const targetGroupId =
+      groupId && typeof groupId === 'string' && groupId.trim()
+        ? groupId.trim().toLowerCase()
+        : '00000000-0000-0000-0000-000000000000';
+    const targetRoleId =
+      roleId && typeof roleId === 'string' && roleId.trim()
+        ? roleId.trim().toLowerCase()
+        : '00000000-0000-0000-0000-000000000000';
+
+    this.activeGroupId = targetGroupId;
+    this.activeRoleId = targetRoleId;
+    this.emit('active_group_changed', { groupId: targetGroupId, roleId: targetRoleId });
+  }
+
+  clearActiveGroup(): void {
+    this.setActiveGroupId('00000000-0000-0000-0000-000000000000');
   }
 
   setCapabilitiesManager(capabilitiesManager: CapabilitiesManager) {
@@ -528,7 +564,13 @@ export class GroupsManager extends Utils.EventEmitter {
 
   /** Snapshot of group records received during this session. */
   getGroups() {
-    return Array.from(this.groups.values()).map((group) => ({ ...group }));
+    return Array.from(this.groups.values()).map((group) => ({
+      ...group,
+      active:
+        Boolean(group.id) &&
+        group.id.toLowerCase() === this.activeGroupId.toLowerCase() &&
+        this.activeGroupId !== '00000000-0000-0000-0000-000000000000',
+    }));
   }
 
   replaceGroups(groups: any[]) {
@@ -540,7 +582,12 @@ export class GroupsManager extends Utils.EventEmitter {
         this.groupRoles.delete(id);
         this.groupNotices.delete(id);
       }
-    for (const group of groups) this.setGroupInfo(group.id, group);
+    for (const group of groups) {
+      if (group.active && group.id) {
+        this.activeGroupId = group.id.toLowerCase();
+      }
+      this.setGroupInfo(group.id, group);
+    }
     const count = this.groups.size;
     const status = count > 0 ? 'ready' : 'empty';
     this.emit('groups_updated', Array.from(this.groups.values()));

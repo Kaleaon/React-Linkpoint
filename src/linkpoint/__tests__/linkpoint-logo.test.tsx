@@ -117,7 +117,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('will-change: transform');
-    expect(cssText).toContain('will-change: opacity');
+    expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
     expect(cssText).toContain('@keyframes corePulseR');
@@ -162,8 +162,10 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     mounted = await mountScreen(Login);
     const header = mounted.host.querySelector('header');
     expect(header).not.toBeNull();
-    const logoSvg = header?.querySelector('svg');
+    const logoSvg = header?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
+    expect(logoSvg?.style.width).toBe('64px');
+    expect(logoSvg?.style.height).toBe('64px');
     const title = header?.querySelector('h1');
     expect(title?.textContent).toBe('LINKPOINT');
   });
