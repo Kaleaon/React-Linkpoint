@@ -117,7 +117,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('will-change: transform');
-    expect(cssText).toContain('will-change: opacity');
+    expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
     expect(cssText).toContain('@keyframes corePulseR');
