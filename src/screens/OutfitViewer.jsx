@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
+import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
 
@@ -329,9 +330,9 @@ export default function OutfitViewer() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="shirt" size={20} style={{ color: V.pri }} />
           <div>
-            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: V.ink }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: V.ink }}>
               FULL OUTFIT VIEWER
-            </h1>
+            </h2>
             <span style={small()}>Your avatar in 3D and what you are wearing</span>
           </div>
         </div>
@@ -624,69 +625,73 @@ export default function OutfitViewer() {
                   overflowY: 'auto',
                 }}
               >
-                {filteredItems.length
-                  ? filteredItems.map((item) => (
-                      <div
-                        key={item.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '6px 10px',
-                          background: 'rgba(56, 189, 248, 0.08)',
-                          border: `1px solid ${V.pri}`,
-                          borderRadius: V.rs,
-                        }}
-                      >
-                        <Icon
-                          name={
-                            item.category === 'attachment'
-                              ? 'paperclip'
-                              : item.category === 'body'
-                                ? 'user'
-                                : 'shirt'
-                          }
-                          size={15}
-                          style={{ color: V.pri }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: V.ink }}>
-                            {item.name}
-                          </div>
-                          <div style={small({ fontSize: 10 })}>
-                            {item.typeName} · {item.category}
-                          </div>
+                {outfitState.loading && !outfitState.loaded ? (
+                  <SecondaryViewLoader label="Loading your outfit…" layout="block" />
+                ) : filteredItems.length ? (
+                  filteredItems.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        background: 'rgba(56, 189, 248, 0.08)',
+                        border: `1px solid ${V.pri}`,
+                        borderRadius: V.rs,
+                      }}
+                    >
+                      <Icon
+                        name={
+                          item.category === 'attachment'
+                            ? 'paperclip'
+                            : item.category === 'body'
+                              ? 'user'
+                              : 'shirt'
+                        }
+                        size={15}
+                        style={{ color: V.pri }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: V.ink }}>
+                          {item.name}
                         </div>
-                        {item.category !== 'body' && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() =>
-                              void change(
-                                () => slBridge.removeWorn({ linkId: item.id }),
-                                `Took off ${item.name}.`,
-                              )
-                            }
-                            title={
-                              item.category === 'attachment' ? 'Detach and take off' : 'Take off'
-                            }
-                            style={{
-                              padding: '3px 8px',
-                              fontSize: 10,
-                              fontWeight: 700,
-                              borderRadius: V.rs,
-                              border: `1px solid ${V.err || V.outv}`,
-                              background: 'transparent',
-                              color: V.err || V.ink,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            TAKE OFF
-                          </button>
-                        )}
+                        <div style={small({ fontSize: 10 })}>
+                          {item.typeName} · {item.category}
+                        </div>
                       </div>
-                    ))
-                  : note(emptyText)}
+                      {item.category !== 'body' && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void change(
+                              () => slBridge.removeWorn({ linkId: item.id }),
+                              `Took off ${item.name}.`,
+                            )
+                          }
+                          title={
+                            item.category === 'attachment' ? 'Detach and take off' : 'Take off'
+                          }
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            borderRadius: V.rs,
+                            border: `1px solid ${V.err || V.outv}`,
+                            background: 'transparent',
+                            color: V.err || V.ink,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          TAKE OFF
+                        </button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  note(emptyText)
+                )}
               </div>
               <h2 style={{ margin: '6px 0 0', fontSize: 13, fontWeight: 700, color: V.pri }}>
                 WEAR FROM INVENTORY
@@ -831,7 +836,7 @@ export default function OutfitViewer() {
               {!loggedIn ? (
                 note('Connect to a grid to see your shape.')
               ) : shape.state === 'loading' || shape.state === 'idle' ? (
-                note('Reading your shape…')
+                <SecondaryViewLoader label="Reading your shape…" layout="block" />
               ) : shape.state === 'error' ? (
                 <>
                   {note(`Your shape could not be read: ${shape.error}`)}

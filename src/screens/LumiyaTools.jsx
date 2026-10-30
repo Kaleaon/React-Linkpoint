@@ -138,6 +138,11 @@ export function ParcelScreen() {
 
 export function TransactionsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('30days');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [avatarFilter, setAvatarFilter] = useState('');
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payTarget, setPayTarget] = useState({ id: '', name: 'Resident', type: 'avatar' });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -159,8 +164,16 @@ export function TransactionsScreen() {
   }, []);
 
   const transactions = useMemo(
-    () => app.economy.getTransactions(searchQuery),
-    [searchQuery, refreshTrigger],
+    () =>
+      app.economy.getTransactions({
+        searchQuery,
+        type: typeFilter,
+        dateRange: dateFilter,
+        avatar: avatarFilter,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      }),
+    [searchQuery, typeFilter, dateFilter, avatarFilter, startDate, endDate, refreshTrigger],
   );
   const stats = useMemo(() => app.economy.getStats(), [refreshTrigger]);
 
@@ -244,21 +257,129 @@ export function TransactionsScreen() {
         </section>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ marginBottom: '16px' }}>
+      {/* Filter Controls Bar */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '10px',
+          marginBottom: '16px',
+        }}
+      >
         <input
           type="text"
-          placeholder="Filter transactions by description, resident, object, or ID..."
+          placeholder="Search description/ID..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
             width: '100%',
-            padding: '10px 14px',
+            padding: '8px 12px',
             borderRadius: '6px',
             border: '1px solid #334155',
             backgroundColor: '#0f172a',
             color: '#f8fafc',
-            fontSize: '14px',
+            fontSize: '13px',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+
+        <input
+          type="text"
+          placeholder="Filter by Avatar/Target..."
+          value={avatarFilter}
+          onChange={(e) => setAvatarFilter(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1px solid #334155',
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            fontSize: '13px',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1px solid #334155',
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            fontSize: '13px',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        >
+          <option value="all">All Types</option>
+          <option value="payment">Payment</option>
+          <option value="tip">Tip</option>
+          <option value="purchase">Purchase</option>
+          <option value="refund">Refund</option>
+          <option value="transfer">Transfer</option>
+          <option value="credit">Credit (+)</option>
+          <option value="debit">Debit (-)</option>
+        </select>
+
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1px solid #334155',
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            fontSize: '13px',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        >
+          <option value="30days">Last 30 Days</option>
+          <option value="14days">Last 14 Days</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="today">Today</option>
+          <option value="all">All History</option>
+        </select>
+
+        <input
+          type="date"
+          aria-label="Start date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1px solid #334155',
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            fontSize: '13px',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+
+        <input
+          type="date"
+          aria-label="End date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            border: '1px solid #334155',
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
           }}
@@ -335,8 +456,13 @@ export function TransactionsScreen() {
         </div>
       ) : (
         <Empty icon="banknote">
-          {searchQuery
-            ? 'No transaction records match your search filter.'
+          {searchQuery ||
+          avatarFilter ||
+          typeFilter !== 'all' ||
+          dateFilter !== '30days' ||
+          startDate ||
+          endDate
+            ? 'No transaction records match your filter criteria.'
             : 'No transactions stored in local 30-day ledger.'}
         </Empty>
       )}

@@ -2,6 +2,8 @@
  * Linkpoint PWA - Utility Functions
  */
 
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
+
 /**
  * Pick the first defined non-null property value from a source object,
  * checking key candidates in order.
@@ -21,6 +23,10 @@ export function pickProperty(source: any, ...keys: string[]): any {
 
 export const Utils = {
   pickProperty,
+  pad(value: number | string, targetLength: number = 2, padString: string = '0'): string {
+    return String(value).padStart(targetLength, padString);
+  },
+
   generateUUID() {
     if (
       typeof globalThis.crypto !== 'undefined' &&
@@ -41,6 +47,13 @@ export const Utils = {
   },
 
   showToast(message: string, type: string = 'info', duration: number = 3000) {
+    const isError = type === 'error';
+    liveRegionAnnouncer.announce(
+      message,
+      isError ? 'assertive' : 'polite',
+      isError ? 'alert' : 'status',
+    );
+
     if (typeof document === 'undefined') return;
     const container = document.getElementById('toast-container');
     if (!container) return;

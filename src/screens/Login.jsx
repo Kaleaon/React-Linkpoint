@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import LinkpointLogo from '../components/LinkpointLogo.jsx';
 import FormField from '../components/FormField.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 
 export default function Login() {
   const { state, actions } = useApp();
@@ -228,9 +229,22 @@ export default function Login() {
             background: V.pri,
             color: V.onpri,
             fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
           }}
         >
-          {busy ? 'CONNECTING…' : mfa.needed ? 'VERIFY AND CONNECT' : 'CONNECT TO GRID'}
+          {busy ? (
+            <>
+              <CrystalLoader size={16} variant="inline" />
+              <span>CONNECTING…</span>
+            </>
+          ) : mfa.needed ? (
+            'VERIFY AND CONNECT'
+          ) : (
+            'CONNECT TO GRID'
+          )}
         </button>
         {autoLogin ? (
           <button
@@ -243,9 +257,25 @@ export default function Login() {
               borderRadius: V.rs,
               background: V.priC,
               color: V.pri,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
             }}
           >
-            CONNECT WITH SERVER CREDENTIALS{autoLogin.username ? ` · ${autoLogin.username}` : ''}
+            {busy ? (
+              <>
+                <CrystalLoader size={16} variant="inline" />
+                <span>
+                  CONNECT WITH SERVER CREDENTIALS
+                  {autoLogin.username ? ` · ${autoLogin.username}` : ''}
+                </span>
+              </>
+            ) : (
+              `CONNECT WITH SERVER CREDENTIALS${
+                autoLogin.username ? ` · ${autoLogin.username}` : ''
+              }`
+            )}
           </button>
         ) : null}
         <button
