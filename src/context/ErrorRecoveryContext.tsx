@@ -98,20 +98,20 @@ export const ErrorRecoveryProvider: React.FC<{
     </ErrorRecoveryContext.Provider>
   );
 };
-
+const FALLBACK_ERROR_RECOVERY: ErrorRecoveryContextValue = {
+  ...errorRecovery.getSnapshot(),
+  service: errorRecovery,
+  enqueueRetry: (options) => errorRecovery.enqueueRetry(options),
+  logTelemetry: (category, code, message, details) =>
+    errorRecovery.logTelemetry(category, code, message, details),
+  clearError: () => errorRecovery.clearActiveError(),
+  processRetryQueue: () => errorRecovery.processRetryQueue(),
+  setOnLineStatus: (online) => errorRecovery.setOnLineStatus(online),
+        };
+        
 export function useErrorRecovery(): ErrorRecoveryContextValue {
   const ctx = useContext(ErrorRecoveryContext);
   if (ctx) {
     return ctx;
   }
-  return {
-    ...errorRecovery.getSnapshot(),
-    service: errorRecovery,
-    enqueueRetry: (options) => errorRecovery.enqueueRetry(options),
-    logTelemetry: (category, code, message, details) =>
-      errorRecovery.logTelemetry(category, code, message, details),
-    clearError: () => errorRecovery.clearActiveError(),
-    processRetryQueue: () => errorRecovery.processRetryQueue(),
-    setOnlineStatus: (online) => errorRecovery.setOnlineStatus(online),
-  };
-}
+  return FALLBACK_ERROR_RECOVERY
