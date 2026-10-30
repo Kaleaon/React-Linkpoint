@@ -1302,7 +1302,7 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
               </div>
             </div>
             {isNotice && (item.hasAttachment || item.attachment) ? (
-              <NoticeAttachmentBanner notice={item} V={V} />
+              <NoticeAttachmentBanner notice={item} V={V} t={t} />
             ) : null}
           </article>
         );
@@ -1318,7 +1318,10 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V, t }) {
+function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+  const theme = useTheme();
+  const V = propV || theme.V;
+  const t = propT || theme.t;
   const [saving, setSaving] = useState(false);
   const attachment =
     notice.attachment ||
