@@ -137,6 +137,8 @@ export default function LinkpointLogo({
   const { V, t } = useTheme();
   const token = (name) => V[name];
 
+  const svgId = idPrefix ? prefix : 'linkpoint-logo-react';
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
