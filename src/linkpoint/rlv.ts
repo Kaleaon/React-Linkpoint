@@ -1,7 +1,7 @@
 /**
- * RLV controller: the small API the UI context (`src/viewer/RlvContext.tsx`) uses, kept as it was and now backed by
- * `RlvHandler` (rlv-handler.ts), which follows Firestorm's RLVa. Replies to `@version*`, `@getstatus*` and the like
- * come from RLVa's own strings and rules rather than invented ones.
+ * RLV controller: the small API backed by `RlvHandler` (rlv-handler.ts), which follows Firestorm's RLVa.
+ * Replies to `@version*`, `@getstatus*` and the like come from RLVa's own strings and rules rather than
+ * invented ones.
  */
 import { CHAT_TYPE, RlvHandler, type RlvEnvironment } from './rlv-handler';
 
