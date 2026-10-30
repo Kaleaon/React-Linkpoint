@@ -389,8 +389,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   /** Decline a teleport lure. Sends a decline notification and DeclineTeleport packet to the inviter. */
   async declineLure(id: string) {
     const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as
-      | LureRequest
-      | undefined;
+      LureRequest | undefined;
     if (!lure || lure.status === 'declined') {
       return false;
     }
