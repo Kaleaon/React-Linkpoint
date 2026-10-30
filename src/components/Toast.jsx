@@ -13,7 +13,7 @@ export default function Toast() {
 
   useEffect(() => {
     if (state.toast) {
-      liveRegionAnnouncer.announce(state.toast, 'polite');
+      liveRegionAnnouncer.announce(state.toast, 'polite', 'status');
     }
   }, [state.toast]);
 

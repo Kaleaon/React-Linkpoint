@@ -22,6 +22,7 @@ const TOGGLES = [
   'notifyLocal',
   'notifyIM',
   'notifyGroup',
+  'devMode',
 ];
 const OPTIONS = {
   draw: ['20 m', '32 m', '64 m', '96 m', '128 m', '192 m', '256 m'],

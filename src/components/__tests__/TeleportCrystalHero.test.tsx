@@ -182,4 +182,22 @@ describe('<TeleportCrystalHero /> Component', () => {
     expect(styleEl?.textContent).toContain('prefers-reduced-motion');
     expect(styleEl?.textContent).toContain('translateY(0px)');
   });
+
+  it('attaches imperative handle via React.forwardRef and updates DOM on updateProgress call', async () => {
+    const heroRef = { current: null as any };
+    const host = await mount(
+      <TeleportCrystalHero ref={heroRef} stepPercent={10} phase="initiating" />,
+    );
+
+    expect(heroRef.current).not.toBeNull();
+    expect(typeof heroRef.current.updateProgress).toBe('function');
+
+    await act(async () => {
+      heroRef.current.updateProgress(75);
+      await new Promise((r) => requestAnimationFrame(r));
+    });
+
+    const container = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+    expect(container.getAttribute('data-step-percent')).toBe('75');
+  });
 });
