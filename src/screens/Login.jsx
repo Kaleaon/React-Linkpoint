@@ -129,7 +129,13 @@ export default function Login() {
           }}
         >
           <div style={{ width: 64, height: 64, marginBottom: 8, flexShrink: 0 }}>
-            <LinkpointLogo animated={true} showTitle={false} width="64px" height="64px" />
+            <LinkpointLogo
+              animated={true}
+              showTitle={false}
+              width="64px"
+              height="64px"
+              aria-label="Linkpoint logo"
+            />
           </div>
           <h1 style={{ color: V.pri, font: `700 28px/1.1 ${t.dfont}`, letterSpacing: '.12em' }}>
             LINKPOINT
