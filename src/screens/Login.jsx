@@ -128,12 +128,12 @@ export default function Login() {
             alignItems: 'center',
           }}
         >
-          <div style={{ width: 96, height: 96, marginBottom: 8, flexShrink: 0 }}>
+          <div style={{ width: 64, height: 64, marginBottom: 8, flexShrink: 0 }}>
             <LinkpointLogo
               animated={true}
               showTitle={false}
-              width="100%"
-              height="100%"
+              width="64px"
+              height="64px"
               aria-label="Linkpoint logo"
             />
           </div>
