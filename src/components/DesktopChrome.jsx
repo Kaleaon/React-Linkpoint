@@ -145,13 +145,7 @@ export default function DesktopChrome() {
           className="desktop-brand-emblem"
           style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
         >
-          <LinkpointLogo
-            animated={false}
-            showTitle={false}
-            width={20}
-            height={20}
-            idPrefix="linkpoint-logo-react"
-          />
+          <LinkpointLogo animated={false} showTitle={false} width={20} height={20} />
         </div>
         <div className="desktop-history-controls" aria-label="Navigation history">
           <button

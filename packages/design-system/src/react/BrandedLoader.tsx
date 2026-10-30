@@ -98,25 +98,25 @@ export const CrystalMark: React.FC<CrystalMarkProps> = ({
       />
       <g className="lpld-bot">
         <polygon
-          points="256,472 392,342 256,392"
+          points="256,472 120,342 256,292"
           fill={`url(#${gradB})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
-          opacity="0.72"
+          opacity="0.9"
         />
         <polygon
-          points="256,472 256,392 120,342"
+          points="256,472 256,292 392,342"
           fill={`url(#${gradA})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
-          opacity="1.0"
+          opacity="0.9"
         />
         <polygon
-          points="256,472 120,342 256,292"
+          points="256,472 392,342 256,392"
           fill={`url(#${gradB})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
@@ -125,7 +125,7 @@ export const CrystalMark: React.FC<CrystalMarkProps> = ({
           opacity="0.6"
         />
         <polygon
-          points="256,472 256,292 392,342"
+          points="256,472 256,392 120,342"
           fill={`url(#${gradA})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
@@ -142,7 +142,7 @@ export const CrystalMark: React.FC<CrystalMarkProps> = ({
           strokeWidth="1"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
-          opacity="0.72"
+          opacity="1.0"
         />
         <polygon
           points="256,40 256,220 120,170"

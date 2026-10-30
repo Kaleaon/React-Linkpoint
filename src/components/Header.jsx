@@ -74,13 +74,7 @@ export function StackHead({ title, subtitle, scr }) {
         padding: '12px 16px 8px',
       }}
     >
-      <LinkpointLogo
-        animated={false}
-        showTitle={false}
-        width={28}
-        height={28}
-        idPrefix="linkpoint-logo-react"
-      />
+      <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ font: '700 21px/1.05 ' + t.dfont, letterSpacing: V.tls, color: V.pri }}>
           {title}
@@ -181,13 +175,7 @@ export function SweepHead({ title, subtitle }) {
           01-4471
         </span>
         <span style={{ flex: 1, height: '6px', background: V.surf2 }} />
-        <LinkpointLogo
-          animated={false}
-          showTitle={false}
-          width={24}
-          height={24}
-          idPrefix="linkpoint-logo-react"
-        />
+        <LinkpointLogo animated={false} showTitle={false} width={24} height={24} />
         <span
           style={{
             font: '700 22px/1 ' + t.dfont,
@@ -245,13 +233,7 @@ export function PivotHead({ title, subtitle, scr }) {
           overflow: 'hidden',
         }}
       >
-        <LinkpointLogo
-          animated={false}
-          showTitle={false}
-          width={28}
-          height={28}
-          idPrefix="linkpoint-logo-react"
-        />
+        <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
         <span
           style={{
             flex: 'none',
@@ -320,13 +302,7 @@ export function RuleHead({ title, subtitle }) {
           padding: '12px 0 10px',
         }}
       >
-        <LinkpointLogo
-          animated={false}
-          showTitle={false}
-          width={20}
-          height={20}
-          idPrefix="linkpoint-logo-react"
-        />
+        <LinkpointLogo animated={false} showTitle={false} width={20} height={20} />
         <div
           style={{
             font: '600 15px/1.1 ' + t.dfont,
@@ -358,13 +334,7 @@ export function EditorialHead({ title, subtitle }) {
   return (
     <header style={{ flex: 'none', padding: '18px 18px 10px', borderBottom: '2px solid ' + V.ink }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <LinkpointLogo
-          animated={false}
-          showTitle={false}
-          width={28}
-          height={28}
-          idPrefix="linkpoint-logo-react"
-        />
+        <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
         <div
           style={{
             font: '600 27px/1.12 ' + t.font,
