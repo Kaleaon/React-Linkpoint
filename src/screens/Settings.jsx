@@ -184,6 +184,7 @@ export default function Settings() {
         <FormField label="Search settings">
           <input
             type="search"
+            aria-label="Search settings"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -279,6 +280,7 @@ export default function Settings() {
             <FormField label="Layout">
               <select
                 id="settings-layout-select"
+                aria-label="Layout"
                 value={state.layout}
                 onChange={(event) => actions.setLayout(event.target.value)}
               >
@@ -292,6 +294,7 @@ export default function Settings() {
             <FormField label="Colour theme">
               <select
                 id="settings-theme-select"
+                aria-label="Colour theme"
                 value={state.palette}
                 onChange={(event) => actions.setPalette(event.target.value)}
               >
@@ -317,6 +320,7 @@ export default function Settings() {
             <FormField label="App format">
               <select
                 id="settings-format-select"
+                aria-label="App format"
                 value={state.viewMode}
                 onChange={(event) => actions.setViewMode(event.target.value)}
               >
@@ -328,6 +332,7 @@ export default function Settings() {
             <FormField label="Content density">
               <select
                 id="settings-density-select"
+                aria-label="Content density"
                 value={state.customTheme.density}
                 onChange={(event) => actions.setDensity(event.target.value)}
               >
@@ -356,6 +361,7 @@ export default function Settings() {
             <FormField label="Draw distance">
               <select
                 id="settings-draw-distance-select"
+                aria-label="Draw distance"
                 value={state.prefs.draw}
                 onChange={(event) => actions.setPref('draw', event.target.value)}
               >
@@ -367,6 +373,7 @@ export default function Settings() {
             <FormField label="Camera field of view">
               <select
                 id="settings-fov-select"
+                aria-label="Camera field of view"
                 value={state.prefs.fov}
                 onChange={(event) => actions.setPref('fov', Number(event.target.value))}
               >
@@ -388,6 +395,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-graphics-quality-select"
+                  aria-label="Graphics quality"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.quality}
@@ -402,6 +410,7 @@ export default function Settings() {
             <FormField label="Frame rate cap">
               <select
                 id="settings-frame-rate-select"
+                aria-label="Frame rate cap"
                 value={state.prefs.fps}
                 onChange={(event) => actions.setPref('fps', event.target.value)}
               >
@@ -421,6 +430,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-avatar-complexity-select"
+                  aria-label="Avatar complexity"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.complexity}
@@ -443,6 +453,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-bandwidth-limit-select"
+                  aria-label="Bandwidth limit"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.bandwidth}
@@ -481,6 +492,7 @@ export default function Settings() {
             <FormField label="Master volume">
               <select
                 id="settings-master-volume-select"
+                aria-label="Master volume"
                 value={state.prefs.volume}
                 onChange={(event) => setVolume(event.target.value)}
               >
@@ -498,6 +510,7 @@ export default function Settings() {
               <FormField key={key} label={label}>
                 <select
                   id={`settings-${key}`}
+                  aria-label={label}
                   value={state.prefs[key]}
                   onChange={(event) => actions.setPref(key, event.target.value)}
                 >
@@ -571,6 +584,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-translation-select"
+                  aria-label="Translate incoming chat"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.translate}
@@ -595,6 +609,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-maturity-select"
+                  aria-label="Maturity rating"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.maturity}
@@ -742,6 +757,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-cache-limit-select"
+                  aria-label="Cache size"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.cacheLimit}
@@ -766,6 +782,7 @@ export default function Settings() {
               >
                 <select
                   id="settings-cache-location-select"
+                  aria-label="Cache location"
                   disabled
                   title="Requires backend support; preview mode only"
                   value={state.prefs.cacheLoc}

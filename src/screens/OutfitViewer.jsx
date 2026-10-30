@@ -585,6 +585,7 @@ export default function OutfitViewer() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter outfit items..."
+                  aria-label="Filter outfit items"
                   style={{
                     flex: 1,
                     padding: '5px 8px',
@@ -598,6 +599,7 @@ export default function OutfitViewer() {
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
+                  aria-label="Filter by category"
                   style={{
                     padding: '5px 8px',
                     fontSize: 11,

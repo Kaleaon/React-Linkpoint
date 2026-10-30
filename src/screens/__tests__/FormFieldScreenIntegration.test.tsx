@@ -10,6 +10,8 @@ import Radar from '../Radar.jsx';
 import Settings from '../Settings.jsx';
 import PayDialog from '../../components/PayDialog.jsx';
 import FloatersDesktop from '../../components/FloatersDesktop.jsx';
+import Card from '../../components/Card.jsx';
+import OutfitViewer from '../OutfitViewer.jsx';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -132,6 +134,10 @@ describe('FormField Screen Integration', () => {
     expect(layoutSelect).not.toBeNull();
     const label = host.querySelector('label[for="settings-layout-select"]');
     expect(label?.textContent).toBe('Layout');
+    expect(layoutSelect?.getAttribute('aria-label')).toBe('Layout');
+
+    const searchInput = host.querySelector('input[type="search"]');
+    expect(searchInput?.getAttribute('aria-label')).toBe('Search settings');
   });
 
   it('PayDialog inputs integrate FormField wrapper and associate labels with controls', async () => {
@@ -145,6 +151,7 @@ describe('FormField Screen Integration', () => {
     expect(customAmountInput).not.toBeNull();
     const customLabel = host.querySelector(`label[for="${customAmountInput?.id}"]`);
     expect(customLabel?.textContent).toBe('Or enter custom amount');
+    expect(customAmountInput?.getAttribute('aria-label')).toBe('Custom payment amount');
 
     const descInput = host.querySelector(
       'input[placeholder="Note to recipient"]',
@@ -152,6 +159,7 @@ describe('FormField Screen Integration', () => {
     expect(descInput).not.toBeNull();
     const descLabel = host.querySelector(`label[for="${descInput?.id}"]`);
     expect(descLabel?.textContent).toBe('Description / Note');
+    expect(descInput?.getAttribute('aria-label')).toBe('Description / Note');
   });
 
   it('FloatersDesktop quick chat input integrates FormField wrapper', async () => {
@@ -161,5 +169,47 @@ describe('FormField Screen Integration', () => {
     expect(chatInput).not.toBeNull();
     const label = host.querySelector(`label[for="${chatInput?.id}"]`);
     expect(label?.textContent).toBe('Nearby Chat');
+    expect(chatInput?.getAttribute('aria-label')).toBe('Nearby Chat');
+  });
+
+  it('OutfitViewer filter inputs expose explicit ARIA labels', async () => {
+    const host = await mount(<OutfitViewer />);
+
+    const filterInput = host.querySelector('input[placeholder="Filter outfit items..."]');
+    expect(filterInput?.getAttribute('aria-label')).toBe('Filter outfit items');
+
+    const categorySelect = host.querySelector('select');
+    expect(categorySelect?.getAttribute('aria-label')).toBe('Filter by category');
+  });
+
+  it('Card component select exposes explicit aria-label from title or custom prop', async () => {
+    const host1 = await mount(
+      <Card
+        c={{
+          title: 'Card Setting',
+          select: true,
+          value: 'opt1',
+          options: [{ value: 'opt1', label: 'Option 1' }],
+          onChange: () => {},
+        }}
+      />,
+    );
+    const select1 = host1.querySelector('select');
+    expect(select1?.getAttribute('aria-label')).toBe('Card Setting');
+
+    const host2 = await mount(
+      <Card
+        c={{
+          title: 'Card Setting',
+          'aria-label': 'Custom Card Label',
+          select: true,
+          value: 'opt1',
+          options: [{ value: 'opt1', label: 'Option 1' }],
+          onChange: () => {},
+        }}
+      />,
+    );
+    const select2 = host2.querySelector('select');
+    expect(select2?.getAttribute('aria-label')).toBe('Custom Card Label');
   });
 });
