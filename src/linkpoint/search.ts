@@ -99,6 +99,9 @@ export class DirEventsQueryMessage {
     const sanitizedText = sanitizeQueryString(options?.queryText || '');
     const dateTextStr = options?.dateText ?? 'u';
 
+    const searchTextBuf = Utils.StringToBuffer(sanitizedText).subarray(0, 255);
+    const dateTextBuf = Utils.StringToBuffer(dateTextStr).subarray(0, 255);
+
     this.AgentData = {
       AgentID: agentUuid,
       SessionID: sessionUuid,
@@ -106,12 +109,12 @@ export class DirEventsQueryMessage {
 
     this.QueryData = {
       QueryID: queryUuid,
-      SearchText: Utils.StringToBuffer(sanitizedText),
+      SearchText: searchTextBuf,
       QueryFlags:
         options?.queryFlags ??
         DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
       Category: options?.category ?? 0,
-      DateText: Utils.StringToBuffer(dateTextStr),
+      DateText: dateTextBuf,
       QueryStart: options?.queryStart ?? 0,
     };
   }
@@ -188,7 +191,9 @@ export function parseDirEventsReply(reply: any): EventUIModel[] {
     const eventFlags = Number(ev.EventFlags ?? ev.eventFlags) || 0;
 
     results.push({
-      id: String(eventId || crypto.randomUUID()),
+      id: String(
+        eventId || globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
+      ),
       eventId,
       ownerId,
       name: nameStr,
@@ -266,7 +271,11 @@ export function parseDirClassifiedReply(reply: any): ClassifiedUIModel[] {
   const results: ClassifiedUIModel[] = [];
   const queryReplies = reply.QueryReplies || reply.queryReplies || [];
   for (const cls of queryReplies) {
-    const classifiedId = cls.ClassifiedID?.toString?.() || cls.classifiedId || crypto.randomUUID();
+    const classifiedId =
+      cls.ClassifiedID?.toString?.() ||
+      cls.classifiedId ||
+      globalThis.crypto?.randomUUID?.() ||
+      Math.random().toString(36).slice(2);
     const nameBuf = cls.Name ?? cls.name;
     const nameStr = Buffer.isBuffer(nameBuf)
       ? Utils.BufferToStringSimple(nameBuf)

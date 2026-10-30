@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import {
   GridConsole,
   LogEntry,
@@ -14,23 +15,27 @@ interface GridConsolePanelProps {
   height?: number;
 }
 
-const LEVEL_COLORS: Record<LogLevel, string> = {
-  debug: '#8a8a8a',
-  info: '#4ec9b0',
-  warn: '#d7ba7d',
-  error: '#f48771',
-  fatal: '#ff5370',
-};
-
 export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
   console: gridConsole,
   height = 260,
 }) => {
+  const { V } = useTheme();
   const [entries, setEntries] = useState<LogEntry[]>(() => gridConsole.getEntries());
   const [levelFilter, setLevelFilter] = useState<LogLevel>('debug');
   const [search, setSearch] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const levelColors: Record<LogLevel, string> = useMemo(
+    () => ({
+      debug: V.ink2,
+      info: V.ok,
+      warn: V.warn,
+      error: V.err,
+      fatal: V.pri,
+    }),
+    [V.ink2, V.ok, V.warn, V.err, V.pri],
+  );
 
   useEffect(() => {
     const refresh = () => setEntries(gridConsole.getEntries());
@@ -86,9 +91,33 @@ export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
     }
   };
 
+  const controlInputStyle: React.CSSProperties = {
+    background: V.bg,
+    color: V.ink,
+    border: `1px solid ${V.outv || V.sec2}`,
+    borderRadius: V.rs || '4px',
+    padding: '4px',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '6px 12px',
+    background: V.surf2 || V.sec,
+    color: V.ink,
+    border: `1px solid ${V.outv || V.sec2}`,
+    borderRadius: V.rs || '4px',
+    cursor: 'pointer',
+  };
+
   return (
     <div
-      style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}
+      style={{
+        background: V.surf,
+        border: `1px solid ${V.outv || V.surf2}`,
+        padding: '15px',
+        borderRadius: V.rp || '8px',
+        marginBottom: '20px',
+        color: V.ink,
+      }}
     >
       <h3 style={{ marginTop: 0 }}>
         Grid Console &amp; Error Log{' '}
@@ -96,7 +125,7 @@ export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
           style={{
             fontSize: '13px',
             fontWeight: 'normal',
-            color: problemCount > 0 ? '#c9302c' : '#5cb85c',
+            color: problemCount > 0 ? V.err : V.ok,
           }}
         >
           ({gridConsole.getEntryCount()} entries, {counts.warn} warning
@@ -119,7 +148,7 @@ export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
           id="console-level"
           value={levelFilter}
           onChange={(e) => setLevelFilter(e.target.value as LogLevel)}
-          style={{ padding: '4px' }}
+          style={controlInputStyle}
         >
           {LOG_LEVELS.map((level) => (
             <option key={level} value={level}>
@@ -134,7 +163,7 @@ export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter log..."
           aria-label="Filter log"
-          style={{ padding: '4px', flex: '1 1 160px', minWidth: '120px' }}
+          style={{ ...controlInputStyle, flex: '1 1 160px', minWidth: '120px' }}
         />
 
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -146,13 +175,13 @@ export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
           Auto-scroll
         </label>
 
-        <button type="button" onClick={handleCopy} style={{ padding: '6px 12px' }}>
+        <button type="button" onClick={handleCopy} style={buttonStyle}>
           Copy
         </button>
-        <button type="button" onClick={handleDownload} style={{ padding: '6px 12px' }}>
+        <button type="button" onClick={handleDownload} style={buttonStyle}>
           Download
         </button>
-        <button type="button" onClick={() => gridConsole.clear()} style={{ padding: '6px 12px' }}>
+        <button type="button" onClick={() => gridConsole.clear()} style={buttonStyle}>
           Clear
         </button>
       </div>
@@ -164,30 +193,31 @@ export const GridConsolePanel: React.FC<GridConsolePanelProps> = ({
         style={{
           height: `${height}px`,
           overflowY: 'auto',
-          background: '#1e1e1e',
-          color: '#d4d4d4',
-          fontFamily: 'Menlo, Consolas, monospace',
+          background: V.bg,
+          color: V.ink,
+          fontFamily: V.font || 'Menlo, Consolas, monospace',
           fontSize: '12px',
           lineHeight: 1.5,
           padding: '10px',
-          borderRadius: '4px',
+          borderRadius: V.rs || '4px',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
+          border: `1px solid ${V.outv || V.surf2}`,
         }}
       >
         {visible.length === 0 ? (
-          <div style={{ color: '#8a8a8a' }}>No console output yet.</div>
+          <div style={{ color: V.ink2 }}>No console output yet.</div>
         ) : (
           visible.map((entry) => (
             <div key={entry.id} title={formatLogEntry(entry, true)}>
-              <span style={{ color: '#8a8a8a' }}>{formatLogTime(entry.timestamp)} </span>
-              <span style={{ color: LEVEL_COLORS[entry.level], fontWeight: 'bold' }}>
+              <span style={{ color: V.ink2 }}>{formatLogTime(entry.timestamp)} </span>
+              <span style={{ color: levelColors[entry.level], fontWeight: 'bold' }}>
                 {entry.level.toUpperCase().padEnd(5, '\u00a0')}
               </span>
-              <span style={{ color: '#569cd6' }}> [{entry.component}]: </span>
+              <span style={{ color: V.info || V.pri }}> [{entry.component}]: </span>
               <span>{entry.message}</span>
               {entry.detail && (
-                <div style={{ color: '#8a8a8a', paddingLeft: '16px' }}>{entry.detail}</div>
+                <div style={{ color: V.ink2, paddingLeft: '16px' }}>{entry.detail}</div>
               )}
             </div>
           ))
