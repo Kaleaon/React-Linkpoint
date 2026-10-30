@@ -8,8 +8,6 @@ import {
   parseCommand,
   rlvFailed,
   rlvSucceeded,
-  regexCache,
-  getCachedRegex,
   type RlvEnvironment,
 } from '../rlv-handler';
 
@@ -657,6 +655,32 @@ describe('names and location', () => {
     expect(rlv.anonym('A')).toBe('A stranger');
   });
 
+  it('caches RegExp instances across filterNames calls and preserves ordering and anonymization', () => {
+    run('shownames=n');
+    // Set up avatars where legacy name contains display name ("John" inside "John Smith")
+    env.nearbyAvatars = () => [
+      { id: '1', displayName: 'John', legacyName: 'John Smith' },
+      { id: BOB, displayName: 'Bobby Tables', legacyName: 'Robert Tables' },
+    ];
+
+    // First filter pass
+    const out1 = rlv.filterNames('John Smith met Bobby Tables in town.');
+    expect(out1).not.toContain('John');
+    expect(out1).not.toContain('Smith');
+    expect(out1).not.toContain('Bobby');
+
+    // Second filter pass with repeated text and names to verify cache reuse
+    const out2 = rlv.filterNames('john smith met bobby tables in town.');
+    expect(out2).toBe(out1);
+
+    // Verify reset clears cache without breaking filter functionality on next use
+    rlv.reset();
+    rlv.setEnabled(true);
+    run('shownames=n');
+    const out3 = rlv.filterNames('John Smith met Bobby Tables in town.');
+    expect(out3).toBe(out1);
+  });
+
   it('@showloc hides region and parcel names in incoming chat', () => {
     run('showloc=n');
     const out = rlv.filterIncomingChat({
@@ -681,7 +705,7 @@ describe('names and location', () => {
   });
 
   it('uses fast-path substring check and memoizes regexes in regexCache', () => {
-    regexCache.clear();
+    (rlv as any).regexCache.clear();
     run('shownames=n');
     run('showloc=n');
 
@@ -689,42 +713,42 @@ describe('names and location', () => {
     const cleanMsg = 'Hello world, nice weather today!';
     const filteredClean = rlv.filterNames(cleanMsg);
     expect(filteredClean).toBe(cleanMsg);
-    expect(regexCache.size).toBe(0);
+    expect((rlv as any).regexCache.size).toBe(0);
 
     const cleanLoc = rlv.filterLocation(cleanMsg);
     expect(cleanLoc).toBe(cleanMsg);
-    expect(regexCache.size).toBe(0);
+    expect((rlv as any).regexCache.size).toBe(0);
 
     // 2. Text with an avatar name SHOULD populate regexCache and memoize the RegExp
     const nameMsg = 'Bobby Tables says hello';
     const filteredName = rlv.filterNames(nameMsg);
     expect(filteredName).not.toContain('Bobby');
-    expect(regexCache.size).toBeGreaterThan(0);
+    expect((rlv as any).regexCache.size).toBeGreaterThan(0);
 
-    const firstCachedRegex = regexCache.get('gi:\\bBobby Tables\\b');
+    const firstCachedRegex = (rlv as any).regexCache.get('gi:\\bBobby Tables\\b');
     expect(firstCachedRegex).toBeDefined();
 
     // Re-evaluating should reuse the exact same RegExp object instance
     rlv.filterNames('Bobby Tables is here again');
-    const secondCachedRegex = regexCache.get('gi:\\bBobby Tables\\b');
+    const secondCachedRegex = (rlv as any).regexCache.get('gi:\\bBobby Tables\\b');
     expect(secondCachedRegex).toBe(firstCachedRegex);
 
     // 3. Text with location name SHOULD populate regexCache
     const locMsg = 'I am in Ahern at Sunny Cove';
     const filteredLoc = rlv.filterLocation(locMsg);
     expect(filteredLoc).toBe('I am in (Hidden region) at (Hidden parcel)');
-    expect(regexCache.has('gi:\\bAhern\\b')).toBe(true);
-    expect(regexCache.has('gi:\\bSunny Cove\\b')).toBe(true);
+    expect((rlv as any).regexCache.has('gi:\\bAhern\\b')).toBe(true);
+    expect((rlv as any).regexCache.has('gi:\\bSunny Cove\\b')).toBe(true);
 
     // 4. Short display names (<= 2 chars) are skipped and not cached
     env.nearbyAvatars = () => [{ id: '111', displayName: 'Jo', legacyName: 'Jo Resident' }];
-    regexCache.clear();
+    (rlv as any).regexCache.clear();
     rlv.filterNames('Jo says hello');
-    expect(regexCache.has('gi:\\bJo\\b')).toBe(false);
+    expect((rlv as any).regexCache.has('gi:\\bJo\\b')).toBe(false);
 
     // 5. rlv.reset() clears regexCache
     rlv.reset();
-    expect(regexCache.size).toBe(0);
+    expect((rlv as any).regexCache.size).toBe(0);
   });
 });
 

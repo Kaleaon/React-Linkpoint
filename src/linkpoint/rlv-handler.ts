@@ -642,6 +642,7 @@ export class RlvHandler extends Utils.EventEmitter {
   canOoc = true;
   /** Shown in place of a blocked message. */
   debug = false;
+  private regexCache = new Map<string, RegExp>();
 
   constructor(private env: RlvEnvironment = {}) {
     super();
@@ -676,7 +677,7 @@ export class RlvHandler extends Utils.EventEmitter {
     this.notifications.length = 0;
     this.commandStack.length = 0;
     this.blockNames = false;
-    regexCache.clear();
+    this.regexCache.clear();
     this.emit('reset');
   }
 
@@ -1824,10 +1825,22 @@ export class RlvHandler extends Utils.EventEmitter {
     return RLV_ANONYMS[hash % RLV_ANONYMS.length];
   }
 
+  private getCachedRegex(pattern: string, flags = 'gi'): RegExp {
+    const key = `${flags}:${pattern}`;
+    let regex = this.regexCache.get(key);
+    if (!regex) {
+      regex = new RegExp(pattern, flags);
+      this.regexCache.set(key, regex);
+    }
+    regex.lastIndex = 0;
+    return regex;
+  }
+
   /** `RlvUtil::filterNames`: replace every nearby avatar's names (unless an exception) in a piece of text. */
   filterNames(text: string, opts: { filterLegacy?: boolean; clearMatches?: boolean } = {}): string {
     const filterLegacyDefault = opts.filterLegacy ?? true;
     let out = text;
+    let outLower = out.toLowerCase();
     for (const avatar of this.env.nearbyAvatars?.() ?? []) {
       if (!opts.clearMatches && this.canShowName(avatar.id)) continue;
       const display = avatar.displayName,
@@ -1836,9 +1849,13 @@ export class RlvHandler extends Utils.EventEmitter {
       const filterLegacy = filterLegacyDefault && legacy.length > 2;
       const replacement = opts.clearMatches ? '' : this.anonym(legacy || display);
       const replace = (name: string) => {
-        if (!out.toLowerCase().includes(name.toLowerCase())) return;
-        const regex = getCachedRegex(`\\b${escapeRegex(name)}\\b`, 'gi');
-        out = out.replace(regex, replacement);
+        if (!outLower.includes(name.toLowerCase())) return;
+        const regex = this.getCachedRegex(`\\b${escapeRegex(name)}\\b`, 'gi');
+        const next = out.replace(regex, replacement);
+        if (next !== out) {
+          out = next;
+          outLower = out.toLowerCase();
+        }
       };
       if (legacy.toLowerCase().includes(display.toLowerCase())) {
         if (filterLegacy) replace(legacy);
@@ -1855,13 +1872,19 @@ export class RlvHandler extends Utils.EventEmitter {
   filterLocation(text: string): string {
     const { regions, parcel } = this.env.locationNames?.() ?? { regions: [], parcel: null };
     let out = text;
-    for (const region of regions)
-      if (region && out.toLowerCase().includes(region.toLowerCase())) {
-        const regex = getCachedRegex(`\\b${escapeRegex(region)}\\b`, 'gi');
-        out = out.replace(regex, RLV_STRINGS.hiddenRegion);
+    let outLower = out.toLowerCase();
+    for (const region of regions) {
+      if (region && outLower.includes(region.toLowerCase())) {
+        const regex = this.getCachedRegex(`\\b${escapeRegex(region)}\\b`, 'gi');
+        const next = out.replace(regex, RLV_STRINGS.hiddenRegion);
+        if (next !== out) {
+          out = next;
+          outLower = out.toLowerCase();
+        }
       }
-    if (parcel && out.toLowerCase().includes(parcel.toLowerCase())) {
-      const regex = getCachedRegex(`\\b${escapeRegex(parcel)}\\b`, 'gi');
+    }
+    if (parcel && outLower.includes(parcel.toLowerCase())) {
+      const regex = this.getCachedRegex(`\\b${escapeRegex(parcel)}\\b`, 'gi');
       out = out.replace(regex, RLV_STRINGS.hiddenParcel);
     }
     return out;
@@ -1877,19 +1900,6 @@ export class RlvHandler extends Utils.EventEmitter {
     for (const n of this.notifications)
       if (!n.filter || text.includes(n.filter)) this.sendChatReply(n.channel, `/${text}`);
   }
-}
-
-export const regexCache = new Map<string, RegExp>();
-
-export function getCachedRegex(pattern: string, flags = 'gi'): RegExp {
-  const key = `${flags}:${pattern}`;
-  let regex = regexCache.get(key);
-  if (!regex) {
-    regex = new RegExp(pattern, flags);
-    regexCache.set(key, regex);
-  }
-  regex.lastIndex = 0;
-  return regex;
 }
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

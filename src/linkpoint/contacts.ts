@@ -169,7 +169,7 @@ export class ContactsStore extends Utils.EventEmitter {
   private contacts = new Map<string, Contact>();
 
   constructor(
-    private storage: StorageLike | null = typeof localStorage !== 'undefined' ? localStorage : null,
+    private storage: StorageLike | null = Utils.storage.getLocalStorage(),
     private now: () => number = () => Date.now(),
   ) {
     super();
