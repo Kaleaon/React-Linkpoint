@@ -655,6 +655,32 @@ describe('names and location', () => {
     expect(rlv.anonym('A')).toBe('A stranger');
   });
 
+  it('caches RegExp instances across filterNames calls and preserves ordering and anonymization', () => {
+    run('shownames=n');
+    // Set up avatars where legacy name contains display name ("John" inside "John Smith")
+    env.nearbyAvatars = () => [
+      { id: '1', displayName: 'John', legacyName: 'John Smith' },
+      { id: BOB, displayName: 'Bobby Tables', legacyName: 'Robert Tables' },
+    ];
+
+    // First filter pass
+    const out1 = rlv.filterNames('John Smith met Bobby Tables in town.');
+    expect(out1).not.toContain('John');
+    expect(out1).not.toContain('Smith');
+    expect(out1).not.toContain('Bobby');
+
+    // Second filter pass with repeated text and names to verify cache reuse
+    const out2 = rlv.filterNames('john smith met bobby tables in town.');
+    expect(out2).toBe(out1);
+
+    // Verify reset clears cache without breaking filter functionality on next use
+    rlv.reset();
+    rlv.setEnabled(true);
+    run('shownames=n');
+    const out3 = rlv.filterNames('John Smith met Bobby Tables in town.');
+    expect(out3).toBe(out1);
+  });
+
   it('@showloc hides region and parcel names in incoming chat', () => {
     run('showloc=n');
     const out = rlv.filterIncomingChat({

@@ -229,14 +229,20 @@ export class SLBridge extends Utils.EventEmitter {
   joinGroup(params: { groupId: string }) {
     return this.call<{ joined: boolean }>('joinGroup', params);
   }
+  activateGroup(params: { groupId: string; roleId?: string }) {
+    return this.call<{ success: boolean; groupId: string; roleId?: string }>(
+      'activateGroup',
+      params,
+    );
+  }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }
   acceptLure(params: { id: string }) {
     return this.call<{ accepted: boolean; message: string }>('acceptLure', params);
   }
-  declineLure(params: { id: string }) {
-    return this.call<{ declined: boolean }>('declineLure', params).catch(
+  declineLure(params: { id: string; agentId?: string; sessionId?: string; packet?: any }) {
+    return this.call<{ declined: boolean; packet?: any }>('declineLure', params).catch(
       () => this.dismissInteraction(params) as any,
     );
   }
