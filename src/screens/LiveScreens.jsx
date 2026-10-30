@@ -1302,7 +1302,7 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
               </div>
             </div>
             {isNotice && (item.hasAttachment || item.attachment) ? (
-              <NoticeAttachmentBanner notice={item} V={V} />
+              <NoticeAttachmentBanner notice={item} V={V} t={t} />
             ) : null}
           </article>
         );
