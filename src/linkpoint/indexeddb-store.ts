@@ -351,56 +351,148 @@ export class IndexedDBStore {
       };
     }
 
-    // Query IDB using indexes
-    const folders: InventoryFolderRecord[] = await new Promise((resolve) => {
-      try {
-        const tx = db.transaction([STORE_INVENTORY_FOLDERS], 'readonly');
-        const index = tx.objectStore(STORE_INVENTORY_FOLDERS).index('by_parent');
-        const range = IDBKeyRange.only([agentId, folderId]);
-        const req = index.getAll(range);
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
-      } catch {
-        resolve([]);
-      }
-    });
+    // Query IDB using count and cursor pagination
+    const range = IDBKeyRange.only([agentId, folderId]);
 
-    const items: InventoryItemRecord[] = await new Promise((resolve) => {
-      try {
-        const tx = db.transaction([STORE_INVENTORY_ITEMS], 'readonly');
-        const index = tx.objectStore(STORE_INVENTORY_ITEMS).index('by_folder');
-        const range = IDBKeyRange.only([agentId, folderId]);
-        const req = index.getAll(range);
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
-      } catch {
-        resolve([]);
-      }
-    });
+    const [totalFolders, totalItems] = await Promise.all([
+      this.fetchCount(db, STORE_INVENTORY_FOLDERS, 'by_parent', range),
+      this.fetchCount(db, STORE_INVENTORY_ITEMS, 'by_folder', range),
+    ]);
 
-    const totalFolders = folders.length;
-    const totalItems = items.length;
     const totalEntries = totalFolders + totalItems;
     const totalPages = Math.max(1, Math.ceil(totalEntries / safePageSize));
 
     const startIndex = (safePage - 1) * safePageSize;
-    const combined = [
-      ...folders.map((f) => ({ kind: 'folder' as const, data: f })),
-      ...items.map((i) => ({ kind: 'item' as const, data: i })),
-    ];
-    const pageSlice = combined.slice(startIndex, startIndex + safePageSize);
+
+    if (startIndex >= totalEntries) {
+      return {
+        folders: [],
+        items: [],
+        totalFolders,
+        totalItems,
+        page: safePage,
+        pageSize: safePageSize,
+        totalPages,
+      };
+    }
+
+    let folderOffset = 0;
+    let folderLimit = 0;
+    let itemOffset = 0;
+    let itemLimit = 0;
+
+    if (startIndex < totalFolders) {
+      folderOffset = startIndex;
+      folderLimit = Math.min(safePageSize, totalFolders - folderOffset);
+      itemOffset = 0;
+      itemLimit = Math.min(safePageSize - folderLimit, totalItems);
+    } else {
+      folderOffset = 0;
+      folderLimit = 0;
+      itemOffset = startIndex - totalFolders;
+      itemLimit = Math.min(safePageSize, totalItems - itemOffset);
+    }
+
+    const [folders, items] = await Promise.all([
+      this.fetchSliceWithCursor<InventoryFolderRecord>(
+        db,
+        STORE_INVENTORY_FOLDERS,
+        'by_parent',
+        range,
+        folderOffset,
+        folderLimit,
+      ),
+      this.fetchSliceWithCursor<InventoryItemRecord>(
+        db,
+        STORE_INVENTORY_ITEMS,
+        'by_folder',
+        range,
+        itemOffset,
+        itemLimit,
+      ),
+    ]);
 
     return {
-      folders: pageSlice
-        .filter((e) => e.kind === 'folder')
-        .map((e) => e.data as InventoryFolderRecord),
-      items: pageSlice.filter((e) => e.kind === 'item').map((e) => e.data as InventoryItemRecord),
+      folders,
+      items,
       totalFolders,
       totalItems,
       page: safePage,
       pageSize: safePageSize,
       totalPages,
     };
+  }
+
+  private fetchCount(
+    db: IDBDatabase,
+    storeName: string,
+    indexName: string,
+    range: IDBKeyRange,
+  ): Promise<number> {
+    return new Promise<number>((resolve) => {
+      try {
+        const tx = db.transaction([storeName], 'readonly');
+        const index = tx.objectStore(storeName).index(indexName);
+        const req = index.count(range);
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => resolve(0);
+      } catch {
+        resolve(0);
+      }
+    });
+  }
+
+  private fetchSliceWithCursor<T>(
+    db: IDBDatabase,
+    storeName: string,
+    indexName: string,
+    range: IDBKeyRange,
+    offset: number,
+    limit: number,
+  ): Promise<T[]> {
+    if (limit <= 0) {
+      return Promise.resolve([]);
+    }
+
+    return new Promise<T[]>((resolve) => {
+      try {
+        const tx = db.transaction([storeName], 'readonly');
+        const store = tx.objectStore(storeName);
+        const index = store.index(indexName);
+        const req = index.openCursor(range);
+
+        const results: T[] = [];
+        let hasAdvanced = false;
+
+        req.onsuccess = (event: any) => {
+          const cursor = event.target.result as IDBCursorWithValue | null;
+          if (!cursor) {
+            resolve(results);
+            return;
+          }
+
+          if (offset > 0 && !hasAdvanced) {
+            hasAdvanced = true;
+            cursor.advance(offset);
+            return;
+          }
+
+          results.push(cursor.value as T);
+
+          if (results.length < limit) {
+            cursor.continue();
+          } else {
+            resolve(results);
+          }
+        };
+
+        req.onerror = () => {
+          resolve([]);
+        };
+      } catch {
+        resolve([]);
+      }
+    });
   }
 
   // --- Contacts Operations ---
