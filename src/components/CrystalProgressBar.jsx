@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 
 /**
  * CrystalProgressBar component for standardized Linkpoint brand styling across loading and downloading workflows.
@@ -65,7 +66,10 @@ export function CrystalProgressBar({
             color: V?.ink || 'currentColor',
           }}
         >
-          <span>{label}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <CrystalLoader size={14} variant="inline" />
+            <span>{label}</span>
+          </span>
           <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{roundedPercent}%</span>
         </div>
       )}
