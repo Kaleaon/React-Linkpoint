@@ -1343,12 +1343,10 @@ export class RlvHandler extends Utils.EventEmitter {
   }
   versionNum(compat = false): string {
     const v = compat ? RLV_VERSION_COMPAT : RLV_VERSION;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${v.major}${pad(v.minor)}${pad(v.patch)}${pad(v.build)}`;
+    return `${v.major}${Utils.pad(v.minor)}${Utils.pad(v.patch)}${Utils.pad(v.build)}`;
   }
   versionImplNum(): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${RLVA_VERSION.major}${pad(RLVA_VERSION.minor)}${pad(RLVA_VERSION.patch)}${pad(RLVA_VERSION.implId)}`;
+    return `${RLVA_VERSION.major}${Utils.pad(RLVA_VERSION.minor)}${Utils.pad(RLVA_VERSION.patch)}${Utils.pad(RLVA_VERSION.implId)}`;
   }
 
   // ---- decisions the rest of the viewer asks ----------------------------------------------------
