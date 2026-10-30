@@ -75,6 +75,7 @@ export function StackHead({ title, subtitle, scr }) {
       }}
     >
       <LinkpointLogo
+        idPrefix="logo-stack-head"
         animated={false}
         showTitle={false}
         width={28}
@@ -189,6 +190,7 @@ export function SweepHead({ title, subtitle }) {
         </span>
         <span style={{ flex: 1, height: '6px', background: V.surf2 }} />
         <LinkpointLogo
+          idPrefix="logo-sweep-head"
           animated={false}
           showTitle={false}
           width={24}
@@ -254,6 +256,7 @@ export function PivotHead({ title, subtitle, scr }) {
         }}
       >
         <LinkpointLogo
+          idPrefix="logo-pivot-head"
           animated={false}
           showTitle={false}
           width={28}
@@ -330,6 +333,7 @@ export function RuleHead({ title, subtitle }) {
         }}
       >
         <LinkpointLogo
+          idPrefix="logo-rule-head"
           animated={false}
           showTitle={false}
           width={20}
@@ -369,6 +373,7 @@ export function EditorialHead({ title, subtitle }) {
     <header style={{ flex: 'none', padding: '18px 18px 10px', borderBottom: '2px solid ' + V.ink }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <LinkpointLogo
+          idPrefix="logo-editorial-head"
           animated={false}
           showTitle={false}
           width={28}

@@ -131,6 +131,7 @@ export default function Login() {
         >
           <div style={{ width: 64, height: 64, marginBottom: 8, flexShrink: 0 }}>
             <LinkpointLogo
+              idPrefix="logo-login"
               animated={true}
               showTitle={false}
               width="64px"

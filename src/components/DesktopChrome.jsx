@@ -146,6 +146,7 @@ export default function DesktopChrome() {
           style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
         >
           <LinkpointLogo
+            idPrefix="logo-desktop-chrome"
             animated={false}
             showTitle={false}
             width={20}
