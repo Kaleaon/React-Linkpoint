@@ -1,3 +1,4 @@
+import { DOMParser, Element as XMLElement } from '@xmldom/xmldom';
 import { LocalRegion, LocalPrim } from './LocalGridServer';
 import { Utils } from '../utils';
 import { gridConsole, GridConsole, LOG_COMPONENTS } from './GridConsole';
@@ -83,54 +84,95 @@ export class OARParser {
   }
 
   public parseSceneObjectXml(xmlString: string): LocalPrim[] {
+    if (!xmlString || xmlString.trim() === '') {
+      return [];
+    }
+
     const prims: LocalPrim[] = [];
-    const groupMatches = xmlString.match(/<SceneObjectGroup>[\s\S]*?<\/SceneObjectGroup>/g) || [];
 
-    for (const groupXml of groupMatches) {
-      const nameMatch = groupXml.match(/<Name>(.*?)<\/Name>/);
-      const descMatch = groupXml.match(/<Description>(.*?)<\/Description>/);
-      const posMatch = groupXml.match(
-        /<GroupPosition><X>(.*?)<\/X><Y>(.*?)<\/Y><Z>(.*?)<\/Z><\/GroupPosition>/,
-      );
-      const rotMatch = groupXml.match(
-        /<RotationOffset><X>(.*?)<\/X><Y>(.*?)<\/Y><Z>(.*?)<\/Z><W>(.*?)<\/W><\/RotationOffset>/,
-      );
-      const scaleMatch = groupXml.match(/<Scale><X>(.*?)<\/X><Y>(.*?)<\/Y><Z>(.*?)<\/Z><\/Scale>/);
+    try {
+      const cleanXml = xmlString.replace(/^\s*<\?xml[^>]*\?>/i, '');
+      const wrappedXml = `<root>${cleanXml}</root>`;
 
-      const prim: LocalPrim = {
-        id: Utils.generateUUID(),
-        name: nameMatch ? nameMatch[1] : 'Object',
-        description: descMatch ? descMatch[1] : '',
-        position: {
-          x: posMatch ? parseFloat(posMatch[1]) : 128,
-          y: posMatch ? parseFloat(posMatch[2]) : 128,
-          z: posMatch ? parseFloat(posMatch[3]) : 22,
+      const parser = new DOMParser({
+        onError: (level: 'warning' | 'error' | 'fatalError', msg: string) => {
+          this.console.debug(LOG_COMPONENTS.ARCHIVER, `XML parse ${level}: ${msg}`);
         },
-        rotation: {
-          x: rotMatch ? parseFloat(rotMatch[1]) : 0,
-          y: rotMatch ? parseFloat(rotMatch[2]) : 0,
-          z: rotMatch ? parseFloat(rotMatch[3]) : 0,
-          w: rotMatch ? parseFloat(rotMatch[4]) : 1,
-        },
-        scale: {
-          x: scaleMatch ? parseFloat(scaleMatch[1]) : 0.5,
-          y: scaleMatch ? parseFloat(scaleMatch[2]) : 0.5,
-          z: scaleMatch ? parseFloat(scaleMatch[3]) : 0.5,
-        },
-        shape: 'box',
-        textureAssets: [],
-      };
+      });
 
-      if (!nameMatch) {
-        this.console.debug(
-          LOG_COMPONENTS.ARCHIVER,
-          `Object ${prim.id} has no <Name>; imported as "Object".`,
-        );
+      const doc = parser.parseFromString(wrappedXml, 'text/xml');
+      const groupElements = doc.getElementsByTagName('SceneObjectGroup');
+
+      for (let i = 0; i < groupElements.length; i++) {
+        const groupEl = groupElements[i];
+
+        const nameEl = groupEl.getElementsByTagName('Name')[0];
+        const rawNameText = nameEl?.textContent;
+        const hasName = Boolean(nameEl && rawNameText && rawNameText.trim().length > 0);
+        const name = hasName && rawNameText ? rawNameText.trim() : 'Object';
+
+        const descEl = groupEl.getElementsByTagName('Description')[0];
+        const description = descEl?.textContent ?? '';
+
+        const posEl = groupEl.getElementsByTagName('GroupPosition')[0];
+        const rotEl = groupEl.getElementsByTagName('RotationOffset')[0];
+        const scaleEl = groupEl.getElementsByTagName('Scale')[0];
+
+        const prim: LocalPrim = {
+          id: Utils.generateUUID(),
+          name,
+          description,
+          position: {
+            x: this.getFloatChild(posEl, 'X', 128),
+            y: this.getFloatChild(posEl, 'Y', 128),
+            z: this.getFloatChild(posEl, 'Z', 22),
+          },
+          rotation: {
+            x: this.getFloatChild(rotEl, 'X', 0),
+            y: this.getFloatChild(rotEl, 'Y', 0),
+            z: this.getFloatChild(rotEl, 'Z', 0),
+            w: this.getFloatChild(rotEl, 'W', 1),
+          },
+          scale: {
+            x: this.getFloatChild(scaleEl, 'X', 0.5),
+            y: this.getFloatChild(scaleEl, 'Y', 0.5),
+            z: this.getFloatChild(scaleEl, 'Z', 0.5),
+          },
+          shape: 'box',
+          textureAssets: [],
+        };
+
+        if (!hasName) {
+          this.console.debug(
+            LOG_COMPONENTS.ARCHIVER,
+            `Object ${prim.id} has no <Name>; imported as "Object".`,
+          );
+        }
+
+        prims.push(prim);
       }
-
-      prims.push(prim);
+    } catch (e) {
+      this.console.captureError(
+        LOG_COMPONENTS.ARCHIVER,
+        'Error encountered during XML DOM parsing.',
+        e,
+      );
     }
 
     return prims;
+  }
+
+  private getFloatChild(
+    parent: XMLElement | null | undefined,
+    tagName: string,
+    defaultValue: number,
+  ): number {
+    if (!parent) return defaultValue;
+    const elem = parent.getElementsByTagName(tagName)[0];
+    if (!elem || elem.textContent === null || elem.textContent === undefined) {
+      return defaultValue;
+    }
+    const parsed = parseFloat(elem.textContent.trim());
+    return Number.isNaN(parsed) ? defaultValue : parsed;
   }
 }
