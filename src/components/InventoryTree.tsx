@@ -14,18 +14,6 @@ import { app } from '../linkpoint/app';
 import { useTheme } from '../context/ThemeContext.jsx';
 import FocusTrap from './FocusTrap';
 
-function useSafeTheme() {
-  try {
-    const context = useTheme();
-    if (context && context.V) {
-      return context;
-    }
-  } catch {
-    // Fallback if rendered outside ThemeProvider
-  }
-  return { V: {} as any };
-}
-
 export interface InventoryTreeProps {
   rootFolderId?: string;
   selectedId?: string;
@@ -70,7 +58,7 @@ const srOnlyStyle: React.CSSProperties = {
 
 const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
   ({ flatNode, onSelect, toggleExpand, openMenuId, setOpenMenuId, openMoveModal, announce }) => {
-    const { V } = useSafeTheme();
+    const { V } = useTheme();
     const { id, depth, isFolder, isOpen, isSelected, node } = flatNode;
     const isMenuOpen = openMenuId === id;
     const labelId = `inventory-label-${id}`;
@@ -323,7 +311,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   className,
   filter,
 }) => {
-  const { V } = useSafeTheme();
+  const { V } = useTheme();
   const [revision, setRevision] = useState(0);
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
