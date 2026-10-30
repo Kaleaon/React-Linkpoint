@@ -18,6 +18,28 @@ import {
   isFeatureVisible,
 } from '../config/featureCapabilities.js';
 
+function CapabilityBadge({ capability, size = 'small' }) {
+  if (!capability || capability === CAPABILITY_STATES.SUPPORTED) return null;
+  const isSmall = size === 'small';
+  return (
+    <span
+      className="capability-badge"
+      style={{
+        marginLeft: isSmall ? '6px' : '8px',
+        fontSize: isSmall ? '9px' : '11px',
+        padding: isSmall ? '1px 5px' : '2px 6px',
+        borderRadius: isSmall ? '3px' : '4px',
+        background: 'var(--settings-accent, #3b82f6)',
+        color: '#fff',
+        textTransform: 'uppercase',
+        fontWeight: '600',
+      }}
+    >
+      {capability}
+    </span>
+  );
+}
+
 function SwitchSetting({ id, title, description, on, onClick, devMode }) {
   if (!isFeatureVisible(id, devMode)) return null;
   const capability = getFeatureCapability(id);
@@ -28,23 +50,7 @@ function SwitchSetting({ id, title, description, on, onClick, devMode }) {
       <div>
         <strong id={`${id}-label`}>
           {title}
-          {isExperimental && (
-            <span
-              className="capability-badge"
-              style={{
-                marginLeft: '8px',
-                fontSize: '11px',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                background: 'var(--settings-accent, #3b82f6)',
-                color: '#fff',
-                textTransform: 'uppercase',
-                fontWeight: '600',
-              }}
-            >
-              {capability}
-            </span>
-          )}
+          <CapabilityBadge capability={capability} size="medium" />
         </strong>
         {isExperimental ? (
           <small>Experimental preview — requires viewer backend support.</small>
@@ -376,23 +382,7 @@ export default function Settings() {
                 label={
                   <span>
                     Graphics quality
-                    {getFeatureCapability('quality') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('quality')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('quality')} />
                   </span>
                 }
               >
@@ -425,23 +415,7 @@ export default function Settings() {
                 label={
                   <span>
                     Avatar complexity
-                    {getFeatureCapability('complexity') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('complexity')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('complexity')} />
                   </span>
                 }
               >
@@ -463,23 +437,7 @@ export default function Settings() {
                 label={
                   <span>
                     Bandwidth limit
-                    {getFeatureCapability('bandwidth') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('bandwidth')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('bandwidth')} />
                   </span>
                 }
               >
@@ -607,23 +565,7 @@ export default function Settings() {
                 label={
                   <span>
                     Translate incoming chat
-                    {getFeatureCapability('translate') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('translate')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('translate')} />
                   </span>
                 }
               >
@@ -647,23 +589,7 @@ export default function Settings() {
                 label={
                   <span>
                     Maturity rating
-                    {getFeatureCapability('maturity') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('maturity')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('maturity')} />
                   </span>
                 }
               >
@@ -810,23 +736,7 @@ export default function Settings() {
                 label={
                   <span>
                     Cache size
-                    {getFeatureCapability('cacheLimit') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('cacheLimit')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('cacheLimit')} />
                   </span>
                 }
               >
@@ -850,23 +760,7 @@ export default function Settings() {
                 label={
                   <span>
                     Cache location
-                    {getFeatureCapability('cacheLoc') !== CAPABILITY_STATES.SUPPORTED && (
-                      <span
-                        className="capability-badge"
-                        style={{
-                          marginLeft: '6px',
-                          fontSize: '9px',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                          background: 'var(--settings-accent, #3b82f6)',
-                          color: '#fff',
-                          textTransform: 'uppercase',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {getFeatureCapability('cacheLoc')}
-                      </span>
-                    )}
+                    <CapabilityBadge capability={getFeatureCapability('cacheLoc')} />
                   </span>
                 }
               >
