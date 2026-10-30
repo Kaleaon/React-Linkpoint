@@ -2,26 +2,26 @@ import React, { useEffect, useRef, useId, useImperativeHandle } from 'react';
 import { MINI_CRYSTAL } from './linkpointCrystal.js';
 
 /**
- * TeleportCrystalHero
- *
- * State-reactive Linkpoint crystal mark for the teleport modal sheet.
- * Direct DOM ref mutations scheduled via requestAnimationFrame keep VDOM
- * reconciliation off the progress tick path.
- *
- * @param {Object} props
- * @param {number} [props.stepPercent]
- * @param {string} [props.phase]
- * @param {number} [props.size]
- * @param {string} [props.idPrefix]
- * @param {React.Ref} [props.ref]
+ * @typedef {Object} TeleportCrystalHeroProps
+ * @property {number} [stepPercent]
+ * @property {string} [phase]
+ * @property {number} [size]
+ * @property {string} [idPrefix]
  */
-export default function TeleportCrystalHero({
-  stepPercent = 0,
-  phase = 'initiating',
-  size = 120,
-  idPrefix = undefined,
+
+/**
+ * @typedef {Object} TeleportCrystalHeroHandle
+ * @property {(pct: number) => void} updateProgress
+ */
+
+/**
+ * @param {TeleportCrystalHeroProps} props
+ * @param {React.ForwardedRef<TeleportCrystalHeroHandle>} ref
+ */
+function TeleportCrystalHeroRender(
+  { stepPercent = 0, phase = 'initiating', size = 120, idPrefix = undefined },
   ref,
-}) {
+) {
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `tpch-${cleanId}`;
@@ -38,11 +38,6 @@ export default function TeleportCrystalHero({
   const isFailed = phase === 'failed';
   const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
   const p = Math.min(100, Math.max(0, rawP));
-
-  // Requirement 2: Closing gap from 20px at 0% to 0px at 100%
-  const gap = 20 * (1 - p / 100);
-  const topY = -gap / 2;
-  const botY = gap / 2;
 
   // Core glow intensity reacts to progress
   const coreRadius = isFailed ? 14 : 8 + (p / 100) * 8;
@@ -67,6 +62,7 @@ export default function TeleportCrystalHero({
 
       if (containerRef.current) {
         containerRef.current.setAttribute('data-step-percent', String(validPct));
+        containerRef.current.style.setProperty('--tpch-progress', String(validPct));
       }
       if (topRef.current) {
         topRef.current.style.transform = `translateY(${curTopY.toFixed(2)}px)`;
@@ -88,14 +84,13 @@ export default function TeleportCrystalHero({
   }));
 
   useEffect(() => {
-    applyProgressDOM(p);
     return () => {
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
     };
-  }, [p, phase]);
+  }, []);
 
   return (
     <div
@@ -114,6 +109,12 @@ export default function TeleportCrystalHero({
         justifyContent: 'center',
         position: 'relative',
         margin: '0 auto',
+        '--tpch-progress': p,
+        '--tpch-gap': 'calc(20px * (1 - var(--tpch-progress) / 100))',
+        '--tpch-top-y': 'calc(var(--tpch-gap) / -2)',
+        '--tpch-bot-y': 'calc(var(--tpch-gap) / 2)',
+        '--tpch-core-radius': `${coreRadius}px`,
+        '--tpch-core-opacity': `${coreOpacity}`,
       }}
     >
       <svg
@@ -186,7 +187,7 @@ export default function TeleportCrystalHero({
           ref={botRef}
           className="tpch-bot"
           style={{
-            transform: `translateY(${botY.toFixed(2)}px)`,
+            transform: 'translateY(var(--tpch-bot-y))',
             transition: 'transform 0.3s ease-out',
           }}
         >
@@ -212,7 +213,7 @@ export default function TeleportCrystalHero({
           ref={topRef}
           className="tpch-top"
           style={{
-            transform: `translateY(${topY.toFixed(2)}px)`,
+            transform: 'translateY(var(--tpch-top-y))',
             transition: 'transform 0.3s ease-out',
           }}
         >
@@ -249,8 +250,16 @@ export default function TeleportCrystalHero({
           r={coreRadius}
           fill={`url(#${coreGlow})`}
           opacity={coreOpacity}
+          style={{
+            r: 'var(--tpch-core-radius)',
+            opacity: 'var(--tpch-core-opacity)',
+          }}
         />
       </svg>
     </div>
   );
 }
+
+const TeleportCrystalHero = React.forwardRef(TeleportCrystalHeroRender);
+
+export default React.memo(TeleportCrystalHero);

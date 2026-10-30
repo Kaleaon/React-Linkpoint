@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { app } from '../linkpoint/app.ts';
+import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
+import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import Radar from './Radar.jsx';
@@ -35,7 +37,7 @@ function Rows({ rows, icon = 'circle' }) {
   );
 }
 
-function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
+export function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
   if (friend && !app.contacts.has(friend.id)) {
     app.contacts.saveFriends([friend]);
   }
@@ -105,8 +107,6 @@ function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
       </div>
 
       <dl style={{ margin: 0, fontSize: '12px' }}>
-        <dt style={{ fontWeight: 700, color: V.ink2 }}>Resident UUID</dt>
-        <dd style={{ margin: '0 0 6px 0' }}>{friend.id}</dd>
         <dt style={{ fontWeight: 700, color: V.ink2 }}>Status</dt>
         <dd
           style={{
@@ -129,6 +129,15 @@ function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
             : ''}
         </dd>
       </dl>
+
+      <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
+        <dl style={{ margin: 0, fontSize: '11px' }}>
+          <dt style={{ fontWeight: 700, color: V.ink2 }}>Resident UUID</dt>
+          <dd style={{ margin: 0, wordBreak: 'break-all', fontFamily: 'monospace' }}>
+            {friend.id}
+          </dd>
+        </dl>
+      </CollapsibleSystemDetails>
 
       <div style={{ borderTop: `1px solid ${V.outv}`, paddingTop: 8 }}>
         <label
@@ -573,6 +582,41 @@ export function GroupsScreen() {
   const [selectedId, setSelectedId] = useState(() => groups[0]?.id || '');
   const [section, setSection] = useState('OVERVIEW');
   const [loading, setLoading] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState(() => app.groups.getActiveGroupId());
+  const [activating, setActivating] = useState(false);
+  const [lastActivateTime, setLastActivateTime] = useState(0);
+
+  useEffect(() => {
+    const handleActiveChanged = (payload) => {
+      if (payload?.groupId !== undefined) {
+        setActiveGroupId(payload.groupId);
+        setGroups(app.groups.getGroups());
+      }
+    };
+    app.groups.on('active_group_changed', handleActiveChanged);
+    slBridge.on('active_group_changed', handleActiveChanged);
+    return () => {
+      app.groups.off('active_group_changed', handleActiveChanged);
+      slBridge.off('active_group_changed', handleActiveChanged);
+    };
+  }, []);
+
+  const handleActivateGroup = async (targetId) => {
+    const now = Date.now();
+    if (activating || now - lastActivateTime < 1000) return;
+    setActivating(true);
+    setLastActivateTime(now);
+    try {
+      await app.activateGroup(targetId);
+      setActiveGroupId(targetId);
+      setGroups(app.groups.getGroups());
+      setListError('');
+    } catch (err) {
+      setListError(err?.message || 'Failed to update active group.');
+    } finally {
+      setTimeout(() => setActivating(false), 500);
+    }
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -788,7 +832,11 @@ export function GroupsScreen() {
             </div>
           ) : (
             filtered.map((group) => {
-              const active = group.id === selectedId;
+              const selectedActive = group.id === selectedId;
+              const isGroupActive =
+                Boolean(group?.id) &&
+                group.id.toLowerCase() === (activeGroupId || '').toLowerCase() &&
+                activeGroupId !== '00000000-0000-0000-0000-000000000000';
               return (
                 <button
                   key={group.id}
@@ -798,7 +846,7 @@ export function GroupsScreen() {
                     setSection('OVERVIEW');
                     setShowDetail(true);
                   }}
-                  aria-current={active ? 'true' : undefined}
+                  aria-current={selectedActive ? 'true' : undefined}
                   style={{
                     width: '100%',
                     minHeight: 52,
@@ -808,10 +856,10 @@ export function GroupsScreen() {
                     gap: 9,
                     textAlign: 'left',
                     border: 0,
-                    borderLeft: `3px solid ${active ? V.pri : 'transparent'}`,
+                    borderLeft: `3px solid ${selectedActive ? V.pri : 'transparent'}`,
                     borderRadius: V.rs,
-                    background: active ? V.priC : 'transparent',
-                    color: active ? V.onpriC : V.ink,
+                    background: selectedActive ? V.priC : 'transparent',
+                    color: selectedActive ? V.onpriC : V.ink,
                     cursor: 'pointer',
                   }}
                 >
@@ -823,29 +871,54 @@ export function GroupsScreen() {
                       display: 'grid',
                       placeItems: 'center',
                       borderRadius: V.rs,
-                      background: active ? V.pri : V.bg,
-                      color: active ? V.onpri : V.ink2,
+                      background: selectedActive ? V.pri : V.bg,
+                      color: selectedActive ? V.onpri : V.ink2,
                     }}
                   >
                     <Icon name="users-round" size={16} />
                   </span>
-                  <span style={{ minWidth: 0 }}>
-                    <strong
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span
                       style={{
-                        display: 'block',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        fontSize: 12.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        justifyContent: 'space-between',
                       }}
                     >
-                      {group.name || 'Unnamed group'}
-                    </strong>
+                      <strong
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: 12.5,
+                        }}
+                      >
+                        {group.name || 'Unnamed group'}
+                      </strong>
+                      {isGroupActive && (
+                        <span
+                          className="active-badge"
+                          style={{
+                            padding: '1px 5px',
+                            borderRadius: 3,
+                            background: V.pri,
+                            color: V.onpri,
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: '.06em',
+                            flexShrink: 0,
+                          }}
+                        >
+                          ACTIVE
+                        </span>
+                      )}
+                    </span>
                     <small
                       style={{
                         display: 'block',
                         marginTop: 3,
-                        color: active ? V.onpriC : V.ink2,
+                        color: selectedActive ? V.onpriC : V.ink2,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -909,22 +982,66 @@ export function GroupsScreen() {
                   {selected.name || 'Unnamed group'}
                 </h2>
               </div>
-              <button
-                type="button"
-                onClick={openChat}
-                style={{
-                  ...button,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  background: V.pri,
-                  borderColor: V.pri,
-                  color: V.onpri,
-                }}
-              >
-                <Icon name="message-circle" size={15} /> MESSAGE
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                {selected?.id?.toLowerCase() === (activeGroupId || '').toLowerCase() &&
+                activeGroupId !== '00000000-0000-0000-0000-000000000000' ? (
+                  <button
+                    type="button"
+                    disabled={activating}
+                    onClick={() => handleActivateGroup('00000000-0000-0000-0000-000000000000')}
+                    aria-label="Clear active group"
+                    style={{
+                      ...button,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: V.surf,
+                      borderColor: V.outv,
+                      color: V.ink,
+                      opacity: activating ? 0.6 : 1,
+                    }}
+                  >
+                    <Icon name="x-circle" size={14} style={{ color: V.err || V.ink2 }} />
+                    CLEAR ACTIVE
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={activating}
+                    onClick={() => handleActivateGroup(selected.id)}
+                    aria-label="Activate Group"
+                    style={{
+                      ...button,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: V.surf,
+                      borderColor: V.outv,
+                      color: V.ink,
+                      opacity: activating ? 0.6 : 1,
+                    }}
+                  >
+                    <Icon name="shield" size={14} style={{ color: V.pri }} />
+                    ACTIVATE GROUP
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={openChat}
+                  style={{
+                    ...button,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    background: V.pri,
+                    borderColor: V.pri,
+                    color: V.onpri,
+                  }}
+                >
+                  <Icon name="message-circle" size={15} /> MESSAGE
+                </button>
+              </div>
             </header>
             <nav
               aria-label="Group information sections"
@@ -988,6 +1105,13 @@ export function GroupsScreen() {
                   >
                     {[
                       ['YOUR TITLE', selected.title || selected.role || 'Member'],
+                      [
+                        'ACTIVE STATUS',
+                        selected?.id?.toLowerCase() === (activeGroupId || '').toLowerCase() &&
+                        activeGroupId !== '00000000-0000-0000-0000-000000000000'
+                          ? 'ACTIVE'
+                          : 'Inactive',
+                      ],
                       ['MEMBERS', selected.members ?? (members.length || '—')],
                       ['ENROLLMENT', selected.openEnrollment ? 'Open' : 'Invitation'],
                       ['JOIN FEE', `${selected.membershipFee ?? selected.joinFee ?? 0} L$`],
@@ -1302,7 +1426,7 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
               </div>
             </div>
             {isNotice && (item.hasAttachment || item.attachment) ? (
-              <NoticeAttachmentBanner notice={item} V={V} />
+              <NoticeAttachmentBanner notice={item} V={V} t={t} />
             ) : null}
           </article>
         );
@@ -1318,7 +1442,10 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V, t }) {
+function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+  const theme = useTheme();
+  const V = propV || theme.V;
+  const t = propT || theme.t;
   const [saving, setSaving] = useState(false);
   const attachment =
     notice.attachment ||

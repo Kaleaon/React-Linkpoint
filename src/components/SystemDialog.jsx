@@ -24,8 +24,24 @@ export default function SystemDialog() {
   const dialogRafIdRef = useRef(null);
 
   useEffect(() => {
+    const milestoneReached = (p) => (p >= 90 ? 4 : p >= 65 ? 3 : p >= 40 ? 2 : p >= 15 ? 1 : 0);
     const onUpdate = () => {
-      setTeleport(app.interactions.teleportSession);
+      const current = app.interactions.teleportSession;
+      setTeleport((prev) => {
+        if (!current && !prev) return null;
+        if (!current || !prev) return current;
+        if (
+          current.active !== prev.active ||
+          current.phase !== prev.phase ||
+          current.destination !== prev.destination ||
+          current.regionName !== prev.regionName ||
+          current.error !== prev.error ||
+          milestoneReached(current.stepPercent ?? 0) !== milestoneReached(prev.stepPercent ?? 0)
+        ) {
+          return current;
+        }
+        return prev;
+      });
     };
     app.interactions.on('interactions_changed', onUpdate);
     app.interactions.on('interaction_changed', onUpdate);

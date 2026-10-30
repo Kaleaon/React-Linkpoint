@@ -220,4 +220,30 @@ describe('SystemDialog Teleport Sheet', () => {
     expect(interactionChangedSpy.mock.calls.length).toBe(callsAfterStart);
     expect(app.interactions.teleportSession?.stepPercent).toBe(25);
   });
+
+  it('bails out of state updates when receiving duplicate teleport progress updates with identical stepPercent and statusText', async () => {
+    const host = await mount();
+    await act(async () => {
+      app.interactions.startTeleportSession('Lusk');
+    });
+
+    await emit('teleport_progress', {
+      phase: 'preparing',
+      percent: 50,
+      statusText: 'Connecting to region...',
+    });
+
+    expect(host.textContent).toContain('50%');
+    expect(host.textContent).toContain('Connecting to region...');
+
+    // Emit duplicate event
+    await emit('teleport_progress', {
+      phase: 'preparing',
+      percent: 50,
+      statusText: 'Connecting to region...',
+    });
+
+    expect(host.textContent).toContain('50%');
+    expect(host.textContent).toContain('Connecting to region...');
+  });
 });

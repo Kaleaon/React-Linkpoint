@@ -117,7 +117,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('will-change: transform');
-    expect(cssText).toContain('will-change: opacity');
+    expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
     expect(cssText).toContain('@keyframes corePulseR');
@@ -162,8 +162,10 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     mounted = await mountScreen(Login);
     const header = mounted.host.querySelector('header');
     expect(header).not.toBeNull();
-    const logoSvg = header?.querySelector('#linkpoint-logo-react');
+    const logoSvg = header?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
+    expect(logoSvg?.style.width).toBe('64px');
+    expect(logoSvg?.style.height).toBe('64px');
     const title = header?.querySelector('h1');
     expect(title?.textContent).toBe('LINKPOINT');
   });
@@ -199,7 +201,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
     for (const mode of modes) {
       mounted = await mountScreen(mode.Component);
-      const svg = mounted.host.querySelector('#linkpoint-logo-react') as SVGElement | null;
+      const svg = mounted.host.querySelector('svg') as SVGElement | null;
       expect(svg, `${mode.name} should render LinkpointLogo`).not.toBeNull();
       const styleHeight = svg?.style.height;
       const numericHeight = styleHeight ? parseInt(styleHeight, 10) : 0;
@@ -216,8 +218,28 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(locationBar).not.toBeNull();
     const emblem = locationBar?.querySelector('.desktop-brand-emblem');
     expect(emblem).not.toBeNull();
-    const logoSvg = emblem?.querySelector('#linkpoint-logo-react') as SVGElement | null;
+    const logoSvg = emblem?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
     expect(logoSvg?.style.height).toBe('20px');
+  });
+
+  it('ensures distinct SVG element and gradient IDs across DesktopChrome, Header, and Login', async () => {
+    mounted = await mountScreen(() => (
+      <div>
+        <DesktopChrome />
+        <StackHead title="CHAT" subtitle="Channel" scr="Chat" />
+        <Login />
+      </div>
+    ));
+
+    const svgs = Array.from(mounted.host.querySelectorAll('svg'));
+    const svgIds = svgs.map((svg) => svg.getAttribute('id')).filter(Boolean);
+    expect(new Set(svgIds).size).toBe(svgIds.length);
+
+    const gradients = Array.from(
+      mounted.host.querySelectorAll('linearGradient, radialGradient, filter'),
+    );
+    const gradientIds = gradients.map((g) => g.getAttribute('id')).filter(Boolean);
+    expect(new Set(gradientIds).size).toBe(gradientIds.length);
   });
 });

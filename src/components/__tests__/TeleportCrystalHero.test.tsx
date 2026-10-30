@@ -43,11 +43,13 @@ describe('<TeleportCrystalHero /> Component', () => {
 
   it('calculates vertical gap translateY correctly for 0%, 50%, and 100% progress', async () => {
     const host0 = await mount(<TeleportCrystalHero stepPercent={0} phase="initiating" />);
+    const hero0 = host0.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
     const top0 = host0.querySelector('.tpch-top') as HTMLElement;
     const bot0 = host0.querySelector('.tpch-bot') as HTMLElement;
 
-    expect(top0?.style.transform).toBe('translateY(-10.00px)');
-    expect(bot0?.style.transform).toBe('translateY(10.00px)');
+    expect(hero0?.style.getPropertyValue('--tpch-progress')).toBe('0');
+    expect(top0?.style.transform).toBe('translateY(var(--tpch-top-y))');
+    expect(bot0?.style.transform).toBe('translateY(var(--tpch-bot-y))');
 
     // Unmount
     await act(async () => {
@@ -56,11 +58,13 @@ describe('<TeleportCrystalHero /> Component', () => {
     });
 
     const host50 = await mount(<TeleportCrystalHero stepPercent={50} phase="preparing" />);
+    const hero50 = host50.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
     const top50 = host50.querySelector('.tpch-top') as HTMLElement;
     const bot50 = host50.querySelector('.tpch-bot') as HTMLElement;
 
-    expect(top50?.style.transform).toBe('translateY(-5.00px)');
-    expect(bot50?.style.transform).toBe('translateY(5.00px)');
+    expect(hero50?.style.getPropertyValue('--tpch-progress')).toBe('50');
+    expect(top50?.style.transform).toBe('translateY(var(--tpch-top-y))');
+    expect(bot50?.style.transform).toBe('translateY(var(--tpch-bot-y))');
 
     // Unmount
     await act(async () => {
@@ -69,11 +73,13 @@ describe('<TeleportCrystalHero /> Component', () => {
     });
 
     const host100 = await mount(<TeleportCrystalHero stepPercent={100} phase="arriving" />);
+    const hero100 = host100.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
     const top100 = host100.querySelector('.tpch-top') as HTMLElement;
     const bot100 = host100.querySelector('.tpch-bot') as HTMLElement;
 
-    expect(top100?.style.transform).toBe('translateY(0.00px)');
-    expect(bot100?.style.transform).toBe('translateY(0.00px)');
+    expect(hero100?.style.getPropertyValue('--tpch-progress')).toBe('100');
+    expect(top100?.style.transform).toBe('translateY(var(--tpch-top-y))');
+    expect(bot100?.style.transform).toBe('translateY(var(--tpch-bot-y))');
   });
 
   it('handles failure phase state correctly and renders error glow colors', async () => {
@@ -175,5 +181,23 @@ describe('<TeleportCrystalHero /> Component', () => {
 
     expect(styleEl?.textContent).toContain('prefers-reduced-motion');
     expect(styleEl?.textContent).toContain('translateY(0px)');
+  });
+
+  it('attaches imperative handle via React.forwardRef and updates DOM on updateProgress call', async () => {
+    const heroRef = { current: null as any };
+    const host = await mount(
+      <TeleportCrystalHero ref={heroRef} stepPercent={10} phase="initiating" />,
+    );
+
+    expect(heroRef.current).not.toBeNull();
+    expect(typeof heroRef.current.updateProgress).toBe('function');
+
+    await act(async () => {
+      heroRef.current.updateProgress(75);
+      await new Promise((r) => requestAnimationFrame(r));
+    });
+
+    const container = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+    expect(container.getAttribute('data-step-percent')).toBe('75');
   });
 });
