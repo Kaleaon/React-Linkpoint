@@ -180,21 +180,44 @@ export default function StateBlock({
       </div>
       {condPack?.bar && isLoading ? (
         <div
+          data-testid="state-block-progress-track"
           style={{
             width: '216px',
             height: '4px',
             borderRadius: '2px',
-            background: V.surf2 || 'rgba(255,255,255,0.1)',
+            border: '1px solid ' + (V.outv || 'var(--outv, #365047)'),
+            background: V.surf2 || 'var(--surf2, rgba(255,255,255,0.1))',
             overflow: 'hidden',
+            position: 'relative',
+            boxSizing: 'border-box',
           }}
         >
           <div
+            data-testid="state-block-progress-fill"
             style={{
               width: Math.round(condPack.bar * 100) + '%',
               height: '100%',
-              background: V.pri || '#6CFF9A',
+              background: `linear-gradient(90deg, ${V.priC || 'var(--priC, #123B27)'}, ${V.pri || 'var(--pri, #6CFF9A)'}, ${V.sec2 || 'var(--sec2, #8AD0B0)'})`,
+              position: 'relative',
+              borderRadius: '2px',
             }}
-          />
+          >
+            <div
+              data-testid="state-block-progress-glow"
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: '6px',
+                borderRadius: '50%',
+                transform: 'translateX(50%)',
+                background: `radial-gradient(circle, #ffffff 0%, ${V.pri || 'var(--pri, #6CFF9A)'} 55%, transparent 100%)`,
+                boxShadow: `0 0 6px ${V.pri || 'var(--pri, #6CFF9A)'}`,
+                pointerEvents: 'none',
+              }}
+            />
+          </div>
         </div>
       ) : null}
       {condPack?.log ? (
