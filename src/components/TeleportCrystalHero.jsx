@@ -24,15 +24,9 @@ function TeleportCrystalHero({
   const gradA = `${prefix}-grad-a`;
   const gradB = `${prefix}-grad-b`;
   const coreGlow = `${prefix}-core-glow`;
-
   const isFailed = phase === 'failed';
   const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
   const p = Math.min(100, Math.max(0, rawP));
-
-  // Requirement 2: Closing gap from 20px at 0% to 0px at 100%
-  const gap = 20 * (1 - p / 100);
-  const topY = -gap / 2;
-  const botY = gap / 2;
 
   // Core glow intensity reacts to progress
   const coreRadius = isFailed ? 14 : 8 + (p / 100) * 8;
@@ -57,6 +51,12 @@ function TeleportCrystalHero({
         justifyContent: 'center',
         position: 'relative',
         margin: '0 auto',
+        '--tpch-progress': p,
+        '--tpch-gap': 'calc(20px * (1 - var(--tpch-progress) / 100))',
+        '--tpch-top-y': 'calc(var(--tpch-gap) / -2)',
+        '--tpch-bot-y': 'calc(var(--tpch-gap) / 2)',
+        '--tpch-core-radius': `${coreRadius}px`,
+        '--tpch-core-opacity': `${coreOpacity}`,
       }}
     >
       <svg
@@ -67,21 +67,9 @@ function TeleportCrystalHero({
           height: '100%',
           display: 'block',
           overflow: 'visible',
-          '--tpch-gap': `${gap.toFixed(2)}px`,
-          '--tpch-top-y': `${topY.toFixed(2)}px`,
-          '--tpch-bot-y': `${botY.toFixed(2)}px`,
-          '--tpch-progress': `${p}%`,
         }}
       >
         <style>{`
-          .tpch-top {
-            transform: translateY(var(--tpch-top-y, ${topY.toFixed(2)}px));
-            transition: transform 0.3s ease-out;
-          }
-          .tpch-bot {
-            transform: translateY(var(--tpch-bot-y, ${botY.toFixed(2)}px));
-            transition: transform 0.3s ease-out;
-          }
           @media (prefers-reduced-motion: reduce) {
             .tpch-top,
             .tpch-bot {
@@ -140,7 +128,7 @@ function TeleportCrystalHero({
         <g
           className="tpch-bot"
           style={{
-            transform: `translateY(${botY.toFixed(2)}px)`,
+            transform: 'translateY(var(--tpch-bot-y))',
             transition: 'transform 0.3s ease-out',
           }}
         >
@@ -165,7 +153,7 @@ function TeleportCrystalHero({
         <g
           className="tpch-top"
           style={{
-            transform: `translateY(${topY.toFixed(2)}px)`,
+            transform: 'translateY(var(--tpch-top-y))',
             transition: 'transform 0.3s ease-out',
           }}
         >
@@ -201,6 +189,10 @@ function TeleportCrystalHero({
           r={coreRadius}
           fill={`url(#${coreGlow})`}
           opacity={coreOpacity}
+          style={{
+            r: 'var(--tpch-core-radius)',
+            opacity: 'var(--tpch-core-opacity)',
+          }}
         />
       </svg>
     </div>

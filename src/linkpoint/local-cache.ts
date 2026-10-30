@@ -578,24 +578,44 @@ class LocalCacheManager extends Utils.EventEmitter {
    */
   public async pruneOldTransactions(agentId: string, days = 30): Promise<void> {
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const mem = this.memoryCache.get(`txs_${agentId}`);
+    if (Array.isArray(mem)) {
+      this.memoryCache.set(
+        `txs_${agentId}`,
+        mem.filter((t: any) => t && typeof t.timestamp === 'number' && t.timestamp >= cutoff),
+      );
+    }
+
     try {
       const db = await this.initIDB();
       if (db) {
-        const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
-        const store = tx.objectStore(STORE_TRANSACTIONS);
-        const index = store.index('agentId');
-        const req = index.getAllKeys(agentId);
-        req.onsuccess = () => {
-          const keys = req.result || [];
-          for (const key of keys) {
-            const getReq = store.get(key);
-            getReq.onsuccess = () => {
-              if (getReq.result && getReq.result.timestamp < cutoff) {
-                store.delete(key);
+        await new Promise<void>((resolve) => {
+          const tx = db.transaction([STORE_TRANSACTIONS], 'readwrite');
+          const store = tx.objectStore(STORE_TRANSACTIONS);
+          const index = store.index('agentId');
+          const keyRange =
+            typeof IDBKeyRange !== 'undefined' ? IDBKeyRange.only(agentId) : (agentId as any);
+          const req = index.openCursor(keyRange);
+
+          req.onsuccess = () => {
+            const cursor = req.result;
+            if (cursor) {
+              if (
+                cursor.value &&
+                typeof cursor.value.timestamp === 'number' &&
+                cursor.value.timestamp < cutoff
+              ) {
+                cursor.delete();
               }
-            };
-          }
-        };
+              cursor.continue();
+            }
+          };
+
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+          tx.onabort = () => resolve();
+        });
       }
     } catch {
       // Ignore
