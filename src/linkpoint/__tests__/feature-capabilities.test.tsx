@@ -7,6 +7,8 @@ import {
   getFeatureCapability,
   isFeatureVisible,
 } from '../../config/featureCapabilities.js';
+import * as rootFeatureCapabilities from '../../featureCapabilities.js';
+import * as hooksFeatureCapabilities from '../../hooks/featureCapabilities.js';
 import { mountScreen, unmount, click, typeInto, buttonByText, type Mounted } from './ui-helpers';
 
 let mounted: Mounted | null = null;
@@ -35,6 +37,16 @@ describe('Feature Capability Registry', () => {
     expect(isFeatureVisible('shadows', true)).toBe(true);
     expect(isFeatureVisible('draw', false)).toBe(true);
     expect(isFeatureVisible('draw', true)).toBe(true);
+  });
+
+  it('re-exports capability helpers at root and hooks paths', () => {
+    expect(rootFeatureCapabilities.CAPABILITY_STATES).toBe(CAPABILITY_STATES);
+    expect(rootFeatureCapabilities.getFeatureCapability).toBe(getFeatureCapability);
+    expect(rootFeatureCapabilities.isFeatureVisible).toBe(isFeatureVisible);
+
+    expect(hooksFeatureCapabilities.CAPABILITY_STATES).toBe(CAPABILITY_STATES);
+    expect(hooksFeatureCapabilities.getFeatureCapability).toBe(getFeatureCapability);
+    expect(hooksFeatureCapabilities.isFeatureVisible).toBe(isFeatureVisible);
   });
 });
 
