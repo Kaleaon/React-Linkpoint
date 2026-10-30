@@ -12,6 +12,7 @@ const METHODS = new Set([
   'teleport',
   'teleportHome',
   'joinGroup',
+  'activateGroup',
   'wearItem',
   'removeWorn',
   'wearOutfit',

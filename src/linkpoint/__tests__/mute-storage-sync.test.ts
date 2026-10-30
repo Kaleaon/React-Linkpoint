@@ -7,6 +7,7 @@ import { MuteFlag, MuteList, MuteType } from '../mute-list';
 describe('Grid RPC mute sync and localStorage fallback', () => {
   beforeEach(() => {
     localStorage.clear();
+    slBridge.connected = false;
     vi.restoreAllMocks();
   });
 
@@ -94,5 +95,123 @@ describe('Grid RPC mute sync and localStorage fallback', () => {
         id: testUuid,
       }),
     );
+  });
+
+  it('standalone ChatExtended calls SLBridge RPCs when connected', async () => {
+    slBridge.connected = true;
+    const updateSpy = vi.spyOn(slBridge, 'updateMuteEntry').mockResolvedValue({ sent: true });
+    const removeSpy = vi.spyOn(slBridge, 'removeMuteEntry').mockResolvedValue({ sent: true });
+
+    const chat = new ChatExtended();
+    const testUserUuid = '87654321-4321-4321-4321-210987654321';
+    const testObjUuid = '11223344-5566-7788-9900-aabbccddeeff';
+
+    chat.muteUser(testUserUuid);
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: testUserUuid,
+        type: MuteType.AGENT,
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]')).toContain(
+      testUserUuid,
+    );
+
+    chat.muteObject(testObjUuid);
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: testObjUuid,
+        type: MuteType.OBJECT,
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]')).toContain(
+      testObjUuid,
+    );
+
+    chat.unmuteUser(testUserUuid);
+    expect(removeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: testUserUuid,
+      }),
+    );
+
+    chat.unmuteObject(testObjUuid);
+    expect(removeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: testObjUuid,
+      }),
+    );
+  });
+
+  it('offline writes stay in browser local storage without dispatching RPCs', () => {
+    slBridge.connected = false;
+    const updateSpy = vi.spyOn(slBridge, 'updateMuteEntry');
+    const removeSpy = vi.spyOn(slBridge, 'removeMuteEntry');
+
+    const chat = new ChatExtended();
+    chat.muteUser('offline-user-1');
+    chat.muteObject('offline-object-1');
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(removeSpy).not.toHaveBeenCalled();
+
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]')).toContain(
+      'offline-user-1',
+    );
+    expect(JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]')).toContain(
+      'offline-object-1',
+    );
+  });
+
+  it('grid mute list events update browser local storage with remote entries', () => {
+    const chat = new ChatExtended();
+
+    chat.reconcileGridMutes({
+      mutes: [
+        {
+          id: '12345678-aaaa-bbbb-cccc-111122223333',
+          name: 'Remote Resident',
+          type: MuteType.AGENT,
+          flags: 0,
+        },
+        {
+          id: '87654321-cccc-bbbb-aaaa-333322221111',
+          name: 'Remote Object',
+          type: MuteType.OBJECT,
+          flags: 0,
+        },
+      ],
+      legacy: ['Legacy Remote Resident'],
+    });
+
+    const storedUsers = JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]');
+    const storedObjects = JSON.parse(localStorage.getItem('linkpoint_muted_objects') || '[]');
+
+    expect(storedUsers).toContain('12345678-aaaa-bbbb-cccc-111122223333');
+    expect(storedUsers).toContain('Legacy Remote Resident');
+    expect(storedObjects).toContain('87654321-cccc-bbbb-aaaa-333322221111');
+  });
+
+  it('reconcileGridMutes handles UUID and name case differences without duplicating', () => {
+    localStorage.setItem(
+      'linkpoint_muted_users',
+      JSON.stringify(['12345678-ABCD-1234-1234-123456789012', 'Jane Doe']),
+    );
+
+    const chat = new ChatExtended();
+    chat.reconcileGridMutes({
+      mutes: [
+        {
+          id: '12345678-abcd-1234-1234-123456789012',
+          name: 'Jane Doe',
+          type: MuteType.AGENT,
+          flags: 0,
+        },
+      ],
+      legacy: ['jane doe'],
+    });
+
+    const storedUsers = JSON.parse(localStorage.getItem('linkpoint_muted_users') || '[]');
+    expect(storedUsers.length).toBe(2);
   });
 });
