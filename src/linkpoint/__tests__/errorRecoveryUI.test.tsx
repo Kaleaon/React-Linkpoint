@@ -4,9 +4,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { ErrorRecoveryService } from '../errorRecovery';
 import { ErrorRecoveryProvider } from '../../context/ErrorRecoveryContext';
+import { ThemeProvider } from '../../context/ThemeContext.jsx';
+import { AppProvider } from '../../context/AppContext.jsx';
 import { ErrorRecoveryBanner } from '../../components/ErrorRecoveryBanner';
 import { ErrorRecoveryModal } from '../../components/ErrorRecoveryModal';
+import { getErrorTranslation } from '../errorCatalog';
 import { mountScreen, unmount, click, buttonByText, Mounted } from './ui-helpers';
+import fs from 'fs';
+import path from 'path';
 
 let service: ErrorRecoveryService;
 let mounted: Mounted | null = null;
@@ -23,19 +28,36 @@ afterEach(async () => {
   service.destroy();
 });
 
-const TestApp: React.FC<{ onFallback?: (r: any) => void }> = ({ onFallback }) => {
+const TestApp: React.FC<{ onFallback?: (r: string) => void }> = ({ onFallback }) => {
   return (
-    <ErrorRecoveryProvider customService={service}>
-      <div>
-        <ErrorRecoveryBanner />
-        <main>Main Content</main>
-        <ErrorRecoveryModal onNavigateFallback={onFallback} />
-      </div>
-    </ErrorRecoveryProvider>
+    <AppProvider>
+      <ThemeProvider>
+        <ErrorRecoveryProvider customService={service}>
+          <div>
+            <ErrorRecoveryBanner />
+            <main>Main Content</main>
+            <ErrorRecoveryModal onNavigateFallback={onFallback} />
+          </div>
+        </ErrorRecoveryProvider>
+      </ThemeProvider>
+    </AppProvider>
   );
 };
 
 describe('ErrorRecovery UI Components', () => {
+  it('contains zero hardcoded hex color codes in ErrorRecoveryModal and ErrorRecoveryBanner', () => {
+    const modalPath = path.join(__dirname, '../../components/ErrorRecoveryModal.tsx');
+    const bannerPath = path.join(__dirname, '../../components/ErrorRecoveryBanner.tsx');
+
+    const modalContent = fs.readFileSync(modalPath, 'utf-8');
+    const bannerContent = fs.readFileSync(bannerPath, 'utf-8');
+
+    const hexRegex = /#[0-9a-fA-F]{3,8}/g;
+
+    expect(modalContent.match(hexRegex)).toBeNull();
+    expect(bannerContent.match(hexRegex)).toBeNull();
+  });
+
   it('renders nothing in banner when online and queue is empty', async () => {
     mounted = await mountScreen(() => <TestApp />);
     expect(mounted.host.querySelector('[data-testid="error-recovery-banner"]')).toBeNull();
@@ -60,7 +82,7 @@ describe('ErrorRecovery UI Components', () => {
     expect(loader?.getAttribute('style')).toContain('width: 16px');
   });
 
-  it('renders recovery modal when active error is set after retries fail', async () => {
+  it('renders recovery modal with human-readable error catalog translation for BACKEND_OUTAGE', async () => {
     mounted = await mountScreen(() => <TestApp />);
 
     await act(async () => {
@@ -83,9 +105,9 @@ describe('ErrorRecovery UI Components', () => {
 
     const modal = mounted.host.querySelector('[data-testid="error-recovery-modal"]');
     expect(modal).not.toBeNull();
-    expect(modal?.textContent).toContain('Service Recovery Gateway');
-    expect(modal?.textContent).toContain('BACKEND_OUTAGE');
-    expect(modal?.textContent).toContain('Backend Outage');
+    // Human-readable title and description in main view
+    expect(modal?.textContent).toContain('Connection Interrupted');
+    expect(modal?.textContent).toContain('Unable to reach Second Life servers.');
 
     // Expand telemetry log
     const viewTelemetryBtn = buttonByText(mounted.host, 'View Diagnostic Telemetry');
@@ -94,8 +116,27 @@ describe('ErrorRecovery UI Components', () => {
 
     const logViewer = mounted.host.querySelector('[data-testid="telemetry-log-viewer"]');
     expect(logViewer).not.toBeNull();
+    expect(logViewer?.textContent).toContain('BACKEND_OUTAGE');
+    expect(logViewer?.textContent).toContain('Automated Retries Attempted: 1 / 3');
     expect(logViewer?.textContent).toContain('[REDACTED]');
     expect(logViewer?.textContent).not.toContain('secretPassword');
+  });
+
+  it('translates all technical error codes into human-readable catalog items', () => {
+    const codes = [
+      'BACKEND_OUTAGE',
+      'NET_DISCONNECTED',
+      'HTTP_500',
+      'CAPS_EXHAUSTED',
+      'AUTH_EXPIRED',
+    ];
+    for (const code of codes) {
+      const translation = getErrorTranslation(code);
+      expect(translation.title).toBeTruthy();
+      expect(translation.description).toBeTruthy();
+      expect(translation.actionHint).toBeTruthy();
+      expect(translation.title).not.toEqual(code);
+    }
   });
 
   it('executes fallback navigation when user clicks return to safe home', async () => {
