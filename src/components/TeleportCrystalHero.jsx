@@ -46,7 +46,9 @@ function TeleportCrystalHeroRender(
 
   // Core glow intensity reacts to progress (scaled to 512-space)
   const coreRadius = isFailed ? (14 * 512) / 120 : (8 * 512) / 120 + (p / 100) * ((8 * 512) / 120);
-  const coreOpacity = isFailed ? 0.95 : 0.4 + (p / 100) * 0.55;
+  const coreOpacity = isFailed ? 0.95 : Number((0.4 + (p / 100) * 0.55).toFixed(4));
+  const crystalScale = isFailed ? 1 : Number((1 + (p / 100) * 0.05).toFixed(4));
+  const crystalGlowOpacity = coreOpacity;
 
   const priColor = isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)';
   const strokeColor = isFailed ? 'var(--err, #EF4444)' : 'var(--outv, #365047)';
@@ -66,10 +68,15 @@ function TeleportCrystalHeroRender(
         ? (14 * 512) / 120
         : (8 * 512) / 120 + (validPct / 100) * ((8 * 512) / 120);
       const curOpacity = isFailed ? 0.95 : 0.4 + (validPct / 100) * 0.55;
+      const curScale = isFailed ? 1 : Number((1 + (validPct / 100) * 0.05).toFixed(4));
 
       if (containerRef.current) {
         containerRef.current.setAttribute('data-step-percent', String(validPct));
         containerRef.current.style.setProperty('--tpch-progress', String(validPct));
+        containerRef.current.style.setProperty('--tpch-core-radius', `${curRadius}px`);
+        containerRef.current.style.setProperty('--tpch-core-opacity', `${curOpacity}`);
+        containerRef.current.style.setProperty('--crystal-scale', String(curScale));
+        containerRef.current.style.setProperty('--crystal-glow-opacity', String(curOpacity));
       }
       if (topRef.current) {
         topRef.current.style.transform = `translateY(${curTopY.toFixed(2)}px)`;
@@ -122,6 +129,8 @@ function TeleportCrystalHeroRender(
         '--tpch-bot-y': 'calc(var(--tpch-gap) / 2)',
         '--tpch-core-radius': `${coreRadius}px`,
         '--tpch-core-opacity': `${coreOpacity}`,
+        '--crystal-scale': `${crystalScale}`,
+        '--crystal-glow-opacity': `${crystalGlowOpacity}`,
       }}
     >
       <svg
@@ -132,6 +141,8 @@ function TeleportCrystalHeroRender(
           height: '100%',
           display: 'block',
           overflow: 'visible',
+          transform: 'scale(var(--crystal-scale, 1))',
+          transformOrigin: 'center center',
         }}
       >
         <style>{`
@@ -303,7 +314,7 @@ function TeleportCrystalHeroRender(
           opacity={coreOpacity}
           style={{
             r: 'var(--tpch-core-radius)',
-            opacity: 'var(--tpch-core-opacity)',
+            opacity: 'var(--crystal-glow-opacity, var(--tpch-core-opacity))',
           }}
         />
       </svg>

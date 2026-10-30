@@ -3,6 +3,8 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import { slBridge } from '../linkpoint/sl-bridge';
 import { Utils } from '../linkpoint/utils';
+import { isTypingTarget } from '../linkpoint/keyboard-motion';
+import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
@@ -17,6 +19,7 @@ import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
+  const { matchesBinding } = useKeybindings();
   const canvasRef = useRef(null);
   const sectionRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -157,23 +160,15 @@ export default function World3D({ desktopBackdrop = false }) {
     };
   }, []);
 
-  // Listen to keyboard shortcut (H/h to toggle overlays, Escape to deselect/toggle) and custom events
+  // Listen to keyboard shortcut (H/h or custom binding to toggle overlays, Escape to deselect/toggle) and custom events
   useEffect(() => {
     const handleKeyDown = (event) => {
-      const target = event.target;
-      const isInput =
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable);
-      if (isInput || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey)
-        return;
+      if (isTypingTarget(event.target) || event.defaultPrevented) return;
 
-      if (event.key === 'h' || event.key === 'H') {
+      if (matchesBinding(event, 'toggleOverlays')) {
         event.preventDefault();
         toggleOverlays();
-      } else if (event.key === 'Escape') {
+      } else if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) {
         if (selection) {
           event.preventDefault();
           app.world.selectObject(null);
@@ -190,7 +185,7 @@ export default function World3D({ desktopBackdrop = false }) {
       window.removeEventListener('keydown', handleKeyDown);
       app.world.off('toggle_overlays', toggleOverlays);
     };
-  }, [toggleOverlays, selection, showOverlays]);
+  }, [toggleOverlays, selection, showOverlays, matchesBinding]);
 
   useEffect(() => {
     const updateChat = () => setChatMessages([...app.chat.messages]);
@@ -205,6 +200,21 @@ export default function World3D({ desktopBackdrop = false }) {
   const spatialMessages = useMemo(() => {
     return chatMessages.filter((m) => m.type !== 'im' && m.type !== 'group').slice(-10);
   }, [chatMessages]);
+
+  const [nearbyTypingUsers, setNearbyTypingUsers] = useState([]);
+  useEffect(() => {
+    const updateTyping = () => {
+      const typing = (app.world?.nearbyUsers || []).filter((u) => u.typing);
+      setNearbyTypingUsers(typing);
+    };
+    app.world?.on?.('nearby_changed', updateTyping);
+    app.world?.on?.('typing_changed', updateTyping);
+    updateTyping();
+    return () => {
+      app.world?.off?.('nearby_changed', updateTyping);
+      app.world?.off?.('typing_changed', updateTyping);
+    };
+  }, []);
 
   const [, setAssetRevision] = useState(0);
   useEffect(() => {
@@ -392,6 +402,48 @@ export default function World3D({ desktopBackdrop = false }) {
       {/* Overlays when enabled */}
       {!desktopBackdrop && showOverlays && (
         <>
+          {/* Overhead Typing Status Banner */}
+          {nearbyTypingUsers.length > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'absolute',
+                top: isCompactViewport ? 54 : 14,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 30,
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: V.info,
+                border: `1px solid ${V.info}`,
+                borderRadius: V.rs || 6,
+                padding: '4px 12px',
+                fontSize: '11px',
+                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                pointerEvents: 'none',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: V.info,
+                }}
+              />
+              <span>
+                {nearbyTypingUsers.length === 1
+                  ? `${nearbyTypingUsers[0].name || 'Resident'} is typing…`
+                  : `${nearbyTypingUsers.length} residents are typing…`}
+              </span>
+            </div>
+          )}
+
           {/* Top-Right Quick Action Buttons */}
           <div
             style={{

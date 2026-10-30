@@ -22,6 +22,13 @@ export class PreferencesManager extends Utils.EventEmitter {
         colorPalette: 'linkpoint-blue',
       },
       notifications: { enabled: true, soundEnabled: true },
+      keybindings: {
+        singleCharShortcutsEnabled: true,
+        customBindings: {
+          toggleMouselook: 'KeyM',
+          toggleOverlays: 'KeyH',
+        },
+      },
       // Optional third-party features. Everything is off until the user turns it on in Settings.
       integrations: { google: false },
     };
@@ -37,6 +44,7 @@ export class PreferencesManager extends Utils.EventEmitter {
         graphics: { ...defaults.graphics, ...(saved.graphics || {}) },
         interface: { ...defaults.interface, ...(saved.interface || {}) },
         notifications: { ...defaults.notifications, ...(saved.notifications || {}) },
+        keybindings: { ...defaults.keybindings, ...(saved.keybindings || {}) },
         integrations: { ...defaults.integrations, ...(saved.integrations || {}) },
       };
       return;

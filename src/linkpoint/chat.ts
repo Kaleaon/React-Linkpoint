@@ -57,6 +57,8 @@ export class ChatManager extends Utils.EventEmitter {
       this.protocol.on('ChatFromSimulator', (data: any) => this.handleIncomingMessage(data));
       this.protocol.on('chat', (data: any) => this.handleIncomingMessage(data));
       this.protocol.on('im', (data: any) => this.handleIncomingMessage({ ...data, type: 'im' }));
+      this.protocol.on('typing', (data: any) => this.handleTypingEvent(data));
+      this.protocol.on('im_typing', (data: any) => this.handleTypingEvent(data));
     }
     this.loadSessions();
     this.loadChatHistory();
@@ -214,6 +216,57 @@ export class ChatManager extends Utils.EventEmitter {
   }
 
   private typingSentOverride: boolean | null = null;
+  private typingUsers: Map<string, { isTyping: boolean; name?: string; timestamp: number }> =
+    new Map();
+  private typingTimers: Map<string, any> = new Map();
+
+  public handleTypingEvent(data: any) {
+    const userId = data?.agentId || data?.fromId || data?.senderId;
+    if (!userId) return;
+    const isTyping = Boolean(
+      data?.isTyping ??
+      (data?.dialog === 41 || data?.chatType === 4 || data?.type === 'typing_start'),
+    );
+    const name = data?.fromName || data?.name || data?.sender || 'Resident';
+
+    if (this.typingTimers.has(userId)) {
+      clearTimeout(this.typingTimers.get(userId));
+      this.typingTimers.delete(userId);
+    }
+
+    if (isTyping) {
+      this.typingUsers.set(userId, { isTyping: true, name, timestamp: Date.now() });
+      const timer = setTimeout(() => {
+        this.typingUsers.delete(userId);
+        this.typingTimers.delete(userId);
+        this.emit('user_typing', { userId, name, isTyping: false });
+        this.emit('typing_updated', this.getTypingUsers());
+      }, 5000);
+      this.typingTimers.set(userId, timer);
+    } else {
+      this.typingUsers.delete(userId);
+    }
+
+    this.emit('user_typing', { userId, name, isTyping });
+    this.emit('typing_updated', this.getTypingUsers());
+  }
+
+  public getTypingUsers(): Array<{ userId: string; name: string }> {
+    const now = Date.now();
+    const active: Array<{ userId: string; name: string }> = [];
+    for (const [userId, info] of this.typingUsers.entries()) {
+      if (now - info.timestamp > 5000) {
+        this.typingUsers.delete(userId);
+        if (this.typingTimers.has(userId)) {
+          clearTimeout(this.typingTimers.get(userId));
+          this.typingTimers.delete(userId);
+        }
+      } else {
+        active.push({ userId, name: info.name || 'Resident' });
+      }
+    }
+    return active;
+  }
 
   setTypingSentEnabled(enabled: boolean) {
     this.typingSentOverride = Boolean(enabled);
@@ -472,6 +525,31 @@ export class ChatManager extends Utils.EventEmitter {
   }
 
   async handleIncomingMessage(data: any): Promise<void> {
+    const chatTypeNum = Number(data.chatType);
+    const dialogNum = Number(data.dialog);
+    if (
+      chatTypeNum === 4 ||
+      chatTypeNum === 5 ||
+      dialogNum === 41 ||
+      dialogNum === 42 ||
+      chatTypeNum === 41 ||
+      chatTypeNum === 42
+    ) {
+      const isTyping = chatTypeNum === 4 || dialogNum === 41 || chatTypeNum === 41;
+      const senderId = data.fromId || data.from || data.OwnerID || data.senderId;
+      const senderName = data.fromName || data.FromName || data.sender || 'Resident';
+      this.handleTypingEvent({
+        agentId: senderId,
+        fromName: senderName,
+        isTyping,
+      });
+      const isSpatialTyping = chatTypeNum === 4 || chatTypeNum === 5;
+      if (isSpatialTyping && this.auth?.app?.world?.setTyping) {
+        this.auth.app.world.setTyping(senderId, isTyping);
+      }
+      return;
+    }
+
     const isGroup = data.type === 'group' || data.chatType === 'group' || data.chatType === 9;
     const isIM =
       !isGroup &&
@@ -526,6 +604,9 @@ export class ChatManager extends Utils.EventEmitter {
 
     // The simulator echoes our own local chat back, possibly before sendMessage has returned.
     const myId = this.auth?.user?.id;
+    if (senderId && this.typingUsers.has(senderId)) {
+      this.handleTypingEvent({ agentId: senderId, isTyping: false });
+    }
     if (!isIM && !isGroup && myId && senderId === myId) {
       const now = Date.now();
       this.pendingEchoes = this.pendingEchoes.filter((e) => e.until > now);
