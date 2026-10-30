@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import DiagnosticsPanel from '../../screens/DiagnosticsPanel.jsx';
 import { app } from '../app';
@@ -93,5 +94,59 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
     // Toggle off
     await click(remountedBtn);
     expect(localStorage.getItem('linkpoint_diag_advanced')).toBe('false');
+  });
+
+  it('renders inline CrystalLoader during active ping probe execution', async () => {
+    const diagMock = {
+      ...app.protocol.getDiagnostics(),
+      connected: true,
+      simName: 'Test Region',
+      simAddress: '127.0.0.1:13000',
+      latencyMs: 45,
+      packetLossPct: 0.1,
+      packetsIn: 1000,
+      packetsOut: 800,
+      lastPacketTimestamp: Date.now(),
+    };
+    let resolvePing: (val: typeof diagMock) => void = () => {};
+    let isProbeClick = false;
+
+    vi.spyOn(app.protocol, 'fetchDiagnostics').mockImplementation(() => {
+      if (isProbeClick) {
+        return new Promise((resolve) => {
+          resolvePing = resolve;
+        });
+      }
+      return Promise.resolve(diagMock);
+    });
+
+    mounted = await mountScreen(DiagnosticsPanel);
+
+    const buttons = Array.from(mounted.host.querySelectorAll('button')) as HTMLButtonElement[];
+    const pingBtn = buttons.find((btn) => btn.textContent?.includes('PING PROBE'));
+    expect(pingBtn).not.toBeUndefined();
+    expect(pingBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+
+    isProbeClick = true;
+    if (pingBtn) {
+      await click(pingBtn);
+    }
+
+    const crystal = pingBtn?.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(crystal).not.toBeNull();
+    expect(crystal.getAttribute('data-variant')).toBe('inline');
+    expect(crystal.style.width).toBe('14px');
+    expect(pingBtn?.textContent).toContain('PINGING…');
+    expect(pingBtn?.disabled).toBe(true);
+
+    // Resolve ping probe
+    await act(async () => {
+      resolvePing(diagMock);
+    });
+    await vi.waitFor(() => {
+      expect(pingBtn?.textContent).toContain('PING PROBE');
+    });
+
+    expect(pingBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
   });
 });

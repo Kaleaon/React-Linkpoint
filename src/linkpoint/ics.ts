@@ -3,6 +3,8 @@
  * calendar app without a Google account (RFC 5545).
  */
 
+import { Utils } from './utils';
+
 export interface IcsEvent {
   uid: string;
   summary: string;
@@ -16,12 +18,10 @@ export interface IcsEvent {
   reminders?: number[];
 }
 
-const pad = (n: number) => String(n).padStart(2, '0');
-
 /** `YYYYMMDDTHHMMSSZ` in UTC. */
 export function icsDate(date: Date): string {
   if (!Number.isFinite(date.getTime())) throw new Error('The event time is not a valid date.');
-  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`;
+  return `${date.getUTCFullYear()}${Utils.pad(date.getUTCMonth() + 1)}${Utils.pad(date.getUTCDate())}T${Utils.pad(date.getUTCHours())}${Utils.pad(date.getUTCMinutes())}${Utils.pad(date.getUTCSeconds())}Z`;
 }
 
 /** Escape text for an iCalendar value: backslash, semicolon, comma and line breaks. */

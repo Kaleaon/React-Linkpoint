@@ -370,6 +370,21 @@ export class SLBridge extends Utils.EventEmitter {
   async sendFriendRequest(recipientId: string, message?: string) {
     await this.call('sendFriendRequest', { recipientId, message });
   }
+  async buyParcelPass(localId: number) {
+    return this.call('buyParcelPass', { localId });
+  }
+  async updateParcelProperties(data: any) {
+    return this.call('updateParcelProperties', data);
+  }
+  async buyParcel(data: { localId: number; price: number; area: number; forGroup?: boolean }) {
+    return this.call('buyParcel', data);
+  }
+  async subdivideParcel(data: { localId: number; boundaryVertices: [number, number][] }) {
+    return this.call('subdivideParcel', data);
+  }
+  async reclaimParcel(localId: number) {
+    return this.call('reclaimParcel', { localId });
+  }
 
   /** A resident's public profile picture as base64, or null when they have none. */
   async fetchProfilePhoto(

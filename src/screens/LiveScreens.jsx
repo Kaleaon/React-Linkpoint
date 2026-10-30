@@ -5,6 +5,7 @@ import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
+import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
@@ -1090,9 +1091,17 @@ export function GroupsScreen() {
               }}
             >
               {detailStatus && section !== 'NOTICES' ? (
-                <p role="status" style={{ color: V.ink2 }}>
-                  {detailStatus}
-                </p>
+                detailStatus.startsWith('Loading') ? (
+                  <SecondaryViewLoader
+                    layout="inline"
+                    label={detailStatus}
+                    style={{ marginBottom: 12 }}
+                  />
+                ) : (
+                  <p role="status" style={{ color: V.ink2 }}>
+                    {detailStatus}
+                  </p>
+                )
               ) : null}
               {section === 'OVERVIEW' ? (
                 <div style={{ display: 'grid', gap: 16, maxWidth: 720 }}>
@@ -1250,11 +1259,7 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
         </div>
       ) : null}
 
-      {isLoading ? (
-        <p role="status" style={{ color: V.ink2, margin: 0 }}>
-          {detailStatus}
-        </p>
-      ) : null}
+      {isLoading ? <SecondaryViewLoader layout="inline" label={detailStatus} /> : null}
 
       {!notices.length && !detailStatus ? (
         <div
