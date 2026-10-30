@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app';
 import Icon from '../components/Icon.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import {
   UNKNOWN,
@@ -20,6 +21,7 @@ import {
   formatLossSummary,
   formatLastUpdate,
   formatTechnicalDetails,
+  resolveStatusTone,
 } from './diagnosticsView.js';
 
 export default function DiagnosticsPanel() {
@@ -91,18 +93,16 @@ export default function DiagnosticsPanel() {
   };
 
   const isConnected = Boolean(diag.connected || app.auth.isLoggedIn());
-  const toneColor = (tone) =>
-    tone === 'ok' ? V.ok : tone === 'warn' ? '#eab308' : tone === 'err' ? V.err : V.ink2;
 
   const connStatus = formatConnectionStatus(isConnected, app.auth.user?.grid, diag.simName);
   const latency = formatLatencySummary(diag.latencyMs);
-  const latencyTone = toneColor(latency.tone);
+  const latencyTone = resolveStatusTone(V, latency.tone);
 
   const loss = formatLossSummary(diag.packetLossPct);
-  const lossTone = toneColor(loss.tone);
+  const lossTone = resolveStatusTone(V, loss.tone);
 
   const lastUpdate = formatLastUpdate(diag.lastPacketTimestamp, now);
-  const ageTone = toneColor(lastUpdate.tone);
+  const ageTone = resolveStatusTone(V, lastUpdate.tone);
 
   const region = app.world?.region;
   const gridCoords =
@@ -192,7 +192,11 @@ export default function DiagnosticsPanel() {
             opacity: isConnected ? 1 : 0.6,
           }}
         >
-          <Icon name="refresh-cw" size={13} />
+          {pinging ? (
+            <CrystalLoader size={14} variant="inline" />
+          ) : (
+            <Icon name="refresh-cw" size={13} />
+          )}
           {pinging ? 'PINGING…' : 'PING PROBE'}
         </button>
       </div>
@@ -341,7 +345,7 @@ export default function DiagnosticsPanel() {
           )}
           {latencyHistory.map((val, idx) => {
             const hPct = Math.round(((val - barMin) / hRange) * 80 + 10);
-            const tone = val < 90 ? V.ok : val < 200 ? '#eab308' : V.err;
+            const tone = resolveStatusTone(V, latencyBand(val).tone);
             return (
               <div
                 key={idx}
@@ -608,7 +612,7 @@ export default function DiagnosticsPanel() {
                 padding: '2px 8px',
                 borderRadius: V.rs,
                 background: V.surf2,
-                color: toneColor(techDetails.eventQueueTone),
+                color: resolveStatusTone(V, techDetails.eventQueueTone),
                 fontWeight: 700,
                 fontSize: 11,
               }}

@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import { TEXT_BOX_MARKER } from '../linkpoint/interactions';
 import FocusTrap from './FocusTrap.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 
 // Requests the simulator is waiting on: object dialogs (llDialog), text boxes
 // (llTextBox) and teleport offers. Shows the oldest unanswered one as a sheet.
@@ -234,9 +235,17 @@ export default function InteractionDialog() {
         {busy ? (
           <div
             role="status"
-            style={{ marginTop: 10, color: V.ink2, font: `400 11.5px/1.4 ${t.font}` }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 10,
+              color: V.ink2,
+              font: `400 11.5px/1.4 ${t.font}`,
+            }}
           >
-            {isLure ? 'Teleporting…' : 'Waiting for the grid…'}
+            <CrystalLoader size={16} variant="inline" />
+            <span>{isLure ? 'Teleporting…' : 'Waiting for the grid…'}</span>
           </div>
         ) : null}
 

@@ -302,23 +302,28 @@ export function RuleHead({ title, subtitle }) {
     <header style={{ flex: 'none', padding: '16px 16px 4px', minWidth: '24px', minHeight: '24px' }}>
       <div style={{ height: '1px', background: V.pri }} />
       <div style={{ height: '3px', borderBottom: '1px solid ' + V.pri }} />
-      <h1
+      <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '8px',
           padding: '12px 0 10px',
-          font: '600 15px/1.1 ' + t.dfont,
-          letterSpacing: V.tls,
-          color: V.priText,
-          textIndent: V.tls,
-          margin: 0,
         }}
       >
         <LinkpointLogo animated={false} showTitle={false} width={20} height={20} />
-        <span>{title}</span>
-      </h1>
+        <h1
+          style={{
+            font: '600 15px/1.1 ' + t.dfont,
+            letterSpacing: V.tls,
+            color: V.priText,
+            textIndent: V.tls,
+            margin: 0,
+          }}
+        >
+          {title}
+        </h1>
+      </div>
       <div
         style={{
           textAlign: 'center',
