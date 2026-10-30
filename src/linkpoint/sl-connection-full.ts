@@ -118,6 +118,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
       slBridge.on(from, (data: any) => this.emit(to, wrap(data)));
     forward('chat', 'ChatFromSimulator');
     forward('im', 'ChatFromSimulator', (data) => ({ ...data, chatType: 'im' }));
+    forward('typing', 'typing');
+    forward('im_typing', 'im_typing');
     forward('group-chat', 'ChatFromSimulator', (data) => ({
       ...data,
       chatType: 'group',
