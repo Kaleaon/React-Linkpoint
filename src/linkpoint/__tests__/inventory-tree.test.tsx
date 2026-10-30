@@ -15,7 +15,13 @@ async function mount(props: any = {}) {
   document.body.appendChild(host);
   const root = createRoot(host);
   await act(async () => {
-    root.render(createElement(InventoryTree, props));
+    root.render(
+      createElement(
+        AppProvider,
+        null,
+        createElement(ThemeProvider, null, createElement(InventoryTree, props)),
+      ),
+    );
   });
   mounted = { host, root };
   return host;
