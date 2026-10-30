@@ -106,12 +106,13 @@ const FALLBACK_ERROR_RECOVERY: ErrorRecoveryContextValue = {
     errorRecovery.logTelemetry(category, code, message, details),
   clearError: () => errorRecovery.clearActiveError(),
   processRetryQueue: () => errorRecovery.processRetryQueue(),
-  setOnLineStatus: (online) => errorRecovery.setOnLineStatus(online),
-        };
-        
+  setOnlineStatus: (online) => errorRecovery.setOnlineStatus(online),
+};
+
 export function useErrorRecovery(): ErrorRecoveryContextValue {
   const ctx = useContext(ErrorRecoveryContext);
   if (ctx) {
     return ctx;
   }
-  return FALLBACK_ERROR_RECOVERY
+  return FALLBACK_ERROR_RECOVERY;
+}
