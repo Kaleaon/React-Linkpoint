@@ -162,9 +162,11 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     mounted = await mountScreen(Login);
     const header = mounted.host.querySelector('header');
     expect(header).not.toBeNull();
-    const logoSvg =
-      header?.querySelector('[data-testid="linkpoint-logo-react"]') || header?.querySelector('svg');
+    const logoSvg = (header?.querySelector('[data-testid="linkpoint-logo-react"]') ||
+      header?.querySelector('svg')) as SVGElement | null;
     expect(logoSvg).not.toBeNull();
+    expect(logoSvg?.style.width).toBe('64px');
+    expect(logoSvg?.style.height).toBe('64px');
     const title = header?.querySelector('h1');
     expect(title?.textContent).toBe('LINKPOINT');
   });

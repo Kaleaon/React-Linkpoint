@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import 'fake-indexeddb/auto';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
