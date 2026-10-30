@@ -140,7 +140,7 @@ export class NoticeStore extends Utils.EventEmitter {
 
   constructor(
     private protocol: SLConnectionFull | null = null,
-    private storage: StorageLike | null = typeof localStorage !== 'undefined' ? localStorage : null,
+    private storage: StorageLike | null = Utils.storage.getLocalStorage(),
   ) {
     super();
     this.load();

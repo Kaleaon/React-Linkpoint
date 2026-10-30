@@ -115,15 +115,23 @@ export class LinkpointApp {
     this.chatExtended = new ChatExtended(this.chatAdapter);
     this.chat.setMessageFilter((message) => this.chatExtended.shouldDisplayMessage(message));
     this.groups = new GroupsManager(this.chatAdapter, this.capabilities, this.notices);
+    slBridge.on('active_group_changed', (payload: any) => {
+      if (payload?.groupId) {
+        this.groups.setActiveGroupId(payload.groupId, payload.roleId);
+      }
+    });
     this.groupNoticeSyncEngine = new GroupNoticeSyncEngine(this.groups, this.notices);
     this.syncEngine = this.groupNoticeSyncEngine;
     this.friends = new FriendsExtended(this.protocol);
     this.rlv = new RlvController(false, this.rlvEnvironment());
     this.chat.setRlv(this.rlv.handler);
     this.muteList = new MuteList({
-      update: (entry) => slBridge.updateMuteEntry(entry),
-      remove: (entry) => slBridge.removeMuteEntry(entry),
-      request: () => slBridge.requestMuteList(),
+      update: (entry) =>
+        slBridge.connected ? slBridge.updateMuteEntry(entry) : Promise.resolve({ sent: false }),
+      remove: (entry) =>
+        slBridge.connected ? slBridge.removeMuteEntry(entry) : Promise.resolve({ sent: false }),
+      request: () =>
+        slBridge.connected ? slBridge.requestMuteList() : Promise.resolve({ requested: false }),
     });
     this.chatExtended.attachGridMuteList(this.muteList, (id) => this.nameOfObjectOrAvatar(id));
     this.audio.setPolicy({
@@ -208,6 +216,7 @@ export class LinkpointApp {
       sendInstantMessage: (recipientId: string, text: string) => {
         void this.protocol.sendInstantMessage(recipientId, text).catch(() => {});
       },
+      activeGroupName: () => this.groups.getActiveGroup()?.name || null,
     };
   }
 
@@ -292,7 +301,10 @@ export class LinkpointApp {
     this.protocol.on('scene:voice-neighbors', (data: any) =>
       this.voice.setNeighborRegions(data?.neighbors ?? []),
     );
-    this.protocol.on('scene:mute-list', (data: any) => this.muteList.load(data));
+    this.protocol.on('scene:mute-list', (data: any) => {
+      this.muteList.load(data);
+      this.chatExtended.reconcileGridMutes(data);
+    });
     this.protocol.on('connected', () => {
       const agentId = this.protocol.agentId || '';
       this.muteList.setSelfId(agentId);
@@ -499,6 +511,29 @@ export class LinkpointApp {
   async loadOutfit() {
     if (!this.auth.isLoggedIn() || !slBridge.connected) return { items: [], outfits: [] };
     return slBridge.fetchOutfit();
+  }
+
+  async activateGroup(groupId: string, roleId?: string) {
+    const targetGroupId = groupId ? groupId.trim() : '00000000-0000-0000-0000-000000000000';
+    const targetRoleId = roleId ? roleId.trim() : '00000000-0000-0000-0000-000000000000';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetRoleId)) {
+      throw new Error(`Invalid role ID format: ${targetRoleId}`);
+    }
+
+    if (slBridge.connected) {
+      await slBridge.activateGroup({ groupId: targetGroupId, roleId: targetRoleId });
+    }
+    this.groups.setActiveGroupId(targetGroupId, targetRoleId);
+    return { success: true, groupId: targetGroupId, roleId: targetRoleId };
+  }
+
+  async clearActiveGroup() {
+    return this.activateGroup('00000000-0000-0000-0000-000000000000');
   }
 
   async loadGroups() {
