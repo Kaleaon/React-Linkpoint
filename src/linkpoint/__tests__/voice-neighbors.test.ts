@@ -4,10 +4,12 @@ import { slBridge } from '../sl-bridge';
 import {
   PF_ALLOW_VOICE_CHAT,
   PF_USE_ESTATE_VOICE_CHAN,
+  buildSpatialGridIndex,
   chooseSpatialChannel,
   neighborsToJoin,
   regionHandleFor,
   sameSpatialChoice,
+  spatialGridKey,
 } from '../voice-protocol';
 
 vi.mock('../sl-bridge', () => ({
@@ -89,6 +91,59 @@ describe('neighborsToJoin (updateNeighboringRegions)', () => {
     // 100 * 0.707 = 70.7 m east and north of (256190, 256450) is (256260.7, 256520.7): inside the north-east region
     expect(neighborsToJoin([256190, 256450, 0], corner, HOME_HANDLE)).toEqual(['ne']);
     expect(neighborsToJoin([256180, 256440, 0], corner, HOME_HANDLE)).toEqual([]);
+  });
+});
+
+describe('spatial grid key indexing and buildSpatialGridIndex', () => {
+  it('computes spatial grid keys correctly for given coordinates and cell sizes', () => {
+    expect(spatialGridKey(0, 0, 256)).toBe('0,0');
+    expect(spatialGridKey(256000, 256512, 256)).toBe('1000,1002');
+    expect(spatialGridKey(-10, -50, 256)).toBe('-1,-1');
+  });
+
+  it('builds spatial grid index mapping regions to their grid cell buckets', () => {
+    const known = [
+      { handle: NORTH_HANDLE, originX: 256000, originY: 256512 },
+      { handle: regionHandleFor([255744, 256256]), originX: 255744, originY: 256256 },
+    ];
+    const index = buildSpatialGridIndex(known, 256);
+    expect(index.get('1000,1002')).toEqual([known[0]]);
+    expect(index.get('999,1001')).toEqual([known[1]]);
+  });
+
+  it('populates multiple grid cell buckets for non-grid-aligned or multi-cell regions', () => {
+    const nonAlignedRegion = { handle: 'non-aligned', originX: 256100, originY: 256100 };
+    const index = buildSpatialGridIndex([nonAlignedRegion], 256);
+    expect(index.get('1000,1000')).toContain(nonAlignedRegion);
+    expect(index.get('1001,1000')).toContain(nonAlignedRegion);
+    expect(index.get('1000,1001')).toContain(nonAlignedRegion);
+    expect(index.get('1001,1001')).toContain(nonAlignedRegion);
+  });
+
+  it('gives identical results for array and spatial index inputs in neighborsToJoin', () => {
+    const known = [
+      { handle: NORTH_HANDLE, originX: 256000, originY: 256512 },
+      { handle: regionHandleFor([255744, 256256]), originX: 255744, originY: 256256 },
+      { handle: regionHandleFor([256256, 256256]), originX: 256256, originY: 256256 },
+      { handle: regionHandleFor([256000, 256000]), originX: 256000, originY: 256000 },
+      { handle: 'non-aligned', originX: 256100, originY: 256100 },
+    ];
+    const index = buildSpatialGridIndex(known, 256);
+
+    const testPositions: Array<[number, number, number]> = [
+      [256150, 256482, 25],
+      [256010, 256490, 25],
+      [256128, 256384, 25],
+      [256190, 256450, 0],
+      [256250, 256250, 10],
+      [256050, 256050, 5],
+    ];
+
+    for (const pos of testPositions) {
+      const fromArray = neighborsToJoin(pos, known, HOME_HANDLE).sort();
+      const fromIndex = neighborsToJoin(pos, index, HOME_HANDLE).sort();
+      expect(fromIndex).toEqual(fromArray);
+    }
   });
 });
 

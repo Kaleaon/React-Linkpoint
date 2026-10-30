@@ -55,7 +55,7 @@ export function SkeletonCard({ height = '120px', style = {} }) {
       aria-label="Loading asset container..."
     >
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <SkeletonBox width="24px" height="24px" borderRadius="4px" />
+        <CrystalLoader size={24} variant="inline" />
         <SkeletonBox width="50%" height="16px" />
       </div>
       <SkeletonBox width="100%" height={height} borderRadius="6px" />
@@ -92,8 +92,18 @@ export function SkeletonAssetPlaceholder({ title = 'Loading Asset...', progress 
       <SkeletonBox width="100%" height="140px" borderRadius="6px" />
       {progress !== null && progress !== undefined && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-            <span>Downloading asset data...</span>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '11px',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <CrystalLoader size={14} variant="inline" />
+              <span>Downloading asset data...</span>
+            </span>
             <span>{Math.round(progress)}%</span>
           </div>
           <div

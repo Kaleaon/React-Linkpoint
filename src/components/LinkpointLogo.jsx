@@ -100,6 +100,7 @@ function Motes({ layer, animated, token, glowFilterUrl }) {
  * @param {string} [props.width]
  * @param {string} [props.height]
  * @param {string} [props.idPrefix]
+ * @param {string} [props.id]
  */
 export default function LinkpointLogo({
   animated = true,
@@ -107,10 +108,12 @@ export default function LinkpointLogo({
   width = '100%',
   height = 'auto',
   idPrefix = undefined,
+  id = undefined,
 }) {
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lplg-${cleanId}`;
+  const svgId = id || (idPrefix ? prefix : 'linkpoint-logo-react');
 
   const face1GradId = `${prefix}-face1`;
   const face2GradId = `${prefix}-face2`;
@@ -135,7 +138,7 @@ export default function LinkpointLogo({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
-      id={prefix}
+      id={svgId}
       viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
       style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
@@ -150,7 +153,6 @@ export default function LinkpointLogo({
         }
         .core-anim-r {
           transform-origin: 256px 256px;
-          will-change: transform, opacity;
           animation: ${animated ? `corePulseR ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .mote-rotator-group {
@@ -158,11 +160,9 @@ export default function LinkpointLogo({
           animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-near-r {
-          will-change: opacity;
           animation: ${animated ? `moteNearFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-far-r {
-          will-change: opacity;
           animation: ${animated ? `moteFarFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
 
