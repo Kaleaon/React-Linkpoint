@@ -26,6 +26,8 @@ export default function CacheScreen() {
 
   const [locType, setLocType] = useState(localCache.locationType);
   const [customPath, setCustomPath] = useState(localCache.customFlashdrivePath);
+  const customPathRef = useRef(customPath);
+  customPathRef.current = customPath;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [recoveryError, setRecoveryError] = useState(null);
@@ -116,7 +118,8 @@ export default function CacheScreen() {
     }
   };
 
-  const handleSaveCustomPath = async () => {
+  const handleSaveCustomPath = async (overridePath) => {
+    const pathToSave = overridePath !== undefined ? overridePath : customPathRef.current;
     const val = validateMountPath(customPath);
     if (!val.valid) {
       setRecoveryError({
