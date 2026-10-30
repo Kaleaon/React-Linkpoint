@@ -14,6 +14,7 @@
  */
 
 import { ATMOSPHERE_GLSL } from './atmosphere';
+import { normalize } from './sl-math';
 
 export type Vec3 = [number, number, number];
 
@@ -167,11 +168,7 @@ export function createSkyDome(subdivisions = 2): RawGeometry {
     [-t, 0, -1],
     [-t, 0, 1],
   ];
-  const normalize = (v: Vec3): Vec3 => {
-    const length = Math.hypot(v[0], v[1], v[2]);
-    return [v[0] / length, v[1] / length, v[2] / length];
-  };
-  const vertices = seed.map(normalize);
+  const vertices = seed.map((v) => normalize(v) as Vec3);
   let faces: number[][] = [
     [0, 11, 5],
     [0, 5, 1],
@@ -206,7 +203,7 @@ export function createSkyDome(subdivisions = 2): RawGeometry {
             (vertices[a][0] + vertices[b][0]) / 2,
             (vertices[a][1] + vertices[b][1]) / 2,
             (vertices[a][2] + vertices[b][2]) / 2,
-          ]),
+          ]) as Vec3,
         ) - 1;
       cache.set(key, index);
       return index;
