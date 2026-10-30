@@ -4,6 +4,7 @@ import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TouchTarget from './TouchTarget';
 import PayDialog from './PayDialog.jsx';
+import CollapsibleSystemDetails from './CollapsibleSystemDetails';
 
 export interface ObjectInspectorProps {
   style?: React.CSSProperties;
@@ -277,11 +278,6 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             color: V.ink2,
           }}
         >
-          <span>UUID:</span>
-          <span style={{ color: V.ink, wordBreak: 'break-all', fontFamily: 'monospace' }}>
-            {uuidStr}
-          </span>
-
           <span>Position:</span>
           <span style={{ color: V.ink, fontFamily: 'monospace' }}>{posStr}</span>
 
@@ -327,33 +323,51 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
         </TouchTarget>
       </div>
 
-      <div
-        style={{
-          fontWeight: 700,
-          fontSize: '10px',
-          color: V.ink2,
-          letterSpacing: '0.08em',
-          marginBottom: '6px',
-          textTransform: 'uppercase',
-        }}
-      >
-        Object Actions & Properties
-      </div>
+      <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '100px 1fr',
+            gap: '4px',
+            fontSize: '10px',
+            color: V.ink2,
+            marginBottom: '8px',
+          }}
+        >
+          <span>UUID:</span>
+          <span style={{ color: V.ink, wordBreak: 'break-all', fontFamily: 'monospace' }}>
+            {uuidStr}
+          </span>
+        </div>
 
-      <div style={{ ...cardStyle, fontSize: '10px', color: V.ink2 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span>Raycast Pickable:</span>
-          <span style={{ color: V.ok, fontWeight: 700 }}>YES</span>
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: '10px',
+            color: V.ink2,
+            letterSpacing: '0.08em',
+            marginBottom: '6px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Object Actions & Properties
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span>Material Type:</span>
-          <span style={{ color: V.ink }}>{selection.material || 'Default Wood/Stone'}</span>
+
+        <div style={{ fontSize: '10px', color: V.ink2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <span>Raycast Pickable:</span>
+            <span style={{ color: V.ok, fontWeight: 700 }}>YES</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <span>Material Type:</span>
+            <span style={{ color: V.ink }}>{selection.material || 'Default Wood/Stone'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Physics Shape:</span>
+            <span style={{ color: V.ink }}>{selection.physics || 'Convex Hull'}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Physics Shape:</span>
-          <span style={{ color: V.ink }}>{selection.physics || 'Convex Hull'}</span>
-        </div>
-      </div>
+      </CollapsibleSystemDetails>
 
       <PayDialog
         isOpen={payDialogOpen}
