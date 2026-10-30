@@ -147,4 +147,3 @@ describe('Theme Palette Exports', () => {
     expect((palettesExports as Record<string, unknown>).LEGACY_PALETTES).toBeUndefined();
   });
 });
-
