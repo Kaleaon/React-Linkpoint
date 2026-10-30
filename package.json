@@ -10,6 +10,7 @@
   "author": "Linkpoint Contributors",
   "scripts": {
     "dev": "tsx server.ts",
+    "dev:aistudio": "tsx scripts/dev-aistudio.mts",
     "start": "tsx server.ts",
     "build": "node scripts/build-wasm.mjs --check && node scripts/check-source-imports.mjs && vite build",
     "build:wasm": "node scripts/build-wasm.mjs",
