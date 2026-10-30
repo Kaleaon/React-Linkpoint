@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { app } from '../linkpoint/app.ts';
+import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
@@ -15,6 +16,7 @@ const PRESETS = [5, 10, 50, 100];
  * @param {Function} [props.onSuccess]
  */
 export default function PayDialog({ isOpen, onClose, target, onSuccess = null }) {
+  const { V, t } = useTheme();
   const [selectedPreset, setSelectedPreset] = useState(10);
   const [customAmount, setCustomAmount] = useState('');
   const [isCustom, setIsCustom] = useState(false);
@@ -117,12 +119,12 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        backgroundColor: 'transparent',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '16px',
+        pointerEvents: 'none',
       }}
     >
       <div
@@ -131,38 +133,57 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
         aria-labelledby="pay-dialog-title"
         className="pay-modal-container"
         style={{
-          backgroundColor: '#1e222d',
-          color: '#e2e8f0',
-          borderRadius: '12px',
+          pointerEvents: 'auto',
+          backgroundColor: V.surf,
+          color: V.ink,
+          fontFamily: t.font,
+          borderRadius: `${V.rl} ${V.rl} 0 0`,
+          borderTop: `2px solid ${V.pri}`,
+          borderLeft: `1px solid ${V.outv}`,
+          borderRight: `1px solid ${V.outv}`,
+          borderBottom: 'none',
           width: '100%',
           maxWidth: '420px',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5), 0 10px 10px -5px rgba(0,0,0,0.3)',
-          border: '1px solid #334155',
+          maxHeight: '86%',
+          boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.5)',
           overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         {/* Header */}
         <div
           style={{
             padding: '16px 20px',
-            borderBottom: '1px solid #334155',
+            borderBottom: `1px solid ${V.outv}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: '#181b24',
+            background: V.surf2 || V.surf,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Icon
               name={targetType === 'object' ? 'box' : 'contact'}
               size={20}
-              style={{ color: '#38bdf8' }}
+              style={{ color: V.pri }}
             />
             <div>
-              <h3 id="pay-dialog-title" style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+              <h3
+                id="pay-dialog-title"
+                style={{
+                  margin: 0,
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: V.ink,
+                  fontFamily: t.font,
+                }}
+              >
                 Pay {targetType === 'object' ? 'Object' : 'Resident'}
               </h3>
-              <small style={{ color: '#94a3b8', fontSize: '12px' }}>{targetName}</small>
+              <small style={{ color: V.ink2, fontSize: '12px', fontFamily: t.font }}>
+                {targetName}
+              </small>
             </div>
           </div>
           <button
@@ -173,10 +194,10 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: V.ink2,
               cursor: loading ? 'not-allowed' : 'pointer',
               padding: '4px',
-              borderRadius: '4px',
+              borderRadius: V.rs,
               display: 'flex',
               alignItems: 'center',
             }}
@@ -186,7 +207,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
         </div>
 
         {/* Content */}
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '20px', overflowY: 'auto' }}>
           {successTx ? (
             /* Success State */
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
@@ -195,8 +216,8 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   width: '48px',
                   height: '48px',
                   borderRadius: '50%',
-                  background: '#065f46',
-                  color: '#34d399',
+                  background: V.ok || '#065f46',
+                  color: V.onpri || '#ffffff',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -205,10 +226,19 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
               >
                 <Icon name="check" size={28} />
               </div>
-              <h4 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#34d399' }}>
+              <h4
+                style={{
+                  margin: '0 0 6px 0',
+                  fontSize: '18px',
+                  color: V.ok || '#34d399',
+                  fontFamily: t.font,
+                }}
+              >
                 Payment Successful
               </h4>
-              <p style={{ margin: '0 0 16px 0', color: '#cbd5e1', fontSize: '14px' }}>
+              <p
+                style={{ margin: '0 0 16px 0', color: V.ink, fontSize: '14px', fontFamily: t.font }}
+              >
                 Sent{' '}
                 <strong>
                   {currencySymbol} {successTx.amount}
@@ -218,12 +248,14 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
               <div
                 style={{
                   fontSize: '12px',
-                  color: '#94a3b8',
-                  background: '#181b24',
+                  color: V.ink2,
+                  background: V.bg,
                   padding: '8px 12px',
-                  borderRadius: '6px',
+                  borderRadius: V.rs,
                   marginBottom: '20px',
                   textAlign: 'left',
+                  border: `1px solid ${V.outv}`,
+                  fontFamily: t.font,
                 }}
               >
                 <div>
@@ -239,11 +271,12 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                 style={{
                   width: '100%',
                   padding: '10px',
-                  background: '#0284c7',
-                  color: '#ffffff',
+                  background: V.pri,
+                  color: V.onpri,
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: V.rs,
                   fontWeight: '600',
+                  fontFamily: t.font,
                   cursor: 'pointer',
                 }}
               >
@@ -261,16 +294,21 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   style={{
                     padding: '10px 12px',
                     backgroundColor: 'rgba(234, 179, 8, 0.15)',
-                    border: '1px solid #eab308',
-                    borderRadius: '6px',
-                    color: '#fef08a',
+                    border: `1px solid ${V.warn || '#eab308'}`,
+                    borderRadius: V.rs,
+                    color: V.warn || '#fef08a',
                     fontSize: '13px',
+                    fontFamily: t.font,
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
                   }}
                 >
-                  <Icon name="alert-circle" size={16} style={{ flexShrink: 0, color: '#eab308' }} />
+                  <Icon
+                    name="alert-circle"
+                    size={16}
+                    style={{ flexShrink: 0, color: V.warn || '#eab308' }}
+                  />
                   <span>
                     Notice: This grid operates in zero-currency mode. Payments and transactions are
                     disabled.
@@ -283,16 +321,21 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   style={{
                     padding: '10px 12px',
                     backgroundColor: 'rgba(225, 29, 72, 0.15)',
-                    border: '1px solid #f43f5e',
-                    borderRadius: '6px',
-                    color: '#fecdd3',
+                    border: `1px solid ${V.err || '#f43f5e'}`,
+                    borderRadius: V.rs,
+                    color: V.err || '#fecdd3',
                     fontSize: '13px',
+                    fontFamily: t.font,
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
                   }}
                 >
-                  <Icon name="alert-circle" size={16} style={{ flexShrink: 0, color: '#f43f5e' }} />
+                  <Icon
+                    name="alert-circle"
+                    size={16}
+                    style={{ flexShrink: 0, color: V.err || '#f43f5e' }}
+                  />
                   <span>{error}</span>
                 </div>
               )}
@@ -304,7 +347,8 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     display: 'block',
                     fontSize: '12px',
                     fontWeight: '600',
-                    color: '#94a3b8',
+                    color: V.ink2,
+                    fontFamily: t.font,
                     marginBottom: '8px',
                   }}
                 >
@@ -321,10 +365,11 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                         onClick={() => handlePresetSelect(preset)}
                         style={{
                           padding: '10px 0',
-                          borderRadius: '6px',
-                          border: active ? '2px solid #38bdf8' : '1px solid #475569',
-                          backgroundColor: active ? '#0284c7' : '#1e293b',
-                          color: active ? '#ffffff' : '#cbd5e1',
+                          borderRadius: V.rs,
+                          border: active ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                          backgroundColor: active ? V.pri : V.bg,
+                          color: active ? V.onpri : V.ink,
+                          fontFamily: t.font,
                           fontWeight: '600',
                           fontSize: '14px',
                           cursor: loading || isZeroCurrency ? 'not-allowed' : 'pointer',
@@ -348,8 +393,9 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                       left: '12px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      color: '#94a3b8',
+                      color: V.ink2,
                       fontWeight: '600',
+                      fontFamily: t.font,
                     }}
                   >
                     {currencySymbol}
@@ -365,10 +411,11 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     style={{
                       width: '100%',
                       padding: '8px 12px 8px 36px',
-                      borderRadius: '6px',
-                      border: isCustom ? '2px solid #38bdf8' : '1px solid #475569',
-                      backgroundColor: '#0f172a',
-                      color: '#f8fafc',
+                      borderRadius: V.rs,
+                      border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                      backgroundColor: V.bg,
+                      color: V.ink,
+                      fontFamily: t.font,
                       fontSize: '14px',
                       boxSizing: 'border-box',
                       outline: 'none',
@@ -390,10 +437,11 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #475569',
-                    backgroundColor: '#0f172a',
-                    color: '#f8fafc',
+                    borderRadius: V.rs,
+                    border: `1px solid ${V.outv}`,
+                    backgroundColor: V.bg,
+                    color: V.ink,
+                    fontFamily: t.font,
                     fontSize: '14px',
                     boxSizing: 'border-box',
                     outline: 'none',
@@ -411,10 +459,11 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   style={{
                     flex: 1,
                     padding: '10px',
-                    borderRadius: '6px',
-                    border: '1px solid #475569',
-                    backgroundColor: '#1e293b',
-                    color: '#cbd5e1',
+                    borderRadius: V.rs,
+                    border: `1px solid ${V.outv}`,
+                    backgroundColor: V.bg,
+                    color: V.ink,
+                    fontFamily: t.font,
                     fontWeight: '600',
                     cursor: loading ? 'not-allowed' : 'pointer',
                   }}
@@ -427,11 +476,12 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   style={{
                     flex: 2,
                     padding: '10px',
-                    borderRadius: '6px',
+                    borderRadius: V.rs,
                     border: 'none',
                     backgroundColor:
-                      loading || isZeroCurrency || currentAmount <= 0 ? '#475569' : '#0284c7',
-                    color: '#ffffff',
+                      loading || isZeroCurrency || currentAmount <= 0 ? V.outv : V.pri,
+                    color: loading || isZeroCurrency || currentAmount <= 0 ? V.ink2 : V.onpri,
+                    fontFamily: t.font,
                     fontWeight: '600',
                     cursor:
                       loading || isZeroCurrency || currentAmount <= 0 ? 'not-allowed' : 'pointer',

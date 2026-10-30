@@ -132,4 +132,17 @@ describe('<FormField /> Component', () => {
     const input = host.querySelector('input');
     expect(input?.getAttribute('aria-label')).toBe('Wrapped input');
   });
+
+  it('combines existing child aria-describedby without duplication', async () => {
+    const host = await mount(
+      <FormField label="Field" helpText="Help info">
+        <input type="text" aria-describedby="custom-desc" />
+      </FormField>,
+    );
+
+    const input = host.querySelector('input');
+    const help = host.querySelector('small');
+    const helpId = help?.getAttribute('id');
+    expect(input?.getAttribute('aria-describedby')).toBe(`custom-desc ${helpId}`);
+  });
 });

@@ -118,9 +118,7 @@ export default function FormField({
         'aria-label': ariaLabel,
         'aria-invalid': hasError ? 'true' : undefined,
         'aria-errormessage': hasError ? errorId : undefined,
-        'aria-describedby': children.props?.['aria-describedby']
-          ? `${children.props['aria-describedby']} ${describedBy || ''}`.trim()
-          : describedBy,
+        'aria-describedby': describedBy,
       })
     : children;
 
