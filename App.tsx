@@ -1,37 +1,58 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { AppProvider } from './src/context/AppContext.jsx';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext.jsx';
 
 const VIEWS = ['Login', 'World', 'Settings'];
 
-export default function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState('Login');
+  const { V } = useTheme();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: V.bg }]}>
       <View style={styles.content}>
-        <Text style={styles.text}>{currentView} Screen</Text>
+        <Text style={[styles.text, { color: V.ink }]}>{currentView} Screen</Text>
       </View>
-      <View style={styles.tabBar}>
-        {VIEWS.map((view) => (
-          <Pressable
-            key={view}
-            style={[styles.tab, currentView === view && styles.activeTab]}
-            onPress={() => setCurrentView(view)}
-          >
-            <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
-              {view}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={[styles.tabBar, { backgroundColor: V.surf, borderTopColor: V.outv }]}>
+        {VIEWS.map((view) => {
+          const active = currentView === view;
+          return (
+            <Pressable
+              key={view}
+              style={[styles.tab, active && [styles.activeTab, { borderTopColor: V.pri }]]}
+              onPress={() => setCurrentView(view)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: active ? V.pri : V.ink2 },
+                  active && styles.activeTabText,
+                ]}
+              >
+                {view}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </AppProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#100f0e',
   },
   content: {
     flex: 1,
@@ -39,15 +60,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   text: {
-    color: '#fff',
     fontSize: 20,
   },
   tabBar: {
     flexDirection: 'row',
     height: 60,
-    backgroundColor: '#1a1a1a',
     borderTopWidth: 1,
-    borderTopColor: '#333',
   },
   tab: {
     flex: 1,
@@ -56,14 +74,11 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderTopWidth: 2,
-    borderTopColor: '#4a9eff',
   },
   tabText: {
-    color: '#888',
     fontSize: 12,
   },
   activeTabText: {
-    color: '#4a9eff',
     fontWeight: 'bold',
   },
 });
