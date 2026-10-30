@@ -18,6 +18,7 @@ let mounted: Mounted | null = null;
 afterEach(async () => {
   await unmount(mounted);
   mounted = null;
+  document.getElementById('linkpoint-logo-styles')?.remove();
 });
 
 describe('Modernized CSS LinkpointLogo Component', () => {
@@ -110,9 +111,11 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(coreCircle?.getAttribute('fill')).toBe('url(#test-logo1-core-glow)');
   });
 
-  it('includes GPU compositor properties and will-change performance hints in SVG CSS', async () => {
+  it('includes GPU compositor properties and will-change performance hints in SVG CSS in document.head', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const styleEl = mounted.host.querySelector('style');
+    expect(mounted.host.querySelector('style')).toBeNull();
+
+    const styleEl = document.getElementById('linkpoint-logo-styles');
     expect(styleEl).not.toBeNull();
     const cssText = styleEl?.textContent || '';
 
@@ -127,13 +130,25 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(cssText).toContain('@keyframes moteFarFade');
   });
 
-  it('contains prefers-reduced-motion media query for accessibility', async () => {
+  it('contains prefers-reduced-motion media query for accessibility in document.head', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const styleEl = mounted.host.querySelector('style');
+    const styleEl = document.getElementById('linkpoint-logo-styles');
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('@media (prefers-reduced-motion: reduce)');
     expect(cssText).toContain('animation: none !important');
+  });
+
+  it('injects style tag into document.head only once when multiple instances are mounted', async () => {
+    mounted = await mountScreen(() => (
+      <div>
+        <LinkpointLogo />
+        <LinkpointLogo />
+      </div>
+    ));
+    const styleElements = document.querySelectorAll('style#linkpoint-logo-styles');
+    expect(styleElements).toHaveLength(1);
+    expect(mounted.host.querySelector('style')).toBeNull();
   });
 
   it('toggles title display based on showTitle prop', async () => {
