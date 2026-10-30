@@ -329,9 +329,9 @@ export default function OutfitViewer() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="shirt" size={20} style={{ color: V.pri }} />
           <div>
-            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: V.ink }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: V.ink }}>
               FULL OUTFIT VIEWER
-            </h1>
+            </h2>
             <span style={small()}>Your avatar in 3D and what you are wearing</span>
           </div>
         </div>
