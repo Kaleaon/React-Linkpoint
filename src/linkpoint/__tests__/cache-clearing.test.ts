@@ -66,3 +66,87 @@ describe('cache clearing preserves user records', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+describe('pruneOldTransactions cursor streaming', () => {
+  it('deletes expired records via cursor streaming and awaits transaction completion', async () => {
+    vi.stubGlobal('IDBKeyRange', { only: vi.fn((val: any) => val) });
+    const agentId = 'agent-123';
+    const now = Date.now();
+    const oldRecord = { id: 'old-1', agentId, timestamp: now - 40 * 24 * 60 * 60 * 1000 };
+    const newRecord = { id: 'new-1', agentId, timestamp: now - 5 * 24 * 60 * 60 * 1000 };
+
+    const records = [oldRecord, newRecord];
+    let cursorIndex = 0;
+    const deleteSpy = vi.fn();
+
+    const tx: any = {
+      oncomplete: null,
+      onerror: null,
+      onabort: null,
+    };
+
+    const req: any = {};
+    const advanceCursor = () => {
+      if (cursorIndex < records.length) {
+        const item = records[cursorIndex];
+        const cursorMock = {
+          value: item,
+          delete: () => {
+            deleteSpy(item.id);
+          },
+          continue: () => {
+            cursorIndex++;
+            queueMicrotask(() => advanceCursor());
+          },
+        };
+        req.result = cursorMock;
+        if (req.onsuccess) req.onsuccess();
+      } else {
+        req.result = null;
+        if (req.onsuccess) req.onsuccess();
+        queueMicrotask(() => {
+          if (tx.oncomplete) tx.oncomplete();
+        });
+      }
+    };
+
+    const indexMock = {
+      openCursor: vi.fn(() => {
+        queueMicrotask(() => advanceCursor());
+        return req;
+      }),
+    };
+
+    const storeMock = {
+      index: vi.fn(() => indexMock),
+    };
+
+    const transactionMock = vi.fn(() => {
+      tx.objectStore = vi.fn(() => storeMock);
+      return tx;
+    });
+
+    vi.spyOn(localCache as any, 'initIDB').mockResolvedValue({
+      transaction: transactionMock,
+    });
+
+    let finished = false;
+    const pruning = localCache.pruneOldTransactions(agentId, 30).then(() => {
+      finished = true;
+    });
+
+    expect(finished).toBe(false);
+    await pruning;
+    expect(finished).toBe(true);
+
+    expect(transactionMock).toHaveBeenCalledWith(['transactions'], 'readwrite');
+    expect(indexMock.openCursor).toHaveBeenCalled();
+    expect(deleteSpy).toHaveBeenCalledWith('old-1');
+    expect(deleteSpy).not.toHaveBeenCalledWith('new-1');
+  });
+
+  it('handles unavailable IndexedDB gracefully without throwing', async () => {
+    vi.spyOn(localCache as any, 'initIDB').mockResolvedValue(null);
+    await expect(localCache.pruneOldTransactions('agent-xyz', 30)).resolves.toBeUndefined();
+  });
+});
