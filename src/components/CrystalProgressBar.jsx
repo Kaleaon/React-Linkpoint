@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 
 /**
@@ -24,8 +24,6 @@ export function CrystalProgressBar({
   style = {},
   ariaLabel,
 }) {
-  const reactId = useId();
-  const cleanId = reactId.replace(/:/g, '');
   const { V } = useTheme?.() || { V: {} };
 
   const pri = V?.pri || 'var(--pri, #6CFF9A)';

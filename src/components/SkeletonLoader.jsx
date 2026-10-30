@@ -56,7 +56,7 @@ export function SkeletonCard({ height = '120px', style = {} }) {
       aria-label="Loading asset container..."
     >
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <SkeletonBox width="24px" height="24px" borderRadius="4px" />
+        <CrystalLoader size={24} variant="inline" />
         <SkeletonBox width="50%" height="16px" />
       </div>
       <SkeletonBox width="100%" height={height} borderRadius="6px" />

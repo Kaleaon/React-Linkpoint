@@ -351,27 +351,82 @@ export interface NeighborRegion {
   originY: number;
 }
 
+export type SpatialGridIndex = Map<string, NeighborRegion[]>;
+
+export function spatialGridKey(x: number, y: number, cellSize = 256): string {
+  const gx = Math.floor(x / cellSize);
+  const gy = Math.floor(y / cellSize);
+  return `${gx},${gy}`;
+}
+
+export function buildSpatialGridIndex(
+  known: readonly NeighborRegion[],
+  cellSize = 256,
+): SpatialGridIndex {
+  const grid: SpatialGridIndex = new Map();
+  if (!Array.isArray(known)) return grid;
+
+  for (const region of known) {
+    const minGx = Math.floor(region.originX / cellSize);
+    const maxGx = Math.floor((region.originX + cellSize - 1e-9) / cellSize);
+    const minGy = Math.floor(region.originY / cellSize);
+    const maxGy = Math.floor((region.originY + cellSize - 1e-9) / cellSize);
+
+    for (let gx = minGx; gx <= maxGx; gx++) {
+      for (let gy = minGy; gy <= maxGy; gy++) {
+        const key = `${gx},${gy}`;
+        let bucket = grid.get(key);
+        if (!bucket) {
+          bucket = [];
+          grid.set(key, bucket);
+        }
+        bucket.push(region);
+      }
+    }
+  }
+  return grid;
+}
+
 /**
  * `LLWebRTCVoiceClient::updateNeighboringRegions`: the neighbours (never the current region) that contain a point 100 m
  * from the speaker in any of eight directions. `regionWidth` is assumed 256 m for regions we know nothing else about.
  */
 export function neighborsToJoin(
   speakerGlobal: readonly [number, number, number],
-  known: readonly NeighborRegion[],
+  known: readonly NeighborRegion[] | SpatialGridIndex,
   currentHandle: string,
   regionWidth = 256,
 ): string[] {
   const wanted = new Set<string>();
+  const isIndex = typeof (known as SpatialGridIndex)?.get === 'function';
+
   for (const [dx, dy] of NEIGHBOR_DIRECTIONS) {
     const x = speakerGlobal[0] + 2 * MAX_AUDIO_DIST * dx;
     const y = speakerGlobal[1] + 2 * MAX_AUDIO_DIST * dy;
-    const region = known.find(
-      (r) =>
-        x >= r.originX &&
-        x < r.originX + regionWidth &&
-        y >= r.originY &&
-        y < r.originY + regionWidth,
-    );
+    let region: NeighborRegion | undefined;
+
+    if (isIndex) {
+      const key = spatialGridKey(x, y, regionWidth);
+      const bucket = (known as SpatialGridIndex).get(key);
+      if (bucket) {
+        region = bucket.find(
+          (r) =>
+            x >= r.originX &&
+            x < r.originX + regionWidth &&
+            y >= r.originY &&
+            y < r.originY + regionWidth,
+        );
+      }
+    } else if (Array.isArray(known)) {
+      region = (known as readonly NeighborRegion[]).find(
+        (r) =>
+          x >= r.originX &&
+          x < r.originX + regionWidth &&
+          y >= r.originY &&
+          y < r.originY + regionWidth,
+      );
+    }
+
     if (region && region.handle !== currentHandle) wanted.add(region.handle);
   }
   return [...wanted];
