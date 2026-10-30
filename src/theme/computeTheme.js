@@ -1,6 +1,6 @@
 import { LAYOUTS, PALETTES, DEVICES, computeThemeTokens } from '@linkpoint/design-system/tokens';
 import { STATES } from './constants.js';
-import { pickInk } from './color.js';
+import { inkOn } from './contrast.js';
 
 // Ported from the top of renderVals(): resolves the active layout+palette into
 // the token set `V`, the device, the console geometry, and the handful of
@@ -50,7 +50,7 @@ export function computeTheme(state, cf) {
 
   const scr = state.screen;
   const sel = (n) => scr === n;
-  const ink = (bg, candidates) => pickInk(bg, candidates);
+  const ink = (bg, candidates) => inkOn(bg, candidates);
 
   const condPack = state.cond === 'normal' ? null : STATES[state.cond][scr] || STATES[state.cond]._;
   const stateBlockActive = !!condPack && !['Login', 'Settings', 'Cache', 'Search'].includes(scr);

@@ -14,7 +14,7 @@ reconnecting forgets every restriction.
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/linkpoint/rlv-data.ts`    | Command dictionary (174 names with their `n/y`, force and reply forms, strict and deprecated flags), synonyms, anonyms and the strings from `rlva_strings.xml`                          |
 | `src/linkpoint/rlv-handler.ts` | Parser, per-object restriction table, reference counting, exceptions (strict, permissive), modifiers, `@clear`, reply and force commands, and the decisions the rest of the viewer asks |
-| `src/linkpoint/rlv.ts`         | `RlvController`, the small API `src/viewer/RlvContext.tsx` uses, now backed by the handler (it used to answer `@version` with an invented string)                                       |
+| `src/linkpoint/rlv.ts`         | `RlvController` API backed by `RlvHandler` (it used to answer `@version` with an invented string)                                                                                       |
 
 ## What is enforced
 
