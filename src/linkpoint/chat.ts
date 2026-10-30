@@ -543,7 +543,8 @@ export class ChatManager extends Utils.EventEmitter {
         fromName: senderName,
         isTyping,
       });
-      if (this.auth?.app?.world?.setTyping) {
+      const isSpatialTyping = chatTypeNum === 4 || chatTypeNum === 5;
+      if (isSpatialTyping && this.auth?.app?.world?.setTyping) {
         this.auth.app.world.setTyping(senderId, isTyping);
       }
       return;

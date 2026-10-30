@@ -182,6 +182,29 @@ describe('Typing Protocol Parity Suite', () => {
       expect(chatManager.messages).toHaveLength(1);
       expect(chatManager.getTypingUsers()).toHaveLength(0);
     });
+    it('does NOT notify world.setTyping for IM typing events (dialog 41/42)', async () => {
+      const setTypingSpy = vi.fn();
+      mockAuth.app = { world: { setTyping: setTypingSpy } };
+
+      await chatManager.handleIncomingMessage({
+        fromId: 'im-typing-agent',
+        fromName: 'Remote Resident',
+        dialog: 41,
+        message: '',
+      });
+
+      expect(setTypingSpy).not.toHaveBeenCalled();
+
+      // But spatial chat typing DOES notify world.setTyping
+      await chatManager.handleIncomingMessage({
+        fromId: 'spatial-typing-agent',
+        fromName: 'Local Resident',
+        chatType: 4,
+        message: '',
+      });
+
+      expect(setTypingSpy).toHaveBeenCalledWith('spatial-typing-agent', true);
+    });
   });
 
   describe('WorldViewer Overhead Typing Indicator & Timeout Handling', () => {

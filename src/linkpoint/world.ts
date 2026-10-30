@@ -302,10 +302,6 @@ export class WorldViewer extends Utils.EventEmitter {
       const id = data?.agentId || data?.fromId;
       if (id) this.setTyping(id, Boolean(data?.isTyping));
     });
-    this.protocol.on('im_typing', (data: any) => {
-      const id = data?.fromId || data?.agentId;
-      if (id) this.setTyping(id, Boolean(data?.isTyping));
-    });
     this.protocol.on('ParcelProperties', (data: any) => {
       const parcels = data?.ParcelData || data?.parcelData || [];
       const parcel = Array.isArray(parcels) ? parcels[0] : parcels;
