@@ -164,11 +164,7 @@ describe('InteractionDialog', () => {
     const host = await mount();
     await emit('lure', lure('l1'));
     await click(button(host, 'DECLINE'));
-    expect(decline).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'l1',
-      }),
-    );
+    expect(decline).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }));
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
