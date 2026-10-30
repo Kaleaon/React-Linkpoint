@@ -40,7 +40,7 @@ The design repo defines 6 Layout Packs, 24 Colour Packs, and 4 Device Form Facto
 
 ## 4. Second Life State Contract & Wiring Map
 
-The React hooks and context (`src/hooks/useAppState.js`, `src/viewer/ViewerContext.tsx`) bridge the visual design state with live SL connection events:
+The React hooks and context (`src/hooks/useAppState.js`, `src/context/AppContext.jsx`) bridge the visual design state with live SL connection events:
 
 ```
 +-----------------------------------------------------------+
@@ -50,7 +50,7 @@ The React hooks and context (`src/hooks/useAppState.js`, `src/viewer/ViewerConte
                               | React State / Actions
                               v
 +-----------------------------------------------------------+
-|                    src/viewer/ViewerContext                |
+|         src/context/AppContext.jsx & useAppState          |
 |           (Live SL State, Chat, Radar, Auth status)       |
 +-----------------------------+-----------------------------+
                               | Protocol Calls
@@ -68,4 +68,4 @@ The React hooks and context (`src/hooks/useAppState.js`, `src/viewer/ViewerConte
 1. Any changes to screen mockups or layouts are committed in `linkpoint-design`.
 2. When updated, the `sync-design` action or script fetches the latest `linkpoint-design` files into `React-linkpoint`.
 3. All UI design elements pass through `src/screens/`, `src/components/`, `src/theme/`, and `src/hooks/`.
-4. No direct styling overrides should break the Second Life protocol wiring contract defined in `ViewerContext`.
+4. No direct styling overrides should break the Second Life protocol wiring contract defined in `AppContext` and `useAppState`.
