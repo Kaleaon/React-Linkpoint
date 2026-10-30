@@ -20,6 +20,10 @@ export function pickProperty(source: any, ...keys: string[]): any {
 }
 
 export const Utils = {
+  pad(value: number | string, targetLength: number = 2, padString: string = '0'): string {
+    return String(value).padStart(targetLength, padString);
+  },
+
   pickProperty,
   generateUUID() {
     if (
