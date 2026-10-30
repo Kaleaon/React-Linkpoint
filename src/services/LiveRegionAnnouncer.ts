@@ -132,6 +132,8 @@ export class LiveRegionAnnouncerService {
     const targetChannel: LiveChannel = channel || this.determineChannelFromElement(element);
 
     if (!channel && element.id === 'live-region-announcer') {
+      // Legacy fallback: single container shared across all channels.
+      // Concurrent multi-channel announcements may experience rapid text collision.
       this.channelElements.status = element;
       this.channelElements.alert = element;
       this.channelElements.log = element;
