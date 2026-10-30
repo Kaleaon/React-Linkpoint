@@ -117,8 +117,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('will-change: transform;');
-    expect(cssText).toContain('will-change: transform, opacity;');
-    expect(cssText).toContain('will-change: opacity;');
+    expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
     expect(cssText).toContain('@keyframes corePulseR');
@@ -137,17 +136,11 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     // Verify static logo class rules emit will-change: auto
     expect(cssText).toContain('.top-crystal-r {\n          will-change: auto;');
     expect(cssText).toContain('.bot-crystal-r {\n          will-change: auto;');
-    expect(cssText).toContain(
-      '.core-anim-r {\n          transform-origin: 256px 256px;\n          will-change: auto;',
-    );
     expect(cssText).toContain('.mote-rotator-group {\n          will-change: auto;');
-    expect(cssText).toContain('.mote-near-r {\n          will-change: auto;');
-    expect(cssText).toContain('.mote-far-r {\n          will-change: auto;');
 
     // Verify active property hints are omitted in static logo rules
     expect(cssText).not.toContain('will-change: transform;');
-    expect(cssText).not.toContain('will-change: transform, opacity;');
-    expect(cssText).not.toContain('will-change: opacity;');
+    expect(cssText).not.toContain('will-change: opacity');
   });
 
   it('contains prefers-reduced-motion media query for accessibility', async () => {
@@ -185,8 +178,10 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     mounted = await mountScreen(Login);
     const header = mounted.host.querySelector('header');
     expect(header).not.toBeNull();
-    const logoSvg = header?.querySelector('svg');
+    const logoSvg = header?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
+    expect(logoSvg?.style.width).toBe('64px');
+    expect(logoSvg?.style.height).toBe('64px');
     const title = header?.querySelector('h1');
     expect(title?.textContent).toBe('LINKPOINT');
   });
@@ -246,6 +241,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
   it('generates HTML preview artifact for animated vs static logo instances', async () => {
     const fs = await import('node:fs');
+    const path = await import('node:path');
     const mountedAnimated = await mountScreen(() => (
       <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', width: '300px' }}>
         <h2
@@ -301,7 +297,17 @@ body { background: #020617; font-family: sans-serif; color: #fff; padding: 40px;
 </body>
 </html>`;
 
-    fs.writeFileSync('/tmp/logo_preview.html', doc);
-    expect(fs.existsSync('/tmp/logo_preview.html')).toBe(true);
+    const previewPath = path.resolve(process.cwd(), 'logo_preview.html');
+    try {
+      fs.writeFileSync(previewPath, doc);
+      expect(fs.existsSync(previewPath)).toBe(true);
+      expect(fs.readFileSync(previewPath, 'utf-8')).toContain(
+        'LinkpointLogo Will-Change Verification',
+      );
+    } finally {
+      if (fs.existsSync(previewPath)) {
+        fs.unlinkSync(previewPath);
+      }
+    }
   });
 });

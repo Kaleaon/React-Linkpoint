@@ -2,6 +2,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import ContactsScreen from '../../screens/ContactsScreen.jsx';
+import ContactAvatar from '../../components/ContactAvatar.jsx';
 import { app } from '../app';
 import {
   buttonByText,
@@ -261,6 +262,48 @@ describe('Contacts screen', () => {
       await click(buttonByText(mounted.host, 'COPY ALL TO GOOGLE'));
       await flush();
       expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain('Popup closed');
+    });
+  });
+
+  describe('ContactAvatar accessibility prop binding', () => {
+    it('renders photo avatar with name as alt when alt is undefined', async () => {
+      const avatarMounted = await mountScreen(() => (
+        <ContactAvatar name="Jane Doe" photo="data:image/png;base64,abc" />
+      ));
+      const img = avatarMounted.host.querySelector('img');
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute('alt')).toBe('Jane Doe');
+      await unmount(avatarMounted);
+    });
+
+    it('renders photo avatar with empty alt when alt="" is passed', async () => {
+      const avatarMounted = await mountScreen(() => (
+        <ContactAvatar name="Jane Doe" photo="data:image/png;base64,abc" alt="" />
+      ));
+      const img = avatarMounted.host.querySelector('img');
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute('alt')).toBe('');
+      await unmount(avatarMounted);
+    });
+
+    it('renders initials fallback with role="img" and aria-label when alt is undefined', async () => {
+      const avatarMounted = await mountScreen(() => <ContactAvatar name="Jane Doe" />);
+      const span = avatarMounted.host.querySelector('span');
+      expect(span).not.toBeNull();
+      expect(span?.getAttribute('role')).toBe('img');
+      expect(span?.getAttribute('aria-label')).toBe('Jane Doe');
+      expect(span?.getAttribute('aria-hidden')).toBeNull();
+      await unmount(avatarMounted);
+    });
+
+    it('renders initials fallback with aria-hidden="true" when alt="" is passed', async () => {
+      const avatarMounted = await mountScreen(() => <ContactAvatar name="Jane Doe" alt="" />);
+      const span = avatarMounted.host.querySelector('span');
+      expect(span).not.toBeNull();
+      expect(span?.getAttribute('aria-hidden')).toBe('true');
+      expect(span?.getAttribute('role')).toBeNull();
+      expect(span?.getAttribute('aria-label')).toBeNull();
+      await unmount(avatarMounted);
     });
   });
 });

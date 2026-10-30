@@ -6,15 +6,19 @@ import { computeTheme } from '../theme/computeTheme.js';
 /** @type {import("react").Context<ThemeContextValue | null>} */
 const ThemeContext = createContext(null);
 
+const DEFAULT_THEME = computeTheme(
+  { layout: 'terminal', palette: 'ink', device: 'ios', cond: 'normal', screen: 'Chat' },
+  () => ({}),
+);
+
 /** @param {{ children?: import("react").ReactNode }} props */
 export function ThemeProvider({ children }) {
   const { state, actions } = useApp();
-  const theme = useMemo(() => computeTheme(state, actions.cf), [state, actions.cf]);
+  const theme = useMemo(() => computeTheme(state, actions?.cf || (() => ({}))), [state, actions]);
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used inside <ThemeProvider>');
-  return ctx;
+  return ctx || DEFAULT_THEME;
 }
