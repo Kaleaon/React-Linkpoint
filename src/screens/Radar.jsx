@@ -45,6 +45,7 @@ export default function Radar() {
   useEffect(() => {
     const handleObjectsChanged = (items) => setLiveObjects([...items]);
     const handleNearbyChanged = (items) => setLiveNearby([...items]);
+    const handleTypingChanged = () => setLiveNearby([...(app.world?.nearbyUsers || [])]);
     const handleSpeaking = (data) => {
       const map = {};
       if (Array.isArray(data?.speakers)) {
@@ -57,11 +58,13 @@ export default function Radar() {
 
     app.world?.on?.('objects_changed', handleObjectsChanged);
     app.world?.on?.('nearby_changed', handleNearbyChanged);
+    app.world?.on?.('typing_changed', handleTypingChanged);
     app.voice?.on?.('speaking', handleSpeaking);
 
     return () => {
       app.world?.off?.('objects_changed', handleObjectsChanged);
       app.world?.off?.('nearby_changed', handleNearbyChanged);
+      app.world?.off?.('typing_changed', handleTypingChanged);
       app.voice?.off?.('speaking', handleSpeaking);
     };
   }, []);

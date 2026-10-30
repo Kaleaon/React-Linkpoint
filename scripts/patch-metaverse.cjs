@@ -330,6 +330,148 @@ function applyPatches(options = {}) {
       );
     }
   }
+
+  // 8. AgentTyping.js: register AgentTyping packet serializer in node-metaverse
+  const messagesDir = path.join(
+    __dirname,
+    '../node_modules/@caspertech/node-metaverse/dist/lib/classes/messages',
+  );
+  if (fs.existsSync(messagesDir)) {
+    const agentTypingPath = path.join(messagesDir, 'AgentTyping.js');
+    const agentTypingCode = `"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AgentTypingMessage = void 0;
+const UUID_1 = require("../UUID");
+const MessageFlags_1 = require("../../enums/MessageFlags");
+const Message_1 = require("../../enums/Message");
+class AgentTypingMessage {
+    constructor() {
+        this.name = 'AgentTyping';
+        this.messageFlags = MessageFlags_1.MessageFlags.FrequencyLow;
+        this.id = Message_1.Message.AgentTyping || 4294901782;
+    }
+    getSize() {
+        return 33;
+    }
+    writeToBuffer(buf, pos) {
+        const startPos = pos;
+        if (this.AgentData && this.AgentData['AgentID'] && typeof this.AgentData['AgentID'].writeToBuffer === 'function') {
+            this.AgentData['AgentID'].writeToBuffer(buf, pos);
+        } else {
+            new UUID_1.UUID(this.AgentData?.AgentID || UUID_1.UUID.zero()).writeToBuffer(buf, pos);
+        }
+        pos += 16;
+        if (this.AgentData && this.AgentData['SessionID'] && typeof this.AgentData['SessionID'].writeToBuffer === 'function') {
+            this.AgentData['SessionID'].writeToBuffer(buf, pos);
+        } else {
+            new UUID_1.UUID(this.AgentData?.SessionID || UUID_1.UUID.zero()).writeToBuffer(buf, pos);
+        }
+        pos += 16;
+        buf.writeUInt8((this.Data && this.Data['Typing']) ? 1 : 0, pos++);
+        return pos - startPos;
+    }
+    readFromBuffer(buf, pos) {
+        const startPos = pos;
+        this.AgentData = {
+            AgentID: new UUID_1.UUID(buf, pos),
+            SessionID: new UUID_1.UUID(buf, pos + 16)
+        };
+        pos += 32;
+        this.Data = {
+            Typing: (buf.readUInt8(pos++) !== 0)
+        };
+        return pos - startPos;
+    }
+}
+exports.AgentTypingMessage = AgentTypingMessage;
+`;
+    fs.writeFileSync(agentTypingPath, agentTypingCode, 'utf8');
+
+    const agentTypingDtsPath = path.join(messagesDir, 'AgentTyping.d.ts');
+    const agentTypingDtsCode = `import { UUID } from "../UUID";
+import { MessageFlags } from "../../enums/MessageFlags";
+import { Message } from "../../enums/Message";
+export class AgentTypingMessage {
+    name: string;
+    messageFlags: MessageFlags;
+    id: Message;
+    AgentData: {
+        AgentID: UUID | string;
+        SessionID: UUID | string;
+    };
+    Data: {
+        Typing: boolean;
+    };
+    getSize(): number;
+    writeToBuffer(buf: Buffer, pos: number): number;
+    readFromBuffer(buf: Buffer, pos: number): number;
+}
+`;
+    fs.writeFileSync(agentTypingDtsPath, agentTypingDtsCode, 'utf8');
+
+    const messageEnumPath = path.join(
+      __dirname,
+      '../node_modules/@caspertech/node-metaverse/dist/lib/enums/Message.js',
+    );
+    if (fs.existsSync(messageEnumPath)) {
+      let enumCode = fs.readFileSync(messageEnumPath, 'utf8');
+      if (!enumCode.includes('"AgentTyping"')) {
+        enumCode = enumCode.replace(
+          'Message[Message["SetSimStatusInDatabase"] = 4294901782] = "SetSimStatusInDatabase";',
+          'Message[Message["SetSimStatusInDatabase"] = 4294901782] = "SetSimStatusInDatabase";\n    Message[Message["AgentTyping"] = 4294901782] = "AgentTyping";',
+        );
+        fs.writeFileSync(messageEnumPath, enumCode, 'utf8');
+      }
+    }
+
+    const messageEnumDtsPath = path.join(
+      __dirname,
+      '../node_modules/@caspertech/node-metaverse/dist/lib/enums/Message.d.ts',
+    );
+    if (fs.existsSync(messageEnumDtsPath)) {
+      let enumDtsCode = fs.readFileSync(messageEnumDtsPath, 'utf8');
+      if (!enumDtsCode.includes('AgentTyping')) {
+        enumDtsCode = enumDtsCode.replace(
+          'SetSimStatusInDatabase = 4294901782,',
+          'SetSimStatusInDatabase = 4294901782,\n    AgentTyping = 4294901782,',
+        );
+        fs.writeFileSync(messageEnumDtsPath, enumDtsCode, 'utf8');
+      }
+    }
+
+    const messageClassesPath = path.join(
+      __dirname,
+      '../node_modules/@caspertech/node-metaverse/dist/lib/classes/MessageClasses.js',
+    );
+    if (fs.existsSync(messageClassesPath)) {
+      let mcCode = fs.readFileSync(messageClassesPath, 'utf8');
+      if (!mcCode.includes('AgentTyping')) {
+        mcCode = mcCode.replace(
+          '__exportStar(require("./messages/TestMessage"), exports);',
+          '__exportStar(require("./messages/TestMessage"), exports);\n__exportStar(require("./messages/AgentTyping"), exports);',
+        );
+        mcCode = mcCode.replace(
+          'function nameFromID(id) {',
+          'messages[4294901782] = "AgentTypingMessage";\nfunction nameFromID(id) {',
+        );
+        fs.writeFileSync(messageClassesPath, mcCode, 'utf8');
+      }
+    }
+
+    const messageClassesDtsPath = path.join(
+      __dirname,
+      '../node_modules/@caspertech/node-metaverse/dist/lib/classes/MessageClasses.d.ts',
+    );
+    if (fs.existsSync(messageClassesDtsPath)) {
+      let mcDtsCode = fs.readFileSync(messageClassesDtsPath, 'utf8');
+      if (!mcDtsCode.includes('AgentTyping')) {
+        mcDtsCode += '\nexport * from "./messages/AgentTyping";\n';
+        fs.writeFileSync(messageClassesDtsPath, mcDtsCode, 'utf8');
+      }
+    }
+
+    console.log('[patch-metaverse] Patched AgentTyping.js successfully in node-metaverse.');
+  }
 }
 
 module.exports = { readViewerIdentity, patchLoginIdentity, patchCapsSeedRetry, applyPatches };
