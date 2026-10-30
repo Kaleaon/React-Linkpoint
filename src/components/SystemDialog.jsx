@@ -1,10 +1,90 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { DIALOGS } from '../theme/dialogs.js';
 import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TeleportCrystalHero from './TeleportCrystalHero.jsx';
+
+const TeleportProgressDisplay = memo(function TeleportProgressDisplay({ phase, isFailed, V, t }) {
+  const [progress, setProgress] = useState(() => {
+    const session = app.interactions.teleportSession;
+    return {
+      stepPercent: session?.stepPercent ?? 0,
+      statusText: session?.statusText || 'Teleport in progress...',
+    };
+  });
+
+  useEffect(() => {
+    const onUpdate = () => {
+      const session = app.interactions.teleportSession;
+      if (session) {
+        const stepPercent = session.stepPercent ?? 0;
+        const statusText = session.statusText || 'Teleport in progress...';
+        setProgress((prev) => {
+          if (prev.stepPercent === stepPercent && prev.statusText === statusText) {
+            return prev;
+          }
+          return { stepPercent, statusText };
+        });
+      }
+    };
+    app.interactions.on('interactions_changed', onUpdate);
+    app.interactions.on('interaction_changed', onUpdate);
+    onUpdate();
+    return () => {
+      app.interactions.off('interactions_changed', onUpdate);
+      app.interactions.off('interaction_changed', onUpdate);
+    };
+  }, []);
+
+  const percent = progress.stepPercent;
+
+  return (
+    <>
+      {/* Teleport Crystal Hero */}
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
+        <TeleportCrystalHero stepPercent={percent} phase={phase} size={120} />
+      </div>
+
+      {/* Progress Bar & Percentage */}
+      <div style={{ marginTop: '12px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '6px',
+          }}
+        >
+          <span style={{ font: '500 12px/1 ' + t.font, color: V.ink2 }}>{progress.statusText}</span>
+          <span style={{ font: '700 12px/1 ' + t.font, color: isFailed ? V.err : V.pri }}>
+            {percent}%
+          </span>
+        </div>
+        <div
+          style={{
+            width: '100%',
+            height: '8px',
+            background: V.bg,
+            borderRadius: '4px',
+            overflow: 'hidden',
+            border: '1px solid ' + V.outv,
+          }}
+        >
+          <div
+            style={{
+              width: `${percent}%`,
+              height: '100%',
+              background: isFailed ? V.err : V.pri,
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
+      </div>
+    </>
+  );
+});
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -17,8 +97,24 @@ export default function SystemDialog() {
   const dlgRef = useRef(null);
 
   useEffect(() => {
+    const milestoneReached = (p) => (p >= 90 ? 4 : p >= 65 ? 3 : p >= 40 ? 2 : p >= 15 ? 1 : 0);
     const onUpdate = () => {
-      setTeleport(app.interactions.teleportSession);
+      const current = app.interactions.teleportSession;
+      setTeleport((prev) => {
+        if (!current && !prev) return null;
+        if (!current || !prev) return current;
+        if (
+          current.active !== prev.active ||
+          current.phase !== prev.phase ||
+          current.destination !== prev.destination ||
+          current.regionName !== prev.regionName ||
+          current.error !== prev.error ||
+          milestoneReached(current.stepPercent ?? 0) !== milestoneReached(prev.stepPercent ?? 0)
+        ) {
+          return current;
+        }
+        return prev;
+      });
     };
     app.interactions.on('interactions_changed', onUpdate);
     app.interactions.on('interaction_changed', onUpdate);
@@ -170,48 +266,8 @@ export default function SystemDialog() {
             {teleport.regionName || teleport.destination || 'Destination'}
           </div>
 
-          {/* Teleport Crystal Hero */}
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
-            <TeleportCrystalHero stepPercent={percent} phase={teleport.phase} size={120} />
-          </div>
-
-          {/* Progress Bar & Percentage */}
-          <div style={{ marginTop: '12px' }}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '6px',
-              }}
-            >
-              <span style={{ font: '500 12px/1 ' + t.font, color: V.ink2 }}>
-                {teleport.statusText || 'Teleport in progress...'}
-              </span>
-              <span style={{ font: '700 12px/1 ' + t.font, color: isFailed ? V.err : V.pri }}>
-                {percent}%
-              </span>
-            </div>
-            <div
-              style={{
-                width: '100%',
-                height: '8px',
-                background: V.bg,
-                borderRadius: '4px',
-                overflow: 'hidden',
-                border: '1px solid ' + V.outv,
-              }}
-            >
-              <div
-                style={{
-                  width: `${percent}%`,
-                  height: '100%',
-                  background: isFailed ? V.err : V.pri,
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
-          </div>
+          {/* Isolated Progress Tick Display Sub-Component */}
+          <TeleportProgressDisplay phase={teleport.phase} isFailed={isFailed} V={V} t={t} />
 
           {/* Phase Milestones */}
           <div
