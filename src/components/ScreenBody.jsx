@@ -2,6 +2,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
 import { HEAD } from '../data/content.js';
+import { useNavigationAnnouncer } from '../hooks/useNavigationAnnouncer.js';
 import Header from './Header.jsx';
 import SegmentedTabs from './SegmentedTabs.jsx';
 import ChipRow from './ChipRow.jsx';
@@ -55,6 +56,8 @@ export default function ScreenBody() {
     loc: state.prefs?.cacheLoc,
   });
   const screenTitle = headMap[scr]?.[0] || scr;
+
+  useNavigationAnnouncer(scr);
 
   return (
     <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>

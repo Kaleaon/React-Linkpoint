@@ -66,6 +66,15 @@ describe('ViewportCanvas Component', () => {
       window.removeEventListener('keydown', bubbled);
     }
   });
+  it('renders outer container with role="region" and aria-label="3D Viewport Navigation"', async () => {
+    const host = await mount({ regionName: 'Arah', position: [128, 128, 25] });
+    const regionDiv = host.firstElementChild as HTMLElement;
+
+    expect(regionDiv).not.toBeNull();
+    expect(regionDiv.getAttribute('role')).toBe('region');
+    expect(regionDiv.getAttribute('aria-label')).toBe('3D Viewport Navigation');
+  });
+
   it('renders canvas with ARIA attributes and tabIndex', async () => {
     const host = await mount({ regionName: 'Arah', position: [128, 128, 25] });
     const canvas = host.querySelector('canvas') as HTMLCanvasElement;
@@ -190,6 +199,10 @@ describe('ViewportCanvas Component', () => {
     const onResetView = vi.fn();
 
     const host = await mount({ onZoom, onPan, onResetView });
+
+    const overlay = host.querySelector('[aria-label="Single-pointer camera controls"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.getAttribute('role')).toBe('region');
 
     const zoomInBtn = host.querySelector('[aria-label="Zoom in"]') as HTMLButtonElement;
     const zoomOutBtn = host.querySelector('[aria-label="Zoom out"]') as HTMLButtonElement;

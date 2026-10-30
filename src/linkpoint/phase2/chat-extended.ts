@@ -17,8 +17,8 @@ const USERS_STORAGE_KEY = 'linkpoint_muted_users';
 const OBJECTS_STORAGE_KEY = 'linkpoint_muted_objects';
 
 function loadStoredMutes(key: string): Set<string> {
-  if (typeof localStorage === 'undefined') return new Set();
   try {
+    if (typeof localStorage === 'undefined') return new Set();
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -33,8 +33,8 @@ function loadStoredMutes(key: string): Set<string> {
 }
 
 function saveStoredMutes(key: string, set: Set<string>): void {
-  if (typeof localStorage === 'undefined') return;
   try {
+    if (typeof localStorage === 'undefined') return;
     localStorage.setItem(key, JSON.stringify(Array.from(set)));
   } catch (e) {
     console.warn(`[ChatExtended] Error saving ${key} to localStorage:`, e);
