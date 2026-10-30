@@ -2,6 +2,38 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Utils, pickProperty } from './utils';
 
 describe('Utils', () => {
+  describe('pad', () => {
+    it('should pad numbers with leading zeros by default to length 2', () => {
+      expect(Utils.pad(5)).toBe('05');
+      expect(Utils.pad(0)).toBe('00');
+    });
+
+    it('should return string representation unchanged if length already meets or exceeds target length', () => {
+      expect(Utils.pad(12)).toBe('12');
+      expect(Utils.pad(123)).toBe('123');
+    });
+
+    it('should pad to a custom target length', () => {
+      expect(Utils.pad(5, 4)).toBe('0005');
+      expect(Utils.pad(2026, 4)).toBe('2026');
+    });
+
+    it('should pad using a custom padding string', () => {
+      expect(Utils.pad('a', 3, ' ')).toBe('  a');
+      expect(Utils.pad(7, 3, 'x')).toBe('xx7');
+    });
+
+    it('should handle string inputs correctly', () => {
+      expect(Utils.pad('5')).toBe('05');
+      expect(Utils.pad('99')).toBe('99');
+    });
+
+    it('should handle negative numbers and floating points', () => {
+      expect(Utils.pad(-5, 4)).toBe('00-5');
+      expect(Utils.pad(3.14, 6, '0')).toBe('003.14');
+    });
+  });
+
   describe('generateUUID', () => {
     it('should generate a string of length 36', () => {
       const uuid = Utils.generateUUID();

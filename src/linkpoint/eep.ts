@@ -4,6 +4,7 @@
  * LLSettingsDay). All vectors are in Second Life world space (Z up).
  */
 
+import { slerp } from './sl-math';
 import { pickProperty } from './utils';
 
 export type Vec3 = [number, number, number];
@@ -182,32 +183,6 @@ const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
   lerp(a[2], b[2], t),
 ];
 
-export function slerp(a: Quat, b: Quat, t: number): Quat {
-  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
-  const bb: Quat = dot < 0 ? [-b[0], -b[1], -b[2], -b[3]] : b;
-  dot = Math.abs(dot);
-  if (dot > 0.9995) {
-    const q: Quat = [
-      lerp(a[0], bb[0], t),
-      lerp(a[1], bb[1], t),
-      lerp(a[2], bb[2], t),
-      lerp(a[3], bb[3], t),
-    ];
-    const n = Math.hypot(...q);
-    return [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
-  }
-  const theta = Math.acos(Math.min(1, dot));
-  const s = Math.sin(theta);
-  const wa = Math.sin((1 - t) * theta) / s,
-    wb = Math.sin(t * theta) / s;
-  return [
-    a[0] * wa + bb[0] * wb,
-    a[1] * wa + bb[1] * wb,
-    a[2] * wa + bb[2] * wb,
-    a[3] * wa + bb[3] * wb,
-  ];
-}
-
 export function blendSky(a: SkySettings, b: SkySettings, t: number): SkySettings {
   return {
     sunlightColor: lerp3(a.sunlightColor, b.sunlightColor, t),
@@ -222,8 +197,8 @@ export function blendSky(a: SkySettings, b: SkySettings, t: number): SkySettings
     glow: lerp3(a.glow, b.glow, t),
     cloudShadow: lerp(a.cloudShadow, b.cloudShadow, t),
     gamma: lerp(a.gamma, b.gamma, t),
-    sunRotation: slerp(a.sunRotation, b.sunRotation, t),
-    moonRotation: slerp(a.moonRotation, b.moonRotation, t),
+    sunRotation: slerp(t, a.sunRotation, b.sunRotation),
+    moonRotation: slerp(t, a.moonRotation, b.moonRotation),
     moonBrightness: lerp(a.moonBrightness, b.moonBrightness, t),
     starBrightness: lerp(a.starBrightness, b.starBrightness, t),
     sunScale: lerp(a.sunScale, b.sunScale, t),

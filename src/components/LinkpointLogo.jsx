@@ -154,7 +154,6 @@ export default function LinkpointLogo({
     flex: 'none',
     ...style,
   };
-
   return (
     <div
       className={className}
