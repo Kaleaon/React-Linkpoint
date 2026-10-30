@@ -401,3 +401,82 @@ describe('PayDialog inline CrystalLoader integration', () => {
     });
   });
 });
+
+describe('ErrorRecoveryModal CrystalLoader integration', () => {
+  it('renders 32px CrystalLoader in header badge and 16px inline CrystalLoader on retry button', async () => {
+    const { ErrorRecoveryProvider } = await import('../../context/ErrorRecoveryContext');
+    const { ErrorRecoveryModal } = await import('../ErrorRecoveryModal');
+    const { ErrorRecoveryService } = await import('../../linkpoint/errorRecovery');
+
+    const service = new ErrorRecoveryService();
+    let resolveRetry: () => void = () => {};
+    const retryPromise = new Promise<void>((resolve) => {
+      resolveRetry = resolve;
+    });
+
+    await act(async () => {
+      try {
+        await service.enqueueRetry({
+          action: () => Promise.reject(new Error('Connection Failed')),
+          category: 'network',
+          code: 'NET_FAIL',
+          description: 'Sync avatar state',
+          maxRetries: 1,
+        });
+      } catch {
+        // expected failure
+      }
+    });
+
+    const host = await mount(
+      createElement(ErrorRecoveryProvider, {
+        customService: service,
+        children: createElement(ErrorRecoveryModal),
+      }),
+    );
+
+    const headerBadge = host.querySelector('[data-testid="recovery-modal-header-badge"]');
+    expect(headerBadge).not.toBeNull();
+    const headerCrystal = headerBadge?.querySelector(
+      '[data-testid="crystal-loader"]',
+    ) as HTMLElement;
+    expect(headerCrystal).not.toBeNull();
+    expect(headerCrystal.style.width).toBe('32px');
+
+    (service as any).retryQueue.push({
+      id: 'pending-2',
+      action: () => retryPromise,
+      category: 'network',
+      code: 'NET_RETRY',
+      description: 'Pending sync',
+      attempts: 0,
+      maxRetries: 1,
+    });
+
+    const buttons = Array.from(host.querySelectorAll('button'));
+    const retryBtn = buttons.find((btn) =>
+      btn.textContent?.includes('Retry Operation'),
+    ) as HTMLButtonElement;
+    expect(retryBtn).not.toBeNull();
+
+    let clickPromise: Promise<void>;
+    await act(async () => {
+      clickPromise = (async () => {
+        retryBtn.click();
+      })();
+    });
+
+    expect(retryBtn.disabled).toBe(true);
+    expect(retryBtn.textContent).toContain('Retrying...');
+    const btnCrystal = retryBtn.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(btnCrystal).not.toBeNull();
+    expect(btnCrystal.style.width).toBe('16px');
+
+    await act(async () => {
+      resolveRetry();
+      await clickPromise;
+    });
+
+    service.destroy();
+  });
+});

@@ -12,31 +12,59 @@ import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
 import VoiceDevices from '../components/VoiceDevices.jsx';
 import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from '@linkpoint/design-system/tokens';
+import {
+  CAPABILITY_STATES,
+  getFeatureCapability,
+  isFeatureVisible,
+} from '../config/featureCapabilities.js';
 
-function SwitchSetting({ id, title, description, on, onClick }) {
-  const unavailable = [
-    'shadows',
-    'voice-indicator',
-    'media-auto',
-    'chat-cmds',
-    'typing',
-    'push',
-    'show-online',
-    'rlv',
-    'cache-exit',
-  ].includes(id);
+function CapabilityBadge({ capability, size = 'small' }) {
+  if (!capability || capability === CAPABILITY_STATES.SUPPORTED) return null;
+  const isSmall = size === 'small';
+  return (
+    <span
+      className="capability-badge"
+      style={{
+        marginLeft: isSmall ? '6px' : '8px',
+        fontSize: isSmall ? '9px' : '11px',
+        padding: isSmall ? '1px 5px' : '2px 6px',
+        borderRadius: isSmall ? '3px' : '4px',
+        background: 'var(--settings-accent, #3b82f6)',
+        color: '#fff',
+        textTransform: 'uppercase',
+        fontWeight: '600',
+      }}
+    >
+      {capability}
+    </span>
+  );
+}
+
+function SwitchSetting({ id, title, description, on, onClick, devMode }) {
+  if (!isFeatureVisible(id, devMode)) return null;
+  const capability = getFeatureCapability(id);
+  const isExperimental = capability !== CAPABILITY_STATES.SUPPORTED;
+
   return (
     <div className="settings-switch-row">
       <div>
-        <strong id={`${id}-label`}>{title}</strong>
-        {unavailable ? (
-          <small>Not available yet — requires viewer backend support.</small>
+        <strong id={`${id}-label`}>
+          {title}
+          <CapabilityBadge capability={capability} size="medium" />
+        </strong>
+        {isExperimental ? (
+          <small>Experimental preview — requires viewer backend support.</small>
         ) : description ? (
           <small>{description}</small>
         ) : null}
       </div>
       <AccessibleButton as="span" role="none" aria-labelledby={`${id}-label`}>
-        <Toggle aria-labelledby={`${id}-label`} on={on} onClick={onClick} disabled={unavailable} />
+        <Toggle
+          aria-labelledby={`${id}-label`}
+          on={on}
+          onClick={onClick}
+          disabled={isExperimental}
+        />
       </AccessibleButton>
     </div>
   );
@@ -77,17 +105,21 @@ export default function Settings() {
     ['integrations', 'Integrations'],
     ['about', 'About'],
   ];
+  const devMode = Boolean(state.toggles.devMode);
+
   useEffect(() => {
     let count = 0;
     for (const section of contentRef.current?.querySelectorAll(':scope > section') || []) {
-      const id = section.getAttribute('aria-labelledby').replace('-heading', '');
-      section.hidden =
-        (category !== 'all' && id !== category) ||
-        !section.textContent.toLowerCase().includes(search.trim().toLowerCase());
-      if (!section.hidden) count++;
+      const id = section.getAttribute('aria-labelledby')?.replace('-heading', '') || '';
+      const matchesCategory = category === 'all' || id === category;
+      const query = search.trim().toLowerCase();
+      const matchesSearch = !query || section.textContent.toLowerCase().includes(query);
+      const isVisible = matchesCategory && matchesSearch;
+      section.hidden = !isVisible;
+      if (isVisible) count++;
     }
     setMatches(count);
-  }, [category, search]);
+  }, [category, search, devMode]);
   const [disconnecting, setDisconnecting] = useState(false);
   const googleEnabled = useGoogleEnabled();
   const [googleNote, setGoogleNote] = useState('');
@@ -152,6 +184,7 @@ export default function Settings() {
         <FormField label="Search settings">
           <input
             type="search"
+            aria-label="Search settings"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -247,6 +280,7 @@ export default function Settings() {
             <FormField label="Layout">
               <select
                 id="settings-layout-select"
+                aria-label="Layout"
                 value={state.layout}
                 onChange={(event) => actions.setLayout(event.target.value)}
               >
@@ -260,6 +294,7 @@ export default function Settings() {
             <FormField label="Colour theme">
               <select
                 id="settings-theme-select"
+                aria-label="Colour theme"
                 value={state.palette}
                 onChange={(event) => actions.setPalette(event.target.value)}
               >
@@ -285,6 +320,7 @@ export default function Settings() {
             <FormField label="App format">
               <select
                 id="settings-format-select"
+                aria-label="App format"
                 value={state.viewMode}
                 onChange={(event) => actions.setViewMode(event.target.value)}
               >
@@ -296,6 +332,7 @@ export default function Settings() {
             <FormField label="Content density">
               <select
                 id="settings-density-select"
+                aria-label="Content density"
                 value={state.customTheme.density}
                 onChange={(event) => actions.setDensity(event.target.value)}
               >
@@ -311,6 +348,7 @@ export default function Settings() {
             description="Increase interface text for easier touch-screen reading."
             on={state.toggles.largeType}
             onClick={() => actions.toggleSetting('largeType')}
+            devMode={devMode}
           />
           <ThemeStudio />
         </section>
@@ -323,6 +361,7 @@ export default function Settings() {
             <FormField label="Draw distance">
               <select
                 id="settings-draw-distance-select"
+                aria-label="Draw distance"
                 value={state.prefs.draw}
                 onChange={(event) => actions.setPref('draw', event.target.value)}
               >
@@ -334,6 +373,7 @@ export default function Settings() {
             <FormField label="Camera field of view">
               <select
                 id="settings-fov-select"
+                aria-label="Camera field of view"
                 value={state.prefs.fov}
                 onChange={(event) => actions.setPref('fov', Number(event.target.value))}
               >
@@ -344,22 +384,33 @@ export default function Settings() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Graphics quality">
-              <select
-                id="settings-graphics-quality-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.quality}
-                onChange={(event) => actions.setPref('quality', event.target.value)}
+            {isFeatureVisible('quality', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Graphics quality
+                    <CapabilityBadge capability={getFeatureCapability('quality')} />
+                  </span>
+                }
               >
-                {['Low', 'Balanced', 'High', 'Ultra'].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </FormField>
+                <select
+                  id="settings-graphics-quality-select"
+                  aria-label="Graphics quality"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.quality}
+                  onChange={(event) => actions.setPref('quality', event.target.value)}
+                >
+                  {['Low', 'Balanced', 'High', 'Ultra'].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
             <FormField label="Frame rate cap">
               <select
                 id="settings-frame-rate-select"
+                aria-label="Frame rate cap"
                 value={state.prefs.fps}
                 onChange={(event) => actions.setPref('fps', event.target.value)}
               >
@@ -368,32 +419,52 @@ export default function Settings() {
                 ))}
               </select>
             </FormField>
-            <FormField label="Avatar complexity">
-              <select
-                id="settings-avatar-complexity-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.complexity}
-                onChange={(event) => actions.setPref('complexity', event.target.value)}
+            {isFeatureVisible('complexity', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Avatar complexity
+                    <CapabilityBadge capability={getFeatureCapability('complexity')} />
+                  </span>
+                }
               >
-                {['20 000', '40 000', '80 000', '160 000', 'No limit'].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Bandwidth limit">
-              <select
-                id="settings-bandwidth-limit-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.bandwidth}
-                onChange={(event) => actions.setPref('bandwidth', event.target.value)}
+                <select
+                  id="settings-avatar-complexity-select"
+                  aria-label="Avatar complexity"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.complexity}
+                  onChange={(event) => actions.setPref('complexity', event.target.value)}
+                >
+                  {['20 000', '40 000', '80 000', '160 000', 'No limit'].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
+            {isFeatureVisible('bandwidth', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Bandwidth limit
+                    <CapabilityBadge capability={getFeatureCapability('bandwidth')} />
+                  </span>
+                }
               >
-                {['500 kbps', '1 500 kbps', '3 000 kbps', 'Unlimited'].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </FormField>
+                <select
+                  id="settings-bandwidth-limit-select"
+                  aria-label="Bandwidth limit"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.bandwidth}
+                  onChange={(event) => actions.setPref('bandwidth', event.target.value)}
+                >
+                  {['500 kbps', '1 500 kbps', '3 000 kbps', 'Unlimited'].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </FormField>
+            )}
           </div>
           <SwitchSetting
             id="shadows"
@@ -401,6 +472,7 @@ export default function Settings() {
             description="Dynamic shadows and deferred lighting pipeline."
             on={state.toggles.shadows}
             onClick={() => actions.toggleSetting('shadows')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="battery"
@@ -408,6 +480,7 @@ export default function Settings() {
             description="Reduce background rendering on mobile."
             on={state.toggles.battery}
             onClick={() => actions.toggleSetting('battery')}
+            devMode={devMode}
           />
         </section>
 
@@ -419,6 +492,7 @@ export default function Settings() {
             <FormField label="Master volume">
               <select
                 id="settings-master-volume-select"
+                aria-label="Master volume"
                 value={state.prefs.volume}
                 onChange={(event) => setVolume(event.target.value)}
               >
@@ -436,6 +510,7 @@ export default function Settings() {
               <FormField key={key} label={label}>
                 <select
                   id={`settings-${key}`}
+                  aria-label={label}
                   value={state.prefs[key]}
                   onChange={(event) => actions.setPref(key, event.target.value)}
                 >
@@ -453,6 +528,7 @@ export default function Settings() {
             description="Show speaking rings in radar and chat logs."
             on={state.toggles.voice}
             onClick={() => actions.toggleSetting('voice')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="gamepad"
@@ -460,6 +536,7 @@ export default function Settings() {
             description="Move with a connected gamepad: left stick walks and strafes, right stick turns, triggers fly up and down, A jumps. The stick processing is the viewer's joystick code; the gamepad layout is Linkpoint's."
             on={state.toggles.gamepad}
             onClick={() => actions.toggleSetting('gamepad')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="ptt-use"
@@ -467,6 +544,7 @@ export default function Settings() {
             description="The microphone is open only while you hold the talk key, or after you press it in toggle mode. The microphone button and the middle mouse button toggle it."
             on={state.toggles.pttUse}
             onClick={() => actions.toggleSetting('pttUse')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="ptt-toggle"
@@ -474,6 +552,7 @@ export default function Settings() {
             description="Press once to open the microphone and again to close it, instead of holding."
             on={state.toggles.pttToggle}
             onClick={() => actions.toggleSetting('pttToggle')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="media-auto"
@@ -481,6 +560,7 @@ export default function Settings() {
             description="Automatically start parcel audio streams and MOAP media."
             on={state.toggles.mediaAuto}
             onClick={() => actions.toggleSetting('mediaAuto')}
+            devMode={devMode}
           />
           <p style={{ fontSize: '12px', opacity: 0.8, marginTop: '8px' }}>
             Simulator audio uses positional HRTF sound. Live microphone and voice call controls are
@@ -493,34 +573,54 @@ export default function Settings() {
           <Icon name="message-square" size={22} />
           <h2 id="chat-im-heading">Chat, language &amp; privacy</h2>
           <div className="settings-field-grid">
-            <FormField label="Translate incoming chat">
-              <select
-                id="settings-translation-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.translate}
-                onChange={(event) => actions.setPref('translate', event.target.value)}
+            {isFeatureVisible('translate', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Translate incoming chat
+                    <CapabilityBadge capability={getFeatureCapability('translate')} />
+                  </span>
+                }
               >
-                {['Off', 'English', 'Spanish', 'French', 'German', 'Japanese', 'Português'].map(
-                  (value) => (
+                <select
+                  id="settings-translation-select"
+                  aria-label="Translate incoming chat"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.translate}
+                  onChange={(event) => actions.setPref('translate', event.target.value)}
+                >
+                  {['Off', 'English', 'Spanish', 'French', 'German', 'Japanese', 'Português'].map(
+                    (value) => (
+                      <option key={value}>{value}</option>
+                    ),
+                  )}
+                </select>
+              </FormField>
+            )}
+            {isFeatureVisible('maturity', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Maturity rating
+                    <CapabilityBadge capability={getFeatureCapability('maturity')} />
+                  </span>
+                }
+              >
+                <select
+                  id="settings-maturity-select"
+                  aria-label="Maturity rating"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.maturity}
+                  onChange={(event) => actions.setPref('maturity', event.target.value)}
+                >
+                  {['General', 'Moderate', 'Adult'].map((value) => (
                     <option key={value}>{value}</option>
-                  ),
-                )}
-              </select>
-            </FormField>
-            <FormField label="Maturity rating">
-              <select
-                id="settings-maturity-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.maturity}
-                onChange={(event) => actions.setPref('maturity', event.target.value)}
-              >
-                {['General', 'Moderate', 'Adult'].map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-            </FormField>
+                  ))}
+                </select>
+              </FormField>
+            )}
           </div>
           <SwitchSetting
             id="chat-cmds"
@@ -528,6 +628,7 @@ export default function Settings() {
             description="Enable /1 gesture shortcuts and chat channel commands."
             on={state.toggles.chatCmds}
             onClick={() => actions.toggleSetting('chatCmds')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="timestamps"
@@ -535,6 +636,7 @@ export default function Settings() {
             description="Show the device’s local time alongside messages."
             on={state.toggles.timestamps}
             onClick={() => actions.toggleSetting('timestamps')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="im-logs"
@@ -542,6 +644,7 @@ export default function Settings() {
             description="Save conversation history locally in device storage."
             on={state.toggles.imLogs}
             onClick={() => actions.toggleSetting('imLogs')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="typing"
@@ -549,6 +652,7 @@ export default function Settings() {
             description="Notify contacts when you are composing a reply."
             on={state.toggles.typingSent}
             onClick={() => actions.toggleSetting('typingSent')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="autoresponse"
@@ -556,6 +660,7 @@ export default function Settings() {
             description="Send auto-reply message on incoming IMs while away."
             on={state.toggles.autoresponse}
             onClick={() => actions.toggleSetting('autoresponse')}
+            devMode={devMode}
           />
         </section>
 
@@ -568,12 +673,14 @@ export default function Settings() {
             title="Local notification popups"
             on={state.toggles.notifyLocal}
             onClick={() => actions.toggleSetting('notifyLocal')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="notify-im"
             title="Private message notification popups"
             on={state.toggles.notifyIM}
             onClick={() => actions.toggleSetting('notifyIM')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="notify-group"
@@ -581,6 +688,7 @@ export default function Settings() {
             description="Notices remain available in the notification list when popups are off."
             on={state.toggles.notifyGroup}
             onClick={() => actions.toggleSetting('notifyGroup')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="push"
@@ -588,6 +696,7 @@ export default function Settings() {
             description="Receive IMs, group notices, and teleport offers in system shade."
             on={state.toggles.push}
             onClick={() => actions.toggleSetting('push')}
+            devMode={devMode}
           />
         </section>
 
@@ -606,6 +715,7 @@ export default function Settings() {
             description="When off, friends see you offline and map position is hidden."
             on={state.toggles.showOnline}
             onClick={() => actions.toggleSetting('showOnline')}
+            devMode={devMode}
           />
           <SwitchSetting
             id="rlv"
@@ -613,6 +723,7 @@ export default function Settings() {
             description="Lets worn scripted items restrict you (chat, IMs, names, flying, teleports) as in RLV viewers. Outfit and attachment locks are not supported yet. Turning this off clears every restriction."
             on={state.toggles.rlv}
             onClick={() => actions.toggleSetting('rlv')}
+            devMode={devMode}
           />
           <div style={{ marginTop: '8px' }}>
             <strong>Scripted object permissions</strong>
@@ -635,39 +746,60 @@ export default function Settings() {
           <Icon name="database" size={22} />
           <h2 id="storage-heading">Storage &amp; network</h2>
           <div className="settings-field-grid">
-            <FormField label="Cache size">
-              <select
-                id="settings-cache-limit-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.cacheLimit}
-                onChange={(event) => actions.setPref('cacheLimit', Number(event.target.value))}
+            {isFeatureVisible('cacheLimit', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Cache size
+                    <CapabilityBadge capability={getFeatureCapability('cacheLimit')} />
+                  </span>
+                }
               >
-                {[256, 512, 1024, 2048].map((value) => (
-                  <option key={value} value={value}>
-                    {value >= 1024 ? `${value / 1024} GB` : `${value} MB`}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Cache location">
-              <select
-                id="settings-cache-location-select"
-                disabled
-                title="Requires backend support; use the dedicated manager where available"
-                value={state.prefs.cacheLoc}
-                onChange={(event) => actions.setPref('cacheLoc', event.target.value)}
+                <select
+                  id="settings-cache-limit-select"
+                  aria-label="Cache size"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.cacheLimit}
+                  onChange={(event) => actions.setPref('cacheLimit', Number(event.target.value))}
+                >
+                  {[256, 512, 1024, 2048].map((value) => (
+                    <option key={value} value={value}>
+                      {value >= 1024 ? `${value / 1024} GB` : `${value} MB`}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            )}
+            {isFeatureVisible('cacheLoc', devMode) && (
+              <FormField
+                label={
+                  <span>
+                    Cache location
+                    <CapabilityBadge capability={getFeatureCapability('cacheLoc')} />
+                  </span>
+                }
               >
-                <option>Internal storage</option>
-                <option>Removable storage</option>
-              </select>
-            </FormField>
+                <select
+                  id="settings-cache-location-select"
+                  aria-label="Cache location"
+                  disabled
+                  title="Requires backend support; preview mode only"
+                  value={state.prefs.cacheLoc}
+                  onChange={(event) => actions.setPref('cacheLoc', event.target.value)}
+                >
+                  <option>Internal storage</option>
+                  <option>Removable storage</option>
+                </select>
+              </FormField>
+            )}
           </div>
           <SwitchSetting
             id="cache-exit"
             title="Clear cache on sign out"
             on={state.toggles.cacheOnExit}
             onClick={() => actions.toggleSetting('cacheOnExit')}
+            devMode={devMode}
           />
           <div className="inline-tool" style={{ gap: '8px', marginTop: '12px' }}>
             <button type="button" onClick={actions.clearAllCache}>
@@ -689,7 +821,15 @@ export default function Settings() {
           <p style={{ margin: '0 0 12px', opacity: 0.85, fontSize: '13px' }}>
             Linkpoint Mobile &amp; Desktop Viewer · Open Source AGPL-3.0 License.
           </p>
-          <div className="inline-tool" style={{ gap: '8px' }}>
+          <SwitchSetting
+            id="devMode"
+            title="Developer / Experimental Mode"
+            description="Display preview controls and capability tags for experimental viewer capabilities."
+            on={state.toggles.devMode}
+            onClick={() => actions.toggleSetting('devMode')}
+            devMode={devMode}
+          />
+          <div className="inline-tool" style={{ gap: '8px', marginTop: '12px' }}>
             <a
               href="https://github.com/Kaleaon/React-Linkpoint/releases"
               target="_blank"

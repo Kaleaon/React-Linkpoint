@@ -71,18 +71,30 @@ export class CapabilitiesManager {
    * Feature 12: Timeout and retry logic
    * Fetch capability with retry support
    */
-  async fetchWithRetry(url: string, attempt: number = 1): Promise<Response> {
+  async fetchWithRetry(
+    url: string,
+    optionsOrAttempt?: RequestInit | number,
+    attempt: number = 1,
+  ): Promise<Response> {
+    let options: RequestInit | undefined;
+    let currentAttempt = attempt;
+    if (typeof optionsOrAttempt === 'number') {
+      currentAttempt = optionsOrAttempt;
+    } else if (optionsOrAttempt && typeof optionsOrAttempt === 'object') {
+      options = optionsOrAttempt;
+    }
+
     try {
-      const response = await fetch(url);
-      if (!response.ok && attempt < this.retryAttempts) {
-        await new Promise((r) => setTimeout(r, this.retryDelay * attempt));
-        return this.fetchWithRetry(url, attempt + 1);
+      const response = await fetch(url, options);
+      if (!response.ok && currentAttempt < this.retryAttempts) {
+        await new Promise((r) => setTimeout(r, this.retryDelay * currentAttempt));
+        return this.fetchWithRetry(url, options, currentAttempt + 1);
       }
       return response;
     } catch (error) {
-      if (attempt < this.retryAttempts) {
-        await new Promise((r) => setTimeout(r, this.retryDelay * attempt));
-        return this.fetchWithRetry(url, attempt + 1);
+      if (currentAttempt < this.retryAttempts) {
+        await new Promise((r) => setTimeout(r, this.retryDelay * currentAttempt));
+        return this.fetchWithRetry(url, options, currentAttempt + 1);
       }
       throw error;
     }
@@ -97,6 +109,50 @@ export class CapabilitiesManager {
    */
   getGroupNoticesListUrl(): string | null {
     return this.resolveCapability('GroupNoticesList');
+  }
+
+  /**
+   * Resolves the PayObject HTTP capability URL if exposed by the seed capabilities.
+   */
+  getPayObjectUrl(): string | null {
+    return this.resolveCapability('PayObject') || this.resolveCapability('PayObjectViaIP');
+  }
+
+  /**
+   * Execute PayObject HTTP capability RPC call for scripted object transactions.
+   */
+  async executePayObjectCapability(
+    objectId: string,
+    amount: number,
+    description?: string,
+  ): Promise<any> {
+    const url = this.getPayObjectUrl();
+    if (!url) {
+      throw new Error('PayObject capability is not available on this grid circuit');
+    }
+
+    const payload = JSON.stringify({
+      object_id: objectId,
+      amount: Math.floor(amount),
+      description: description || 'PayObject capability transaction',
+    });
+
+    const response = await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: payload,
+    });
+    if (!response.ok) {
+      throw new Error(`PayObject capability RPC failed with status ${response.status}`);
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      return { success: true };
+    }
   }
 
   clearCache() {

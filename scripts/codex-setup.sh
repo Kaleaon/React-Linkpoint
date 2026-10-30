@@ -15,7 +15,8 @@ case "${1:-}" in
 Usage: ./scripts/codex-setup.sh [--check]
 
 Installs the locked dependencies and creates a local environment file. Pass
---check to additionally run the type-check, unit tests, and production build.
+--check to additionally run type-check, lint, format check, fake data check,
+unit tests, and production build.
 No credentials are needed for setup or for these checks.
 EOF
     exit 0
@@ -53,7 +54,11 @@ fi
 # Do not install tools globally: Codex containers commonly use an unprivileged
 # account. npm exec downloads the exact Bun binary into npm's user cache and
 # works whether or not the image happens to have another Bun version installed.
-BUN=(npm exec --yes --package="bun@${BUN_VERSION}" -- bun)
+if command -v bun >/dev/null 2>&1 && [[ "$(bun --version 2>/dev/null)" == "${BUN_VERSION}" ]]; then
+  BUN=(bun)
+else
+  BUN=(npm exec --yes --package="bun@${BUN_VERSION}" -- bun)
+fi
 
 # Electron is not exercised by the browser/unit-test checks. Avoid downloading
 # its large runtime binary while still installing the package APIs and types.
@@ -82,7 +87,12 @@ if [[ "$RUN_CHECKS" == true ]]; then
   # Keep this file standalone: invoke the installed tools directly instead of
   # depending on package.json helper scripts or another repository script.
   ./node_modules/.bin/tsc --noEmit
+  ./node_modules/.bin/eslint .
+  ./node_modules/.bin/prettier --check .
+  node scripts/check-fake-data.mjs
   ./node_modules/.bin/vitest run
+  node scripts/build-wasm.mjs --check
+  node scripts/check-source-imports.mjs
   ./node_modules/.bin/vite build
 else
   echo "Setup complete. Re-run with --check to validate the app."

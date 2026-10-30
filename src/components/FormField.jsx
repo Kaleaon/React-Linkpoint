@@ -22,9 +22,12 @@ function findControlId(child, fallbackId) {
 function cloneControlWithAria(element, ariaProps) {
   if (!React.isValidElement(element)) return element;
 
+  const computedAriaLabel = element.props['aria-label'] || ariaProps['aria-label'];
+
   if (typeof element.type === 'string' && ['input', 'select', 'textarea'].includes(element.type)) {
     return React.cloneElement(element, {
       id: element.props.id || ariaProps.id,
+      'aria-label': computedAriaLabel,
       'aria-invalid': ariaProps['aria-invalid'],
       'aria-errormessage': ariaProps['aria-errormessage'],
       'aria-describedby': element.props['aria-describedby']
@@ -64,6 +67,7 @@ function cloneControlWithAria(element, ariaProps) {
 
   return React.cloneElement(element, {
     id: ariaProps.id,
+    'aria-label': computedAriaLabel,
     'aria-invalid': ariaProps['aria-invalid'],
     'aria-errormessage': ariaProps['aria-errormessage'],
     'aria-describedby': element.props['aria-describedby']
@@ -75,6 +79,7 @@ function cloneControlWithAria(element, ariaProps) {
 /**
  * @param {object} props
  * @param {React.ReactNode} [props.label]
+ * @param {string} [props.aria-label]
  * @param {React.ReactNode} [props.error]
  * @param {React.ReactNode} [props.helpText]
  * @param {React.ReactNode} [props.children]
@@ -82,11 +87,16 @@ function cloneControlWithAria(element, ariaProps) {
  */
 export default function FormField({
   label = undefined,
+  'aria-label': ariaLabel = undefined,
   error = undefined,
   helpText = undefined,
   children = undefined,
   style = undefined,
 }) {
+  if (process.env.NODE_ENV !== 'production' && !label && !ariaLabel) {
+    console.warn('FormField requires either a `label` or `aria-label` prop for accessibility.');
+  }
+
   const theme = useTheme();
   const V = theme?.V || {};
   const typography = theme?.t || {};
@@ -105,11 +115,10 @@ export default function FormField({
   const childWithAria = React.isValidElement(children)
     ? cloneControlWithAria(children, {
         id: childId,
+        'aria-label': ariaLabel,
         'aria-invalid': hasError ? 'true' : undefined,
         'aria-errormessage': hasError ? errorId : undefined,
-        'aria-describedby': children.props['aria-describedby']
-          ? `${children.props['aria-describedby']} ${describedBy || ''}`.trim()
-          : describedBy,
+        'aria-describedby': describedBy,
       })
     : children;
 

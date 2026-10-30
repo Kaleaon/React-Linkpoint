@@ -5,33 +5,63 @@ import { app } from '../linkpoint/app';
 /**
  * LiveRegionAnnouncerComponent
  *
- * Mounts an off-screen role="log" live region element in the DOM tree (WCAG 2.2 SC 4.1.3).
- * Stays present in the DOM tree for screen readers while hidden visually using standard CSS (.sr-only).
+ * Mounts off-screen multi-channel live region elements in the DOM tree (WCAG 2.2 SC 4.1.3).
+ * Manages 3 distinct containers (#live-region-status, #live-region-alert, #live-region-log)
+ * for status toasts, critical alerts, and live chat updates.
  */
 export default function LiveRegionAnnouncerComponent() {
-  const liveRegionRef = useRef(null);
+  const statusRef = useRef(null);
+  const alertRef = useRef(null);
+  const logRef = useRef(null);
 
   useEffect(() => {
-    if (liveRegionRef.current) {
-      liveRegionAnnouncer.registerDOMElement(liveRegionRef.current);
+    if (statusRef.current) {
+      liveRegionAnnouncer.registerDOMElement(statusRef.current, 'status');
     }
+    if (alertRef.current) {
+      liveRegionAnnouncer.registerDOMElement(alertRef.current, 'alert');
+    }
+    if (logRef.current) {
+      liveRegionAnnouncer.registerDOMElement(logRef.current, 'log');
+    }
+
     liveRegionAnnouncer.attachChatBus(app.chat);
 
     return () => {
-      // Don't fully destroy singleton on hot reload, but unregister DOM node
-      liveRegionAnnouncer.registerDOMElement(null);
+      // Don't fully destroy singleton on unmount/hot reload, but unregister DOM nodes
+      liveRegionAnnouncer.registerDOMElement(null, 'status');
+      liveRegionAnnouncer.registerDOMElement(null, 'alert');
+      liveRegionAnnouncer.registerDOMElement(null, 'log');
     };
   }, []);
 
   return (
-    <div
-      ref={liveRegionRef}
-      id="live-region-announcer"
-      role="log"
-      aria-live="polite"
-      aria-atomic="true"
-      aria-label="Live Chat Announcements"
-      className="sr-only live-region-announcer"
-    />
+    <>
+      <div
+        ref={statusRef}
+        id="live-region-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only live-region-announcer"
+      />
+      <div
+        ref={alertRef}
+        id="live-region-alert"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        className="sr-only live-region-announcer"
+      />
+      <div
+        ref={logRef}
+        id="live-region-log"
+        role="log"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-label="Live Chat Announcements"
+        className="sr-only live-region-announcer"
+      />
+    </>
   );
 }
