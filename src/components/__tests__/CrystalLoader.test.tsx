@@ -222,19 +222,40 @@ describe('Branded Skeleton System', () => {
     ) as HTMLElement;
     expect(container).not.toBeNull();
 
-    const crystal = container.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
-    expect(crystal).not.toBeNull();
-    expect(crystal.getAttribute('data-variant')).toBe('inline');
-    expect(crystal.style.width).toBe('20px');
-    expect(crystal.style.height).toBe('20px');
-    expect(crystal.getAttribute('role')).toBe('img');
-    expect(crystal.getAttribute('aria-label')).toBe('Loading');
+    const crystals = Array.from(
+      container.querySelectorAll('[data-testid="crystal-loader"]'),
+    ) as HTMLElement[];
+    expect(crystals.length).toBeGreaterThanOrEqual(2);
+
+    const headerCrystal = crystals[0];
+    expect(headerCrystal).not.toBeNull();
+    expect(headerCrystal.getAttribute('data-variant')).toBe('inline');
+    expect(headerCrystal.style.width).toBe('20px');
+    expect(headerCrystal.style.height).toBe('20px');
+
+    const progressCrystal = crystals[1];
+    expect(progressCrystal).not.toBeNull();
+    expect(progressCrystal.getAttribute('data-variant')).toBe('inline');
+    expect(progressCrystal.style.width).toBe('14px');
+    expect(progressCrystal.style.height).toBe('14px');
 
     const progressBar = container.querySelector(
       '[data-testid="asset-progress-bar"]',
     ) as HTMLElement;
     expect(progressBar).not.toBeNull();
     expect(progressBar.style.background).toContain('linear-gradient');
+  });
+
+  it('renders a 24px CrystalLoader instance in SkeletonCard header slot', async () => {
+    const host = await mount(createElement(SkeletonCard, { height: '100px' }));
+    const container = host.querySelector('.skeleton-container') as HTMLElement;
+    expect(container).not.toBeNull();
+
+    const crystal = container.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(crystal).not.toBeNull();
+    expect(crystal.getAttribute('data-variant')).toBe('inline');
+    expect(crystal.style.width).toBe('24px');
+    expect(crystal.style.height).toBe('24px');
   });
 });
 

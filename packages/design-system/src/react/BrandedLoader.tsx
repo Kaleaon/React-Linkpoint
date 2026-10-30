@@ -316,8 +316,26 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
         <SkeletonBox width="100%" height={bodyHeight} borderRadius="6px" />
         {progress !== null && progress !== undefined && (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px" }}>
-              <span>Downloading asset data...</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "11px"
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div
+                  style={{ width: 14, height: 14, flex: "none", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  role="img"
+                  aria-label="Loading"
+                  data-testid="crystal-loader"
+                  data-variant="inline"
+                >
+                  <CrystalMark size={14} idPrefix={idPrefix ? `${idPrefix}-progress` : undefined} />
+                </div>
+                <span>Downloading asset data...</span>
+              </span>
               <span>{Math.round(progress)}%</span>
             </div>
             <div
