@@ -242,12 +242,15 @@ async function declineLure(bot, pending, params) {
     params?.sessionId ||
     '00000000-0000-0000-0000-000000000000';
 
-  const packet = params && params.packet ? params.packet : {
-    messageName: 'DeclineTeleport',
-    messageId: 0xffff007a,
-    agentId: senderId,
-    sessionId: sessionId,
-  };
+  const packet =
+    params && params.packet
+      ? params.packet
+      : {
+          messageName: 'DeclineTeleport',
+          messageId: 0xffff007a,
+          agentId: senderId,
+          sessionId: sessionId,
+        };
 
   const comms = commands(bot).comms;
   if (senderId && comms && typeof comms.sendInstantMessage === 'function') {
