@@ -18,6 +18,7 @@ import {
   formatLossSummary,
   formatLastUpdate,
   formatTechnicalDetails,
+  resolveStatusTone,
 } from '../../screens/diagnosticsView.js';
 
 describe('diagnostics display rules', () => {
@@ -130,6 +131,35 @@ describe('diagnostics display rules', () => {
     expect(tech.seedCapability).toBe('https://sim.example.com/cap/123');
     expect(tech.agentUuid).toBe('00000000-0000-0000-0000-000000000001');
     expect(tech.eventQueueState).toBe('Active');
+  });
+
+  it('resolves semantic status tones using active theme tokens with fallback support', () => {
+    const mockV = {
+      ok: '#6CFF9A',
+      warn: '#FFC98A',
+      err: '#CF6679',
+      ink2: '#A0A0A0',
+    };
+
+    expect(resolveStatusTone(mockV, 'ok')).toBe('#6CFF9A');
+    expect(resolveStatusTone(mockV, 'warn')).toBe('#FFC98A');
+    expect(resolveStatusTone(mockV, 'err')).toBe('#CF6679');
+    expect(resolveStatusTone(mockV, 'none')).toBe('#A0A0A0');
+
+    // Invalid or unmapped tones fall back gracefully to ink2 or warn
+    expect(resolveStatusTone(mockV, 'unknown')).toBe('#A0A0A0');
+    expect(resolveStatusTone(mockV, '')).toBe('#A0A0A0');
+    expect(resolveStatusTone(mockV, null)).toBe('#A0A0A0');
+    expect(resolveStatusTone(mockV, undefined)).toBe('#A0A0A0');
+
+    // Missing ink2 token falls back to warn token
+    const incompleteV = { ok: '#00FF00', warn: '#FFA500', err: '#FF0000' };
+    expect(resolveStatusTone(incompleteV, 'none')).toBe('#FFA500');
+    expect(resolveStatusTone(incompleteV, 'invalid')).toBe('#FFA500');
+
+    // Null/undefined theme tokens object returns undefined
+    expect(resolveStatusTone(null, 'ok')).toBeUndefined();
+    expect(resolveStatusTone(undefined, 'warn')).toBeUndefined();
   });
 });
 
