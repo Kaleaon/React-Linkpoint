@@ -5,6 +5,7 @@ import {
   EarLocation,
   POSITION_UPDATE_THROTTLE_MS,
   RetryBackoff,
+  buildSpatialGridIndex,
   earPose,
   iceServersForGrid,
   joinMessage,
@@ -21,6 +22,7 @@ import {
   type ParticipantUpdate,
   type Quat,
   type SpatialChoice,
+  type SpatialGridIndex,
   type Vec3,
   type VoiceChannel,
 } from './voice-protocol';
@@ -149,6 +151,7 @@ export class VoiceManager extends Utils.EventEmitter {
   private connectedRegionHandle = '';
   private spatialChoice: SpatialChoice = { enabled: true, estate: true };
   private neighborRegions: NeighborRegion[] = [];
+  private neighborSpatialIndex: SpatialGridIndex = new Map();
   private neighbors = new Map<string, VoiceNeighborConnection>();
   private neighborRetryAt = new Map<string, number>();
   private neighborAudio = new Map<string, HTMLAudioElement>();
@@ -431,6 +434,7 @@ export class VoiceManager extends Utils.EventEmitter {
   /** The neighbouring regions that offer WebRTC voice (from the core). */
   setNeighborRegions(list: NeighborRegion[]) {
     this.neighborRegions = Array.isArray(list) ? list : [];
+    this.neighborSpatialIndex = buildSpatialGridIndex(this.neighborRegions);
     this.lastNeighborSync = -Infinity;
   }
 
@@ -445,7 +449,7 @@ export class VoiceManager extends Utils.EventEmitter {
       estate && this.joined && position
         ? neighborsToJoin(
             [position[0] + this.regionOrigin[0], position[1] + this.regionOrigin[1], position[2]],
-            this.neighborRegions,
+            this.neighborSpatialIndex,
             this.connectedRegionHandle || this.regionHandle,
           )
         : [],
