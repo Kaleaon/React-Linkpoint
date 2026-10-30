@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { PALETTES } from '../tokens';
-import { contrastRatio, ensureMinContrast } from '../contrast';
+import { luminance, contrastRatio, inkOn, ensureMinContrast } from '../contrast';
+import { lum, ratio, pickInk } from '../color.js';
 import { computeTheme } from '../computeTheme';
 import { sanitizeTheme } from '../customTheme.js';
 
@@ -136,5 +137,40 @@ describe('Universal Focus Rings & Outline Suppression Audit', () => {
       const content = fs.readFileSync(filePath, 'utf-8');
       expect(content).not.toMatch(/outline:\s*['"]?(none|0)['"]?/i);
     }
+  });
+});
+
+describe('Legacy Color Helpers Alias Compatibility', () => {
+  it('lum matches luminance for various color inputs', () => {
+    const testColors = ['#FFFFFF', '#000000', '#123456', '#abc', 'rgb(255, 0, 0)', 'invalid'];
+    for (const color of testColors) {
+      expect(lum(color)).toBe(luminance(color));
+    }
+  });
+
+  it('ratio matches contrastRatio for color pairs', () => {
+    const pairs: [string, string][] = [
+      ['#FFFFFF', '#000000'],
+      ['#123456', '#789abc'],
+      ['#000000', '#000000'],
+      ['rgb(255, 255, 255)', 'rgb(0, 0, 0)'],
+    ];
+    for (const [a, b] of pairs) {
+      expect(ratio(a, b)).toBe(contrastRatio(a, b));
+    }
+  });
+
+  it('pickInk matches inkOn for various background and candidate combinations', () => {
+    const bg = '#0A1112';
+    const candidates = ['#111111', '#EEEEEE', '#FF0000'];
+    expect(pickInk(bg, candidates)).toBe(inkOn(bg, candidates));
+    expect(pickInk(bg, undefined)).toBe(inkOn(bg, undefined));
+    expect(pickInk('#FFFFFF', [])).toBe(inkOn('#FFFFFF', []));
+  });
+
+  it('lum, ratio, and pickInk are direct function aliases to luminance, contrastRatio, and inkOn', () => {
+    expect(lum).toBe(luminance);
+    expect(ratio).toBe(contrastRatio);
+    expect(pickInk).toBe(inkOn);
   });
 });
