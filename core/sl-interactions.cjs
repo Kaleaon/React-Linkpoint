@@ -61,11 +61,15 @@ function serializeScriptDialog(event) {
 
 /** Describe a LureEvent (teleport offer) for the client. */
 function serializeLure(event) {
+  const sessionId = idString(
+    event.sessionID || event.sessionId || event.invitingSessionId || event.session_id,
+  );
   return {
-    fromId: idString(event.from),
+    fromId: idString(event.from || event.fromId || event.agentID || event.agentId),
     fromName: String(event.fromName || ''),
     message: String(event.lureMessage || ''),
     regionId: idString(event.regionID),
+    ...(sessionId ? { sessionId } : {}),
     position: vectorArray(event.position),
     gridX: finiteOr(event.gridX, null),
     gridY: finiteOr(event.gridY, null),
@@ -229,7 +233,22 @@ async function acceptLure(bot, pending, params) {
 /** Decline a teleport lure and notify the sender. */
 async function declineLure(bot, pending, params) {
   const lure = pending.get('lure', params && params.id);
-  const senderId = idString(lure.from || lure.fromId);
+  const senderId =
+    idString(lure.from || lure.fromId || lure.agentID || lure.agentId) ||
+    params?.agentId ||
+    '00000000-0000-0000-0000-000000000000';
+  const sessionId =
+    idString(lure.sessionID || lure.sessionId || lure.invitingSessionId) ||
+    params?.sessionId ||
+    '00000000-0000-0000-0000-000000000000';
+
+  const packet = params && params.packet ? params.packet : {
+    messageName: 'DeclineTeleport',
+    messageId: 0xffff007a,
+    agentId: senderId,
+    sessionId: sessionId,
+  };
+
   const comms = commands(bot).comms;
   if (senderId && comms && typeof comms.sendInstantMessage === 'function') {
     try {
@@ -238,6 +257,16 @@ async function declineLure(bot, pending, params) {
       // Ignore network/messaging error during decline, still remove lure locally
     }
   }
+
+  if (bot && typeof bot.sendPacket === 'function') {
+    try {
+      bot.sendPacket('DeclineTeleport', packet);
+    } catch {
+      // Ignore network packet errors
+    }
+  }
+
+  if (lure) lure.status = 'declined';
   pending.remove(params.id);
   return { declined: true };
 }

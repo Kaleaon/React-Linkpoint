@@ -81,7 +81,7 @@ export interface PagedFriends {
 }
 
 const DB_NAME = 'linkpoint_sl_cache_db';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export const STORE_INVENTORY_FOLDERS = 'inventory_folders';
 export const STORE_INVENTORY_ITEMS = 'inventory_items';
@@ -161,10 +161,14 @@ export class IndexedDBStore {
               keyPath: ['agentId', 'id'],
             });
             contactStore.createIndex('by_agent', 'agentId', { unique: false });
+            contactStore.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
           } else {
             const contactStore = e.target.transaction.objectStore(STORE_CONTACTS);
             if (!contactStore.indexNames.contains('by_agent')) {
               contactStore.createIndex('by_agent', 'agentId', { unique: false });
+            }
+            if (!contactStore.indexNames.contains('by_agent_name')) {
+              contactStore.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
             }
           }
 
@@ -486,45 +490,155 @@ export class IndexedDBStore {
     const safePage = Math.max(1, page);
     const safePageSize = Math.max(1, pageSize);
 
-    let allContacts: ContactRecord[] = [];
-
     if (!db) {
-      for (const [key, contact] of this.memContacts.entries()) {
+      const matching: ContactRecord[] = [];
+      const q = filter ? filter.trim().toLowerCase() : '';
+      for (const [, contact] of this.memContacts.entries()) {
         if (contact.agentId === agentId) {
-          allContacts.push(contact);
+          if (q) {
+            const nameMatch = contact.name && contact.name.toLowerCase().includes(q);
+            const noteMatch = contact.note && contact.note.toLowerCase().includes(q);
+            if (nameMatch || noteMatch) {
+              matching.push(contact);
+            }
+          } else {
+            matching.push(contact);
+          }
         }
       }
-    } else {
-      allContacts = await new Promise((resolve) => {
+      matching.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+      const total = matching.length;
+      const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+      const startIndex = (safePage - 1) * safePageSize;
+      const pageSlice = matching.slice(startIndex, startIndex + safePageSize);
+
+      return {
+        contacts: pageSlice,
+        total,
+        page: safePage,
+        pageSize: safePageSize,
+        totalPages,
+      };
+    }
+
+    const range = IDBKeyRange.bound([agentId, ''], [agentId, '\uffff']);
+    const q = filter ? filter.trim().toLowerCase() : '';
+
+    if (!q) {
+      const total: number = await new Promise((resolve) => {
         try {
           const tx = db.transaction([STORE_CONTACTS], 'readonly');
-          const index = tx.objectStore(STORE_CONTACTS).index('by_agent');
-          const range = IDBKeyRange.only(agentId);
-          const req = index.getAll(range);
-          req.onsuccess = () => resolve(req.result || []);
-          req.onerror = () => resolve([]);
+          const index = tx.objectStore(STORE_CONTACTS).index('by_agent_name');
+          const req = index.count(range);
+          req.onsuccess = () => resolve(req.result || 0);
+          req.onerror = () => resolve(0);
+        } catch {
+          resolve(0);
+        }
+      });
+
+      const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+      const startIndex = (safePage - 1) * safePageSize;
+
+      if (total === 0 || startIndex >= total) {
+        return {
+          contacts: [],
+          total,
+          page: safePage,
+          pageSize: safePageSize,
+          totalPages,
+        };
+      }
+
+      const contacts: ContactRecord[] = await new Promise((resolve) => {
+        try {
+          const tx = db.transaction([STORE_CONTACTS], 'readonly');
+          const index = tx.objectStore(STORE_CONTACTS).index('by_agent_name');
+          const cursorReq = index.openCursor(range);
+          const result: ContactRecord[] = [];
+          let advanced = false;
+
+          cursorReq.onsuccess = (e: any) => {
+            const cursor: IDBCursorWithValue | null = e.target.result;
+            if (!cursor) {
+              resolve(result);
+              return;
+            }
+
+            if (startIndex > 0 && !advanced) {
+              advanced = true;
+              cursor.advance(startIndex);
+              return;
+            }
+
+            result.push(cursor.value);
+
+            if (result.length < safePageSize) {
+              cursor.continue();
+            } else {
+              resolve(result);
+            }
+          };
+
+          cursorReq.onerror = () => resolve([]);
         } catch {
           resolve([]);
         }
       });
+
+      return {
+        contacts,
+        total,
+        page: safePage,
+        pageSize: safePageSize,
+        totalPages,
+      };
     }
 
-    if (filter) {
-      const q = filter.toLowerCase();
-      allContacts = allContacts.filter(
-        (c) => c.name.toLowerCase().includes(q) || c.note.toLowerCase().includes(q),
-      );
-    }
+    const { contacts, total } = await new Promise<{
+      contacts: ContactRecord[];
+      total: number;
+    }>((resolve) => {
+      try {
+        const tx = db.transaction([STORE_CONTACTS], 'readonly');
+        const index = tx.objectStore(STORE_CONTACTS).index('by_agent_name');
+        const cursorReq = index.openCursor(range);
+        const pageSlice: ContactRecord[] = [];
+        let matchCount = 0;
+        const startIndex = (safePage - 1) * safePageSize;
 
-    allContacts.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+        cursorReq.onsuccess = (e: any) => {
+          const cursor: IDBCursorWithValue | null = e.target.result;
+          if (!cursor) {
+            resolve({ contacts: pageSlice, total: matchCount });
+            return;
+          }
 
-    const total = allContacts.length;
+          const contact = cursor.value as ContactRecord;
+          const nameMatch = contact.name && contact.name.toLowerCase().includes(q);
+          const noteMatch = contact.note && contact.note.toLowerCase().includes(q);
+
+          if (nameMatch || noteMatch) {
+            if (matchCount >= startIndex && pageSlice.length < safePageSize) {
+              pageSlice.push(contact);
+            }
+            matchCount++;
+          }
+
+          cursor.continue();
+        };
+
+        cursorReq.onerror = () => resolve({ contacts: [], total: 0 });
+      } catch {
+        resolve({ contacts: [], total: 0 });
+      }
+    });
+
     const totalPages = Math.max(1, Math.ceil(total / safePageSize));
-    const startIndex = (safePage - 1) * safePageSize;
-    const pageSlice = allContacts.slice(startIndex, startIndex + safePageSize);
 
     return {
-      contacts: pageSlice,
+      contacts,
       total,
       page: safePage,
       pageSize: safePageSize,
