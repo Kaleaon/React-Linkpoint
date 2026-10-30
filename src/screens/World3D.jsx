@@ -10,6 +10,9 @@ import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
 import Icon from '../components/Icon.jsx';
+import { useCameraState } from '../components/cameraReadout';
+import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
@@ -123,6 +126,11 @@ export default function World3D({ desktopBackdrop = false }) {
   const [showDpad, setShowDpad] = useState(true);
   const [panMode, setPanModeState] = useState(() => app.world.getPanMode?.() || false);
 
+  const refresh = useCallback(
+    () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]),
+    [],
+  );
+
   const toggleOverlays = useCallback(() => {
     setShowOverlays((prev) => !prev);
   }, []);
@@ -130,7 +138,10 @@ export default function World3D({ desktopBackdrop = false }) {
   const handleResetView = useCallback(() => {
     app.world.resetCamera?.();
     refresh();
-  }, []);
+    const camera = app.world.getCameraState?.();
+    const posStr = camera?.position ? camera.position.map(Math.round).join(', ') : '128, 128, 25';
+    liveRegionAnnouncer.announce(`Camera reset to default view at position ${posStr}`, 'polite');
+  }, [refresh]);
 
   const handleTogglePan = useCallback(() => {
     const next = app.world.togglePanMode?.();
@@ -205,7 +216,6 @@ export default function World3D({ desktopBackdrop = false }) {
     };
   }, []);
 
-  const refresh = () => setPosition(app.world.camera3d?.position.map(Math.round) || [0, 0, 0]);
   useEffect(() => {
     let active = true;
     const canvas = canvasRef.current;
@@ -259,6 +269,9 @@ export default function World3D({ desktopBackdrop = false }) {
     app.protocol.authReply?.region_name ||
     app.world.region?.name ||
     'Region unavailable';
+
+  const cameraState = useCameraState();
+  useSpatialAnnouncer(cameraState, region);
   const dataStatus = app.world.getDataStatus();
   const button = {
     minWidth: 44,

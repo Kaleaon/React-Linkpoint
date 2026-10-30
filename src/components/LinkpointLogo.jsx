@@ -152,7 +152,6 @@ export default function LinkpointLogo({
         }
         .core-anim-r {
           transform-origin: 256px 256px;
-          will-change: transform, opacity;
           animation: ${animated ? `corePulseR ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .mote-rotator-group {
@@ -160,11 +159,9 @@ export default function LinkpointLogo({
           animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-near-r {
-          will-change: opacity;
           animation: ${animated ? `moteNearFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-far-r {
-          will-change: opacity;
           animation: ${animated ? `moteFarFade ${CRYSTAL.dur} linear infinite` : 'none'};
         }
 
