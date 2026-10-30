@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { app } from '../linkpoint/app.ts';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
@@ -24,32 +24,56 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successTx, setSuccessTx] = useState(null);
+  const submittingRef = useRef(false);
 
   const currencySymbol = app.economy?.currencySymbol || 'L$';
   const isZeroCurrency = Boolean(app.economy?.isZeroCurrency);
+  const availableBalance = app.economy?.balance;
 
   const targetId = target?.id || target?.targetId || (typeof target === 'string' ? target : '');
   const targetName =
     target?.name || target?.targetName || (target?.type === 'object' ? 'Object' : 'Resident');
   const targetType = target?.type || 'avatar';
+  const sellerName =
+    target?.sellerName || target?.ownerName || target?.owner || target?.sellerIdentity || null;
+  const itemPrice =
+    typeof target?.price === 'number'
+      ? target.price
+      : typeof target?.itemPrice === 'number'
+        ? target.itemPrice
+        : null;
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedPreset(10);
-      setCustomAmount('');
-      setIsCustom(false);
+      if (itemPrice !== null && itemPrice > 0) {
+        if (PRESETS.includes(itemPrice)) {
+          setSelectedPreset(itemPrice);
+          setIsCustom(false);
+          setCustomAmount('');
+        } else {
+          setIsCustom(true);
+          setCustomAmount(String(itemPrice));
+        }
+      } else {
+        setSelectedPreset(10);
+        setCustomAmount('');
+        setIsCustom(false);
+      }
       setDescription(
         targetType === 'object' ? `Payment for ${targetName}` : `Tip for ${targetName}`,
       );
       setError(null);
       setSuccessTx(null);
       setLoading(false);
+      submittingRef.current = false;
     }
-  }, [isOpen, targetId, targetName, targetType]);
+  }, [isOpen, targetId, targetName, targetType, itemPrice]);
 
   if (!isOpen) return null;
 
   const currentAmount = isCustom ? parseInt(customAmount, 10) || 0 : selectedPreset;
+  const isExceedingBalance =
+    availableBalance !== null && availableBalance !== undefined && currentAmount > availableBalance;
 
   const handlePresetSelect = (amount) => {
     if (loading || isZeroCurrency) return;
@@ -67,7 +91,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
 
   const handlePay = async (e) => {
     e?.preventDefault();
-    if (loading || isZeroCurrency) return;
+    if (loading || submittingRef.current || isZeroCurrency) return;
 
     if (!targetId) {
       setError('No valid target specified for payment.');
@@ -79,6 +103,14 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
       return;
     }
 
+    if (isExceedingBalance) {
+      setError(
+        `Insufficient L$ balance: You have ${currencySymbol} ${availableBalance}, but this transaction costs ${currencySymbol} ${currentAmount}.`,
+      );
+      return;
+    }
+
+    submittingRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -105,6 +137,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
       setError(err.message || 'Payment request was declined or failed.');
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -316,6 +349,57 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                 </div>
               )}
 
+              {isExceedingBalance && (
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    backgroundColor: 'rgba(225, 29, 72, 0.15)',
+                    border: '1px solid #f43f5e',
+                    borderRadius: '6px',
+                    color: '#fecdd3',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <Icon name="alert-circle" size={16} style={{ flexShrink: 0, color: '#f43f5e' }} />
+                  <span>
+                    Insufficient L$ balance. Available: {currencySymbol} {availableBalance}
+                  </span>
+                </div>
+              )}
+
+              {(sellerName || itemPrice !== null) && (
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  {sellerName && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Seller / Owner:</span>
+                      <span style={{ color: '#f8fafc', fontWeight: '600' }}>{sellerName}</span>
+                    </div>
+                  )}
+                  {itemPrice !== null && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#94a3b8' }}>Item Price:</span>
+                      <span style={{ color: '#38bdf8', fontWeight: '700' }}>
+                        {currencySymbol} {itemPrice}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {error && (
                 <div
                   style={{
@@ -470,24 +554,31 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || isZeroCurrency || currentAmount <= 0}
+                  disabled={loading || isZeroCurrency || currentAmount <= 0 || isExceedingBalance}
                   style={{
                     flex: 2,
                     padding: '10px',
                     borderRadius: V.rs,
                     border: 'none',
                     backgroundColor:
-                      loading || isZeroCurrency || currentAmount <= 0 ? V.outv : V.pri,
-                    color: loading || isZeroCurrency || currentAmount <= 0 ? V.ink2 : V.onpri,
+                      loading || isZeroCurrency || currentAmount <= 0 || isExceedingBalance
+                        ? V.outv
+                        : V.pri,
+                    color:
+                      loading || isZeroCurrency || currentAmount <= 0 || isExceedingBalance
+                        ? V.ink2
+                        : V.onpri,
                     fontFamily: t.font,
                     fontWeight: '600',
                     cursor:
-                      loading || isZeroCurrency || currentAmount <= 0 ? 'not-allowed' : 'pointer',
+                      loading || isZeroCurrency || currentAmount <= 0 || isExceedingBalance
+                        ? 'not-allowed'
+                        : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px',
-                    opacity: isZeroCurrency ? 0.5 : 1,
+                    opacity: isZeroCurrency || isExceedingBalance ? 0.6 : 1,
                   }}
                 >
                   {loading ? (
