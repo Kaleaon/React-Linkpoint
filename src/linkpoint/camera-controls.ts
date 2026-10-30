@@ -7,7 +7,7 @@ import {
   type KeyMotion,
 } from './keyboard-motion';
 import { cameraRates, heldCameraCommands, isCameraKey } from './camera-keyboard';
-import type { KeyMode } from './key-bindings';
+import { matchesKeyBinding, type KeyMode } from './key-bindings';
 
 /** Hooks the viewer gives the controls for the standard Second Life camera shortcuts. */
 export interface CameraControlOptions {
@@ -19,6 +19,10 @@ export interface CameraControlOptions {
   toggleMouselook?: () => void;
   /** Alt+click: zoom the camera onto whatever is under the pointer. */
   focusAt?: (x: number, y: number) => void;
+  /** Check if single character shortcuts are enabled (default: true). */
+  singleCharShortcutsEnabled?: () => boolean;
+  /** Get custom key binding for an action, e.g. 'toggleMouselook'. */
+  getCustomBinding?: (action: string) => string | undefined;
 }
 
 type PointerSample = { x: number; y: number; time: number };
@@ -233,22 +237,66 @@ export class CameraControls {
   private keyMode(): KeyMode {
     return this.options.keyMode?.() ?? 'third_person';
   }
+  private isSingleCharShortcutsEnabled(): boolean {
+    if (this.options.singleCharShortcutsEnabled) {
+      return this.options.singleCharShortcutsEnabled();
+    }
+    try {
+      const saved = localStorage.getItem('linkpoint_keybindings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.singleCharShortcutsEnabled === 'boolean') {
+          return parsed.singleCharShortcutsEnabled;
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+    return true;
+  }
+
+  private getActionBinding(action: string): string {
+    if (this.options.getCustomBinding) {
+      const custom = this.options.getCustomBinding(action);
+      if (custom) return custom;
+    }
+    try {
+      const saved = localStorage.getItem('linkpoint_keybindings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.customBindings?.[action]) {
+          return parsed.customBindings[action];
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+    return action === 'toggleMouselook' ? 'KeyM' : action === 'toggleOverlays' ? 'KeyH' : '';
+  }
+
   private onKeyDown = (event: KeyboardEvent) => {
     this.shift = event.shiftKey;
     this.mods = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey };
     if (event.metaKey || isTypingTarget(event.target)) return;
-    // Esc puts the camera back behind the avatar; M toggles mouselook. Neither fires with a modifier held.
-    if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.repeat) {
-      if (
-        event.code === 'Escape' &&
-        this.options.resetView &&
-        !this.escapeBelongsToPage(event.target)
-      ) {
-        this.options.resetView();
-        this.changed();
-        return;
-      }
-      if (event.code === 'KeyM' && this.options.toggleMouselook) {
+
+    if (
+      event.code === 'Escape' &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !event.repeat &&
+      this.options.resetView &&
+      !this.escapeBelongsToPage(event.target)
+    ) {
+      this.options.resetView();
+      this.changed();
+      return;
+    }
+
+    if (this.options.toggleMouselook) {
+      const binding = this.getActionBinding('toggleMouselook');
+      const singleCharEnabled = this.isSingleCharShortcutsEnabled();
+      if (matchesKeyBinding(event, binding, singleCharEnabled)) {
         event.preventDefault();
         this.options.toggleMouselook();
         this.changed();

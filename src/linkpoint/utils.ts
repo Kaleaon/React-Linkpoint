@@ -2,6 +2,7 @@
  * Linkpoint PWA - Utility Functions
  */
 
+import { lerp } from './sl-math';
 import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 /**
@@ -208,7 +209,7 @@ export const Utils = {
   },
 
   lerp(start: number, end: number, t: number) {
-    return start * (1 - t) + end * t;
+    return lerp(start, end, t);
   },
 
   isMobile() {

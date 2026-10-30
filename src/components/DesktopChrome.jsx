@@ -151,6 +151,7 @@ export default function DesktopChrome() {
             showTitle={false}
             width={20}
             height={20}
+            aria-label="Linkpoint logo"
           />
         </div>
         <div className="desktop-history-controls" aria-label="Navigation history">

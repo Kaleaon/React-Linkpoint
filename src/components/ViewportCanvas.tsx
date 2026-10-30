@@ -1,4 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import { useKeybindings } from '../context/KeybindingsContext.tsx';
+import { isTypingTarget } from '../linkpoint/keyboard-motion';
 import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
 
 export { useSpatialAnnouncer };
@@ -57,6 +59,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
     className,
   } = props;
 
+  const { singleCharShortcutsEnabled } = useKeybindings();
   const internalCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useImperativeHandle(ref, () => internalCanvasRef.current as HTMLCanvasElement);
@@ -68,7 +71,13 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
     `Interactive 3D viewport canvas for ${regionName}. Position: ${posStr}. Drag or use single-pointer controls to navigate. ${manageMovementKeys ? 'Arrow keys or WASD move camera, Home key resets view.' : 'Movement keys follow the Second Life viewer bindings.'} + and - keys zoom.`;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLCanvasElement>) => {
-    // Respect modifier keys and text input focus
+    // Respect text input focus
+    if (isTypingTarget(event.target as any)) {
+      onKeyDown?.(event);
+      return;
+    }
+
+    // Respect modifier keys
     if (event.ctrlKey || event.metaKey || event.altKey) {
       onKeyDown?.(event);
       return;
@@ -78,6 +87,22 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
     const code = event.code;
 
     let handled = false;
+
+    // Suppress WASD, EQ, R if single-character shortcuts are disabled
+    const isSingleCharMovementKey = [
+      'KeyW',
+      'KeyA',
+      'KeyS',
+      'KeyD',
+      'KeyE',
+      'KeyQ',
+      'KeyR',
+    ].includes(code);
+
+    if (isSingleCharMovementKey && !singleCharShortcutsEnabled) {
+      onKeyDown?.(event);
+      return;
+    }
 
     switch (manageMovementKeys ? code : '') {
       case 'ArrowUp':
@@ -125,7 +150,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
       } else if (key === '-' || key === '_' || code === 'NumpadSubtract') {
         onZoom?.(-0.2);
         handled = true;
-      } else if (manageMovementKeys && code === 'KeyR') {
+      } else if (manageMovementKeys && code === 'KeyR' && singleCharShortcutsEnabled) {
         onResetView?.();
         handled = true;
       }

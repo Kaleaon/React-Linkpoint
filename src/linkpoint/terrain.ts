@@ -6,6 +6,8 @@
  * usually dirt, 3 = highest, usually rock).
  */
 
+import { lerp } from './sl-math';
+
 export const TERRAIN_LAYERS = 4;
 
 // ---- Perlin noise (classic gradient noise, range about -1..1) -------------------------------
@@ -30,7 +32,6 @@ const PERM = (() => {
 })();
 
 const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
-const lerp = (t: number, a: number, b: number) => a + t * (b - a);
 function grad(hash: number, x: number, y: number) {
   const h = hash & 7;
   const u = h < 4 ? x : y,
@@ -49,9 +50,9 @@ export function noise2(x: number, y: number): number {
   const a = PERM[X] + Y,
     b = PERM[X + 1] + Y;
   return lerp(
+    lerp(grad(PERM[a], x, y), grad(PERM[b], x - 1, y), u),
+    lerp(grad(PERM[a + 1], x, y - 1), grad(PERM[b + 1], x - 1, y - 1), u),
     v,
-    lerp(u, grad(PERM[a], x, y), grad(PERM[b], x - 1, y)),
-    lerp(u, grad(PERM[a + 1], x, y - 1), grad(PERM[b + 1], x - 1, y - 1)),
   );
 }
 
@@ -77,7 +78,7 @@ export interface TerrainParams {
 }
 
 const bilinear = (sw: number, se: number, nw: number, ne: number, fx: number, fy: number) =>
-  lerp(fy, lerp(fx, sw, se), lerp(fx, nw, ne));
+  lerp(lerp(sw, se, fx), lerp(nw, ne, fx), fy);
 
 /**
  * Composition value 0..3 for every height sample. `heights` is size*size, row = y (south to north).

@@ -80,6 +80,7 @@ export function StackHead({ title, subtitle, scr }) {
         showTitle={false}
         width={28}
         height={28}
+        aria-label="Linkpoint logo"
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <h1
@@ -194,6 +195,7 @@ export function SweepHead({ title, subtitle }) {
           showTitle={false}
           width={24}
           height={24}
+          aria-label="Linkpoint logo"
         />
         <h1
           style={{
@@ -259,6 +261,7 @@ export function PivotHead({ title, subtitle, scr }) {
           showTitle={false}
           width={28}
           height={28}
+          aria-label="Linkpoint logo"
         />
         <h1
           style={{
@@ -335,6 +338,7 @@ export function RuleHead({ title, subtitle }) {
           showTitle={false}
           width={20}
           height={20}
+          aria-label="Linkpoint logo"
         />
         <h1
           style={{
@@ -374,6 +378,7 @@ export function EditorialHead({ title, subtitle }) {
           showTitle={false}
           width={28}
           height={28}
+          aria-label="Linkpoint logo"
         />
         <h1
           style={{

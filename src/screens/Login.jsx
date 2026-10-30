@@ -136,6 +136,7 @@ export default function Login() {
               showTitle={false}
               width="64px"
               height="64px"
+              aria-label="Linkpoint logo"
             />
           </div>
           <h1 style={{ color: V.pri, font: `700 28px/1.1 ${t.dfont}`, letterSpacing: '.12em' }}>

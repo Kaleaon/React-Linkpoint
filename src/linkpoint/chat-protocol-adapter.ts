@@ -131,7 +131,13 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
    */
   async sendTypingState(isTyping: boolean): Promise<void> {
     const type = isTyping ? ChatType.START : ChatType.STOP;
-    if (typeof this.protocol?.sendChat === 'function') {
+    if (typeof this.protocol?.sendTypingState === 'function') {
+      try {
+        await this.protocol.sendTypingState(isTyping);
+      } catch {
+        await this.protocol.sendTypingState({ isTyping });
+      }
+    } else if (typeof this.protocol?.sendChat === 'function') {
       await this.protocol.sendChat('', 0, type);
     } else {
       await this.sendSpatialChat('', 0, type);
@@ -149,7 +155,11 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
 
     try {
       if (typeof this.protocol?.sendIMTypingState === 'function') {
-        await this.protocol.sendIMTypingState(recipientId, isTyping);
+        try {
+          await this.protocol.sendIMTypingState(recipientId, isTyping);
+        } catch {
+          await this.protocol.sendIMTypingState({ recipientId, isTyping });
+        }
         return true;
       } else if (typeof this.protocol?.sendImprovedInstantMessage === 'function') {
         await this.protocol.sendImprovedInstantMessage({
@@ -165,7 +175,11 @@ export class ChatProtocolAdapter extends Utils.EventEmitter {
         if (this.protocol.sendInstantMessage.length >= 3) {
           await this.protocol.sendInstantMessage(recipientId, '', dialog);
         } else {
-          await this.protocol.sendInstantMessage(recipientId, '');
+          try {
+            await this.protocol.sendInstantMessage(recipientId, '');
+          } catch {
+            await this.protocol.sendInstantMessage({ recipientId, message: '', dialog });
+          }
         }
         return true;
       }

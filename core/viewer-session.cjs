@@ -64,7 +64,67 @@ const {
 const {
   DirPlacesQueryMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirPlacesQuery');
+const {
+  DirClassifiedQueryMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirClassifiedQuery');
 const { DirFindFlags } = require('@caspertech/node-metaverse/dist/lib/enums/DirFindFlags');
+
+class DirEventsQueryMessage {
+  constructor() {
+    this.name = 'DirEventsQuery';
+    this.messageFlags = 20; // MessageFlags.FrequencyLow
+    this.id = 4294901822; // 0xFFFF003E
+    this.AgentData = { AgentID: UUID.zero(), SessionID: UUID.zero() };
+    this.QueryData = {
+      QueryID: UUID.zero(),
+      SearchText: Buffer.allocUnsafe(0),
+      QueryFlags: 0,
+      Category: 0,
+      DateText: Buffer.allocUnsafe(0),
+      QueryStart: 0,
+    };
+  }
+
+  getSize() {
+    return 62 + this.QueryData.SearchText.length + this.QueryData.DateText.length;
+  }
+
+  writeToBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData.AgentID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.SessionID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.QueryData.QueryID.writeToBuffer(buf, pos);
+    pos += 16;
+
+    buf.writeUInt8(this.QueryData.SearchText.length, pos++);
+    this.QueryData.SearchText.copy(buf, pos);
+    pos += this.QueryData.SearchText.length;
+
+    buf.writeUInt32LE(this.QueryData.QueryFlags, pos);
+    pos += 4;
+    buf.writeUInt32LE(this.QueryData.Category, pos);
+    pos += 4;
+
+    buf.writeUInt8(this.QueryData.DateText.length, pos++);
+    this.QueryData.DateText.copy(buf, pos);
+    pos += this.QueryData.DateText.length;
+
+    buf.writeInt32LE(this.QueryData.QueryStart, pos);
+    pos += 4;
+
+    return pos - startPos;
+  }
+}
+
+function sanitizeQueryString(input) {
+  if (!input) return '';
+  const sanitized = String(input)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim();
+  return sanitized.slice(0, 255);
+}
 const {
   TeleportLandmarkRequestMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/TeleportLandmarkRequest');
@@ -536,14 +596,32 @@ class ViewerSession {
       position: vector(event.position),
       timestamp: Date.now(),
     }));
-    this.subscribe(events.onInstantMessage, 'im', (event) => ({
-      id: newId(),
-      fromId: event.from?.toString(),
-      fromName: event.fromName || 'Resident',
-      message: event.message,
-      dialog: event.dialog,
-      timestamp: Date.now(),
-    }));
+    this.subscribe(events.onInstantMessage, 'im', (event) => {
+      if (event.dialog === 41 || event.dialog === 42) {
+        this.send('im_typing', {
+          fromId: event.from?.toString(),
+          fromName: event.fromName || 'Resident',
+          isTyping: event.dialog === 41,
+          timestamp: Date.now(),
+        });
+      }
+      return {
+        id: newId(),
+        fromId: event.from?.toString(),
+        fromName: event.fromName || 'Resident',
+        message: event.message,
+        dialog: event.dialog,
+        timestamp: Date.now(),
+      };
+    });
+    if (events.onAgentTyping) {
+      this.subscribe(events.onAgentTyping, 'typing', (event) => ({
+        agentId: event.from?.toString() || event.agentId?.toString(),
+        fromId: event.from?.toString() || event.agentId?.toString(),
+        isTyping: Boolean(event.isTyping ?? event.typing),
+        timestamp: Date.now(),
+      }));
+    }
 
     this.subscribe(events.onParcelPropertiesEvent, 'parcel-properties', (parcel) => ({
       id: parcel.LocalID,
@@ -811,6 +889,9 @@ class ViewerSession {
   // ---- communication ----------------------------------------------------------------------------
 
   async sendChat({ message, channel = 0, type = 1 }) {
+    if (type === 4 || type === 5) {
+      return this.sendTypingState({ isTyping: type === 4 });
+    }
     const comms = this.requireBot().clientCommands?.comms;
     if (!comms) throw new Error('Second Life communications interface unavailable');
     if (type === 0) await comms.whisper(message, channel);
@@ -818,10 +899,64 @@ class ViewerSession {
     else await comms.say(message, channel);
   }
 
-  async sendInstantMessage({ recipientId, message }) {
+  async sendInstantMessage({ recipientId, message, dialog }) {
     const comms = this.requireBot().clientCommands?.comms;
     if (!comms) throw new Error('Second Life communications interface unavailable');
-    await comms.sendInstantMessage(recipientId, message);
+    if (typeof dialog === 'number') {
+      await comms.sendInstantMessage(recipientId, message || '', dialog);
+    } else {
+      await comms.sendInstantMessage(recipientId, message);
+    }
+  }
+
+  async sendTypingState(params = {}) {
+    const isTyping = typeof params === 'boolean' ? params : Boolean(params.isTyping);
+    if (params && typeof params === 'object' && params.recipientId) {
+      return this.sendIMTypingState({ recipientId: params.recipientId, isTyping });
+    }
+
+    const circuit = this.currentRegion()?.circuit;
+    const agentId = this.identity?.agent_id || this.bot?.agent?.agentID;
+
+    if (circuit?.sendMessage && agentId) {
+      try {
+        const {
+          AgentTypingMessage,
+        } = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentTyping');
+        const msg = new AgentTypingMessage();
+        msg.AgentData = {
+          AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+          SessionID: circuit.sessionID
+            ? typeof circuit.sessionID === 'string'
+              ? new UUID(circuit.sessionID)
+              : circuit.sessionID
+            : UUID.zero(),
+        };
+        msg.Data = {
+          Typing: isTyping,
+        };
+        circuit.sendMessage(msg, PacketFlags.Reliable);
+      } catch (err) {
+        console.warn('[ViewerSession] AgentTyping packet dispatch warning:', err);
+      }
+    }
+
+    const comms = this.bot?.clientCommands?.comms;
+    if (comms) {
+      if (isTyping) comms.startTypingLocal?.().catch(() => {});
+      else comms.stopTypingLocal?.().catch(() => {});
+    }
+
+    return { sent: true };
+  }
+
+  async sendIMTypingState({ recipientId, isTyping } = {}) {
+    if (!recipientId) throw new Error('Recipient ID required');
+    const comms = this.requireBot().clientCommands?.comms;
+    if (!comms) throw new Error('Second Life communications interface unavailable');
+    const dialog = isTyping ? 41 : 42; // InstantMessageDialog.TYPING_START (41) / TYPING_STOP (42)
+    await comms.sendInstantMessage(recipientId, '', dialog);
+    return { sent: true };
   }
 
   /** Ask the grid for the account's mute list again; it arrives as a 'mute-list' event. */
@@ -1748,6 +1883,84 @@ class ViewerSession {
           dwell: place.Dwell || 0,
           forSale: Boolean(place.ForSale),
           type: 'places',
+        });
+      }
+      return { results, hasMore: results.length >= 100 };
+    } else if (category === 'events') {
+      const msg = new DirEventsQueryMessage();
+      msg.AgentData = {
+        AgentID: this.bot.agent.agentID,
+        SessionID: circuit.sessionID,
+      };
+      const queryID = UUID.random();
+      const sanitizedQuery = sanitizeQueryString(query);
+      const categoryFilter = Number(params.categoryFilter) || 0;
+      const timeFilter = String(params.timeFilter || 'u');
+      msg.QueryData = {
+        QueryID: queryID,
+        SearchText: Utils.StringToBuffer(sanitizedQuery).subarray(0, 255),
+        QueryFlags: DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
+        Category: categoryFilter,
+        DateText: Utils.StringToBuffer(timeFilter).subarray(0, 255),
+        QueryStart: start,
+      };
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+      const reply = await circuit.waitForMessage(Message.DirEventsReply, 10000, (der) => {
+        return der.QueryData?.QueryID?.equals(queryID)
+          ? FilterResponse.Finish
+          : FilterResponse.NoMatch;
+      });
+      const results = [];
+      for (const ev of reply.QueryReplies || []) {
+        results.push({
+          id: String(
+            ev.EventID || globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
+          ),
+          eventId: ev.EventID || 0,
+          ownerId: ev.OwnerID?.toString() || '',
+          name: Utils.BufferToStringSimple(ev.Name || ''),
+          date: Utils.BufferToStringSimple(ev.Date || ''),
+          unixTime: ev.UnixTime || 0,
+          eventFlags: ev.EventFlags || 0,
+          type: 'events',
+        });
+      }
+      return { results, hasMore: results.length >= 100 };
+    } else if (category === 'classifieds') {
+      const msg = new DirClassifiedQueryMessage();
+      msg.AgentData = {
+        AgentID: this.bot.agent.agentID,
+        SessionID: circuit.sessionID,
+      };
+      const queryID = UUID.random();
+      const sanitizedQuery = sanitizeQueryString(query);
+      msg.QueryData = {
+        QueryID: queryID,
+        SearchText: Utils.StringToBuffer(sanitizedQuery).subarray(0, 255),
+        QueryFlags: DirFindFlags.IncludePG | DirFindFlags.IncludeMature | DirFindFlags.IncludeAdult,
+        Category: Number(params.categoryFilter) || 0,
+        QueryStart: start,
+      };
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+      const reply = await circuit.waitForMessage(Message.DirClassifiedReply, 10000, (dcr) => {
+        return dcr.QueryData?.QueryID?.equals(queryID)
+          ? FilterResponse.Finish
+          : FilterResponse.NoMatch;
+      });
+      const results = [];
+      for (const cls of reply.QueryReplies || []) {
+        results.push({
+          id:
+            cls.ClassifiedID?.toString() ||
+            globalThis.crypto?.randomUUID?.() ||
+            Math.random().toString(36).slice(2),
+          classifiedId: cls.ClassifiedID?.toString() || '',
+          name: Utils.BufferToStringSimple(cls.Name || ''),
+          price: cls.PriceForListing || 0,
+          creationDate: cls.CreationDate || 0,
+          expirationDate: cls.ExpirationDate || 0,
+          classifiedFlags: cls.ClassifiedFlags || 0,
+          type: 'classifieds',
         });
       }
       return { results, hasMore: results.length >= 100 };
