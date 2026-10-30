@@ -31,7 +31,7 @@ export const SecondaryViewLoader: React.FC<SecondaryViewLoaderProps> = ({
   ariaLive = 'polite',
   ariaBusy = true,
 }) => {
-  const themeContext = useTheme?.();
+  const themeContext = useTheme();
   const V = themeContext?.V || {};
 
   const isInline = layout === 'inline';
