@@ -67,6 +67,157 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       expect(filtered.total).toBe(8); // 0, 2, 4, 6, 8, 10, 12, 14
       expect(filtered.contacts.every((c) => c.name.includes('Alpha'))).toBe(true);
     });
+
+    it('fetches multi-page friend slices in alphabetical order using by_agent_name compound index', async () => {
+      const agentId = 'agent-cursor-pagination';
+      const names = [
+        'Zebra',
+        'Charlie',
+        'Alpha',
+        'Bravo',
+        'Delta',
+        'Echo',
+        'Foxtrot',
+        'Golf',
+        'Hotel',
+        'India',
+        'Juliet',
+        'Kilo',
+      ];
+      const contacts = names.map((name, i) => ({
+        id: `cursor-c-${i}`,
+        name,
+        note: `Note for ${name}`,
+        savedAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+
+      await indexedDBStore.saveContacts(agentId, contacts);
+
+      // Page 1 (pageSize 5) -> Alpha, Bravo, Charlie, Delta, Echo
+      const page1 = await indexedDBStore.getFriendsPage(agentId, 1, 5);
+      expect(page1.total).toBe(12);
+      expect(page1.totalPages).toBe(3);
+      expect(page1.contacts.length).toBe(5);
+      expect(page1.contacts.map((c) => c.name)).toEqual([
+        'Alpha',
+        'Bravo',
+        'Charlie',
+        'Delta',
+        'Echo',
+      ]);
+
+      // Page 2 (pageSize 5) -> Foxtrot, Golf, Hotel, India, Juliet
+      const page2 = await indexedDBStore.getFriendsPage(agentId, 2, 5);
+      expect(page2.page).toBe(2);
+      expect(page2.contacts.length).toBe(5);
+      expect(page2.contacts.map((c) => c.name)).toEqual([
+        'Foxtrot',
+        'Golf',
+        'Hotel',
+        'India',
+        'Juliet',
+      ]);
+
+      // Page 3 (pageSize 5) -> Kilo, Zebra
+      const page3 = await indexedDBStore.getFriendsPage(agentId, 3, 5);
+      expect(page3.page).toBe(3);
+      expect(page3.contacts.length).toBe(2);
+      expect(page3.contacts.map((c) => c.name)).toEqual(['Kilo', 'Zebra']);
+
+      // Page 4 (out of bounds)
+      const page4 = await indexedDBStore.getFriendsPage(agentId, 4, 5);
+      expect(page4.contacts.length).toBe(0);
+      expect(page4.total).toBe(12);
+    });
+
+    it('handles filtered friend queries across multiple pages and searches notes', async () => {
+      const agentId = 'agent-filter-paged';
+      const contacts = [
+        { id: 'f1', name: 'Alice Resident', note: 'Special VIP' },
+        { id: 'f2', name: 'Bob Resident', note: 'Standard Friend' },
+        { id: 'f3', name: 'Charlie Resident', note: 'Special Officer' },
+        { id: 'f4', name: 'David Resident', note: 'Special Guest' },
+        { id: 'f5', name: 'Eve Resident', note: 'Normal Friend' },
+      ];
+
+      await indexedDBStore.saveContacts(agentId, contacts);
+
+      // Filter by 'Special' in note with pageSize 2
+      const page1 = await indexedDBStore.getFriendsPage(agentId, 1, 2, 'Special');
+      expect(page1.total).toBe(3); // Alice, Charlie, David
+      expect(page1.totalPages).toBe(2);
+      expect(page1.contacts.length).toBe(2);
+
+      const page2 = await indexedDBStore.getFriendsPage(agentId, 2, 2, 'Special');
+      expect(page2.contacts.length).toBe(1);
+    });
+  });
+
+  describe('Database Schema Migration (v4 -> v5)', () => {
+    it('upgrades schema from version 4 to 5 and creates by_agent_name compound index on contacts store', async () => {
+      const dbName = 'test_migration_v4_v5_db';
+
+      // 1. Create v4 database without by_agent_name index
+      await new Promise<void>((resolve, reject) => {
+        const req = window.indexedDB.open(dbName, 4);
+        req.onupgradeneeded = (e: any) => {
+          const db: IDBDatabase = e.target.result;
+          const store = db.createObjectStore('contacts', { keyPath: ['agentId', 'id'] });
+          store.createIndex('by_agent', 'agentId', { unique: false });
+        };
+        req.onsuccess = (e: any) => {
+          const db: IDBDatabase = e.target.result;
+          const tx = db.transaction(['contacts'], 'readwrite');
+          tx.objectStore('contacts').put({
+            agentId: 'agent-migrated',
+            id: 'c1',
+            name: 'Migrated Contact',
+            note: 'Old DB Record',
+            savedAt: 100,
+            updatedAt: 100,
+          });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+        };
+        req.onerror = () => reject(req.error);
+      });
+
+      // 2. Open database with version 5 upgrade logic
+      const dbV5 = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = window.indexedDB.open(dbName, 5);
+        req.onupgradeneeded = (e: any) => {
+          const db: IDBDatabase = e.target.result;
+          if (db.objectStoreNames.contains('contacts')) {
+            const store = e.target.transaction.objectStore('contacts');
+            if (!store.indexNames.contains('by_agent_name')) {
+              store.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
+            }
+          }
+        };
+        req.onsuccess = (e: any) => resolve(e.target.result);
+        req.onerror = () => reject(req.error);
+      });
+
+      // 3. Verify by_agent_name index exists
+      const tx = dbV5.transaction(['contacts'], 'readonly');
+      const store = tx.objectStore('contacts');
+      expect(store.indexNames.contains('by_agent_name')).toBe(true);
+
+      // 4. Query using by_agent_name compound index range
+      const index = store.index('by_agent_name');
+      const range = IDBKeyRange.bound(['agent-migrated', ''], ['agent-migrated', '\uffff']);
+      const results: any[] = await new Promise((resolve) => {
+        const getAllReq = index.getAll(range);
+        getAllReq.onsuccess = () => resolve(getAllReq.result);
+      });
+
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('Migrated Contact');
+      dbV5.close();
+    });
   });
 
   describe('Reactive Delta Event Selectors', () => {

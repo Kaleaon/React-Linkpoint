@@ -642,6 +642,7 @@ export class RlvHandler extends Utils.EventEmitter {
   canOoc = true;
   /** Shown in place of a blocked message. */
   debug = false;
+  private nameRegexCache = new Map<string, RegExp>();
 
   constructor(private env: RlvEnvironment = {}) {
     super();
@@ -676,6 +677,7 @@ export class RlvHandler extends Utils.EventEmitter {
     this.notifications.length = 0;
     this.commandStack.length = 0;
     this.blockNames = false;
+    this.nameRegexCache.clear();
     this.emit('reset');
   }
 
@@ -1823,6 +1825,16 @@ export class RlvHandler extends Utils.EventEmitter {
     return RLV_ANONYMS[hash % RLV_ANONYMS.length];
   }
 
+  private getNameRegex(name: string): RegExp {
+    let regex = this.nameRegexCache.get(name);
+    if (!regex) {
+      regex = new RegExp(`\\b${escapeRegex(name)}\\b`, 'gi');
+      this.nameRegexCache.set(name, regex);
+    }
+    regex.lastIndex = 0;
+    return regex;
+  }
+
   /** `RlvUtil::filterNames`: replace every nearby avatar's names (unless an exception) in a piece of text. */
   filterNames(text: string, opts: { filterLegacy?: boolean; clearMatches?: boolean } = {}): string {
     const filterLegacyDefault = opts.filterLegacy ?? true;
@@ -1835,7 +1847,7 @@ export class RlvHandler extends Utils.EventEmitter {
       const filterLegacy = filterLegacyDefault && legacy.length > 2;
       const replacement = opts.clearMatches ? '' : this.anonym(legacy || display);
       const replace = (name: string) => {
-        out = out.replace(new RegExp(`\\b${escapeRegex(name)}\\b`, 'gi'), replacement);
+        out = out.replace(this.getNameRegex(name), replacement);
       };
       if (legacy.toLowerCase().includes(display.toLowerCase())) {
         if (filterLegacy) replace(legacy);
