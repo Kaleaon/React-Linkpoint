@@ -224,4 +224,54 @@ describe('PayDialog Component', () => {
     expect(container.style.pointerEvents).toBe('auto');
     expect(container.style.backgroundColor).not.toBe('#1e222d'); // no longer static hex
   });
+
+  it('renders seller identity and item price confirmation details when provided', async () => {
+    const host = await mount(
+      createElement(PayDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        target: {
+          id: 'vendor-44',
+          name: 'Designer Dress Vendor',
+          type: 'object',
+          sellerName: 'Samantha Designer',
+          price: 250,
+        },
+      }),
+    );
+
+    expect(host.textContent).toContain('Seller / Owner:');
+    expect(host.textContent).toContain('Samantha Designer');
+    expect(host.textContent).toContain('Item Price:');
+    expect(host.textContent).toContain('L$ 250');
+
+    const payBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(payBtn.textContent).toContain('Pay L$ 250');
+  });
+
+  it('blocks payment submission and disables button when amount exceeds available L$ balance', async () => {
+    app.economy.balance = 50;
+
+    const host = await mount(
+      createElement(PayDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        target: {
+          id: 'vendor-expensive',
+          name: 'Expensive Item',
+          type: 'object',
+          price: 250,
+        },
+      }),
+    );
+
+    const payBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(payBtn.disabled).toBe(true);
+
+    await act(async () => {
+      payBtn.click();
+    });
+
+    expect(host.textContent).toContain('Insufficient L$ balance');
+  });
 });
