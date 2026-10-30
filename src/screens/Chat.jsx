@@ -351,10 +351,11 @@ export default function Chat() {
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
+            <h2
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
+                margin: 0,
                 color: autoReplyEnabled ? '#eab308' : V.ink2,
                 display: 'flex',
                 alignItems: 'center',
@@ -363,7 +364,7 @@ export default function Chat() {
             >
               <Icon name="clock" size={13} />
               AWAY AUTO-REPLY: {autoReplyEnabled ? 'ON' : 'OFF'}
-            </span>
+            </h2>
             {autoReplyEnabled && (
               <span
                 style={{

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useErrorRecovery } from '../context/ErrorRecoveryContext';
-import CrystalLoader from './CrystalLoader.jsx';
+import CrystalLoader from './CrystalLoader';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { getErrorTranslation } from '../linkpoint/errorCatalog';
 
@@ -206,6 +206,7 @@ export const ErrorRecoveryModal: React.FC<ErrorRecoveryModalProps> = ({ onNaviga
               setIsProcessing(true);
               try {
                 await processRetryQueue();
+                clearError();
               } catch {
                 // error handled in recovery service
               } finally {
