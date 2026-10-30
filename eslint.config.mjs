@@ -21,7 +21,6 @@ export default tseslint.config(
       '**/packages/**',
       '**/sl_mockup.html',
       '**/*.html',
-      '**/patch.diff',
     ],
   },
   js.configs.recommended,
