@@ -60,6 +60,9 @@ export type {
   ImprovedInstantMessagePayload,
 } from './chat-protocol-adapter';
 
+// Search Subsystem
+export * from './search';
+
 // Appearance & Skeleton
 export { AppearanceManager } from './appearance-manager';
 export { AvatarSkeleton } from './avatar-skeleton';
