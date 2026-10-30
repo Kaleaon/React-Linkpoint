@@ -10,6 +10,7 @@ import { Utils } from './utils';
 import { localCache } from './local-cache';
 import { slBridge } from './sl-bridge';
 import { EconomySyncEngine, SyncProgressEvent } from './phase2/economy-sync-engine';
+import { economyService } from '../services/EconomyService';
 
 export interface TransactionRecord {
   id: string;
@@ -29,6 +30,101 @@ export interface PaymentParams {
   targetName?: string;
   amount: number;
   description?: string;
+  isSystemSync?: boolean;
+  targetType?: 'avatar' | 'object' | 'group' | 'system';
+}
+
+export interface MoneyTransferParams {
+  agentId: string;
+  sessionId?: string;
+  sourceId?: string;
+  destinationId: string;
+  amount: number;
+  transactionType?: number;
+  aggregateAmount?: number;
+  transactionFlags?: number;
+  description?: string;
+}
+
+/**
+ * Serializes a MoneyTransferRequest packet for L$ transfer over UDP (Message ID: 0xFFFF00FC).
+ */
+export function serializeMoneyTransferRequest(params: MoneyTransferParams): Uint8Array {
+  if (!params.agentId || !params.destinationId) {
+    throw new Error('agentId and destinationId are required for MoneyTransferRequest');
+  }
+
+  const parseUuid = (uuid: string): Uint8Array => {
+    const hex = (uuid || '00000000-0000-0000-0000-000000000000').replace(/-/g, '');
+    const bytes = new Uint8Array(16);
+    if (hex.length !== 32) {
+      return bytes;
+    }
+    for (let i = 0; i < 16; i++) {
+      bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16) || 0;
+    }
+    return bytes;
+  };
+
+  const agentIdBytes = parseUuid(params.agentId);
+  const sessionIdBytes = parseUuid(params.sessionId || '00000000-0000-0000-0000-000000000000');
+  const sourceIdBytes = parseUuid(params.sourceId || params.agentId);
+  const destIdBytes = parseUuid(params.destinationId);
+
+  const descStr = params.description || '';
+  const descBytes = new TextEncoder().encode(descStr);
+  const descLen = Math.min(descBytes.length, 255);
+
+  const totalSize = 4 + 16 + 16 + 16 + 16 + 4 + 4 + 4 + 1 + 1 + descLen;
+  const buffer = new Uint8Array(totalSize);
+  const view = new DataView(buffer.buffer);
+
+  // Low frequency Message ID 252 (0xFFFF00FC)
+  view.setUint32(0, 0xffff00fc, false);
+
+  let offset = 4;
+  // AgentData
+  buffer.set(agentIdBytes, offset);
+  offset += 16;
+  buffer.set(sessionIdBytes, offset);
+  offset += 16;
+
+  // MoneyData
+  buffer.set(sourceIdBytes, offset);
+  offset += 16;
+  buffer.set(destIdBytes, offset);
+  offset += 16;
+
+  const transType = params.transactionType ?? 5001; // 5001 = TRANS_OBJECT_PAY
+  view.setInt32(offset, transType, true);
+  offset += 4;
+
+  const amount = Math.floor(params.amount || 0);
+  view.setInt32(offset, amount, true);
+  offset += 4;
+
+  const aggregateAmount = Math.floor(params.aggregateAmount || 0);
+  view.setInt32(offset, aggregateAmount, true);
+  offset += 4;
+
+  view.setUint8(offset, params.transactionFlags ?? 0);
+  offset += 1;
+
+  view.setUint8(offset, descLen);
+  offset += 1;
+
+  buffer.set(descBytes.subarray(0, descLen), offset);
+
+  return buffer;
+}
+
+export interface TransactionFilterOptions {
+  searchQuery?: string;
+  type?: string;
+  avatar?: string;
+  dateRange?: string;
+  startDate?: number | string | Date;
+  endDate?: number | string | Date;
 }
 
 export interface EconomyStats {
@@ -142,6 +238,13 @@ export class EconomyManager extends Utils.EventEmitter {
   }
 
   /**
+   * Helper method to serialize a MoneyTransferRequest UDP packet.
+   */
+  public serializeMoneyTransferRequest(params: MoneyTransferParams): Uint8Array {
+    return serializeMoneyTransferRequest(params);
+  }
+
+  /**
    * Send payment to an in-world Object (tip jar, vendor, rental box, etc.)
    */
   public async payObject(params: PaymentParams): Promise<TransactionRecord> {
@@ -157,50 +260,85 @@ export class EconomyManager extends Utils.EventEmitter {
       throw new Error('Payment amount must be a positive integer');
     }
 
+    if (this.balance !== null && amount > this.balance) {
+      throw new Error(
+        `Insufficient L$ balance: available L$ ${this.balance}, required L$ ${amount}`,
+      );
+    }
+
     const description = params.description || `Payment to object ${params.targetName || targetId}`;
     const targetName = params.targetName || 'Object';
 
-    try {
-      const res = await slBridge.payObject({
-        targetId,
-        amount,
-        description,
-        targetName,
-        currencySymbol: this.currencySymbol,
-        isZeroCurrency: this.isZeroCurrency,
-      });
+    const executePayment = async (): Promise<TransactionRecord> => {
+      try {
+        let res: any;
+        if (this.syncEngine?.capabilitiesManager?.getPayObjectUrl?.()) {
+          res = await this.syncEngine.capabilitiesManager.executePayObjectCapability(
+            targetId,
+            amount,
+            description,
+          );
+        } else {
+          res = await slBridge.payObject({
+            targetId,
+            amount,
+            description,
+            targetName,
+            currencySymbol: this.currencySymbol,
+            isZeroCurrency: this.isZeroCurrency,
+          });
+        }
 
-      const record: TransactionRecord = {
-        id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'object',
-        amount,
-        type: 'payment',
-        description,
-        timestamp: Date.now(),
-        status: 'success',
-      };
+        const record: TransactionRecord = {
+          id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'object',
+          amount,
+          type: 'payment',
+          description,
+          timestamp: Date.now(),
+          status: 'success',
+        };
 
-      await this.recordTransaction(record);
-      return record;
-    } catch (err: any) {
-      const failedRecord: TransactionRecord = {
-        id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'object',
-        amount,
-        type: 'payment',
-        description: `${description} (Failed: ${err.message || 'Declined'})`,
-        timestamp: Date.now(),
-        status: 'failed',
-      };
-      await this.recordTransaction(failedRecord);
-      throw new Error(err.message || 'Payment declined or failed');
-    }
+        await this.recordTransaction(record);
+
+        if (this.balance !== null) {
+          this.balance = Math.max(0, this.balance - amount);
+          this.emit('balance_updated', {
+            balance: this.balance,
+            currencySymbol: this.currencySymbol,
+            isZeroCurrency: this.isZeroCurrency,
+          });
+        }
+
+        return record;
+      } catch (err: any) {
+        const failedRecord: TransactionRecord = {
+          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'object',
+          amount,
+          type: 'payment',
+          description: `${description} (Failed: ${err.message || 'Declined'})`,
+          timestamp: Date.now(),
+          status: 'failed',
+        };
+        await this.recordTransaction(failedRecord);
+        throw new Error(err.message || 'Payment declined or failed');
+      }
+    };
+
+    return economyService.interceptPay({
+      params: { ...params, amount, description, targetName },
+      targetType: 'object',
+      currencySymbol: this.currencySymbol,
+      currentBalance: this.balance,
+      execute: executePayment,
+    });
   }
 
   /**
@@ -219,50 +357,76 @@ export class EconomyManager extends Utils.EventEmitter {
       throw new Error('Payment amount must be a positive integer');
     }
 
+    if (this.balance !== null && amount > this.balance) {
+      throw new Error(
+        `Insufficient L$ balance: available L$ ${this.balance}, required L$ ${amount}`,
+      );
+    }
+
     const description = params.description || `Gift to ${params.targetName || targetId}`;
     const targetName = params.targetName || 'Resident';
 
-    try {
-      const res = await slBridge.payAvatar({
-        targetId,
-        amount,
-        description,
-        targetName,
-        currencySymbol: this.currencySymbol,
-        isZeroCurrency: this.isZeroCurrency,
-      });
+    const executePayment = async (): Promise<TransactionRecord> => {
+      try {
+        const res = await slBridge.payAvatar({
+          targetId,
+          amount,
+          description,
+          targetName,
+          currencySymbol: this.currencySymbol,
+          isZeroCurrency: this.isZeroCurrency,
+        });
 
-      const record: TransactionRecord = {
-        id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'avatar',
-        amount,
-        type: 'tip',
-        description,
-        timestamp: Date.now(),
-        status: 'success',
-      };
+        const record: TransactionRecord = {
+          id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'avatar',
+          amount,
+          type: 'tip',
+          description,
+          timestamp: Date.now(),
+          status: 'success',
+        };
 
-      await this.recordTransaction(record);
-      return record;
-    } catch (err: any) {
-      const failedRecord: TransactionRecord = {
-        id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'avatar',
-        amount,
-        type: 'tip',
-        description: `${description} (Failed: ${err.message || 'Declined'})`,
-        timestamp: Date.now(),
-        status: 'failed',
-      };
-      await this.recordTransaction(failedRecord);
-      throw new Error(err.message || 'Payment declined or failed');
-    }
+        await this.recordTransaction(record);
+
+        if (this.balance !== null) {
+          this.balance = Math.max(0, this.balance - amount);
+          this.emit('balance_updated', {
+            balance: this.balance,
+            currencySymbol: this.currencySymbol,
+            isZeroCurrency: this.isZeroCurrency,
+          });
+        }
+
+        return record;
+      } catch (err: any) {
+        const failedRecord: TransactionRecord = {
+          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'avatar',
+          amount,
+          type: 'tip',
+          description: `${description} (Failed: ${err.message || 'Declined'})`,
+          timestamp: Date.now(),
+          status: 'failed',
+        };
+        await this.recordTransaction(failedRecord);
+        throw new Error(err.message || 'Payment declined or failed');
+      }
+    };
+
+    return economyService.interceptPay({
+      params: { ...params, amount, description, targetName },
+      targetType: 'avatar',
+      currencySymbol: this.currencySymbol,
+      currentBalance: this.balance,
+      execute: executePayment,
+    });
   }
 
   /**
@@ -346,25 +510,97 @@ export class EconomyManager extends Utils.EventEmitter {
   }
 
   /**
-   * Get 30-day transactions filtered by search query.
+   * Get 30-day transactions filtered by search query or structured filter options.
    */
-  public getTransactions(searchQuery?: string): TransactionRecord[] {
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const filtered = this.transactions.filter((t) => t.timestamp >= cutoff);
+  public getTransactions(queryOrFilter?: string | TransactionFilterOptions): TransactionRecord[] {
+    const options: TransactionFilterOptions =
+      typeof queryOrFilter === 'string' ? { searchQuery: queryOrFilter } : queryOrFilter || {};
 
-    if (!searchQuery || !searchQuery.trim()) {
-      return filtered;
+    const now = Date.now();
+    let minTimestamp = now - 30 * 24 * 60 * 60 * 1000;
+    let maxTimestamp = Infinity;
+
+    if (options.dateRange) {
+      if (options.dateRange === 'today') {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        minTimestamp = startOfToday.getTime();
+      } else if (options.dateRange === '7days') {
+        minTimestamp = now - 7 * 24 * 60 * 60 * 1000;
+      } else if (options.dateRange === '14days') {
+        minTimestamp = now - 14 * 24 * 60 * 60 * 1000;
+      } else if (options.dateRange === '30days') {
+        minTimestamp = now - 30 * 24 * 60 * 60 * 1000;
+      } else if (options.dateRange === 'all') {
+        minTimestamp = 0;
+      }
     }
 
-    const q = searchQuery.trim().toLowerCase();
-    return filtered.filter(
-      (t) =>
-        t.description.toLowerCase().includes(q) ||
-        t.targetName.toLowerCase().includes(q) ||
-        t.targetId.toLowerCase().includes(q) ||
-        t.type.toLowerCase().includes(q) ||
-        String(t.amount).includes(q),
+    if (options.startDate !== undefined && options.startDate !== null && options.startDate !== '') {
+      const parsedStart =
+        typeof options.startDate === 'number'
+          ? options.startDate
+          : new Date(options.startDate).getTime();
+      if (!isNaN(parsedStart)) minTimestamp = parsedStart;
+    }
+
+    if (options.endDate !== undefined && options.endDate !== null && options.endDate !== '') {
+      let parsedEnd =
+        typeof options.endDate === 'number' ? options.endDate : new Date(options.endDate).getTime();
+      if (!isNaN(parsedEnd)) {
+        if (
+          typeof options.endDate === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(options.endDate.trim())
+        ) {
+          parsedEnd += 24 * 60 * 60 * 1000 - 1;
+        }
+        maxTimestamp = parsedEnd;
+        if (!options.startDate && !options.dateRange && minTimestamp > maxTimestamp) {
+          minTimestamp = 0;
+        }
+      }
+    }
+
+    let filtered = this.transactions.filter(
+      (t) => t.timestamp >= minTimestamp && t.timestamp <= maxTimestamp,
     );
+
+    if (options.type && options.type !== 'all') {
+      const targetType = options.type.toLowerCase();
+      filtered = filtered.filter((t) => {
+        if (targetType === 'credit') {
+          return t.amount > 0 || t.type.toLowerCase() === 'credit';
+        }
+        if (targetType === 'debit') {
+          return t.amount < 0 || t.type.toLowerCase() === 'debit';
+        }
+        return t.type.toLowerCase() === targetType;
+      });
+    }
+
+    if (options.avatar && options.avatar.trim()) {
+      const av = options.avatar.trim().toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.targetName.toLowerCase().includes(av) ||
+          t.targetId.toLowerCase().includes(av) ||
+          t.description.toLowerCase().includes(av),
+      );
+    }
+
+    if (options.searchQuery && options.searchQuery.trim()) {
+      const q = options.searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.description.toLowerCase().includes(q) ||
+          t.targetName.toLowerCase().includes(q) ||
+          t.targetId.toLowerCase().includes(q) ||
+          t.type.toLowerCase().includes(q) ||
+          String(t.amount).includes(q),
+      );
+    }
+
+    return filtered;
   }
 
   /**

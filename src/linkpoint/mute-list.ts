@@ -53,6 +53,8 @@ export interface MuteTransport {
 export class MuteList extends Utils.EventEmitter {
   private mutes = new Map<string, MuteEntry>();
   private legacy = new Set<string>();
+  private agentNameMap = new Map<string, MuteEntry>();
+  private legacyLowerCaseMap = new Map<string, number>();
   private pendingQueue: Array<{ kind: 'update' | 'remove'; entry: MuteEntry }> = [];
   state: MuteLoadState = 'unloaded';
   /** Our own id: a mute by name never silences ourselves (FIRE-8540). */
@@ -60,6 +62,23 @@ export class MuteList extends Utils.EventEmitter {
 
   constructor(private transport: MuteTransport | null = null) {
     super();
+  }
+
+  private addLegacyLowerCase(name: string) {
+    if (!name) return;
+    const key = name.toLowerCase();
+    this.legacyLowerCaseMap.set(key, (this.legacyLowerCaseMap.get(key) || 0) + 1);
+  }
+
+  private removeLegacyLowerCase(name: string) {
+    if (!name) return;
+    const key = name.toLowerCase();
+    const count = this.legacyLowerCaseMap.get(key) || 0;
+    if (count <= 1) {
+      this.legacyLowerCaseMap.delete(key);
+    } else {
+      this.legacyLowerCaseMap.set(key, count - 1);
+    }
   }
 
   setTransport(transport: MuteTransport | null) {
@@ -80,11 +99,22 @@ export class MuteList extends Utils.EventEmitter {
         (cached.mutes?.length || cached.legacy?.length || cached.pendingQueue?.length)
       ) {
         if (this.state === 'unloaded') {
+          this.mutes.clear();
+          this.legacy.clear();
+          this.agentNameMap.clear();
+          this.legacyLowerCaseMap.clear();
           for (const m of cached.mutes || []) {
-            this.mutes.set(lc(m.id), { ...m, id: lc(m.id) });
+            const entry = { ...m, id: lc(m.id) };
+            this.mutes.set(entry.id, entry);
+            if (entry.type === MuteType.AGENT && entry.name) {
+              this.agentNameMap.set(entry.name.toLowerCase(), entry);
+            }
           }
           for (const name of cached.legacy || []) {
-            this.legacy.add(name);
+            if (!this.legacy.has(name)) {
+              this.legacy.add(name);
+              this.addLegacyLowerCase(name);
+            }
           }
           this.state = 'loaded';
         }
@@ -139,22 +169,62 @@ export class MuteList extends Utils.EventEmitter {
     }
     this.mutes.clear();
     this.legacy.clear();
-    for (const m of result.mutes ?? []) this.mutes.set(lc(m.id), { ...m, id: lc(m.id) });
-    for (const name of result.legacy ?? []) this.legacy.add(name);
+    this.agentNameMap.clear();
+    this.legacyLowerCaseMap.clear();
+    for (const m of result.mutes ?? []) {
+      const entry = { ...m, id: lc(m.id) };
+      this.mutes.set(entry.id, entry);
+      if (entry.type === MuteType.AGENT && entry.name) {
+        this.agentNameMap.set(entry.name.toLowerCase(), entry);
+      }
+    }
+    for (const name of result.legacy ?? []) {
+      if (!this.legacy.has(name)) {
+        this.legacy.add(name);
+        this.addLegacyLowerCase(name);
+      }
+    }
 
     // Reconcile pending queue entries made while offline/disconnected
     for (const queued of this.pendingQueue) {
       if (queued.kind === 'update') {
         if (queued.entry.type === MuteType.BY_NAME) {
-          if (queued.entry.name) this.legacy.add(queued.entry.name);
+          if (queued.entry.name && !this.legacy.has(queued.entry.name)) {
+            this.legacy.add(queued.entry.name);
+            this.addLegacyLowerCase(queued.entry.name);
+          }
         } else if (queued.entry.id) {
-          this.mutes.set(lc(queued.entry.id), { ...queued.entry, id: lc(queued.entry.id) });
+          const qId = lc(queued.entry.id);
+          const oldEntry = this.mutes.get(qId);
+          if (oldEntry?.type === MuteType.AGENT && oldEntry.name) {
+            const oldLc = oldEntry.name.toLowerCase();
+            if (this.agentNameMap.get(oldLc)?.id === oldEntry.id) {
+              this.agentNameMap.delete(oldLc);
+            }
+          }
+          const entry = { ...queued.entry, id: qId };
+          this.mutes.set(qId, entry);
+          if (entry.type === MuteType.AGENT && entry.name) {
+            this.agentNameMap.set(entry.name.toLowerCase(), entry);
+          }
         }
       } else if (queued.kind === 'remove') {
         if (queued.entry.type === MuteType.BY_NAME || !queued.entry.id) {
-          if (queued.entry.name) this.legacy.delete(queued.entry.name);
+          if (queued.entry.name && this.legacy.delete(queued.entry.name)) {
+            this.removeLegacyLowerCase(queued.entry.name);
+          }
         } else if (queued.entry.id) {
-          this.mutes.delete(lc(queued.entry.id));
+          const qId = lc(queued.entry.id);
+          const oldEntry = this.mutes.get(qId);
+          if (oldEntry) {
+            this.mutes.delete(qId);
+            if (oldEntry.type === MuteType.AGENT && oldEntry.name) {
+              const oldLc = oldEntry.name.toLowerCase();
+              if (this.agentNameMap.get(oldLc)?.id === oldEntry.id) {
+                this.agentNameMap.delete(oldLc);
+              }
+            }
+          }
         }
       }
     }
@@ -169,6 +239,8 @@ export class MuteList extends Utils.EventEmitter {
   clear() {
     this.mutes.clear();
     this.legacy.clear();
+    this.agentNameMap.clear();
+    this.legacyLowerCaseMap.clear();
     this.pendingQueue = [];
     this.state = 'unloaded';
     this.emit('changed', this.snapshot());
@@ -189,15 +261,15 @@ export class MuteList extends Utils.EventEmitter {
   /** `LLMuteList::isMuted(id, name, flags)`. */
   isMuted(id: string, name = '', flags = 0): boolean {
     if (this.mutes.size === 0 && this.legacy.size === 0) return false;
-    const key = lc(id);
-    if (key && key === this.selfId) return false;
-    const entry = this.mutes.get(key);
-    if (entry) return !(flags & entry.flags); // any flag passed that the entry has set means "not muted for this"
-    if (key) {
-      for (const leg of this.legacy) {
-        if (leg.toLowerCase() === key) return true;
-      }
+    let entry = id ? this.mutes.get(id) : undefined;
+    let key = id;
+    if (!entry && id) {
+      key = lc(id);
+      entry = this.mutes.get(key);
     }
+    if (key && key === this.selfId) return false;
+    if (entry) return !(flags & entry.flags); // any flag passed that the entry has set means "not muted for this"
+    if (key && (this.legacyLowerCaseMap.get(key) || 0) > 0) return true;
     if (!name) return false;
     return this.legacy.has(name);
   }
@@ -205,15 +277,12 @@ export class MuteList extends Utils.EventEmitter {
   /** `LLMuteList::isMuted(username)`: by account name, ignoring case. */
   isMutedByName(name: string): boolean {
     const wanted = (name || '').toLowerCase();
-    for (const m of this.mutes.values()) {
-      if (m.type === MuteType.AGENT && m.name.toLowerCase() === wanted) {
-        return !(MuteFlag.TEXT_CHAT & m.flags);
-      }
+    if (!wanted) return false;
+    const agentEntry = this.agentNameMap.get(wanted);
+    if (agentEntry) {
+      return !(MuteFlag.TEXT_CHAT & agentEntry.flags);
     }
-    for (const leg of this.legacy) {
-      if (leg.toLowerCase() === wanted) return true;
-    }
-    return false;
+    return (this.legacyLowerCaseMap.get(wanted) || 0) > 0;
   }
 
   /**
@@ -236,6 +305,7 @@ export class MuteList extends Utils.EventEmitter {
       if (id && id !== NULL_UUID) return false; // by-name mutes have a null id
       if (this.legacy.has(mute.name)) return false; // duplicate
       this.legacy.add(mute.name);
+      this.addLegacyLowerCase(mute.name);
       this.send('update', { id: NULL_UUID, name: mute.name, type: MuteType.BY_NAME, flags: 0 });
       this.emit('entry_changed', {
         entry: { id: NULL_UUID, name: mute.name, type: MuteType.BY_NAME, flags: 0 },
@@ -247,11 +317,20 @@ export class MuteList extends Utils.EventEmitter {
 
     if (!id || id === NULL_UUID) return false;
     const existing = this.mutes.get(id);
+    if (existing?.type === MuteType.AGENT && existing.name) {
+      const oldLc = existing.name.toLowerCase();
+      if (this.agentNameMap.get(oldLc)?.id === existing.id) {
+        this.agentNameMap.delete(oldLc);
+      }
+    }
     // A new entry starts as "nothing muted" and the requested properties are switched off; an existing one keeps its flags.
     let entryFlags = existing ? existing.flags : MuteFlag.ALL;
     entryFlags = flags ? entryFlags & ~flags : 0;
     const entry: MuteEntry = { id, name: mute.name, type: mute.type, flags: entryFlags >>> 0 };
     this.mutes.set(id, entry);
+    if (entry.type === MuteType.AGENT && entry.name) {
+      this.agentNameMap.set(entry.name.toLowerCase(), entry);
+    }
     this.send('update', entry);
     this.emit('entry_changed', { entry: { ...entry }, removed: false });
     this.emit('changed', this.snapshot());
@@ -275,9 +354,18 @@ export class MuteList extends Utils.EventEmitter {
         local.flags = MuteFlag.ALL;
       }
       this.mutes.delete(id);
+      if (entry.type === MuteType.AGENT && entry.name) {
+        const lcName = entry.name.toLowerCase();
+        if (this.agentNameMap.get(lcName)?.id === entry.id) {
+          this.agentNameMap.delete(lcName);
+        }
+      }
       if (drop) this.send('remove', local);
       else {
         this.mutes.set(id, local);
+        if (local.type === MuteType.AGENT && local.name) {
+          this.agentNameMap.set(local.name.toLowerCase(), local);
+        }
         this.send('update', local);
       }
       this.emit('entry_changed', { entry: { ...local }, removed: drop });
@@ -286,6 +374,7 @@ export class MuteList extends Utils.EventEmitter {
     }
     const name = mute.name ?? '';
     if (this.legacy.delete(name)) {
+      this.removeLegacyLowerCase(name);
       this.send('remove', { id: NULL_UUID, name, type: MuteType.BY_NAME, flags: 0 });
       this.emit('entry_changed', {
         entry: { id: NULL_UUID, name, type: MuteType.BY_NAME, flags: 0 },
@@ -301,6 +390,17 @@ export class MuteList extends Utils.EventEmitter {
   rename(id: string, name: string) {
     const entry = this.mutes.get(lc(id));
     if (!entry || entry.name === name) return;
+    if (entry.type === MuteType.AGENT) {
+      if (entry.name) {
+        const oldLc = entry.name.toLowerCase();
+        if (this.agentNameMap.get(oldLc)?.id === entry.id) {
+          this.agentNameMap.delete(oldLc);
+        }
+      }
+      if (name) {
+        this.agentNameMap.set(name.toLowerCase(), entry);
+      }
+    }
     entry.name = name;
     this.send('update', entry);
     this.emit('changed', this.snapshot());

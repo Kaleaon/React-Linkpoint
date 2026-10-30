@@ -63,7 +63,7 @@ describe('ErrorRecovery UI Components', () => {
     expect(mounted.host.querySelector('[data-testid="error-recovery-banner"]')).toBeNull();
   });
 
-  it('renders non-blocking banner when device goes offline', async () => {
+  it('renders non-blocking banner with inline CrystalLoader when device goes offline', async () => {
     mounted = await mountScreen(() => <TestApp />);
 
     await act(async () => {
@@ -75,6 +75,11 @@ describe('ErrorRecovery UI Components', () => {
     expect(banner?.textContent).toContain(
       'Network disconnected. Auto-reconnecting when signal restores…',
     );
+
+    const loader = banner?.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.getAttribute('style')).toContain('width: 16px');
   });
 
   it('renders recovery modal with human-readable error catalog translation for BACKEND_OUTAGE', async () => {
@@ -160,5 +165,73 @@ describe('ErrorRecovery UI Components', () => {
 
     expect(onFallback).toHaveBeenCalledWith('Chat');
     expect(mounted.host.querySelector('[data-testid="error-recovery-modal"]')).toBeNull();
+  });
+
+  it('renders crystal brand badge in header and inline crystal loader on retry button during queue execution', async () => {
+    mounted = await mountScreen(() => <TestApp />);
+
+    let resolveRetry: () => void = () => {};
+    const retryPromise = new Promise<void>((resolve) => {
+      resolveRetry = resolve;
+    });
+
+    await act(async () => {
+      try {
+        await service.enqueueRetry({
+          action: () => Promise.reject(new Error('Gateway Timeout')),
+          category: 'service',
+          code: 'GATEWAY_TIMEOUT',
+          description: 'Fetch map data',
+          maxRetries: 1,
+        });
+      } catch {
+        // expected failure to populate active error
+      }
+    });
+
+    const headerBadge = mounted.host.querySelector('[data-testid="recovery-modal-header-badge"]');
+    expect(headerBadge).not.toBeNull();
+    const headerCrystal = headerBadge?.querySelector(
+      '[data-testid="crystal-loader"]',
+    ) as HTMLElement;
+    expect(headerCrystal).not.toBeNull();
+    expect(headerCrystal?.style.width).toBe('32px');
+    expect(headerCrystal?.style.height).toBe('32px');
+
+    // Prepare a pending retry item in service queue to test active processing UI
+    (service as any).retryQueue.push({
+      id: 'pending-1',
+      action: () => retryPromise,
+      category: 'service',
+      code: 'RETRY_TEST',
+      description: 'Pending task',
+      attempts: 0,
+      maxRetries: 1,
+    });
+
+    const retryBtn = buttonByText(mounted.host, 'Retry Operation') as HTMLButtonElement;
+    expect(retryBtn).not.toBeNull();
+
+    // Click retry button to initiate queue processing
+    let clickPromise: Promise<void>;
+    await act(async () => {
+      clickPromise = (async () => {
+        retryBtn.click();
+      })();
+    });
+
+    // Check button state during active queue processing
+    expect(retryBtn.disabled).toBe(true);
+    expect(retryBtn.textContent).toContain('Retrying...');
+    const buttonCrystal = retryBtn.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(buttonCrystal).not.toBeNull();
+    expect(buttonCrystal?.style.width).toBe('16px');
+    expect(buttonCrystal?.style.height).toBe('16px');
+
+    // Resolve retry promise and cleanup
+    await act(async () => {
+      resolveRetry();
+      await clickPromise;
+    });
   });
 });

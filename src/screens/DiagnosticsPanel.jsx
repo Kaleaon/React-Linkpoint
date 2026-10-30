@@ -3,6 +3,8 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app';
 import Icon from '../components/Icon.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
+import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import {
   UNKNOWN,
   show,
@@ -19,6 +21,7 @@ import {
   formatLossSummary,
   formatLastUpdate,
   formatTechnicalDetails,
+  resolveStatusTone,
 } from './diagnosticsView.js';
 
 export default function DiagnosticsPanel() {
@@ -90,18 +93,16 @@ export default function DiagnosticsPanel() {
   };
 
   const isConnected = Boolean(diag.connected || app.auth.isLoggedIn());
-  const toneColor = (tone) =>
-    tone === 'ok' ? V.ok : tone === 'warn' ? '#eab308' : tone === 'err' ? V.err : V.ink2;
 
   const connStatus = formatConnectionStatus(isConnected, app.auth.user?.grid, diag.simName);
   const latency = formatLatencySummary(diag.latencyMs);
-  const latencyTone = toneColor(latency.tone);
+  const latencyTone = resolveStatusTone(V, latency.tone);
 
   const loss = formatLossSummary(diag.packetLossPct);
-  const lossTone = toneColor(loss.tone);
+  const lossTone = resolveStatusTone(V, loss.tone);
 
   const lastUpdate = formatLastUpdate(diag.lastPacketTimestamp, now);
-  const ageTone = toneColor(lastUpdate.tone);
+  const ageTone = resolveStatusTone(V, lastUpdate.tone);
 
   const region = app.world?.region;
   const gridCoords =
@@ -191,7 +192,11 @@ export default function DiagnosticsPanel() {
             opacity: isConnected ? 1 : 0.6,
           }}
         >
-          <Icon name="refresh-cw" size={13} />
+          {pinging ? (
+            <CrystalLoader size={14} variant="inline" />
+          ) : (
+            <Icon name="refresh-cw" size={13} />
+          )}
           {pinging ? 'PINGING…' : 'PING PROBE'}
         </button>
       </div>
@@ -306,9 +311,17 @@ export default function DiagnosticsPanel() {
       {/* Latency History Graph */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+          <h3
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: V.pri,
+              letterSpacing: '.08em',
+              margin: 0,
+            }}
+          >
             WORLD RESPONSE TIME HISTORY
-          </div>
+          </h3>
           <div style={{ fontSize: 11, color: V.ink2 }}>
             {range ? `Min: ${Math.round(minL)} ms · Max: ${Math.round(maxL)} ms` : 'No samples yet'}
           </div>
@@ -332,7 +345,7 @@ export default function DiagnosticsPanel() {
           )}
           {latencyHistory.map((val, idx) => {
             const hPct = Math.round(((val - barMin) / hRange) * 80 + 10);
-            const tone = val < 90 ? V.ok : val < 200 ? '#eab308' : V.err;
+            const tone = resolveStatusTone(V, latencyBand(val).tone);
             return (
               <div
                 key={idx}
@@ -354,9 +367,11 @@ export default function DiagnosticsPanel() {
 
       {/* World Region & Network Summary */}
       <div style={cardStyle}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+        <h3
+          style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em', margin: 0 }}
+        >
           WORLD REGION & NETWORK SUMMARY
-        </div>
+        </h3>
         <div
           style={{
             display: 'grid',
@@ -440,174 +455,173 @@ export default function DiagnosticsPanel() {
         </div>
       </div>
 
-      {/* Disclosure Toggle Button for Technical Power Users */}
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4, paddingBottom: 4 }}>
-        <button
-          type="button"
-          onClick={toggleAdvanced}
-          aria-expanded={showAdvanced}
-          aria-controls="advanced-technical-details"
+      {/* Expandable Advanced Technical Details Panel */}
+      <CollapsibleSystemDetails
+        id="advanced-technical-details"
+        isOpen={showAdvanced}
+        onToggle={toggleAdvanced}
+        summary={
+          showAdvanced ? 'Hide Advanced Technical Details' : 'Show Advanced Technical Details'
+        }
+        ariaLabel="Advanced Technical Details"
+        buttonStyle={{
+          minHeight: 38,
+          justifyContent: 'center',
+          background: V.surf,
+          color: V.pri,
+          border: `1px solid ${V.outv}`,
+          borderRadius: V.rs,
+          fontWeight: 700,
+          fontSize: 12,
+          letterSpacing: '.05em',
+        }}
+        contentStyle={cardStyle}
+      >
+        <div
           style={{
-            minHeight: 38,
-            padding: '0 16px',
-            background: V.surf,
-            color: V.pri,
-            border: `1px solid ${V.outv}`,
-            borderRadius: V.rs,
-            fontWeight: 700,
-            fontSize: 12,
-            letterSpacing: '.05em',
-            cursor: 'pointer',
-            display: 'inline-flex',
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            gap: 8,
-            transition: 'all 0.2s ease',
+            marginBottom: 10,
           }}
         >
-          <Icon name={showAdvanced ? 'chevron-up' : 'chevron-down'} size={16} />
-          {showAdvanced ? 'Hide Advanced Technical Details' : 'Show Advanced Technical Details'}
-        </button>
-      </div>
-
-      {/* Expandable Advanced Technical Details Drawer */}
-      {showAdvanced && (
+          <h3
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: V.pri,
+              letterSpacing: '.08em',
+              margin: 0,
+            }}
+          >
+            ADVANCED TECHNICAL PROTOCOL DETAILS
+          </h3>
+          <div
+            style={{
+              fontSize: 10,
+              color: V.ink2,
+              background: V.bg,
+              padding: '2px 8px',
+              borderRadius: V.rs,
+            }}
+          >
+            Developer & Creator Diagnostics
+          </div>
+        </div>
         <div
-          id="advanced-technical-details"
-          role="region"
-          aria-label="Advanced Technical Details"
-          style={cardStyle}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 10,
+            fontSize: 12,
+          }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
-              ADVANCED TECHNICAL PROTOCOL DETAILS
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: V.ink2,
-                background: V.bg,
-                padding: '2px 8px',
-                borderRadius: V.rs,
-              }}
-            >
-              Developer & Creator Diagnostics
-            </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 8px',
+              background: V.bg,
+              borderRadius: V.rs,
+            }}
+          >
+            <span style={{ color: V.ink2 }}>Protocol Driver</span>
+            <strong style={{ fontFamily: t.dfont }}>{techDetails.protocolClass}</strong>
           </div>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 10,
-              fontSize: 12,
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 8px',
+              background: V.bg,
+              borderRadius: V.rs,
             }}
           >
-            <div
+            <span style={{ color: V.ink2 }}>Simulator UDP Port</span>
+            <strong>{techDetails.udpPort}</strong>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 8px',
+              background: V.bg,
+              borderRadius: V.rs,
+            }}
+          >
+            <span style={{ color: V.ink2 }}>Circuit Code</span>
+            <strong>{techDetails.circuitCode}</strong>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 8px',
+              background: V.bg,
+              borderRadius: V.rs,
+            }}
+          >
+            <span style={{ color: V.ink2 }}>Agent UUID</span>
+            <strong
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 8px',
-                background: V.bg,
-                borderRadius: V.rs,
+                fontSize: 10,
+                maxWidth: 140,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
-              <span style={{ color: V.ink2 }}>Protocol Driver</span>
-              <strong style={{ fontFamily: t.dfont }}>{techDetails.protocolClass}</strong>
-            </div>
-            <div
+              {techDetails.agentUuid}
+            </strong>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 8px',
+              background: V.bg,
+              borderRadius: V.rs,
+              gridColumn: '1 / -1',
+            }}
+          >
+            <span style={{ color: V.ink2 }}>Seed Capability URL</span>
+            <strong
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 8px',
-                background: V.bg,
-                borderRadius: V.rs,
+                fontSize: 10,
+                maxWidth: 360,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                wordBreak: 'break-all',
               }}
             >
-              <span style={{ color: V.ink2 }}>Simulator UDP Port</span>
-              <strong>{techDetails.udpPort}</strong>
-            </div>
-            <div
+              {techDetails.seedCapability}
+            </strong>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '6px 8px',
+              background: V.bg,
+              borderRadius: V.rs,
+              gridColumn: '1 / -1',
+            }}
+          >
+            <span style={{ color: V.ink2 }}>HTTP Event Queue State</span>
+            <span
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 8px',
-                background: V.bg,
+                padding: '2px 8px',
                 borderRadius: V.rs,
+                background: V.surf2,
+                color: resolveStatusTone(V, techDetails.eventQueueTone),
+                fontWeight: 700,
+                fontSize: 11,
               }}
             >
-              <span style={{ color: V.ink2 }}>Circuit Code</span>
-              <strong>{techDetails.circuitCode}</strong>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 8px',
-                background: V.bg,
-                borderRadius: V.rs,
-              }}
-            >
-              <span style={{ color: V.ink2 }}>Agent UUID</span>
-              <strong
-                style={{
-                  fontSize: 10,
-                  maxWidth: 140,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {techDetails.agentUuid}
-              </strong>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 8px',
-                background: V.bg,
-                borderRadius: V.rs,
-                gridColumn: '1 / -1',
-              }}
-            >
-              <span style={{ color: V.ink2 }}>Seed Capability URL</span>
-              <strong
-                style={{
-                  fontSize: 10,
-                  maxWidth: 360,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  wordBreak: 'break-all',
-                }}
-              >
-                {techDetails.seedCapability}
-              </strong>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '6px 8px',
-                background: V.bg,
-                borderRadius: V.rs,
-                gridColumn: '1 / -1',
-              }}
-            >
-              <span style={{ color: V.ink2 }}>HTTP Event Queue State</span>
-              <span
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: V.rs,
-                  background: V.surf2,
-                  color: toneColor(techDetails.eventQueueTone),
-                  fontWeight: 700,
-                  fontSize: 11,
-                }}
-              >
-                {techDetails.eventQueueState}
-              </span>
-            </div>
+              {techDetails.eventQueueState}
+            </span>
           </div>
         </div>
-      )}
+      </CollapsibleSystemDetails>
     </div>
   );
 }

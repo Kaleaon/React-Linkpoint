@@ -66,6 +66,7 @@ export default function Card({ c }) {
         {c.select ? (
           <select
             value={c.value}
+            aria-label={c['aria-label'] || c.title}
             onChange={(e) => {
               // <option value> is always a string, so hand the card back the
               // option it actually chose rather than the stringified value —

@@ -1,7 +1,39 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Utils } from './utils';
+import { Utils, pickProperty } from './utils';
 
 describe('Utils', () => {
+  describe('pad', () => {
+    it('should pad numbers with leading zeros by default to length 2', () => {
+      expect(Utils.pad(5)).toBe('05');
+      expect(Utils.pad(0)).toBe('00');
+    });
+
+    it('should return string representation unchanged if length already meets or exceeds target length', () => {
+      expect(Utils.pad(12)).toBe('12');
+      expect(Utils.pad(123)).toBe('123');
+    });
+
+    it('should pad to a custom target length', () => {
+      expect(Utils.pad(5, 4)).toBe('0005');
+      expect(Utils.pad(2026, 4)).toBe('2026');
+    });
+
+    it('should pad using a custom padding string', () => {
+      expect(Utils.pad('a', 3, ' ')).toBe('  a');
+      expect(Utils.pad(7, 3, 'x')).toBe('xx7');
+    });
+
+    it('should handle string inputs correctly', () => {
+      expect(Utils.pad('5')).toBe('05');
+      expect(Utils.pad('99')).toBe('99');
+    });
+
+    it('should handle negative numbers and floating points', () => {
+      expect(Utils.pad(-5, 4)).toBe('00-5');
+      expect(Utils.pad(3.14, 6, '0')).toBe('003.14');
+    });
+  });
+
   describe('generateUUID', () => {
     it('should generate a string of length 36', () => {
       const uuid = Utils.generateUUID();
@@ -278,6 +310,40 @@ describe('Utils', () => {
       emitter.emit('test-event');
 
       expect(listener1).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('pickProperty', () => {
+    it('resolves key candidates in order', () => {
+      const obj = { camelCase: 'first', snake_case: 'second' };
+      expect(pickProperty(obj, 'camelCase', 'snake_case')).toBe('first');
+      expect(pickProperty(obj, 'snake_case', 'camelCase')).toBe('second');
+      expect(pickProperty(obj, 'nonexistent', 'snake_case')).toBe('second');
+    });
+
+    it('handles null, undefined, or primitive sources gracefully without throwing', () => {
+      expect(pickProperty(null, 'key')).toBeUndefined();
+      expect(pickProperty(undefined, 'key')).toBeUndefined();
+      expect(pickProperty(123, 'key')).toBeUndefined();
+      expect(pickProperty('string', 'length')).toBeUndefined();
+      expect(pickProperty(true, 'key')).toBeUndefined();
+    });
+
+    it('skips keys with null or undefined values to evaluate next candidates', () => {
+      const obj = { a: null, b: undefined, c: 'valid' };
+      expect(pickProperty(obj, 'a', 'b', 'c')).toBe('valid');
+      expect(pickProperty(obj, 'a', 'b')).toBeUndefined();
+    });
+
+    it('returns valid falsy values such as 0, false, and empty string', () => {
+      expect(pickProperty({ a: 0 }, 'a')).toBe(0);
+      expect(pickProperty({ a: false }, 'a')).toBe(false);
+      expect(pickProperty({ a: '' }, 'a')).toBe('');
+    });
+
+    it('is available as Utils.pickProperty', () => {
+      const obj = { blue_horizon: [0.1, 0.2, 0.3] };
+      expect(Utils.pickProperty(obj, 'blueHorizon', 'blue_horizon')).toEqual([0.1, 0.2, 0.3]);
     });
   });
 });

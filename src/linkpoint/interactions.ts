@@ -9,6 +9,7 @@
 
 import { Utils } from './utils';
 import type { SLConnectionFull } from './sl-connection-full';
+import { serializeDeclineTeleportPacket } from './phase2/friends-extended';
 
 export interface ScriptDialogRequest {
   kind: 'script-dialog';
@@ -37,6 +38,8 @@ export interface LureRequest {
   position: [number, number, number] | null;
   gridX: number | null;
   gridY: number | null;
+  sessionId?: string | null;
+  status?: 'pending' | 'accepted' | 'declined';
 }
 
 export interface InventoryOfferRequest {
@@ -166,6 +169,8 @@ export class InteractionsManager extends Utils.EventEmitter {
     regionName?: string,
   ) {
     const percent = Math.min(100, Math.max(0, stepPercent ?? 0));
+    const isPhaseChange = !this.activeTeleport || this.activeTeleport.phase !== phase;
+
     if (!this.activeTeleport) {
       this.activeTeleport = {
         active: true,
@@ -185,7 +190,21 @@ export class InteractionsManager extends Utils.EventEmitter {
         regionName: regionName || this.activeTeleport.regionName,
       };
     }
-    this.changed();
+
+    const payload = {
+      phase: this.activeTeleport.phase,
+      stepPercent: percent,
+      statusText: this.activeTeleport.statusText,
+      regionName: this.activeTeleport.regionName,
+      destination: this.activeTeleport.destination,
+    };
+
+    this.emit('teleport_tick', payload);
+    this.emit('teleport_progress_tick', payload);
+
+    if (isPhaseChange) {
+      this.changed();
+    }
   }
 
   failTeleportSession(error: string) {
@@ -284,6 +303,8 @@ export class InteractionsManager extends Utils.EventEmitter {
         fromName: String(data.fromName || ''),
         message: String(data.message || ''),
         regionId: data.regionId ?? null,
+        sessionId: data.sessionId ?? null,
+        status: data.status ?? 'pending',
         position:
           Array.isArray(data.position) && data.position.length === 3
             ? (data.position as [number, number, number])
@@ -381,13 +402,28 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
-  /** Decline a teleport lure. Sends a decline notification to the inviter. */
+  /** Decline a teleport lure. Sends a decline notification and DeclineTeleport packet to the inviter. */
   async declineLure(id: string) {
+    const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as
+      LureRequest | undefined;
+    if (!lure || lure.status === 'declined') {
+      return false;
+    }
+
+    lure.status = 'declined';
+    const agentId = lure.fromId || '00000000-0000-0000-0000-000000000000';
+    const sessionId = lure.sessionId || '00000000-0000-0000-0000-000000000000';
+    const packet = serializeDeclineTeleportPacket(agentId, sessionId);
+
     const result = await this.run(id, () =>
       typeof (this.protocol as any).declineLure === 'function'
-        ? (this.protocol as any).declineLure({ id })
+        ? (this.protocol as any).declineLure({ id, agentId, sessionId, packet })
         : this.protocol.dismissInteraction(id),
     );
+
+    if (result) {
+      this.emit('lure_declined', { lure, packet });
+    }
     return Boolean(result);
   }
 
@@ -399,11 +435,31 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   /** Decline an inventory offer. */
   async declineInventoryOffer(id: string) {
-    const result = await this.run(id, () =>
-      typeof (this.protocol as any).declineInventoryOffer === 'function'
-        ? (this.protocol as any).declineInventoryOffer({ id })
-        : this.protocol.dismissInteraction(id),
-    );
+    const offer = this.list.find((item) => item.id === id && item.kind === 'inventory-offer') as
+      InventoryOfferRequest | undefined;
+    const result = await this.run(id, async () => {
+      if (typeof (this.protocol as any).declineInventoryOffer === 'function') {
+        return (this.protocol as any).declineInventoryOffer({ id });
+      }
+      if (
+        typeof (this.protocol as any).sendImprovedInstantMessage === 'function' &&
+        offer?.fromId
+      ) {
+        try {
+          await (this.protocol as any).sendImprovedInstantMessage({
+            to: offer.fromId,
+            recipientId: offer.fromId,
+            toAgentId: offer.fromId,
+            dialog: 10,
+            id: offer.requestId || '',
+            message: offer.message || '',
+          });
+        } catch (err) {
+          console.warn('[interactions] Failed to send inventory decline packet:', err);
+        }
+      }
+      return this.protocol.dismissInteraction(id);
+    });
     return Boolean(result);
   }
 
@@ -423,8 +479,12 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
-  /** Dismiss locally. */
+  /** Dismiss locally. If dismissing a teleport lure popup, dispatches DeclineTeleport packet. */
   async dismiss(id: string) {
+    const item = this.list.find((x) => x.id === id);
+    if (item && item.kind === 'lure') {
+      await this.declineLure(id);
+    }
     this.remove(id);
     this.busyIds.delete(id);
     try {

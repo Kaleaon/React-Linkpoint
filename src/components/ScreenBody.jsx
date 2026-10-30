@@ -1,5 +1,8 @@
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
+import { HEAD } from '../data/content.js';
+import { useNavigationAnnouncer } from '../hooks/useNavigationAnnouncer.js';
 import Header from './Header.jsx';
 import SegmentedTabs from './SegmentedTabs.jsx';
 import ChipRow from './ChipRow.jsx';
@@ -45,7 +48,16 @@ import {
 // sits beside it on tablet/foldable devices.
 export default function ScreenBody() {
   const { state, actions } = useApp();
-  const { norm, scr, consoleScene } = useTheme();
+  const { norm, scr, consoleScene, headLook } = useTheme();
+
+  const headMap = HEAD(LAYOUTS[state.layout]?.name || '', PALETTES[state.palette]?.name || '', {
+    cleared: state.cacheCleared,
+    limit: state.prefs?.cacheLimit,
+    loc: state.prefs?.cacheLoc,
+  });
+  const screenTitle = headMap[scr]?.[0] || scr;
+
+  useNavigationAnnouncer(scr);
 
   return (
     <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>
@@ -66,6 +78,20 @@ export default function ScreenBody() {
             outline: 'none',
           }}
         >
+          {headLook === 'none' && (
+            <h1
+              className="sr-only"
+              style={{
+                position: 'absolute',
+                width: 1,
+                height: 1,
+                overflow: 'hidden',
+                clip: 'rect(0,0,0,0)',
+              }}
+            >
+              {screenTitle}
+            </h1>
+          )}
           {norm && scr === 'Chat' && <Chat />}
           {norm && scr === 'Radar' && <Radar />}
           {norm && scr === 'Map' && <Map />}

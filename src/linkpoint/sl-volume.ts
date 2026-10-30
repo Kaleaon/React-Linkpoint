@@ -10,6 +10,8 @@
  * Shapes are unit sized (about +-0.5 on each axis) and are scaled by the object.
  */
 
+import { cross, lerp, normalize, sub } from './sl-math';
+
 export interface VolumeParams {
   pathCurve: number;
   profileCurve: number;
@@ -66,7 +68,6 @@ const PATH_LINE = 0x10,
   PATH_TEST = 0x40;
 
 type P3 = [number, number, number];
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 interface ProfileFace {
   index: number;
@@ -429,17 +430,6 @@ function generatePath(p: VolumeParams, detail: number, split: number): Path {
 
 // ---- faces ---------------------------------------------------------------------
 
-const sub = (a: P3, b: P3): P3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const cross = (a: P3, b: P3): P3 => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
-const normalize = (v: P3): P3 => {
-  const l = Math.hypot(v[0], v[1], v[2]);
-  return l > 1e-12 ? [v[0] / l, v[1] / l, v[2] / l] : [0, 0, 1];
-};
-
 /** Smooth vertex normals from triangle normals (area weighted). */
 function smoothNormals(
   vertices: number[],
@@ -468,7 +458,7 @@ function smoothNormals(
     }
   }
   for (let i = 0; i < normals.length; i += 3) {
-    const n = normalize([normals[i], normals[i + 1], normals[i + 2]]);
+    const n = normalize([normals[i], normals[i + 1], normals[i + 2]], [0, 0, 1]);
     normals[i] = n[0];
     normals[i + 1] = n[1];
     normals[i + 2] = n[2];
@@ -598,7 +588,7 @@ function buildCap(
     return [c[0] / sizeS, c[1] / sizeS, c[2] / sizeS];
   };
   // The cap faces away from the solid: along the path at the top end, against it at the bottom end.
-  const want: P3 = sub(mid(endRow), mid(neighbour));
+  const want = sub(mid(endRow), mid(neighbour));
   const v = (i: number): P3 => [vertices[i * 3], vertices[i * 3 + 1], vertices[i * 3 + 2]];
   const n: P3 = [0, 0, 0];
   for (let k = 0; k + 2 < indices.length; k += 3) {
@@ -611,7 +601,7 @@ function buildCap(
     for (let k = 0; k + 2 < indices.length; k += 3)
       [indices[k + 1], indices[k + 2]] = [indices[k + 2], indices[k + 1]];
   }
-  const flat = normalize(want);
+  const flat = normalize(want, [0, 0, 1]);
   const normals: number[] = [];
   for (let i = 0; i < vertices.length / 3; i++) normals.push(flat[0], flat[1], flat[2]);
   return { kind: pf.kind, vertices, normals, texCoords, indices };

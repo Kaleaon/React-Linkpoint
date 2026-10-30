@@ -164,7 +164,7 @@ describe('InteractionDialog', () => {
     const host = await mount();
     await emit('lure', lure('l1'));
     await click(button(host, 'DECLINE'));
-    expect(decline).toHaveBeenCalledWith({ id: 'l1' });
+    expect(decline).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }));
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
@@ -280,6 +280,63 @@ describe('InteractionDialog', () => {
     expect(host.textContent).toContain('Dave Officer invited you to join a group');
     await click(button(host, 'DECLINE'));
     expect(decline).toHaveBeenCalledWith({ id: 'gi2' });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('renders inline CrystalLoader with "Teleporting…" during lure acceptance busy state', async () => {
+    let resolveAccept: (val: any) => void = () => {};
+    const pendingPromise = new Promise((resolve) => {
+      resolveAccept = resolve;
+    });
+    vi.spyOn(app.protocol, 'acceptLure').mockReturnValue(pendingPromise as any);
+    vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
+
+    const host = await mount();
+    await emit('lure', lure('l1'));
+
+    const acceptBtn = button(host, 'ACCEPT')!;
+    await click(acceptBtn);
+
+    const statusEl = host.querySelector('[role="status"]') as HTMLElement;
+    expect(statusEl).not.toBeNull();
+    expect(statusEl.textContent).toContain('Teleporting…');
+
+    const loader = statusEl.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(statusEl.style.display).toBe('flex');
+    expect(statusEl.style.alignItems).toBe('center');
+
+    await act(async () => {
+      resolveAccept({ accepted: true, message: '' });
+    });
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('renders inline CrystalLoader with "Waiting for the grid…" during non-teleport busy state', async () => {
+    let resolveDialog: (val: any) => void = () => {};
+    const pendingPromise = new Promise((resolve) => {
+      resolveDialog = resolve;
+    });
+    vi.spyOn(app.protocol, 'respondScriptDialog').mockReturnValue(pendingPromise as any);
+    vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
+
+    const host = await mount();
+    await emit('script_dialog', dialog('d1'));
+
+    await click(button(host, 'Blue'));
+
+    const statusEl = host.querySelector('[role="status"]') as HTMLElement;
+    expect(statusEl).not.toBeNull();
+    expect(statusEl.textContent).toContain('Waiting for the grid…');
+
+    const loader = statusEl.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+
+    await act(async () => {
+      resolveDialog({ answered: true });
+    });
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 });

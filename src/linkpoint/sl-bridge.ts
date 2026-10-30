@@ -241,8 +241,8 @@ export class SLBridge extends Utils.EventEmitter {
   acceptLure(params: { id: string }) {
     return this.call<{ accepted: boolean; message: string }>('acceptLure', params);
   }
-  declineLure(params: { id: string }) {
-    return this.call<{ declined: boolean }>('declineLure', params).catch(
+  declineLure(params: { id: string; agentId?: string; sessionId?: string; packet?: any }) {
+    return this.call<{ declined: boolean; packet?: any }>('declineLure', params).catch(
       () => this.dismissInteraction(params) as any,
     );
   }
@@ -370,6 +370,21 @@ export class SLBridge extends Utils.EventEmitter {
   async sendFriendRequest(recipientId: string, message?: string) {
     await this.call('sendFriendRequest', { recipientId, message });
   }
+  async buyParcelPass(localId: number) {
+    return this.call('buyParcelPass', { localId });
+  }
+  async updateParcelProperties(data: any) {
+    return this.call('updateParcelProperties', data);
+  }
+  async buyParcel(data: { localId: number; price: number; area: number; forGroup?: boolean }) {
+    return this.call('buyParcel', data);
+  }
+  async subdivideParcel(data: { localId: number; boundaryVertices: [number, number][] }) {
+    return this.call('subdivideParcel', data);
+  }
+  async reclaimParcel(localId: number) {
+    return this.call('reclaimParcel', { localId });
+  }
 
   /** A resident's public profile picture as base64, or null when they have none. */
   async fetchProfilePhoto(
@@ -445,8 +460,14 @@ export class SLBridge extends Utils.EventEmitter {
       return null;
     }
   }
-  /** Directory search capabilities across grid categories ('people', 'groups', 'places'). */
-  async searchDir(params: { category: string; query: string; start?: number }): Promise<{
+  /** Directory search capabilities across grid categories ('people', 'events', 'classifieds', 'groups', 'places'). */
+  async searchDir(params: {
+    category: string;
+    query: string;
+    start?: number;
+    categoryFilter?: number;
+    timeFilter?: string;
+  }): Promise<{
     results: Array<{
       id: string;
       name?: string;
@@ -462,6 +483,16 @@ export class SLBridge extends Utils.EventEmitter {
       forSale?: boolean;
       type: string;
       simName?: string;
+      eventId?: number;
+      ownerId?: string;
+      date?: string;
+      unixTime?: number;
+      eventFlags?: number;
+      classifiedId?: string;
+      price?: number;
+      creationDate?: number;
+      expirationDate?: number;
+      classifiedFlags?: number;
     }>;
     hasMore?: boolean;
   }> {

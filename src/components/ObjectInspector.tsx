@@ -3,6 +3,8 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TouchTarget from './TouchTarget';
+import PayDialog from './PayDialog.jsx';
+import CollapsibleSystemDetails from './CollapsibleSystemDetails';
 
 export interface ObjectInspectorProps {
   style?: React.CSSProperties;
@@ -14,6 +16,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   const [selection, setSelection] = useState<any>(() => app.world.selectedObject);
   const [objects, setObjects] = useState<any[]>(() => app.world.objects || []);
   const [nearbyUsers, setNearbyUsers] = useState<any[]>(() => app.world.nearbyUsers || []);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -275,11 +278,6 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             color: V.ink2,
           }}
         >
-          <span>UUID:</span>
-          <span style={{ color: V.ink, wordBreak: 'break-all', fontFamily: 'monospace' }}>
-            {uuidStr}
-          </span>
-
           <span>Position:</span>
           <span style={{ color: V.ink, fontFamily: 'monospace' }}>{posStr}</span>
 
@@ -310,35 +308,83 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             <span>SIT ON OBJECT</span>
           </TouchTarget>
         </div>
+
+        <TouchTarget
+          onClick={() => setPayDialogOpen(true)}
+          style={{
+            ...btnStyle,
+            background: '#0284c7',
+            color: '#ffffff',
+            border: '1px solid #0284c7',
+          }}
+        >
+          <Icon name="banknote" size={12} />
+          <span>PAY OBJECT</span>
+        </TouchTarget>
       </div>
 
-      <div
-        style={{
-          fontWeight: 700,
-          fontSize: '10px',
-          color: V.ink2,
-          letterSpacing: '0.08em',
-          marginBottom: '6px',
-          textTransform: 'uppercase',
+      <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '100px 1fr',
+            gap: '4px',
+            fontSize: '10px',
+            color: V.ink2,
+            marginBottom: '8px',
+          }}
+        >
+          <span>UUID:</span>
+          <span style={{ color: V.ink, wordBreak: 'break-all', fontFamily: 'monospace' }}>
+            {uuidStr}
+          </span>
+        </div>
+
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: '10px',
+            color: V.ink2,
+            letterSpacing: '0.08em',
+            marginBottom: '6px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Object Actions & Properties
+        </div>
+
+        <div style={{ fontSize: '10px', color: V.ink2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <span>Raycast Pickable:</span>
+            <span style={{ color: V.ok, fontWeight: 700 }}>YES</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <span>Material Type:</span>
+            <span style={{ color: V.ink }}>{selection.material || 'Default Wood/Stone'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Physics Shape:</span>
+            <span style={{ color: V.ink }}>{selection.physics || 'Convex Hull'}</span>
+          </div>
+        </div>
+      </CollapsibleSystemDetails>
+
+      <PayDialog
+        isOpen={payDialogOpen}
+        onClose={() => setPayDialogOpen(false)}
+        target={{
+          id: selection.id || selection.uuid || '',
+          name: selection.name || selection.id || 'Simulator object',
+          type: 'object',
+          sellerName: selection.owner || selection.seller || selection.ownerName || null,
+          price:
+            typeof selection.price === 'number'
+              ? selection.price
+              : typeof selection.itemPrice === 'number'
+                ? selection.itemPrice
+                : null,
         }}
-      >
-        Object Actions & Properties
-      </div>
-
-      <div style={{ ...cardStyle, fontSize: '10px', color: V.ink2 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span>Raycast Pickable:</span>
-          <span style={{ color: V.ok, fontWeight: 700 }}>YES</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span>Material Type:</span>
-          <span style={{ color: V.ink }}>{selection.material || 'Default Wood/Stone'}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Physics Shape:</span>
-          <span style={{ color: V.ink }}>{selection.physics || 'Convex Hull'}</span>
-        </div>
-      </div>
+      />
     </div>
   );
 };

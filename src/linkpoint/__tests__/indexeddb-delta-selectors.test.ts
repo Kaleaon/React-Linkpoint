@@ -32,19 +32,77 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       await indexedDBStore.saveFolders(agentId, folders);
       await indexedDBStore.saveItems(agentId, items);
 
-      // Page 1 with pageSize 20
+      // Page 1 with pageSize 20 (folders 0..19)
       const page1 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 1, 20);
       expect(page1.totalFolders).toBe(25);
       expect(page1.totalItems).toBe(75);
       expect(page1.page).toBe(1);
       expect(page1.pageSize).toBe(20);
       expect(page1.totalPages).toBe(5); // (25 + 75) / 20 = 5 pages
-      expect(page1.folders.length + page1.items.length).toBe(20);
+      expect(page1.folders.length).toBe(20);
+      expect(page1.items.length).toBe(0);
 
-      // Page 2
+      // Page 2 (folders 20..24 [5 folders] and items 0..14 [15 items])
       const page2 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 2, 20);
       expect(page2.page).toBe(2);
-      expect(page2.folders.length + page2.items.length).toBe(20);
+      expect(page2.folders.length).toBe(5);
+      expect(page2.items.length).toBe(15);
+      expect(page2.totalFolders).toBe(25);
+      expect(page2.totalItems).toBe(75);
+
+      // Page 3 (items 15..34 [20 items])
+      const page3 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 3, 20);
+      expect(page3.page).toBe(3);
+      expect(page3.folders.length).toBe(0);
+      expect(page3.items.length).toBe(20);
+
+      // Page 5 (items 55..74 [20 items])
+      const page5 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 5, 20);
+      expect(page5.page).toBe(5);
+      expect(page5.folders.length).toBe(0);
+      expect(page5.items.length).toBe(20);
+
+      // Page 6 (out of bounds)
+      const page6 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 6, 20);
+      expect(page6.page).toBe(6);
+      expect(page6.folders.length).toBe(0);
+      expect(page6.items.length).toBe(0);
+      expect(page6.totalFolders).toBe(25);
+      expect(page6.totalItems).toBe(75);
+      expect(page6.totalPages).toBe(5);
+    });
+
+    it('handles edge cases and bounds in cursor pagination', async () => {
+      const agentId = 'agent-cursor-edge-cases';
+      const folderId = 'folder-edge-root';
+
+      // 10 folders, 0 items
+      const folders = Array.from({ length: 10 }, (_, i) => ({
+        id: `folder-edge-${i}`,
+        name: `Edge Folder ${i}`,
+        parent: folderId,
+        folderType: 0,
+      }));
+      await indexedDBStore.saveFolders(agentId, folders);
+
+      const fPage = await indexedDBStore.getFolderContentsPage(agentId, folderId, 1, 6);
+      expect(fPage.totalFolders).toBe(10);
+      expect(fPage.totalItems).toBe(0);
+      expect(fPage.totalPages).toBe(2);
+      expect(fPage.folders.length).toBe(6);
+      expect(fPage.items.length).toBe(0);
+
+      const fPage2 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 2, 6);
+      expect(fPage2.folders.length).toBe(4);
+      expect(fPage2.items.length).toBe(0);
+
+      // Requesting past-the-end page offset
+      const outOfBounds = await indexedDBStore.getFolderContentsPage(agentId, folderId, 99, 10);
+      expect(outOfBounds.folders).toEqual([]);
+      expect(outOfBounds.items).toEqual([]);
+      expect(outOfBounds.totalFolders).toBe(10);
+      expect(outOfBounds.totalItems).toBe(0);
+      expect(outOfBounds.totalPages).toBe(1);
     });
 
     it('queries friends page directly with filter and pagination', async () => {
@@ -66,6 +124,157 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       const filtered = await indexedDBStore.getFriendsPage(agentId, 1, 10, 'Alpha');
       expect(filtered.total).toBe(8); // 0, 2, 4, 6, 8, 10, 12, 14
       expect(filtered.contacts.every((c) => c.name.includes('Alpha'))).toBe(true);
+    });
+
+    it('fetches multi-page friend slices in alphabetical order using by_agent_name compound index', async () => {
+      const agentId = 'agent-cursor-pagination';
+      const names = [
+        'Zebra',
+        'Charlie',
+        'Alpha',
+        'Bravo',
+        'Delta',
+        'Echo',
+        'Foxtrot',
+        'Golf',
+        'Hotel',
+        'India',
+        'Juliet',
+        'Kilo',
+      ];
+      const contacts = names.map((name, i) => ({
+        id: `cursor-c-${i}`,
+        name,
+        note: `Note for ${name}`,
+        savedAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+
+      await indexedDBStore.saveContacts(agentId, contacts);
+
+      // Page 1 (pageSize 5) -> Alpha, Bravo, Charlie, Delta, Echo
+      const page1 = await indexedDBStore.getFriendsPage(agentId, 1, 5);
+      expect(page1.total).toBe(12);
+      expect(page1.totalPages).toBe(3);
+      expect(page1.contacts.length).toBe(5);
+      expect(page1.contacts.map((c) => c.name)).toEqual([
+        'Alpha',
+        'Bravo',
+        'Charlie',
+        'Delta',
+        'Echo',
+      ]);
+
+      // Page 2 (pageSize 5) -> Foxtrot, Golf, Hotel, India, Juliet
+      const page2 = await indexedDBStore.getFriendsPage(agentId, 2, 5);
+      expect(page2.page).toBe(2);
+      expect(page2.contacts.length).toBe(5);
+      expect(page2.contacts.map((c) => c.name)).toEqual([
+        'Foxtrot',
+        'Golf',
+        'Hotel',
+        'India',
+        'Juliet',
+      ]);
+
+      // Page 3 (pageSize 5) -> Kilo, Zebra
+      const page3 = await indexedDBStore.getFriendsPage(agentId, 3, 5);
+      expect(page3.page).toBe(3);
+      expect(page3.contacts.length).toBe(2);
+      expect(page3.contacts.map((c) => c.name)).toEqual(['Kilo', 'Zebra']);
+
+      // Page 4 (out of bounds)
+      const page4 = await indexedDBStore.getFriendsPage(agentId, 4, 5);
+      expect(page4.contacts.length).toBe(0);
+      expect(page4.total).toBe(12);
+    });
+
+    it('handles filtered friend queries across multiple pages and searches notes', async () => {
+      const agentId = 'agent-filter-paged';
+      const contacts = [
+        { id: 'f1', name: 'Alice Resident', note: 'Special VIP' },
+        { id: 'f2', name: 'Bob Resident', note: 'Standard Friend' },
+        { id: 'f3', name: 'Charlie Resident', note: 'Special Officer' },
+        { id: 'f4', name: 'David Resident', note: 'Special Guest' },
+        { id: 'f5', name: 'Eve Resident', note: 'Normal Friend' },
+      ];
+
+      await indexedDBStore.saveContacts(agentId, contacts);
+
+      // Filter by 'Special' in note with pageSize 2
+      const page1 = await indexedDBStore.getFriendsPage(agentId, 1, 2, 'Special');
+      expect(page1.total).toBe(3); // Alice, Charlie, David
+      expect(page1.totalPages).toBe(2);
+      expect(page1.contacts.length).toBe(2);
+
+      const page2 = await indexedDBStore.getFriendsPage(agentId, 2, 2, 'Special');
+      expect(page2.contacts.length).toBe(1);
+    });
+  });
+
+  describe('Database Schema Migration (v4 -> v5)', () => {
+    it('upgrades schema from version 4 to 5 and creates by_agent_name compound index on contacts store', async () => {
+      const dbName = 'test_migration_v4_v5_db';
+
+      // 1. Create v4 database without by_agent_name index
+      await new Promise<void>((resolve, reject) => {
+        const req = window.indexedDB.open(dbName, 4);
+        req.onupgradeneeded = (e: any) => {
+          const db: IDBDatabase = e.target.result;
+          const store = db.createObjectStore('contacts', { keyPath: ['agentId', 'id'] });
+          store.createIndex('by_agent', 'agentId', { unique: false });
+        };
+        req.onsuccess = (e: any) => {
+          const db: IDBDatabase = e.target.result;
+          const tx = db.transaction(['contacts'], 'readwrite');
+          tx.objectStore('contacts').put({
+            agentId: 'agent-migrated',
+            id: 'c1',
+            name: 'Migrated Contact',
+            note: 'Old DB Record',
+            savedAt: 100,
+            updatedAt: 100,
+          });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+        };
+        req.onerror = () => reject(req.error);
+      });
+
+      // 2. Open database with version 5 upgrade logic
+      const dbV5 = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = window.indexedDB.open(dbName, 5);
+        req.onupgradeneeded = (e: any) => {
+          const db: IDBDatabase = e.target.result;
+          if (db.objectStoreNames.contains('contacts')) {
+            const store = e.target.transaction.objectStore('contacts');
+            if (!store.indexNames.contains('by_agent_name')) {
+              store.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
+            }
+          }
+        };
+        req.onsuccess = (e: any) => resolve(e.target.result);
+        req.onerror = () => reject(req.error);
+      });
+
+      // 3. Verify by_agent_name index exists
+      const tx = dbV5.transaction(['contacts'], 'readonly');
+      const store = tx.objectStore('contacts');
+      expect(store.indexNames.contains('by_agent_name')).toBe(true);
+
+      // 4. Query using by_agent_name compound index range
+      const index = store.index('by_agent_name');
+      const range = IDBKeyRange.bound(['agent-migrated', ''], ['agent-migrated', '\uffff']);
+      const results: any[] = await new Promise((resolve) => {
+        const getAllReq = index.getAll(range);
+        getAllReq.onsuccess = () => resolve(getAllReq.result);
+      });
+
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('Migrated Contact');
+      dbV5.close();
     });
   });
 

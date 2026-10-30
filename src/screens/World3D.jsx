@@ -3,12 +3,15 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import { slBridge } from '../linkpoint/sl-bridge';
 import { Utils } from '../linkpoint/utils';
+import { isTypingTarget } from '../linkpoint/keyboard-motion';
+import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
+import MediaControlsOverlay from '../components/MediaControlsOverlay.jsx';
 import Icon from '../components/Icon.jsx';
 import { useCameraState } from '../components/cameraReadout';
 import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
@@ -16,6 +19,7 @@ import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 export default function World3D({ desktopBackdrop = false }) {
   const { V, t } = useTheme();
+  const { matchesBinding } = useKeybindings();
   const canvasRef = useRef(null);
   const sectionRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -156,23 +160,15 @@ export default function World3D({ desktopBackdrop = false }) {
     };
   }, []);
 
-  // Listen to keyboard shortcut (H/h to toggle overlays, Escape to deselect/toggle) and custom events
+  // Listen to keyboard shortcut (H/h or custom binding to toggle overlays, Escape to deselect/toggle) and custom events
   useEffect(() => {
     const handleKeyDown = (event) => {
-      const target = event.target;
-      const isInput =
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable);
-      if (isInput || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey)
-        return;
+      if (isTypingTarget(event.target) || event.defaultPrevented) return;
 
-      if (event.key === 'h' || event.key === 'H') {
+      if (matchesBinding(event, 'toggleOverlays')) {
         event.preventDefault();
         toggleOverlays();
-      } else if (event.key === 'Escape') {
+      } else if (event.key === 'Escape' && !event.ctrlKey && !event.metaKey && !event.altKey) {
         if (selection) {
           event.preventDefault();
           app.world.selectObject(null);
@@ -189,7 +185,7 @@ export default function World3D({ desktopBackdrop = false }) {
       window.removeEventListener('keydown', handleKeyDown);
       app.world.off('toggle_overlays', toggleOverlays);
     };
-  }, [toggleOverlays, selection, showOverlays]);
+  }, [toggleOverlays, selection, showOverlays, matchesBinding]);
 
   useEffect(() => {
     const updateChat = () => setChatMessages([...app.chat.messages]);
@@ -1073,6 +1069,7 @@ export default function World3D({ desktopBackdrop = false }) {
           )}
 
           {/* HUD Controls */}
+          <MediaControlsOverlay />
           <HudControls
             bottomOffset={isSmallViewport && showDpad ? 110 : 14}
             outfitDrawerOpen={showOutfitDrawer}

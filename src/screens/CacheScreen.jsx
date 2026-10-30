@@ -120,13 +120,12 @@ export default function CacheScreen() {
 
   const handleSaveCustomPath = async (overridePath) => {
     const pathToSave = overridePath !== undefined ? overridePath : customPathRef.current;
-    const val = validateMountPath(customPath);
+    const val = validateMountPath(pathToSave);
     if (!val.valid) {
       setRecoveryError({
         code: 'CACHE_PATH_INVALID',
         description: 'Configure flashdrive mount path',
         message: val.message,
-        retryAction: () => handleSaveCustomPath(),
       });
       return;
     }
@@ -135,10 +134,10 @@ export default function CacheScreen() {
         code: 'CACHE_PATH_SAVE_FAILED',
         description: 'Save flashdrive custom mount path',
         action: async () => {
-          localCache.setLocation('flashdrive_path', customPath);
+          localCache.setLocation('flashdrive_path', pathToSave);
           setLocType('flashdrive_path');
-          actions.notify(`Flashdrive custom path saved: ${customPath}`);
-          setMessage(`Flashdrive path configured: ${customPath}`);
+          actions.notify(`Flashdrive custom path saved: ${pathToSave}`);
+          setMessage(`Flashdrive path configured: ${pathToSave}`);
           await refreshStats();
         },
       });
@@ -467,9 +466,17 @@ export default function CacheScreen() {
       {/* Live Cache Status Card */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: V.pri, fontWeight: 700, fontSize: 12, letterSpacing: '.12em' }}>
+          <h3
+            style={{
+              color: V.pri,
+              fontWeight: 700,
+              fontSize: 12,
+              letterSpacing: '.12em',
+              margin: 0,
+            }}
+          >
             ACTIVE CACHE STATUS
-          </div>
+          </h3>
           <span style={{ fontSize: 11, color: V.ink2 }}>{stats.locationName}</span>
         </div>
 
@@ -537,9 +544,11 @@ export default function CacheScreen() {
 
       {/* Cache Location Selection Card */}
       <div style={cardStyle}>
-        <div style={{ color: V.pri, fontWeight: 700, fontSize: 12, letterSpacing: '.12em' }}>
+        <h3
+          style={{ color: V.pri, fontWeight: 700, fontSize: 12, letterSpacing: '.12em', margin: 0 }}
+        >
           SELECT CACHE LOCATION
-        </div>
+        </h3>
         <p style={{ margin: 0, fontSize: 12, color: V.ink2, lineHeight: 1.4 }}>
           Choose where Second Life data is written so you can carry your viewer cache on a USB stick
           or external drive.
@@ -776,9 +785,11 @@ export default function CacheScreen() {
 
       {/* Flashdrive Operations Card */}
       <div style={cardStyle}>
-        <div style={{ color: V.pri, fontWeight: 700, fontSize: 12, letterSpacing: '.12em' }}>
+        <h3
+          style={{ color: V.pri, fontWeight: 700, fontSize: 12, letterSpacing: '.12em', margin: 0 }}
+        >
           FLASHDRIVE ACTIONS &amp; REBUILD
-        </div>
+        </h3>
 
         <div
           style={{

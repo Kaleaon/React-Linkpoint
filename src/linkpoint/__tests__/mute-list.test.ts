@@ -160,6 +160,109 @@ describe('MuteList (LLMuteList)', () => {
   });
 });
 
+describe('secondary index maps O(1) performance and edge cases', () => {
+  it('handles agentNameMap and legacyLowerCaseMap maintenance across add, remove, rename and clear', () => {
+    const l = new MuteList(null);
+    l.load({ state: 'loaded', mutes: [], legacy: [] });
+
+    // Add agent
+    l.add({ id: BOB, name: 'Bob Resident', type: MuteType.AGENT });
+    expect(l.isMutedByName('bob resident')).toBe(true);
+    expect(l.isMutedByName('BOB RESIDENT')).toBe(true);
+
+    // Rename agent
+    l.rename(BOB, 'Robert Resident');
+    expect(l.isMutedByName('bob resident')).toBe(false);
+    expect(l.isMutedByName('robert resident')).toBe(true);
+
+    // Remove agent
+    l.remove({ id: BOB });
+    expect(l.isMutedByName('robert resident')).toBe(false);
+
+    // Add legacy mutes with different casing
+    l.add({ name: 'SpamBot', type: MuteType.BY_NAME });
+    expect(l.isMutedByName('spambot')).toBe(true);
+    expect(l.isMuted('SpamBot', '')).toBe(true);
+
+    // Clear resets everything
+    l.clear();
+    expect(l.isMutedByName('spambot')).toBe(false);
+  });
+
+  it('handles multiple legacy mutes with distinct casings in load', () => {
+    const l = new MuteList(null);
+    l.load({
+      state: 'loaded',
+      mutes: [
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          name: 'Alice Agent',
+          type: MuteType.AGENT,
+          flags: 0,
+        },
+      ],
+      legacy: ['SpamBot', 'SPAMBOT'],
+    });
+
+    expect(l.isMutedByName('alice agent')).toBe(true);
+    expect(l.isMutedByName('spambot')).toBe(true);
+
+    // Remove one legacy variant
+    l.remove({ name: 'SpamBot' });
+    // 'SPAMBOT' remains in legacy
+    expect(l.isMutedByName('spambot')).toBe(true);
+
+    // Remove second legacy variant
+    l.remove({ name: 'SPAMBOT' });
+    expect(l.isMutedByName('spambot')).toBe(false);
+  });
+
+  it('prevents counter drift when exact duplicate legacy entries are present in load or loadFromCache', async () => {
+    const l = new MuteList(null);
+    l.load({
+      state: 'loaded',
+      mutes: [],
+      legacy: ['DuplicateBot', 'DuplicateBot'],
+    });
+
+    expect(l.isMutedByName('duplicatebot')).toBe(true);
+    // Unmuting once should fully unmute since it was a duplicate entry in the payload
+    l.remove({ name: 'DuplicateBot' });
+    expect(l.isMutedByName('duplicatebot')).toBe(false);
+  });
+
+  it('performs O(1) constant-time lookups across a large set of mutes', () => {
+    const l = new MuteList(null);
+    const count = 500;
+    const mutes: MuteEntry[] = [];
+    const legacy: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const hex = i.toString(16).padStart(12, '0');
+      mutes.push({
+        id: `00000000-0000-0000-0000-${hex}`,
+        name: `Agent_${i}`,
+        type: MuteType.AGENT,
+        flags: 0,
+      });
+      legacy.push(`Legacy_${i}`);
+    }
+
+    l.load({ state: 'loaded', mutes, legacy });
+
+    expect(l.isMutedByName('agent_0')).toBe(true);
+    expect(l.isMutedByName('agent_250')).toBe(true);
+    expect(l.isMutedByName('agent_499')).toBe(true);
+    expect(l.isMutedByName('legacy_250')).toBe(true);
+    expect(l.isMutedByName('nonexistent')).toBe(false);
+
+    const hex250 = (250).toString(16).padStart(12, '0');
+    expect(l.isMuted(`00000000-0000-0000-0000-${hex250}`)).toBe(true);
+    expect(l.isMuted('legacy_250')).toBe(true);
+    expect(l.isMuted('legacy_999')).toBe(false);
+  });
+});
+
 describe('mute list in chat, sound and voice', () => {
   const makeChat = () => {
     const chat = new ChatExtended({ on: () => {} } as any);
@@ -236,5 +339,93 @@ describe('mute list in chat, sound and voice', () => {
       [2, false],
       [2, true],
     ]);
+  });
+});
+
+describe('O(1) normalized index maps and performance', () => {
+  it('supports case-insensitive name lookups for agent mutes and legacy mutes', () => {
+    list.add({ id: BOB, name: 'Alice Resident', type: MuteType.AGENT });
+    list.add({ name: 'Spam Bot', type: MuteType.BY_NAME });
+
+    expect(list.isMutedByName('Alice Resident')).toBe(true);
+    expect(list.isMutedByName('ALICE RESIDENT')).toBe(true);
+    expect(list.isMutedByName('alice resident')).toBe(true);
+
+    expect(list.isMutedByName('Spam Bot')).toBe(true);
+    expect(list.isMutedByName('SPAM BOT')).toBe(true);
+    expect(list.isMutedByName('spam bot')).toBe(true);
+
+    expect(list.isMutedByName('nonexistent')).toBe(false);
+  });
+
+  it('updates normalized index map when an agent is renamed', () => {
+    list.add({ id: BOB, name: 'Old Agent Name', type: MuteType.AGENT });
+    expect(list.isMutedByName('old agent name')).toBe(true);
+
+    list.rename(BOB, 'New Agent Name');
+    expect(list.isMutedByName('old agent name')).toBe(false);
+    expect(list.isMutedByName('new agent name')).toBe(true);
+    expect(list.isMutedByName('NEW AGENT NAME')).toBe(true);
+  });
+
+  it('handles deletion edge cases and partial flag unmuting', () => {
+    list.add({ id: BOB, name: 'Charlie Resident', type: MuteType.AGENT });
+    list.add({ name: 'Griefing Object', type: MuteType.BY_NAME });
+
+    // Partial unmute - unmuting VOICE_CHAT keeps text chat muted
+    list.remove({ id: BOB }, MuteFlag.VOICE_CHAT);
+    expect(list.isMutedByName('charlie resident')).toBe(true);
+
+    // Full unmute by ID
+    list.remove({ id: BOB });
+    expect(list.isMutedByName('charlie resident')).toBe(false);
+
+    // Full unmute by legacy name
+    expect(list.isMutedByName('griefing object')).toBe(true);
+    list.remove({ name: 'Griefing Object' });
+    expect(list.isMutedByName('griefing object')).toBe(false);
+  });
+
+  it('completes 10,000 lookup calls across 1,000 mute entries in under 25 milliseconds', () => {
+    const perfList = new MuteList(null);
+    const mutes: MuteEntry[] = [];
+    const agentIds: string[] = [];
+    const agentNames: string[] = [];
+    for (let i = 0; i < 900; i++) {
+      const id = `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`;
+      const name = `Agent_${i}`;
+      mutes.push({
+        id,
+        name,
+        type: MuteType.AGENT,
+        flags: 0,
+      });
+      agentIds.push(id);
+      agentNames.push(`agent_${i}`);
+    }
+    const legacy: string[] = [];
+    const legacyNames: string[] = [];
+    for (let i = 0; i < 100; i++) {
+      const name = `Legacy_Object_${i}`;
+      legacy.push(name);
+      legacyNames.push(`legacy_object_${i}`);
+    }
+
+    perfList.load({ state: 'loaded', mutes, legacy });
+    expect(perfList.count).toBe(1000);
+
+    const start = performance.now();
+    for (let i = 0; i < 10000; i++) {
+      const index = i % 1000;
+      if (index < 900) {
+        perfList.isMuted(agentIds[index]);
+        perfList.isMutedByName(agentNames[index]);
+      } else {
+        perfList.isMutedByName(legacyNames[index - 900]);
+      }
+    }
+    const duration = performance.now() - start;
+
+    expect(duration).toBeLessThan(25);
   });
 });

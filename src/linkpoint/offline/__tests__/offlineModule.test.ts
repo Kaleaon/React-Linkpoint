@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { LocalGridManager, LOCAL_GRID_STORAGE_KEYS } from '../LocalGridManager';
 import { OARParser } from '../OARParser';
 import { LocalAssetManager } from '../LocalAssetManager';
@@ -91,6 +91,59 @@ describe('Offline OpenSim Grid Module', () => {
       const manager = new LocalGridManager(new GridConsole());
       expect(manager.isFirstTimeSetupNeeded()).toBe(true);
       expect(localStorage.getItem(LOCAL_GRID_STORAGE_KEYS.USER_ACCOUNT)).toBeNull();
+    });
+  });
+
+  describe('CacheManager usage caching and delta tracking', () => {
+    it('caches calculated storage size and avoids re-scanning localStorage', () => {
+      const cacheMgr = new CacheManager(new GridConsole());
+      localStorage.setItem('linkpoint_cache_test1', 'hello');
+
+      const initialUsage = cacheMgr.getEstimatedUsageBytes();
+      expect(initialUsage).toBeGreaterThan(0);
+
+      const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+
+      const secondUsage = cacheMgr.getEstimatedUsageBytes();
+      expect(secondUsage).toBe(initialUsage);
+      expect(getItemSpy).not.toHaveBeenCalled();
+
+      getItemSpy.mockRestore();
+    });
+
+    it('re-scans localStorage after invalidateUsageCache is called', () => {
+      const cacheMgr = new CacheManager(new GridConsole());
+      localStorage.setItem('linkpoint_cache_a', '12345');
+
+      const usage1 = cacheMgr.getEstimatedUsageBytes();
+
+      localStorage.setItem('linkpoint_cache_b', '67890');
+      expect(cacheMgr.getEstimatedUsageBytes()).toBe(usage1);
+
+      cacheMgr.invalidateUsageCache();
+      const usage2 = cacheMgr.getEstimatedUsageBytes();
+      expect(usage2).toBeGreaterThan(usage1);
+    });
+
+    it('updates cached size incrementally when clearCache is called', () => {
+      const cacheMgr = new CacheManager(new GridConsole());
+      localStorage.setItem('linkpoint_cache_item1', 'content1');
+      localStorage.setItem('linkpoint_local_asset_item2', 'content2');
+
+      const usageBefore = cacheMgr.getEstimatedUsageBytes();
+      expect(usageBefore).toBeGreaterThan(0);
+
+      const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+
+      cacheMgr.clearCache();
+
+      getItemSpy.mockClear();
+
+      const usageAfter = cacheMgr.getEstimatedUsageBytes();
+      expect(usageAfter).toBe(0);
+      expect(getItemSpy).not.toHaveBeenCalled();
+
+      getItemSpy.mockRestore();
     });
   });
 });

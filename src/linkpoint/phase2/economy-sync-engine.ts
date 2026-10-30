@@ -33,7 +33,7 @@ export interface SyncProgressEvent {
 
 export class EconomySyncEngine extends Utils.EventEmitter {
   private agentId: string | null = null;
-  private capabilitiesManager: CapabilitiesManager | null = null;
+  public capabilitiesManager: CapabilitiesManager;
   private requestTimeoutMs: number = 15000;
   private batchSize: number = 100;
 
@@ -50,7 +50,7 @@ export class EconomySyncEngine extends Utils.EventEmitter {
 
   constructor(config: EconomySyncEngineConfig = {}) {
     super();
-    this.capabilitiesManager = config.capabilitiesManager || null;
+    this.capabilitiesManager = config.capabilitiesManager || new CapabilitiesManager();
     this.requestTimeoutMs = config.requestTimeoutMs ?? 15000;
     this.batchSize = config.batchSize ?? 100;
 

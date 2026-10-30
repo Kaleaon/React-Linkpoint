@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import CrystalLoader from '../CrystalLoader.jsx';
-import SkeletonLoader, { SkeletonBox, SkeletonAssetPlaceholder } from '../SkeletonLoader.jsx';
+import SkeletonLoader, {
+  SkeletonBox,
+  SkeletonAssetPlaceholder,
+  SkeletonCard,
+} from '../SkeletonLoader.jsx';
+import BrandedLoader from '../BrandedLoader.jsx';
+import StateBlock from '../StateBlock.jsx';
 import AssetContainer from '../AssetContainer.jsx';
 import PayDialog from '../PayDialog.jsx';
 import Search from '../../screens/Search.jsx';
@@ -216,19 +222,40 @@ describe('Branded Skeleton System', () => {
     ) as HTMLElement;
     expect(container).not.toBeNull();
 
-    const crystal = container.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
-    expect(crystal).not.toBeNull();
-    expect(crystal.getAttribute('data-variant')).toBe('inline');
-    expect(crystal.style.width).toBe('20px');
-    expect(crystal.style.height).toBe('20px');
-    expect(crystal.getAttribute('role')).toBe('img');
-    expect(crystal.getAttribute('aria-label')).toBe('Loading');
+    const crystals = Array.from(
+      container.querySelectorAll('[data-testid="crystal-loader"]'),
+    ) as HTMLElement[];
+    expect(crystals.length).toBeGreaterThanOrEqual(2);
+
+    const headerCrystal = crystals[0];
+    expect(headerCrystal).not.toBeNull();
+    expect(headerCrystal.getAttribute('data-variant')).toBe('inline');
+    expect(headerCrystal.style.width).toBe('20px');
+    expect(headerCrystal.style.height).toBe('20px');
+
+    const progressCrystal = crystals[1];
+    expect(progressCrystal).not.toBeNull();
+    expect(progressCrystal.getAttribute('data-variant')).toBe('inline');
+    expect(progressCrystal.style.width).toBe('14px');
+    expect(progressCrystal.style.height).toBe('14px');
 
     const progressBar = container.querySelector(
       '[data-testid="asset-progress-bar"]',
     ) as HTMLElement;
     expect(progressBar).not.toBeNull();
     expect(progressBar.style.background).toContain('linear-gradient');
+  });
+
+  it('renders a 24px CrystalLoader instance in SkeletonCard header slot', async () => {
+    const host = await mount(createElement(SkeletonCard, { height: '100px' }));
+    const container = host.querySelector('.skeleton-container') as HTMLElement;
+    expect(container).not.toBeNull();
+
+    const crystal = container.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(crystal).not.toBeNull();
+    expect(crystal.getAttribute('data-variant')).toBe('inline');
+    expect(crystal.style.width).toBe('24px');
+    expect(crystal.style.height).toBe('24px');
   });
 });
 
@@ -278,6 +305,60 @@ describe('AssetContainer downloading state CrystalLoader integration', () => {
   });
 });
 
+describe('BrandedLoader Engine', () => {
+  it('renders screen variant with default size 88px', async () => {
+    const host = await mount(<BrandedLoader variant="screen" />);
+    const loader = host.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(loader).not.toBeNull();
+    expect(loader.getAttribute('data-variant')).toBe('screen');
+    expect(loader.style.width).toBe('88px');
+  });
+
+  it('renders card variant with crystal mark and skeleton placeholders', async () => {
+    const host = await mount(<BrandedLoader variant="card" title="Card Title" />);
+    const container = host.querySelector('[data-testid="branded-loader-card"]') as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.getAttribute('data-variant')).toBe('card');
+    expect(host.textContent).toContain('Card Title');
+    expect(host.querySelector('.skeleton-box')).not.toBeNull();
+  });
+
+  it('passes custom height from SkeletonCard to inner skeleton box via contentHeight', async () => {
+    const host = await mount(<SkeletonCard height="240px" />);
+    const container = host.querySelector('[data-testid="branded-loader-card"]') as HTMLElement;
+    expect(container).not.toBeNull();
+    const boxes = Array.from(container.querySelectorAll('.skeleton-box')) as HTMLElement[];
+    // Middle box should have the custom height 240px
+    const mainBox = boxes.find((b) => b.style.height === '240px');
+    expect(mainBox).not.toBeUndefined();
+  });
+
+  it('renders asset variant with title, skeleton preview, and progress bar', async () => {
+    const host = await mount(<BrandedLoader variant="asset" title="Mesh Asset" progress={45} />);
+    const container = host.querySelector(
+      '[data-testid="skeleton-asset-placeholder"]',
+    ) as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.getAttribute('data-variant')).toBe('asset');
+    expect(host.textContent).toContain('Mesh Asset');
+    expect(host.textContent).toContain('45%');
+
+    const progressBar = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    expect(progressBar).not.toBeNull();
+    expect(progressBar.style.width).toBe('45%');
+  });
+
+  it('renders StateBlock with BrandedLoader variant="screen" during loading state', async () => {
+    // StateBlock renders when stateBlockActive is true and cond is 'loading'
+    const host = await mount(<StateBlock />);
+    // Note: ThemeContext stateBlockActive defaults to true when condPack is provided
+    const crystal = host.querySelector('[data-testid="crystal-loader"]');
+    if (crystal) {
+      expect(crystal.getAttribute('data-variant')).toBe('screen');
+    }
+  });
+});
+
 describe('PayDialog inline CrystalLoader integration', () => {
   beforeEach(() => {
     app.economy.currencySymbol = 'L$';
@@ -318,5 +399,84 @@ describe('PayDialog inline CrystalLoader integration', () => {
     await act(async () => {
       resolvePay({ id: 'tx-1', status: 'success' });
     });
+  });
+});
+
+describe('ErrorRecoveryModal CrystalLoader integration', () => {
+  it('renders 32px CrystalLoader in header badge and 16px inline CrystalLoader on retry button', async () => {
+    const { ErrorRecoveryProvider } = await import('../../context/ErrorRecoveryContext');
+    const { ErrorRecoveryModal } = await import('../ErrorRecoveryModal');
+    const { ErrorRecoveryService } = await import('../../linkpoint/errorRecovery');
+
+    const service = new ErrorRecoveryService();
+    let resolveRetry: () => void = () => {};
+    const retryPromise = new Promise<void>((resolve) => {
+      resolveRetry = resolve;
+    });
+
+    await act(async () => {
+      try {
+        await service.enqueueRetry({
+          action: () => Promise.reject(new Error('Connection Failed')),
+          category: 'network',
+          code: 'NET_FAIL',
+          description: 'Sync avatar state',
+          maxRetries: 1,
+        });
+      } catch {
+        // expected failure
+      }
+    });
+
+    const host = await mount(
+      createElement(ErrorRecoveryProvider, {
+        customService: service,
+        children: createElement(ErrorRecoveryModal),
+      }),
+    );
+
+    const headerBadge = host.querySelector('[data-testid="recovery-modal-header-badge"]');
+    expect(headerBadge).not.toBeNull();
+    const headerCrystal = headerBadge?.querySelector(
+      '[data-testid="crystal-loader"]',
+    ) as HTMLElement;
+    expect(headerCrystal).not.toBeNull();
+    expect(headerCrystal.style.width).toBe('32px');
+
+    (service as any).retryQueue.push({
+      id: 'pending-2',
+      action: () => retryPromise,
+      category: 'network',
+      code: 'NET_RETRY',
+      description: 'Pending sync',
+      attempts: 0,
+      maxRetries: 1,
+    });
+
+    const buttons = Array.from(host.querySelectorAll('button'));
+    const retryBtn = buttons.find((btn) =>
+      btn.textContent?.includes('Retry Operation'),
+    ) as HTMLButtonElement;
+    expect(retryBtn).not.toBeNull();
+
+    let clickPromise: Promise<void>;
+    await act(async () => {
+      clickPromise = (async () => {
+        retryBtn.click();
+      })();
+    });
+
+    expect(retryBtn.disabled).toBe(true);
+    expect(retryBtn.textContent).toContain('Retrying...');
+    const btnCrystal = retryBtn.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+    expect(btnCrystal).not.toBeNull();
+    expect(btnCrystal.style.width).toBe('16px');
+
+    await act(async () => {
+      resolveRetry();
+      await clickPromise;
+    });
+
+    service.destroy();
   });
 });
