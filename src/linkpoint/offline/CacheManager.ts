@@ -15,6 +15,8 @@ export const CACHE_SIZE_DEFAULT_BYTES = 1024 * 1024 * 1024;
 export class CacheManager extends Utils.EventEmitter {
   private settings: CacheSettings;
   private console: GridConsole;
+  private cachedSizeBytes: number | null = null;
+  private isDirty: boolean = true;
 
   constructor(console: GridConsole = gridConsole) {
     super();
@@ -24,6 +26,11 @@ export class CacheManager extends Utils.EventEmitter {
 
   public getConsole(): GridConsole {
     return this.console;
+  }
+
+  public invalidateUsageCache(): void {
+    this.cachedSizeBytes = null;
+    this.isDirty = true;
   }
 
   private loadSettings(): CacheSettings {
@@ -49,6 +56,7 @@ export class CacheManager extends Utils.EventEmitter {
 
     this.settings.maxSizeBytes = clampedBytes;
     const persisted = Utils.storage.set(CACHE_SETTINGS_STORAGE_KEY, this.settings);
+    this.invalidateUsageCache();
     if (!persisted) {
       this.console.warn(
         LOG_COMPONENTS.CACHE,
@@ -77,6 +85,10 @@ export class CacheManager extends Utils.EventEmitter {
   }
 
   public getEstimatedUsageBytes(): number {
+    if (!this.isDirty && this.cachedSizeBytes !== null) {
+      return this.cachedSizeBytes;
+    }
+
     let totalChars = 0;
     try {
       if (typeof localStorage !== 'undefined') {
@@ -91,7 +103,9 @@ export class CacheManager extends Utils.EventEmitter {
     } catch (e) {
       this.console.captureError(LOG_COMPONENTS.CACHE, 'Could not measure cache usage.', e);
     }
-    return totalChars * 2;
+    this.cachedSizeBytes = totalChars * 2;
+    this.isDirty = false;
+    return this.cachedSizeBytes;
   }
 
   public getUsagePercentage(): number {
@@ -114,8 +128,15 @@ export class CacheManager extends Utils.EventEmitter {
             keysToRemove.push(key);
           }
         }
+        let freedBytes = 0;
         for (const key of keysToRemove) {
+          const value = localStorage.getItem(key) || '';
+          freedBytes += (key.length + value.length) * 2;
           localStorage.removeItem(key);
+        }
+        if (this.cachedSizeBytes !== null) {
+          this.cachedSizeBytes = Math.max(0, this.cachedSizeBytes - freedBytes);
+          this.isDirty = false;
         }
         this.console.info(
           LOG_COMPONENTS.CACHE,
@@ -125,6 +146,7 @@ export class CacheManager extends Utils.EventEmitter {
       this.emit('cacheCleared', { freedBytes: usageBefore });
     } catch (e) {
       this.console.captureError(LOG_COMPONENTS.CACHE, 'Error clearing cache.', e);
+      this.invalidateUsageCache();
     }
     return usageBefore;
   }
