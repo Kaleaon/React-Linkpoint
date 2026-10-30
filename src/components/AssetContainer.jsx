@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
+import CrystalProgressBar from './CrystalProgressBar.jsx';
 import { SkeletonAssetPlaceholder } from './SkeletonLoader.jsx';
 
 /**

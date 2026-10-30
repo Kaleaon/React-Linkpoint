@@ -76,9 +76,16 @@ export function StackHead({ title, subtitle, scr }) {
     >
       <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ font: '700 21px/1.05 ' + t.dfont, letterSpacing: V.tls, color: V.pri }}>
+        <h1
+          style={{
+            font: '700 21px/1.05 ' + t.dfont,
+            letterSpacing: V.tls,
+            color: V.pri,
+            margin: 0,
+          }}
+        >
           {title}
-        </div>
+        </h1>
         <div style={{ font: '400 11px/1.4 ' + t.font, color: V.ink2, marginTop: '4px' }}>
           {subtitle}
         </div>
@@ -176,7 +183,7 @@ export function SweepHead({ title, subtitle }) {
         </span>
         <span style={{ flex: 1, height: '6px', background: V.surf2 }} />
         <LinkpointLogo animated={false} showTitle={false} width={24} height={24} />
-        <span
+        <h1
           style={{
             font: '700 22px/1 ' + t.dfont,
             letterSpacing: '.14em',
@@ -187,10 +194,11 @@ export function SweepHead({ title, subtitle }) {
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             textTransform: 'uppercase',
+            margin: 0,
           }}
         >
           {title}
-        </span>
+        </h1>
         <span
           style={{
             width: '36px',
@@ -234,17 +242,18 @@ export function PivotHead({ title, subtitle, scr }) {
         }}
       >
         <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
-        <span
+        <h1
           style={{
             flex: 'none',
             font: '300 42px/1 ' + t.dfont,
             color: V.ink,
             textTransform: 'lowercase',
             letterSpacing: '-.02em',
+            margin: 0,
           }}
         >
           {String(title || '').toLowerCase()}
-        </span>
+        </h1>
         <TouchTarget
           onClick={() => actions.setScreen(nextScr)}
           role="button"
@@ -303,16 +312,17 @@ export function RuleHead({ title, subtitle }) {
         }}
       >
         <LinkpointLogo animated={false} showTitle={false} width={20} height={20} />
-        <div
+        <h1
           style={{
             font: '600 15px/1.1 ' + t.dfont,
             letterSpacing: V.tls,
             color: V.priText,
             textIndent: V.tls,
+            margin: 0,
           }}
         >
           {title}
-        </div>
+        </h1>
       </div>
       <div
         style={{
@@ -335,16 +345,17 @@ export function EditorialHead({ title, subtitle }) {
     <header style={{ flex: 'none', padding: '18px 18px 10px', borderBottom: '2px solid ' + V.ink }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
-        <div
+        <h1
           style={{
             font: '600 27px/1.12 ' + t.font,
             letterSpacing: '-.01em',
             color: V.ink,
             textTransform: 'capitalize',
+            margin: 0,
           }}
         >
           {title}
-        </div>
+        </h1>
       </div>
       <div
         style={{

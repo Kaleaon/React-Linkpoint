@@ -100,4 +100,49 @@ describe('sl-actions getTransactionHistory capability fetcher', () => {
     await slActions.getTransactionHistory(mockBot, { limit: 25 });
     expect(requestGetMock).toHaveBeenCalledWith('https://example.com/caps/tx?token=xyz&limit=25');
   });
+  it('normalizes entries into structured transaction objects', async () => {
+    const mockBot = {
+      clientCommands: {
+        grid: {
+          getBalance: vi.fn().mockResolvedValue(1000),
+        },
+      },
+      currentRegion: {
+        caps: {
+          isCapAvailable: vi.fn().mockResolvedValue(true),
+          getCapability: vi.fn().mockResolvedValue('https://example.com/caps/tx'),
+          requestGet: vi.fn().mockResolvedValue({
+            body: {
+              transactions: [
+                {
+                  id: 'tx-raw-123',
+                  timestamp: 1700000000000,
+                  type: 'purchase',
+                  amount: -250,
+                  balance: 750,
+                  target_name: 'Merchant Avatar',
+                  from_id: 'avatar-me',
+                  to_id: 'avatar-merchant',
+                  description: 'Purchased Item',
+                },
+              ],
+            },
+          }),
+        },
+      },
+    };
+
+    const res = await slActions.getTransactionHistory(mockBot, {});
+    expect(res.transactions.length).toBe(1);
+    const tx = res.transactions[0];
+    expect(tx.transactionId).toBe('tx-raw-123');
+    expect(tx.timestamp).toBe(1700000000000);
+    expect(tx.type).toBe('purchase');
+    expect(tx.amount).toBe(-250);
+    expect(tx.balance).toBe(750);
+    expect(tx.user).toBe('Merchant Avatar');
+    expect(tx.fromId).toBe('avatar-me');
+    expect(tx.toId).toBe('avatar-merchant');
+    expect(tx.description).toBe('Purchased Item');
+  });
 });

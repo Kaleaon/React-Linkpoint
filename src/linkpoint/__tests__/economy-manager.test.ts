@@ -273,5 +273,17 @@ describe('EconomyManager Subsystem', () => {
 
     const recent14Days = economy.getTransactions({ dateRange: '14days' });
     expect(recent14Days.length).toBe(2);
+    // Filter by custom date boundaries
+    const customRange = economy.getTransactions({
+      startDate: now - 15 * dayMs,
+      endDate: now - 5 * dayMs,
+    });
+    expect(customRange.length).toBe(1);
+    expect(customRange[0].id).toBe('tx-opt-2');
+
+    // Filter by free-text search query
+    const searchResults = economy.getTransactions({ searchQuery: 'Governor' });
+    expect(searchResults.length).toBe(1);
+    expect(searchResults[0].id).toBe('tx-opt-3');
   });
 });

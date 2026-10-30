@@ -541,11 +541,48 @@ async function getTransactionHistory(bot, params = {}) {
     }
   }
 
+  const normalizedTransactions = rawTxs.map((entry, idx) => {
+    const transactionId =
+      entry.transactionId ||
+      entry.transaction_id ||
+      entry.id ||
+      entry.transactionID ||
+      `tx-${Date.now()}-${idx}`;
+    const timestamp =
+      typeof entry.timestamp === 'number'
+        ? entry.timestamp
+        : typeof entry.time === 'number'
+          ? entry.time
+          : Date.parse(entry.timestamp || entry.time || entry.date) || Date.now();
+    const type = entry.type || entry.transactionType || 'payment';
+    const amount = typeof entry.amount === 'number' ? entry.amount : Number(entry.amount) || 0;
+    const bal = entry.balance !== undefined ? Number(entry.balance) : undefined;
+    const user =
+      entry.user || entry.target_name || entry.targetName || entry.userName || entry.target || '';
+    const fromId = entry.fromId || entry.from_id || entry.sourceId || '';
+    const toId = entry.toId || entry.to_id || entry.targetId || '';
+    const description = entry.description || entry.desc || '';
+
+    return {
+      ...entry,
+      transactionId,
+      id: entry.id || transactionId,
+      timestamp,
+      type,
+      amount,
+      balance: bal,
+      user,
+      fromId,
+      toId,
+      description,
+    };
+  });
+
   return {
     balance: balance.balance,
     currencySymbol: balance.currencySymbol,
     isZeroCurrency: balance.isZeroCurrency,
-    transactions: rawTxs,
+    transactions: normalizedTransactions,
     hasMore,
   };
 }

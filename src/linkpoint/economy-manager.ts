@@ -404,14 +404,29 @@ export class EconomyManager extends Utils.EventEmitter {
       }
     }
 
-    if (options.startDate) {
-      const parsedStart = new Date(options.startDate).getTime();
+    if (options.startDate !== undefined && options.startDate !== null && options.startDate !== '') {
+      const parsedStart =
+        typeof options.startDate === 'number'
+          ? options.startDate
+          : new Date(options.startDate).getTime();
       if (!isNaN(parsedStart)) minTimestamp = parsedStart;
     }
 
-    if (options.endDate) {
-      const parsedEnd = new Date(options.endDate).getTime();
-      if (!isNaN(parsedEnd)) maxTimestamp = parsedEnd;
+    if (options.endDate !== undefined && options.endDate !== null && options.endDate !== '') {
+      let parsedEnd =
+        typeof options.endDate === 'number' ? options.endDate : new Date(options.endDate).getTime();
+      if (!isNaN(parsedEnd)) {
+        if (
+          typeof options.endDate === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(options.endDate.trim())
+        ) {
+          parsedEnd += 24 * 60 * 60 * 1000 - 1;
+        }
+        maxTimestamp = parsedEnd;
+        if (!options.startDate && !options.dateRange && minTimestamp > maxTimestamp) {
+          minTimestamp = 0;
+        }
+      }
     }
 
     let filtered = this.transactions.filter(
@@ -422,10 +437,10 @@ export class EconomyManager extends Utils.EventEmitter {
       const targetType = options.type.toLowerCase();
       filtered = filtered.filter((t) => {
         if (targetType === 'credit') {
-          return t.amount > 0 && t.type !== 'payment';
+          return t.amount > 0 || t.type.toLowerCase() === 'credit';
         }
         if (targetType === 'debit') {
-          return t.amount < 0 || t.type === 'payment';
+          return t.amount < 0 || t.type.toLowerCase() === 'debit';
         }
         return t.type.toLowerCase() === targetType;
       });
