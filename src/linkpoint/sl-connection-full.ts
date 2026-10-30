@@ -447,7 +447,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Decline a teleport lure and notify the sender. */
-  async declineLure(request: { id: string }) {
+  async declineLure(request: { id: string; agentId?: string; sessionId?: string; packet?: any }) {
     this.requireConnected();
     return slBridge.declineLure(request);
   }

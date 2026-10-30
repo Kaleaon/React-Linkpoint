@@ -201,4 +201,30 @@ describe('SystemDialog Teleport Sheet', () => {
     expect(button(host, 'RETRY HOME')).toBeDefined();
     expect(button(host, 'CANCEL')).toBeDefined();
   });
+
+  it('bails out of state updates when receiving duplicate teleport progress updates with identical stepPercent and statusText', async () => {
+    const host = await mount();
+    await act(async () => {
+      app.interactions.startTeleportSession('Lusk');
+    });
+
+    await emit('teleport_progress', {
+      phase: 'preparing',
+      percent: 50,
+      statusText: 'Connecting to region...',
+    });
+
+    expect(host.textContent).toContain('50%');
+    expect(host.textContent).toContain('Connecting to region...');
+
+    // Emit duplicate event
+    await emit('teleport_progress', {
+      phase: 'preparing',
+      percent: 50,
+      statusText: 'Connecting to region...',
+    });
+
+    expect(host.textContent).toContain('50%');
+    expect(host.textContent).toContain('Connecting to region...');
+  });
 });
