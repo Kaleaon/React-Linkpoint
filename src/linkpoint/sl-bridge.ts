@@ -241,8 +241,8 @@ export class SLBridge extends Utils.EventEmitter {
   acceptLure(params: { id: string }) {
     return this.call<{ accepted: boolean; message: string }>('acceptLure', params);
   }
-  declineLure(params: { id: string }) {
-    return this.call<{ declined: boolean }>('declineLure', params).catch(
+  declineLure(params: { id: string; agentId?: string; sessionId?: string; packet?: any }) {
+    return this.call<{ declined: boolean; packet?: any }>('declineLure', params).catch(
       () => this.dismissInteraction(params) as any,
     );
   }

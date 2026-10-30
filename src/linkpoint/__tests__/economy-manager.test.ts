@@ -1,17 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EconomyManager } from '../economy-manager';
 import { formatCurrency, formatAmount } from '../currency-formatter';
 import { localCache } from '../local-cache';
 import { slBridge } from '../sl-bridge';
+import { economyService } from '../../services/EconomyService';
 
 describe('EconomyManager Subsystem', () => {
   let economy: EconomyManager;
 
   beforeEach(() => {
+    economyService.setAutoApprove(true);
     economy = new EconomyManager();
     economy.activeAgentId = 'test-agent-uuid-1234';
     economy.transactions = [];
     economy.balance = 500;
+  });
+
+  afterEach(() => {
+    economyService.setAutoApprove(false);
   });
 
   it('formats currency dynamic symbols and handles zero-currency mode', () => {
