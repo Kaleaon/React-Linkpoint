@@ -2,6 +2,8 @@
  * Linkpoint PWA - Utility Functions
  */
 
+import { lerp } from './sl-math';
+
 export const Utils = {
   generateUUID() {
     if (
@@ -165,7 +167,7 @@ export const Utils = {
   },
 
   lerp(start: number, end: number, t: number) {
-    return start * (1 - t) + end * t;
+    return lerp(start, end, t);
   },
 
   isMobile() {
