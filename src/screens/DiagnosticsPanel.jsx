@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app';
 import Icon from '../components/Icon.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import {
   UNKNOWN,
@@ -192,7 +193,11 @@ export default function DiagnosticsPanel() {
             opacity: isConnected ? 1 : 0.6,
           }}
         >
-          <Icon name="refresh-cw" size={13} />
+          {pinging ? (
+            <CrystalLoader size={14} variant="inline" />
+          ) : (
+            <Icon name="refresh-cw" size={13} />
+          )}
           {pinging ? 'PINGING…' : 'PING PROBE'}
         </button>
       </div>
