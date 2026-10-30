@@ -183,6 +183,49 @@ describe('<TeleportCrystalHero /> Component', () => {
     expect(styleEl?.textContent).toContain('translateY(0px)');
   });
 
+  it('binds dynamic CSS custom properties for scale and glow opacity across progress phases', async () => {
+    const host0 = await mount(<TeleportCrystalHero stepPercent={0} phase="initiating" />);
+    const hero0 = host0.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+    expect(hero0?.style.getPropertyValue('--crystal-scale')).toBe('1');
+    expect(hero0?.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.4');
+
+    await act(async () => {
+      mounted!.root.unmount();
+      mounted = null;
+    });
+
+    const host50 = await mount(<TeleportCrystalHero stepPercent={50} phase="preparing" />);
+    const hero50 = host50.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+    expect(hero50?.style.getPropertyValue('--crystal-scale')).toBe('1.025');
+    expect(hero50?.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.675');
+
+    await act(async () => {
+      mounted!.root.unmount();
+      mounted = null;
+    });
+
+    const host100 = await mount(<TeleportCrystalHero stepPercent={100} phase="arriving" />);
+    const hero100 = host100.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+    expect(hero100?.style.getPropertyValue('--crystal-scale')).toBe('1.05');
+    expect(hero100?.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.95');
+
+    await act(async () => {
+      mounted!.root.unmount();
+      mounted = null;
+    });
+
+    const hostFailed = await mount(<TeleportCrystalHero stepPercent={40} phase="failed" />);
+    const heroFailed = hostFailed.querySelector(
+      '[data-testid="teleport-crystal-hero"]',
+    ) as HTMLElement;
+    expect(heroFailed?.style.getPropertyValue('--crystal-scale')).toBe('1');
+    expect(heroFailed?.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.95');
+  });
+
+  it('is wrapped with React.memo to prevent unnecessary rerenders', () => {
+    expect((TeleportCrystalHero as any).$$typeof).toBe(Symbol.for('react.memo'));
+  });
+
   it('attaches imperative handle via React.forwardRef and updates DOM on updateProgress call', async () => {
     const heroRef = { current: null as any };
     const host = await mount(
@@ -199,5 +242,7 @@ describe('<TeleportCrystalHero /> Component', () => {
 
     const container = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
     expect(container.getAttribute('data-step-percent')).toBe('75');
+    expect(container.style.getPropertyValue('--crystal-scale')).toBe('1.0375');
+    expect(container.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.8125');
   });
 });
