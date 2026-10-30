@@ -102,6 +102,7 @@ export function useAppState() {
     notifyLocal: true,
     notifyIM: true,
     notifyGroup: true,
+    devMode: false,
     ...savedSettings.toggles,
     autoresponse:
       typeof Utils.storage.get('linkpoint_auto_reply_config')?.enabled === 'boolean'
