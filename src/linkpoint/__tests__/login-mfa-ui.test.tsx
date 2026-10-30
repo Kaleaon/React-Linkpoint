@@ -150,3 +150,123 @@ describe('Login screen multi-factor flow', () => {
     expect(codeField(host)).toBeNull();
   });
 });
+
+describe('Login screen loading indicator integration', () => {
+  it('displays inline CrystalLoader and CONNECTING… during primary authentication', async () => {
+    let resolveLogin!: (val: any) => void;
+    const loginPromise = new Promise((r) => {
+      resolveLogin = r;
+    });
+    vi.spyOn(app.auth, 'login').mockImplementation(() => loginPromise as any);
+
+    const host = await mount();
+    const inputs = host.querySelectorAll<HTMLInputElement>('input');
+    const name = [...inputs].find((i) => i.autocomplete === 'username')!;
+    const password = [...inputs].find((i) => i.type === 'password')!;
+    await set(name, 'jane doe');
+    await set(password, 'secret');
+
+    act(() => {
+      host
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    const button = host.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toContain('CONNECTING…');
+    const loader = button.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+
+    await act(async () => {
+      resolveLogin({});
+    });
+  });
+
+  it('displays inline CrystalLoader during MFA code verification', async () => {
+    let resolveLogin!: (val: any) => void;
+    vi.spyOn(app.auth, 'login')
+      .mockRejectedValueOnce(challenge)
+      .mockImplementation(
+        () =>
+          new Promise((r) => {
+            resolveLogin = r;
+          }) as any,
+      );
+
+    const host = await mount();
+    const inputs = host.querySelectorAll<HTMLInputElement>('input');
+    await set(
+      [...inputs].find((i) => i.autocomplete === 'username')!,
+      'jane',
+    );
+    await set(
+      [...inputs].find((i) => i.type === 'password')!,
+      'secret',
+    );
+    await submit(host);
+
+    const field = codeField(host)!;
+    await set(field, '123456');
+
+    act(() => {
+      host
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    const button = host.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toContain('CONNECTING…');
+    const loader = button.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+
+    await act(async () => {
+      resolveLogin({});
+    });
+  });
+
+  it('displays inline CrystalLoader when saved-session auto-login is active', async () => {
+    (app.protocol as any).checkAutoLoginStatus = async () => ({
+      available: true,
+      username: 'jane doe',
+    });
+    let resolveAutoLogin!: (val: any) => void;
+    vi.spyOn(app.auth, 'autoLogin').mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveAutoLogin = r;
+        }) as any,
+    );
+
+    const host = await mount();
+    const savedButton = [...host.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+      b.textContent?.includes('CONNECT WITH SERVER CREDENTIALS'),
+    )!;
+    expect(savedButton).not.toBeUndefined();
+
+    act(() => {
+      savedButton.click();
+    });
+
+    expect(savedButton.disabled).toBe(true);
+    const loader = savedButton.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+
+    await act(async () => {
+      resolveAutoLogin({});
+    });
+  });
+
+  it('maintains flex centering with gap on connection buttons', async () => {
+    const host = await mount();
+    const submitButton = host.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(submitButton.style.display).toBe('flex');
+    expect(submitButton.style.alignItems).toBe('center');
+    expect(submitButton.style.justifyContent).toBe('center');
+    expect(submitButton.style.gap).toBe('8px');
+  });
+});

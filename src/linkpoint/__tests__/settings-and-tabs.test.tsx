@@ -77,7 +77,7 @@ describe('Settings: optional Google integration', () => {
 });
 
 describe('Settings: mobile appearance and viewer preferences', () => {
-  it('exposes layout, theme, format, density and the previously hidden preferences', async () => {
+  it('exposes layout, theme, format, density and experimental preferences in developer mode', async () => {
     mounted = await mountScreen(Settings);
     for (const id of [
       'settings-layout-select',
@@ -85,6 +85,25 @@ describe('Settings: mobile appearance and viewer preferences', () => {
       'settings-format-select',
       'settings-density-select',
       'settings-frame-rate-select',
+    ])
+      expect(mounted.host.querySelector(`#${id}`), id).not.toBeNull();
+
+    for (const id of [
+      'settings-avatar-complexity-select',
+      'settings-translation-select',
+      'settings-maturity-select',
+      'settings-cache-limit-select',
+      'settings-cache-location-select',
+    ])
+      expect(mounted.host.querySelector(`#${id}`), id).toBeNull();
+
+    const devModeToggle = mounted.host
+      .querySelector('#devMode-label')
+      ?.closest('.settings-switch-row')
+      ?.querySelector('[role="switch"]');
+    if (devModeToggle) await click(devModeToggle as HTMLElement);
+
+    for (const id of [
       'settings-avatar-complexity-select',
       'settings-translation-select',
       'settings-maturity-select',
@@ -92,6 +111,7 @@ describe('Settings: mobile appearance and viewer preferences', () => {
       'settings-cache-location-select',
     ])
       expect(mounted.host.querySelector(`#${id}`), id).not.toBeNull();
+
     expect(mounted.host.textContent).toContain('THEME STUDIO');
   });
 

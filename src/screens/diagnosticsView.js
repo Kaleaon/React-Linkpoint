@@ -11,6 +11,26 @@ export const show = (v) =>
     ? UNKNOWN
     : String(v);
 
+/**
+ * Resolves a semantic tone identifier ('ok', 'warn', 'err', 'none') to the active theme palette token.
+ * Falls back gracefully to V.ink2 or V.warn when encountering invalid or unmapped tone strings.
+ */
+export function resolveStatusTone(V, tone) {
+  if (!V) return undefined;
+  switch (tone) {
+    case 'ok':
+      return V.ok ?? V.ink2 ?? V.warn;
+    case 'warn':
+      return V.warn ?? V.ink2;
+    case 'err':
+      return V.err ?? V.ink2 ?? V.warn;
+    case 'none':
+      return V.ink2 ?? V.warn;
+    default:
+      return V.ink2 ?? V.warn;
+  }
+}
+
 /** Ports, circuit codes and similar identifiers use 0 to mean "not set". */
 export const positiveOrNull = (v) => (isNum(v) && v > 0 ? v : null);
 

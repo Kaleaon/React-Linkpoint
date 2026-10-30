@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import TouchTarget from './TouchTarget';
 import Icon from './Icon';
 import FocusTrap from './FocusTrap.jsx';
+import SecondaryViewLoader from './SecondaryViewLoader';
 
 export interface OutfitItem {
   id: string;
@@ -19,6 +20,7 @@ export interface OutfitCarouselDrawerProps {
   outfits?: OutfitItem[];
   /** Shown when there are no outfits (not loaded, not logged in, or none saved). */
   emptyMessage?: string;
+  isLoading?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -29,6 +31,7 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
   onSelectOutfit,
   outfits = [],
   emptyMessage = 'No outfits to show.',
+  isLoading = false,
   className = '',
   style,
 }) => {
@@ -38,6 +41,8 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
   if (!isOpen) return null;
 
   const currentOutfit: OutfitItem | undefined = outfits[activeIdx] || outfits[0];
+  const isCurrentlyLoading =
+    isLoading || (!currentOutfit && Boolean(emptyMessage?.toLowerCase().includes('loading')));
 
   const handleNext = () => {
     setActiveIdx((prev) => (prev + 1) % outfits.length);
@@ -123,9 +128,17 @@ export const OutfitCarouselDrawer: React.FC<OutfitCarouselDrawerProps> = ({
         </div>
 
         {!currentOutfit ? (
-          <div role="status" style={{ padding: 12, textAlign: 'center', color: V.ink2 }}>
-            {emptyMessage}
-          </div>
+          isCurrentlyLoading ? (
+            <SecondaryViewLoader
+              layout="inline"
+              label={emptyMessage || 'Loading outfits…'}
+              style={{ padding: 12, justifyContent: 'center' }}
+            />
+          ) : (
+            <div role="status" style={{ padding: 12, textAlign: 'center', color: V.ink2 }}>
+              {emptyMessage}
+            </div>
+          )
         ) : (
           <>
             {/* Carousel Body */}

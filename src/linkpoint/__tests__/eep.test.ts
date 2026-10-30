@@ -9,9 +9,9 @@ import {
   normalizeWater,
   skyAt,
   skyState,
-  slerp,
   waterAt,
 } from '../eep';
+import { slerp } from '../sl-math';
 
 const frame = (over: Record<string, any>) => ({ type: 'sky', ...over });
 const cycle = (
@@ -143,7 +143,7 @@ describe('EEP day cycle', () => {
     expect(directionFrom([0, 0, 0, 1])).toEqual([1, 0, 0]);
     const up = directionFrom([0, -Math.SQRT1_2, 0, Math.SQRT1_2]);
     expect(up[2]).toBeCloseTo(1, 5);
-    const slerped = slerp([0, 0, 0, 1], [0, 0, 1, 0], 0.5);
+    const slerped = slerp(0.5, [0, 0, 0, 1], [0, 0, 1, 0]);
     expect(Math.hypot(...slerped)).toBeCloseTo(1, 6);
   });
 

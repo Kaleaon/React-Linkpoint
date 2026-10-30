@@ -435,11 +435,31 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   /** Decline an inventory offer. */
   async declineInventoryOffer(id: string) {
-    const result = await this.run(id, () =>
-      typeof (this.protocol as any).declineInventoryOffer === 'function'
-        ? (this.protocol as any).declineInventoryOffer({ id })
-        : this.protocol.dismissInteraction(id),
-    );
+    const offer = this.list.find((item) => item.id === id && item.kind === 'inventory-offer') as
+      InventoryOfferRequest | undefined;
+    const result = await this.run(id, async () => {
+      if (typeof (this.protocol as any).declineInventoryOffer === 'function') {
+        return (this.protocol as any).declineInventoryOffer({ id });
+      }
+      if (
+        typeof (this.protocol as any).sendImprovedInstantMessage === 'function' &&
+        offer?.fromId
+      ) {
+        try {
+          await (this.protocol as any).sendImprovedInstantMessage({
+            to: offer.fromId,
+            recipientId: offer.fromId,
+            toAgentId: offer.fromId,
+            dialog: 10,
+            id: offer.requestId || '',
+            message: offer.message || '',
+          });
+        } catch (err) {
+          console.warn('[interactions] Failed to send inventory decline packet:', err);
+        }
+      }
+      return this.protocol.dismissInteraction(id);
+    });
     return Boolean(result);
   }
 
