@@ -119,7 +119,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(styleEl).not.toBeNull();
     const cssText = styleEl?.textContent || '';
 
-    expect(cssText).toContain('will-change: transform');
+    expect(cssText).toContain('will-change: transform;');
     expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
@@ -128,6 +128,26 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(cssText).toContain('@keyframes moteRotate');
     expect(cssText).toContain('@keyframes moteNearFade');
     expect(cssText).toContain('@keyframes moteFarFade');
+  });
+
+  it('sets will-change: auto for static logos when animated prop is false', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo animated={false} />);
+    expect(mounted.host.querySelector('style')).toBeNull();
+
+    const styleEl = document.getElementById('linkpoint-logo-styles');
+    expect(styleEl).not.toBeNull();
+    const cssText = styleEl?.textContent || '';
+
+    // Verify static logo class rules emit will-change: auto
+    expect(cssText).toContain('.top-crystal-r {\n    will-change: auto;');
+    expect(cssText).toContain('.bot-crystal-r {\n    will-change: auto;');
+    expect(cssText).toContain('.mote-rotator-group {\n    will-change: auto;');
+
+    // Verify animated modifier classes are not applied to static logo elements
+    expect(mounted.host.querySelector('.top-crystal-r.animated')).toBeNull();
+    expect(mounted.host.querySelector('.bot-crystal-r.animated')).toBeNull();
+    expect(mounted.host.querySelector('.mote-rotator-group.animated')).toBeNull();
+    expect(mounted.host.querySelector('.core-anim-r.animated')).toBeNull();
   });
 
   it('contains prefers-reduced-motion media query for accessibility in document.head', async () => {
@@ -236,5 +256,77 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     const logoSvg = emblem?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
     expect(logoSvg?.style.height).toBe('20px');
+  });
+
+  it('generates HTML preview artifact for animated vs static logo instances', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const mountedAnimated = await mountScreen(() => (
+      <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', width: '300px' }}>
+        <h2
+          style={{
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            fontSize: '16px',
+            marginBottom: '12px',
+          }}
+        >
+          Animated Logo (animated=true)
+        </h2>
+        <LinkpointLogo animated={true} showTitle={false} width="200" height="200" />
+      </div>
+    ));
+    const animatedHtml = mountedAnimated.host.innerHTML;
+    await unmount(mountedAnimated);
+
+    const mountedStatic = await mountScreen(() => (
+      <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', width: '300px' }}>
+        <h2
+          style={{
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            fontSize: '16px',
+            marginBottom: '12px',
+          }}
+        >
+          Static Logo (animated=false)
+        </h2>
+        <LinkpointLogo animated={false} showTitle={false} width="200" height="200" />
+      </div>
+    ));
+    const staticHtml = mountedStatic.host.innerHTML;
+    await unmount(mountedStatic);
+
+    const doc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LinkpointLogo Will-Change Verification</title>
+<style>
+body { background: #020617; font-family: sans-serif; color: #fff; padding: 40px; }
+.container { display: flex; gap: 40px; }
+</style>
+</head>
+<body>
+<h1>LinkpointLogo Will-Change Verification</h1>
+<div class="container">
+  ${animatedHtml}
+  ${staticHtml}
+</div>
+</body>
+</html>`;
+
+    const previewPath = path.resolve(process.cwd(), 'logo_preview.html');
+    try {
+      fs.writeFileSync(previewPath, doc);
+      expect(fs.existsSync(previewPath)).toBe(true);
+      expect(fs.readFileSync(previewPath, 'utf-8')).toContain(
+        'LinkpointLogo Will-Change Verification',
+      );
+    } finally {
+      if (fs.existsSync(previewPath)) {
+        fs.unlinkSync(previewPath);
+      }
+    }
   });
 });

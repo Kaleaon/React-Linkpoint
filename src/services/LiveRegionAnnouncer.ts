@@ -2,24 +2,43 @@
  * LiveRegionAnnouncer Service
  *
  * Provides a global live region announcement service for screen readers (WCAG 2.2 SC 4.1.3).
- * Decouples chat event publishing from view rendering and updates an off-screen role="log" element
- * with aria-live="polite" (techniques ARIA19, ARIA22).
- * Includes message queueing/throttling to prevent screen reader audio buffer overflow.
+ * Routes status messages, critical alerts, and chat logs through dedicated off-screen DOM nodes
+ * (`role="status"`, `role="alert"`, `role="log"`) with independent queues and throttling
+ * (techniques ARIA19, ARIA22, ARIA23).
  */
+
+export type LiveChannel = 'status' | 'alert' | 'log';
 
 export interface AnnouncementItem {
   text: string;
   priority: 'polite' | 'assertive';
+  channel: LiveChannel;
   id: string;
   timestamp: number;
 }
 
 export class LiveRegionAnnouncerService {
   private static instance: LiveRegionAnnouncerService | null = null;
-  private queue: AnnouncementItem[] = [];
-  private isProcessing = false;
-  private throttleMs = 1000;
-  private domElement: HTMLElement | null = null;
+  private channelElements: Record<LiveChannel, HTMLElement | null> = {
+    status: null,
+    alert: null,
+    log: null,
+  };
+  private queues: Record<LiveChannel, AnnouncementItem[]> = {
+    status: [],
+    alert: [],
+    log: [],
+  };
+  private isProcessing: Record<LiveChannel, boolean> = {
+    status: false,
+    alert: false,
+    log: false,
+  };
+  private throttleMs: Record<LiveChannel, number> = {
+    status: 300,
+    alert: 0,
+    log: 1000,
+  };
   private chatManager: any = null;
   private isListening = false;
   private boundMessageHandler: ((data: any) => void) | null = null;
@@ -36,68 +55,116 @@ export class LiveRegionAnnouncerService {
   }
 
   /**
-   * Ensure an off-screen container mounted at root level exists as a persistent singleton DOM element.
+   * Ensure an off-screen container for the given channel exists as a persistent DOM element.
    */
-  public ensureDOMElement(): HTMLElement | null {
-    if (
-      this.domElement &&
-      typeof document !== 'undefined' &&
-      document.body?.contains(this.domElement)
-    ) {
-      return this.domElement;
+  public ensureDOMElement(channel: LiveChannel = 'status'): HTMLElement | null {
+    const current = this.channelElements[channel];
+    if (current && typeof document !== 'undefined' && document.body?.contains(current)) {
+      return current;
     }
     if (typeof document === 'undefined') {
       return null;
     }
 
-    let element = document.getElementById('live-region-announcer');
+    const id = `live-region-${channel}`;
+    let element = document.getElementById(id);
+
+    const roleMap: Record<LiveChannel, string> = {
+      status: 'status',
+      alert: 'alert',
+      log: 'log',
+    };
+    const liveMap: Record<LiveChannel, 'polite' | 'assertive'> = {
+      status: 'polite',
+      alert: 'assertive',
+      log: 'polite',
+    };
+
     if (!element) {
       element = document.createElement('div');
-      element.id = 'live-region-announcer';
+      element.id = id;
       element.className = 'sr-only live-region-announcer';
-      element.setAttribute('role', 'log');
-      element.setAttribute('aria-live', 'polite');
+      element.setAttribute('role', roleMap[channel]);
+      element.setAttribute('aria-live', liveMap[channel]);
       element.setAttribute('aria-atomic', 'true');
+      if (channel === 'log') {
+        element.setAttribute('aria-label', 'Live Chat Announcements');
+      }
       if (document.body) {
         document.body.appendChild(element);
       } else if (document.documentElement) {
         document.documentElement.appendChild(element);
       }
     } else {
-      if (!element.getAttribute('role')) element.setAttribute('role', 'log');
-      if (!element.getAttribute('aria-live')) element.setAttribute('aria-live', 'polite');
+      if (!element.getAttribute('role')) element.setAttribute('role', roleMap[channel]);
+      if (!element.getAttribute('aria-live')) element.setAttribute('aria-live', liveMap[channel]);
       element.setAttribute('aria-atomic', 'true');
+      if (channel === 'log' && !element.getAttribute('aria-label')) {
+        element.setAttribute('aria-label', 'Live Chat Announcements');
+      }
     }
 
-    this.domElement = element;
+    this.channelElements[channel] = element;
     return element;
   }
 
   /**
-   * Register the off-screen DOM element that acts as the role="log" live region.
+   * Register an off-screen DOM element for a channel.
    */
-  public registerDOMElement(element: HTMLElement | null): void {
-    if (element) {
-      this.domElement = element;
-      if (!this.domElement.getAttribute('role')) {
-        this.domElement.setAttribute('role', 'log');
-      }
-      if (!this.domElement.getAttribute('aria-live')) {
-        this.domElement.setAttribute('aria-live', 'polite');
-      }
-      this.domElement.setAttribute('aria-atomic', 'true');
-    } else {
-      if (
-        this.domElement &&
-        this.domElement.id === 'live-region-announcer' &&
-        typeof document !== 'undefined' &&
-        document.body?.contains(this.domElement)
-      ) {
-        // Retain the persistent container if registered via fallback
+  public registerDOMElement(element: HTMLElement | null, channel?: LiveChannel): void {
+    if (!element) {
+      if (channel) {
+        this.channelElements[channel] = null;
       } else {
-        this.domElement = null;
+        const channels: LiveChannel[] = ['status', 'alert', 'log'];
+        for (const ch of channels) {
+          const el = this.channelElements[ch];
+          if (el && typeof document !== 'undefined' && document.body?.contains(el)) {
+            // Keep auto-created element if attached to document
+          } else {
+            this.channelElements[ch] = null;
+          }
+        }
       }
+      return;
     }
+
+    const targetChannel: LiveChannel = channel || this.determineChannelFromElement(element);
+
+    if (!channel && element.id === 'live-region-announcer') {
+      this.channelElements.status = element;
+      this.channelElements.alert = element;
+      this.channelElements.log = element;
+      if (!element.getAttribute('role')) element.setAttribute('role', 'log');
+      if (!element.getAttribute('aria-live')) element.setAttribute('aria-live', 'polite');
+      element.setAttribute('aria-atomic', 'true');
+      return;
+    }
+
+    this.channelElements[targetChannel] = element;
+
+    const defaultRoles: Record<LiveChannel, string> = {
+      status: 'status',
+      alert: 'alert',
+      log: 'log',
+    };
+    if (!element.getAttribute('role')) {
+      element.setAttribute('role', defaultRoles[targetChannel]);
+    }
+    if (!element.getAttribute('aria-live')) {
+      element.setAttribute('aria-live', targetChannel === 'alert' ? 'assertive' : 'polite');
+    }
+    element.setAttribute('aria-atomic', 'true');
+  }
+
+  private determineChannelFromElement(element: HTMLElement): LiveChannel {
+    if (element.id === 'live-region-alert' || element.getAttribute('role') === 'alert') {
+      return 'alert';
+    }
+    if (element.id === 'live-region-log' || element.getAttribute('role') === 'log') {
+      return 'log';
+    }
+    return 'status';
   }
 
   /**
@@ -149,36 +216,43 @@ export class LiveRegionAnnouncerService {
   public handleChatMessage(data: any): void {
     const formatted = this.formatChatMessage(data);
     if (formatted) {
-      this.announce(formatted, 'polite');
+      this.announce(formatted, 'polite', 'log');
     }
   }
 
   /**
    * Enqueue a message to be announced to screen readers.
    */
-  public announce(text: string, priority: 'polite' | 'assertive' = 'polite'): void {
+  public announce(
+    text: string,
+    priority: 'polite' | 'assertive' = 'polite',
+    channel?: LiveChannel,
+  ): void {
     if (!text.trim()) return;
 
-    this.queue.push({
+    const targetChannel: LiveChannel = channel || (priority === 'assertive' ? 'alert' : 'status');
+
+    this.queues[targetChannel].push({
       text: text.trim(),
       priority,
+      channel: targetChannel,
       id: Math.random().toString(36).substring(2, 9),
       timestamp: Date.now(),
     });
 
-    void this.processQueue();
+    void this.processChannelQueue(targetChannel);
   }
 
   /**
-   * Process message queue sequentially with throttling to avoid audio buffer overflow.
+   * Process message queue for a channel sequentially with per-channel throttling.
    */
-  private async processQueue(): Promise<void> {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
+  private async processChannelQueue(channel: LiveChannel): Promise<void> {
+    if (this.isProcessing[channel]) return;
+    this.isProcessing[channel] = true;
 
-    while (this.queue.length > 0) {
-      const targetElement = this.ensureDOMElement();
-      const item = this.queue.shift();
+    while (this.queues[channel].length > 0) {
+      const targetElement = this.ensureDOMElement(channel);
+      const item = this.queues[channel].shift();
       if (item && targetElement) {
         // Preserve active focused element (ARIA22: no focus displacement)
         const activeElement =
@@ -202,40 +276,52 @@ export class LiveRegionAnnouncerService {
         }
       }
 
-      // Always throttle delay after an announcement to hold processing lock and allow buffer time for speech
-      if (this.throttleMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, this.throttleMs));
+      const delay = this.throttleMs[channel];
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
-    this.isProcessing = false;
+    this.isProcessing[channel] = false;
   }
 
   /**
-   * Get current queue size (useful for testing/diagnostics).
+   * Get current queue size for a channel or all channels.
    */
-  public getQueueLength(): number {
-    return this.queue.length;
+  public getQueueLength(channel?: LiveChannel): number {
+    if (channel) {
+      return this.queues[channel].length;
+    }
+    return this.queues.status.length + this.queues.alert.length + this.queues.log.length;
   }
 
   /**
-   * Set throttle delay in milliseconds.
+   * Set throttle delay in milliseconds for a channel or all channels.
    */
-  public setThrottleMs(ms: number): void {
-    this.throttleMs = Math.max(0, ms);
+  public setThrottleMs(ms: number, channel?: LiveChannel): void {
+    const validMs = Math.max(0, ms);
+    if (channel) {
+      this.throttleMs[channel] = validMs;
+    } else {
+      this.throttleMs.status = validMs;
+      this.throttleMs.alert = validMs;
+      this.throttleMs.log = validMs;
+    }
   }
 
   /**
-   * Clean up listeners and queue.
+   * Clean up listeners and queues.
    */
   public destroy(): void {
     if (this.chatManager && this.isListening && this.boundMessageHandler) {
       this.chatManager.off('message_received', this.boundMessageHandler);
       this.chatManager.off('message_sent', this.boundMessageHandler);
     }
-    this.queue = [];
+    this.queues = { status: [], alert: [], log: [] };
+    this.isProcessing = { status: false, alert: false, log: false };
+    this.channelElements = { status: null, alert: null, log: null };
+    this.throttleMs = { status: 300, alert: 0, log: 1000 };
     this.isListening = false;
-    this.domElement = null;
     this.chatManager = null;
   }
 }

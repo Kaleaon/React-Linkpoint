@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
+import { executeSearchWithRetry } from '../linkpoint/search-retry.ts';
 import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
@@ -37,6 +38,8 @@ export default function Search() {
   const [serverResults, setServerResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [retryStatus, setRetryStatus] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
@@ -76,47 +79,75 @@ export default function Search() {
     }
   }, [query, activeTabId]);
 
-  // Execute grid directory search via slBridge
+  const notifyRef = useRef(actions?.notify);
+  useEffect(() => {
+    notifyRef.current = actions?.notify;
+  });
+
+  // Execute grid directory search via slBridge with exponential backoff retry
   useEffect(() => {
     if (query.length < 2) {
       setServerResults([]);
       setLoading(false);
       setError(null);
+      setRetryStatus(null);
       setHasMore(false);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
+
     setLoading(true);
     setError(null);
+    setRetryStatus(null);
 
-    slBridge
-      .searchDir({
-        category: activeTabObj.category,
-        query: query,
-        start: page * 20,
-      })
+    executeSearchWithRetry(
+      () =>
+        slBridge.searchDir({
+          category: activeTabObj.category,
+          query: query,
+          start: page * 20,
+        }),
+      {
+        maxRetries: 3,
+        baseDelay: 500,
+        maxDelay: 2000,
+        signal,
+        onRetry: ({ attempt, maxRetries }) => {
+          if (!signal.aborted) {
+            setRetryStatus(`Retrying search... Attempt ${attempt}/${maxRetries}`);
+          }
+        },
+      },
+    )
       .then((res) => {
-        if (cancelled) return;
+        if (signal.aborted) return;
         setServerResults(res?.results || []);
         setHasMore(Boolean(res?.hasMore));
         setLoading(false);
+        setRetryStatus(null);
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (signal.aborted || err?.name === 'AbortError') return;
         const msg = err?.message || 'Failed to complete grid directory search';
         setError(msg);
         setLoading(false);
+        setRetryStatus(null);
         setServerResults([]);
-        if (typeof actions?.notify === 'function') {
-          actions.notify(`Grid search error: ${msg}`);
+        if (typeof notifyRef.current === 'function') {
+          notifyRef.current(`Grid search error: ${msg}`);
         }
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [query, activeTabId, page, activeTabObj.category, actions]);
+  }, [query, activeTabId, page, activeTabObj.category, retryCount]);
+
+  const handleManualRetry = () => {
+    setRetryCount((c) => c + 1);
+  };
 
   const startIm = (name) => {
     if (typeof actions.startIm === 'function') {
@@ -309,12 +340,35 @@ export default function Search() {
         </div>
       </div>
 
-      {/* Error alert banner if network error occurs */}
-      {error ? (
+      {/* Active retry status banner */}
+      {retryStatus ? (
         <div
+          data-testid="retry-status-banner"
           style={{
             margin: '0 16px 10px',
             padding: '8px 12px',
+            borderRadius: V.rs,
+            border: '1px solid ' + (V.warn || '#f59e0b'),
+            background: V.warnC || 'rgba(245,158,11,0.1)',
+            color: V.warn || '#f59e0b',
+            font: '400 11px/1.3 ' + t.font,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <CrystalLoader size={14} variant="inline" />
+          <div style={{ flex: 1 }}>{retryStatus}</div>
+        </div>
+      ) : null}
+
+      {/* Persistent error alert banner if network error occurs */}
+      {error ? (
+        <div
+          data-testid="search-error-banner"
+          style={{
+            margin: '0 16px 10px',
+            padding: '10px 12px',
             borderRadius: V.rs,
             border: '1px solid ' + V.err,
             background: V.errC || 'rgba(255,0,0,0.1)',
@@ -322,11 +376,38 @@ export default function Search() {
             font: '400 11px/1.3 ' + t.font,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '10px',
+            flexWrap: 'wrap',
           }}
         >
-          <Icon name="alert-triangle" size={16} />
-          <div style={{ flex: 1 }}>{error}</div>
+          <Icon name="alert-triangle" size={16} style={{ flex: 'none' }} />
+          <div style={{ flex: 1, minWidth: '160px' }}>
+            <div>{error}</div>
+            <div style={{ fontSize: '10px', opacity: 0.85, marginTop: '2px' }}>
+              Bridge Status: {slBridge.connected ? 'Connected' : 'Disconnected'}
+            </div>
+          </div>
+          <button
+            onClick={handleManualRetry}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              height: '26px',
+              padding: '0 10px',
+              borderRadius: V.rs,
+              border: '1px solid ' + V.err,
+              background: V.err,
+              color: '#ffffff',
+              font: '700 10px/1 ' + t.font,
+              letterSpacing: '.05em',
+              cursor: 'pointer',
+              flex: 'none',
+            }}
+          >
+            Retry Now
+          </button>
         </div>
       ) : null}
 

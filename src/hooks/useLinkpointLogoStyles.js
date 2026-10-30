@@ -4,15 +4,17 @@ export const LOGO_STYLE_ID = 'linkpoint-logo-styles';
 
 export const LOGO_CSS = `
   .top-crystal-r {
-    will-change: transform;
+    will-change: auto;
   }
   .top-crystal-r.animated {
+    will-change: transform;
     animation: topCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   .bot-crystal-r {
-    will-change: transform;
+    will-change: auto;
   }
   .bot-crystal-r.animated {
+    will-change: transform;
     animation: botCloseSeq 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   .core-anim-r {
@@ -22,9 +24,10 @@ export const LOGO_CSS = `
     animation: corePulseR 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   .mote-rotator-group {
-    will-change: transform;
+    will-change: auto;
   }
   .mote-rotator-group.animated {
+    will-change: transform;
     animation: moteRotate 6s linear infinite;
   }
   .mote-near-r.animated {
