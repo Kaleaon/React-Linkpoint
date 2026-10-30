@@ -1,5 +1,6 @@
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useNavigationAnnouncer } from '../hooks/useNavigationAnnouncer.js';
 import Header from './Header.jsx';
 import SegmentedTabs from './SegmentedTabs.jsx';
 import ChipRow from './ChipRow.jsx';
@@ -46,6 +47,8 @@ import {
 export default function ScreenBody() {
   const { state, actions } = useApp();
   const { norm, scr, consoleScene } = useTheme();
+
+  useNavigationAnnouncer(scr);
 
   return (
     <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>

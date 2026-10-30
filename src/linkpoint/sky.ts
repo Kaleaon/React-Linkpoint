@@ -14,6 +14,7 @@
  */
 
 import { ATMOSPHERE_GLSL } from './atmosphere';
+import { pickProperty } from './utils';
 
 export type Vec3 = [number, number, number];
 
@@ -85,13 +86,6 @@ export function readScalar(value: unknown, fallback: number): number {
     : fallback;
 }
 
-/** Pick the first defined property, since EEP/Windlight exports use both camelCase and snake_case. */
-function pick(source: any, ...names: string[]) {
-  for (const name of names)
-    if (source && source[name] !== undefined && source[name] !== null) return source[name];
-  return undefined;
-}
-
 /** Derive sky-shader inputs from a simulator sky settings frame. */
 export function computeSkyUniforms(sky: any): SkyUniforms {
   if (!sky || typeof sky !== 'object')
@@ -100,18 +94,20 @@ export function computeSkyUniforms(sky: any): SkyUniforms {
       skyColor: [...FALLBACK_SKY.skyColor],
       hazeColor: [...FALLBACK_SKY.hazeColor],
     };
-  const blueHorizon = pick(sky, 'blueHorizon', 'blue_horizon');
-  const blueDensity = pick(sky, 'blueDensity', 'blue_density');
-  const sunlight = pick(sky, 'sunlightColor', 'sunlight_color');
-  const ambient = pick(sky, 'ambient', 'ambientColor', 'ambient_color');
-  const hazeDensity = pick(sky, 'hazeDensity', 'haze_density');
+  const blueHorizon = pickProperty(sky, 'blueHorizon', 'blue_horizon');
+  const blueDensity = pickProperty(sky, 'blueDensity', 'blue_density');
+  const sunlight = pickProperty(sky, 'sunlightColor', 'sunlight_color');
+  const ambient = pickProperty(sky, 'ambient', 'ambientColor', 'ambient_color');
+  const hazeDensity = pickProperty(sky, 'hazeDensity', 'haze_density');
   // Without the colour terms the formula is meaningless; keep the fallback sky.
   if (blueHorizon === undefined || blueDensity === undefined) {
     return {
       ...FALLBACK_SKY,
       skyColor: [...FALLBACK_SKY.skyColor],
       hazeColor: [...FALLBACK_SKY.hazeColor],
-      starBrightness: clamp01(readScalar(pick(sky, 'starBrightness', 'star_brightness'), 0)),
+      starBrightness: clamp01(
+        readScalar(pickProperty(sky, 'starBrightness', 'star_brightness'), 0),
+      ),
     };
   }
   const horizon = readVec3(blueHorizon, FALLBACK_SKY.skyColor);
@@ -121,9 +117,12 @@ export function computeSkyUniforms(sky: any): SkyUniforms {
   const haze = readScalar(hazeDensity, 0);
   return {
     skyColor: [0, 1, 2].map((i) => clamp01((horizon[i] + sun[i] + amb[i]) * density[i])) as Vec3,
-    hazeHorizon: readScalar(pick(sky, 'hazeHorizon', 'haze_horizon'), FALLBACK_SKY.hazeHorizon),
+    hazeHorizon: readScalar(
+      pickProperty(sky, 'hazeHorizon', 'haze_horizon'),
+      FALLBACK_SKY.hazeHorizon,
+    ),
     hazeColor: [0, 1, 2].map((i) => clamp01(haze * amb[i])) as Vec3,
-    starBrightness: clamp01(readScalar(pick(sky, 'starBrightness', 'star_brightness'), 0)),
+    starBrightness: clamp01(readScalar(pickProperty(sky, 'starBrightness', 'star_brightness'), 0)),
   };
 }
 
@@ -131,7 +130,7 @@ export function computeSkyUniforms(sky: any): SkyUniforms {
 export function computeWaterUniforms(water: any, height = DEFAULT_WATER_HEIGHT): WaterUniforms {
   const fog =
     water && typeof water === 'object'
-      ? pick(water, 'waterFogColor', 'water_fog_color')
+      ? pickProperty(water, 'waterFogColor', 'water_fog_color')
       : undefined;
   const base = readVec3(fog, FALLBACK_WATER_COLOR);
   const color = base.map((value, i) =>

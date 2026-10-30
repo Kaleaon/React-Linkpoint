@@ -150,7 +150,7 @@ export default function DesktopChrome() {
             showTitle={false}
             width={20}
             height={20}
-            idPrefix="linkpoint-logo-react"
+            idPrefix="chrome-logo"
           />
         </div>
         <div className="desktop-history-controls" aria-label="Navigation history">
