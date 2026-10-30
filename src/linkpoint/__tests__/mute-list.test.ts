@@ -160,6 +160,109 @@ describe('MuteList (LLMuteList)', () => {
   });
 });
 
+describe('secondary index maps O(1) performance and edge cases', () => {
+  it('handles agentNameMap and legacyLowerCaseMap maintenance across add, remove, rename and clear', () => {
+    const l = new MuteList(null);
+    l.load({ state: 'loaded', mutes: [], legacy: [] });
+
+    // Add agent
+    l.add({ id: BOB, name: 'Bob Resident', type: MuteType.AGENT });
+    expect(l.isMutedByName('bob resident')).toBe(true);
+    expect(l.isMutedByName('BOB RESIDENT')).toBe(true);
+
+    // Rename agent
+    l.rename(BOB, 'Robert Resident');
+    expect(l.isMutedByName('bob resident')).toBe(false);
+    expect(l.isMutedByName('robert resident')).toBe(true);
+
+    // Remove agent
+    l.remove({ id: BOB });
+    expect(l.isMutedByName('robert resident')).toBe(false);
+
+    // Add legacy mutes with different casing
+    l.add({ name: 'SpamBot', type: MuteType.BY_NAME });
+    expect(l.isMutedByName('spambot')).toBe(true);
+    expect(l.isMuted('SpamBot', '')).toBe(true);
+
+    // Clear resets everything
+    l.clear();
+    expect(l.isMutedByName('spambot')).toBe(false);
+  });
+
+  it('handles multiple legacy mutes with distinct casings in load', () => {
+    const l = new MuteList(null);
+    l.load({
+      state: 'loaded',
+      mutes: [
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          name: 'Alice Agent',
+          type: MuteType.AGENT,
+          flags: 0,
+        },
+      ],
+      legacy: ['SpamBot', 'SPAMBOT'],
+    });
+
+    expect(l.isMutedByName('alice agent')).toBe(true);
+    expect(l.isMutedByName('spambot')).toBe(true);
+
+    // Remove one legacy variant
+    l.remove({ name: 'SpamBot' });
+    // 'SPAMBOT' remains in legacy
+    expect(l.isMutedByName('spambot')).toBe(true);
+
+    // Remove second legacy variant
+    l.remove({ name: 'SPAMBOT' });
+    expect(l.isMutedByName('spambot')).toBe(false);
+  });
+
+  it('prevents counter drift when exact duplicate legacy entries are present in load or loadFromCache', async () => {
+    const l = new MuteList(null);
+    l.load({
+      state: 'loaded',
+      mutes: [],
+      legacy: ['DuplicateBot', 'DuplicateBot'],
+    });
+
+    expect(l.isMutedByName('duplicatebot')).toBe(true);
+    // Unmuting once should fully unmute since it was a duplicate entry in the payload
+    l.remove({ name: 'DuplicateBot' });
+    expect(l.isMutedByName('duplicatebot')).toBe(false);
+  });
+
+  it('performs O(1) constant-time lookups across a large set of mutes', () => {
+    const l = new MuteList(null);
+    const count = 500;
+    const mutes: MuteEntry[] = [];
+    const legacy: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const hex = i.toString(16).padStart(12, '0');
+      mutes.push({
+        id: `00000000-0000-0000-0000-${hex}`,
+        name: `Agent_${i}`,
+        type: MuteType.AGENT,
+        flags: 0,
+      });
+      legacy.push(`Legacy_${i}`);
+    }
+
+    l.load({ state: 'loaded', mutes, legacy });
+
+    expect(l.isMutedByName('agent_0')).toBe(true);
+    expect(l.isMutedByName('agent_250')).toBe(true);
+    expect(l.isMutedByName('agent_499')).toBe(true);
+    expect(l.isMutedByName('legacy_250')).toBe(true);
+    expect(l.isMutedByName('nonexistent')).toBe(false);
+
+    const hex250 = (250).toString(16).padStart(12, '0');
+    expect(l.isMuted(`00000000-0000-0000-0000-${hex250}`)).toBe(true);
+    expect(l.isMuted('legacy_250')).toBe(true);
+    expect(l.isMuted('legacy_999')).toBe(false);
+  });
+});
+
 describe('mute list in chat, sound and voice', () => {
   const makeChat = () => {
     const chat = new ChatExtended({ on: () => {} } as any);
