@@ -1,6 +1,8 @@
 # Agent notes for `android-kotlin/`
 
-Native Android port of Linkpoint (Kotlin, Compose, Filament). Read `README.md` first: it lists what is implemented, what is
+Native Android port of Linkpoint (Kotlin, Compose, Filament). For repository-wide setup, shared workspace rules, and web CI workflow commands, see the root [`AGENTS.md`](../AGENTS.md).
+
+Read `README.md` first: it lists what is implemented, what is
 verified and by what, and what is not done (voice is not implemented; the Filament view has not run on a device).
 
 ## Run the tests
