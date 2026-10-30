@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
+import BrandedLoader from './BrandedLoader.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
-import CrystalProgressBar from './CrystalProgressBar.jsx';
-import { SkeletonAssetPlaceholder } from './SkeletonLoader.jsx';
 
 /**
  * AssetContainer component with skeleton UI placeholder, progressive download progress listener,
@@ -21,7 +20,7 @@ export default function AssetContainer({
   style = {},
   className = '',
 }) {
-  const { V, t } = useTheme?.() || { V: {}, t: { font: 'sans-serif' } };
+  const { V } = useTheme?.() || { V: {} };
 
   const [status, setStatus] = useState(asset?.data ? 'loaded' : 'idle'); // "idle" | "loading" | "downloading" | "loaded" | "error"
   const [progress, setProgress] = useState(0); // 0 to 100
@@ -92,7 +91,7 @@ export default function AssetContainer({
   const displayTitle = title || asset?.name || 'Asset View';
 
   if (status === 'loading' || status === 'idle') {
-    return <SkeletonAssetPlaceholder title={displayTitle} progress={null} />;
+    return <BrandedLoader variant="asset" title={displayTitle} progress={null} />;
   }
 
   if (status === 'downloading') {
@@ -117,7 +116,7 @@ export default function AssetContainer({
             {displayTitle}
           </span>
         </div>
-        <SkeletonAssetPlaceholder title={displayTitle} progress={progress} />
+        <BrandedLoader variant="asset" title={displayTitle} progress={progress} />
         {bytesInfo.total > 0 && (
           <div style={{ fontSize: '11px', color: V?.ink2 || '#aaa', textAlign: 'right' }}>
             {(bytesInfo.loaded / 1024).toFixed(1)} KB / {(bytesInfo.total / 1024).toFixed(1)} KB
