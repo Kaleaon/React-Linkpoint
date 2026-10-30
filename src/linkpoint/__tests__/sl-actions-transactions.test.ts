@@ -100,7 +100,6 @@ describe('sl-actions getTransactionHistory capability fetcher', () => {
     await slActions.getTransactionHistory(mockBot, { limit: 25 });
     expect(requestGetMock).toHaveBeenCalledWith('https://example.com/caps/tx?token=xyz&limit=25');
   });
-
   it('normalizes entries into structured transaction objects', async () => {
     const mockBot = {
       clientCommands: {

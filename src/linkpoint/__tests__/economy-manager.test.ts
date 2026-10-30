@@ -389,7 +389,6 @@ describe('EconomyManager Subsystem', () => {
 
     const recent14Days = economy.getTransactions({ dateRange: '14days' });
     expect(recent14Days.length).toBe(2);
-
     // Filter by custom date boundaries
     const customRange = economy.getTransactions({
       startDate: now - 15 * dayMs,
