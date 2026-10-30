@@ -16,6 +16,7 @@
  */
 
 import { LLSD } from './llsd';
+import { lerp } from './sl-math';
 import a12am from '../assets/windlight/A-12AM.xml?raw';
 import a3am from '../assets/windlight/A-3AM.xml?raw';
 import a6am from '../assets/windlight/A-6AM.xml?raw';
@@ -102,7 +103,6 @@ export function parseWindlightPreset(xml: string): WindlightPreset {
   };
 }
 
-const lerp = (a: number, b: number, t: number) => a * (1 - t) + b * t;
 const lerpVec = (a: Vec4, b: Vec4, t: number): Vec4 => a.map((x, i) => lerp(x, b[i], t)) as Vec4;
 
 /** Interpolate along a circular angle the short way forward (a → b, wrapping once if b is behind a). */

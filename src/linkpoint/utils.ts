@@ -2,6 +2,7 @@
  * Linkpoint PWA - Utility Functions
  */
 
+import { lerp } from './sl-math';
 import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 
 /**
@@ -23,6 +24,10 @@ export function pickProperty(source: any, ...keys: string[]): any {
 
 export const Utils = {
   pickProperty,
+  pad(value: number | string, targetLength: number = 2, padString: string = '0'): string {
+    return String(value).padStart(targetLength, padString);
+  },
+
   generateUUID() {
     if (
       typeof globalThis.crypto !== 'undefined' &&
@@ -204,7 +209,7 @@ export const Utils = {
   },
 
   lerp(start: number, end: number, t: number) {
-    return start * (1 - t) + end * t;
+    return lerp(start, end, t);
   },
 
   isMobile() {

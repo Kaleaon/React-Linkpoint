@@ -642,7 +642,7 @@ export class RlvHandler extends Utils.EventEmitter {
   canOoc = true;
   /** Shown in place of a blocked message. */
   debug = false;
-  private nameRegexCache = new Map<string, RegExp>();
+  private regexCache = new Map<string, RegExp>();
 
   constructor(private env: RlvEnvironment = {}) {
     super();
@@ -677,7 +677,7 @@ export class RlvHandler extends Utils.EventEmitter {
     this.notifications.length = 0;
     this.commandStack.length = 0;
     this.blockNames = false;
-    this.nameRegexCache.clear();
+    this.regexCache.clear();
     this.emit('reset');
   }
 
@@ -1345,12 +1345,10 @@ export class RlvHandler extends Utils.EventEmitter {
   }
   versionNum(compat = false): string {
     const v = compat ? RLV_VERSION_COMPAT : RLV_VERSION;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${v.major}${pad(v.minor)}${pad(v.patch)}${pad(v.build)}`;
+    return `${v.major}${Utils.pad(v.minor)}${Utils.pad(v.patch)}${Utils.pad(v.build)}`;
   }
   versionImplNum(): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${RLVA_VERSION.major}${pad(RLVA_VERSION.minor)}${pad(RLVA_VERSION.patch)}${pad(RLVA_VERSION.implId)}`;
+    return `${RLVA_VERSION.major}${Utils.pad(RLVA_VERSION.minor)}${Utils.pad(RLVA_VERSION.patch)}${Utils.pad(RLVA_VERSION.implId)}`;
   }
 
   // ---- decisions the rest of the viewer asks ----------------------------------------------------
@@ -1825,11 +1823,12 @@ export class RlvHandler extends Utils.EventEmitter {
     return RLV_ANONYMS[hash % RLV_ANONYMS.length];
   }
 
-  private getNameRegex(name: string): RegExp {
-    let regex = this.nameRegexCache.get(name);
+  private getCachedRegex(pattern: string, flags = 'gi'): RegExp {
+    const key = `${flags}:${pattern}`;
+    let regex = this.regexCache.get(key);
     if (!regex) {
-      regex = new RegExp(`\\b${escapeRegex(name)}\\b`, 'gi');
-      this.nameRegexCache.set(name, regex);
+      regex = new RegExp(pattern, flags);
+      this.regexCache.set(key, regex);
     }
     regex.lastIndex = 0;
     return regex;
@@ -1839,6 +1838,7 @@ export class RlvHandler extends Utils.EventEmitter {
   filterNames(text: string, opts: { filterLegacy?: boolean; clearMatches?: boolean } = {}): string {
     const filterLegacyDefault = opts.filterLegacy ?? true;
     let out = text;
+    let outLower = out.toLowerCase();
     for (const avatar of this.env.nearbyAvatars?.() ?? []) {
       if (!opts.clearMatches && this.canShowName(avatar.id)) continue;
       const display = avatar.displayName,
@@ -1847,7 +1847,13 @@ export class RlvHandler extends Utils.EventEmitter {
       const filterLegacy = filterLegacyDefault && legacy.length > 2;
       const replacement = opts.clearMatches ? '' : this.anonym(legacy || display);
       const replace = (name: string) => {
-        out = out.replace(this.getNameRegex(name), replacement);
+        if (!outLower.includes(name.toLowerCase())) return;
+        const regex = this.getCachedRegex(`\\b${escapeRegex(name)}\\b`, 'gi');
+        const next = out.replace(regex, replacement);
+        if (next !== out) {
+          out = next;
+          outLower = out.toLowerCase();
+        }
       };
       if (legacy.toLowerCase().includes(display.toLowerCase())) {
         if (filterLegacy) replace(legacy);
@@ -1864,14 +1870,21 @@ export class RlvHandler extends Utils.EventEmitter {
   filterLocation(text: string): string {
     const { regions, parcel } = this.env.locationNames?.() ?? { regions: [], parcel: null };
     let out = text;
-    for (const region of regions)
-      if (region)
-        out = out.replace(
-          new RegExp(`\\b${escapeRegex(region)}\\b`, 'gi'),
-          RLV_STRINGS.hiddenRegion,
-        );
-    if (parcel)
-      out = out.replace(new RegExp(`\\b${escapeRegex(parcel)}\\b`, 'gi'), RLV_STRINGS.hiddenParcel);
+    let outLower = out.toLowerCase();
+    for (const region of regions) {
+      if (region && outLower.includes(region.toLowerCase())) {
+        const regex = this.getCachedRegex(`\\b${escapeRegex(region)}\\b`, 'gi');
+        const next = out.replace(regex, RLV_STRINGS.hiddenRegion);
+        if (next !== out) {
+          out = next;
+          outLower = out.toLowerCase();
+        }
+      }
+    }
+    if (parcel && outLower.includes(parcel.toLowerCase())) {
+      const regex = this.getCachedRegex(`\\b${escapeRegex(parcel)}\\b`, 'gi');
+      out = out.replace(regex, RLV_STRINGS.hiddenParcel);
+    }
     return out;
   }
 

@@ -228,4 +228,30 @@ describe('InteractionsManager', () => {
 
     expect(manager.items).toHaveLength(0);
   });
+
+  it('declines inventory offer with sendImprovedInstantMessage packet fallback when declineInventoryOffer method is absent', async () => {
+    const { protocol, manager } = setup();
+    delete (protocol as any).declineInventoryOffer;
+    (protocol as any).sendImprovedInstantMessage = vi.fn().mockResolvedValue(undefined);
+
+    protocol.emit('inventory_offer', {
+      id: 'io3',
+      fromId: 'agent-123',
+      fromName: 'Sender',
+      requestId: 'req-789',
+      message: 'Gift item',
+    });
+
+    await expect(manager.declineInventoryOffer('io3')).resolves.toBe(true);
+    expect((protocol as any).sendImprovedInstantMessage).toHaveBeenCalledWith({
+      to: 'agent-123',
+      recipientId: 'agent-123',
+      toAgentId: 'agent-123',
+      dialog: 10,
+      id: 'req-789',
+      message: 'Gift item',
+    });
+    expect(protocol.dismissInteraction).toHaveBeenCalledWith('io3');
+    expect(manager.items).toHaveLength(0);
+  });
 });
