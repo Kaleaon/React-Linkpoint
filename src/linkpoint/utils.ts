@@ -2,6 +2,8 @@
  * Linkpoint PWA - Utility Functions
  */
 
+import { lerp } from './sl-math';
+
 /**
  * Pick the first defined non-null property value from a source object,
  * checking key candidates in order.
@@ -199,7 +201,7 @@ export const Utils = {
   },
 
   lerp(start: number, end: number, t: number) {
-    return start * (1 - t) + end * t;
+    return lerp(start, end, t);
   },
 
   isMobile() {
