@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lerp, lerpVec, slerp } from '../sl-math';
+import { lerp, lerpVec } from '../sl-math';
 
 describe('sl-math lerp', () => {
   it('returns start value when t = 0', () => {

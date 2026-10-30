@@ -14,7 +14,14 @@ export function initialsOf(name) {
 
 // The photo the user chose for a contact, or plain initials when there is none.
 // Initials are drawn as text, never as a generated picture.
-export default function ContactAvatar({ name, photo, size = 40 }) {
+/**
+ * @param {Object} props
+ * @param {string} [props.name]
+ * @param {string|null} [props.photo]
+ * @param {number} [props.size]
+ * @param {string} [props.alt]
+ */
+export default function ContactAvatar({ name = '', photo = null, size = 40, alt = undefined }) {
   const { V, t } = useTheme();
   const box = {
     width: size,
@@ -23,19 +30,44 @@ export default function ContactAvatar({ name, photo, size = 40 }) {
     flex: 'none',
     border: `1.5px solid ${V.outv}`,
   };
-  if (photo)
+
+  const effectiveAlt = alt !== undefined ? alt : name || '';
+
+  if (photo) {
     return (
       <img
         src={photo}
-        alt=""
+        alt={effectiveAlt}
         width={size}
         height={size}
         style={{ ...box, objectFit: 'cover', display: 'block' }}
       />
     );
+  }
+
+  if (effectiveAlt === '') {
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          ...box,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: V.surf2 || V.surf,
+          color: V.pri,
+          font: `700 ${Math.round(size * 0.36)}px/1 ${t.font}`,
+        }}
+      >
+        {initialsOf(name)}
+      </span>
+    );
+  }
+
   return (
     <span
-      aria-hidden="true"
+      role="img"
+      aria-label={effectiveAlt}
       style={{
         ...box,
         display: 'inline-flex',

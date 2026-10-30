@@ -6,6 +6,7 @@
  */
 
 import { ensureContrastOnSurfaces, inkOn } from "./contrast.js";
+export { ensureContrastOnSurfaces, inkOn };
 export * from "./lcars.js";
 export * from "./contrast.js";
 export * from "./tokens.js";

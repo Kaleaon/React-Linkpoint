@@ -5,6 +5,7 @@
  */
 
 import { lerp } from './sl-math';
+import { pickProperty } from './utils';
 
 export type Vec3 = [number, number, number];
 export type Quat = [number, number, number, number];
@@ -90,15 +91,6 @@ export const DEFAULT_WATER: WaterSettings = {
 type Raw = Record<string, any>;
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-/** First defined value among alternative key spellings (camelCase from node-metaverse, snake_case from LLSD). */
-function pick(frame: Raw | null | undefined, ...keys: string[]): any {
-  for (const key of keys) {
-    const value = frame?.[key];
-    if (value !== undefined && value !== null) return value;
-  }
-  return undefined;
-}
-
 function vec3(value: any, fallback: Vec3): Vec3 {
   if (
     Array.isArray(value) &&
@@ -131,10 +123,10 @@ function quat(value: any, fallback: Quat): Quat {
 /** Normalise a raw sky frame (any key spelling, haze values nested or not) to a full set of settings. */
 export function normalizeSky(frame: Raw | null | undefined): SkySettings {
   const d = DEFAULT_SKY;
-  const haze = pick(frame, 'legacyHaze', 'legacy_haze') || {};
-  const hz = (...keys: string[]) => pick(haze, ...keys) ?? pick(frame, ...keys);
+  const haze = pickProperty(frame, 'legacyHaze', 'legacy_haze') || {};
+  const hz = (...keys: string[]) => pickProperty(haze, ...keys) ?? pickProperty(frame, ...keys);
   return {
-    sunlightColor: vec3(pick(frame, 'sunlightColor', 'sunlight_color'), d.sunlightColor),
+    sunlightColor: vec3(pickProperty(frame, 'sunlightColor', 'sunlight_color'), d.sunlightColor),
     ambient: vec3(hz('ambient', 'ambientColor', 'ambient_color'), d.ambient),
     blueHorizon: vec3(hz('blueHorizon', 'blue_horizon'), d.blueHorizon),
     blueDensity: vec3(hz('blueDensity', 'blue_density'), d.blueDensity),
@@ -142,17 +134,17 @@ export function normalizeSky(frame: Raw | null | undefined): SkySettings {
     hazeDensity: num(hz('hazeDensity', 'haze_density'), d.hazeDensity),
     densityMultiplier: num(hz('densityMultiplier', 'density_multiplier'), d.densityMultiplier),
     distanceMultiplier: num(hz('distanceMultiplier', 'distance_multiplier'), d.distanceMultiplier),
-    maxY: num(pick(frame, 'maxY', 'max_y'), d.maxY),
-    glow: vec3(pick(frame, 'glow'), d.glow),
-    cloudShadow: num(pick(frame, 'cloudShadow', 'cloud_shadow'), d.cloudShadow),
-    gamma: num(pick(frame, 'gamma'), d.gamma),
-    sunRotation: quat(pick(frame, 'sunRotation', 'sun_rotation'), d.sunRotation),
-    moonRotation: quat(pick(frame, 'moonRotation', 'moon_rotation'), d.moonRotation),
-    moonBrightness: num(pick(frame, 'moonBrightness', 'moon_brightness'), d.moonBrightness),
-    starBrightness: num(pick(frame, 'starBrightness', 'star_brightness'), d.starBrightness),
-    sunScale: num(pick(frame, 'sunScale', 'sun_scale'), d.sunScale),
-    moonScale: num(pick(frame, 'moonScale', 'moon_scale'), d.moonScale),
-    cloudColor: vec3(pick(frame, 'cloudColor', 'cloud_color'), d.cloudColor),
+    maxY: num(pickProperty(frame, 'maxY', 'max_y'), d.maxY),
+    glow: vec3(pickProperty(frame, 'glow'), d.glow),
+    cloudShadow: num(pickProperty(frame, 'cloudShadow', 'cloud_shadow'), d.cloudShadow),
+    gamma: num(pickProperty(frame, 'gamma'), d.gamma),
+    sunRotation: quat(pickProperty(frame, 'sunRotation', 'sun_rotation'), d.sunRotation),
+    moonRotation: quat(pickProperty(frame, 'moonRotation', 'moon_rotation'), d.moonRotation),
+    moonBrightness: num(pickProperty(frame, 'moonBrightness', 'moon_brightness'), d.moonBrightness),
+    starBrightness: num(pickProperty(frame, 'starBrightness', 'star_brightness'), d.starBrightness),
+    sunScale: num(pickProperty(frame, 'sunScale', 'sun_scale'), d.sunScale),
+    moonScale: num(pickProperty(frame, 'moonScale', 'moon_scale'), d.moonScale),
+    cloudColor: vec3(pickProperty(frame, 'cloudColor', 'cloud_color'), d.cloudColor),
   };
 }
 
@@ -162,22 +154,22 @@ export function normalizeWater(frame: Raw | null | undefined): WaterSettings {
     Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v) => finite(Number(v)))
       ? [Number(value[0]), Number(value[1])]
       : ([...fallback] as [number, number]);
-  const id = pick(frame, 'normalMap', 'normal_map');
+  const id = pickProperty(frame, 'normalMap', 'normal_map');
   // node-metaverse UUIDs serialise as { mUUID: '...' }
   const raw = id && typeof id === 'object' && 'mUUID' in id ? id.mUUID : id;
   const idText = raw === undefined || raw === null || typeof raw === 'object' ? null : String(raw);
   return {
-    fogColor: vec3(pick(frame, 'waterFogColor', 'water_fog_color'), d.fogColor),
-    fogDensity: num(pick(frame, 'waterFogDensity', 'water_fog_density'), d.fogDensity),
-    fogMod: num(pick(frame, 'underwaterFogMod', 'underwater_fog_mod'), d.fogMod),
-    fresnelOffset: num(pick(frame, 'fresnelOffset', 'fresnel_offset'), d.fresnelOffset),
-    fresnelScale: num(pick(frame, 'fresnelScale', 'fresnel_scale'), d.fresnelScale),
-    blurMultiplier: num(pick(frame, 'blurMultiplier', 'blur_multiplier'), d.blurMultiplier),
-    normalScale: vec3(pick(frame, 'normalScale', 'normal_scale'), d.normalScale),
-    scaleAbove: num(pick(frame, 'scaleAbove', 'scale_above'), d.scaleAbove),
-    scaleBelow: num(pick(frame, 'scaleBelow', 'scale_below'), d.scaleBelow),
-    wave1Direction: dir(pick(frame, 'wave1Direction', 'wave1_direction'), d.wave1Direction),
-    wave2Direction: dir(pick(frame, 'wave2Direction', 'wave2_direction'), d.wave2Direction),
+    fogColor: vec3(pickProperty(frame, 'waterFogColor', 'water_fog_color'), d.fogColor),
+    fogDensity: num(pickProperty(frame, 'waterFogDensity', 'water_fog_density'), d.fogDensity),
+    fogMod: num(pickProperty(frame, 'underwaterFogMod', 'underwater_fog_mod'), d.fogMod),
+    fresnelOffset: num(pickProperty(frame, 'fresnelOffset', 'fresnel_offset'), d.fresnelOffset),
+    fresnelScale: num(pickProperty(frame, 'fresnelScale', 'fresnel_scale'), d.fresnelScale),
+    blurMultiplier: num(pickProperty(frame, 'blurMultiplier', 'blur_multiplier'), d.blurMultiplier),
+    normalScale: vec3(pickProperty(frame, 'normalScale', 'normal_scale'), d.normalScale),
+    scaleAbove: num(pickProperty(frame, 'scaleAbove', 'scale_above'), d.scaleAbove),
+    scaleBelow: num(pickProperty(frame, 'scaleBelow', 'scale_below'), d.scaleBelow),
+    wave1Direction: dir(pickProperty(frame, 'wave1Direction', 'wave1_direction'), d.wave1Direction),
+    wave2Direction: dir(pickProperty(frame, 'wave2Direction', 'wave2_direction'), d.wave2Direction),
     normalMapId: idText && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(idText) ? idText : null,
   };
 }
@@ -281,8 +273,8 @@ function trackKeyframes(cycle: Raw, trackIndex: number): Keyframe[] {
   if (!Array.isArray(track) || !frames) return [];
   const result: Keyframe[] = [];
   for (const entry of track) {
-    const time = Number(pick(entry, 'keyKeyframe', 'key_keyframe'));
-    const name = pick(entry, 'keyName', 'key_name');
+    const time = Number(pickProperty(entry, 'keyKeyframe', 'key_keyframe'));
+    const name = pickProperty(entry, 'keyName', 'key_name');
     const frame = frames[name];
     if (Number.isFinite(time) && frame) result.push({ time, frame });
   }
@@ -337,7 +329,9 @@ export function skyAt(cycle: Raw | null | undefined, fraction: number): SkySetti
   const frames =
     cycle.frames instanceof Map ? [...cycle.frames.values()] : Object.values(cycle.frames || {});
   const sky = frames.find(
-    (frame: any) => pick(frame, 'type') === 'sky' || pick(frame, 'sunlightColor', 'sunlight_color'),
+    (frame: any) =>
+      pickProperty(frame, 'type') === 'sky' ||
+      pickProperty(frame, 'sunlightColor', 'sunlight_color'),
   );
   return sky ? normalizeSky(sky as Raw) : { ...DEFAULT_SKY };
 }
@@ -351,7 +345,8 @@ export function waterAt(cycle: Raw | null | undefined, fraction: number): WaterS
       cycle.frames instanceof Map ? [...cycle.frames.values()] : Object.values(cycle.frames || {});
     const water = frames.find(
       (frame: any) =>
-        pick(frame, 'type') === 'water' || pick(frame, 'waterFogColor', 'water_fog_color'),
+        pickProperty(frame, 'type') === 'water' ||
+        pickProperty(frame, 'waterFogColor', 'water_fog_color'),
     );
     if (water) return normalizeWater(water as Raw);
   }

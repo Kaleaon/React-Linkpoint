@@ -4,7 +4,25 @@
 
 import { lerp } from './sl-math';
 
+/**
+ * Pick the first defined non-null property value from a source object,
+ * checking key candidates in order.
+ */
+export function pickProperty(source: any, ...keys: string[]): any {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export const Utils = {
+  pickProperty,
   generateUUID() {
     if (
       typeof globalThis.crypto !== 'undefined' &&
@@ -65,10 +83,20 @@ export const Utils = {
   storage: {
     memoryStore: new Map<string, string>(),
 
+    getLocalStorage(): Storage | null {
+      try {
+        // Sandboxed and third-party previews can throw on the property getter itself.
+        return globalThis.localStorage ?? null;
+      } catch {
+        return null;
+      }
+    },
+
     get(key: string, defaultValue: any = null) {
       try {
-        if (typeof localStorage !== 'undefined') {
-          const item = localStorage.getItem(key);
+        const storage = this.getLocalStorage();
+        if (storage) {
+          const item = storage.getItem(key);
           return item ? JSON.parse(item) : defaultValue;
         } else {
           const item = this.memoryStore.get(key);
@@ -81,8 +109,9 @@ export const Utils = {
 
     set(key: string, value: any) {
       try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(key, JSON.stringify(value));
+        const storage = this.getLocalStorage();
+        if (storage) {
+          storage.setItem(key, JSON.stringify(value));
         } else {
           this.memoryStore.set(key, JSON.stringify(value));
         }
@@ -94,8 +123,9 @@ export const Utils = {
 
     remove(key: string) {
       try {
-        if (typeof localStorage !== 'undefined') {
-          localStorage.removeItem(key);
+        const storage = this.getLocalStorage();
+        if (storage) {
+          storage.removeItem(key);
         } else {
           this.memoryStore.delete(key);
         }
