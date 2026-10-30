@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EconomyManager } from '../economy-manager';
 import { formatCurrency, formatAmount } from '../currency-formatter';
-import { localCache } from '../local-cache';
 import { slBridge } from '../sl-bridge';
 import { economyService } from '../../services/EconomyService';
 
@@ -211,5 +210,81 @@ describe('EconomyManager Subsystem', () => {
     const failedTx = economy.transactions.find((t) => t.targetId === 'avatar-uuid-fail');
     expect(failedTx).toBeDefined();
     expect(failedTx?.status).toBe('failed');
+  });
+
+  it('filters transactions by date range, transaction type, and avatar filter options', async () => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await economy.recordTransaction({
+      id: 'tx-opt-1',
+      description: 'Vendor Item Purchase',
+      targetName: 'Merchant Avatar',
+      targetId: 'avatar-merchant-1',
+      amount: -150,
+      type: 'purchase',
+      timestamp: now - 1 * dayMs,
+      status: 'success',
+    });
+
+    await economy.recordTransaction({
+      id: 'tx-opt-2',
+      description: 'DJ Tip',
+      targetName: 'Musician Resident',
+      targetId: 'avatar-dj-2',
+      amount: 50,
+      type: 'tip',
+      timestamp: now - 10 * dayMs,
+      status: 'success',
+    });
+
+    await economy.recordTransaction({
+      id: 'tx-opt-3',
+      description: 'Land Refund',
+      targetName: 'System Governor',
+      targetId: 'sys-gov-3',
+      amount: 500,
+      type: 'refund',
+      timestamp: now - 20 * dayMs,
+      status: 'success',
+    });
+
+    // Filter by type
+    const purchases = economy.getTransactions({ type: 'purchase' });
+    expect(purchases.length).toBe(1);
+    expect(purchases[0].id).toBe('tx-opt-1');
+
+    const debits = economy.getTransactions({ type: 'debit' });
+    expect(debits.map((t) => t.id)).toContain('tx-opt-1');
+
+    const credits = economy.getTransactions({ type: 'credit' });
+    expect(credits.map((t) => t.id)).toContain('tx-opt-2');
+    expect(credits.map((t) => t.id)).toContain('tx-opt-3');
+
+    // Filter by avatar
+    const merchantTxs = economy.getTransactions({ avatar: 'Merchant Avatar' });
+    expect(merchantTxs.length).toBe(1);
+    expect(merchantTxs[0].id).toBe('tx-opt-1');
+
+    // Filter by date range
+    const recent7Days = economy.getTransactions({ dateRange: '7days' });
+    expect(recent7Days.length).toBe(1);
+    expect(recent7Days[0].id).toBe('tx-opt-1');
+
+    const recent14Days = economy.getTransactions({ dateRange: '14days' });
+    expect(recent14Days.length).toBe(2);
+
+    // Filter by custom date boundaries
+    const customRange = economy.getTransactions({
+      startDate: now - 15 * dayMs,
+      endDate: now - 5 * dayMs,
+    });
+    expect(customRange.length).toBe(1);
+    expect(customRange[0].id).toBe('tx-opt-2');
+
+    // Filter by free-text search query
+    const searchResults = economy.getTransactions({ searchQuery: 'Governor' });
+    expect(searchResults.length).toBe(1);
+    expect(searchResults[0].id).toBe('tx-opt-3');
   });
 });
