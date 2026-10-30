@@ -1241,8 +1241,8 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
 }
 
 function GroupDetailList({ items, empty, icon, V, t: propT }) {
-  const { t: themeT } = useTheme();
-  const t = propT || themeT;
+  const theme = useTheme();
+  const t = propT || theme?.t;
   if (!items.length)
     return (
       <div
@@ -1302,7 +1302,7 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
               </div>
             </div>
             {isNotice && (item.hasAttachment || item.attachment) ? (
-              <NoticeAttachmentBanner notice={item} V={V} t={t} />
+              <NoticeAttachmentBanner notice={item} V={V} />
             ) : null}
           </article>
         );
