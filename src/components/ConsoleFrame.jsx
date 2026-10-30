@@ -61,7 +61,7 @@ export default function ConsoleFrame() {
       : [
           { label: 'LINK', value: app.protocol.connected ? 'CONNECTED' : 'DISCONNECTED' },
           { label: 'OBJECTS', value: String(app.world.objects.length) },
-          { label: 'CAPS', value: String(Object.keys(app.protocol.capabilities || {}).length) },
+          { label: 'SERVICES', value: String(Object.keys(app.protocol.capabilities || {}).length) },
         ];
     return items.map((n) => {
       return {
