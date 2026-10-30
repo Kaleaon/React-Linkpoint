@@ -22,6 +22,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: fly-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   pre-deploy:
     name: Pre-deployment checks
