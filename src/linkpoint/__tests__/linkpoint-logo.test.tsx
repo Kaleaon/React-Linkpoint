@@ -2,6 +2,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import LinkpointLogo from '../../components/LinkpointLogo.jsx';
 import { CRYSTAL } from '../../components/linkpointCrystal.js';
+import Login from '../../screens/Login.jsx';
+import DesktopChrome from '../../components/DesktopChrome.jsx';
+import {
+  StackHead,
+  SweepHead,
+  PivotHead,
+  RuleHead,
+  EditorialHead,
+} from '../../components/Header.jsx';
 import { mountScreen, unmount, type Mounted } from './ui-helpers';
 
 let mounted: Mounted | null = null;
@@ -14,7 +23,7 @@ afterEach(async () => {
 describe('Modernized CSS LinkpointLogo Component', () => {
   it('renders SVG logo without any SMIL tags', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const svg = mounted.host.querySelector('#linkpoint-logo-react');
+    const svg = mounted.host.querySelector('svg');
     expect(svg).not.toBeNull();
 
     // SMIL tag checks
@@ -27,6 +36,80 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(mpaths.length).toBe(0);
   });
 
+  it('renders SVG gradients and filters with valid colon-free dynamic IDs', async () => {
+    mounted = await mountScreen(LinkpointLogo);
+    const svg = mounted.host.querySelector('svg');
+    expect(svg).not.toBeNull();
+
+    const linearGradients = Array.from(mounted.host.querySelectorAll('linearGradient'));
+    const radialGradients = Array.from(mounted.host.querySelectorAll('radialGradient'));
+    const filters = Array.from(mounted.host.querySelectorAll('filter'));
+
+    expect(linearGradients).toHaveLength(4);
+    expect(radialGradients).toHaveLength(1);
+    expect(filters).toHaveLength(1);
+
+    const ids = [
+      ...linearGradients.map((el) => el.getAttribute('id')),
+      ...radialGradients.map((el) => el.getAttribute('id')),
+      ...filters.map((el) => el.getAttribute('id')),
+    ];
+
+    ids.forEach((id) => {
+      expect(id).toBeTruthy();
+      expect(id).not.toContain(':');
+    });
+
+    const polygons = Array.from(mounted.host.querySelectorAll('polygon'));
+    polygons.forEach((poly) => {
+      const fill = poly.getAttribute('fill');
+      if (fill && fill.startsWith('url(#')) {
+        expect(fill).toMatch(/^url\(#lplg-[^:]+-face[1-4]\)$/);
+      }
+    });
+
+    const coreCircle = mounted.host.querySelector('.core-anim-r circle');
+    expect(coreCircle?.getAttribute('fill')).toMatch(/^url\(#lplg-[^:]+-core-glow\)$/);
+  });
+
+  it('generates unique SVG element IDs when rendered concurrently', async () => {
+    mounted = await mountScreen(() => (
+      <div>
+        <LinkpointLogo />
+        <LinkpointLogo />
+      </div>
+    ));
+
+    const svgs = Array.from(mounted.host.querySelectorAll('svg'));
+    expect(svgs).toHaveLength(2);
+
+    const allGradientsAndFilters = Array.from(
+      mounted.host.querySelectorAll('linearGradient, radialGradient, filter'),
+    );
+    const allIds = allGradientsAndFilters.map((el) => el.getAttribute('id'));
+
+    expect(allIds).toHaveLength(12);
+    expect(new Set(allIds).size).toBe(12);
+  });
+
+  it('supports explicit idPrefix prop for deterministic testing and overrides', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo idPrefix="test-logo:1" />);
+
+    const svg = mounted.host.querySelector('svg#test-logo1');
+    expect(svg).not.toBeNull();
+
+    const grad1 = mounted.host.querySelector('linearGradient#test-logo1-face1');
+    const coreGlow = mounted.host.querySelector('radialGradient#test-logo1-core-glow');
+    const filter = mounted.host.querySelector('filter#test-logo1-glow');
+
+    expect(grad1).not.toBeNull();
+    expect(coreGlow).not.toBeNull();
+    expect(filter).not.toBeNull();
+
+    const coreCircle = mounted.host.querySelector('.core-anim-r circle');
+    expect(coreCircle?.getAttribute('fill')).toBe('url(#test-logo1-core-glow)');
+  });
+
   it('includes GPU compositor properties and will-change performance hints in SVG CSS', async () => {
     mounted = await mountScreen(LinkpointLogo);
     const styleEl = mounted.host.querySelector('style');
@@ -34,7 +117,7 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('will-change: transform');
-    expect(cssText).toContain('will-change: opacity');
+    expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
     expect(cssText).toContain('@keyframes corePulseR');
@@ -73,5 +156,68 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
     const serialized = JSON.stringify(CRYSTAL);
     expect(serialized.length).toBeLessThan(3000);
+  });
+
+  it('renders LinkpointLogo in Login screen above title text', async () => {
+    mounted = await mountScreen(Login);
+    const header = mounted.host.querySelector('header');
+    expect(header).not.toBeNull();
+    const logoSvg = header?.querySelector('svg');
+    expect(logoSvg).not.toBeNull();
+    const title = header?.querySelector('h1');
+    expect(title?.textContent).toBe('LINKPOINT');
+  });
+
+  it('renders LinkpointLogo crystal mark in all header modes with max height <= 28px', async () => {
+    const modes = [
+      {
+        name: 'StackHead',
+        Component: () => <StackHead title="CHAT" subtitle="Global channel" scr="Chat" />,
+        maxHeight: 28,
+      },
+      {
+        name: 'SweepHead',
+        Component: () => <SweepHead title="FRIENDS" subtitle="Contacts list" />,
+        maxHeight: 24,
+      },
+      {
+        name: 'PivotHead',
+        Component: () => <PivotHead title="RADAR" subtitle="Nearby avatars" scr="Radar" />,
+        maxHeight: 28,
+      },
+      {
+        name: 'RuleHead',
+        Component: () => <RuleHead title="SETTINGS" subtitle="Preferences" />,
+        maxHeight: 20,
+      },
+      {
+        name: 'EditorialHead',
+        Component: () => <EditorialHead title="INVENTORY" subtitle="Assets" />,
+        maxHeight: 28,
+      },
+    ];
+
+    for (const mode of modes) {
+      mounted = await mountScreen(mode.Component);
+      const svg = mounted.host.querySelector('svg') as SVGElement | null;
+      expect(svg, `${mode.name} should render LinkpointLogo`).not.toBeNull();
+      const styleHeight = svg?.style.height;
+      const numericHeight = styleHeight ? parseInt(styleHeight, 10) : 0;
+      expect(numericHeight).toBeGreaterThan(0);
+      expect(numericHeight).toBeLessThanOrEqual(28);
+      await unmount(mounted);
+      mounted = null;
+    }
+  });
+
+  it('renders 20px LinkpointLogo brand mark emblem in DesktopChrome location bar', async () => {
+    mounted = await mountScreen(DesktopChrome);
+    const locationBar = mounted.host.querySelector('.desktop-location-bar');
+    expect(locationBar).not.toBeNull();
+    const emblem = locationBar?.querySelector('.desktop-brand-emblem');
+    expect(emblem).not.toBeNull();
+    const logoSvg = emblem?.querySelector('svg') as SVGElement | null;
+    expect(logoSvg).not.toBeNull();
+    expect(logoSvg?.style.height).toBe('20px');
   });
 });

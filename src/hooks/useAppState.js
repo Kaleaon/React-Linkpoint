@@ -176,6 +176,104 @@ export function useAppState() {
   const [reconnecting, setReconnecting] = useState(false);
   const [toast, setToast] = useState('');
 
+  // ---- Centralized async data state store for resource domains --------------
+  const [asyncDataState, setAsyncDataState] = useState({
+    groups: { status: 'idle', error: null, itemCount: 0 },
+    inventory: { status: 'idle', error: null, itemCount: 0 },
+    friends: { status: 'idle', error: null, itemCount: 0 },
+    chat: { status: 'idle', error: null, itemCount: 0 },
+  });
+
+  const setAsyncDataDomainState = useCallback((domain, updates) => {
+    setAsyncDataState((prev) => {
+      const current = prev[domain] || { status: 'idle', error: null, itemCount: 0 };
+      const nextDomainState =
+        typeof updates === 'string' ? { ...current, status: updates } : { ...current, ...updates };
+      if (
+        current.status === nextDomainState.status &&
+        current.error === nextDomainState.error &&
+        current.itemCount === nextDomainState.itemCount
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [domain]: nextDomainState,
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    const setupDomainListeners = (emitter, domain, events) => {
+      if (!emitter || typeof emitter.on !== 'function') return () => {};
+
+      const onStart = () => setAsyncDataDomainState(domain, { status: 'loading', error: null });
+      const onEnd = (payload) => {
+        const itemCount = payload?.itemCount ?? 0;
+        const status = payload?.status || (itemCount > 0 ? 'ready' : 'empty');
+        setAsyncDataDomainState(domain, { status, itemCount, error: payload?.error || null });
+      };
+      const onError = (payload) => {
+        const error = payload?.error || 'Failed to load data';
+        setAsyncDataDomainState(domain, { status: 'error', error });
+      };
+      const onUpdated = (data) => {
+        const count = Array.isArray(data) ? data.length : data ? 1 : 0;
+        setAsyncDataDomainState(domain, (prev) => {
+          if (prev.status === 'loading') return prev;
+          return { ...prev, status: count > 0 ? 'ready' : 'empty', itemCount: count };
+        });
+      };
+
+      if (events.start) emitter.on(events.start, onStart);
+      if (events.end) emitter.on(events.end, onEnd);
+      if (events.error) emitter.on(events.error, onError);
+      if (events.updated) emitter.on(events.updated, onUpdated);
+
+      return () => {
+        if (events.start) emitter.off(events.start, onStart);
+        if (events.end) emitter.off(events.end, onEnd);
+        if (events.error) emitter.off(events.error, onError);
+        if (events.updated) emitter.off(events.updated, onUpdated);
+      };
+    };
+
+    const unsubInventory = setupDomainListeners(app.inventory, 'inventory', {
+      start: 'inventory_loading_start',
+      end: 'inventory_loading_end',
+      error: 'inventory_loading_error',
+      updated: 'inventory_updated',
+    });
+
+    const unsubGroups = setupDomainListeners(app.groups, 'groups', {
+      start: 'groups_loading_start',
+      end: 'groups_loading_end',
+      error: 'groups_loading_error',
+      updated: 'groups_updated',
+    });
+
+    const unsubFriends = setupDomainListeners(app.friends, 'friends', {
+      start: 'friends_loading_start',
+      end: 'friends_loading_end',
+      error: 'friends_loading_error',
+      updated: 'friend_updated',
+    });
+
+    const unsubChat = setupDomainListeners(app.chat, 'chat', {
+      start: 'chat_loading_start',
+      end: 'chat_loading_end',
+      error: 'chat_loading_error',
+      updated: 'sessions_changed',
+    });
+
+    return () => {
+      unsubInventory();
+      unsubGroups();
+      unsubFriends();
+      unsubChat();
+    };
+  }, [setAsyncDataDomainState]);
+
   // ---- movement pad: held buttons move the real camera --------------------
   useEffect(() => {
     const step = {
@@ -830,8 +928,11 @@ export function useAppState() {
       prefs,
       cacheCleared,
       camPreset,
+      asyncDataState,
     },
     actions: {
+      setAsyncDataDomainState,
+      setAsyncDataState: setAsyncDataDomainState,
       setLayout,
       setPalette: selectPalette,
       setThemeColor,

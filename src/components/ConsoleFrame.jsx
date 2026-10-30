@@ -1,5 +1,6 @@
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js';
 import { useTickContext } from '../context/TickContext.jsx';
 import { NAV_ALL, HEAD } from '../data/content.js';
 import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
@@ -18,6 +19,7 @@ import { holdControl } from './holdControl.js';
 export default function ConsoleFrame() {
   const { state, actions } = useApp();
   const { V, t, C, ink, consoleScene } = useTheme();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const tick = useTickContext();
   void tick; // re-render each second so the live readouts below stay current
   const loggedIn = app.auth.isLoggedIn();
@@ -218,7 +220,10 @@ export default function ConsoleFrame() {
                         : i === state.cDock.length - 1 && !state.cEdit
                           ? '0 ' + C.rad + 'px ' + C.rad + 'px 0'
                           : '0',
-                    animation: state.cEdit ? 'wig .42s ease-in-out infinite' : 'none',
+                    animation:
+                      state.cEdit && !prefersReducedMotion
+                        ? 'wig .42s ease-in-out infinite'
+                        : 'none',
                     animationDelay: (i % 4) * 0.07 + 's',
                   }}
                 >
