@@ -1,6 +1,9 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { useKeybindings } from '../context/KeybindingsContext';
+import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
 import { isTypingTarget } from '../linkpoint/keyboard-motion';
+
+export { useSpatialAnnouncer };
 
 export interface ViewportCanvasProps {
   /** Optional ID for the canvas element */
@@ -186,6 +189,8 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
   return (
     <div
       className={className}
+      role="region"
+      aria-label="3D Viewport Navigation"
       style={{
         position: 'relative',
         width: '100%',
@@ -218,6 +223,7 @@ export const ViewportCanvas = forwardRef<HTMLCanvasElement, ViewportCanvasProps>
 
       {showOverlayControls && (
         <aside
+          role="region"
           aria-label="Single-pointer camera controls"
           style={{
             position: 'absolute',
