@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { CRYSTAL } from './linkpointCrystal.js';
 
@@ -12,11 +12,9 @@ import { CRYSTAL } from './linkpointCrystal.js';
 //
 // The orbit motes are animated with GPU-accelerated CSS rotation and opacity keyframes.
 
-const grad = (id) => `url(#r${id[0].toUpperCase()}${id.slice(1)})`;
-
-function Face({ face, ink }) {
+function Face({ face, ink, gradMap }) {
   const common = {
-    fill: grad(face.grad),
+    fill: gradMap[face.grad],
     stroke: ink,
     strokeWidth: 1.5,
     strokeLinejoin: 'round',
@@ -25,7 +23,7 @@ function Face({ face, ink }) {
   return <polygon {...common} points={face.points} opacity={face.opacity} />;
 }
 
-function Pyramid({ className, data, surf, rim, ink }) {
+function Pyramid({ className, data, surf, rim, ink, gradMap }) {
   return (
     <g className={className}>
       <polygon
@@ -37,18 +35,25 @@ function Pyramid({ className, data, surf, rim, ink }) {
         points={data.base}
       />
       {data.faces.map((f, i) => (
-        <Face key={i} face={f} ink={ink} />
+        <Face key={i} face={f} ink={ink} gradMap={gradMap} />
       ))}
     </g>
   );
 }
 
-function Motes({ layer, animated, token }) {
+function Motes({ layer, animated, token, glowFilterUrl }) {
   if (!animated) {
     return (
       <>
         {CRYSTAL.staticMotes[layer].map((m, i) => (
-          <circle key={i} cx={m.cx} cy={m.cy} r={m.r} fill={token(m.token)} filter="url(#rGlow)" />
+          <circle
+            key={i}
+            cx={m.cx}
+            cy={m.cy}
+            r={m.r}
+            fill={token(m.token)}
+            filter={glowFilterUrl}
+          />
         ))}
       </>
     );
@@ -73,7 +78,7 @@ function Motes({ layer, animated, token }) {
                 cy="256"
                 r={radius}
                 fill={token(m.token)}
-                filter="url(#rGlow)"
+                filter={glowFilterUrl}
                 className={animationClass}
                 style={{ animationDelay: m.begin }}
               />
@@ -88,12 +93,41 @@ function Motes({ layer, animated, token }) {
 // width/height are applied through `style` rather than as SVG attributes:
 // callers pass CSS keywords such as "auto", which the presentation attributes
 // reject ("Expected length").
+/**
+ * @param {Object} props
+ * @param {boolean} [props.animated]
+ * @param {boolean} [props.showTitle]
+ * @param {string} [props.width]
+ * @param {string} [props.height]
+ * @param {string} [props.idPrefix]
+ */
 export default function LinkpointLogo({
   animated = true,
   showTitle = true,
   width = '100%',
   height = 'auto',
+  idPrefix = undefined,
 }) {
+  const reactId = useId();
+  const cleanId = reactId.replace(/:/g, '');
+  const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lplg-${cleanId}`;
+
+  const face1GradId = `${prefix}-face1`;
+  const face2GradId = `${prefix}-face2`;
+  const face3GradId = `${prefix}-face3`;
+  const face4GradId = `${prefix}-face4`;
+  const coreGlowId = `${prefix}-core-glow`;
+  const glowFilterId = `${prefix}-glow`;
+
+  const gradMap = {
+    face1Grad: `url(#${face1GradId})`,
+    face2Grad: `url(#${face2GradId})`,
+    face3Grad: `url(#${face3GradId})`,
+    face4Grad: `url(#${face4GradId})`,
+  };
+  const glowFilterUrl = `url(#${glowFilterId})`;
+  const coreGlowUrl = `url(#${coreGlowId})`;
+
   const { V, t } = useTheme();
   const token = (name) => V[name];
 
@@ -101,7 +135,7 @@ export default function LinkpointLogo({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
-      id="linkpoint-logo-react"
+      id={prefix}
       viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
       style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
@@ -200,30 +234,30 @@ export default function LinkpointLogo({
       `}</style>
 
       <defs>
-        <linearGradient id="rFace1Grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={face1GradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor={V.pri} stopOpacity="1" />
           <stop offset="100%" stopColor={V.priC} stopOpacity="1" />
         </linearGradient>
-        <linearGradient id="rFace2Grad" x1="100%" y1="0%" x2="0%" y2="100%">
+        <linearGradient id={face2GradId} x1="100%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor={V.sec2} stopOpacity="1" />
           <stop offset="100%" stopColor={V.sec} stopOpacity="1" />
         </linearGradient>
-        <linearGradient id="rFace3Grad" x1="50%" y1="100%" x2="50%" y2="0%">
+        <linearGradient id={face3GradId} x1="50%" y1="100%" x2="50%" y2="0%">
           <stop offset="0%" stopColor={V.sec} stopOpacity="1" />
           <stop offset="100%" stopColor={V.surf2} stopOpacity="1" />
         </linearGradient>
-        <linearGradient id="rFace4Grad" x1="0%" y1="100%" x2="100%" y2="0%">
+        <linearGradient id={face4GradId} x1="0%" y1="100%" x2="100%" y2="0%">
           <stop offset="0%" stopColor={V.pri} stopOpacity="1" />
           <stop offset="100%" stopColor={V.sec2} stopOpacity="1" />
         </linearGradient>
 
-        <radialGradient id="rCoreGlow" cx="50%" cy="50%" r="50%">
+        <radialGradient id={coreGlowId} cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
           <stop offset="35%" stopColor={V.pri} stopOpacity="0.9" />
           <stop offset="100%" stopColor={V.sec} stopOpacity="0" />
         </radialGradient>
 
-        <filter id="rGlow" x="-200%" y="-200%" width="500%" height="500%">
+        <filter id={glowFilterId} x="-200%" y="-200%" width="500%" height="500%">
           <feGaussianBlur stdDeviation="3" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
@@ -252,12 +286,26 @@ export default function LinkpointLogo({
         strokeOpacity="0.55"
       />
       <g opacity="0.6">
-        <Motes layer="far" animated={animated} token={token} />
+        <Motes layer="far" animated={animated} token={token} glowFilterUrl={glowFilterUrl} />
       </g>
 
       {/* ---- the solid ---------------------------------------------------- */}
-      <Pyramid className="bot-crystal-r" data={CRYSTAL.bot} surf={V.surf} rim={V.sec} ink={V.ink} />
-      <Pyramid className="top-crystal-r" data={CRYSTAL.top} surf={V.surf} rim={V.pri} ink={V.ink} />
+      <Pyramid
+        className="bot-crystal-r"
+        data={CRYSTAL.bot}
+        surf={V.surf}
+        rim={V.sec}
+        ink={V.ink}
+        gradMap={gradMap}
+      />
+      <Pyramid
+        className="top-crystal-r"
+        data={CRYSTAL.top}
+        surf={V.surf}
+        rim={V.pri}
+        ink={V.ink}
+        gradMap={gradMap}
+      />
 
       {/* ---- near layer --------------------------------------------------- */}
       <path
@@ -270,7 +318,7 @@ export default function LinkpointLogo({
       />
       <path d="M 41 256 A 215 72 0 0 0 471 256" fill="none" stroke={V.outv} strokeWidth="1" />
       <g>
-        <Motes layer="near" animated={animated} token={token} />
+        <Motes layer="near" animated={animated} token={token} glowFilterUrl={glowFilterUrl} />
       </g>
       <g stroke={V.outv} strokeWidth="1.5" fill="none" opacity="0.6">
         <polyline points="430,256 256,332 82,256" />
@@ -279,7 +327,7 @@ export default function LinkpointLogo({
 
       {/* CORE NODE */}
       <g className="core-anim-r">
-        <circle cx="256" cy="256" r="45" fill="url(#rCoreGlow)" />
+        <circle cx="256" cy="256" r="45" fill={coreGlowUrl} />
         <polygon points="256,242 270,256 256,270 242,256" fill={V.ink} />
       </g>
 

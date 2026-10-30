@@ -9,7 +9,8 @@
  */
 
 import { ChatProtocolAdapter } from '../chat-protocol-adapter';
-import { MuteFlag, MuteList, MuteType, isLinden } from '../mute-list';
+import { MuteEntry, MuteFlag, MuteList, MuteType, isLinden } from '../mute-list';
+import { slBridge } from '../sl-bridge';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USERS_STORAGE_KEY = 'linkpoint_muted_users';
@@ -61,6 +62,17 @@ export class ChatExtended {
     this.protocol = this.adapter.protocol || protocolManager;
     this.mutedUsers = loadStoredMutes(USERS_STORAGE_KEY);
     this.mutedObjects = loadStoredMutes(OBJECTS_STORAGE_KEY);
+
+    const defaultTransport = {
+      update: (entry: any) =>
+        slBridge.connected ? slBridge.updateMuteEntry(entry) : Promise.resolve({ sent: false }),
+      remove: (entry: any) =>
+        slBridge.connected ? slBridge.removeMuteEntry(entry) : Promise.resolve({ sent: false }),
+      request: () =>
+        slBridge.connected ? slBridge.requestMuteList() : Promise.resolve({ requested: false }),
+    };
+    this.grid = new MuteList(defaultTransport);
+    this.bindGridEvents();
   }
 
   /**
@@ -249,8 +261,118 @@ export class ChatExtended {
     list: MuteList | null,
     resolveName: (id: string) => string | undefined = () => undefined,
   ) {
-    if (list) this.grid = list;
+    if (list) {
+      this.grid = list;
+      this.bindGridEvents();
+    }
     this.resolveName = resolveName;
+  }
+
+  private bindGridEvents() {
+    if (this.grid) {
+      this.grid.on('changed', () => {
+        this.reconcileGridMutes();
+      });
+    }
+  }
+
+  /**
+   * Reconciles remote grid mute entries into local browser storage.
+   * Merges downloaded grid mute entries into `mutedUsers` and `mutedObjects`,
+   * handling key name and UUID case differences.
+   */
+  reconcileGridMutes(gridData?: { mutes?: MuteEntry[]; legacy?: string[] }): void {
+    let mutesToProcess: MuteEntry[] = [];
+    let legacyToProcess: string[] = [];
+
+    if (gridData && (Array.isArray(gridData.mutes) || Array.isArray(gridData.legacy))) {
+      mutesToProcess = gridData.mutes || [];
+      legacyToProcess = gridData.legacy || [];
+    } else if (this.grid) {
+      const snapshot = this.grid.snapshot();
+      mutesToProcess = snapshot.mutes || [];
+      legacyToProcess = snapshot.legacy || [];
+    }
+
+    let changed = false;
+
+    const findInSetCaseInsensitive = (set: Set<string>, value: string): string | undefined => {
+      const target = value.trim().toLowerCase();
+      for (const item of set) {
+        if (item.trim().toLowerCase() === target) {
+          return item;
+        }
+      }
+      return undefined;
+    };
+
+    for (const entry of mutesToProcess) {
+      if (!entry) continue;
+      const type = entry.type;
+      const id = (entry.id || '').trim();
+      const name = (entry.name || '').trim();
+      const isTextMuted = !(entry.flags & MuteFlag.TEXT_CHAT);
+
+      if (type === MuteType.OBJECT) {
+        const key = id && UUID_PATTERN.test(id) ? id : name;
+        if (!key) continue;
+        const existing = findInSetCaseInsensitive(this.mutedObjects, key);
+        if (isTextMuted) {
+          if (!existing) {
+            this.mutedObjects.add(key);
+            changed = true;
+          }
+        } else {
+          if (existing) {
+            this.mutedObjects.delete(existing);
+            changed = true;
+          }
+        }
+      } else if (type === MuteType.AGENT || type === MuteType.GROUP) {
+        const key = id && UUID_PATTERN.test(id) ? id : name;
+        if (!key) continue;
+        const existing = findInSetCaseInsensitive(this.mutedUsers, key);
+        if (isTextMuted) {
+          if (!existing) {
+            this.mutedUsers.add(key);
+            changed = true;
+          }
+        } else {
+          if (existing) {
+            this.mutedUsers.delete(existing);
+            changed = true;
+          }
+        }
+      } else if (type === MuteType.BY_NAME) {
+        if (!name) continue;
+        const existing = findInSetCaseInsensitive(this.mutedUsers, name);
+        if (isTextMuted) {
+          if (!existing) {
+            this.mutedUsers.add(name);
+            changed = true;
+          }
+        } else {
+          if (existing) {
+            this.mutedUsers.delete(existing);
+            changed = true;
+          }
+        }
+      }
+    }
+
+    for (const legacyName of legacyToProcess) {
+      if (!legacyName) continue;
+      const cleanName = legacyName.trim();
+      if (cleanName && !findInSetCaseInsensitive(this.mutedUsers, cleanName)) {
+        this.mutedUsers.add(cleanName);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      saveStoredMutes(USERS_STORAGE_KEY, this.mutedUsers);
+      saveStoredMutes(OBJECTS_STORAGE_KEY, this.mutedObjects);
+    }
   }
 
   muteObject(nameOrId: string) {
