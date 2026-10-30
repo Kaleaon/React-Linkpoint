@@ -134,8 +134,6 @@ export default function LinkpointLogo({
   const { V, t } = useTheme();
   const token = (name) => V[name];
 
-  const svgId = idPrefix ? prefix : 'linkpoint-logo-react';
-
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -146,11 +144,11 @@ export default function LinkpointLogo({
     >
       <style>{`
         .top-crystal-r {
-          will-change: transform;
+          will-change: ${animated ? 'transform' : 'auto'};
           animation: ${animated ? `topCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .bot-crystal-r {
-          will-change: transform;
+          will-change: ${animated ? 'transform' : 'auto'};
           animation: ${animated ? `botCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .core-anim-r {
@@ -158,7 +156,7 @@ export default function LinkpointLogo({
           animation: ${animated ? `corePulseR ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .mote-rotator-group {
-          will-change: transform;
+          will-change: ${animated ? 'transform' : 'auto'};
           animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-near-r {
