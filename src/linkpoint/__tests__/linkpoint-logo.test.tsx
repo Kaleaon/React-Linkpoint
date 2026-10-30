@@ -21,6 +21,24 @@ afterEach(async () => {
 });
 
 describe('Modernized CSS LinkpointLogo Component', () => {
+  it('wraps SVG in a div container with role="img", aria-label, and aria-hidden="true" on nested svg', async () => {
+    mounted = await mountScreen(LinkpointLogo);
+    const container = mounted.host.querySelector('div[role="img"]');
+    expect(container).not.toBeNull();
+    expect(container?.getAttribute('aria-label')).toBe('Linkpoint logo');
+
+    const svg = container?.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('allows custom aria-label on wrapper container', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo aria-label="Custom logo label" />);
+    const container = mounted.host.querySelector('div[role="img"]');
+    expect(container).not.toBeNull();
+    expect(container?.getAttribute('aria-label')).toBe('Custom logo label');
+  });
+
   it('renders SVG logo without any SMIL tags', async () => {
     mounted = await mountScreen(LinkpointLogo);
     const svg = mounted.host.querySelector('svg');
@@ -199,12 +217,18 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
     for (const mode of modes) {
       mounted = await mountScreen(mode.Component);
-      const svg = mounted.host.querySelector('svg') as SVGElement | null;
-      expect(svg, `${mode.name} should render LinkpointLogo`).not.toBeNull();
-      const styleHeight = svg?.style.height;
+      const container = mounted.host.querySelector('div[role="img"]') as HTMLElement | null;
+      expect(container, `${mode.name} should render LinkpointLogo wrapper`).not.toBeNull();
+      expect(container?.getAttribute('aria-label')).toBe('Linkpoint logo');
+      const styleHeight = container?.style.height;
       const numericHeight = styleHeight ? parseInt(styleHeight, 10) : 0;
       expect(numericHeight).toBeGreaterThan(0);
       expect(numericHeight).toBeLessThanOrEqual(28);
+
+      const svg = container?.querySelector('svg');
+      expect(svg).not.toBeNull();
+      expect(svg?.getAttribute('aria-hidden')).toBe('true');
+
       await unmount(mounted);
       mounted = null;
     }
@@ -216,8 +240,13 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(locationBar).not.toBeNull();
     const emblem = locationBar?.querySelector('.desktop-brand-emblem');
     expect(emblem).not.toBeNull();
-    const logoSvg = emblem?.querySelector('svg') as SVGElement | null;
+    const logoContainer = emblem?.querySelector('div[role="img"]') as HTMLElement | null;
+    expect(logoContainer).not.toBeNull();
+    expect(logoContainer?.getAttribute('aria-label')).toBe('Linkpoint logo');
+    expect(logoContainer?.style.height).toBe('20px');
+
+    const logoSvg = logoContainer?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
-    expect(logoSvg?.style.height).toBe('20px');
+    expect(logoSvg?.getAttribute('aria-hidden')).toBe('true');
   });
 });
