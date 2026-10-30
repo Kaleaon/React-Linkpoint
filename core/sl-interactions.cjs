@@ -340,7 +340,14 @@ async function acceptGroupNoticeAttachment(bot, pending, params = {}) {
 
 /** Decline an inventory offer. */
 async function declineInventoryOffer(bot, pending, params) {
-  const offer = pending.get('inventory-offer', params && params.id);
+  let offer = null;
+  if (params && params.id && pending && typeof pending.get === 'function') {
+    try {
+      offer = pending.get('inventory-offer', params.id);
+    } catch {
+      // Offer may already be removed or of a different kind
+    }
+  }
   const senderId = idString(offer && (offer.from || offer.fromId || offer.fromID));
 
   try {
@@ -372,7 +379,7 @@ async function declineInventoryOffer(bot, pending, params) {
   } catch (err) {
     console.warn('[sl-interactions] Failed to send inventory decline packet:', err);
   } finally {
-    if (params && params.id) {
+    if (params && params.id && pending && typeof pending.remove === 'function') {
       pending.remove(params.id);
     }
   }
