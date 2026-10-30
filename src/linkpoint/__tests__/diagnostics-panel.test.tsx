@@ -97,8 +97,6 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
   });
 
   it('renders inline CrystalLoader during active ping probe execution', async () => {
-    let resolvePing: (val: any) => void = () => {};
-    let isProbeClick = false;
     const diagMock = {
       ...app.protocol.getDiagnostics(),
       connected: true,
@@ -110,6 +108,8 @@ describe('DiagnosticsPanel: dual mode telemetry & progressive disclosure', () =>
       packetsOut: 800,
       lastPacketTimestamp: Date.now(),
     };
+    let resolvePing: (val: typeof diagMock) => void = () => {};
+    let isProbeClick = false;
 
     vi.spyOn(app.protocol, 'fetchDiagnostics').mockImplementation(() => {
       if (isProbeClick) {

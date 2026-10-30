@@ -34,6 +34,15 @@ export interface PaymentParams {
   targetType?: 'avatar' | 'object' | 'group' | 'system';
 }
 
+export interface TransactionFilterOptions {
+  searchQuery?: string;
+  type?: string;
+  avatar?: string;
+  dateRange?: string;
+  startDate?: number | string | Date;
+  endDate?: number | string | Date;
+}
+
 export interface EconomyStats {
   balance: number | null;
   currencySymbol?: string;
@@ -369,25 +378,97 @@ export class EconomyManager extends Utils.EventEmitter {
   }
 
   /**
-   * Get 30-day transactions filtered by search query.
+   * Get 30-day transactions filtered by search query or structured filter options.
    */
-  public getTransactions(searchQuery?: string): TransactionRecord[] {
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const filtered = this.transactions.filter((t) => t.timestamp >= cutoff);
+  public getTransactions(queryOrFilter?: string | TransactionFilterOptions): TransactionRecord[] {
+    const options: TransactionFilterOptions =
+      typeof queryOrFilter === 'string' ? { searchQuery: queryOrFilter } : queryOrFilter || {};
 
-    if (!searchQuery || !searchQuery.trim()) {
-      return filtered;
+    const now = Date.now();
+    let minTimestamp = now - 30 * 24 * 60 * 60 * 1000;
+    let maxTimestamp = Infinity;
+
+    if (options.dateRange) {
+      if (options.dateRange === 'today') {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        minTimestamp = startOfToday.getTime();
+      } else if (options.dateRange === '7days') {
+        minTimestamp = now - 7 * 24 * 60 * 60 * 1000;
+      } else if (options.dateRange === '14days') {
+        minTimestamp = now - 14 * 24 * 60 * 60 * 1000;
+      } else if (options.dateRange === '30days') {
+        minTimestamp = now - 30 * 24 * 60 * 60 * 1000;
+      } else if (options.dateRange === 'all') {
+        minTimestamp = 0;
+      }
     }
 
-    const q = searchQuery.trim().toLowerCase();
-    return filtered.filter(
-      (t) =>
-        t.description.toLowerCase().includes(q) ||
-        t.targetName.toLowerCase().includes(q) ||
-        t.targetId.toLowerCase().includes(q) ||
-        t.type.toLowerCase().includes(q) ||
-        String(t.amount).includes(q),
+    if (options.startDate !== undefined && options.startDate !== null && options.startDate !== '') {
+      const parsedStart =
+        typeof options.startDate === 'number'
+          ? options.startDate
+          : new Date(options.startDate).getTime();
+      if (!isNaN(parsedStart)) minTimestamp = parsedStart;
+    }
+
+    if (options.endDate !== undefined && options.endDate !== null && options.endDate !== '') {
+      let parsedEnd =
+        typeof options.endDate === 'number' ? options.endDate : new Date(options.endDate).getTime();
+      if (!isNaN(parsedEnd)) {
+        if (
+          typeof options.endDate === 'string' &&
+          /^\d{4}-\d{2}-\d{2}$/.test(options.endDate.trim())
+        ) {
+          parsedEnd += 24 * 60 * 60 * 1000 - 1;
+        }
+        maxTimestamp = parsedEnd;
+        if (!options.startDate && !options.dateRange && minTimestamp > maxTimestamp) {
+          minTimestamp = 0;
+        }
+      }
+    }
+
+    let filtered = this.transactions.filter(
+      (t) => t.timestamp >= minTimestamp && t.timestamp <= maxTimestamp,
     );
+
+    if (options.type && options.type !== 'all') {
+      const targetType = options.type.toLowerCase();
+      filtered = filtered.filter((t) => {
+        if (targetType === 'credit') {
+          return t.amount > 0 || t.type.toLowerCase() === 'credit';
+        }
+        if (targetType === 'debit') {
+          return t.amount < 0 || t.type.toLowerCase() === 'debit';
+        }
+        return t.type.toLowerCase() === targetType;
+      });
+    }
+
+    if (options.avatar && options.avatar.trim()) {
+      const av = options.avatar.trim().toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.targetName.toLowerCase().includes(av) ||
+          t.targetId.toLowerCase().includes(av) ||
+          t.description.toLowerCase().includes(av),
+      );
+    }
+
+    if (options.searchQuery && options.searchQuery.trim()) {
+      const q = options.searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.description.toLowerCase().includes(q) ||
+          t.targetName.toLowerCase().includes(q) ||
+          t.targetId.toLowerCase().includes(q) ||
+          t.type.toLowerCase().includes(q) ||
+          String(t.amount).includes(q),
+      );
+    }
+
+    return filtered;
   }
 
   /**

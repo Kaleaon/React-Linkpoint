@@ -21,6 +21,7 @@ import {
   formatLossSummary,
   formatLastUpdate,
   formatTechnicalDetails,
+  resolveStatusTone,
 } from './diagnosticsView.js';
 
 export default function DiagnosticsPanel() {
@@ -92,18 +93,16 @@ export default function DiagnosticsPanel() {
   };
 
   const isConnected = Boolean(diag.connected || app.auth.isLoggedIn());
-  const toneColor = (tone) =>
-    tone === 'ok' ? V.ok : tone === 'warn' ? '#eab308' : tone === 'err' ? V.err : V.ink2;
 
   const connStatus = formatConnectionStatus(isConnected, app.auth.user?.grid, diag.simName);
   const latency = formatLatencySummary(diag.latencyMs);
-  const latencyTone = toneColor(latency.tone);
+  const latencyTone = resolveStatusTone(V, latency.tone);
 
   const loss = formatLossSummary(diag.packetLossPct);
-  const lossTone = toneColor(loss.tone);
+  const lossTone = resolveStatusTone(V, loss.tone);
 
   const lastUpdate = formatLastUpdate(diag.lastPacketTimestamp, now);
-  const ageTone = toneColor(lastUpdate.tone);
+  const ageTone = resolveStatusTone(V, lastUpdate.tone);
 
   const region = app.world?.region;
   const gridCoords =
@@ -312,9 +311,17 @@ export default function DiagnosticsPanel() {
       {/* Latency History Graph */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+          <h3
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: V.pri,
+              letterSpacing: '.08em',
+              margin: 0,
+            }}
+          >
             WORLD RESPONSE TIME HISTORY
-          </div>
+          </h3>
           <div style={{ fontSize: 11, color: V.ink2 }}>
             {range ? `Min: ${Math.round(minL)} ms · Max: ${Math.round(maxL)} ms` : 'No samples yet'}
           </div>
@@ -338,7 +345,7 @@ export default function DiagnosticsPanel() {
           )}
           {latencyHistory.map((val, idx) => {
             const hPct = Math.round(((val - barMin) / hRange) * 80 + 10);
-            const tone = val < 90 ? V.ok : val < 200 ? '#eab308' : V.err;
+            const tone = resolveStatusTone(V, latencyBand(val).tone);
             return (
               <div
                 key={idx}
@@ -360,9 +367,11 @@ export default function DiagnosticsPanel() {
 
       {/* World Region & Network Summary */}
       <div style={cardStyle}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+        <h3
+          style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em', margin: 0 }}
+        >
           WORLD REGION & NETWORK SUMMARY
-        </div>
+        </h3>
         <div
           style={{
             display: 'grid',
@@ -476,9 +485,17 @@ export default function DiagnosticsPanel() {
             marginBottom: 10,
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, color: V.pri, letterSpacing: '.08em' }}>
+          <h3
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: V.pri,
+              letterSpacing: '.08em',
+              margin: 0,
+            }}
+          >
             ADVANCED TECHNICAL PROTOCOL DETAILS
-          </div>
+          </h3>
           <div
             style={{
               fontSize: 10,
@@ -595,7 +612,7 @@ export default function DiagnosticsPanel() {
                 padding: '2px 8px',
                 borderRadius: V.rs,
                 background: V.surf2,
-                color: toneColor(techDetails.eventQueueTone),
+                color: resolveStatusTone(V, techDetails.eventQueueTone),
                 fontWeight: 700,
                 fontSize: 11,
               }}
