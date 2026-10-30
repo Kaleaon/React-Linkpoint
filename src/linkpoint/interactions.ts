@@ -169,6 +169,8 @@ export class InteractionsManager extends Utils.EventEmitter {
     regionName?: string,
   ) {
     const percent = Math.min(100, Math.max(0, stepPercent ?? 0));
+    const isPhaseChange = !this.activeTeleport || this.activeTeleport.phase !== phase;
+
     if (!this.activeTeleport) {
       this.activeTeleport = {
         active: true,
@@ -188,7 +190,21 @@ export class InteractionsManager extends Utils.EventEmitter {
         regionName: regionName || this.activeTeleport.regionName,
       };
     }
-    this.changed();
+
+    const payload = {
+      phase: this.activeTeleport.phase,
+      stepPercent: percent,
+      statusText: this.activeTeleport.statusText,
+      regionName: this.activeTeleport.regionName,
+      destination: this.activeTeleport.destination,
+    };
+
+    this.emit('teleport_tick', payload);
+    this.emit('teleport_progress_tick', payload);
+
+    if (isPhaseChange) {
+      this.changed();
+    }
   }
 
   failTeleportSession(error: string) {
