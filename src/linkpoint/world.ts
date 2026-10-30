@@ -350,6 +350,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public region: any = null;
   public objects: any[] = [];
   public nearbyUsers: any[] = [];
+  private typingTimers = new Map<string, any>();
   public avatarPosition: [number, number, number] | null = null;
   /** The logged-in avatar's rotation from the simulator, an SL-frame quaternion [x, y, z, w]. */
   public avatarRotation: [number, number, number, number] | null = null;
@@ -615,6 +616,10 @@ export class WorldViewer extends Utils.EventEmitter {
       this.region = null;
       this.avatarPosition = null;
       this.avatarRotation = null;
+      for (const timer of this.typingTimers.values()) {
+        clearTimeout(timer);
+      }
+      this.typingTimers.clear();
       this.nearbyUsers = [];
       this.environment = null;
       this.simSunHour = null;
@@ -683,6 +688,10 @@ export class WorldViewer extends Utils.EventEmitter {
         'nearby_changed',
         this.nearbyUsers.map((user) => ({ ...user })),
       );
+    });
+    this.protocol.on('typing', (data: any) => {
+      const id = data?.agentId || data?.fromId;
+      if (id) this.setTyping(id, Boolean(data?.isTyping));
     });
     const handleParcelData = (data: any) => {
       const parcels = data?.ParcelData || data?.parcelData || [];
@@ -2939,6 +2948,48 @@ export class WorldViewer extends Utils.EventEmitter {
 
   public getNearbyUsers() {
     return this.nearbyUsers.map((user) => ({ ...user }));
+  }
+
+  public setTyping(agentId: string, isTyping: boolean = true) {
+    if (!agentId) return;
+    const existingTimer = this.typingTimers.get(agentId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.typingTimers.delete(agentId);
+    }
+
+    const index = this.nearbyUsers.findIndex((u) => u.id === agentId);
+    if (index >= 0) {
+      this.nearbyUsers = this.nearbyUsers.map((u, idx) =>
+        idx === index ? { ...u, typing: isTyping } : u,
+      );
+    } else if (isTyping) {
+      this.nearbyUsers = [
+        ...this.nearbyUsers,
+        {
+          id: agentId,
+          name: `Resident ${agentId.slice(0, 8)}`,
+          position: null,
+          distance: null,
+          bearing: null,
+          online: true,
+          typing: true,
+        },
+      ];
+    }
+
+    if (isTyping) {
+      const timer = setTimeout(() => {
+        this.setTyping(agentId, false);
+      }, 5000);
+      this.typingTimers.set(agentId, timer);
+    }
+
+    this.emit(
+      'nearby_changed',
+      this.nearbyUsers.map((user) => ({ ...user })),
+    );
+    this.emit('typing_changed', { agentId, isTyping });
   }
 
   public handleAgentMovement(data: any) {
