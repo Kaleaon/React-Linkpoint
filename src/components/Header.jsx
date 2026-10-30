@@ -7,6 +7,7 @@ import { HEAD } from '../data/content.js';
 import { SCREENS } from '../theme/constants.js';
 import Icon from './Icon.jsx';
 import TouchTarget from './TouchTarget';
+import LinkpointLogo from './LinkpointLogo.jsx';
 
 // Ported from the five header <sc-if> blocks (hasHeader/isSweepHead/
 // isPivotHead/isRuleHead/isPressHead) plus the shared title/subtitle lookup.
@@ -35,7 +36,7 @@ export default function Header() {
   return <StackHead title={title} subtitle={subtitle} scr={scr} />;
 }
 
-function StackHead({ title, subtitle, scr }) {
+export function StackHead({ title, subtitle, scr }) {
   const { V, t } = useTheme();
   const { actions } = useApp();
   const showLink = scr === 'Chat';
@@ -73,6 +74,7 @@ function StackHead({ title, subtitle, scr }) {
         padding: '12px 16px 8px',
       }}
     >
+      <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <h1
           style={{
@@ -148,7 +150,7 @@ function StackHead({ title, subtitle, scr }) {
   );
 }
 
-function SweepHead({ title, subtitle }) {
+export function SweepHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
     <header style={{ flex: 'none' }}>
@@ -180,6 +182,7 @@ function SweepHead({ title, subtitle }) {
           01-4471
         </span>
         <span style={{ flex: 1, height: '6px', background: V.surf2 }} />
+        <LinkpointLogo animated={false} showTitle={false} width={24} height={24} />
         <h1
           style={{
             font: '700 22px/1 ' + t.dfont,
@@ -222,7 +225,7 @@ function SweepHead({ title, subtitle }) {
   );
 }
 
-function PivotHead({ title, subtitle, scr }) {
+export function PivotHead({ title, subtitle, scr }) {
   const { t, V } = useTheme();
   const { actions } = useApp();
   const nextScr = SCREENS[(SCREENS.indexOf(scr) + 1) % SCREENS.length];
@@ -233,11 +236,12 @@ function PivotHead({ title, subtitle, scr }) {
           flex: 'none',
           padding: '14px 0 2px 16px',
           display: 'flex',
-          alignItems: 'baseline',
-          gap: '22px',
+          alignItems: 'center',
+          gap: '12px',
           overflow: 'hidden',
         }}
       >
+        <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
         <h1
           style={{
             flex: 'none',
@@ -292,7 +296,7 @@ function PivotHead({ title, subtitle, scr }) {
   );
 }
 
-function RuleHead({ title, subtitle }) {
+export function RuleHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
     <header style={{ flex: 'none', padding: '16px 16px 4px', minWidth: '24px', minHeight: '24px' }}>
@@ -300,7 +304,10 @@ function RuleHead({ title, subtitle }) {
       <div style={{ height: '3px', borderBottom: '1px solid ' + V.pri }} />
       <h1
         style={{
-          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
           padding: '12px 0 10px',
           font: '600 15px/1.1 ' + t.dfont,
           letterSpacing: V.tls,
@@ -309,7 +316,8 @@ function RuleHead({ title, subtitle }) {
           margin: 0,
         }}
       >
-        {title}
+        <LinkpointLogo animated={false} showTitle={false} width={20} height={20} />
+        <span>{title}</span>
       </h1>
       <div
         style={{
@@ -326,21 +334,24 @@ function RuleHead({ title, subtitle }) {
   );
 }
 
-function EditorialHead({ title, subtitle }) {
+export function EditorialHead({ title, subtitle }) {
   const { V, t } = useTheme();
   return (
     <header style={{ flex: 'none', padding: '18px 18px 10px', borderBottom: '2px solid ' + V.ink }}>
-      <h1
-        style={{
-          font: '600 27px/1.12 ' + t.font,
-          letterSpacing: '-.01em',
-          color: V.ink,
-          textTransform: 'capitalize',
-          margin: 0,
-        }}
-      >
-        {title}
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <LinkpointLogo animated={false} showTitle={false} width={28} height={28} />
+        <h1
+          style={{
+            font: '600 27px/1.12 ' + t.font,
+            letterSpacing: '-.01em',
+            color: V.ink,
+            textTransform: 'capitalize',
+            margin: 0,
+          }}
+        >
+          {title}
+        </h1>
+      </div>
       <div
         style={{
           font: '400 12px/1.5 ' + t.font,
