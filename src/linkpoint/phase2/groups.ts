@@ -8,8 +8,8 @@
  * Manages group information, members, roles, chat, and notices.
  */
 
-import { ChatProtocolAdapter } from '../chat-protocol-adapter';
 import { Utils } from '../utils';
+import { ChatProtocolAdapter } from '../chat-protocol-adapter';
 import type { CapabilitiesManager } from './capabilities';
 import type { NoticeStore, SavedNotice } from '../notices';
 
@@ -588,6 +588,11 @@ export class GroupsManager extends Utils.EventEmitter {
       }
       this.setGroupInfo(group.id, group);
     }
+    const count = this.groups.size;
+    const status = count > 0 ? 'ready' : 'empty';
+    this.emit('groups_updated', Array.from(this.groups.values()));
+    this.emit('groups_loaded', Array.from(this.groups.values()));
+    this.emit('groups_loading_end', { itemCount: count, status });
   }
 
   replaceMembers(groupId: string, members: any[]) {
