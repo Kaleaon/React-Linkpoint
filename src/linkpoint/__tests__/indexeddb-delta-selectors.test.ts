@@ -32,19 +32,77 @@ describe('Transactional IndexedDB Storage & Reactive Delta Selectors', () => {
       await indexedDBStore.saveFolders(agentId, folders);
       await indexedDBStore.saveItems(agentId, items);
 
-      // Page 1 with pageSize 20
+      // Page 1 with pageSize 20 (folders 0..19)
       const page1 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 1, 20);
       expect(page1.totalFolders).toBe(25);
       expect(page1.totalItems).toBe(75);
       expect(page1.page).toBe(1);
       expect(page1.pageSize).toBe(20);
       expect(page1.totalPages).toBe(5); // (25 + 75) / 20 = 5 pages
-      expect(page1.folders.length + page1.items.length).toBe(20);
+      expect(page1.folders.length).toBe(20);
+      expect(page1.items.length).toBe(0);
 
-      // Page 2
+      // Page 2 (folders 20..24 [5 folders] and items 0..14 [15 items])
       const page2 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 2, 20);
       expect(page2.page).toBe(2);
-      expect(page2.folders.length + page2.items.length).toBe(20);
+      expect(page2.folders.length).toBe(5);
+      expect(page2.items.length).toBe(15);
+      expect(page2.totalFolders).toBe(25);
+      expect(page2.totalItems).toBe(75);
+
+      // Page 3 (items 15..34 [20 items])
+      const page3 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 3, 20);
+      expect(page3.page).toBe(3);
+      expect(page3.folders.length).toBe(0);
+      expect(page3.items.length).toBe(20);
+
+      // Page 5 (items 55..74 [20 items])
+      const page5 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 5, 20);
+      expect(page5.page).toBe(5);
+      expect(page5.folders.length).toBe(0);
+      expect(page5.items.length).toBe(20);
+
+      // Page 6 (out of bounds)
+      const page6 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 6, 20);
+      expect(page6.page).toBe(6);
+      expect(page6.folders.length).toBe(0);
+      expect(page6.items.length).toBe(0);
+      expect(page6.totalFolders).toBe(25);
+      expect(page6.totalItems).toBe(75);
+      expect(page6.totalPages).toBe(5);
+    });
+
+    it('handles edge cases and bounds in cursor pagination', async () => {
+      const agentId = 'agent-cursor-edge-cases';
+      const folderId = 'folder-edge-root';
+
+      // 10 folders, 0 items
+      const folders = Array.from({ length: 10 }, (_, i) => ({
+        id: `folder-edge-${i}`,
+        name: `Edge Folder ${i}`,
+        parent: folderId,
+        folderType: 0,
+      }));
+      await indexedDBStore.saveFolders(agentId, folders);
+
+      const fPage = await indexedDBStore.getFolderContentsPage(agentId, folderId, 1, 6);
+      expect(fPage.totalFolders).toBe(10);
+      expect(fPage.totalItems).toBe(0);
+      expect(fPage.totalPages).toBe(2);
+      expect(fPage.folders.length).toBe(6);
+      expect(fPage.items.length).toBe(0);
+
+      const fPage2 = await indexedDBStore.getFolderContentsPage(agentId, folderId, 2, 6);
+      expect(fPage2.folders.length).toBe(4);
+      expect(fPage2.items.length).toBe(0);
+
+      // Requesting past-the-end page offset
+      const outOfBounds = await indexedDBStore.getFolderContentsPage(agentId, folderId, 99, 10);
+      expect(outOfBounds.folders).toEqual([]);
+      expect(outOfBounds.items).toEqual([]);
+      expect(outOfBounds.totalFolders).toBe(10);
+      expect(outOfBounds.totalItems).toBe(0);
+      expect(outOfBounds.totalPages).toBe(1);
     });
 
     it('queries friends page directly with filter and pagination', async () => {
