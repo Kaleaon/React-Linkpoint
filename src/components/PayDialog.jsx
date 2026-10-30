@@ -404,6 +404,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     type="text"
                     inputMode="numeric"
                     placeholder="Custom amount"
+                    aria-label="Custom payment amount"
                     value={customAmount}
                     onChange={handleCustomChange}
                     disabled={loading || isZeroCurrency}
@@ -429,6 +430,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                 <input
                   type="text"
                   placeholder="Note to recipient"
+                  aria-label="Description / Note"
                   value={description}
                   onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
                   disabled={loading || isZeroCurrency}
