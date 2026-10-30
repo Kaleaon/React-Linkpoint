@@ -28,7 +28,8 @@ import {
   RailNav,
   TileNav,
   BottomTabs,
-  DeviceFrame
+  DeviceFrame,
+  BrandedLoader
 } from "../react/index.js";
 
 import {
@@ -98,6 +99,7 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(TileNav).toBeDefined();
     expect(BottomTabs).toBeDefined();
     expect(DeviceFrame).toBeDefined();
+    expect(BrandedLoader).toBeDefined();
     expect(useThemeTokens).toBeDefined();
     expect(useLayoutMode).toBeDefined();
   });
