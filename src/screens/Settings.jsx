@@ -12,11 +12,179 @@ import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
 import VoiceDevices from '../components/VoiceDevices.jsx';
 import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from '@linkpoint/design-system/tokens';
+import { useKeybindings } from '../context/KeybindingsContext.tsx';
+import { formatKeyString, parseKeyString, isValidKeyBinding } from '../linkpoint/key-bindings.ts';
 import {
   CAPABILITY_STATES,
   getFeatureCapability,
   isFeatureVisible,
 } from '../config/featureCapabilities.js';
+
+function ActionRemapRow({ action, label, description, currentBinding, onSave }) {
+  const parsed = parseKeyString(currentBinding) || {
+    alt: false,
+    ctrl: false,
+    shift: false,
+    baseKey: 'M',
+  };
+  const [alt, setAlt] = useState(parsed.alt);
+  const [ctrl, setCtrl] = useState(parsed.ctrl);
+  const [shift, setShift] = useState(parsed.shift);
+  const [keyInput, setKeyInput] = useState(parsed.baseKey);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const p = parseKeyString(currentBinding);
+    if (p) {
+      setAlt(p.alt);
+      setCtrl(p.ctrl);
+      setShift(p.shift);
+      setKeyInput(p.baseKey);
+    }
+  }, [currentBinding]);
+
+  const handleApply = () => {
+    setError('');
+    const parts = [];
+    if (ctrl) parts.push('Ctrl');
+    if (alt) parts.push('Alt');
+    if (shift) parts.push('Shift');
+    const cleanKey = keyInput.trim();
+    if (!cleanKey) {
+      setError('Please specify a key.');
+      return;
+    }
+    parts.push(cleanKey);
+    const candidate = parts.join('+');
+    if (!isValidKeyBinding(candidate)) {
+      setError('Invalid key combination.');
+      return;
+    }
+    const success = onSave(candidate);
+    if (!success) {
+      setError('Could not save keybinding.');
+    }
+  };
+
+  return (
+    <div
+      className="settings-switch-row"
+      style={{
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: '8px',
+        padding: '10px 12px',
+        margin: '8px 0',
+        borderRadius: '6px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'rgba(0,0,0,0.2)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <strong id={`${action}-remap-label`}>{label}</strong>
+          <small style={{ display: 'block', opacity: 0.7 }}>{description}</small>
+        </div>
+        <span
+          aria-label={`Current keybinding for ${label}: ${formatKeyString(currentBinding) || currentBinding}`}
+          style={{
+            padding: '4px 8px',
+            borderRadius: '4px',
+            background: 'rgba(255,255,255,0.15)',
+            fontWeight: 'bold',
+            fontSize: '12px',
+            letterSpacing: '0.5px',
+          }}
+        >
+          {formatKeyString(currentBinding) || currentBinding}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '10px',
+          marginTop: '4px',
+        }}
+      >
+        <label
+          style={{
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          <input type="checkbox" checked={ctrl} onChange={(e) => setCtrl(e.target.checked)} />
+          Ctrl
+        </label>
+        <label
+          style={{
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          <input type="checkbox" checked={alt} onChange={(e) => setAlt(e.target.checked)} />
+          Alt
+        </label>
+        <label
+          style={{
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          <input type="checkbox" checked={shift} onChange={(e) => setShift(e.target.checked)} />
+          Shift
+        </label>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '12px', opacity: 0.8 }}>+ Key:</span>
+          <input
+            type="text"
+            aria-label={`Key for ${label}`}
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            style={{
+              width: '60px',
+              padding: '4px 6px',
+              fontSize: '13px',
+              borderRadius: '4px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(0,0,0,0.4)',
+              color: 'inherit',
+              textAlign: 'center',
+              textTransform: 'uppercase',
+            }}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleApply}
+          style={{
+            padding: '4px 12px',
+            fontSize: '12px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          Update
+        </button>
+      </div>
+
+      {error && <span style={{ color: '#f87171', fontSize: '12px' }}>{error}</span>}
+    </div>
+  );
+}
 
 function CapabilityBadge({ capability, size = 'small' }) {
   if (!capability || capability === CAPABILITY_STATES.SUPPORTED) return null;
@@ -72,6 +240,13 @@ function SwitchSetting({ id, title, description, on, onClick, devMode }) {
 
 export default function Settings() {
   const { state, actions } = useApp();
+  const {
+    singleCharShortcutsEnabled,
+    setSingleCharShortcutsEnabled,
+    getKeybinding,
+    setCustomBinding,
+    resetKeybindings,
+  } = useKeybindings();
   const { V, t, LK } = useTheme();
   const contentRef = useRef(null);
   const browserRef = useRef(null);
@@ -91,7 +266,7 @@ export default function Settings() {
   }, []);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [matches, setMatches] = useState(11);
+  const [matches, setMatches] = useState(12);
   const categories = [
     ['all', 'All preferences'],
     ['session', 'Connection'],
@@ -101,6 +276,7 @@ export default function Settings() {
     ['chat-im', 'Chat & IM'],
     ['notifications', 'Notifications'],
     ['privacy', 'Privacy & RLV'],
+    ['controls', 'Controls & Keyboard Shortcuts'],
     ['storage', 'Storage & network'],
     ['integrations', 'Integrations'],
     ['about', 'About'],
@@ -736,6 +912,57 @@ export default function Settings() {
               </button>
               <button type="button" disabled title="Simulator grant revocation is not implemented">
                 Revoke All Grants
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Controls & Keyboard Shortcuts */}
+        <section className="runtime-card" aria-labelledby="controls-heading">
+          <Icon name="sliders" size={22} />
+          <h2 id="controls-heading">Controls &amp; Keyboard Shortcuts</h2>
+          <p style={{ margin: '0 0 12px', opacity: 0.85, fontSize: '13px' }}>
+            Configure single-character shortcuts and assign modifier keys to prevent unintended mode
+            shifts during speech input or text editing.
+          </p>
+
+          <SwitchSetting
+            id="single-char-shortcuts"
+            title="Enable Single-Character Shortcuts"
+            description="Allow single-letter key shortcuts (such as 'M' for mouselook, 'H' for overlays, or WASD for viewport movement) without modifier keys."
+            on={singleCharShortcutsEnabled}
+            onClick={() => setSingleCharShortcutsEnabled(!singleCharShortcutsEnabled)}
+          />
+
+          <div style={{ marginTop: '16px' }}>
+            <h3 style={{ fontSize: '15px', margin: '0 0 8px' }}>Action Keybindings</h3>
+            <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 12px' }}>
+              Assign custom keys or modifier keys (Alt, Ctrl, Shift) to navigation actions.
+            </p>
+
+            <ActionRemapRow
+              action="toggleMouselook"
+              label="Toggle Mouselook (Camera)"
+              description="Switch camera view between third-person and mouselook mode."
+              currentBinding={getKeybinding('toggleMouselook')}
+              onSave={(newBinding) => setCustomBinding('toggleMouselook', newBinding)}
+            />
+
+            <ActionRemapRow
+              action="toggleOverlays"
+              label="Toggle UI Overlays"
+              description="Hide or restore viewport HUD elements and UI chrome overlays."
+              currentBinding={getKeybinding('toggleOverlays')}
+              onSave={(newBinding) => setCustomBinding('toggleOverlays', newBinding)}
+            />
+
+            <div className="inline-tool" style={{ marginTop: '14px' }}>
+              <button
+                type="button"
+                onClick={resetKeybindings}
+                style={{ fontSize: '13px', padding: '6px 12px' }}
+              >
+                Reset Shortcuts to Defaults
               </button>
             </div>
           </div>
