@@ -98,7 +98,6 @@ export const ErrorRecoveryProvider: React.FC<{
     </ErrorRecoveryContext.Provider>
   );
 };
-
 const FALLBACK_ERROR_RECOVERY: ErrorRecoveryContextValue = {
   ...errorRecovery.getSnapshot(),
   service: errorRecovery,
