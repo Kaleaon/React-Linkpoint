@@ -100,6 +100,7 @@ function Motes({ layer, animated, token, glowFilterUrl }) {
  * @param {string|number} [props.width]
  * @param {string|number} [props.height]
  * @param {string} [props.idPrefix]
+ * @param {string} [props.id]
  * @param {string} [props.className]
  * @param {Object} [props.style]
  * @param {string} [props.aria-label]
@@ -112,6 +113,7 @@ export default function LinkpointLogo({
   width = '100%',
   height = 'auto',
   idPrefix = undefined,
+  id = undefined,
   className = undefined,
   style = undefined,
   'aria-label': ariaLabel = 'Linkpoint logo',
@@ -122,6 +124,7 @@ export default function LinkpointLogo({
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lplg-${cleanId}`;
+  const svgId = id || (idPrefix ? prefix : 'linkpoint-logo-react');
 
   const face1GradId = `${prefix}-face1`;
   const face2GradId = `${prefix}-face2`;
@@ -165,7 +168,7 @@ export default function LinkpointLogo({
       <svg
         xmlns="http://www.w3.org/2000/svg"
         xmlnsXlink="http://www.w3.org/1999/xlink"
-        id={prefix}
+        id={svgId}
         viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
         aria-hidden="true"
         style={{
