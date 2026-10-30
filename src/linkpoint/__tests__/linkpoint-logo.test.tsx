@@ -239,6 +239,25 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(logoSvg?.style.height).toBe('20px');
   });
 
+  it('ensures distinct SVG element and gradient IDs across DesktopChrome, Header, and Login', async () => {
+    mounted = await mountScreen(() => (
+      <div>
+        <DesktopChrome />
+        <StackHead title="CHAT" subtitle="Channel" scr="Chat" />
+        <Login />
+      </div>
+    ));
+
+    const svgs = Array.from(mounted.host.querySelectorAll('svg'));
+    const svgIds = svgs.map((svg) => svg.getAttribute('id')).filter(Boolean);
+    expect(new Set(svgIds).size).toBe(svgIds.length);
+
+    const gradients = Array.from(
+      mounted.host.querySelectorAll('linearGradient, radialGradient, filter'),
+    );
+    const gradientIds = gradients.map((g) => g.getAttribute('id')).filter(Boolean);
+    expect(new Set(gradientIds).size).toBe(gradientIds.length);
+  });
   it('generates HTML preview artifact for animated vs static logo instances', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');

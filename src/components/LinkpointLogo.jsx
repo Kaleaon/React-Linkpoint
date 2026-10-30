@@ -113,7 +113,7 @@ export default function LinkpointLogo({
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lplg-${cleanId}`;
-  const svgId = id || (idPrefix ? prefix : 'linkpoint-logo-react');
+  const svgId = id || prefix;
 
   const face1GradId = `${prefix}-face1`;
   const face2GradId = `${prefix}-face2`;
@@ -145,10 +145,12 @@ export default function LinkpointLogo({
       <style>{`
         .top-crystal-r {
           will-change: ${animated ? 'transform' : 'auto'};
+          transform: ${animated ? 'translateZ(0)' : 'none'};
           animation: ${animated ? `topCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .bot-crystal-r {
           will-change: ${animated ? 'transform' : 'auto'};
+          transform: ${animated ? 'translateZ(0)' : 'none'};
           animation: ${animated ? `botCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
         }
         .core-anim-r {
@@ -157,6 +159,7 @@ export default function LinkpointLogo({
         }
         .mote-rotator-group {
           will-change: ${animated ? 'transform' : 'auto'};
+          transform: ${animated ? 'translateZ(0)' : 'none'};
           animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
         }
         .mote-near-r {
