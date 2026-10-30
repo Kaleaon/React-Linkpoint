@@ -431,7 +431,8 @@ async function getTransactionHistory(bot, params = {}) {
     const currencySymbol =
       bot?.gridInfo?.currencySymbol ||
       bot?.gridInfo?.currency_symbol ||
-      params_currency_symbol(bot) ||
+      params?.currencySymbol ||
+      params?.currency_symbol ||
       'L$';
     const isZeroCurrency = Boolean(
       bot?.gridInfo?.isZeroCurrency || bot?.gridInfo?.is_zero_currency || bot?.isZeroCurrency,
@@ -490,12 +491,14 @@ async function getTransactionHistory(bot, params = {}) {
         const url = await caps.getCapability(capName);
         if (caps.requestGet) {
           const queryStr = new URLSearchParams(queryParams).toString();
-          const fullUrl = queryStr ? `${url}?${queryStr}` : url;
+          const separator = url.includes('?') ? '&' : '?';
+          const fullUrl = queryStr ? `${url}${separator}${queryStr}` : url;
           const resp = await caps.requestGet(fullUrl);
           res = resp?.body;
         } else if (typeof fetch === 'function') {
           const queryStr = new URLSearchParams(queryParams).toString();
-          const fullUrl = queryStr ? `${url}?${queryStr}` : url;
+          const separator = url.includes('?') ? '&' : '?';
+          const fullUrl = queryStr ? `${url}${separator}${queryStr}` : url;
           const resp = await fetch(fullUrl, {
             headers: { Accept: 'application/json, text/xml, application/llsd+xml' },
           });

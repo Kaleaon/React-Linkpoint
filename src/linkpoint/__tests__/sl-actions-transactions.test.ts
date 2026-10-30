@@ -64,4 +64,40 @@ describe('sl-actions getTransactionHistory capability fetcher', () => {
     expect(res.balance).toBe(300);
     expect(res.transactions).toEqual([]);
   });
+
+  it('handles getBalance error gracefully and extracts currencySymbol from params', async () => {
+    const mockBot = {
+      clientCommands: {
+        grid: {
+          getBalance: vi.fn().mockRejectedValue(new Error('Balance retrieval failed')),
+        },
+      },
+    };
+
+    const res = await slActions.getTransactionHistory(mockBot, { currencySymbol: 'OS$' });
+    expect(res.balance).toBe(0);
+    expect(res.currencySymbol).toBe('OS$');
+    expect(res.transactions).toEqual([]);
+  });
+
+  it('correctly appends query parameters with & when URL already contains a ?', async () => {
+    const requestGetMock = vi.fn().mockResolvedValue({ body: [] });
+    const mockBot = {
+      clientCommands: {
+        grid: {
+          getBalance: vi.fn().mockResolvedValue(50),
+        },
+      },
+      currentRegion: {
+        caps: {
+          isCapAvailable: vi.fn().mockResolvedValue(true),
+          getCapability: vi.fn().mockResolvedValue('https://example.com/caps/tx?token=xyz'),
+          requestGet: requestGetMock,
+        },
+      },
+    };
+
+    await slActions.getTransactionHistory(mockBot, { limit: 25 });
+    expect(requestGetMock).toHaveBeenCalledWith('https://example.com/caps/tx?token=xyz&limit=25');
+  });
 });

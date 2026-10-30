@@ -222,4 +222,10 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(logoSvg).not.toBeNull();
     expect(logoSvg?.style.height).toBe('20px');
   });
+
+  it('supports explicit id prop to override the SVG element id', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo id="custom-logo-id" />);
+    const svg = mounted.host.querySelector('svg#custom-logo-id');
+    expect(svg).not.toBeNull();
+  });
 });
