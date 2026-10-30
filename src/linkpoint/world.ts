@@ -46,6 +46,204 @@ export interface FlexiParams {
   force: [number, number, number];
 }
 
+export interface ParcelBuyPassData {
+  agentId?: string;
+  sessionId?: string;
+  localId: number;
+}
+
+export interface ParcelPropertiesUpdateData {
+  [key: string]: any;
+  agentId?: string;
+  sessionId?: string;
+  localId: number;
+  flags?: number;
+  parcelFlags?: number;
+  authBuyerId?: string;
+  snapshotId?: string;
+  userLocation?: [number, number, number];
+  userLookAt?: [number, number, number];
+  category?: number;
+  name?: string;
+  desc?: string;
+  description?: string;
+  musicUrl?: string;
+  mediaUrl?: string;
+  mediaId?: string;
+  mediaAutoScale?: number;
+  groupId?: string;
+  passPrice?: number;
+  passHours?: number;
+  directoryFee?: number;
+  landingType?: number;
+}
+
+/**
+ * Serializes a ParcelBuyPass UDP packet.
+ */
+export function serializeParcelBuyPass(data: ParcelBuyPassData): Uint8Array {
+  const agentId = data.agentId || '00000000-0000-0000-0000-000000000000';
+  const sessionId = data.sessionId || '00000000-0000-0000-0000-000000000000';
+  const localId = Number(data.localId) || 0;
+
+  // Header for low-frequency message 255 (0x00ff)
+  const header = new Uint8Array([0xff, 0xff, 0x00, 0xff]);
+  const buffer = new Uint8Array(4 + 16 + 16 + 4);
+  buffer.set(header, 0);
+
+  const writeUuid = (uuidStr: string, offset: number) => {
+    const hex = uuidStr.replace(/-/g, '');
+    for (let i = 0; i < 16; i++) {
+      buffer[offset + i] = parseInt(hex.substring(i * 2, i * 2 + 2) || '0', 16);
+    }
+  };
+
+  writeUuid(agentId, 4);
+  writeUuid(sessionId, 20);
+
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt32(36, localId, true);
+
+  return buffer;
+}
+
+/**
+ * Serializes a ParcelPropertiesUpdate UDP packet.
+ */
+export function serializeParcelPropertiesUpdate(data: ParcelPropertiesUpdateData): Uint8Array {
+  const agentId = data.agentId || '00000000-0000-0000-0000-000000000000';
+  const sessionId = data.sessionId || '00000000-0000-0000-0000-000000000000';
+  const localId = Number(data.localId) || 0;
+  const parcelFlags = Number(data.parcelFlags ?? data.flags ?? 0) >>> 0;
+  const authBuyerId = data.authBuyerId || '00000000-0000-0000-0000-000000000000';
+  const snapshotId = data.snapshotId || '00000000-0000-0000-0000-000000000000';
+  const userLoc = data.userLocation || [0, 0, 0];
+  const userLook = data.userLookAt || [0, 0, 0];
+  const category = Number(data.category || 0) & 0xff;
+  const nameStr = String(data.name || '');
+  const descStr = String(data.desc ?? data.description ?? '');
+  const musicUrlStr = String(data.musicUrl || '');
+  const mediaUrlStr = String(data.mediaUrl || '');
+  const mediaId = data.mediaId || '00000000-0000-0000-0000-000000000000';
+  const mediaAutoScale = Number(data.mediaAutoScale || 0) & 0xff;
+  const groupId = data.groupId || '00000000-0000-0000-0000-000000000000';
+  const passPrice = Number(data.passPrice || 0) | 0;
+  const passHours = Number(data.passHours || 0);
+  const directoryFee = Number(data.directoryFee || 0) | 0;
+  const landingType = Number(data.landingType || 0) & 0xff;
+
+  const encoder = new TextEncoder();
+  const nameBytes = encoder.encode(nameStr);
+  const descBytes = encoder.encode(descStr);
+  const musicBytes = encoder.encode(musicUrlStr);
+  const mediaBytes = encoder.encode(mediaUrlStr);
+
+  // Low-frequency message 256 (0x0100)
+  const header = new Uint8Array([0xff, 0xff, 0x01, 0x00]);
+
+  const totalLength =
+    4 +
+    32 +
+    4 +
+    4 +
+    16 +
+    16 +
+    12 +
+    12 +
+    1 +
+    1 +
+    nameBytes.length +
+    2 +
+    descBytes.length +
+    1 +
+    musicBytes.length +
+    1 +
+    mediaBytes.length +
+    16 +
+    1 +
+    16 +
+    4 +
+    4 +
+    4 +
+    1;
+
+  const buffer = new Uint8Array(totalLength);
+  buffer.set(header, 0);
+
+  const writeUuid = (uuidStr: string, offset: number) => {
+    const hex = uuidStr.replace(/-/g, '');
+    for (let i = 0; i < 16; i++) {
+      buffer[offset + i] = parseInt(hex.substring(i * 2, i * 2 + 2) || '0', 16);
+    }
+  };
+
+  let offset = 4;
+  writeUuid(agentId, offset);
+  offset += 16;
+  writeUuid(sessionId, offset);
+  offset += 16;
+
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+
+  view.setInt32(offset, localId, true);
+  offset += 4;
+  view.setUint32(offset, parcelFlags, true);
+  offset += 4;
+  writeUuid(authBuyerId, offset);
+  offset += 16;
+  writeUuid(snapshotId, offset);
+  offset += 16;
+
+  view.setFloat32(offset, userLoc[0], true);
+  offset += 4;
+  view.setFloat32(offset, userLoc[1], true);
+  offset += 4;
+  view.setFloat32(offset, userLoc[2], true);
+  offset += 4;
+
+  view.setFloat32(offset, userLook[0], true);
+  offset += 4;
+  view.setFloat32(offset, userLook[1], true);
+  offset += 4;
+  view.setFloat32(offset, userLook[2], true);
+  offset += 4;
+
+  buffer[offset++] = category;
+
+  buffer[offset++] = Math.min(nameBytes.length, 255);
+  buffer.set(nameBytes.subarray(0, 255), offset);
+  offset += Math.min(nameBytes.length, 255);
+
+  view.setUint16(offset, Math.min(descBytes.length, 65535), true);
+  offset += 2;
+  buffer.set(descBytes.subarray(0, 65535), offset);
+  offset += Math.min(descBytes.length, 65535);
+
+  buffer[offset++] = Math.min(musicBytes.length, 255);
+  buffer.set(musicBytes.subarray(0, 255), offset);
+  offset += Math.min(musicBytes.length, 255);
+
+  buffer[offset++] = Math.min(mediaBytes.length, 255);
+  buffer.set(mediaBytes.subarray(0, 255), offset);
+  offset += Math.min(mediaBytes.length, 255);
+
+  writeUuid(mediaId, offset);
+  offset += 16;
+  buffer[offset++] = mediaAutoScale;
+  writeUuid(groupId, offset);
+  offset += 16;
+
+  view.setInt32(offset, passPrice, true);
+  offset += 4;
+  view.setFloat32(offset, passHours, true);
+  offset += 4;
+  view.setInt32(offset, directoryFee, true);
+  offset += 4;
+  buffer[offset++] = landingType;
+
+  return buffer;
+}
+
 export function parseFlexibleParams(data: any): FlexiParams | null {
   if (!data) return null;
   const src =
@@ -306,14 +504,16 @@ export class WorldViewer extends Utils.EventEmitter {
         this.nearbyUsers.map((user) => ({ ...user })),
       );
     });
-    this.protocol.on('ParcelProperties', (data: any) => {
+    const handleParcelData = (data: any) => {
       const parcels = data?.ParcelData || data?.parcelData || [];
-      const parcel = Array.isArray(parcels) ? parcels[0] : parcels;
+      const parcel = Array.isArray(parcels) ? parcels[0] : parcels || data;
       if (!parcel) return;
-      this.region = { ...this.region, parcel: { ...parcel } };
-      this.emit('parcel_changed', { ...parcel });
+      this.region = { ...this.region, parcel: { ...this.region?.parcel, ...parcel } };
+      this.emit('parcel_changed', { ...this.region.parcel });
       this.emit('region_changed', { ...this.region });
-    });
+    };
+    this.protocol.on('ParcelProperties', handleParcelData);
+    this.protocol.on('ParcelPropertiesUpdate', handleParcelData);
     this.protocol.on('scene:object-add', (object: any) => {
       this.upsertSceneObject(object);
       this.followAvatar(object);
@@ -2579,5 +2779,223 @@ export class WorldViewer extends Utils.EventEmitter {
       }
       this.updateLocationDisplay();
     }
+  }
+
+  /**
+   * Purchase an access pass for a parcel.
+   * Dispatches ParcelBuyPass UDP packet.
+   */
+  public async buyPass(localId?: number): Promise<boolean> {
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+    if (!targetLocalId) {
+      throw new Error('No target parcel specified for pass purchase');
+    }
+
+    const payload = {
+      agentId: this.protocol?.agentId,
+      sessionId: this.protocol?.sessionId,
+      localId: Number(targetLocalId),
+    };
+
+    const packetBytes = serializeParcelBuyPass(payload);
+
+    if (typeof this.protocol?.sendPacket === 'function') {
+      await this.protocol.sendPacket('ParcelBuyPass', payload, packetBytes);
+    } else if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('buyParcelPass', { localId: targetLocalId });
+    }
+
+    this.emit('parcel_pass_purchased', {
+      localId: targetLocalId,
+      agentId: this.protocol?.agentId,
+      timestamp: Date.now(),
+    });
+
+    return true;
+  }
+
+  /**
+   * Update parcel properties (name, category, flags, media, etc.)
+   * Dispatches ParcelPropertiesUpdate UDP packet and updates local state.
+   */
+  public async updateParcelProperties(
+    updates: Partial<ParcelPropertiesUpdateData> & Record<string, any>,
+  ): Promise<boolean> {
+    const currentParcel = this.region?.parcel || {};
+    const localId = updates.localId ?? currentParcel.LocalID ?? currentParcel.id ?? 0;
+
+    const mergedData: ParcelPropertiesUpdateData = {
+      agentId: this.protocol?.agentId,
+      sessionId: this.protocol?.sessionId,
+      localId: Number(localId),
+      flags:
+        updates.flags ??
+        updates.parcelFlags ??
+        currentParcel.flags ??
+        currentParcel.ParcelFlags ??
+        0,
+      parcelFlags:
+        updates.parcelFlags ??
+        updates.flags ??
+        currentParcel.ParcelFlags ??
+        currentParcel.flags ??
+        0,
+      authBuyerId: updates.authBuyerId ?? currentParcel.AuthBuyerID ?? currentParcel.authBuyerId,
+      snapshotId: updates.snapshotId ?? currentParcel.SnapshotID ?? currentParcel.snapshotId,
+      userLocation: updates.userLocation ??
+        currentParcel.UserLocation ??
+        currentParcel.userLocation ?? [0, 0, 0],
+      userLookAt: updates.userLookAt ??
+        currentParcel.UserLookAt ??
+        currentParcel.userLookAt ?? [0, 0, 0],
+      category: updates.category ?? currentParcel.Category ?? currentParcel.category ?? 0,
+      name: updates.name ?? currentParcel.Name ?? currentParcel.name ?? '',
+      desc:
+        updates.desc ??
+        updates.description ??
+        currentParcel.Desc ??
+        currentParcel.description ??
+        '',
+      musicUrl: updates.musicUrl ?? currentParcel.MusicURL ?? currentParcel.musicUrl ?? '',
+      mediaUrl: updates.mediaUrl ?? currentParcel.MediaURL ?? currentParcel.mediaUrl ?? '',
+      mediaId: updates.mediaId ?? currentParcel.MediaID ?? currentParcel.mediaId,
+      mediaAutoScale:
+        updates.mediaAutoScale ?? currentParcel.MediaAutoScale ?? currentParcel.mediaAutoScale ?? 0,
+      groupId: updates.groupId ?? currentParcel.GroupID ?? currentParcel.groupId,
+      passPrice: updates.passPrice ?? currentParcel.PassPrice ?? currentParcel.passPrice ?? 0,
+      passHours: updates.passHours ?? currentParcel.PassHours ?? currentParcel.passHours ?? 0,
+      directoryFee:
+        updates.directoryFee ?? currentParcel.DirectoryFee ?? currentParcel.directoryFee ?? 0,
+      landingType:
+        updates.landingType ?? currentParcel.LandingType ?? currentParcel.landingType ?? 0,
+    };
+
+    const packetBytes = serializeParcelPropertiesUpdate(mergedData);
+
+    if (typeof this.protocol?.sendPacket === 'function') {
+      await this.protocol.sendPacket('ParcelPropertiesUpdate', mergedData, packetBytes);
+    } else if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('updateParcelProperties', mergedData);
+    }
+
+    const updatedParcel = {
+      ...currentParcel,
+      LocalID: mergedData.localId,
+      Name: mergedData.name,
+      name: mergedData.name,
+      Desc: mergedData.desc,
+      description: mergedData.desc,
+      Category: mergedData.category,
+      category: mergedData.category,
+      MusicURL: mergedData.musicUrl,
+      musicUrl: mergedData.musicUrl,
+      MediaURL: mergedData.mediaUrl,
+      mediaUrl: mergedData.mediaUrl,
+      PassPrice: mergedData.passPrice,
+      passPrice: mergedData.passPrice,
+      PassHours: mergedData.passHours,
+      passHours: mergedData.passHours,
+      LandingType: mergedData.landingType,
+      landingType: mergedData.landingType,
+      ParcelFlags: mergedData.parcelFlags,
+      flags: mergedData.parcelFlags,
+    };
+
+    this.region = { ...this.region, parcel: updatedParcel };
+    this.emit('parcel_changed', { ...updatedParcel });
+    this.emit('region_changed', { ...this.region });
+
+    return true;
+  }
+
+  /**
+   * Buy parcel with price & area confirmation guardrails.
+   */
+  public async buyParcel(options: {
+    price: number;
+    area: number;
+    confirmedPrice?: number;
+    confirmedArea?: number;
+    localId?: number;
+    forGroup?: boolean;
+  }): Promise<boolean> {
+    const { price, area, confirmedPrice, confirmedArea, localId, forGroup } = options;
+    if (confirmedPrice === undefined || confirmedPrice !== price) {
+      throw new Error(
+        `Parcel purchase failed: confirmed price (${confirmedPrice}) does not match required price (${price})`,
+      );
+    }
+    if (confirmedArea === undefined || confirmedArea !== area) {
+      throw new Error(
+        `Parcel purchase failed: confirmed area (${confirmedArea} sq.m.) does not match required area (${area} sq.m.)`,
+      );
+    }
+
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+
+    if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('buyParcel', { localId: targetLocalId, price, area, forGroup });
+    }
+
+    this.emit('parcel_bought', {
+      localId: targetLocalId,
+      price,
+      area,
+      forGroup: Boolean(forGroup),
+      timestamp: Date.now(),
+    });
+
+    return true;
+  }
+
+  /**
+   * Subdivide land with boundary vertices confirmation guardrail.
+   */
+  public async subdivideParcel(options: {
+    boundaryVertices: [number, number][];
+    confirmedVertices?: [number, number][];
+    localId?: number;
+  }): Promise<boolean> {
+    const { boundaryVertices, confirmedVertices, localId } = options;
+    if (!boundaryVertices || boundaryVertices.length < 3) {
+      throw new Error('Parcel subdivision failed: at least 3 boundary vertices are required');
+    }
+    if (!confirmedVertices || confirmedVertices.length !== boundaryVertices.length) {
+      throw new Error(
+        'Parcel subdivision failed: confirmed boundary vertices do not match required boundary vertices',
+      );
+    }
+
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+
+    if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('subdivideParcel', { localId: targetLocalId, boundaryVertices });
+    }
+
+    this.emit('parcel_subdivided', {
+      localId: targetLocalId,
+      boundaryVertices,
+      timestamp: Date.now(),
+    });
+
+    return true;
+  }
+
+  /**
+   * Reclaim parcel land.
+   */
+  public async reclaimParcel(localId?: number): Promise<boolean> {
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+
+    if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('reclaimParcel', { localId: targetLocalId });
+    }
+
+    this.emit('parcel_reclaimed', {
+      localId: targetLocalId,
+      timestamp: Date.now(),
+    });
+
+    return true;
   }
 }
