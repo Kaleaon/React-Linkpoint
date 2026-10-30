@@ -78,14 +78,14 @@ The Offline Module enables Linkpoint to operate as a self-contained local OpenSi
 
 ## 4. Integration Guidelines for `Linkpoint-design`
 
-- All components are exported from `src/linkpoint/offline/OfflineManagerView.tsx`.
+- Offline managers and services are exported from their respective modules in `src/linkpoint/offline/` (e.g., `LocalGridManager.ts`, `LocalGridServer.ts`, `LocalAssetManager.ts`, `CacheManager.ts`, `GridConsole.ts`, `OARParser.ts`).
 - State updates are emitted via `Utils.EventEmitter` events:
   - `gridStateChanged` (`{ isRunning: boolean }`)
   - `accountConfigured` (`user: LocalUser`)
   - `assetUploaded` (`asset: LocalAsset`)
   - `cacheSettingsUpdated` (`settings: CacheSettings`)
   - `logEntry` (`entry: LogEntry`) and `logCleared` — emitted by `GridConsole`
-- The console panel is exported separately from `src/linkpoint/offline/GridConsolePanel.tsx` and takes a `GridConsole` instance, so it can be embedded in any screen.
+- The console panel UI is exported from `src/linkpoint/offline/GridConsolePanel.tsx` and takes a `GridConsole` instance, so it can be embedded in any screen.
 
 ---
 

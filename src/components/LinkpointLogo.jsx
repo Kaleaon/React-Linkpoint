@@ -101,6 +101,7 @@ function Motes({ layer, animated, token, glowFilterUrl }) {
  * @param {string} [props.width]
  * @param {string} [props.height]
  * @param {string} [props.idPrefix]
+ * @param {string} [props.id]
  */
 export default function LinkpointLogo({
   animated = true,
@@ -108,12 +109,14 @@ export default function LinkpointLogo({
   width = '100%',
   height = 'auto',
   idPrefix = undefined,
+  id = undefined,
 }) {
   useLinkpointLogoStyles();
 
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lplg-${cleanId}`;
+  const svgId = id || (idPrefix ? prefix : 'linkpoint-logo-react');
 
   const face1GradId = `${prefix}-face1`;
   const face2GradId = `${prefix}-face2`;
@@ -138,7 +141,7 @@ export default function LinkpointLogo({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
-      id={prefix}
+      id={svgId}
       viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
       style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
@@ -235,7 +238,7 @@ export default function LinkpointLogo({
       </g>
 
       {/* CORE NODE */}
-      <g className={`core-anim-r ${animated ? 'animated' : ''}`.trim()}>
+      <g className={`core-anim-r ${animated ? 'animated' : ''}`.trim()} style={{ color: V.pri }}>
         <circle cx="256" cy="256" r="45" fill={coreGlowUrl} />
         <polygon points="256,242 270,256 256,270 242,256" fill={V.ink} />
       </g>

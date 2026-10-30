@@ -122,6 +122,7 @@ export const MessageIDs = {
   TELEPORT_PROGRESS: lowFrequencyId(66),
   TELEPORT_FINISH: lowFrequencyId(69),
   TELEPORT_FAILED: lowFrequencyId(74),
+  DECLINE_TELEPORT: lowFrequencyId(122),
 } as const;
 
 const UUID_BYTES = 16;

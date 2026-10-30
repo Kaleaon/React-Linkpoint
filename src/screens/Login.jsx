@@ -128,14 +128,8 @@ export default function Login() {
             alignItems: 'center',
           }}
         >
-          <div style={{ width: 96, height: 96, marginBottom: 8, flexShrink: 0 }}>
-            <LinkpointLogo
-              idPrefix="linkpoint-logo-react"
-              animated={true}
-              showTitle={false}
-              width="100%"
-              height="100%"
-            />
+          <div style={{ width: 64, height: 64, marginBottom: 8, flexShrink: 0 }}>
+            <LinkpointLogo animated={true} showTitle={false} width="64px" height="64px" />
           </div>
           <h1 style={{ color: V.pri, font: `700 28px/1.1 ${t.dfont}`, letterSpacing: '.12em' }}>
             LINKPOINT

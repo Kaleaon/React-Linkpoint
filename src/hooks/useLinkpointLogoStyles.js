@@ -17,7 +17,6 @@ export const LOGO_CSS = `
   }
   .core-anim-r {
     transform-origin: 256px 256px;
-    will-change: transform, opacity;
   }
   .core-anim-r.animated {
     animation: corePulseR 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
@@ -28,14 +27,8 @@ export const LOGO_CSS = `
   .mote-rotator-group.animated {
     animation: moteRotate 6s linear infinite;
   }
-  .mote-near-r {
-    will-change: opacity;
-  }
   .mote-near-r.animated {
     animation: moteNearFade 6s linear infinite;
-  }
-  .mote-far-r {
-    will-change: opacity;
   }
   .mote-far-r.animated {
     animation: moteFarFade 6s linear infinite;

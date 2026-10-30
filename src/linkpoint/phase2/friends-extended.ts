@@ -11,6 +11,68 @@
 import { Utils } from '../utils';
 import { deltaSelectorStore } from '../delta-selectors';
 import { indexedDBStore } from '../indexeddb-store';
+import { MessageIDs } from '../sl-message-types';
+
+export interface DeclineTeleportPacketPayload {
+  agentId: string;
+  sessionId: string;
+}
+
+export interface SerializedDeclineTeleportPacket {
+  messageName: string;
+  messageId: number;
+  agentId: string;
+  sessionId: string;
+  payload: Uint8Array;
+}
+
+/**
+ * Serializes a DeclineTeleport UDP packet according to SL protocol standards.
+ * Passes the inviting agent ID and session ID in the packet payload.
+ */
+export function serializeDeclineTeleportPacket(
+  agentId: string,
+  sessionId: string,
+): SerializedDeclineTeleportPacket {
+  const normAgentId = String(agentId || '').trim();
+  const normSessionId = String(sessionId || '').trim();
+
+  if (!normAgentId) {
+    throw new Error('Valid agent ID required for DeclineTeleport packet');
+  }
+  if (!normSessionId) {
+    throw new Error('Valid session ID required for DeclineTeleport packet');
+  }
+
+  const uuidToBytes = (uuidStr: string): Uint8Array => {
+    const hex = uuidStr.replace(/[{}]/g, '').replace(/-/g, '');
+    const bytes = new Uint8Array(16);
+    if (hex.length === 32) {
+      for (let i = 0; i < 16; i++) {
+        bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16) || 0;
+      }
+    }
+    return bytes;
+  };
+
+  const agentIdBytes = uuidToBytes(normAgentId);
+  const sessionIdBytes = uuidToBytes(normSessionId);
+
+  const payload = new Uint8Array(32);
+  payload.set(agentIdBytes, 0);
+  payload.set(sessionIdBytes, 16);
+
+  return {
+    messageName: 'DeclineTeleport',
+    messageId: MessageIDs.DECLINE_TELEPORT ?? 0xffff007a,
+    agentId: normAgentId,
+    sessionId: normSessionId,
+    payload,
+  };
+}
+
+/** Alias serializer function for flexible caller usage */
+export const serializeDeclineTeleport = serializeDeclineTeleportPacket;
 
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
 const isRealName = (name: unknown): name is string =>
@@ -426,5 +488,25 @@ export class FriendsExtended extends Utils.EventEmitter {
       pendingRequests: this.pendingRequestIds.size,
       friendGroups: this.friendGroups.size,
     };
+  }
+
+  /**
+   * Feature: Teleport Lure Decline
+   * Serialize and dispatch DeclineTeleport UDP packet for a teleport lure
+   */
+  async declineTeleportLure(agentId: string, sessionId: string) {
+    const packet = serializeDeclineTeleportPacket(agentId, sessionId);
+
+    if (typeof this.protocol?.sendDeclineTeleport === 'function') {
+      await this.protocol.sendDeclineTeleport(agentId, sessionId, packet);
+    } else if (typeof this.protocol?.sendPacket === 'function') {
+      await this.protocol.sendPacket(packet);
+    } else if (typeof this.protocol?.declineLure === 'function') {
+      await this.protocol.declineLure({ agentId, sessionId, packet });
+    }
+
+    this.emit('teleport_lure_declined', { agentId, sessionId, packet });
+    console.log(`[FriendsExtended] Dispatched DeclineTeleport packet for agent: ${agentId}`);
+    return packet;
   }
 }

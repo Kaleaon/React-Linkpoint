@@ -322,7 +322,7 @@ export default function ContactsScreen() {
                     font: `400 12px/1.3 ${t.font}`,
                   }}
                 >
-                  <ContactAvatar name={contact.name} photo={contact.photo} size={36} />
+                  <ContactAvatar name={contact.name} photo={contact.photo} size={36} alt="" />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <strong style={{ display: 'block', fontSize: 13 }}>
                       {contact.name}
