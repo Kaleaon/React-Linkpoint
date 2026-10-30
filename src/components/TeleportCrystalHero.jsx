@@ -29,8 +29,10 @@ function TeleportCrystalHero({
   const p = Math.min(100, Math.max(0, rawP));
 
   // Core glow intensity reacts to progress
-  const coreRadius = isFailed ? 14 : 8 + (p / 100) * 8;
-  const coreOpacity = isFailed ? 0.95 : 0.4 + (p / 100) * 0.55;
+  const coreRadius = isFailed ? 14 : Number((8 + (p / 100) * 8).toFixed(4));
+  const coreOpacity = isFailed ? 0.95 : Number((0.4 + (p / 100) * 0.55).toFixed(4));
+  const crystalScale = isFailed ? 1 : Number((1 + (p / 100) * 0.05).toFixed(4));
+  const crystalGlowOpacity = coreOpacity;
 
   const priColor = isFailed ? 'var(--err, #EF4444)' : 'var(--pri, #6CFF9A)';
   const strokeColor = isFailed ? 'var(--err, #EF4444)' : 'var(--outv, #365047)';
@@ -57,6 +59,8 @@ function TeleportCrystalHero({
         '--tpch-bot-y': 'calc(var(--tpch-gap) / 2)',
         '--tpch-core-radius': `${coreRadius}px`,
         '--tpch-core-opacity': `${coreOpacity}`,
+        '--crystal-scale': `${crystalScale}`,
+        '--crystal-glow-opacity': `${crystalGlowOpacity}`,
       }}
     >
       <svg
@@ -67,6 +71,8 @@ function TeleportCrystalHero({
           height: '100%',
           display: 'block',
           overflow: 'visible',
+          transform: 'scale(var(--crystal-scale, 1))',
+          transformOrigin: 'center center',
         }}
       >
         <style>{`
@@ -191,7 +197,7 @@ function TeleportCrystalHero({
           opacity={coreOpacity}
           style={{
             r: 'var(--tpch-core-radius)',
-            opacity: 'var(--tpch-core-opacity)',
+            opacity: 'var(--crystal-glow-opacity, var(--tpch-core-opacity))',
           }}
         />
       </svg>

@@ -127,6 +127,16 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(cssText).toContain('@keyframes moteFarFade');
   });
 
+  it('scopes layer promotion rules to active animation states', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo animated={false} />);
+    const styleEl = mounted.host.querySelector('style');
+    expect(styleEl).not.toBeNull();
+    const cssText = styleEl?.textContent || '';
+
+    expect(cssText).toContain('will-change: auto');
+    expect(cssText).not.toContain('will-change: transform');
+  });
+
   it('contains prefers-reduced-motion media query for accessibility', async () => {
     mounted = await mountScreen(LinkpointLogo);
     const styleEl = mounted.host.querySelector('style');
