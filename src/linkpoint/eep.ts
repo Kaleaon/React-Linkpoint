@@ -4,7 +4,7 @@
  * LLSettingsDay). All vectors are in Second Life world space (Z up).
  */
 
-import { slerp } from './sl-math';
+import { lerp, slerp } from './sl-math';
 import { pickProperty } from './utils';
 
 export type Vec3 = [number, number, number];
@@ -176,7 +176,6 @@ export function normalizeWater(frame: Raw | null | undefined): WaterSettings {
 
 // ---- blending ---------------------------------------------------------------------------------------
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
   lerp(a[0], b[0], t),
   lerp(a[1], b[1], t),

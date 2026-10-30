@@ -58,19 +58,15 @@ export interface LogFilter {
 export const DEFAULT_MAX_ENTRIES = 500;
 export const MAX_ENTRIES_LIMIT = 10000;
 
-function pad(value: number, size: number = 2): string {
-  return String(value).padStart(size, '0');
-}
-
 /** `16:30:33,123` - the time portion of an OpenSim log line. */
 export function formatLogTime(timestamp: number): string {
   const date = new Date(timestamp);
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())},${pad(date.getMilliseconds(), 3)}`;
+  return `${Utils.pad(date.getHours())}:${Utils.pad(date.getMinutes())}:${Utils.pad(date.getSeconds())},${Utils.pad(date.getMilliseconds(), 3)}`;
 }
 
 function formatLogDate(timestamp: number): string {
   const date = new Date(timestamp);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${date.getFullYear()}-${Utils.pad(date.getMonth() + 1)}-${Utils.pad(date.getDate())}`;
 }
 
 /** `16:30:33,123 INFO  [REGION]: message` */

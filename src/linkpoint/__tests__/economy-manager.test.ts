@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EconomyManager } from '../economy-manager';
 import { formatCurrency, formatAmount } from '../currency-formatter';
-import { localCache } from '../local-cache';
 import { slBridge } from '../sl-bridge';
 import { economyService } from '../../services/EconomyService';
 
@@ -195,6 +194,7 @@ describe('EconomyManager Subsystem', () => {
   });
 
   it('handles RPC errors for declined payments', async () => {
+    economy.balance = 5000;
     vi.spyOn(slBridge, 'payAvatar').mockRejectedValueOnce(
       new Error('Insufficient funds to complete payment'),
     );
@@ -211,5 +211,196 @@ describe('EconomyManager Subsystem', () => {
     const failedTx = economy.transactions.find((t) => t.targetId === 'avatar-uuid-fail');
     expect(failedTx).toBeDefined();
     expect(failedTx?.status).toBe('failed');
+  });
+
+  it('serializes MoneyTransferRequest UDP packets accurately', () => {
+    const packet = economy.serializeMoneyTransferRequest({
+      agentId: '84411fb2-a581-4202-990a-5c2105e1975e',
+      sessionId: '11111111-2222-3333-4444-555555555555',
+      destinationId: '99999999-8888-7777-6666-555555555555',
+      amount: 250,
+      transactionType: 5001,
+      description: 'Vendor Purchase',
+    });
+
+    expect(packet).toBeInstanceOf(Uint8Array);
+    const view = new DataView(packet.buffer);
+    // Message ID 0xFFFF00FC
+    expect(view.getUint32(0, false)).toBe(0xffff00fc);
+    // Amount at offset 72
+    expect(view.getInt32(72, true)).toBe(250);
+    // Transaction type at offset 68
+    expect(view.getInt32(68, true)).toBe(5001);
+  });
+
+  it('automatically deducts balance and emits balance_updated event on successful payment', async () => {
+    economy.balance = 500;
+    const balanceListener = vi.fn();
+    economy.on('balance_updated', balanceListener);
+
+    vi.spyOn(slBridge, 'payObject').mockResolvedValueOnce({
+      paid: true,
+      targetId: 'vendor-123',
+      amount: 150,
+      description: 'Buying shirt',
+    });
+
+    const tx = await economy.payObject({
+      targetId: 'vendor-123',
+      targetName: 'Clothing Vendor',
+      amount: 150,
+      description: 'Buying shirt',
+    });
+
+    expect(tx.status).toBe('success');
+    expect(economy.balance).toBe(350);
+    expect(balanceListener).toHaveBeenCalledWith({
+      balance: 350,
+      currencySymbol: 'L$',
+      isZeroCurrency: false,
+    });
+  });
+
+  it('blocks payments exceeding available L$ balance', async () => {
+    economy.balance = 100;
+
+    await expect(
+      economy.payObject({
+        targetId: 'vendor-expensive',
+        amount: 250,
+      }),
+    ).rejects.toThrow('Insufficient L$ balance');
+
+    await expect(
+      economy.payAvatar({
+        targetId: 'avatar-rich',
+        amount: 500,
+      }),
+    ).rejects.toThrow('Insufficient L$ balance');
+  });
+
+  it('invokes PayObject capability RPC when capability URL is available', async () => {
+    economy.balance = 1000;
+    vi.spyOn(economy.syncEngine.capabilitiesManager, 'getPayObjectUrl').mockReturnValue(
+      'https://sim.secondlife.com/cap/pay_object_test',
+    );
+    const capSpy = vi
+      .spyOn(economy.syncEngine.capabilitiesManager, 'executePayObjectCapability')
+      .mockResolvedValueOnce({ success: true, transaction: { id: 'cap_tx_777' } });
+
+    const tx = await economy.payObject({
+      targetId: 'scripted-vendor-99',
+      targetName: 'Scripted Vendor',
+      amount: 250,
+      description: 'PayObject RPC Test',
+    });
+
+    expect(capSpy).toHaveBeenCalledWith('scripted-vendor-99', 250, 'PayObject RPC Test');
+    expect(tx.id).toBe('cap_tx_777');
+    expect(economy.balance).toBe(750);
+  });
+
+  it('CapabilitiesManager.executePayObjectCapability sends POST request with JSON payload', async () => {
+    const caps = economy.syncEngine.capabilitiesManager;
+    caps.setCapability('PayObject', 'https://sim.secondlife.com/cap/pay_object_endpoint');
+
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, transaction: { id: 'cap-999' } }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await caps.executePayObjectCapability('obj-123', 50, 'Tip for item');
+
+    expect(fetchSpy).toHaveBeenCalledWith('https://sim.secondlife.com/cap/pay_object_endpoint', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        object_id: 'obj-123',
+        amount: 50,
+        description: 'Tip for item',
+      }),
+    });
+    expect(result).toEqual({ success: true, transaction: { id: 'cap-999' } });
+    vi.unstubAllGlobals();
+  });
+
+  it('filters transactions by date range, transaction type, and avatar filter options', async () => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    await economy.recordTransaction({
+      id: 'tx-opt-1',
+      description: 'Vendor Item Purchase',
+      targetName: 'Merchant Avatar',
+      targetId: 'avatar-merchant-1',
+      amount: -150,
+      type: 'purchase',
+      timestamp: now - 1 * dayMs,
+      status: 'success',
+    });
+
+    await economy.recordTransaction({
+      id: 'tx-opt-2',
+      description: 'DJ Tip',
+      targetName: 'Musician Resident',
+      targetId: 'avatar-dj-2',
+      amount: 50,
+      type: 'tip',
+      timestamp: now - 10 * dayMs,
+      status: 'success',
+    });
+
+    await economy.recordTransaction({
+      id: 'tx-opt-3',
+      description: 'Land Refund',
+      targetName: 'System Governor',
+      targetId: 'sys-gov-3',
+      amount: 500,
+      type: 'refund',
+      timestamp: now - 20 * dayMs,
+      status: 'success',
+    });
+
+    // Filter by type
+    const purchases = economy.getTransactions({ type: 'purchase' });
+    expect(purchases.length).toBe(1);
+    expect(purchases[0].id).toBe('tx-opt-1');
+
+    const debits = economy.getTransactions({ type: 'debit' });
+    expect(debits.map((t) => t.id)).toContain('tx-opt-1');
+
+    const credits = economy.getTransactions({ type: 'credit' });
+    expect(credits.map((t) => t.id)).toContain('tx-opt-2');
+    expect(credits.map((t) => t.id)).toContain('tx-opt-3');
+
+    // Filter by avatar
+    const merchantTxs = economy.getTransactions({ avatar: 'Merchant Avatar' });
+    expect(merchantTxs.length).toBe(1);
+    expect(merchantTxs[0].id).toBe('tx-opt-1');
+
+    // Filter by date range
+    const recent7Days = economy.getTransactions({ dateRange: '7days' });
+    expect(recent7Days.length).toBe(1);
+    expect(recent7Days[0].id).toBe('tx-opt-1');
+
+    const recent14Days = economy.getTransactions({ dateRange: '14days' });
+    expect(recent14Days.length).toBe(2);
+
+    // Filter by custom date boundaries
+    const customRange = economy.getTransactions({
+      startDate: now - 15 * dayMs,
+      endDate: now - 5 * dayMs,
+    });
+    expect(customRange.length).toBe(1);
+    expect(customRange[0].id).toBe('tx-opt-2');
+
+    // Filter by free-text search query
+    const searchResults = economy.getTransactions({ searchQuery: 'Governor' });
+    expect(searchResults.length).toBe(1);
+    expect(searchResults[0].id).toBe('tx-opt-3');
   });
 });

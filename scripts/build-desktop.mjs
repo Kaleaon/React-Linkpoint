@@ -28,6 +28,8 @@ function run(command, args, env = {}) {
   }
 }
 
+run('node', ['scripts/build-wasm.mjs', '--check']);
+run('node', ['scripts/check-source-imports.mjs']);
 run('npx', ['--no-install', 'vite', 'build'], { VITE_BASE_PATH: './' });
 // The config is passed explicitly: electron-builder's auto-discovery does not
 // pick up electron-builder.config.js here, and silently falling back to its

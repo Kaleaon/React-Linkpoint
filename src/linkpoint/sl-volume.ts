@@ -10,7 +10,7 @@
  * Shapes are unit sized (about +-0.5 on each axis) and are scaled by the object.
  */
 
-import { cross, normalize, sub } from './sl-math';
+import { cross, lerp, normalize, sub } from './sl-math';
 
 export interface VolumeParams {
   pathCurve: number;
@@ -68,7 +68,6 @@ const PATH_LINE = 0x10,
   PATH_TEST = 0x40;
 
 type P3 = [number, number, number];
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 interface ProfileFace {
   index: number;
