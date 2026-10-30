@@ -36,6 +36,8 @@ import { ParticleEngine } from './particles';
 import { FlexibleChain } from './flexible';
 import { RegionWind } from './wind';
 import { CoordinateNormalizer } from './coordinate-normalizer';
+import { MediaTexturePipeline } from './media-pipeline';
+import { ObjectMediaParser, type PrimFaceMedia, type MediaPlaybackState } from './world-viewer';
 
 export interface FlexiParams {
   softness: number;
@@ -172,6 +174,178 @@ export class WorldViewer extends Utils.EventEmitter {
   private flexChains = new Map<string, { chain: FlexibleChain; last: number }>();
   private renderedParticles = new Set<string>();
 
+  public mediaPipeline = new MediaTexturePipeline();
+  public focusedMediaFace: {
+    objectId: string;
+    faceIndex: number;
+    media: PrimFaceMedia;
+    state: MediaPlaybackState;
+  } | null = null;
+
+  /**
+   * Handle ObjectMedia capability response or RPC payload.
+   */
+  public handleObjectMediaResponse(response: any) {
+    const parsedMap = ObjectMediaParser.parseResponse(response);
+    for (const [objectId, mediaList] of parsedMap.entries()) {
+      for (const media of mediaList) {
+        this.setPrimFaceMedia(objectId, media.faceIndex, media);
+      }
+    }
+    this.emit('object_media_updated', { parsedMap });
+  }
+
+  /**
+   * Assigns media parameters to a prim face and registers dynamic canvas texture.
+   */
+  public setPrimFaceMedia(
+    objectId: string,
+    faceIndex: number,
+    mediaData: Partial<PrimFaceMedia> | any,
+  ) {
+    const object =
+      this.sceneObjects.get(objectId) ??
+      [...this.sceneObjects.values()].find((o: any) => this.sameId(o.id, objectId));
+
+    const media = ObjectMediaParser.parseSingleFace(objectId, faceIndex, mediaData) || {
+      objectId,
+      faceIndex,
+      currentUrl: String(mediaData?.currentUrl || mediaData?.url || ''),
+      homeUrl: String(mediaData?.homeUrl || mediaData?.url || ''),
+      autoPlay: Boolean(mediaData?.autoPlay ?? true),
+      autoLoop: Boolean(mediaData?.autoLoop ?? true),
+      autoScale: Boolean(mediaData?.autoScale ?? true),
+      autoZoom: Boolean(mediaData?.autoZoom ?? false),
+      controls: mediaData?.controls || 'standard',
+      widthPixels: Number(mediaData?.widthPixels || 512),
+      heightPixels: Number(mediaData?.heightPixels || 512),
+      firstClickInteract: Boolean(mediaData?.firstClickInteract ?? false),
+      whitelist: Array.isArray(mediaData?.whitelist) ? mediaData.whitelist : [],
+      whitelistEnable: Boolean(mediaData?.whitelistEnable ?? false),
+      permsInteract: Number(mediaData?.permsInteract || 31),
+      permsControl: Number(mediaData?.permsControl || 31),
+    };
+
+    const textureName = this.mediaPipeline.registerMediaFace(media);
+
+    if (object) {
+      if (!object.faces) object.faces = [];
+      while (object.faces.length <= faceIndex) {
+        object.faces.push({});
+      }
+      object.faces[faceIndex] = {
+        ...object.faces[faceIndex],
+        media,
+        mediaTexture: textureName,
+      };
+      this.applySceneObject(object);
+    }
+
+    this.emit('media_face_set', { objectId, faceIndex, media, textureName });
+  }
+
+  public playMedia(objectId: string, faceIndex: number = 0) {
+    const ok = this.mediaPipeline.play(objectId, faceIndex);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) this.focusedMediaFace.state = state;
+      }
+      this.emit('media_playback_changed', { objectId, faceIndex, isPlaying: true });
+    }
+  }
+
+  public pauseMedia(objectId: string, faceIndex: number = 0) {
+    const ok = this.mediaPipeline.pause(objectId, faceIndex);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) this.focusedMediaFace.state = state;
+      }
+      this.emit('media_playback_changed', { objectId, faceIndex, isPlaying: false });
+    }
+  }
+
+  public navigateMedia(objectId: string, faceIndex: number = 0, newUrl: string = '') {
+    const ok = this.mediaPipeline.navigate(objectId, faceIndex, newUrl);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) {
+          this.focusedMediaFace.state = state;
+          this.focusedMediaFace.media.currentUrl = newUrl;
+        }
+      }
+      this.emit('media_url_changed', { objectId, faceIndex, url: newUrl });
+    }
+  }
+
+  public goHomeMedia(objectId: string, faceIndex: number = 0) {
+    const ok = this.mediaPipeline.goHome(objectId, faceIndex);
+    if (ok) {
+      const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex &&
+        state
+      ) {
+        this.focusedMediaFace.state = state;
+      }
+      this.emit('media_url_changed', { objectId, faceIndex, url: state?.url });
+    }
+  }
+
+  public setMediaVolume(objectId: string, faceIndex: number = 0, volume: number = 1.0) {
+    const ok = this.mediaPipeline.setVolume(objectId, faceIndex, volume);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) this.focusedMediaFace.state = state;
+      }
+      this.emit('media_volume_changed', { objectId, faceIndex, volume });
+    }
+  }
+
+  public focusMediaFace(objectId: string, faceIndex: number = 0) {
+    const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+    const media =
+      this.mediaPipeline.getMediaFace(objectId, faceIndex) ||
+      (
+        this.sceneObjects.get(objectId) ??
+        [...this.sceneObjects.values()].find((o: any) => this.sameId(o.id, objectId))
+      )?.faces?.[faceIndex]?.media;
+
+    if (state && media) {
+      this.focusedMediaFace = { objectId, faceIndex, media, state };
+    } else {
+      this.focusedMediaFace = null;
+    }
+    this.emit('focused_media_changed', this.focusedMediaFace);
+  }
+
+  public updateMediaTextures() {
+    if (!this.graphics3d || !this.camera3d) return;
+    const cameraPos = this.camera3d.position;
+    const objectPositionsMap = new Map<string, [number, number, number]>();
+    for (const [id, obj] of this.sceneObjects.entries()) {
+      const pos = obj.position || [0, 0, 0];
+      objectPositionsMap.set(id, pos);
+    }
+    this.mediaPipeline.update(this.graphics3d, cameraPos, objectPositionsMap);
+  }
+
   /** Assets the host could not download or decode, newest last. A failed mesh leaves its placeholder on screen. */
   private assetErrors = new Map<string, string>();
 
@@ -248,6 +422,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.displayedHud = null;
       this.hudSignature = '';
       this.sceneObjects.clear();
+      this.mediaPipeline.clear();
       this.particles.clear();
       this.flexChains.clear();
       this.lostAssetWarned.clear();
@@ -1187,6 +1362,7 @@ export class WorldViewer extends Utils.EventEmitter {
         this.updateAnimatedAvatars();
         this.updateFlexibles(time / 1000);
         this.updateParticles(time / 1000);
+        this.updateMediaTextures();
         this.scene3d.render();
       }
       this.animationId = requestAnimationFrame(render);
@@ -2285,6 +2461,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const affectedSubject = removed && !removed.avatar ? this.animationSubject(removed) : null;
     this.invalidateSubjectCache(id);
     this.sceneObjects.delete(id);
+    this.mediaPipeline.unregisterAllForObject(id);
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
     this.particles.removeEmitter(id);
