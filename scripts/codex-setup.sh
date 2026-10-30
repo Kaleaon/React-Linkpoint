@@ -54,7 +54,7 @@ fi
 # Do not install tools globally: Codex containers commonly use an unprivileged
 # account. npm exec downloads the exact Bun binary into npm's user cache and
 # works whether or not the image happens to have another Bun version installed.
-if command -v bun >/dev/null 2>&1; then
+if command -v bun >/dev/null 2>&1 && [[ "$(bun --version 2>/dev/null)" == "${BUN_VERSION}" ]]; then
   BUN=(bun)
 else
   BUN=(npm exec --yes --package="bun@${BUN_VERSION}" -- bun)

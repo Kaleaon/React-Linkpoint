@@ -8,6 +8,7 @@ import cors from 'cors';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import dgram from 'dgram';
+import { createViewerViteConfig } from './vite.config.mts';
 import { createRequire } from 'module';
 const requireCjs = createRequire(import.meta.url);
 const { fetchProfilePhoto } = requireCjs('./core/sl-profile-photo.cjs') as {
@@ -50,7 +51,7 @@ console.error = function (...args: any[]) {
   _origConsoleError.apply(console, args);
 };
 
-export async function createApp() {
+export async function createApp(httpServer?: http.Server) {
   const app = express();
   const permitSecret =
     process.env.PROXY_PERMIT_SECRET ||
@@ -427,8 +428,11 @@ export async function createApp() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production' && !process.env.VITEST) {
     console.log('[Server] Mounting Vite middleware...');
+    const config = createViewerViteConfig('development', httpServer);
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      ...config,
+      configFile: false,
+      server: { ...config.server, middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -447,12 +451,19 @@ export async function createApp() {
 async function startServer() {
   const PORT = Number(process.env.PORT || 3000);
   console.log(`[Server] Starting in ${process.env.NODE_ENV || 'development'} mode...`);
-  const app = await createApp();
-
-  const server = http.createServer(app);
+  const server = http.createServer();
+  const app = await createApp(server);
+  server.on('request', app);
 
   // WebSocket to UDP bridging
-  const wss = new WebSocketServer({ server, path: '/api/udp-proxy' });
+  const wss = new WebSocketServer({ noServer: true });
+  server.on('upgrade', (req, socket, head) => {
+    // Leave Vite's socket upgrades for Vite; ws's automatic path rejection
+    // would otherwise close them before its listener can complete the handshake.
+    const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+    if (pathname !== '/api/udp-proxy') return;
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+  });
 
   wss.on('connection', (ws) => {
     let udpSocket: dgram.Socket | null = null;
