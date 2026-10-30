@@ -63,7 +63,7 @@ describe('ErrorRecovery UI Components', () => {
     expect(mounted.host.querySelector('[data-testid="error-recovery-banner"]')).toBeNull();
   });
 
-  it('renders non-blocking banner when device goes offline', async () => {
+  it('renders non-blocking banner with inline CrystalLoader when device goes offline', async () => {
     mounted = await mountScreen(() => <TestApp />);
 
     await act(async () => {
@@ -75,6 +75,11 @@ describe('ErrorRecovery UI Components', () => {
     expect(banner?.textContent).toContain(
       'Network disconnected. Auto-reconnecting when signal restores…',
     );
+
+    const loader = banner?.querySelector('[data-testid="crystal-loader"]');
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.getAttribute('style')).toContain('width: 16px');
   });
 
   it('renders recovery modal with human-readable error catalog translation for BACKEND_OUTAGE', async () => {

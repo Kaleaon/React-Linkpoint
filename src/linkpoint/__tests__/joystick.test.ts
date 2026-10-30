@@ -226,6 +226,161 @@ describe('GamepadInput', () => {
     tick();
     expect(calls).toContainEqual({ flying: true });
   });
+
+  it('hibernates polling timer on start when disabled or when gamepad is missing', () => {
+    let enabled = false;
+    let pad: Gamepad | null = null;
+    const input = new GamepadInput(
+      { setAnalog: () => {}, setFlying: () => {}, isFlying: () => false },
+      { enabled: () => enabled, getGamepads: () => [pad] },
+    );
+
+    input.start();
+    expect(input.isPolling()).toBe(false);
+
+    enabled = true;
+    input.checkConnection();
+    expect(input.isPolling()).toBe(false);
+
+    pad = fakePad([0, 0, 0, 0]);
+    input.checkConnection();
+    expect(input.isPolling()).toBe(true);
+    input.stop();
+  });
+
+  it('stops timer during poll when gamepad is disconnected or disabled', () => {
+    let enabled = true;
+    let pad: Gamepad | null = fakePad([0, -1, 0, 0]);
+    const calls: any[] = [];
+    const input = new GamepadInput(
+      { setAnalog: (a) => calls.push(a), setFlying: () => {}, isFlying: () => false },
+      { enabled: () => enabled, getGamepads: () => [pad] },
+    );
+
+    input.start();
+    expect(input.isPolling()).toBe(true);
+
+    // Poll once while connected so analog movement is active
+    input.poll();
+    expect(calls.at(-1)).not.toBeNull();
+
+    // Disconnect gamepad
+    pad = null;
+    input.poll();
+    expect(input.isPolling()).toBe(false);
+    expect(calls.at(-1)).toBeNull();
+
+    // Re-connect
+    pad = fakePad([0, -1, 0, 0]);
+    input.checkConnection();
+    expect(input.isPolling()).toBe(true);
+
+    // Poll while re-connected
+    input.poll();
+    expect(calls.at(-1)).not.toBeNull();
+
+    // Disable
+    enabled = false;
+    input.poll();
+    expect(input.isPolling()).toBe(false);
+    expect(calls.at(-1)).toBeNull();
+    input.stop();
+  });
+
+  it('starts and stops polling on gamepadconnected and gamepaddisconnected window events', () => {
+    let pad: Gamepad | null = null;
+    const input = new GamepadInput(
+      { setAnalog: () => {}, setFlying: () => {}, isFlying: () => false },
+      { enabled: () => true, getGamepads: () => [pad] },
+    );
+
+    input.start();
+    expect(input.isPolling()).toBe(false);
+
+    pad = fakePad([0, 0, 0, 0]);
+    window.dispatchEvent(new Event('gamepadconnected'));
+    expect(input.isPolling()).toBe(true);
+
+    pad = null;
+    window.dispatchEvent(new Event('gamepaddisconnected'));
+    expect(input.isPolling()).toBe(false);
+
+    input.stop();
+  });
+
+  it('removes window event listeners and clears active timers on stop()', () => {
+    const pad = fakePad([0, -1, 0, 0]);
+    const calls: any[] = [];
+    const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+    const input = new GamepadInput(
+      { setAnalog: (a) => calls.push(a), setFlying: () => {}, isFlying: () => false },
+      { enabled: () => true, getGamepads: () => [pad] },
+    );
+
+    input.start();
+    expect(input.isPolling()).toBe(true);
+
+    input.poll();
+    expect(calls.at(-1)).not.toBeNull();
+
+    input.stop();
+    expect(input.isPolling()).toBe(false);
+    expect(calls.at(-1)).toBeNull();
+    expect(removeListenerSpy).toHaveBeenCalledWith('gamepadconnected', expect.any(Function));
+    expect(removeListenerSpy).toHaveBeenCalledWith('gamepaddisconnected', expect.any(Function));
+
+    removeListenerSpy.mockRestore();
+  });
+
+  it('updates last time continuously during inactive active() state to prevent delta time spikes', () => {
+    let active = true;
+    let time = 1000;
+    const pad = fakePad([0, -1, 0, 0]);
+    const calls: any[] = [];
+
+    const input = new GamepadInput(
+      { setAnalog: (a) => calls.push(a), setFlying: () => {}, isFlying: () => false },
+      {
+        enabled: () => true,
+        active: () => active,
+        getGamepads: () => [pad],
+        now: () => time,
+      },
+    );
+
+    input.start();
+    expect(input.isPolling()).toBe(true);
+
+    // Initial poll at t=1000
+    input.poll();
+    expect(calls.at(-1)).not.toBeNull();
+
+    // Window becomes inactive for 10 seconds (300 poll ticks)
+    active = false;
+    for (let i = 0; i < 300; i++) {
+      time += 33;
+      input.poll();
+    }
+    // Analog controls released while inactive
+    expect(calls.at(-1)).toBeNull();
+
+    // Window becomes active again
+    active = true;
+    time += 33;
+    const stepSpy = vi.spyOn((input as any).joystick, 'step');
+    input.poll();
+
+    // dt passed to joystick step should be 0.033s, not 10+ seconds
+    expect(stepSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dt: expect.closeTo(0.033, 3),
+      }),
+    );
+
+    stepSpy.mockRestore();
+    input.stop();
+  });
 });
 
 describe('AgentController analog layer', () => {
