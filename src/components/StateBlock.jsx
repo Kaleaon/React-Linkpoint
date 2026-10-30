@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
-import CrystalLoader from './CrystalLoader.jsx';
+import BrandedLoader from './BrandedLoader.jsx';
 import { app } from '../linkpoint/app.ts';
 
 /**
@@ -140,7 +140,7 @@ export default function StateBlock({
       }}
     >
       {isLoading ? (
-        <CrystalLoader />
+        <BrandedLoader variant="screen" />
       ) : (
         <div
           style={{
