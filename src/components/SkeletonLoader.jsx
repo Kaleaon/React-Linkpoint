@@ -22,7 +22,7 @@ export function SkeletonRow({ count = 1 }) {
 }
 
 export function SkeletonCard({ height = '120px', style = {} }) {
-  return <BrandedLoader variant="card" style={{ height, ...style }} />;
+  return <BrandedLoader variant="card" contentHeight={height} style={style} />;
 }
 
 /**

@@ -3,7 +3,6 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
 import BrandedLoader from './BrandedLoader.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
-import { SkeletonAssetPlaceholder } from './SkeletonLoader.jsx';
 
 /**
  * AssetContainer component with skeleton UI placeholder, progressive download progress listener,

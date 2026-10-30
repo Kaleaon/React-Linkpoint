@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import CrystalLoader from '../CrystalLoader.jsx';
-import SkeletonLoader, { SkeletonBox, SkeletonAssetPlaceholder } from '../SkeletonLoader.jsx';
+import SkeletonLoader, {
+  SkeletonBox,
+  SkeletonAssetPlaceholder,
+  SkeletonCard,
+} from '../SkeletonLoader.jsx';
 import BrandedLoader from '../BrandedLoader.jsx';
 import StateBlock from '../StateBlock.jsx';
 import AssetContainer from '../AssetContainer.jsx';
@@ -296,6 +300,16 @@ describe('BrandedLoader Engine', () => {
     expect(container.getAttribute('data-variant')).toBe('card');
     expect(host.textContent).toContain('Card Title');
     expect(host.querySelector('.skeleton-box')).not.toBeNull();
+  });
+
+  it('passes custom height from SkeletonCard to inner skeleton box via contentHeight', async () => {
+    const host = await mount(<SkeletonCard height="240px" />);
+    const container = host.querySelector('[data-testid="branded-loader-card"]') as HTMLElement;
+    expect(container).not.toBeNull();
+    const boxes = Array.from(container.querySelectorAll('.skeleton-box')) as HTMLElement[];
+    // Middle box should have the custom height 240px
+    const mainBox = boxes.find((b) => b.style.height === '240px');
+    expect(mainBox).not.toBeUndefined();
   });
 
   it('renders asset variant with title, skeleton preview, and progress bar', async () => {

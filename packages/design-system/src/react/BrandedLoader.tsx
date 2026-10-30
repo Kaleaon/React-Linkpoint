@@ -157,6 +157,8 @@ export interface BrandedLoaderProps {
   title?: string;
   progress?: number | null;
   children?: React.ReactNode;
+  contentHeight?: string;
+  assetHeight?: string;
   "data-testid"?: string;
 }
 
@@ -169,6 +171,8 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
   title,
   progress = null,
   children,
+  contentHeight,
+  assetHeight,
   "data-testid": testId
 }) => {
   const theme = useTheme();
@@ -230,6 +234,7 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
 
   if (variant === "card") {
     const iconSize = size ?? 24;
+    const bodyHeight = contentHeight || assetHeight || "120px";
     return (
       <div
         className={`skeleton-container ${className}`.trim()}
@@ -260,7 +265,7 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
             <SkeletonBox width="50%" height="16px" />
           )}
         </div>
-        <SkeletonBox width="100%" height="120px" borderRadius="6px" />
+        <SkeletonBox width="100%" height={bodyHeight} borderRadius="6px" />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <SkeletonBox width="80%" height="12px" />
           <SkeletonBox width="40%" height="10px" />
@@ -273,6 +278,7 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
   if (variant === "asset") {
     const iconSize = size ?? 20;
     const displayTitle = title || "Loading Asset...";
+    const bodyHeight = contentHeight || assetHeight || "140px";
 
     return (
       <div
@@ -307,7 +313,7 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
           </div>
           <SkeletonBox width="15%" height="12px" />
         </div>
-        <SkeletonBox width="100%" height="140px" borderRadius="6px" />
+        <SkeletonBox width="100%" height={bodyHeight} borderRadius="6px" />
         {progress !== null && progress !== undefined && (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px" }}>
