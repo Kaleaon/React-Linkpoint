@@ -6,6 +6,7 @@ import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
+import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import Radar from './Radar.jsx';
@@ -37,7 +38,7 @@ function Rows({ rows, icon = 'circle' }) {
   );
 }
 
-function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
+export function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
   if (friend && !app.contacts.has(friend.id)) {
     app.contacts.saveFriends([friend]);
   }
@@ -107,8 +108,6 @@ function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
       </div>
 
       <dl style={{ margin: 0, fontSize: '12px' }}>
-        <dt style={{ fontWeight: 700, color: V.ink2 }}>Resident UUID</dt>
-        <dd style={{ margin: '0 0 6px 0' }}>{friend.id}</dd>
         <dt style={{ fontWeight: 700, color: V.ink2 }}>Status</dt>
         <dd
           style={{
@@ -131,6 +130,15 @@ function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
             : ''}
         </dd>
       </dl>
+
+      <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
+        <dl style={{ margin: 0, fontSize: '11px' }}>
+          <dt style={{ fontWeight: 700, color: V.ink2 }}>Resident UUID</dt>
+          <dd style={{ margin: 0, wordBreak: 'break-all', fontFamily: 'monospace' }}>
+            {friend.id}
+          </dd>
+        </dl>
+      </CollapsibleSystemDetails>
 
       <div style={{ borderTop: `1px solid ${V.outv}`, paddingTop: 8 }}>
         <label
