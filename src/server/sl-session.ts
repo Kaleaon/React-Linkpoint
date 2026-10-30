@@ -5,16 +5,17 @@
  */
 import type { Response } from 'express';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 
 const require = createRequire(import.meta.url);
-const { ViewerSession } = require('../../core/viewer-session.cjs') as {
+const { ViewerSession } = require(path.resolve(process.cwd(), 'core/viewer-session.cjs')) as {
   ViewerSession: new (
     send: (type: string, data: any) => void,
     options?: { replay?: boolean },
   ) => any;
 };
-const { callViewer } = require('../../core/viewer-api.cjs') as {
+const { callViewer } = require(path.resolve(process.cwd(), 'core/viewer-api.cjs')) as {
   callViewer: (session: any, method: string, params?: any) => Promise<any>;
 };
 
