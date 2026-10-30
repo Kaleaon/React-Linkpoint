@@ -58,6 +58,11 @@ const METHODS = new Set([
   'updateMuteEntry',
   'removeMuteEntry',
   'searchDir',
+  'buyParcelPass',
+  'updateParcelProperties',
+  'buyParcel',
+  'subdivideParcel',
+  'reclaimParcel',
 ]);
 
 async function callViewer(session, method, params) {

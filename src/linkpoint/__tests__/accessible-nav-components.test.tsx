@@ -357,3 +357,40 @@ describe('Skip Navigation Link and Application Landmarks (WCAG 2.2 SC 2.4.1 & 1.
     expect(locNav).not.toBeNull();
   });
 });
+
+describe('Accessible Heading Standardization and Top-Level Landmark (WCAG 2.2 SC 1.3.1 & 2.4.6)', () => {
+  let HeaderModule: any;
+  let ScreenBodyModule: any;
+
+  beforeAll(async () => {
+    HeaderModule = (await import('../../components/Header.jsx')).default;
+    ScreenBodyModule = (await import('../../components/ScreenBody.jsx')).default;
+  });
+
+  it('renders an <h1> heading inside Header for title with margin: 0 across layouts', async () => {
+    mounted = await mountScreen(HeaderModule);
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('ios');
+      mounted!.ctx.current.actions.setScreen('Chat');
+    });
+
+    const h1 = mounted.host.querySelector('header h1') as HTMLElement;
+    expect(h1).not.toBeNull();
+    expect(h1.tagName.toLowerCase()).toBe('h1');
+    expect(h1.style.margin).toBe('0px');
+  });
+
+  it('renders visually hidden <h1 className="sr-only"> inside main landmark when headLook === "none"', async () => {
+    mounted = await mountScreen(ScreenBodyModule);
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('ios');
+      // '3D View' screen sets bare = true, resulting in headLook === 'none'
+      mounted!.ctx.current.actions.setScreen('3D View');
+    });
+
+    const hiddenH1 = mounted.host.querySelector('main#main-content h1.sr-only');
+    expect(hiddenH1).not.toBeNull();
+    expect(hiddenH1?.tagName.toLowerCase()).toBe('h1');
+    expect(hiddenH1?.textContent).toBeTruthy();
+  });
+});

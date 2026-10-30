@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { CRYSTAL } from './linkpointCrystal.js';
+import { useLinkpointLogoStyles } from '../hooks/useLinkpointLogoStyles.js';
 
 // Depth model for the mark. The camera looks down on the scene at ~20 deg,
 // so everything sorts into three layers:
@@ -69,7 +70,7 @@ function Motes({ layer, animated, token, glowFilterUrl }) {
         return (
           <g
             key={i}
-            className="mote-rotator-group"
+            className={`mote-rotator-group ${animated ? 'animated' : ''}`.trim()}
             style={{ transformOrigin: '256px 256px', animationDelay: m.begin }}
           >
             <g style={{ transformOrigin: '256px 256px', transform: 'scaleY(0.325)' }}>
@@ -79,7 +80,7 @@ function Motes({ layer, animated, token, glowFilterUrl }) {
                 r={radius}
                 fill={token(m.token)}
                 filter={glowFilterUrl}
-                className={animationClass}
+                className={`${animationClass} ${animated ? 'animated' : ''}`.trim()}
                 style={{ animationDelay: m.begin }}
               />
             </g>
@@ -110,6 +111,8 @@ export default function LinkpointLogo({
   idPrefix = undefined,
   id = undefined,
 }) {
+  useLinkpointLogoStyles();
+
   const reactId = useId();
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lplg-${cleanId}`;
@@ -142,100 +145,6 @@ export default function LinkpointLogo({
       viewBox={showTitle ? '0 0 512 580' : '0 0 512 512'}
       style={{ width, height, filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.3))' }}
     >
-      <style>{`
-        .top-crystal-r {
-          will-change: ${animated ? 'transform' : 'auto'};
-          animation: ${animated ? `topCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
-        }
-        .bot-crystal-r {
-          will-change: ${animated ? 'transform' : 'auto'};
-          animation: ${animated ? `botCloseSeq ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
-        }
-        .core-anim-r {
-          transform-origin: 256px 256px;
-          animation: ${animated ? `corePulseR ${CRYSTAL.dur} cubic-bezier(0.4, 0, 0.2, 1) infinite` : 'none'};
-        }
-        .mote-rotator-group {
-          will-change: ${animated ? 'transform' : 'auto'};
-          animation: ${animated ? `moteRotate ${CRYSTAL.dur} linear infinite` : 'none'};
-        }
-        .mote-near-r {
-          animation: ${animated ? `moteNearFade ${CRYSTAL.dur} linear infinite` : 'none'};
-        }
-        .mote-far-r {
-          animation: ${animated ? `moteFarFade ${CRYSTAL.dur} linear infinite` : 'none'};
-        }
-
-        @keyframes topCloseSeq {
-          0%, 15% { transform: translateY(0); }
-          35%, 65% { transform: translateY(86px); }
-          85%, 100% { transform: translateY(0); }
-        }
-
-        @keyframes botCloseSeq {
-          0%, 15% { transform: translateY(0); }
-          35%, 65% { transform: translateY(-86px); }
-          85%, 100% { transform: translateY(0); }
-        }
-
-        @keyframes corePulseR {
-          0%, 25% { transform: rotate(0deg) scale(1); opacity: 0.8; }
-          35%, 65% { transform: rotate(180deg) scale(0.6); opacity: 1; filter: drop-shadow(0 0 20px ${V.pri}); }
-          75%, 100% { transform: rotate(0deg) scale(1); opacity: 0.8; }
-        }
-
-        @keyframes moteRotate {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        @keyframes moteNearFade {
-          0%, 44% { opacity: 1; }
-          56%, 94% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-
-        @keyframes moteFarFade {
-          0%, 44% { opacity: 0; }
-          56%, 94% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .top-crystal-r,
-          .bot-crystal-r,
-          .core-anim-r,
-          .mote-rotator-group,
-          .mote-near-r,
-          .mote-far-r {
-            animation: none !important;
-            transform: none !important;
-            will-change: auto !important;
-          }
-          .mote-near-r {
-            opacity: 1 !important;
-          }
-          .mote-far-r {
-            opacity: 0.6 !important;
-          }
-        }
-
-        .logo-title-r {
-          font-family: ${t.dfont || 'sans-serif'};
-          font-weight: 800;
-          font-size: 38px;
-          letter-spacing: 0.28em;
-          fill: ${V.pri};
-        }
-        .logo-subtitle-r {
-          font-family: ${t.font || 'sans-serif'};
-          font-weight: 500;
-          font-size: 13px;
-          letter-spacing: 0.38em;
-          fill: ${V.ink2};
-        }
-      `}</style>
-
       <defs>
         <linearGradient id={face1GradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor={V.pri} stopOpacity="1" />
@@ -294,7 +203,7 @@ export default function LinkpointLogo({
 
       {/* ---- the solid ---------------------------------------------------- */}
       <Pyramid
-        className="bot-crystal-r"
+        className={`bot-crystal-r ${animated ? 'animated' : ''}`.trim()}
         data={CRYSTAL.bot}
         surf={V.surf}
         rim={V.sec}
@@ -302,7 +211,7 @@ export default function LinkpointLogo({
         gradMap={gradMap}
       />
       <Pyramid
-        className="top-crystal-r"
+        className={`top-crystal-r ${animated ? 'animated' : ''}`.trim()}
         data={CRYSTAL.top}
         surf={V.surf}
         rim={V.pri}
@@ -329,17 +238,29 @@ export default function LinkpointLogo({
       </g>
 
       {/* CORE NODE */}
-      <g className="core-anim-r">
+      <g className={`core-anim-r ${animated ? 'animated' : ''}`.trim()} style={{ color: V.pri }}>
         <circle cx="256" cy="256" r="45" fill={coreGlowUrl} />
         <polygon points="256,242 270,256 256,270 242,256" fill={V.ink} />
       </g>
 
       {showTitle && (
         <g transform="translate(0, 522)">
-          <text x="256" y="0" textAnchor="middle" className="logo-title-r">
+          <text
+            x="256"
+            y="0"
+            textAnchor="middle"
+            className="logo-title-r"
+            style={{ fill: V.pri, fontFamily: t.dfont || 'sans-serif' }}
+          >
             LINKPOINT
           </text>
-          <text x="256" y="28" textAnchor="middle" className="logo-subtitle-r">
+          <text
+            x="256"
+            y="28"
+            textAnchor="middle"
+            className="logo-subtitle-r"
+            style={{ fill: V.ink2, fontFamily: t.font || 'sans-serif' }}
+          >
             SECONDLIFE COMMUNICATOR
           </text>
         </g>
