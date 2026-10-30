@@ -204,6 +204,27 @@ describe('PayDialog Component', () => {
     expect(payBtn.disabled).toBe(true);
   });
 
+  it('applies non-blocking docked bottom sheet layout and theme tokens', async () => {
+    const host = await mount(
+      createElement(PayDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        target: { id: 'resident-1', name: 'Aimee Resident', type: 'avatar' },
+      }),
+    );
+
+    const overlay = host.querySelector('.pay-modal-overlay') as HTMLElement;
+    expect(overlay).not.toBeNull();
+    expect(overlay.style.position).toBe('fixed');
+    expect(overlay.style.pointerEvents).toBe('none');
+    expect(overlay.style.backgroundColor).toBe('transparent');
+
+    const container = host.querySelector('.pay-modal-container') as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.style.pointerEvents).toBe('auto');
+    expect(container.style.backgroundColor).not.toBe('#1e222d'); // no longer static hex
+  });
+
   it('renders seller identity and item price confirmation details when provided', async () => {
     const host = await mount(
       createElement(PayDialog, {

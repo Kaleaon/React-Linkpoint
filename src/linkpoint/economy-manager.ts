@@ -10,6 +10,7 @@ import { Utils } from './utils';
 import { localCache } from './local-cache';
 import { slBridge } from './sl-bridge';
 import { EconomySyncEngine, SyncProgressEvent } from './phase2/economy-sync-engine';
+import { economyService } from '../services/EconomyService';
 
 export interface TransactionRecord {
   id: string;
@@ -29,6 +30,8 @@ export interface PaymentParams {
   targetName?: string;
   amount: number;
   description?: string;
+  isSystemSync?: boolean;
+  targetType?: 'avatar' | 'object' | 'group' | 'system';
 }
 
 export interface MoneyTransferParams {
@@ -257,66 +260,76 @@ export class EconomyManager extends Utils.EventEmitter {
     const description = params.description || `Payment to object ${params.targetName || targetId}`;
     const targetName = params.targetName || 'Object';
 
-    try {
-      let res: any;
-      if (this.syncEngine?.capabilitiesManager?.getPayObjectUrl?.()) {
-        res = await this.syncEngine.capabilitiesManager.executePayObjectCapability(
+    const executePayment = async (): Promise<TransactionRecord> => {
+      try {
+        let res: any;
+        if (this.syncEngine?.capabilitiesManager?.getPayObjectUrl?.()) {
+          res = await this.syncEngine.capabilitiesManager.executePayObjectCapability(
+            targetId,
+            amount,
+            description,
+          );
+        } else {
+          res = await slBridge.payObject({
+            targetId,
+            amount,
+            description,
+            targetName,
+            currencySymbol: this.currencySymbol,
+            isZeroCurrency: this.isZeroCurrency,
+          });
+        }
+
+        const record: TransactionRecord = {
+          id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
           targetId,
-          amount,
-          description,
-        );
-      } else {
-        res = await slBridge.payObject({
-          targetId,
-          amount,
-          description,
           targetName,
-          currencySymbol: this.currencySymbol,
-          isZeroCurrency: this.isZeroCurrency,
-        });
+          targetType: 'object',
+          amount,
+          type: 'payment',
+          description,
+          timestamp: Date.now(),
+          status: 'success',
+        };
+
+        await this.recordTransaction(record);
+
+        if (this.balance !== null) {
+          this.balance = Math.max(0, this.balance - amount);
+          this.emit('balance_updated', {
+            balance: this.balance,
+            currencySymbol: this.currencySymbol,
+            isZeroCurrency: this.isZeroCurrency,
+          });
+        }
+
+        return record;
+      } catch (err: any) {
+        const failedRecord: TransactionRecord = {
+          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'object',
+          amount,
+          type: 'payment',
+          description: `${description} (Failed: ${err.message || 'Declined'})`,
+          timestamp: Date.now(),
+          status: 'failed',
+        };
+        await this.recordTransaction(failedRecord);
+        throw new Error(err.message || 'Payment declined or failed');
       }
+    };
 
-      const record: TransactionRecord = {
-        id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'object',
-        amount,
-        type: 'payment',
-        description,
-        timestamp: Date.now(),
-        status: 'success',
-      };
-
-      await this.recordTransaction(record);
-
-      if (this.balance !== null) {
-        this.balance = Math.max(0, this.balance - amount);
-        this.emit('balance_updated', {
-          balance: this.balance,
-          currencySymbol: this.currencySymbol,
-          isZeroCurrency: this.isZeroCurrency,
-        });
-      }
-
-      return record;
-    } catch (err: any) {
-      const failedRecord: TransactionRecord = {
-        id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'object',
-        amount,
-        type: 'payment',
-        description: `${description} (Failed: ${err.message || 'Declined'})`,
-        timestamp: Date.now(),
-        status: 'failed',
-      };
-      await this.recordTransaction(failedRecord);
-      throw new Error(err.message || 'Payment declined or failed');
-    }
+    return economyService.interceptPay({
+      params: { ...params, amount, description, targetName },
+      targetType: 'object',
+      currencySymbol: this.currencySymbol,
+      currentBalance: this.balance,
+      execute: executePayment,
+    });
   }
 
   /**
@@ -344,57 +357,67 @@ export class EconomyManager extends Utils.EventEmitter {
     const description = params.description || `Gift to ${params.targetName || targetId}`;
     const targetName = params.targetName || 'Resident';
 
-    try {
-      const res = await slBridge.payAvatar({
-        targetId,
-        amount,
-        description,
-        targetName,
-        currencySymbol: this.currencySymbol,
-        isZeroCurrency: this.isZeroCurrency,
-      });
-
-      const record: TransactionRecord = {
-        id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'avatar',
-        amount,
-        type: 'tip',
-        description,
-        timestamp: Date.now(),
-        status: 'success',
-      };
-
-      await this.recordTransaction(record);
-
-      if (this.balance !== null) {
-        this.balance = Math.max(0, this.balance - amount);
-        this.emit('balance_updated', {
-          balance: this.balance,
+    const executePayment = async (): Promise<TransactionRecord> => {
+      try {
+        const res = await slBridge.payAvatar({
+          targetId,
+          amount,
+          description,
+          targetName,
           currencySymbol: this.currencySymbol,
           isZeroCurrency: this.isZeroCurrency,
         });
-      }
 
-      return record;
-    } catch (err: any) {
-      const failedRecord: TransactionRecord = {
-        id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        agentId: this.activeAgentId,
-        targetId,
-        targetName,
-        targetType: 'avatar',
-        amount,
-        type: 'tip',
-        description: `${description} (Failed: ${err.message || 'Declined'})`,
-        timestamp: Date.now(),
-        status: 'failed',
-      };
-      await this.recordTransaction(failedRecord);
-      throw new Error(err.message || 'Payment declined or failed');
-    }
+        const record: TransactionRecord = {
+          id: res?.transaction?.id || `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'avatar',
+          amount,
+          type: 'tip',
+          description,
+          timestamp: Date.now(),
+          status: 'success',
+        };
+
+        await this.recordTransaction(record);
+
+        if (this.balance !== null) {
+          this.balance = Math.max(0, this.balance - amount);
+          this.emit('balance_updated', {
+            balance: this.balance,
+            currencySymbol: this.currencySymbol,
+            isZeroCurrency: this.isZeroCurrency,
+          });
+        }
+
+        return record;
+      } catch (err: any) {
+        const failedRecord: TransactionRecord = {
+          id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          agentId: this.activeAgentId,
+          targetId,
+          targetName,
+          targetType: 'avatar',
+          amount,
+          type: 'tip',
+          description: `${description} (Failed: ${err.message || 'Declined'})`,
+          timestamp: Date.now(),
+          status: 'failed',
+        };
+        await this.recordTransaction(failedRecord);
+        throw new Error(err.message || 'Payment declined or failed');
+      }
+    };
+
+    return economyService.interceptPay({
+      params: { ...params, amount, description, targetName },
+      targetType: 'avatar',
+      currencySymbol: this.currencySymbol,
+      currentBalance: this.balance,
+      execute: executePayment,
+    });
   }
 
   /**

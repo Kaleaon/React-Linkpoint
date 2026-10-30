@@ -1,17 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EconomyManager } from '../economy-manager';
 import { formatCurrency, formatAmount } from '../currency-formatter';
 import { localCache } from '../local-cache';
 import { slBridge } from '../sl-bridge';
+import { economyService } from '../../services/EconomyService';
 
 describe('EconomyManager Subsystem', () => {
   let economy: EconomyManager;
 
   beforeEach(() => {
+    economyService.setAutoApprove(true);
     economy = new EconomyManager();
     economy.activeAgentId = 'test-agent-uuid-1234';
     economy.transactions = [];
     economy.balance = 500;
+  });
+
+  afterEach(() => {
+    economyService.setAutoApprove(false);
   });
 
   it('formats currency dynamic symbols and handles zero-currency mode', () => {
@@ -293,5 +299,33 @@ describe('EconomyManager Subsystem', () => {
     expect(capSpy).toHaveBeenCalledWith('scripted-vendor-99', 250, 'PayObject RPC Test');
     expect(tx.id).toBe('cap_tx_777');
     expect(economy.balance).toBe(750);
+  });
+
+  it('CapabilitiesManager.executePayObjectCapability sends POST request with JSON payload', async () => {
+    const caps = economy.syncEngine.capabilitiesManager;
+    caps.setCapability('PayObject', 'https://sim.secondlife.com/cap/pay_object_endpoint');
+
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, transaction: { id: 'cap-999' } }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await caps.executePayObjectCapability('obj-123', 50, 'Tip for item');
+
+    expect(fetchSpy).toHaveBeenCalledWith('https://sim.secondlife.com/cap/pay_object_endpoint', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        object_id: 'obj-123',
+        amount: 50,
+        description: 'Tip for item',
+      }),
+    });
+    expect(result).toEqual({ success: true, transaction: { id: 'cap-999' } });
+    vi.unstubAllGlobals();
   });
 });
