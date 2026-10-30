@@ -215,8 +215,10 @@ export const CSUB = {
     ['INSPECT', '· 02'],
   ],
   Parcel: [
-    ['GENERAL', '· 01'],
-    ['MEDIA', '· 02'],
+    ['LAND', '· 01'],
+    ['ACCESS', '· 02'],
+    ['OPTIONS', '· 03'],
+    ['MEDIA', '· 04'],
   ],
   Transactions: [
     ['ALL', '· 01'],

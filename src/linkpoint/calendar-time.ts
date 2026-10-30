@@ -9,6 +9,8 @@
  * Second Life Time (SLT) is US Pacific time, with daylight saving.
  */
 
+import { Utils } from './utils';
+
 export const SLT_ZONE = 'America/Los_Angeles';
 
 const ZONES: Record<string, string> = {
@@ -67,8 +69,7 @@ function wallClock(instant: number, zone: string): Wall {
 /** `YYYY-MM-DDTHH:mm`, the clock reading of an instant in `zone`, in the form a datetime-local input uses. */
 export function toLocalInputValue(instant: Date, zone: string): string {
   const w = wallClock(instant.getTime(), zone);
-  const pad = (n: number, width = 2) => String(n).padStart(width, '0');
-  return `${pad(w.year, 4)}-${pad(w.month)}-${pad(w.day)}T${pad(w.hour)}:${pad(w.minute)}`;
+  return `${Utils.pad(w.year, 4)}-${Utils.pad(w.month)}-${Utils.pad(w.day)}T${Utils.pad(w.hour)}:${Utils.pad(w.minute)}`;
 }
 
 /** The instant a datetime-local value means when read in `zone`, or null if the value is not a valid date and time. */
