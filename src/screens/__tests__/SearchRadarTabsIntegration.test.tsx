@@ -38,9 +38,11 @@ describe('Search & Radar Standardized Tabs Integration', () => {
   it('Requirement 1: CSUB defines sub-views for Search and Radar', () => {
     expect(CSUB.Search).toEqual([
       ['PEOPLE', '· 01'],
-      ['GROUPS', '· 02'],
-      ['PLACES', '· 03'],
-      ['SEARCH', '· 04'],
+      ['EVENTS', '· 02'],
+      ['CLASSIFIEDS', '· 03'],
+      ['GROUPS', '· 04'],
+      ['PLACES', '· 05'],
+      ['SEARCH', '· 06'],
     ]);
     expect(CSUB.Radar).toEqual([
       ['AVATAR', '· 01'],
@@ -96,7 +98,7 @@ describe('Search & Radar Standardized Tabs Integration', () => {
     const searchHost = await mount(<Search />);
     // Search screen renders SegmentedTabs with PEOPLE, GROUPS, PLACES, SEARCH
     const segmentedTabs = searchHost.querySelectorAll('[role="tab"]');
-    expect(segmentedTabs.length).toBe(4);
+    expect(segmentedTabs.length).toBe(6);
     expect(searchHost.textContent).toContain('PEOPLE');
     expect(searchHost.textContent).toContain('GROUPS');
     expect(searchHost.textContent).toContain('PLACES');

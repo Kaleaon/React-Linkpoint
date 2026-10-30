@@ -11,6 +11,8 @@ import SegmentedTabs from '../components/SegmentedTabs.jsx';
 
 const TABS = [
   { id: 'PEOPLE', category: 'people', label: 'People', icon: 'users' },
+  { id: 'EVENTS', category: 'events', label: 'Events', icon: 'calendar' },
+  { id: 'CLASSIFIEDS', category: 'classifieds', label: 'Classifieds', icon: 'tag' },
   { id: 'GROUPS', category: 'groups', label: 'Groups', icon: 'users-round' },
   { id: 'PLACES', category: 'places', label: 'Places', icon: 'map-pin' },
   { id: 'SEARCH', category: 'people', label: 'SEARCH', icon: 'search' },
@@ -19,6 +21,8 @@ const TABS = [
 function normalizeTab(rawTab) {
   if (!rawTab) return 'PEOPLE';
   const u = String(rawTab).toUpperCase();
+  if (u === 'EVENTS') return 'EVENTS';
+  if (u === 'CLASSIFIEDS') return 'CLASSIFIEDS';
   if (u === 'GROUPS') return 'GROUPS';
   if (u === 'PLACES') return 'PLACES';
   if (u === 'SEARCH') return 'SEARCH';
@@ -42,6 +46,8 @@ export default function Search() {
   const [retryCount, setRetryCount] = useState(0);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [eventCategoryFilter, setEventCategoryFilter] = useState(0);
+  const [eventTimeFilter, setEventTimeFilter] = useState('u');
 
   useEffect(() => {
     const updateFriends = () => setFriendsList(app.friends.getFriends());
@@ -102,25 +108,27 @@ export default function Search() {
     setError(null);
     setRetryStatus(null);
 
-    executeSearchWithRetry(
-      () =>
-        slBridge.searchDir({
-          category: activeTabObj.category,
-          query: query,
-          start: page * 20,
-        }),
-      {
-        maxRetries: 3,
-        baseDelay: 500,
-        maxDelay: 2000,
-        signal,
-        onRetry: ({ attempt, maxRetries }) => {
-          if (!signal.aborted) {
-            setRetryStatus(`Retrying search... Attempt ${attempt}/${maxRetries}`);
-          }
-        },
+    const searchParams = {
+      category: activeTabObj.category,
+      query: query,
+      start: page * 20,
+    };
+    if (activeTabId === 'EVENTS') {
+      searchParams.categoryFilter = eventCategoryFilter;
+      searchParams.timeFilter = eventTimeFilter;
+    }
+
+    executeSearchWithRetry(() => slBridge.searchDir(searchParams), {
+      maxRetries: 3,
+      baseDelay: 500,
+      maxDelay: 2000,
+      signal,
+      onRetry: ({ attempt, maxRetries }) => {
+        if (!signal.aborted) {
+          setRetryStatus(`Retrying search... Attempt ${attempt}/${maxRetries}`);
+        }
       },
-    )
+    })
       .then((res) => {
         if (signal.aborted) return;
         setServerResults(res?.results || []);
@@ -143,7 +151,15 @@ export default function Search() {
     return () => {
       controller.abort();
     };
-  }, [query, activeTabId, page, activeTabObj.category, retryCount]);
+  }, [
+    query,
+    activeTabId,
+    page,
+    activeTabObj.category,
+    eventCategoryFilter,
+    eventTimeFilter,
+    retryCount,
+  ]);
 
   const handleManualRetry = () => {
     setRetryCount((c) => c + 1);
@@ -316,9 +332,13 @@ export default function Search() {
               placeholder={
                 activeTabId === 'PEOPLE' || activeTabId === 'SEARCH'
                   ? 'Search residents grid-wide (min 2 chars)'
-                  : activeTabId === 'GROUPS'
-                    ? 'Search groups by keyword'
-                    : 'Search places or destinations'
+                  : activeTabId === 'EVENTS'
+                    ? 'Search events by keyword (min 2 chars)'
+                    : activeTabId === 'CLASSIFIEDS'
+                      ? 'Search classified listings (min 2 chars)'
+                      : activeTabId === 'GROUPS'
+                        ? 'Search groups by keyword'
+                        : 'Search places or destinations'
               }
               style={{
                 width: '100%',
@@ -339,6 +359,72 @@ export default function Search() {
           ) : null}
         </div>
       </div>
+
+      {/* Category and Time Filters for Events */}
+      {activeTabId === 'EVENTS' && (
+        <div
+          style={{
+            flex: 'none',
+            margin: '0 16px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <select
+            aria-label="Event Category Filter"
+            value={eventCategoryFilter}
+            onChange={(e) => {
+              setEventCategoryFilter(Number(e.target.value));
+              setPage(0);
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: V.rs,
+              border: '1px solid ' + V.outv,
+              background: V.surf,
+              color: V.ink,
+              font: '600 11px/1 ' + t.font,
+              cursor: 'pointer',
+            }}
+          >
+            <option value={0}>All Event Categories</option>
+            <option value={18}>Discussion</option>
+            <option value={19}>Sports</option>
+            <option value={20}>Music</option>
+            <option value={21}>Commercial</option>
+            <option value={22}>Nightlife</option>
+            <option value={23}>Games</option>
+            <option value={24}>Pageants</option>
+            <option value={25}>Education</option>
+            <option value={26}>Arts</option>
+            <option value={27}>Charitable</option>
+            <option value={28}>Miscellaneous</option>
+          </select>
+
+          <select
+            aria-label="Event Time Filter"
+            value={eventTimeFilter}
+            onChange={(e) => {
+              setEventTimeFilter(e.target.value);
+              setPage(0);
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: V.rs,
+              border: '1px solid ' + V.outv,
+              background: V.surf,
+              color: V.ink,
+              font: '600 11px/1 ' + t.font,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="u">Upcoming Events</option>
+            <option value="0">Current Events Today</option>
+          </select>
+        </div>
+      )}
 
       {/* Active retry status banner */}
       {retryStatus ? (
@@ -616,6 +702,108 @@ export default function Search() {
                 {query.length < 2
                   ? '> type at least 2 characters to search residents grid-wide'
                   : `> no residents match “${state.searchQuery}”`}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* EVENTS TAB */}
+        {activeTabId === 'EVENTS' ? (
+          <>
+            {serverResults.map((ev) => {
+              const formattedDate = ev.date
+                ? ev.date
+                : ev.unixTime
+                  ? new Date(ev.unixTime * 1000).toLocaleString()
+                  : 'Scheduled Grid Event';
+              return (
+                <div
+                  key={ev.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 12px',
+                    border: '1px solid ' + V.outv,
+                    borderRadius: V.rs,
+                    background: V.surf,
+                  }}
+                >
+                  <Icon name="calendar" size={22} style={{ color: V.pri, flex: 'none' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ font: '600 13px/1.3 ' + t.font, color: V.ink }}>{ev.name}</div>
+                    <div
+                      style={{ font: '400 10.5px/1.3 ' + t.font, color: V.ink2, marginTop: '1px' }}
+                    >
+                      {formattedDate}
+                      {ev.ownerId ? ` • Host ID: ${ev.ownerId.slice(0, 8)}…` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => teleportTo(ev.name)} style={pillBtnStyle(true)}>
+                    Teleport
+                  </button>
+                </div>
+              );
+            })}
+            {serverResults.length === 0 && !loading ? (
+              <div
+                style={{
+                  padding: '40px 0',
+                  textAlign: 'center',
+                  font: '400 12px/1.5 ' + t.font,
+                  color: V.ink2,
+                }}
+              >
+                {query.length < 2
+                  ? '> type at least 2 characters to search grid events'
+                  : `> no grid events match “${state.searchQuery}”`}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* CLASSIFIEDS TAB */}
+        {activeTabId === 'CLASSIFIEDS' ? (
+          <>
+            {serverResults.map((cls) => (
+              <div
+                key={cls.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 12px',
+                  border: '1px solid ' + V.outv,
+                  borderRadius: V.rs,
+                  background: V.surf,
+                }}
+              >
+                <Icon name="tag" size={22} style={{ color: V.pri, flex: 'none' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ font: '600 13px/1.3 ' + t.font, color: V.ink }}>{cls.name}</div>
+                  <div
+                    style={{ font: '400 10.5px/1.3 ' + t.font, color: V.ink2, marginTop: '1px' }}
+                  >
+                    {cls.price != null ? `Price: L$${cls.price}` : 'Classified Listing'}
+                  </div>
+                </div>
+                <button onClick={() => teleportTo(cls.name)} style={pillBtnStyle(true)}>
+                  Teleport
+                </button>
+              </div>
+            ))}
+            {serverResults.length === 0 && !loading ? (
+              <div
+                style={{
+                  padding: '40px 0',
+                  textAlign: 'center',
+                  font: '400 12px/1.5 ' + t.font,
+                  color: V.ink2,
+                }}
+              >
+                {query.length < 2
+                  ? '> type at least 2 characters to search classified listings'
+                  : `> no classifieds match “${state.searchQuery}”`}
               </div>
             ) : null}
           </>
