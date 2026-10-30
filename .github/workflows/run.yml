@@ -20,9 +20,16 @@ jobs:
     env:
       JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
       - name: Jules review
         if: ${{ env.JULES_API_KEY != '' }}
         uses: thalesraymond/jules-pr-reviewer@47388f11f27513e89e74a068ad51aa7a0d7ea306 # v1.0.0
         with:
           jules_api_key: ${{ secrets.JULES_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Jules review fallback
+        if: ${{ env.JULES_API_KEY == '' }}
+        run: |
+          echo "::warning::JULES_API_KEY secret is missing or empty. Skipping automated PR review."
+          echo "### ⚠️ Jules PR Review Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "The \`JULES_API_KEY\` secret is missing or empty (e.g. for PRs from external forks). Automated review was skipped." >> $GITHUB_STEP_SUMMARY

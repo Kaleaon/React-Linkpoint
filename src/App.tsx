@@ -5,6 +5,7 @@ import { TickProvider } from './context/TickContext.jsx';
 import { ErrorRecoveryProvider } from './context/ErrorRecoveryContext.tsx';
 import { ErrorRecoveryBanner } from './components/ErrorRecoveryBanner.tsx';
 import { ErrorRecoveryModal } from './components/ErrorRecoveryModal.tsx';
+import TransactionConfirmationModal from './components/TransactionConfirmationModal.tsx';
 import DeviceFrame from './components/DeviceFrame.jsx';
 import LiveRegionAnnouncerComponent from './components/LiveRegionAnnouncerComponent.jsx';
 import { app } from './linkpoint/app';
@@ -29,6 +30,7 @@ export function Viewer() {
       <LiveRegionAnnouncerComponent />
       <DeviceFrame />
       <ErrorRecoveryModal onNavigateFallback={(route) => actions.setScreen(route)} />
+      <TransactionConfirmationModal />
     </>
   );
 }
