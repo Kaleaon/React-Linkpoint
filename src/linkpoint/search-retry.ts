@@ -8,15 +8,18 @@ export interface RetryOptions {
   maxDelay?: number;
   signal?: AbortSignal;
   onRetry?: (info: { attempt: number; maxRetries: number; delay: number; error: Error }) => void;
-  isTransient?: (error: any) => boolean;
+  isTransient?: (error: unknown) => boolean;
 }
 
-export function isNonTransientError(error: any): boolean {
+export function isNonTransientError(error: unknown): boolean {
   if (!error) return false;
-  if (error.isTransient === false || error.nonTransient === true) {
-    return true;
+  if (typeof error === 'object' && error !== null) {
+    const err = error as Record<string, unknown>;
+    if (err.isTransient === false || err.nonTransient === true) {
+      return true;
+    }
   }
-  const msg = String(error.message || error).toLowerCase();
+  const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
   const nonTransientKeywords = [
     'invalid query',
     'syntax error',
@@ -29,7 +32,7 @@ export function isNonTransientError(error: any): boolean {
   return nonTransientKeywords.some((kw) => msg.includes(kw));
 }
 
-export function defaultIsTransient(error: any): boolean {
+export function defaultIsTransient(error: unknown): boolean {
   return !isNonTransientError(error);
 }
 
@@ -41,7 +44,7 @@ function sleepWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
       return reject(abortError);
     }
 
-    let timer: any = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const onAbort = () => {
       if (timer) clearTimeout(timer);
@@ -90,7 +93,7 @@ export async function executeSearchWithRetry<T>(
 
     try {
       return await searchFn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (signal?.aborted) {
         const abortError = new Error('Search cancelled');
         abortError.name = 'AbortError';

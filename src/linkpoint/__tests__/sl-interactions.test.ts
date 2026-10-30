@@ -434,11 +434,64 @@ describe('inventory offers and group invites', () => {
     await expect(acceptInventoryOffer(bot, pending, { id })).resolves.toEqual({ accepted: true });
     expect(pending.size).toBe(0);
 
-    const id2 = pending.add('inventory-offer', { from: 'f2' });
-    await expect(declineInventoryOffer(bot, pending, { id: id2 })).resolves.toEqual({
+    const respondFn = vi.fn().mockResolvedValue(undefined);
+    const bot2 = { clientCommands: { inventory: { respondToInventoryOffer: respondFn } } };
+    const id2 = pending.add('inventory-offer', { from: uuid('f2'), requestID: uuid('req2') });
+    await expect(declineInventoryOffer(bot2, pending, { id: id2 })).resolves.toEqual({
+      declined: true,
+    });
+    expect(respondFn).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expect.anything() }),
+      10,
+    );
+    expect(pending.size).toBe(0);
+  });
+
+  it('declines inventory offer with sendImprovedInstantMessage packet and dialog 10', async () => {
+    const pending = new PendingInteractions();
+    const offerEvent = { from: 'sender-123', requestID: 'req-456', message: 'Gift' };
+    const id = pending.add('inventory-offer', offerEvent);
+    const sendImprovedIM = vi.fn().mockResolvedValue(undefined);
+    const bot = { clientCommands: { comms: { sendImprovedInstantMessage: sendImprovedIM } } };
+
+    await expect(declineInventoryOffer(bot, pending, { id })).resolves.toEqual({ declined: true });
+    expect(sendImprovedIM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'sender-123',
+        dialog: 10,
+        id: 'req-456',
+      }),
+    );
+    expect(pending.size).toBe(0);
+  });
+
+  it('catches network error gracefully during inventory offer decline and cleans up pending state', async () => {
+    const pending = new PendingInteractions();
+    const id = pending.add('inventory-offer', { from: 'sender-789' });
+    const sendImprovedIM = vi.fn().mockRejectedValue(new Error('Network disconnected'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const bot = { clientCommands: { comms: { sendImprovedInstantMessage: sendImprovedIM } } };
+
+    await expect(declineInventoryOffer(bot, pending, { id })).resolves.toEqual({ declined: true });
+    expect(pending.size).toBe(0);
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[sl-interactions] Failed to send inventory decline packet:',
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('handles offline / missing simulator connection when declining offer', async () => {
+    const pending = new PendingInteractions();
+    const id = pending.add('inventory-offer', { from: 'sender-999' });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(declineInventoryOffer(null, pending, { id })).resolves.toEqual({
       declined: true,
     });
     expect(pending.size).toBe(0);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it('accepts and declines group invites', async () => {

@@ -232,7 +232,7 @@ describe('Search component UI', () => {
 
   it('supports manual retry via Retry Now button in persistent error banner', async () => {
     let callCount = 0;
-    const searchSpy = vi.spyOn(slBridge, 'searchDir').mockImplementation(async () => {
+    const _searchSpy = vi.spyOn(slBridge, 'searchDir').mockImplementation(async () => {
       callCount++;
       if (callCount === 1) {
         throw new Error('Transient bridge error');
@@ -270,7 +270,7 @@ describe('Search component UI', () => {
 
   it('supports manual retry click after retry exhaustion', async () => {
     let callCount = 0;
-    const searchSpy = vi.spyOn(slBridge, 'searchDir').mockImplementation(async () => {
+    const _searchSpy = vi.spyOn(slBridge, 'searchDir').mockImplementation(async () => {
       callCount++;
       if (callCount <= 4) {
         throw new Error('Persistent failure');
