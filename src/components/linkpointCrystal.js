@@ -1,5 +1,5 @@
-// Modernized procedural crystal geometry definition for CSS transform animation engine.
-// Replaces 20.6 KB SMIL frame dataset with static SVG polygonal geometry.
+// Unified single-canvas 512x512 master crystal geometry definition.
+// Replaces dual coordinate systems with a single master 512x512 coordinate space.
 
 export const CRYSTAL = {
   dur: '6s',
@@ -16,6 +16,9 @@ export const CRYSTAL = {
       { grad: 'face3Grad', points: '256,40 120,170 256,120', opacity: 0.9 },
       { grad: 'face4Grad', points: '256,40 256,120 392,170', opacity: 0.9 },
     ],
+    ridge: '120,170 256,120 392,170',
+    faceA: '256,40 120,170 256,220',
+    faceB: '256,40 256,220 392,170',
   },
   bot: {
     base: '392,342 256,392 120,342 256,292',
@@ -25,6 +28,9 @@ export const CRYSTAL = {
       { grad: 'face1Grad', points: '256,472 120,342 256,292', opacity: 0.9 },
       { grad: 'face2Grad', points: '256,472 256,292 392,342', opacity: 0.9 },
     ],
+    ridge: '120,342 256,292 392,342',
+    faceA: '256,472 120,342 256,392',
+    faceB: '256,472 256,392 392,342',
   },
   topStatic: {
     base: '392,170 256,220 120,170 256,120',
@@ -47,16 +53,26 @@ export const CRYSTAL = {
       { cx: 430, cy: 280, r: 3, token: 'sec' },
     ],
   },
-};
-
-export const MINI_CRYSTAL = {
-  top: {
-    faceA: '60,6 12,60 60,76',
-    faceB: '60,6 60,76 108,60',
-    ridge: '12,60 60,44 108,60',
+  wireframe: {
+    farLines: ['82,256 256,180 430,256', '22,256 256,120 490,256'],
+    nearLines: ['430,256 256,332 82,256', '490,256 256,392 22,256'],
+    axes: {
+      vertical: { x1: 256, y1: 20, x2: 256, y2: 492, dash: '4 6' },
+      horizontal: { x1: 22, y1: 256, x2: 490, y2: 256, dash: '4 6' },
+    },
   },
-  bot: {
-    faceA: '60,114 12,60 60,76',
-    faceB: '60,114 60,76 108,60',
+  orbit: {
+    farPath: 'M 56 256 A 200 65 0 0 1 456 256',
+    farOuterPath: 'M 41 256 A 215 72 0 0 1 471 256',
+    nearPath: 'M 56 256 A 200 65 0 0 0 456 256',
+    nearOuterPath: 'M 41 256 A 215 72 0 0 0 471 256',
+    ring: { cx: 256, cy: 256, r: 204.8 },
+  },
+  coreNode: {
+    cx: 256,
+    cy: 256,
+    r: 45,
+    loaderR: 64,
+    diamond: '256,242 270,256 256,270 242,256',
   },
 };
