@@ -1,90 +1,10 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { DIALOGS } from '../theme/dialogs.js';
 import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TeleportCrystalHero from './TeleportCrystalHero.jsx';
-
-const TeleportProgressDisplay = memo(function TeleportProgressDisplay({ phase, isFailed, V, t }) {
-  const [progress, setProgress] = useState(() => {
-    const session = app.interactions.teleportSession;
-    return {
-      stepPercent: session?.stepPercent ?? 0,
-      statusText: session?.statusText || 'Teleport in progress...',
-    };
-  });
-
-  useEffect(() => {
-    const onUpdate = () => {
-      const session = app.interactions.teleportSession;
-      if (session) {
-        const stepPercent = session.stepPercent ?? 0;
-        const statusText = session.statusText || 'Teleport in progress...';
-        setProgress((prev) => {
-          if (prev.stepPercent === stepPercent && prev.statusText === statusText) {
-            return prev;
-          }
-          return { stepPercent, statusText };
-        });
-      }
-    };
-    app.interactions.on('interactions_changed', onUpdate);
-    app.interactions.on('interaction_changed', onUpdate);
-    onUpdate();
-    return () => {
-      app.interactions.off('interactions_changed', onUpdate);
-      app.interactions.off('interaction_changed', onUpdate);
-    };
-  }, []);
-
-  const percent = progress.stepPercent;
-
-  return (
-    <>
-      {/* Teleport Crystal Hero */}
-      <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
-        <TeleportCrystalHero stepPercent={percent} phase={phase} size={120} />
-      </div>
-
-      {/* Progress Bar & Percentage */}
-      <div style={{ marginTop: '12px' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '6px',
-          }}
-        >
-          <span style={{ font: '500 12px/1 ' + t.font, color: V.ink2 }}>{progress.statusText}</span>
-          <span style={{ font: '700 12px/1 ' + t.font, color: isFailed ? V.err : V.pri }}>
-            {percent}%
-          </span>
-        </div>
-        <div
-          style={{
-            width: '100%',
-            height: '8px',
-            background: V.bg,
-            borderRadius: '4px',
-            overflow: 'hidden',
-            border: '1px solid ' + V.outv,
-          }}
-        >
-          <div
-            style={{
-              width: `${percent}%`,
-              height: '100%',
-              background: isFailed ? V.err : V.pri,
-              transition: 'width 0.3s ease',
-            }}
-          />
-        </div>
-      </div>
-    </>
-  );
-});
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -95,6 +15,13 @@ export default function SystemDialog() {
   const [teleport, setTeleport] = useState(() => app.interactions.teleportSession);
   const teleportRef = useRef(null);
   const dlgRef = useRef(null);
+
+  const percentTextRef = useRef(null);
+  const progressBarRef = useRef(null);
+  const statusTextRef = useRef(null);
+  const heroRef = useRef(null);
+  const milestoneRefs = useRef({});
+  const dialogRafIdRef = useRef(null);
 
   useEffect(() => {
     const milestoneReached = (p) => (p >= 90 ? 4 : p >= 65 ? 3 : p >= 40 ? 2 : p >= 15 ? 1 : 0);
@@ -119,11 +46,63 @@ export default function SystemDialog() {
     app.interactions.on('interactions_changed', onUpdate);
     app.interactions.on('interaction_changed', onUpdate);
     setTeleport(app.interactions.teleportSession);
+
+    const stagesDef = [
+      { key: 'initiating', minPercent: 15 },
+      { key: 'contacting', minPercent: 40 },
+      { key: 'preparing', minPercent: 65 },
+      { key: 'arriving', minPercent: 90 },
+    ];
+
+    const handleTick = (data) => {
+      if (!data) return;
+      const pct = Math.min(100, Math.max(0, data.stepPercent ?? data.percent ?? 0));
+      const statusText = data.statusText || '';
+
+      if (dialogRafIdRef.current) {
+        cancelAnimationFrame(dialogRafIdRef.current);
+      }
+
+      dialogRafIdRef.current = requestAnimationFrame(() => {
+        dialogRafIdRef.current = null;
+        if (percentTextRef.current) {
+          percentTextRef.current.textContent = `${pct}%`;
+        }
+        if (progressBarRef.current) {
+          progressBarRef.current.style.width = `${pct}%`;
+        }
+        if (statusTextRef.current && statusText) {
+          statusTextRef.current.textContent = statusText;
+        }
+        if (heroRef.current?.updateProgress) {
+          heroRef.current.updateProgress(pct);
+        }
+        stagesDef.forEach((st) => {
+          const node = milestoneRefs.current[st.key];
+          if (node) {
+            const reached = pct >= st.minPercent;
+            node.style.borderColor = reached ? V.pri : V.outv;
+            node.style.background = reached ? V.surf : V.bg;
+            node.style.opacity = reached ? '1' : '0.5';
+          }
+        });
+      });
+    };
+
+    app.interactions.on('teleport_tick', handleTick);
+    app.interactions.on('teleport_progress_tick', handleTick);
+
     return () => {
       app.interactions.off('interactions_changed', onUpdate);
       app.interactions.off('interaction_changed', onUpdate);
+      app.interactions.off('teleport_tick', handleTick);
+      app.interactions.off('teleport_progress_tick', handleTick);
+      if (dialogRafIdRef.current) {
+        cancelAnimationFrame(dialogRafIdRef.current);
+        dialogRafIdRef.current = null;
+      }
     };
-  }, []);
+  }, [V]);
 
   const dlg = state.dialog && DIALOGS[state.dialog];
 
@@ -266,8 +245,57 @@ export default function SystemDialog() {
             {teleport.regionName || teleport.destination || 'Destination'}
           </div>
 
-          {/* Isolated Progress Tick Display Sub-Component */}
-          <TeleportProgressDisplay phase={teleport.phase} isFailed={isFailed} V={V} t={t} />
+          {/* Teleport Crystal Hero */}
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 10px' }}>
+            <TeleportCrystalHero
+              ref={heroRef}
+              stepPercent={percent}
+              phase={teleport.phase}
+              size={120}
+            />
+          </div>
+
+          {/* Progress Bar & Percentage */}
+          <div style={{ marginTop: '12px' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '6px',
+              }}
+            >
+              <span ref={statusTextRef} style={{ font: '500 12px/1 ' + t.font, color: V.ink2 }}>
+                {teleport.statusText || 'Teleport in progress...'}
+              </span>
+              <span
+                ref={percentTextRef}
+                style={{ font: '700 12px/1 ' + t.font, color: isFailed ? V.err : V.pri }}
+              >
+                {percent}%
+              </span>
+            </div>
+            <div
+              style={{
+                width: '100%',
+                height: '8px',
+                background: V.bg,
+                borderRadius: '4px',
+                overflow: 'hidden',
+                border: '1px solid ' + V.outv,
+              }}
+            >
+              <div
+                ref={progressBarRef}
+                style={{
+                  width: `${percent}%`,
+                  height: '100%',
+                  background: isFailed ? V.err : V.pri,
+                  transition: 'width 0.3s ease',
+                }}
+              />
+            </div>
+          </div>
 
           {/* Phase Milestones */}
           <div
@@ -284,6 +312,9 @@ export default function SystemDialog() {
               return (
                 <div
                   key={st.key}
+                  ref={(el) => {
+                    milestoneRefs.current[st.key] = el;
+                  }}
                   style={{
                     padding: '6px 2px',
                     borderRadius: V.rs,

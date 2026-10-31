@@ -79,12 +79,19 @@ export function StackHead({ title, subtitle, scr }) {
         showTitle={false}
         width={28}
         height={28}
-        idPrefix="linkpoint-logo-react"
+        aria-label="Linkpoint logo"
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ font: '700 21px/1.05 ' + t.dfont, letterSpacing: V.tls, color: V.pri }}>
+        <h1
+          style={{
+            font: '700 21px/1.05 ' + t.dfont,
+            letterSpacing: V.tls,
+            color: V.pri,
+            margin: 0,
+          }}
+        >
           {title}
-        </div>
+        </h1>
         <div style={{ font: '400 11px/1.4 ' + t.font, color: V.ink2, marginTop: '4px' }}>
           {subtitle}
         </div>
@@ -186,9 +193,9 @@ export function SweepHead({ title, subtitle }) {
           showTitle={false}
           width={24}
           height={24}
-          idPrefix="linkpoint-logo-react"
+          aria-label="Linkpoint logo"
         />
-        <span
+        <h1
           style={{
             font: '700 22px/1 ' + t.dfont,
             letterSpacing: '.14em',
@@ -199,10 +206,11 @@ export function SweepHead({ title, subtitle }) {
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             textTransform: 'uppercase',
+            margin: 0,
           }}
         >
           {title}
-        </span>
+        </h1>
         <span
           style={{
             width: '36px',
@@ -250,19 +258,20 @@ export function PivotHead({ title, subtitle, scr }) {
           showTitle={false}
           width={28}
           height={28}
-          idPrefix="linkpoint-logo-react"
+          aria-label="Linkpoint logo"
         />
-        <span
+        <h1
           style={{
             flex: 'none',
             font: '300 42px/1 ' + t.dfont,
             color: V.ink,
             textTransform: 'lowercase',
             letterSpacing: '-.02em',
+            margin: 0,
           }}
         >
           {String(title || '').toLowerCase()}
-        </span>
+        </h1>
         <TouchTarget
           onClick={() => actions.setScreen(nextScr)}
           role="button"
@@ -325,18 +334,19 @@ export function RuleHead({ title, subtitle }) {
           showTitle={false}
           width={20}
           height={20}
-          idPrefix="linkpoint-logo-react"
+          aria-label="Linkpoint logo"
         />
-        <div
+        <h1
           style={{
             font: '600 15px/1.1 ' + t.dfont,
             letterSpacing: V.tls,
             color: V.priText,
             textIndent: V.tls,
+            margin: 0,
           }}
         >
           {title}
-        </div>
+        </h1>
       </div>
       <div
         style={{
@@ -363,18 +373,19 @@ export function EditorialHead({ title, subtitle }) {
           showTitle={false}
           width={28}
           height={28}
-          idPrefix="linkpoint-logo-react"
+          aria-label="Linkpoint logo"
         />
-        <div
+        <h1
           style={{
             font: '600 27px/1.12 ' + t.font,
             letterSpacing: '-.01em',
             color: V.ink,
             textTransform: 'capitalize',
+            margin: 0,
           }}
         >
           {title}
-        </div>
+        </h1>
       </div>
       <div
         style={{

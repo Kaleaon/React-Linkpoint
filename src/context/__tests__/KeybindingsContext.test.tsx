@@ -1,5 +1,9 @@
-import { describe, test, expect, beforeEach, vi } from 'vitest';
-import React from 'react';
+// @vitest-environment jsdom
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 import {
   parseKeyString,
   formatKeyString,
@@ -11,6 +15,8 @@ import {
   KeybindingsProvider,
   useKeybindings,
   KEYBINDINGS_STORAGE_KEY,
+  DEFAULT_CUSTOM_BINDINGS,
+  type KeybindingsContextType,
 } from '../KeybindingsContext';
 
 describe('Keybindings Parsing and Matching Utilities', () => {
@@ -116,6 +122,97 @@ describe('Keybindings Parsing and Matching Utilities', () => {
     expect(isTypingTarget(textboxRoleEl as any)).toBe(true);
     expect(isTypingTarget(canvasEl as any)).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+  });
+});
+
+describe('KeybindingsProvider and useKeybindings hook', () => {
+  let container: HTMLDivElement | null = null;
+
+  beforeEach(() => {
+    localStorage.clear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    if (container) {
+      container.remove();
+      container = null;
+    }
+  });
+
+  test('fallback hook returns defaults outside provider', () => {
+    let captured: KeybindingsContextType | null = null;
+    function Consumer() {
+      captured = useKeybindings();
+      return null;
+    }
+    const root = createRoot(container!);
+    act(() => {
+      root.render(<Consumer />);
+    });
+    expect(captured).not.toBeNull();
+    expect(captured!.singleCharShortcutsEnabled).toBe(true);
+    expect(captured!.getKeybinding('toggleMouselook')).toBe('KeyM');
+    expect(captured!.getKeybinding('toggleOverlays')).toBe('KeyH');
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  test('provides context, allows toggling shortcuts, remapping, and reset', () => {
+    let captured: KeybindingsContextType | null = null;
+    function Consumer() {
+      captured = useKeybindings();
+      return null;
+    }
+    const root = createRoot(container!);
+    act(() => {
+      root.render(
+        <KeybindingsProvider>
+          <Consumer />
+        </KeybindingsProvider>,
+      );
+    });
+
+    expect(captured).not.toBeNull();
+    expect(captured!.singleCharShortcutsEnabled).toBe(true);
+    expect(captured!.getKeybinding('toggleMouselook')).toBe('KeyM');
+
+    // Toggle single-character shortcuts off
+    act(() => {
+      captured!.setSingleCharShortcutsEnabled(false);
+    });
+    expect(captured!.singleCharShortcutsEnabled).toBe(false);
+    const saved = JSON.parse(localStorage.getItem(KEYBINDINGS_STORAGE_KEY) || '{}');
+    expect(saved.singleCharShortcutsEnabled).toBe(false);
+
+    // Remap toggleMouselook
+    act(() => {
+      const ok = captured!.setCustomBinding('toggleMouselook', 'Alt+KeyM');
+      expect(ok).toBe(true);
+    });
+    expect(captured!.getKeybinding('toggleMouselook')).toBe('Alt+KeyM');
+
+    // Reject invalid binding
+    act(() => {
+      const ok = captured!.setCustomBinding('toggleMouselook', 'Alt');
+      expect(ok).toBe(false);
+    });
+    expect(captured!.getKeybinding('toggleMouselook')).toBe('Alt+KeyM');
+
+    // Reset keybindings
+    act(() => {
+      captured!.resetKeybindings();
+    });
+    expect(captured!.singleCharShortcutsEnabled).toBe(true);
+    expect(captured!.getKeybinding('toggleMouselook')).toBe(
+      DEFAULT_CUSTOM_BINDINGS.toggleMouselook,
+    );
+
+    act(() => {
+      root.unmount();
+    });
   });
 });
 

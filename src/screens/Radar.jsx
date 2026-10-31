@@ -45,6 +45,7 @@ export default function Radar() {
   useEffect(() => {
     const handleObjectsChanged = (items) => setLiveObjects([...items]);
     const handleNearbyChanged = (items) => setLiveNearby([...items]);
+    const handleTypingChanged = () => setLiveNearby([...(app.world?.nearbyUsers || [])]);
     const handleSpeaking = (data) => {
       const map = {};
       if (Array.isArray(data?.speakers)) {
@@ -57,11 +58,13 @@ export default function Radar() {
 
     app.world?.on?.('objects_changed', handleObjectsChanged);
     app.world?.on?.('nearby_changed', handleNearbyChanged);
+    app.world?.on?.('typing_changed', handleTypingChanged);
     app.voice?.on?.('speaking', handleSpeaking);
 
     return () => {
       app.world?.off?.('objects_changed', handleObjectsChanged);
       app.world?.off?.('nearby_changed', handleNearbyChanged);
+      app.world?.off?.('typing_changed', handleTypingChanged);
       app.voice?.off?.('speaking', handleSpeaking);
     };
   }, []);
@@ -418,17 +421,19 @@ export default function Radar() {
             overflowX: 'auto',
           }}
         >
-          <span
+          <h2
             style={{
               font: '700 9.5px/1 ' + t.dfont,
               letterSpacing: '.12em',
               color: V.ink2,
               marginRight: '4px',
               flex: 'none',
+              margin: 0,
+              padding: 0,
             }}
           >
             DISTINCTION:
-          </span>
+          </h2>
 
           {/* ALL ITEMS */}
           <button
@@ -1371,13 +1376,18 @@ export default function Radar() {
                       gap: '6px',
                     }}
                   >
-                    <div
-                      style={{ font: '700 9px/1 ' + t.dfont, letterSpacing: '.15em', color: V.err }}
+                    <h3
+                      style={{
+                        font: '700 9px/1 ' + t.dfont,
+                        letterSpacing: '.15em',
+                        color: V.err,
+                        margin: 0,
+                      }}
                     >
                       {isAvatar
                         ? 'MODERATOR / ESTATE ACTIONS (LONG PRESS)'
                         : 'OBJECT MODERATOR ACTIONS (LONG PRESS)'}
-                    </div>
+                    </h3>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       {(isAvatar
                         ? ['EJECT', 'FREEZE', 'BAN', 'REPORT ABUSE']

@@ -27,6 +27,17 @@ export default function Chat() {
     message: '',
   });
   const [activeSpeakers, setActiveSpeakers] = useState({});
+  const [typingUsers, setTypingUsers] = useState(() => app.chat?.getTypingUsers?.() || []);
+
+  useEffect(() => {
+    const updateTyping = () => setTypingUsers(app.chat?.getTypingUsers?.() || []);
+    app.chat?.on?.('typing_updated', updateTyping);
+    app.chat?.on?.('user_typing', updateTyping);
+    return () => {
+      app.chat?.off?.('typing_updated', updateTyping);
+      app.chat?.off?.('user_typing', updateTyping);
+    };
+  }, []);
 
   useEffect(() => {
     const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
@@ -212,6 +223,27 @@ export default function Chat() {
     return { targetId, targetName };
   };
 
+  const activeTypingText = useMemo(() => {
+    if (!typingUsers.length) return '';
+    if (activeTab === 'IM') {
+      if (!selectedContact) return '';
+      const target = resolveIMTarget(selectedContact, friends, imThreads);
+      const isTargetTyping = typingUsers.some(
+        (u) =>
+          u.userId === target.targetId ||
+          u.name?.toLowerCase() === target.targetName?.toLowerCase() ||
+          u.name?.toLowerCase() === selectedContact.toLowerCase(),
+      );
+      return isTargetTyping ? `${target.targetName || selectedContact} is typing…` : '';
+    } else if (activeTab === 'LOCAL') {
+      const names = typingUsers.map((u) => u.name || 'Resident');
+      if (names.length === 1) return `${names[0]} is typing…`;
+      if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+      return `${names.length} residents are typing…`;
+    }
+    return '';
+  }, [typingUsers, activeTab, selectedContact, friends, imThreads]);
+
   // Typing indicator state and helpers
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef(null);
@@ -351,10 +383,11 @@ export default function Chat() {
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
+            <h2
               style={{
                 fontSize: '11px',
                 fontWeight: 700,
+                margin: 0,
                 color: autoReplyEnabled ? '#eab308' : V.ink2,
                 display: 'flex',
                 alignItems: 'center',
@@ -363,7 +396,7 @@ export default function Chat() {
             >
               <Icon name="clock" size={13} />
               AWAY AUTO-REPLY: {autoReplyEnabled ? 'ON' : 'OFF'}
-            </span>
+            </h2>
             {autoReplyEnabled && (
               <span
                 style={{
@@ -788,6 +821,32 @@ export default function Chat() {
         onSubmit={send}
         style={{ padding: 12, borderTop: `1px solid ${V.outv}`, background: V.surf }}
       >
+        {activeTypingText && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              color: V.info,
+              marginBottom: 6,
+              fontSize: '11px',
+              fontStyle: 'italic',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: V.info,
+                display: 'inline-block',
+              }}
+            />
+            <span>{activeTypingText}</span>
+          </div>
+        )}
         {error && (
           <div role="alert" style={{ color: V.err, marginBottom: 7, fontSize: '12px' }}>
             {error}

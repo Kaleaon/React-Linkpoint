@@ -36,6 +36,8 @@ import { ParticleEngine } from './particles';
 import { FlexibleChain } from './flexible';
 import { RegionWind } from './wind';
 import { CoordinateNormalizer } from './coordinate-normalizer';
+import { MediaTexturePipeline } from './media-pipeline';
+import { ObjectMediaParser, type PrimFaceMedia, type MediaPlaybackState } from './world-viewer';
 
 export interface FlexiParams {
   softness: number;
@@ -44,6 +46,209 @@ export interface FlexiParams {
   wind: number;
   tension: number;
   force: [number, number, number];
+}
+
+export interface ParcelBuyPassData {
+  agentId?: string;
+  sessionId?: string;
+  localId: number;
+}
+
+export interface ParcelPropertiesUpdateData {
+  [key: string]: any;
+  agentId?: string;
+  sessionId?: string;
+  localId: number;
+  flags?: number;
+  parcelFlags?: number;
+  authBuyerId?: string;
+  snapshotId?: string;
+  userLocation?: [number, number, number];
+  userLookAt?: [number, number, number];
+  category?: number;
+  name?: string;
+  desc?: string;
+  description?: string;
+  musicUrl?: string;
+  mediaUrl?: string;
+  mediaId?: string;
+  mediaAutoScale?: number;
+  groupId?: string;
+  passPrice?: number;
+  passHours?: number;
+  directoryFee?: number;
+  landingType?: number;
+}
+
+/**
+ * Serializes a ParcelBuyPass UDP packet.
+ */
+export function serializeParcelBuyPass(data: ParcelBuyPassData): Uint8Array {
+  const agentId = data.agentId || '00000000-0000-0000-0000-000000000000';
+  const sessionId = data.sessionId || '00000000-0000-0000-0000-000000000000';
+  const localId = Number(data.localId) || 0;
+
+  // Header for low-frequency message 255 (0x00ff)
+  const header = new Uint8Array([0xff, 0xff, 0x00, 0xff]);
+  const buffer = new Uint8Array(4 + 16 + 16 + 4);
+  buffer.set(header, 0);
+
+  const writeUuid = (uuidStr: string, offset: number) => {
+    const hex = uuidStr.replace(/-/g, '');
+    for (let i = 0; i < 16; i++) {
+      buffer[offset + i] = parseInt(hex.substring(i * 2, i * 2 + 2) || '0', 16);
+    }
+  };
+
+  writeUuid(agentId, 4);
+  writeUuid(sessionId, 20);
+
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt32(36, localId, true);
+
+  return buffer;
+}
+
+/**
+ * Serializes a ParcelPropertiesUpdate UDP packet.
+ */
+export function serializeParcelPropertiesUpdate(data: ParcelPropertiesUpdateData): Uint8Array {
+  const agentId = data.agentId || '00000000-0000-0000-0000-000000000000';
+  const sessionId = data.sessionId || '00000000-0000-0000-0000-000000000000';
+  const localId = Number(data.localId) || 0;
+  const parcelFlags = Number(data.parcelFlags ?? data.flags ?? 0) >>> 0;
+  const authBuyerId = data.authBuyerId || '00000000-0000-0000-0000-000000000000';
+  const snapshotId = data.snapshotId || '00000000-0000-0000-0000-000000000000';
+  const userLoc = data.userLocation || [0, 0, 0];
+  const userLook = data.userLookAt || [0, 0, 0];
+  const category = Number(data.category || 0) & 0xff;
+  const nameStr = String(data.name || '');
+  const descStr = String(data.desc ?? data.description ?? '');
+  const musicUrlStr = String(data.musicUrl || '');
+  const mediaUrlStr = String(data.mediaUrl || '');
+  const mediaId = data.mediaId || '00000000-0000-0000-0000-000000000000';
+  const mediaAutoScale = Number(data.mediaAutoScale || 0) & 0xff;
+  const groupId = data.groupId || '00000000-0000-0000-0000-000000000000';
+  const passPrice = Number(data.passPrice || 0) | 0;
+  const passHours = Number(data.passHours || 0);
+  const directoryFee = Number(data.directoryFee || 0) | 0;
+  const landingType = Number(data.landingType || 0) & 0xff;
+
+  const encoder = new TextEncoder();
+  const nameBytes = encoder.encode(nameStr);
+  const descBytes = encoder.encode(descStr);
+  const musicBytes = encoder.encode(musicUrlStr);
+  const mediaBytes = encoder.encode(mediaUrlStr);
+
+  const cappedNameLen = Math.min(nameBytes.length, 255);
+  const cappedDescLen = Math.min(descBytes.length, 65535);
+  const cappedMusicLen = Math.min(musicBytes.length, 255);
+  const cappedMediaLen = Math.min(mediaBytes.length, 255);
+
+  // Low-frequency message 256 (0x0100)
+  const header = new Uint8Array([0xff, 0xff, 0x01, 0x00]);
+
+  const totalLength =
+    4 +
+    32 +
+    4 +
+    4 +
+    16 +
+    16 +
+    12 +
+    12 +
+    1 +
+    1 +
+    cappedNameLen +
+    2 +
+    cappedDescLen +
+    1 +
+    cappedMusicLen +
+    1 +
+    cappedMediaLen +
+    16 +
+    1 +
+    16 +
+    4 +
+    4 +
+    4 +
+    1;
+
+  const buffer = new Uint8Array(totalLength);
+  buffer.set(header, 0);
+
+  const writeUuid = (uuidStr: string, offset: number) => {
+    const hex = uuidStr.replace(/-/g, '');
+    for (let i = 0; i < 16; i++) {
+      buffer[offset + i] = parseInt(hex.substring(i * 2, i * 2 + 2) || '0', 16);
+    }
+  };
+
+  let offset = 4;
+  writeUuid(agentId, offset);
+  offset += 16;
+  writeUuid(sessionId, offset);
+  offset += 16;
+
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+
+  view.setInt32(offset, localId, true);
+  offset += 4;
+  view.setUint32(offset, parcelFlags, true);
+  offset += 4;
+  writeUuid(authBuyerId, offset);
+  offset += 16;
+  writeUuid(snapshotId, offset);
+  offset += 16;
+
+  view.setFloat32(offset, userLoc[0], true);
+  offset += 4;
+  view.setFloat32(offset, userLoc[1], true);
+  offset += 4;
+  view.setFloat32(offset, userLoc[2], true);
+  offset += 4;
+
+  view.setFloat32(offset, userLook[0], true);
+  offset += 4;
+  view.setFloat32(offset, userLook[1], true);
+  offset += 4;
+  view.setFloat32(offset, userLook[2], true);
+  offset += 4;
+
+  buffer[offset++] = category;
+
+  buffer[offset++] = cappedNameLen;
+  buffer.set(nameBytes.subarray(0, cappedNameLen), offset);
+  offset += cappedNameLen;
+
+  view.setUint16(offset, cappedDescLen, true);
+  offset += 2;
+  buffer.set(descBytes.subarray(0, cappedDescLen), offset);
+  offset += cappedDescLen;
+
+  buffer[offset++] = cappedMusicLen;
+  buffer.set(musicBytes.subarray(0, cappedMusicLen), offset);
+  offset += cappedMusicLen;
+
+  buffer[offset++] = cappedMediaLen;
+  buffer.set(mediaBytes.subarray(0, cappedMediaLen), offset);
+  offset += cappedMediaLen;
+
+  writeUuid(mediaId, offset);
+  offset += 16;
+  buffer[offset++] = mediaAutoScale;
+  writeUuid(groupId, offset);
+  offset += 16;
+
+  view.setInt32(offset, passPrice, true);
+  offset += 4;
+  view.setFloat32(offset, passHours, true);
+  offset += 4;
+  view.setInt32(offset, directoryFee, true);
+  offset += 4;
+  buffer[offset++] = landingType;
+
+  return buffer;
 }
 
 export function parseFlexibleParams(data: any): FlexiParams | null {
@@ -145,6 +350,7 @@ export class WorldViewer extends Utils.EventEmitter {
   public region: any = null;
   public objects: any[] = [];
   public nearbyUsers: any[] = [];
+  private typingTimers = new Map<string, any>();
   public avatarPosition: [number, number, number] | null = null;
   /** The logged-in avatar's rotation from the simulator, an SL-frame quaternion [x, y, z, w]. */
   public avatarRotation: [number, number, number, number] | null = null;
@@ -171,6 +377,178 @@ export class WorldViewer extends Utils.EventEmitter {
   /** One chain simulation per flexible prim (see flexible.ts). */
   private flexChains = new Map<string, { chain: FlexibleChain; last: number }>();
   private renderedParticles = new Set<string>();
+
+  public mediaPipeline = new MediaTexturePipeline();
+  public focusedMediaFace: {
+    objectId: string;
+    faceIndex: number;
+    media: PrimFaceMedia;
+    state: MediaPlaybackState;
+  } | null = null;
+
+  /**
+   * Handle ObjectMedia capability response or RPC payload.
+   */
+  public handleObjectMediaResponse(response: any) {
+    const parsedMap = ObjectMediaParser.parseResponse(response);
+    for (const [objectId, mediaList] of parsedMap.entries()) {
+      for (const media of mediaList) {
+        this.setPrimFaceMedia(objectId, media.faceIndex, media);
+      }
+    }
+    this.emit('object_media_updated', { parsedMap });
+  }
+
+  /**
+   * Assigns media parameters to a prim face and registers dynamic canvas texture.
+   */
+  public setPrimFaceMedia(
+    objectId: string,
+    faceIndex: number,
+    mediaData: Partial<PrimFaceMedia> | any,
+  ) {
+    const object =
+      this.sceneObjects.get(objectId) ??
+      [...this.sceneObjects.values()].find((o: any) => this.sameId(o.id, objectId));
+
+    const media = ObjectMediaParser.parseSingleFace(objectId, faceIndex, mediaData) || {
+      objectId,
+      faceIndex,
+      currentUrl: String(mediaData?.currentUrl || mediaData?.url || ''),
+      homeUrl: String(mediaData?.homeUrl || mediaData?.url || ''),
+      autoPlay: Boolean(mediaData?.autoPlay ?? true),
+      autoLoop: Boolean(mediaData?.autoLoop ?? true),
+      autoScale: Boolean(mediaData?.autoScale ?? true),
+      autoZoom: Boolean(mediaData?.autoZoom ?? false),
+      controls: mediaData?.controls || 'standard',
+      widthPixels: Number(mediaData?.widthPixels || 512),
+      heightPixels: Number(mediaData?.heightPixels || 512),
+      firstClickInteract: Boolean(mediaData?.firstClickInteract ?? false),
+      whitelist: Array.isArray(mediaData?.whitelist) ? mediaData.whitelist : [],
+      whitelistEnable: Boolean(mediaData?.whitelistEnable ?? false),
+      permsInteract: Number(mediaData?.permsInteract || 31),
+      permsControl: Number(mediaData?.permsControl || 31),
+    };
+
+    const textureName = this.mediaPipeline.registerMediaFace(media);
+
+    if (object) {
+      if (!object.faces) object.faces = [];
+      while (object.faces.length <= faceIndex) {
+        object.faces.push({});
+      }
+      object.faces[faceIndex] = {
+        ...object.faces[faceIndex],
+        media,
+        mediaTexture: textureName,
+      };
+      this.applySceneObject(object);
+    }
+
+    this.emit('media_face_set', { objectId, faceIndex, media, textureName });
+  }
+
+  public playMedia(objectId: string, faceIndex: number = 0) {
+    const ok = this.mediaPipeline.play(objectId, faceIndex);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) this.focusedMediaFace.state = state;
+      }
+      this.emit('media_playback_changed', { objectId, faceIndex, isPlaying: true });
+    }
+  }
+
+  public pauseMedia(objectId: string, faceIndex: number = 0) {
+    const ok = this.mediaPipeline.pause(objectId, faceIndex);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) this.focusedMediaFace.state = state;
+      }
+      this.emit('media_playback_changed', { objectId, faceIndex, isPlaying: false });
+    }
+  }
+
+  public navigateMedia(objectId: string, faceIndex: number = 0, newUrl: string = '') {
+    const ok = this.mediaPipeline.navigate(objectId, faceIndex, newUrl);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) {
+          this.focusedMediaFace.state = state;
+          this.focusedMediaFace.media.currentUrl = newUrl;
+        }
+      }
+      this.emit('media_url_changed', { objectId, faceIndex, url: newUrl });
+    }
+  }
+
+  public goHomeMedia(objectId: string, faceIndex: number = 0) {
+    const ok = this.mediaPipeline.goHome(objectId, faceIndex);
+    if (ok) {
+      const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex &&
+        state
+      ) {
+        this.focusedMediaFace.state = state;
+      }
+      this.emit('media_url_changed', { objectId, faceIndex, url: state?.url });
+    }
+  }
+
+  public setMediaVolume(objectId: string, faceIndex: number = 0, volume: number = 1.0) {
+    const ok = this.mediaPipeline.setVolume(objectId, faceIndex, volume);
+    if (ok) {
+      if (
+        this.focusedMediaFace?.objectId === objectId &&
+        this.focusedMediaFace?.faceIndex === faceIndex
+      ) {
+        const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+        if (state) this.focusedMediaFace.state = state;
+      }
+      this.emit('media_volume_changed', { objectId, faceIndex, volume });
+    }
+  }
+
+  public focusMediaFace(objectId: string, faceIndex: number = 0) {
+    const state = this.mediaPipeline.getPlaybackState(objectId, faceIndex);
+    const media =
+      this.mediaPipeline.getMediaFace(objectId, faceIndex) ||
+      (
+        this.sceneObjects.get(objectId) ??
+        [...this.sceneObjects.values()].find((o: any) => this.sameId(o.id, objectId))
+      )?.faces?.[faceIndex]?.media;
+
+    if (state && media) {
+      this.focusedMediaFace = { objectId, faceIndex, media, state };
+    } else {
+      this.focusedMediaFace = null;
+    }
+    this.emit('focused_media_changed', this.focusedMediaFace);
+  }
+
+  public updateMediaTextures() {
+    if (!this.graphics3d || !this.camera3d) return;
+    const cameraPos = this.camera3d.position;
+    const objectPositionsMap = new Map<string, [number, number, number]>();
+    for (const [id, obj] of this.sceneObjects.entries()) {
+      const pos = obj.position || [0, 0, 0];
+      objectPositionsMap.set(id, pos);
+    }
+    this.mediaPipeline.update(this.graphics3d, cameraPos, objectPositionsMap);
+  }
 
   /** Assets the host could not download or decode, newest last. A failed mesh leaves its placeholder on screen. */
   private assetErrors = new Map<string, string>();
@@ -238,6 +616,10 @@ export class WorldViewer extends Utils.EventEmitter {
       this.region = null;
       this.avatarPosition = null;
       this.avatarRotation = null;
+      for (const timer of this.typingTimers.values()) {
+        clearTimeout(timer);
+      }
+      this.typingTimers.clear();
       this.nearbyUsers = [];
       this.environment = null;
       this.simSunHour = null;
@@ -248,6 +630,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.displayedHud = null;
       this.hudSignature = '';
       this.sceneObjects.clear();
+      this.mediaPipeline.clear();
       this.particles.clear();
       this.flexChains.clear();
       this.lostAssetWarned.clear();
@@ -306,14 +689,20 @@ export class WorldViewer extends Utils.EventEmitter {
         this.nearbyUsers.map((user) => ({ ...user })),
       );
     });
-    this.protocol.on('ParcelProperties', (data: any) => {
-      const parcels = data?.ParcelData || data?.parcelData || [];
-      const parcel = Array.isArray(parcels) ? parcels[0] : parcels;
-      if (!parcel) return;
-      this.region = { ...this.region, parcel: { ...parcel } };
-      this.emit('parcel_changed', { ...parcel });
-      this.emit('region_changed', { ...this.region });
+    this.protocol.on('typing', (data: any) => {
+      const id = data?.agentId || data?.fromId;
+      if (id) this.setTyping(id, Boolean(data?.isTyping));
     });
+    const handleParcelData = (data: any) => {
+      const parcels = data?.ParcelData || data?.parcelData || [];
+      const parcel = Array.isArray(parcels) ? parcels[0] : parcels || data;
+      if (!parcel) return;
+      this.region = { ...this.region, parcel: { ...this.region?.parcel, ...parcel } };
+      this.emit('parcel_changed', { ...this.region.parcel });
+      this.emit('region_changed', { ...this.region });
+    };
+    this.protocol.on('ParcelProperties', handleParcelData);
+    this.protocol.on('ParcelPropertiesUpdate', handleParcelData);
     this.protocol.on('scene:object-add', (object: any) => {
       this.upsertSceneObject(object);
       this.followAvatar(object);
@@ -1187,6 +1576,7 @@ export class WorldViewer extends Utils.EventEmitter {
         this.updateAnimatedAvatars();
         this.updateFlexibles(time / 1000);
         this.updateParticles(time / 1000);
+        this.updateMediaTextures();
         this.scene3d.render();
       }
       this.animationId = requestAnimationFrame(render);
@@ -2285,6 +2675,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const affectedSubject = removed && !removed.avatar ? this.animationSubject(removed) : null;
     this.invalidateSubjectCache(id);
     this.sceneObjects.delete(id);
+    this.mediaPipeline.unregisterAllForObject(id);
     this.localObjectIds.delete(object.localId);
     this.animator.remove(id);
     this.particles.removeEmitter(id);
@@ -2559,6 +2950,48 @@ export class WorldViewer extends Utils.EventEmitter {
     return this.nearbyUsers.map((user) => ({ ...user }));
   }
 
+  public setTyping(agentId: string, isTyping: boolean = true) {
+    if (!agentId) return;
+    const existingTimer = this.typingTimers.get(agentId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.typingTimers.delete(agentId);
+    }
+
+    const index = this.nearbyUsers.findIndex((u) => u.id === agentId);
+    if (index >= 0) {
+      this.nearbyUsers = this.nearbyUsers.map((u, idx) =>
+        idx === index ? { ...u, typing: isTyping } : u,
+      );
+    } else if (isTyping) {
+      this.nearbyUsers = [
+        ...this.nearbyUsers,
+        {
+          id: agentId,
+          name: `Resident ${agentId.slice(0, 8)}`,
+          position: null,
+          distance: null,
+          bearing: null,
+          online: true,
+          typing: true,
+        },
+      ];
+    }
+
+    if (isTyping) {
+      const timer = setTimeout(() => {
+        this.setTyping(agentId, false);
+      }, 5000);
+      this.typingTimers.set(agentId, timer);
+    }
+
+    this.emit(
+      'nearby_changed',
+      this.nearbyUsers.map((user) => ({ ...user })),
+    );
+    this.emit('typing_changed', { agentId, isTyping });
+  }
+
   public handleAgentMovement(data: any) {
     if (!data) return;
     const raw = data?.Data?.Position ?? data?.Position ?? data?.position ?? data;
@@ -2579,5 +3012,223 @@ export class WorldViewer extends Utils.EventEmitter {
       }
       this.updateLocationDisplay();
     }
+  }
+
+  /**
+   * Purchase an access pass for a parcel.
+   * Dispatches ParcelBuyPass UDP packet.
+   */
+  public async buyPass(localId?: number): Promise<boolean> {
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+    if (!targetLocalId) {
+      throw new Error('No target parcel specified for pass purchase');
+    }
+
+    const payload = {
+      agentId: this.protocol?.agentId,
+      sessionId: this.protocol?.sessionId,
+      localId: Number(targetLocalId),
+    };
+
+    const packetBytes = serializeParcelBuyPass(payload);
+
+    if (typeof this.protocol?.sendPacket === 'function') {
+      await this.protocol.sendPacket('ParcelBuyPass', payload, packetBytes);
+    } else if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('buyParcelPass', { localId: targetLocalId });
+    }
+
+    this.emit('parcel_pass_purchased', {
+      localId: targetLocalId,
+      agentId: this.protocol?.agentId,
+      timestamp: Date.now(),
+    });
+
+    return true;
+  }
+
+  /**
+   * Update parcel properties (name, category, flags, media, etc.)
+   * Dispatches ParcelPropertiesUpdate UDP packet and updates local state.
+   */
+  public async updateParcelProperties(
+    updates: Partial<ParcelPropertiesUpdateData> & Record<string, any>,
+  ): Promise<boolean> {
+    const currentParcel = this.region?.parcel || {};
+    const localId = updates.localId ?? currentParcel.LocalID ?? currentParcel.id ?? 0;
+
+    const mergedData: ParcelPropertiesUpdateData = {
+      agentId: this.protocol?.agentId,
+      sessionId: this.protocol?.sessionId,
+      localId: Number(localId),
+      flags:
+        updates.flags ??
+        updates.parcelFlags ??
+        currentParcel.flags ??
+        currentParcel.ParcelFlags ??
+        0,
+      parcelFlags:
+        updates.parcelFlags ??
+        updates.flags ??
+        currentParcel.ParcelFlags ??
+        currentParcel.flags ??
+        0,
+      authBuyerId: updates.authBuyerId ?? currentParcel.AuthBuyerID ?? currentParcel.authBuyerId,
+      snapshotId: updates.snapshotId ?? currentParcel.SnapshotID ?? currentParcel.snapshotId,
+      userLocation: updates.userLocation ??
+        currentParcel.UserLocation ??
+        currentParcel.userLocation ?? [0, 0, 0],
+      userLookAt: updates.userLookAt ??
+        currentParcel.UserLookAt ??
+        currentParcel.userLookAt ?? [0, 0, 0],
+      category: updates.category ?? currentParcel.Category ?? currentParcel.category ?? 0,
+      name: updates.name ?? currentParcel.Name ?? currentParcel.name ?? '',
+      desc:
+        updates.desc ??
+        updates.description ??
+        currentParcel.Desc ??
+        currentParcel.description ??
+        '',
+      musicUrl: updates.musicUrl ?? currentParcel.MusicURL ?? currentParcel.musicUrl ?? '',
+      mediaUrl: updates.mediaUrl ?? currentParcel.MediaURL ?? currentParcel.mediaUrl ?? '',
+      mediaId: updates.mediaId ?? currentParcel.MediaID ?? currentParcel.mediaId,
+      mediaAutoScale:
+        updates.mediaAutoScale ?? currentParcel.MediaAutoScale ?? currentParcel.mediaAutoScale ?? 0,
+      groupId: updates.groupId ?? currentParcel.GroupID ?? currentParcel.groupId,
+      passPrice: updates.passPrice ?? currentParcel.PassPrice ?? currentParcel.passPrice ?? 0,
+      passHours: updates.passHours ?? currentParcel.PassHours ?? currentParcel.passHours ?? 0,
+      directoryFee:
+        updates.directoryFee ?? currentParcel.DirectoryFee ?? currentParcel.directoryFee ?? 0,
+      landingType:
+        updates.landingType ?? currentParcel.LandingType ?? currentParcel.landingType ?? 0,
+    };
+
+    const packetBytes = serializeParcelPropertiesUpdate(mergedData);
+
+    if (typeof this.protocol?.sendPacket === 'function') {
+      await this.protocol.sendPacket('ParcelPropertiesUpdate', mergedData, packetBytes);
+    } else if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('updateParcelProperties', mergedData);
+    }
+
+    const updatedParcel = {
+      ...currentParcel,
+      LocalID: mergedData.localId,
+      Name: mergedData.name,
+      name: mergedData.name,
+      Desc: mergedData.desc,
+      description: mergedData.desc,
+      Category: mergedData.category,
+      category: mergedData.category,
+      MusicURL: mergedData.musicUrl,
+      musicUrl: mergedData.musicUrl,
+      MediaURL: mergedData.mediaUrl,
+      mediaUrl: mergedData.mediaUrl,
+      PassPrice: mergedData.passPrice,
+      passPrice: mergedData.passPrice,
+      PassHours: mergedData.passHours,
+      passHours: mergedData.passHours,
+      LandingType: mergedData.landingType,
+      landingType: mergedData.landingType,
+      ParcelFlags: mergedData.parcelFlags,
+      flags: mergedData.parcelFlags,
+    };
+
+    this.region = { ...this.region, parcel: updatedParcel };
+    this.emit('parcel_changed', { ...updatedParcel });
+    this.emit('region_changed', { ...this.region });
+
+    return true;
+  }
+
+  /**
+   * Buy parcel with price & area confirmation guardrails.
+   */
+  public async buyParcel(options: {
+    price: number;
+    area: number;
+    confirmedPrice?: number;
+    confirmedArea?: number;
+    localId?: number;
+    forGroup?: boolean;
+  }): Promise<boolean> {
+    const { price, area, confirmedPrice, confirmedArea, localId, forGroup } = options;
+    if (confirmedPrice === undefined || confirmedPrice !== price) {
+      throw new Error(
+        `Parcel purchase failed: confirmed price (${confirmedPrice}) does not match required price (${price})`,
+      );
+    }
+    if (confirmedArea === undefined || confirmedArea !== area) {
+      throw new Error(
+        `Parcel purchase failed: confirmed area (${confirmedArea} sq.m.) does not match required area (${area} sq.m.)`,
+      );
+    }
+
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+
+    if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('buyParcel', { localId: targetLocalId, price, area, forGroup });
+    }
+
+    this.emit('parcel_bought', {
+      localId: targetLocalId,
+      price,
+      area,
+      forGroup: Boolean(forGroup),
+      timestamp: Date.now(),
+    });
+
+    return true;
+  }
+
+  /**
+   * Subdivide land with boundary vertices confirmation guardrail.
+   */
+  public async subdivideParcel(options: {
+    boundaryVertices: [number, number][];
+    confirmedVertices?: [number, number][];
+    localId?: number;
+  }): Promise<boolean> {
+    const { boundaryVertices, confirmedVertices, localId } = options;
+    if (!boundaryVertices || boundaryVertices.length < 3) {
+      throw new Error('Parcel subdivision failed: at least 3 boundary vertices are required');
+    }
+    if (!confirmedVertices || confirmedVertices.length !== boundaryVertices.length) {
+      throw new Error(
+        'Parcel subdivision failed: confirmed boundary vertices do not match required boundary vertices',
+      );
+    }
+
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+
+    if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('subdivideParcel', { localId: targetLocalId, boundaryVertices });
+    }
+
+    this.emit('parcel_subdivided', {
+      localId: targetLocalId,
+      boundaryVertices,
+      timestamp: Date.now(),
+    });
+
+    return true;
+  }
+
+  /**
+   * Reclaim parcel land.
+   */
+  public async reclaimParcel(localId?: number): Promise<boolean> {
+    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+
+    if (typeof slBridge?.call === 'function' && slBridge.connected) {
+      await slBridge.call('reclaimParcel', { localId: targetLocalId });
+    }
+
+    this.emit('parcel_reclaimed', {
+      localId: targetLocalId,
+      timestamp: Date.now(),
+    });
+
+    return true;
   }
 }

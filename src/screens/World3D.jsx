@@ -4,13 +4,14 @@ import { app } from '../linkpoint/app';
 import { slBridge } from '../linkpoint/sl-bridge';
 import { Utils } from '../linkpoint/utils';
 import { isTypingTarget } from '../linkpoint/keyboard-motion';
-import { useKeybindings } from '../context/KeybindingsContext';
+import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
+import MediaControlsOverlay from '../components/MediaControlsOverlay.jsx';
 import Icon from '../components/Icon.jsx';
 import { useCameraState } from '../components/cameraReadout';
 import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
@@ -200,6 +201,21 @@ export default function World3D({ desktopBackdrop = false }) {
     return chatMessages.filter((m) => m.type !== 'im' && m.type !== 'group').slice(-10);
   }, [chatMessages]);
 
+  const [nearbyTypingUsers, setNearbyTypingUsers] = useState([]);
+  useEffect(() => {
+    const updateTyping = () => {
+      const typing = (app.world?.nearbyUsers || []).filter((u) => u.typing);
+      setNearbyTypingUsers(typing);
+    };
+    app.world?.on?.('nearby_changed', updateTyping);
+    app.world?.on?.('typing_changed', updateTyping);
+    updateTyping();
+    return () => {
+      app.world?.off?.('nearby_changed', updateTyping);
+      app.world?.off?.('typing_changed', updateTyping);
+    };
+  }, []);
+
   const [, setAssetRevision] = useState(0);
   useEffect(() => {
     const bump = () => setAssetRevision((n) => n + 1);
@@ -386,6 +402,48 @@ export default function World3D({ desktopBackdrop = false }) {
       {/* Overlays when enabled */}
       {!desktopBackdrop && showOverlays && (
         <>
+          {/* Overhead Typing Status Banner */}
+          {nearbyTypingUsers.length > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'absolute',
+                top: isCompactViewport ? 54 : 14,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 30,
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: V.info,
+                border: `1px solid ${V.info}`,
+                borderRadius: V.rs || 6,
+                padding: '4px 12px',
+                fontSize: '11px',
+                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                pointerEvents: 'none',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: V.info,
+                }}
+              />
+              <span>
+                {nearbyTypingUsers.length === 1
+                  ? `${nearbyTypingUsers[0].name || 'Resident'} is typing…`
+                  : `${nearbyTypingUsers.length} residents are typing…`}
+              </span>
+            </div>
+          )}
+
           {/* Top-Right Quick Action Buttons */}
           <div
             style={{
@@ -1068,6 +1126,7 @@ export default function World3D({ desktopBackdrop = false }) {
           )}
 
           {/* HUD Controls */}
+          <MediaControlsOverlay />
           <HudControls
             bottomOffset={isSmallViewport && showDpad ? 110 : 14}
             outfitDrawerOpen={showOutfitDrawer}

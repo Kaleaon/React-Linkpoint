@@ -340,9 +340,50 @@ async function acceptGroupNoticeAttachment(bot, pending, params = {}) {
 
 /** Decline an inventory offer. */
 async function declineInventoryOffer(bot, pending, params) {
-  if (params && params.id) {
-    pending.remove(params.id);
+  let offer = null;
+  if (params && params.id && pending && typeof pending.get === 'function') {
+    try {
+      offer = pending.get('inventory-offer', params.id);
+    } catch {
+      // Offer may already be removed or of a different kind
+    }
   }
+  const senderId = idString(offer && (offer.from || offer.fromId || offer.fromID));
+
+  try {
+    const cmd = commands(bot);
+    if (cmd.inventory && typeof cmd.inventory.declineInventoryOffer === 'function') {
+      await cmd.inventory.declineInventoryOffer(offer);
+    } else if (cmd.inventory && typeof cmd.inventory.respondToInventoryOffer === 'function') {
+      await cmd.inventory.respondToInventoryOffer(offer, 10);
+    } else if (cmd.comms && typeof cmd.comms.sendImprovedInstantMessage === 'function') {
+      await cmd.comms.sendImprovedInstantMessage({
+        to: senderId,
+        recipientId: senderId,
+        toAgentId: senderId,
+        dialog: 10,
+        id: idString(offer && (offer.requestID || offer.requestId || offer.id)) || '',
+        message: (offer && offer.message) || '',
+      });
+    } else if (cmd.comms && typeof cmd.comms.sendInstantMessage === 'function' && senderId) {
+      if (cmd.comms.sendInstantMessage.length >= 3) {
+        await cmd.comms.sendInstantMessage(senderId, '', 10);
+      } else {
+        await cmd.comms.sendInstantMessage(senderId, '');
+      }
+    } else {
+      console.warn(
+        '[sl-interactions] Unable to send inventory decline packet: missing network dispatch interface',
+      );
+    }
+  } catch (err) {
+    console.warn('[sl-interactions] Failed to send inventory decline packet:', err);
+  } finally {
+    if (params && params.id && pending && typeof pending.remove === 'function') {
+      pending.remove(params.id);
+    }
+  }
+
   return { declined: true };
 }
 

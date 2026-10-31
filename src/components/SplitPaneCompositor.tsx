@@ -506,6 +506,7 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
                 value={chatInputText}
                 onChange={(e) => setChatInputText(e.target.value)}
                 placeholder="Send nearby spatial chat..."
+                aria-label="Spatial chat message input"
                 style={{
                   flex: 1,
                   height: '30px',

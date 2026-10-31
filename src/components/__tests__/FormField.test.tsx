@@ -105,4 +105,44 @@ describe('<FormField /> Component', () => {
 
     expect(input?.getAttribute('aria-describedby')).toBe(`${helpId} ${errorId}`);
   });
+
+  it('forwards aria-label prop to nested control when FormField has no visible label', async () => {
+    const host = await mount(
+      <FormField aria-label="Search items">
+        <input type="text" />
+      </FormField>,
+    );
+
+    const label = host.querySelector('label');
+    const input = host.querySelector('input');
+
+    expect(label).toBeNull();
+    expect(input?.getAttribute('aria-label')).toBe('Search items');
+  });
+
+  it('forwards aria-label to nested input control inside container element', async () => {
+    const host = await mount(
+      <FormField aria-label="Wrapped input">
+        <div className="wrapper">
+          <input type="text" />
+        </div>
+      </FormField>,
+    );
+
+    const input = host.querySelector('input');
+    expect(input?.getAttribute('aria-label')).toBe('Wrapped input');
+  });
+
+  it('combines existing child aria-describedby without duplication', async () => {
+    const host = await mount(
+      <FormField label="Field" helpText="Help info">
+        <input type="text" aria-describedby="custom-desc" />
+      </FormField>,
+    );
+
+    const input = host.querySelector('input');
+    const help = host.querySelector('small');
+    const helpId = help?.getAttribute('id');
+    expect(input?.getAttribute('aria-describedby')).toBe(`custom-desc ${helpId}`);
+  });
 });

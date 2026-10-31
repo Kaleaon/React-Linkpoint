@@ -1,10 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import {
-  matchesKeyBinding,
-  isValidKeyBinding,
-  parseKeyString,
-  formatKeyString,
-} from '../linkpoint/key-bindings';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { matchesKeyBinding, isValidKeyBinding } from '../linkpoint/key-bindings';
 import { isTypingTarget } from '../linkpoint/keyboard-motion';
 import { app } from '../linkpoint/app';
 

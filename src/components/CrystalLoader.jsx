@@ -1,30 +1,46 @@
-import { useId } from 'react';
-import { MINI_CRYSTAL } from './linkpointCrystal.js';
+import React, { useId } from 'react';
+import { CRYSTAL } from './linkpointCrystal.js';
+import { BrandedLoader } from '@linkpoint/design-system/react';
 
-// The Linkpoint crystal from the login screen, reduced to a loading indicator:
-// two pyramid halves close into the octahedron and the core lights as they meet.
-// Loading states used to spin the screen's lucide glyph inside its bordered box,
-// which read as a generic spinner rather than as this product's mark.
-//
-// Colours come from the palette's CSS custom properties (the shell sets them on
-// the device frame), so it re-skins with every colour pack like the login logo.
-// Keyframes live in index.css next to `spin`.
 /**
+ * The Linkpoint crystal mark, reduced to a loading indicator:
+ * two pyramid halves close into the octahedron and the core lights as they meet.
+ * Consumes 512x512 master geometry definitions from CRYSTAL.
+ *
+ * Colours come from the palette's CSS custom properties (the shell sets them on
+ * the device frame), so it re-skins with every colour pack like the login logo.
+ * Keyframes live in index.css next to `spin`.
+ *
  * @param {Object} props
  * @param {number} [props.size]
- * @param {"block" | "inline"} [props.variant]
+ * @param {"block" | "inline" | "screen" | "card" | "asset"} [props.variant]
  * @param {string} [props.className]
  * @param {Object} [props.style]
  * @param {string} [props.idPrefix]
  */
 export default function CrystalLoader({
-  size = undefined,
+  size,
   variant = 'block',
   className = '',
   style = {},
   idPrefix,
+  ...rest
 }) {
   const reactId = useId();
+
+  if (variant === 'card' || variant === 'asset') {
+    return (
+      <BrandedLoader
+        size={size}
+        variant={variant}
+        className={className}
+        style={style}
+        idPrefix={idPrefix}
+        {...rest}
+      />
+    );
+  }
+
   const cleanId = reactId.replace(/:/g, '');
   const prefix = idPrefix ? idPrefix.replace(/:/g, '') : `lpld-${cleanId}`;
   const gradA = `${prefix}-a`;
@@ -52,9 +68,10 @@ export default function CrystalLoader({
       aria-label="Loading"
       data-testid="crystal-loader"
       data-variant={variant}
+      {...rest}
     >
       <svg
-        viewBox="0 0 120 120"
+        viewBox="0 0 512 512"
         aria-hidden="true"
         style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}
       >
@@ -75,55 +92,99 @@ export default function CrystalLoader({
         </defs>
         <circle
           className="lpld-ring"
-          cx="60"
-          cy="60"
-          r="6"
+          cx="256"
+          cy="256"
+          r="25.6"
           fill="none"
           stroke="var(--pri,#6CFF9A)"
           strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
         />
         <g className="lpld-bot">
           <polygon
-            points={MINI_CRYSTAL.bot.faceA}
+            points={CRYSTAL.bot.faces[0].points}
             fill={`url(#${gradB})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
             strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.bot.faces[0].opacity}
           />
           <polygon
-            points={MINI_CRYSTAL.bot.faceB}
+            points={CRYSTAL.bot.faces[1].points}
             fill={`url(#${gradA})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
             strokeLinejoin="round"
-            opacity=".72"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.bot.faces[1].opacity}
+          />
+          <polygon
+            points={CRYSTAL.bot.faces[2].points}
+            fill={`url(#${gradB})`}
+            stroke="var(--outv,#365047)"
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={0.6}
+          />
+          <polygon
+            points={CRYSTAL.bot.faces[3].points}
+            fill={`url(#${gradA})`}
+            stroke="var(--outv,#365047)"
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={0.6}
           />
         </g>
         <g className="lpld-top">
           <polygon
-            points={MINI_CRYSTAL.top.faceA}
+            points={CRYSTAL.top.faces[0].points}
             fill={`url(#${gradA})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
             strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.top.faces[0].opacity}
           />
           <polygon
-            points={MINI_CRYSTAL.top.faceB}
+            points={CRYSTAL.top.faces[1].points}
             fill={`url(#${gradB})`}
             stroke="var(--outv,#365047)"
             strokeWidth="1"
             strokeLinejoin="round"
-            opacity=".72"
+            vectorEffect="non-scaling-stroke"
+            opacity={CRYSTAL.top.faces[1].opacity}
+          />
+          <polygon
+            points={CRYSTAL.top.faces[2].points}
+            fill={`url(#${gradA})`}
+            stroke="var(--outv,#365047)"
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={0.6}
+          />
+          <polygon
+            points={CRYSTAL.top.faces[3].points}
+            fill={`url(#${gradB})`}
+            stroke="var(--outv,#365047)"
+            strokeWidth="1"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={0.6}
           />
           <polyline
-            points={MINI_CRYSTAL.top.ridge}
+            points={CRYSTAL.top.ridge}
             fill="none"
             stroke="var(--pri,#6CFF9A)"
             strokeOpacity=".45"
             strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
           />
         </g>
-        <circle className="lpld-core" cx="60" cy="60" r="15" fill={`url(#${gradCore})`} />
+        <circle className="lpld-core" cx="256" cy="256" r="64" fill={`url(#${gradCore})`} />
       </svg>
     </div>
   );

@@ -18,9 +18,43 @@ let mounted: Mounted | null = null;
 afterEach(async () => {
   await unmount(mounted);
   mounted = null;
+  document.getElementById('linkpoint-logo-styles')?.remove();
 });
 
 describe('Modernized CSS LinkpointLogo Component', () => {
+  it('wraps SVG in a div container with role="img", aria-label, and aria-hidden="true" on nested svg', async () => {
+    mounted = await mountScreen(LinkpointLogo);
+    const container = mounted.host.querySelector('div[role="img"]');
+    expect(container).not.toBeNull();
+    expect(container?.getAttribute('aria-label')).toBe('Linkpoint logo');
+
+    const svg = container?.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('allows custom aria-label on wrapper container', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo aria-label="Custom logo label" />);
+    const container = mounted.host.querySelector('div[role="img"]');
+    expect(container).not.toBeNull();
+    expect(container?.getAttribute('aria-label')).toBe('Custom logo label');
+  });
+
+  it('allows custom label prop on wrapper container', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo label="Custom logo label via label prop" />);
+    const container = mounted.host.querySelector('div[role="img"]');
+    expect(container).not.toBeNull();
+    expect(container?.getAttribute('aria-label')).toBe('Custom logo label via label prop');
+  });
+
+  it('suppresses aria-label when aria-hidden is true', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo aria-hidden={true} />);
+    const container = mounted.host.querySelector('div[role="img"]');
+    expect(container).not.toBeNull();
+    expect(container?.getAttribute('aria-label')).toBeNull();
+    expect(container?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('renders SVG logo without any SMIL tags', async () => {
     mounted = await mountScreen(LinkpointLogo);
     const svg = mounted.host.querySelector('svg');
@@ -110,13 +144,15 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(coreCircle?.getAttribute('fill')).toBe('url(#test-logo1-core-glow)');
   });
 
-  it('includes GPU compositor properties and will-change performance hints in SVG CSS', async () => {
+  it('includes GPU compositor properties and will-change performance hints in SVG CSS in document.head', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const styleEl = mounted.host.querySelector('style');
+    expect(mounted.host.querySelector('style')).toBeNull();
+
+    const styleEl = document.getElementById('linkpoint-logo-styles');
     expect(styleEl).not.toBeNull();
     const cssText = styleEl?.textContent || '';
 
-    expect(cssText).toContain('will-change: transform');
+    expect(cssText).toContain('will-change: transform;');
     expect(cssText).not.toContain('will-change: opacity');
     expect(cssText).toContain('@keyframes topCloseSeq');
     expect(cssText).toContain('@keyframes botCloseSeq');
@@ -127,13 +163,45 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(cssText).toContain('@keyframes moteFarFade');
   });
 
-  it('contains prefers-reduced-motion media query for accessibility', async () => {
+  it('sets will-change: auto for static logos when animated prop is false', async () => {
+    mounted = await mountScreen(() => <LinkpointLogo animated={false} />);
+    expect(mounted.host.querySelector('style')).toBeNull();
+
+    const styleEl = document.getElementById('linkpoint-logo-styles');
+    expect(styleEl).not.toBeNull();
+    const cssText = styleEl?.textContent || '';
+
+    // Verify static logo class rules emit will-change: auto
+    expect(cssText).toContain('.top-crystal-r {\n    will-change: auto;');
+    expect(cssText).toContain('.bot-crystal-r {\n    will-change: auto;');
+    expect(cssText).toContain('.mote-rotator-group {\n    will-change: auto;');
+
+    // Verify animated modifier classes are not applied to static logo elements
+    expect(mounted.host.querySelector('.top-crystal-r.animated')).toBeNull();
+    expect(mounted.host.querySelector('.bot-crystal-r.animated')).toBeNull();
+    expect(mounted.host.querySelector('.mote-rotator-group.animated')).toBeNull();
+    expect(mounted.host.querySelector('.core-anim-r.animated')).toBeNull();
+  });
+
+  it('contains prefers-reduced-motion media query for accessibility in document.head', async () => {
     mounted = await mountScreen(LinkpointLogo);
-    const styleEl = mounted.host.querySelector('style');
+    const styleEl = document.getElementById('linkpoint-logo-styles');
     const cssText = styleEl?.textContent || '';
 
     expect(cssText).toContain('@media (prefers-reduced-motion: reduce)');
     expect(cssText).toContain('animation: none !important');
+  });
+
+  it('injects style tag into document.head only once when multiple instances are mounted', async () => {
+    mounted = await mountScreen(() => (
+      <div>
+        <LinkpointLogo />
+        <LinkpointLogo />
+      </div>
+    ));
+    const styleElements = document.querySelectorAll('style#linkpoint-logo-styles');
+    expect(styleElements).toHaveLength(1);
+    expect(mounted.host.querySelector('style')).toBeNull();
   });
 
   it('toggles title display based on showTitle prop', async () => {
@@ -162,10 +230,14 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     mounted = await mountScreen(Login);
     const header = mounted.host.querySelector('header');
     expect(header).not.toBeNull();
-    const logoSvg = header?.querySelector('svg') as SVGElement | null;
+    const logoContainer = header?.querySelector('div[role="img"]') as HTMLElement | null;
+    expect(logoContainer).not.toBeNull();
+    expect(logoContainer?.getAttribute('aria-label')).toBe('Linkpoint logo');
+    expect(logoContainer?.style.width).toBe('64px');
+    expect(logoContainer?.style.height).toBe('64px');
+    const logoSvg = logoContainer?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
-    expect(logoSvg?.style.width).toBe('64px');
-    expect(logoSvg?.style.height).toBe('64px');
+    expect(logoSvg?.getAttribute('aria-hidden')).toBe('true');
     const title = header?.querySelector('h1');
     expect(title?.textContent).toBe('LINKPOINT');
   });
@@ -201,12 +273,18 @@ describe('Modernized CSS LinkpointLogo Component', () => {
 
     for (const mode of modes) {
       mounted = await mountScreen(mode.Component);
-      const svg = mounted.host.querySelector('svg') as SVGElement | null;
-      expect(svg, `${mode.name} should render LinkpointLogo`).not.toBeNull();
-      const styleHeight = svg?.style.height;
+      const container = mounted.host.querySelector('div[role="img"]') as HTMLElement | null;
+      expect(container, `${mode.name} should render LinkpointLogo wrapper`).not.toBeNull();
+      expect(container?.getAttribute('aria-label')).toBe('Linkpoint logo');
+      const styleHeight = container?.style.height;
       const numericHeight = styleHeight ? parseInt(styleHeight, 10) : 0;
       expect(numericHeight).toBeGreaterThan(0);
       expect(numericHeight).toBeLessThanOrEqual(28);
+
+      const svg = container?.querySelector('svg');
+      expect(svg).not.toBeNull();
+      expect(svg?.getAttribute('aria-hidden')).toBe('true');
+
       await unmount(mounted);
       mounted = null;
     }
@@ -218,8 +296,85 @@ describe('Modernized CSS LinkpointLogo Component', () => {
     expect(locationBar).not.toBeNull();
     const emblem = locationBar?.querySelector('.desktop-brand-emblem');
     expect(emblem).not.toBeNull();
-    const logoSvg = emblem?.querySelector('svg') as SVGElement | null;
+    const logoContainer = emblem?.querySelector('div[role="img"]') as HTMLElement | null;
+    expect(logoContainer).not.toBeNull();
+    expect(logoContainer?.getAttribute('aria-label')).toBe('Linkpoint logo');
+    expect(logoContainer?.style.height).toBe('20px');
+
+    const logoSvg = logoContainer?.querySelector('svg') as SVGElement | null;
     expect(logoSvg).not.toBeNull();
-    expect(logoSvg?.style.height).toBe('20px');
+    expect(logoSvg?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('generates HTML preview artifact for animated vs static logo instances', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const mountedAnimated = await mountScreen(() => (
+      <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', width: '300px' }}>
+        <h2
+          style={{
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            fontSize: '16px',
+            marginBottom: '12px',
+          }}
+        >
+          Animated Logo (animated=true)
+        </h2>
+        <LinkpointLogo animated={true} showTitle={false} width="200" height="200" />
+      </div>
+    ));
+    const animatedHtml = mountedAnimated.host.innerHTML;
+    await unmount(mountedAnimated);
+
+    const mountedStatic = await mountScreen(() => (
+      <div style={{ background: '#0f172a', padding: '20px', borderRadius: '8px', width: '300px' }}>
+        <h2
+          style={{
+            color: '#fff',
+            fontFamily: 'sans-serif',
+            fontSize: '16px',
+            marginBottom: '12px',
+          }}
+        >
+          Static Logo (animated=false)
+        </h2>
+        <LinkpointLogo animated={false} showTitle={false} width="200" height="200" />
+      </div>
+    ));
+    const staticHtml = mountedStatic.host.innerHTML;
+    await unmount(mountedStatic);
+
+    const doc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LinkpointLogo Will-Change Verification</title>
+<style>
+body { background: #020617; font-family: sans-serif; color: #fff; padding: 40px; }
+.container { display: flex; gap: 40px; }
+</style>
+</head>
+<body>
+<h1>LinkpointLogo Will-Change Verification</h1>
+<div class="container">
+  ${animatedHtml}
+  ${staticHtml}
+</div>
+</body>
+</html>`;
+
+    const previewPath = path.resolve(process.cwd(), 'logo_preview.html');
+    try {
+      fs.writeFileSync(previewPath, doc);
+      expect(fs.existsSync(previewPath)).toBe(true);
+      expect(fs.readFileSync(previewPath, 'utf-8')).toContain(
+        'LinkpointLogo Will-Change Verification',
+      );
+    } finally {
+      if (fs.existsSync(previewPath)) {
+        fs.unlinkSync(previewPath);
+      }
+    }
   });
 });

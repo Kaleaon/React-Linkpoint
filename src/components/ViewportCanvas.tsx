@@ -1,7 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { useKeybindings } from '../context/KeybindingsContext';
-import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
+import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import { isTypingTarget } from '../linkpoint/keyboard-motion';
+import { useSpatialAnnouncer } from '../hooks/useSpatialAnnouncer';
 
 export { useSpatialAnnouncer };
 
