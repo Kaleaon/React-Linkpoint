@@ -226,7 +226,7 @@
           @keyframes lpldTop {
             0%,
             12% {
-              transform: translateY(-15px);
+              transform: translateY(-64px);
             }
             40%,
             62% {
@@ -234,13 +234,13 @@
             }
             88%,
             100% {
-              transform: translateY(-15px);
+              transform: translateY(-64px);
             }
           }
           @keyframes lpldBot {
             0%,
             12% {
-              transform: translateY(15px);
+              transform: translateY(64px);
             }
             40%,
             62% {
@@ -248,7 +248,7 @@
             }
             88%,
             100% {
-              transform: translateY(15px);
+              transform: translateY(64px);
             }
           }
           @keyframes lpldCore {
@@ -272,17 +272,17 @@
             0%,
             12% {
               opacity: 0.15;
-              r: 6;
+              r: 25.6px;
             }
             40%,
             62% {
               opacity: 0.5;
-              r: 30;
+              r: 128px;
             }
             88%,
             100% {
               opacity: 0.15;
-              r: 6;
+              r: 25.6px;
             }
           }
           .lpld-top {
@@ -292,11 +292,11 @@
             animation: lpldBot 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
           }
           .lpld-core {
-            transform-origin: 60px 60px;
+            transform-origin: 256px 256px;
             animation: lpldCore 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
           }
           .lpld-ring {
-            transform-origin: 60px 60px;
+            transform-origin: 256px 256px;
             animation: lpldRing 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
           }
           @media (prefers-reduced-motion: reduce) {
@@ -307,10 +307,10 @@
               animation: none;
             }
             .lpld-top {
-              transform: translateY(-15px);
+              transform: translateY(-64px);
             }
             .lpld-bot {
-              transform: translateY(15px);
+              transform: translateY(64px);
             }
           }
           @keyframes wig {

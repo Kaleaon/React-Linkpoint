@@ -31,13 +31,10 @@ export const lerpVec = (a: Vec3, b: Vec3, t: number): Vec3 => [
   a[2] + (b[2] - a[2]) * t,
 ];
 
-/** The viewer's `normVec`: leaves a near-zero vector unchanged or uses a fallback vector if provided. */
+/** The viewer's `normVec`: leaves a near-zero vector unchanged or returns optional fallback. */
 export function normalize(a: Vec3, fallback?: Vec3): Vec3 {
   const mag = length(a);
-  if (mag > FP_MAG_THRESHOLD) {
-    return scale(a, 1 / mag);
-  }
-  return fallback ? [...fallback] : [...a];
+  return mag > FP_MAG_THRESHOLD ? scale(a, 1 / mag) : fallback ? [...fallback] : [...a];
 }
 
 /** The viewer's `v * q`. */

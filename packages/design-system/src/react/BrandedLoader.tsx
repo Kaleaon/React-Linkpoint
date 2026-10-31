@@ -60,7 +60,7 @@ export const CrystalMark: React.FC<CrystalMarkProps> = ({
 
   return (
     <svg
-      viewBox="0 0 120 120"
+      viewBox="0 0 512 512"
       aria-hidden="true"
       className={className}
       style={{
@@ -88,55 +88,99 @@ export const CrystalMark: React.FC<CrystalMarkProps> = ({
       </defs>
       <circle
         className="lpld-ring"
-        cx="60"
-        cy="60"
-        r="6"
+        cx="256"
+        cy="256"
+        r="25.6"
         fill="none"
         stroke="var(--pri,#6CFF9A)"
         strokeWidth="1"
+        vectorEffect="non-scaling-stroke"
       />
       <g className="lpld-bot">
         <polygon
-          points="60,114 12,60 60,76"
+          points="256,472 120,342 256,292"
           fill={`url(#${gradB})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity="0.9"
         />
         <polygon
-          points="60,114 60,76 108,60"
+          points="256,472 256,292 392,342"
           fill={`url(#${gradA})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
           strokeLinejoin="round"
-          opacity=".72"
+          vectorEffect="non-scaling-stroke"
+          opacity="0.9"
+        />
+        <polygon
+          points="256,472 392,342 256,392"
+          fill={`url(#${gradB})`}
+          stroke="var(--outv,#365047)"
+          strokeWidth="1"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity="0.6"
+        />
+        <polygon
+          points="256,472 256,392 120,342"
+          fill={`url(#${gradA})`}
+          stroke="var(--outv,#365047)"
+          strokeWidth="1"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity="0.6"
         />
       </g>
       <g className="lpld-top">
         <polygon
-          points="60,6 12,60 60,76"
+          points="256,40 392,170 256,220"
           fill={`url(#${gradA})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity="1.0"
         />
         <polygon
-          points="60,6 60,76 108,60"
+          points="256,40 256,220 120,170"
           fill={`url(#${gradB})`}
           stroke="var(--outv,#365047)"
           strokeWidth="1"
           strokeLinejoin="round"
-          opacity=".72"
+          vectorEffect="non-scaling-stroke"
+          opacity="1.0"
+        />
+        <polygon
+          points="256,40 120,170 256,120"
+          fill={`url(#${gradA})`}
+          stroke="var(--outv,#365047)"
+          strokeWidth="1"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity="0.6"
+        />
+        <polygon
+          points="256,40 256,120 392,170"
+          fill={`url(#${gradB})`}
+          stroke="var(--outv,#365047)"
+          strokeWidth="1"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          opacity="0.6"
         />
         <polyline
-          points="12,60 60,44 108,60"
+          points="120,170 256,120 392,170"
           fill="none"
           stroke="var(--pri,#6CFF9A)"
           strokeOpacity=".45"
           strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
         />
       </g>
-      <circle className="lpld-core" cx="60" cy="60" r="15" fill={`url(#${gradCore})`} />
+      <circle className="lpld-core" cx="256" cy="256" r="64" fill={`url(#${gradCore})`} />
     </svg>
   );
 };

@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import TeleportCrystalHero from '../TeleportCrystalHero.jsx';
+import * as linkpointCrystal from '../linkpointCrystal.js';
+import { CRYSTAL } from '../linkpointCrystal.js';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -33,12 +35,46 @@ afterEach(async () => {
 });
 
 describe('<TeleportCrystalHero /> Component', () => {
-  it('renders with role="img" and aria-label="Teleport transition progress"', async () => {
+  it('renders with role="img", 512x512 viewBox, and aria-label="Teleport transition progress"', async () => {
     const host = await mount(<TeleportCrystalHero stepPercent={0} phase="initiating" />);
     const hero = host.querySelector('[role="img"]');
 
     expect(hero).not.toBeNull();
     expect(hero?.getAttribute('aria-label')).toBe('Teleport transition progress');
+
+    const svg = host.querySelector('svg');
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 512 512');
+
+    const ring = host.querySelector('.tpch-ring');
+    expect(ring?.getAttribute('cx')).toBe('256');
+    expect(ring?.getAttribute('cy')).toBe('256');
+    expect(ring?.getAttribute('r')).toBe('204.8');
+
+    const core = host.querySelector('.tpch-core');
+    expect(core?.getAttribute('cx')).toBe('256');
+    expect(core?.getAttribute('cy')).toBe('256');
+  });
+
+  it('unifies crystal coordinates on 512x512 engine and deprecates/removes MINI_CRYSTAL', async () => {
+    // Assert MINI_CRYSTAL is completely removed from exports
+    expect((linkpointCrystal as Record<string, unknown>).MINI_CRYSTAL).toBeUndefined();
+
+    // Assert CRYSTAL contains master 512x512 geometry
+    expect(CRYSTAL.top.faces).toHaveLength(4);
+    expect(CRYSTAL.bot.faces).toHaveLength(4);
+    expect(CRYSTAL.top.ridge).toBe('120,170 256,120 392,170');
+    expect(CRYSTAL.bot.ridge).toBe('120,342 256,292 392,342');
+
+    const host = await mount(<TeleportCrystalHero stepPercent={30} />);
+    const topPolygons = host.querySelectorAll('.tpch-top polygon');
+    const botPolygons = host.querySelectorAll('.tpch-bot polygon');
+    expect(topPolygons).toHaveLength(4);
+    expect(botPolygons).toHaveLength(4);
+
+    // Verify vectorEffect is applied for non-scaling stroke rendering
+    topPolygons.forEach((poly) => {
+      expect(poly.getAttribute('vector-effect')).toBe('non-scaling-stroke');
+    });
   });
 
   it('calculates vertical gap translateY correctly for 0%, 50%, and 100% progress', async () => {
