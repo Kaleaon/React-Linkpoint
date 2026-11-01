@@ -62,6 +62,41 @@ describe('OutfitViewer screen', () => {
       expect(buttonByText(mounted.host, label)).toBeTruthy();
   });
 
+  it('renders camera preset buttons with minimum 24px touch targets and aria-pressed states', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [] });
+    mounted = await mountScreen(OutfitViewer);
+    const presets = [
+      { name: 'front', label: 'Front' },
+      { name: 'back', label: 'Back' },
+      { name: 'face', label: 'Face' },
+      { name: 'side', label: 'Side' },
+      { name: 'full', label: 'Full' },
+    ];
+    for (const preset of presets) {
+      const btn = mounted.host.querySelector(
+        `button[aria-label="View ${preset.label} camera angle"]`,
+      ) as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.style.minWidth).toBe('24px');
+      expect(btn.style.minHeight).toBe('24px');
+      if (preset.name === 'front') {
+        expect(btn.getAttribute('aria-pressed')).toBe('true');
+      } else {
+        expect(btn.getAttribute('aria-pressed')).toBe('false');
+      }
+    }
+
+    const backBtn = mounted.host.querySelector(
+      'button[aria-label="View Back camera angle"]',
+    ) as HTMLButtonElement;
+    await click(backBtn);
+    expect(backBtn.getAttribute('aria-pressed')).toBe('true');
+    const frontBtn = mounted.host.querySelector(
+      'button[aria-label="View Front camera angle"]',
+    ) as HTMLButtonElement;
+    expect(frontBtn.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('shows only what the grid reports as worn, and no made-up items', async () => {
     vi.spyOn(app, 'loadOutfit').mockResolvedValue({
       items: worn,
