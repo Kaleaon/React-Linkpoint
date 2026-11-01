@@ -39,7 +39,7 @@ jobs:
             files="$(git diff --name-only "$BASE" HEAD)"
             expo=false
             kotlin=false
-            if grep -qE '^(src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
+            if grep -qE '^(materials/|src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
             if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
           fi
           echo "expo=$expo" >> "$GITHUB_OUTPUT"
@@ -60,6 +60,13 @@ jobs:
       - run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Cache Filament matc toolchain
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
+        with:
+          path: node_modules/.cache/filament-matc
+          key: filament-matc-${{ runner.os }}-${{ hashFiles('scripts/build-materials.mjs') }}
+          restore-keys: |
+            filament-matc-${{ runner.os }}-
       - name: TypeScript type check
         run: npm run typecheck
       - name: ESLint check
@@ -68,6 +75,8 @@ jobs:
         run: npm run format:check
       - name: Check for fabricated data
         run: npm run check:fake-data
+      - name: Verify material shaders
+        run: npm run check:materials
       - name: Unit tests (Vitest)
         run: npm run test
       - name: Production build
