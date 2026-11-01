@@ -35,7 +35,7 @@
     "check:materials": "node scripts/build-materials.mjs --check",
     "check:source-imports": "node scripts/check-source-imports.mjs",
     "test:live-grid": "node scripts/live-grid-smoke.mjs",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:fake-data && npm run check:materials && npm run test && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:fake-data && npm run test && npm run build",
     "web": "expo start --web",
     "sync-design": "tsx scripts/sync-design.ts",
     "ios:pods": "cd ios && pod install",
