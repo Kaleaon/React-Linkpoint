@@ -262,23 +262,75 @@ describe('<TeleportCrystalHero /> Component', () => {
     expect((TeleportCrystalHero as any).$$typeof).toBe(Symbol.for('react.memo'));
   });
 
-  it('attaches imperative handle via React.forwardRef and updates DOM on updateProgress call', async () => {
-    const heroRef = { current: null as any };
+  it('attaches imperative handle via React.forwardRef and updates DOM synchronously on updateProgress call', async () => {
+    const heroRef = { current: null as { updateProgress: (pct: number) => void } | null };
     const host = await mount(
       <TeleportCrystalHero ref={heroRef} stepPercent={10} phase="initiating" />,
     );
 
     expect(heroRef.current).not.toBeNull();
-    expect(typeof heroRef.current.updateProgress).toBe('function');
+    expect(typeof heroRef.current?.updateProgress).toBe('function');
 
-    await act(async () => {
-      heroRef.current.updateProgress(75);
-      await new Promise((r) => requestAnimationFrame(r));
-    });
+    // Synchronous DOM mutation without waiting for an extra display frame
+    heroRef.current?.updateProgress(75);
 
     const container = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
     expect(container.getAttribute('data-step-percent')).toBe('75');
+    expect(container.style.getPropertyValue('--tpch-progress')).toBe('75');
     expect(container.style.getPropertyValue('--crystal-scale')).toBe('1.0375');
     expect(container.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.8125');
+
+    const top = host.querySelector('.tpch-top') as HTMLElement;
+    const bot = host.querySelector('.tpch-bot') as HTMLElement;
+    const core = host.querySelector('circle.tpch-core') as SVGElement;
+    expect(top.style.transform).toBe(`translateY(${(-((256 / 3) * 0.25) / 2).toFixed(2)}px)`);
+    expect(bot.style.transform).toBe(`translateY(${(((256 / 3) * 0.25) / 2).toFixed(2)}px)`);
+    expect(core.getAttribute('opacity')).toBe('0.8125');
+  });
+
+  it('clamps invalid and out-of-range progress inputs between 0 and 100', async () => {
+    const heroRef = { current: null as { updateProgress: (pct: number) => void } | null };
+    const host = await mount(
+      <TeleportCrystalHero ref={heroRef} stepPercent={50} phase="initiating" />,
+    );
+
+    const container = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+
+    // Below 0 clamps to 0
+    heroRef.current?.updateProgress(-25);
+    expect(container.getAttribute('data-step-percent')).toBe('0');
+    expect(container.style.getPropertyValue('--tpch-progress')).toBe('0');
+    expect(container.style.getPropertyValue('--crystal-scale')).toBe('1');
+    expect(container.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.4');
+
+    // Above 100 clamps to 100
+    heroRef.current?.updateProgress(150);
+    expect(container.getAttribute('data-step-percent')).toBe('100');
+    expect(container.style.getPropertyValue('--tpch-progress')).toBe('100');
+    expect(container.style.getPropertyValue('--crystal-scale')).toBe('1.05');
+    expect(container.style.getPropertyValue('--crystal-glow-opacity')).toBe('0.95');
+
+    // Invalid / NaN inputs clamp to 0
+    heroRef.current?.updateProgress(NaN);
+    expect(container.getAttribute('data-step-percent')).toBe('0');
+    expect(container.style.getPropertyValue('--tpch-progress')).toBe('0');
+  });
+
+  it('safely handles updateProgress calls when unmounted', async () => {
+    const heroRef = { current: null as { updateProgress: (pct: number) => void } | null };
+    await mount(<TeleportCrystalHero ref={heroRef} stepPercent={10} phase="initiating" />);
+
+    const handle = heroRef.current;
+    expect(handle).not.toBeNull();
+
+    await act(async () => {
+      mounted!.root.unmount();
+      mounted = null;
+    });
+
+    // Calling updateProgress after unmount should safely exit without throwing
+    expect(() => {
+      handle?.updateProgress(80);
+    }).not.toThrow();
   });
 });
