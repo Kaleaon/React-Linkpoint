@@ -5,6 +5,7 @@ import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
+import { FocusRing } from '@linkpoint/design-system';
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -484,54 +485,56 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                   >
                     {currencySymbol}
                   </span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Custom amount"
-                    aria-label="Custom payment amount"
-                    value={customAmount}
-                    onChange={handleCustomChange}
-                    disabled={loading || isZeroCurrency}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px 8px 36px',
-                      borderRadius: V.rs,
-                      border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
-                      backgroundColor: V.bg,
-                      color: V.ink,
-                      fontFamily: t.font,
-                      fontSize: '14px',
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                      opacity: isZeroCurrency ? 0.5 : 1,
-                    }}
-                  />
+                  <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Custom amount"
+                      aria-label="Custom payment amount"
+                      value={customAmount}
+                      onChange={handleCustomChange}
+                      disabled={loading || isZeroCurrency}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px 8px 36px',
+                        borderRadius: V.rs,
+                        border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                        backgroundColor: V.bg,
+                        color: V.ink,
+                        fontFamily: t.font,
+                        fontSize: '14px',
+                        boxSizing: 'border-box',
+                        opacity: isZeroCurrency ? 0.5 : 1,
+                      }}
+                    />
+                  </FocusRing>
                 </div>
               </FormField>
 
               {/* Payment Description */}
               <FormField label="Description / Note">
-                <input
-                  type="text"
-                  placeholder="Note to recipient"
-                  aria-label="Description / Note"
-                  value={description}
-                  onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
-                  disabled={loading || isZeroCurrency}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: V.rs,
-                    border: `1px solid ${V.outv}`,
-                    backgroundColor: V.bg,
-                    color: V.ink,
-                    fontFamily: t.font,
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    opacity: isZeroCurrency ? 0.5 : 1,
-                  }}
-                />
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <input
+                    type="text"
+                    placeholder="Note to recipient"
+                    aria-label="Description / Note"
+                    value={description}
+                    onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
+                    disabled={loading || isZeroCurrency}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: V.rs,
+                      border: `1px solid ${V.outv}`,
+                      backgroundColor: V.bg,
+                      color: V.ink,
+                      fontFamily: t.font,
+                      fontSize: '14px',
+                      boxSizing: 'border-box',
+                      opacity: isZeroCurrency ? 0.5 : 1,
+                    }}
+                  />
+                </FocusRing>
               </FormField>
 
               {/* Action Buttons */}

@@ -7,6 +7,7 @@ import PayDialog from '../components/PayDialog.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
+import { FocusRing } from '@linkpoint/design-system';
 
 function Empty({ icon, children }) {
   return (
@@ -1229,23 +1230,24 @@ export function TransactionsScreen() {
           marginBottom: '16px',
         }}
       >
-        <input
-          type="text"
-          placeholder="Search description/ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
-        />
+        <FocusRing ringColor="var(--pri, #6cff9a)" borderRadius="6px">
+          <input
+            type="text"
+            placeholder="Search description/ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid #334155',
+              backgroundColor: '#0f172a',
+              color: '#f8fafc',
+              fontSize: '13px',
+              boxSizing: 'border-box',
+            }}
+          />
+        </FocusRing>
 
         <input
           type="text"

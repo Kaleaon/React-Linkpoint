@@ -12,7 +12,9 @@
     "./tokens": "./src/tokens/index.ts",
     "./css": "./src/css/index.ts",
     "./layout": "./src/layout/index.ts",
-    "./react": "./src/react/index.ts"
+    "./react": "./src/react/index.ts",
+    "./components": "./src/components/index.ts",
+    "./components/*": "./src/components/*.ts"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
