@@ -12,6 +12,8 @@ import { useApp } from '../context/AppContext.jsx';
 import Radar from './Radar.jsx';
 import ContactsScreen from './ContactsScreen.jsx';
 import CalendarScreen from './CalendarScreen.jsx';
+import FocusTrap from '../components/FocusTrap.jsx';
+import { GROUP_POWERS, hasGroupPower } from '../linkpoint/phase2/groups.ts';
 
 function Empty({ icon, children }) {
   return (
@@ -586,6 +588,10 @@ export function GroupsScreen() {
   const [activeGroupId, setActiveGroupId] = useState(() => app.groups.getActiveGroupId());
   const [activating, setActivating] = useState(false);
   const [lastActivateTime, setLastActivateTime] = useState(0);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [ejectTarget, setEjectTarget] = useState(null);
+  const [rolesTarget, setRolesTarget] = useState(null);
+  const [memberFilter, setMemberFilter] = useState('');
 
   useEffect(() => {
     const handleActiveChanged = (payload) => {
@@ -599,6 +605,23 @@ export function GroupsScreen() {
     return () => {
       app.groups.off('active_group_changed', handleActiveChanged);
       slBridge.off('active_group_changed', handleActiveChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleModerationChange = () => {
+      setGroups(app.groups.getGroups());
+      setDetailRefresh((value) => value + 1);
+    };
+    app.groups.on('member_removed', handleModerationChange);
+    app.groups.on('member_invited', handleModerationChange);
+    app.groups.on('members_updated', handleModerationChange);
+    app.groups.on('roles_updated', handleModerationChange);
+    return () => {
+      app.groups.off('member_removed', handleModerationChange);
+      app.groups.off('member_invited', handleModerationChange);
+      app.groups.off('members_updated', handleModerationChange);
+      app.groups.off('roles_updated', handleModerationChange);
     };
   }, []);
 
@@ -697,6 +720,39 @@ export function GroupsScreen() {
   const selected = groups.find((group) => group.id === selectedId) || null;
   const members = selected ? Array.from(app.groups.getGroupMembers(selected.id).values()) : [];
   const roles = selected ? Array.from(app.groups.getGroupRoles(selected.id).values()) : [];
+
+  const currentAgentId = app.protocol?.agentId || app.auth?.agentId || '';
+  const myMemberRecord = selected ? members.find((m) => m.id === currentAgentId) : null;
+  const isOwner = Boolean(
+    selected?.isOwner ||
+    myMemberRecord?.isOwner ||
+    (selected?.role && String(selected.role).toLowerCase() === 'owner') ||
+    (selected?.founderId && currentAgentId && selected.founderId === currentAgentId),
+  );
+  const userPowers = isOwner
+    ? GROUP_POWERS.All
+    : (selected?.powers ?? myMemberRecord?.powers ?? 0n);
+
+  const canInvite = isOwner || hasGroupPower(userPowers, GROUP_POWERS.Invite | GROUP_POWERS.All);
+  const canEject = isOwner || hasGroupPower(userPowers, GROUP_POWERS.Eject | GROUP_POWERS.All);
+  const canAssignRoles =
+    isOwner ||
+    hasGroupPower(
+      userPowers,
+      GROUP_POWERS.AssignMember | GROUP_POWERS.AssignMemberLimited | GROUP_POWERS.All,
+    );
+  const hasModerationPowers = canInvite || canEject || canAssignRoles;
+
+  const memberNeedle = memberFilter.trim().toLowerCase();
+  const filteredMembers = memberNeedle
+    ? members.filter((m) =>
+        [m.name, m.title, m.id].some((v) =>
+          String(v || '')
+            .toLowerCase()
+            .includes(memberNeedle),
+        ),
+      )
+    : members;
   const notices = selected
     ? [
         ...new Map(
@@ -1167,22 +1223,202 @@ export function GroupsScreen() {
                 </div>
               ) : null}
               {section === 'MEMBERS' ? (
-                <GroupDetailList
-                  items={members}
-                  empty="No member details have been received for this group."
-                  icon="user"
-                  V={V}
-                  t={t}
-                />
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '10px 14px',
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                      background: V.surf,
+                    }}
+                  >
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
+                    >
+                      <strong style={{ fontSize: 13, letterSpacing: '.06em' }}>
+                        {members.length} MEMBER{members.length === 1 ? '' : 'S'}
+                      </strong>
+                      {hasModerationPowers ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: V.priC || 'rgba(99, 102, 241, 0.15)',
+                            color: V.onpriC || V.pri,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: '.05em',
+                          }}
+                          title={`Officer privileges: ${[canInvite && 'Invite', canEject && 'Eject', canAssignRoles && 'Assign Roles'].filter(Boolean).join(', ')}`}
+                        >
+                          <Icon name="shield-check" size={13} />
+                          OFFICER ACCESS
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: V.bg,
+                            color: V.ink2,
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}
+                        >
+                          READ-ONLY
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+                    >
+                      {canInvite ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowInviteModal(true)}
+                          aria-label="Invite new member to group"
+                          style={{
+                            ...button,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: V.pri,
+                            borderColor: V.pri,
+                            color: V.onpri,
+                          }}
+                        >
+                          <Icon name="user-plus" size={14} />
+                          INVITE MEMBER
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {members.length > 5 ? (
+                    <label style={{ position: 'relative', display: 'block' }}>
+                      <span className="sr-only">Filter group members</span>
+                      <Icon
+                        name="search"
+                        size={14}
+                        style={{ position: 'absolute', left: 10, top: 9, color: V.ink2 }}
+                      />
+                      <input
+                        value={memberFilter}
+                        onChange={(e) => setMemberFilter(e.target.value)}
+                        placeholder="Filter members by name or ID…"
+                        style={{
+                          boxSizing: 'border-box',
+                          width: '100%',
+                          minHeight: 32,
+                          padding: '0 30px',
+                          border: `1px solid ${V.outv}`,
+                          borderRadius: V.rs,
+                          background: V.surf,
+                          color: V.ink,
+                          fontSize: 12,
+                        }}
+                      />
+                      {memberFilter ? (
+                        <button
+                          type="button"
+                          onClick={() => setMemberFilter('')}
+                          aria-label="Clear member filter"
+                          style={{
+                            position: 'absolute',
+                            right: 4,
+                            top: 4,
+                            width: 24,
+                            height: 24,
+                            border: 0,
+                            background: 'transparent',
+                            color: V.ink2,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Icon name="x" size={13} />
+                        </button>
+                      ) : null}
+                    </label>
+                  ) : null}
+
+                  <GroupDetailList
+                    items={filteredMembers}
+                    empty={
+                      memberFilter
+                        ? `No members match “${memberFilter}”.`
+                        : 'No member details have been received for this group.'
+                    }
+                    icon="user"
+                    V={V}
+                    t={t}
+                    canEject={canEject}
+                    canAssignRoles={canAssignRoles}
+                    onEjectMember={(member) => setEjectTarget(member)}
+                    onEditRoles={(member) => setRolesTarget(member)}
+                    currentAgentId={currentAgentId}
+                    type="members"
+                  />
+                </div>
               ) : null}
               {section === 'ROLES' ? (
-                <GroupDetailList
-                  items={roles}
-                  empty="No role details have been received for this group."
-                  icon="shield"
-                  V={V}
-                  t={t}
-                />
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '10px 14px',
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                      background: V.surf,
+                    }}
+                  >
+                    <strong style={{ fontSize: 13, letterSpacing: '.06em' }}>
+                      {roles.length} ROLE{roles.length === 1 ? '' : 'S'}
+                    </strong>
+                    {canAssignRoles ? (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          background: V.priC || 'rgba(99, 102, 241, 0.15)',
+                          color: V.onpriC || V.pri,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: '.05em',
+                        }}
+                      >
+                        <Icon name="shield" size={13} />
+                        ROLE ASSIGNMENT ENABLED
+                      </span>
+                    ) : null}
+                  </div>
+                  <GroupDetailList
+                    items={roles}
+                    empty="No role details have been received for this group."
+                    icon="shield"
+                    V={V}
+                    t={t}
+                    type="roles"
+                  />
+                </div>
               ) : null}
               {section === 'NOTICES' ? (
                 <GroupNoticesDetailList
@@ -1198,6 +1434,46 @@ export function GroupsScreen() {
           </>
         )}
       </main>
+
+      {showInviteModal && selected ? (
+        <InviteMemberModal
+          isOpen={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          groupId={selected.id}
+          groupName={selected.name}
+          roles={roles}
+          onInviteSuccess={() => setDetailRefresh((c) => c + 1)}
+          V={V}
+          t={t}
+        />
+      ) : null}
+
+      {ejectTarget && selected ? (
+        <EjectConfirmModal
+          isOpen={Boolean(ejectTarget)}
+          onClose={() => setEjectTarget(null)}
+          groupId={selected.id}
+          groupName={selected.name}
+          member={ejectTarget}
+          onEjectSuccess={() => setDetailRefresh((c) => c + 1)}
+          V={V}
+          t={t}
+        />
+      ) : null}
+
+      {rolesTarget && selected ? (
+        <EditMemberRolesModal
+          isOpen={Boolean(rolesTarget)}
+          onClose={() => setRolesTarget(null)}
+          groupId={selected.id}
+          groupName={selected.name}
+          member={rolesTarget}
+          roles={roles}
+          onRolesSuccess={() => setDetailRefresh((c) => c + 1)}
+          V={V}
+          t={t}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1369,7 +1645,19 @@ function GroupNoticesDetailList({ notices, groupId, V, t, detailStatus, onRetry 
   );
 }
 
-function GroupDetailList({ items, empty, icon, V, t: propT }) {
+function GroupDetailList({
+  items,
+  empty,
+  icon,
+  V,
+  t: propT,
+  canEject = false,
+  canAssignRoles = false,
+  onEjectMember,
+  onEditRoles,
+  currentAgentId = '',
+  type,
+}) {
   const theme = useTheme();
   const t = propT || theme?.t;
   if (!items.length)
@@ -1386,10 +1674,33 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
         {empty}
       </div>
     );
+
+  const isMembers = type === 'members' || Boolean(onEjectMember || onEditRoles);
+
+  const actionBtnStyle = {
+    minHeight: 28,
+    padding: '0 10px',
+    border: `1px solid ${V.outv}`,
+    borderRadius: V.rs,
+    background: V.bg,
+    color: V.ink,
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+  };
+
   return (
     <div style={{ display: 'grid', gap: 7 }}>
       {items.map((item, index) => {
         const isNotice = Boolean(item.subject || item.groupId || item.hasAttachment);
+        const isSelf = Boolean(
+          currentAgentId && item.id && item.id.toLowerCase() === currentAgentId.toLowerCase(),
+        );
+        const cannotEject = Boolean(item.isOwner || isSelf);
+
         return (
           <article
             key={item.id || index}
@@ -1406,16 +1717,51 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <Icon name={icon} size={16} style={{ color: V.pri, flexShrink: 0, marginTop: 2 }} />
               <div style={{ minWidth: 0, flex: 1 }}>
-                <strong style={{ display: 'block', fontSize: 13 }}>
-                  {item.name || item.subject || item.title || item.id || 'Group record'}
-                </strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: 13 }}>
+                    {item.name || item.subject || item.title || item.id || 'Group record'}
+                  </strong>
+                  {item.isOwner ? (
+                    <span
+                      style={{
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        background: V.pri,
+                        color: V.onpri,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        letterSpacing: '.06em',
+                      }}
+                    >
+                      OWNER
+                    </span>
+                  ) : null}
+                  {isSelf ? (
+                    <span
+                      style={{
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        background: V.bg,
+                        border: `1px solid ${V.outv}`,
+                        color: V.ink2,
+                        fontSize: 9,
+                        fontWeight: 600,
+                      }}
+                    >
+                      YOU
+                    </span>
+                  ) : null}
+                  {item.onlineStatus ? (
+                    <span style={{ fontSize: 11, color: V.ink2 }}>({item.onlineStatus})</span>
+                  ) : null}
+                </div>
                 {item.from ? (
                   <small style={{ display: 'block', color: V.ink2, marginTop: 2 }}>
                     From: {item.from}
                     {item.timestamp ? ` · ${new Date(item.timestamp).toLocaleString()}` : ''}
                   </small>
                 ) : null}
-                {item.description || item.message || item.title ? (
+                {item.description || item.message || (item.title && item.name) ? (
                   <small
                     style={{
                       display: 'block',
@@ -1428,7 +1774,62 @@ function GroupDetailList({ items, empty, icon, V, t: propT }) {
                     {item.description || item.message || item.title}
                   </small>
                 ) : null}
+                {isMembers && item.id ? (
+                  <small
+                    style={{
+                      display: 'block',
+                      color: V.ink2,
+                      marginTop: 2,
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                    }}
+                  >
+                    {item.id}
+                  </small>
+                ) : null}
               </div>
+
+              {isMembers && (canAssignRoles || canEject) ? (
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                  {canAssignRoles && onEditRoles ? (
+                    <button
+                      type="button"
+                      onClick={() => onEditRoles(item)}
+                      aria-label={`Edit roles for ${item.name || item.id}`}
+                      style={actionBtnStyle}
+                      title="Edit assigned roles"
+                    >
+                      <Icon name="shield" size={13} />
+                      <span>Roles</span>
+                    </button>
+                  ) : null}
+                  {canEject && onEjectMember ? (
+                    <button
+                      type="button"
+                      onClick={() => onEjectMember(item)}
+                      disabled={cannotEject}
+                      aria-label={`Eject ${item.name || item.id} from group`}
+                      title={
+                        item.isOwner
+                          ? 'Cannot eject group owner'
+                          : isSelf
+                            ? 'Cannot eject yourself'
+                            : 'Eject member from group'
+                      }
+                      style={{
+                        ...actionBtnStyle,
+                        color: cannotEject ? V.ink2 : V.err || '#e53e3e',
+                        borderColor: cannotEject ? V.outv : V.err || '#e53e3e',
+                        cursor: cannotEject ? 'not-allowed' : 'pointer',
+                        opacity: cannotEject ? 0.45 : 1,
+                      }}
+                    >
+                      <Icon name="user-x" size={13} />
+                      <span>Eject</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {isNotice && (item.hasAttachment || item.attachment) ? (
               <NoticeAttachmentBanner notice={item} V={V} t={t} />
@@ -2081,5 +2482,783 @@ export function SearchScreen() {
         </Empty>
       )}
     </div>
+  );
+}
+
+export function sanitizeModerationError(error, defaultMsg = 'Action failed. Please try again.') {
+  if (!error) return defaultMsg;
+  const raw = typeof error === 'string' ? error : error?.message || '';
+  if (!raw) return defaultMsg;
+  if (/uuid|guid/i.test(raw)) {
+    return 'Invalid avatar ID format. Please provide a valid 36-character UUID.';
+  }
+  if (/circuit|network|not connected|disconnected/i.test(raw)) {
+    return 'Simulator connection unavailable. Please check your connection and try again.';
+  }
+  if (/permission|forbidden|powers|denied/i.test(raw)) {
+    return 'You do not have the required group powers to perform this action.';
+  }
+  if (/timeout|timed out/i.test(raw)) {
+    return 'The request timed out. The simulator did not respond in time.';
+  }
+  if (/packet|buffer|overflow|0x[0-9a-f]+/i.test(raw)) {
+    return 'Simulator protocol error occurred. Please try again.';
+  }
+  return raw;
+}
+
+/**
+ * @param {object} props
+ * @param {boolean} props.isOpen
+ * @param {() => void} props.onClose
+ * @param {string} props.groupId
+ * @param {string} props.groupName
+ * @param {Array<{ id: string, name: string }>} [props.roles]
+ * @param {(result: any) => void} [props.onInviteSuccess]
+ * @param {any} props.V
+ * @param {any} [props.t]
+ */
+export function InviteMemberModal({
+  isOpen,
+  onClose,
+  groupId,
+  groupName,
+  roles = [],
+  onInviteSuccess,
+  V,
+  t: _t,
+}) {
+  const [avatarId, setAvatarId] = useState('');
+  const [roleId, setRoleId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const cleanId = avatarId.trim();
+    if (!cleanId) {
+      setError('Please provide an Avatar UUID.');
+      return;
+    }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(cleanId)) {
+      setError('Invalid UUID format. Must be 8-4-4-4-12 hexadecimal format.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      await app.inviteGroupMember(groupId, cleanId, roleId || undefined);
+      Utils.showToast(`Invitation sent to ${cleanId}.`, 'success');
+      onInviteSuccess?.();
+      onClose();
+    } catch (err) {
+      const sanitized = sanitizeModerationError(err, 'Failed to send group invitation.');
+      setError(sanitized);
+      Utils.showToast(sanitized, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <FocusTrap active={isOpen} onEscape={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invite-member-dialog-title"
+        aria-describedby="invite-member-dialog-desc"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            background: V?.surf || '#ffffff',
+            color: V?.ink || '#000000',
+            border: `1px solid ${V?.outv || '#cccccc'}`,
+            borderRadius: V?.rs || '8px',
+            maxWidth: 440,
+            width: '100%',
+            padding: 22,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+            display: 'grid',
+            gap: 14,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 id="invite-member-dialog-title" style={{ margin: 0, fontSize: 16, color: V?.pri }}>
+              Invite Member
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close invite modal"
+              style={{
+                border: 0,
+                background: 'transparent',
+                color: V?.ink2 || '#666666',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+
+          <p
+            id="invite-member-dialog-desc"
+            style={{ margin: 0, fontSize: 12.5, color: V?.ink2 || '#666666', lineHeight: 1.45 }}
+          >
+            Send an invitation to join <strong>{groupName || 'this group'}</strong>.
+          </p>
+
+          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
+            <label style={{ display: 'grid', gap: 5, fontSize: 12, fontWeight: 600 }}>
+              <span>Avatar UUID:</span>
+              <input
+                id="invite-avatar-id"
+                type="text"
+                value={avatarId}
+                onChange={(e) => {
+                  setAvatarId(e.target.value);
+                  if (error) setError('');
+                }}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                autoFocus
+                style={{
+                  boxSizing: 'border-box',
+                  width: '100%',
+                  minHeight: 34,
+                  padding: '0 10px',
+                  border: `1px solid ${error ? V?.err || '#e53e3e' : V?.outv || '#cccccc'}`,
+                  borderRadius: V?.rs || 4,
+                  background: V?.bg || '#f9f9f9',
+                  color: V?.ink || '#000000',
+                  fontSize: 13,
+                  fontFamily: 'monospace',
+                }}
+              />
+            </label>
+
+            <label style={{ display: 'grid', gap: 5, fontSize: 12, fontWeight: 600 }}>
+              <span>Initial Role (optional):</span>
+              <select
+                id="invite-role-id"
+                value={roleId}
+                onChange={(e) => setRoleId(e.target.value)}
+                style={{
+                  boxSizing: 'border-box',
+                  width: '100%',
+                  minHeight: 34,
+                  padding: '0 10px',
+                  border: `1px solid ${V?.outv || '#cccccc'}`,
+                  borderRadius: V?.rs || 4,
+                  background: V?.bg || '#f9f9f9',
+                  color: V?.ink || '#000000',
+                  fontSize: 13,
+                }}
+              >
+                <option value="">Default / Everyone</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name || r.title || r.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {error ? (
+              <div
+                role="alert"
+                style={{
+                  color: V?.err || '#e53e3e',
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                  padding: '6px 10px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  borderRadius: V?.rs || 4,
+                }}
+              >
+                {error}
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting}
+                style={{
+                  minHeight: 34,
+                  padding: '0 14px',
+                  border: `1px solid ${V?.outv || '#cccccc'}`,
+                  borderRadius: V?.rs || 4,
+                  background: 'transparent',
+                  color: V?.ink || '#000000',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !avatarId.trim()}
+                style={{
+                  minHeight: 34,
+                  padding: '0 16px',
+                  border: `1px solid ${V?.pri || '#6366f1'}`,
+                  borderRadius: V?.rs || 4,
+                  background: V?.pri || '#6366f1',
+                  color: V?.onpri || '#ffffff',
+                  cursor: submitting || !avatarId.trim() ? 'not-allowed' : 'pointer',
+                  opacity: submitting || !avatarId.trim() ? 0.6 : 1,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {submitting ? 'Sending…' : 'Send Invite'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </FocusTrap>
+  );
+}
+
+/**
+ * @param {object} props
+ * @param {boolean} props.isOpen
+ * @param {() => void} props.onClose
+ * @param {string} props.groupId
+ * @param {string} props.groupName
+ * @param {any} props.member
+ * @param {() => void} [props.onEjectSuccess]
+ * @param {any} props.V
+ * @param {any} [props.t]
+ */
+export function EjectConfirmModal({
+  isOpen,
+  onClose,
+  groupId,
+  groupName,
+  member,
+  onEjectSuccess,
+  V,
+  t: _t,
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!isOpen || !member) return null;
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await app.ejectGroupMember(groupId, member.id);
+      Utils.showToast(`Ejected ${member.name || member.id} from group.`, 'success');
+      onEjectSuccess?.();
+      onClose();
+    } catch (err) {
+      const sanitized = sanitizeModerationError(err, 'Failed to eject member from group.');
+      setError(sanitized);
+      Utils.showToast(sanitized, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <FocusTrap active={isOpen} onEscape={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="eject-member-dialog-title"
+        aria-describedby="eject-member-dialog-desc"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            background: V?.surf || '#ffffff',
+            color: V?.ink || '#000000',
+            border: `1px solid ${V?.outv || '#cccccc'}`,
+            borderRadius: V?.rs || '8px',
+            maxWidth: 440,
+            width: '100%',
+            padding: 22,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+            display: 'grid',
+            gap: 14,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3
+              id="eject-member-dialog-title"
+              style={{
+                margin: 0,
+                fontSize: 16,
+                color: V?.err || '#e53e3e',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Icon name="alert-triangle" size={17} />
+              Confirm Member Ejection
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close ejection dialog"
+              style={{
+                border: 0,
+                background: 'transparent',
+                color: V?.ink2 || '#666666',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+
+          <div
+            id="eject-member-dialog-desc"
+            style={{ display: 'grid', gap: 8, fontSize: 13, lineHeight: 1.5 }}
+          >
+            <p style={{ margin: 0 }}>
+              Are you sure you want to eject <strong>{member.name || member.id}</strong> from{' '}
+              <strong>{groupName || 'this group'}</strong>?
+            </p>
+            <p style={{ margin: 0, color: V?.ink2 || '#666666', fontSize: 12 }}>
+              This destructive action will immediately remove the member and revoke all their group
+              roles and powers.
+            </p>
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              style={{
+                color: V?.err || '#e53e3e',
+                fontSize: 12,
+                lineHeight: 1.4,
+                padding: '6px 10px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                borderRadius: V?.rs || 4,
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              style={{
+                minHeight: 34,
+                padding: '0 14px',
+                border: `1px solid ${V?.outv || '#cccccc'}`,
+                borderRadius: V?.rs || 4,
+                background: 'transparent',
+                color: V?.ink || '#000000',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={submitting}
+              aria-label={`Confirm ejection of ${member.name || member.id}`}
+              style={{
+                minHeight: 34,
+                padding: '0 16px',
+                border: `1px solid ${V?.err || '#e53e3e'}`,
+                borderRadius: V?.rs || 4,
+                background: V?.err || '#e53e3e',
+                color: '#ffffff',
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.6 : 1,
+                fontSize: 12,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Icon name="user-x" size={14} />
+              {submitting ? 'Ejecting…' : 'Confirm Eject'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </FocusTrap>
+  );
+}
+
+/**
+ * @param {object} props
+ * @param {boolean} props.isOpen
+ * @param {() => void} props.onClose
+ * @param {string} props.groupId
+ * @param {string} props.groupName
+ * @param {any} props.member
+ * @param {Array<{ id: string, name: string }>} [props.roles]
+ * @param {() => void} [props.onRolesSuccess]
+ * @param {any} props.V
+ * @param {any} [props.t]
+ */
+export function EditMemberRolesModal({
+  isOpen,
+  onClose,
+  groupId,
+  groupName,
+  member,
+  roles = [],
+  onRolesSuccess,
+  V,
+  t: _t,
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const initialAssignedIds = useMemo(() => {
+    const set = new Set();
+    if (!member) return set;
+    if (Array.isArray(member.roles)) {
+      for (const r of member.roles) {
+        const id = typeof r === 'string' ? r : r?.id || r?.roleId;
+        if (id) set.add(id.toLowerCase());
+      }
+    }
+    for (const role of roles) {
+      if (Array.isArray(role.members)) {
+        if (
+          role.members.some((m) => {
+            const mId = typeof m === 'string' ? m : m?.id;
+            return mId && mId.toLowerCase() === member.id?.toLowerCase();
+          })
+        ) {
+          set.add(role.id.toLowerCase());
+        }
+      }
+    }
+    return set;
+  }, [member, roles]);
+
+  const [selectedRoleIds, setSelectedRoleIds] = useState(() => new Set(initialAssignedIds));
+
+  useEffect(() => {
+    setSelectedRoleIds(new Set(initialAssignedIds));
+    setError('');
+  }, [initialAssignedIds]);
+
+  if (!isOpen || !member) return null;
+
+  const toggleRole = (roleId) => {
+    const next = new Set(selectedRoleIds);
+    const lower = roleId.toLowerCase();
+    if (next.has(lower)) {
+      next.delete(lower);
+    } else {
+      next.add(lower);
+    }
+    setSelectedRoleIds(next);
+  };
+
+  const changes = [];
+  for (const role of roles) {
+    const lower = role.id.toLowerCase();
+    const wasAssigned = initialAssignedIds.has(lower);
+    const isAssigned = selectedRoleIds.has(lower);
+    if (!wasAssigned && isAssigned) {
+      changes.push({ roleId: role.id, memberId: member.id, change: 0 });
+    } else if (wasAssigned && !isAssigned) {
+      changes.push({ roleId: role.id, memberId: member.id, change: 1 });
+    }
+  }
+
+  const handleSave = async () => {
+    if (changes.length === 0) {
+      onClose();
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await app.modifyGroupRole(groupId, changes);
+      Utils.showToast(`Updated roles for ${member.name || member.id}.`, 'success');
+      onRolesSuccess?.();
+      onClose();
+    } catch (err) {
+      const sanitized = sanitizeModerationError(err, 'Failed to update member roles.');
+      setError(sanitized);
+      Utils.showToast(sanitized, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <FocusTrap active={isOpen} onEscape={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-roles-dialog-title"
+        aria-describedby="edit-roles-dialog-desc"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            background: V?.surf || '#ffffff',
+            color: V?.ink || '#000000',
+            border: `1px solid ${V?.outv || '#cccccc'}`,
+            borderRadius: V?.rs || '8px',
+            maxWidth: 480,
+            width: '100%',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 22,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
+          >
+            <h3
+              id="edit-roles-dialog-title"
+              style={{
+                margin: 0,
+                fontSize: 16,
+                color: V?.pri,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <Icon name="shield" size={17} />
+              Manage Roles
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close roles dialog"
+              style={{
+                border: 0,
+                background: 'transparent',
+                color: V?.ink2 || '#666666',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+            >
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+
+          <p
+            id="edit-roles-dialog-desc"
+            style={{
+              margin: '0 0 12px',
+              fontSize: 12.5,
+              color: V?.ink2 || '#666666',
+              lineHeight: 1.45,
+            }}
+          >
+            Assign or remove group roles for <strong>{member.name || member.id}</strong> in{' '}
+            <strong>{groupName || 'this group'}</strong>.
+          </p>
+
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              border: `1px solid ${V?.outv || '#cccccc'}`,
+              borderRadius: V?.rs || 4,
+              background: V?.bg || '#f9f9f9',
+              padding: '6px 12px',
+              display: 'grid',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            {roles.length === 0 ? (
+              <div
+                style={{
+                  padding: 14,
+                  textAlign: 'center',
+                  color: V?.ink2 || '#666666',
+                  fontSize: 12,
+                }}
+              >
+                No roles found in this group.
+              </div>
+            ) : (
+              roles.map((role) => {
+                const isChecked = selectedRoleIds.has(role.id.toLowerCase());
+                return (
+                  <label
+                    key={role.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: '8px 4px',
+                      cursor: 'pointer',
+                      borderBottom: `1px solid ${V?.outv || '#cccccc'}`,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleRole(role.id)}
+                      style={{ marginTop: 3 }}
+                    />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <strong style={{ display: 'block', fontSize: 13 }}>
+                        {role.name || role.title || role.id}
+                      </strong>
+                      {role.description ? (
+                        <small
+                          style={{
+                            display: 'block',
+                            color: V?.ink2 || '#666666',
+                            marginTop: 2,
+                            fontSize: 11.5,
+                          }}
+                        >
+                          {role.description}
+                        </small>
+                      ) : null}
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              style={{
+                color: V?.err || '#e53e3e',
+                fontSize: 12,
+                lineHeight: 1.4,
+                padding: '6px 10px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                borderRadius: V?.rs || 4,
+                marginBottom: 10,
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 12, color: V?.ink2 || '#666666' }}>
+              {changes.length === 0
+                ? 'No changes'
+                : `${changes.length} change${changes.length === 1 ? '' : 's'} pending`}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting}
+                style={{
+                  minHeight: 34,
+                  padding: '0 14px',
+                  border: `1px solid ${V?.outv || '#cccccc'}`,
+                  borderRadius: V?.rs || 4,
+                  background: 'transparent',
+                  color: V?.ink || '#000000',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={submitting || changes.length === 0}
+                style={{
+                  minHeight: 34,
+                  padding: '0 16px',
+                  border: `1px solid ${V?.pri || '#6366f1'}`,
+                  borderRadius: V?.rs || 4,
+                  background: V?.pri || '#6366f1',
+                  color: V?.onpri || '#ffffff',
+                  cursor: submitting || changes.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: submitting || changes.length === 0 ? 0.6 : 1,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {submitting ? 'Saving…' : 'Save Roles'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </FocusTrap>
   );
 }

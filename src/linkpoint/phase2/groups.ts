@@ -13,6 +13,43 @@ import { ChatProtocolAdapter } from '../chat-protocol-adapter';
 import type { CapabilitiesManager } from './capabilities';
 import type { NoticeStore, SavedNotice } from '../notices';
 
+export const GROUP_POWERS = {
+  None: 0n,
+  Invite: 1n << 1n, // 2n (GP_MEMBER_INVITE)
+  Eject: 1n << 2n, // 4n (GP_MEMBER_EJECT)
+  ChangeOptions: 1n << 3n, // 8n
+  RoleCreate: 1n << 4n, // 16n
+  RoleDelete: 1n << 5n, // 32n
+  RoleProperties: 1n << 6n, // 64n
+  AssignMemberLimited: 1n << 7n, // 128n
+  AssignMember: 1n << 8n, // 256n
+  ChangeActions: 1n << 9n, // 512n
+  All: 0xffffffffffffffffn,
+} as const;
+
+export function parseGroupPowers(powers: unknown): bigint {
+  if (typeof powers === 'bigint') return powers;
+  if (typeof powers === 'number') {
+    if (Number.isFinite(powers)) return BigInt(Math.trunc(powers));
+    return 0n;
+  }
+  if (typeof powers === 'string') {
+    const trimmed = powers.trim();
+    if (!trimmed) return 0n;
+    try {
+      return BigInt(trimmed);
+    } catch {
+      return 0n;
+    }
+  }
+  return 0n;
+}
+
+export function hasGroupPower(powers: unknown, mask: bigint): boolean {
+  const p = parseGroupPowers(powers);
+  return (p & mask) !== 0n;
+}
+
 export class GroupsManager extends Utils.EventEmitter {
   private protocol: any;
   public adapter: ChatProtocolAdapter;
@@ -147,6 +184,157 @@ export class GroupsManager extends Utils.EventEmitter {
    */
   getGroupMembers(groupId: string) {
     return this.groupMembers.get(groupId) || new Map();
+  }
+
+  /**
+   * Remove member from group and associated roles locally
+   */
+  removeGroupMember(groupId: string, memberId: string): boolean {
+    if (!groupId || !memberId) return false;
+    const members = this.groupMembers.get(groupId);
+    const existed = members ? members.delete(memberId) : false;
+    const roles = this.groupRoles.get(groupId);
+    if (roles) {
+      for (const role of roles.values()) {
+        if (Array.isArray(role.members)) {
+          role.members = role.members.filter((m: any) =>
+            typeof m === 'string' ? m !== memberId : m?.id !== memberId,
+          );
+        }
+      }
+    }
+    if (existed) {
+      this.emit('member_removed', { groupId, memberId });
+      this.emit('members_updated', Array.from((members || new Map()).values()));
+    }
+    return existed;
+  }
+
+  /**
+   * Invite avatar to group
+   */
+  async inviteGroupMember(groupId: string, avatarId: string, roleId?: string) {
+    if (!groupId || !avatarId) {
+      throw new Error('Valid group ID and avatar ID required');
+    }
+    console.log(`[Groups] Inviting avatar ${avatarId} to group ${groupId} with role ${roleId}`);
+    if (this.protocol && typeof this.protocol.inviteGroupMember === 'function') {
+      await this.protocol.inviteGroupMember({ groupId, avatarId, roleId });
+    } else if (this.adapter && typeof (this.adapter as any).inviteGroupMember === 'function') {
+      await (this.adapter as any).inviteGroupMember({ groupId, avatarId, roleId });
+    } else {
+      const { slBridge } = await import('../sl-bridge');
+      if (slBridge.connected) {
+        await slBridge.inviteGroupMember({ groupId, avatarId, roleId });
+      }
+    }
+    this.emit('member_invited', { groupId, avatarId, roleId });
+    return { success: true, groupId, avatarId, roleId };
+  }
+
+  async inviteMember(groupId: string, avatarId: string, roleId?: string) {
+    return this.inviteGroupMember(groupId, avatarId, roleId);
+  }
+
+  /**
+   * Eject member from group
+   */
+  async ejectGroupMember(groupId: string, memberId: string) {
+    if (!groupId || !memberId) {
+      throw new Error('Valid group ID and member ID required');
+    }
+    console.log(`[Groups] Ejecting member ${memberId} from group ${groupId}`);
+    if (this.protocol && typeof this.protocol.ejectGroupMember === 'function') {
+      await this.protocol.ejectGroupMember({ groupId, memberId });
+    } else if (this.adapter && typeof (this.adapter as any).ejectGroupMember === 'function') {
+      await (this.adapter as any).ejectGroupMember({ groupId, memberId });
+    } else {
+      const { slBridge } = await import('../sl-bridge');
+      if (slBridge.connected) {
+        await slBridge.ejectGroupMember({ groupId, memberId });
+      }
+    }
+    this.removeGroupMember(groupId, memberId);
+    this.emit('member_ejected', { groupId, memberId });
+    return { success: true, groupId, memberId };
+  }
+
+  async ejectMember(groupId: string, memberId: string) {
+    return this.ejectGroupMember(groupId, memberId);
+  }
+
+  /**
+   * Modify member roles in group
+   */
+  async modifyGroupRole(
+    groupId: string,
+    roleId: string,
+    memberId: string,
+    change: number | 'add' | 'remove' = 0,
+  ) {
+    return this.modifyGroupRoles(groupId, [{ roleId, memberId, change }]);
+  }
+
+  async modifyRole(
+    groupId: string,
+    roleId: string,
+    memberId: string,
+    change: number | 'add' | 'remove' = 0,
+  ) {
+    return this.modifyGroupRole(groupId, roleId, memberId, change);
+  }
+
+  async modifyGroupRoles(
+    groupId: string,
+    changes: Array<{ roleId: string; memberId: string; change: number | 'add' | 'remove' }>,
+  ) {
+    if (!groupId || !Array.isArray(changes) || changes.length === 0) {
+      throw new Error('Valid group ID and at least one role change required');
+    }
+    const normalized = changes.map((c) => ({
+      roleId: c.roleId,
+      memberId: c.memberId,
+      change: c.change === 'remove' || c.change === 1 ? 1 : 0,
+    }));
+
+    // Sequential batching for > 100 members to avoid packet buffer overflow
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < normalized.length; i += BATCH_SIZE) {
+      const batch = normalized.slice(i, i + BATCH_SIZE);
+      if (this.protocol && typeof this.protocol.modifyGroupRole === 'function') {
+        await this.protocol.modifyGroupRole({ groupId, changes: batch });
+      } else if (this.adapter && typeof (this.adapter as any).modifyGroupRole === 'function') {
+        await (this.adapter as any).modifyGroupRole({ groupId, changes: batch });
+      } else {
+        const { slBridge } = await import('../sl-bridge');
+        if (slBridge.connected) {
+          await slBridge.modifyGroupRole({ groupId, changes: batch });
+        }
+      }
+    }
+
+    // Immediately update local role store
+    const groupRoles = this.groupRoles.get(groupId);
+    if (groupRoles) {
+      for (const item of normalized) {
+        const role = groupRoles.get(item.roleId);
+        if (role) {
+          if (!Array.isArray(role.members)) role.members = [];
+          if (item.change === 0) {
+            if (!role.members.includes(item.memberId)) {
+              role.members.push(item.memberId);
+            }
+          } else {
+            role.members = role.members.filter((m: any) =>
+              typeof m === 'string' ? m !== item.memberId : m?.id !== item.memberId,
+            );
+          }
+        }
+      }
+    }
+
+    this.emit('roles_updated', Array.from((groupRoles || new Map()).values()));
+    return { success: true, groupId, changes: normalized };
   }
 
   /**

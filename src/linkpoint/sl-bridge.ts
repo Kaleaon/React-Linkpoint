@@ -235,6 +235,38 @@ export class SLBridge extends Utils.EventEmitter {
       params,
     );
   }
+  inviteGroupMember(params: {
+    groupId: string;
+    avatarId?: string;
+    inviteeId?: string;
+    roleId?: string;
+  }) {
+    return this.call<{
+      success: boolean;
+      groupId: string;
+      avatarId: string;
+      roleId?: string;
+    }>('inviteGroupMember', params);
+  }
+  ejectGroupMember(params: { groupId: string; memberId?: string; ejecteeId?: string }) {
+    return this.call<{ success: boolean; groupId: string; memberId: string }>(
+      'ejectGroupMember',
+      params,
+    );
+  }
+  modifyGroupRole(params: {
+    groupId: string;
+    roleId?: string;
+    memberId?: string;
+    change?: number | string;
+    changes?: Array<{ roleId: string; memberId: string; change: number | string }>;
+  }) {
+    return this.call<{
+      success: boolean;
+      groupId: string;
+      changes: Array<{ roleId: string; memberId: string; change: number }>;
+    }>('modifyGroupRole', params);
+  }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }
