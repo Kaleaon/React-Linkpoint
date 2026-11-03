@@ -4,6 +4,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { segLooks } from '../theme/look.js';
 import { CSUB, subView, setSub } from '../theme/constants.js';
 import { inkOn } from '@linkpoint/design-system/tokens';
+import { FocusRing } from '@linkpoint/design-system';
 import { app } from '../linkpoint/app';
 import { useRovingTabindex } from '../hooks/useRovingTabindex';
 
@@ -19,6 +20,8 @@ import { useRovingTabindex } from '../hooks/useRovingTabindex';
  * Ported from `segTabs`/`segWrap`/`hasSeg`. The labels come from CSUB — the one
  * sub-view table the LCARS rail also renders — so a screen gains a tab strip by
  * appearing there, not by being named here.
+ *
+ * @param {{ screen?: string }} [props]
  */
 export default function SegmentedTabs({ screen } = {}) {
   const { state, actions } = useApp();
@@ -155,39 +158,40 @@ export default function SegmentedTabs({ screen } = {}) {
             : null),
         };
         return (
-          <button
-            key={x.label}
-            ref={getTabRef(x.label)}
-            type="button"
-            data-tab={x.label}
-            onClick={() => handleClick(x.label)}
-            role="tab"
-            tabIndex={getTabIndex(x.label)}
-            aria-selected={active}
-            aria-controls={panelId}
-            onKeyDown={(e) => handleKeyDown(e, x.label)}
-            style={{ cursor: 'pointer', outline: 'none', border: 'none', ...style }}
-          >
-            <span style={{ font: 'inherit', letterSpacing: 'inherit' }}>{x.label}</span>
-            {x.badge !== undefined ? (
-              <span
-                style={{
-                  minWidth: '18px',
-                  height: '18px',
-                  padding: '0 5px',
-                  borderRadius: '9px',
-                  background: V.bdg,
-                  color: V.onbdg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  font: '700 10px/1 ' + t.font,
-                }}
-              >
-                {x.badge}
-              </span>
-            ) : null}
-          </button>
+          <FocusRing key={x.label} ringColor={V.pri} borderRadius={style.borderRadius}>
+            <button
+              ref={getTabRef(x.label)}
+              type="button"
+              data-tab={x.label}
+              onClick={() => handleClick(x.label)}
+              role="tab"
+              tabIndex={getTabIndex(x.label)}
+              aria-selected={active}
+              aria-controls={panelId}
+              onKeyDown={(e) => handleKeyDown(e, x.label)}
+              style={{ cursor: 'pointer', border: 'none', ...style }}
+            >
+              <span style={{ font: 'inherit', letterSpacing: 'inherit' }}>{x.label}</span>
+              {x.badge !== undefined ? (
+                <span
+                  style={{
+                    minWidth: '18px',
+                    height: '18px',
+                    padding: '0 5px',
+                    borderRadius: '9px',
+                    background: V.bdg,
+                    color: V.onbdg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    font: '700 10px/1 ' + t.font,
+                  }}
+                >
+                  {x.badge}
+                </span>
+              ) : null}
+            </button>
+          </FocusRing>
         );
       })}
     </div>

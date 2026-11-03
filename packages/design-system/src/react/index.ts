@@ -15,3 +15,4 @@ export * from "./SectionHeading.js";
 export * from "./DeviceFrame.js";
 export * from "./AccessibleButton.js";
 export * from "./BrandedLoader.js";
+export * from "../components/FocusRing.js";
