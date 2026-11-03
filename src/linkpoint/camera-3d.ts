@@ -418,4 +418,24 @@ export class Camera3D extends Utils.EventEmitter {
     // Every perspective ray passes through the eye, so start there.
     return ray ? { origin: [...this.position], direction: ray.direction } : fallback;
   }
+
+  /**
+   * Project a world coordinate to screen pixel coordinates.
+   */
+  worldToScreen(worldPoint: number[], width: number, height: number): [number, number] | null {
+    if (!(width > 0) || !(height > 0)) return null;
+    const vp = multiplyMat4(this.projectionMatrix, this.viewMatrix);
+    const x = worldPoint[0],
+      y = worldPoint[1],
+      z = worldPoint[2];
+    const clipW = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+    if (clipW <= 0.0001) return null;
+    const clipX = vp[0] * x + vp[4] * y + vp[8] * z + vp[12];
+    const clipY = vp[1] * x + vp[5] * y + vp[9] * z + vp[13];
+    const ndcX = clipX / clipW;
+    const ndcY = clipY / clipW;
+    const screenX = ((ndcX + 1.0) / 2.0) * width;
+    const screenY = ((1.0 - ndcY) / 2.0) * height;
+    return [screenX, screenY];
+  }
 }

@@ -116,6 +116,7 @@ export class LinkpointApp {
     this.objectPay = new ObjectPayManager(slBridge, this.capabilities, this.world);
     this.avatar = new AvatarManager();
     this.objects = new ObjectManagerExtended();
+    this.world.setObjectsManager(this.objects);
     this.inventoryCore = this.inventory as any;
     this.inventoryOps = new InventoryOperations(this.inventory as any);
     this.inventoryTypes = new InventorySpecialTypes();
