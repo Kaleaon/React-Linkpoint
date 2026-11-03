@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -57,5 +58,46 @@ describe('desktop packaging', () => {
     expect(excluded.has('@img/sharp-linux-x64')).toBe(false);
     expect(excluded.has('@img/sharp-win32-x64')).toBe(false);
     for (const name of ['react', 'vite', 'vitest']) expect(excluded.has(name), name).toBe(true);
+  });
+
+  it('validates Electron configuration and main process entry successfully', () => {
+    const res = spawnSync('node', ['scripts/validate-electron-config.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain(
+      'Electron configuration and main process entry validated successfully.',
+    );
+  });
+
+  it('fails validate-electron-config when electron/main.cjs has invalid syntax', () => {
+    const mainPath = path.join(root, 'electron/main.cjs');
+    const original = readFileSync(mainPath, 'utf8');
+    try {
+      writeFileSync(mainPath, 'const syntax_error = { unclosed: ;');
+      const res = spawnSync('node', ['scripts/validate-electron-config.mjs'], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      expect(res.status).not.toBe(0);
+    } finally {
+      writeFileSync(mainPath, original);
+    }
+  });
+
+  it('fails validate-electron-config when electron-builder.config.js throws during evaluation', () => {
+    const configFilePath = path.join(root, 'electron-builder.config.js');
+    const original = readFileSync(configFilePath, 'utf8');
+    try {
+      writeFileSync(configFilePath, 'throw new Error("Evaluation failure");');
+      const res = spawnSync('node', ['scripts/validate-electron-config.mjs'], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      expect(res.status).not.toBe(0);
+    } finally {
+      writeFileSync(configFilePath, original);
+    }
   });
 });
