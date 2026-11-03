@@ -237,33 +237,6 @@ export class GroupsManager extends Utils.EventEmitter {
   }
 
   /**
-   * Eject member from group
-   */
-  async ejectGroupMember(groupId: string, memberId: string) {
-    if (!groupId || !memberId) {
-      throw new Error('Valid group ID and member ID required');
-    }
-    console.log(`[Groups] Ejecting member ${memberId} from group ${groupId}`);
-    if (this.protocol && typeof this.protocol.ejectGroupMember === 'function') {
-      await this.protocol.ejectGroupMember({ groupId, memberId });
-    } else if (this.adapter && typeof (this.adapter as any).ejectGroupMember === 'function') {
-      await (this.adapter as any).ejectGroupMember({ groupId, memberId });
-    } else {
-      const { slBridge } = await import('../sl-bridge');
-      if (slBridge.connected) {
-        await slBridge.ejectGroupMember({ groupId, memberId });
-      }
-    }
-    this.removeGroupMember(groupId, memberId);
-    this.emit('member_ejected', { groupId, memberId });
-    return { success: true, groupId, memberId };
-  }
-
-  async ejectMember(groupId: string, memberId: string) {
-    return this.ejectGroupMember(groupId, memberId);
-  }
-
-  /**
    * Modify member roles in group
    */
   async modifyGroupRole(
@@ -785,10 +758,99 @@ export class GroupsManager extends Utils.EventEmitter {
 
   replaceMembers(groupId: string, members: any[]) {
     this.groupMembers.set(groupId, new Map(members.map((member) => [member.id, member])));
+    this.emit('members_updated', { groupId, members });
   }
 
   replaceRoles(groupId: string, roles: any[]) {
     this.groupRoles.set(groupId, new Map(roles.map((role) => [role.id, role])));
+    this.emit('roles_updated', { groupId, roles });
+  }
+
+  updateGroupRole(groupId: string, roleId: string, roleData: any) {
+    if (!groupId || !roleId) {
+      throw new Error('Valid group ID and role ID required');
+    }
+    if (!this.groupRoles.has(groupId)) {
+      this.groupRoles.set(groupId, new Map());
+    }
+    const rolesMap = this.groupRoles.get(groupId)!;
+    const existing = rolesMap.get(roleId) || { id: roleId, name: 'Role' };
+    const updated = {
+      ...existing,
+      ...roleData,
+      id: roleId,
+    };
+    rolesMap.set(roleId, updated);
+    this.emit('role_updated', { groupId, roleId, role: updated });
+    this.emit('roles_updated', { groupId, roles: Array.from(rolesMap.values()) });
+    return updated;
+  }
+
+  removeGroupRole(groupId: string, roleId: string) {
+    if (!groupId || !roleId) return false;
+    const rolesMap = this.groupRoles.get(groupId);
+    if (!rolesMap || !rolesMap.has(roleId)) return false;
+    rolesMap.delete(roleId);
+    this.emit('role_deleted', { groupId, roleId });
+    this.emit('roles_updated', { groupId, roles: Array.from(rolesMap.values()) });
+    return true;
+  }
+
+  updateMemberRoles(groupId: string, memberId: string, roleIds: string[]) {
+    if (!groupId || !memberId) return null;
+    if (!this.groupMembers.has(groupId)) {
+      this.groupMembers.set(groupId, new Map());
+    }
+    const membersMap = this.groupMembers.get(groupId)!;
+    const existing = membersMap.get(memberId) || { id: memberId };
+    const updated = {
+      ...existing,
+      id: memberId,
+      roleIds: [...roleIds],
+      roles: [...roleIds],
+    };
+    membersMap.set(memberId, updated);
+    this.emit('member_roles_updated', { groupId, memberId, roleIds });
+    this.emit('members_updated', { groupId, members: Array.from(membersMap.values()) });
+    return updated;
+  }
+
+  ejectGroupMember(groupId: string, memberId: string) {
+    if (!groupId || !memberId) return false;
+    const membersMap = this.groupMembers.get(groupId);
+    if (!membersMap || !membersMap.has(memberId)) return false;
+    this.removeGroupMember(groupId, memberId);
+    this.emit('member_ejected', { groupId, memberId });
+    this.emit('members_updated', { groupId, members: Array.from(membersMap.values()) });
+    return true;
+  }
+
+  ejectMember(groupId: string, memberId: string) {
+    return this.ejectGroupMember(groupId, memberId);
+  }
+
+  bindCapabilityService(adminService: any) {
+    if (!adminService || typeof adminService.on !== 'function') return;
+
+    adminService.on('role_created', ({ groupId, roleId, roleData }: any) => {
+      this.updateGroupRole(groupId, roleId, roleData);
+    });
+
+    adminService.on('role_updated', ({ groupId, roleId, updates }: any) => {
+      this.updateGroupRole(groupId, roleId, updates);
+    });
+
+    adminService.on('role_deleted', ({ groupId, roleId }: any) => {
+      this.removeGroupRole(groupId, roleId);
+    });
+
+    adminService.on('role_assigned', ({ groupId, memberId, roleIds }: any) => {
+      this.updateMemberRoles(groupId, memberId, roleIds);
+    });
+
+    adminService.on('member_ejected', ({ groupId, memberId }: any) => {
+      this.ejectGroupMember(groupId, memberId);
+    });
   }
 
   replaceNotices(groupId: string, notices: any[]) {

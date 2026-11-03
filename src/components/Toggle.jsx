@@ -3,8 +3,43 @@ import { inkOn } from '@linkpoint/design-system/tokens';
 import AccessibleButton from './AccessibleButton.jsx';
 
 // Ported from CARDS[].toggleStyle/knobStyle in renderVals().
-export default function Toggle({ on, onClick, disabled = false, ...props }) {
+/**
+ * @param {object} props
+ * @param {boolean} props.on
+ * @param {((e?: any) => void)} [props.onClick]
+ * @param {boolean} [props.disabled]
+ * @param {string} [props.aria-label]
+ * @param {string} [props.aria-labelledby]
+ * @param {string} [props.ariaLabel]
+ * @param {string} [props.ariaLabelledBy]
+ */
+export default function Toggle({
+  on,
+  onClick = undefined,
+  disabled = false,
+  'aria-label': ariaLabel = undefined,
+  'aria-labelledby': ariaLabelledby = undefined,
+  ...props
+}) {
+  const resolvedLabel = ariaLabel || props.ariaLabel;
+  const resolvedLabelledby = ariaLabelledby || props.ariaLabelledBy;
+
+  if (process.env.NODE_ENV !== 'production' && !resolvedLabel && !resolvedLabelledby) {
+    console.warn(
+      'Toggle requires either an `aria-label` or `aria-labelledby` prop for accessibility (WCAG 2.2 SC 4.1.2).',
+    );
+  }
+
   const { V, t } = useTheme();
+
+  const ariaProps = {};
+  if (resolvedLabel) ariaProps['aria-label'] = resolvedLabel;
+  if (resolvedLabelledby) ariaProps['aria-labelledby'] = resolvedLabelledby;
+
+  const restProps = { ...props };
+  delete restProps.ariaLabel;
+  delete restProps.ariaLabelledBy;
+
   if (t.nav === 'SWEEP')
     return (
       <AccessibleButton
@@ -13,6 +48,7 @@ export default function Toggle({ on, onClick, disabled = false, ...props }) {
         aria-checked={on}
         disabled={disabled}
         onClick={onClick}
+        {...ariaProps}
         style={{
           minWidth: 64,
           minHeight: 48,
@@ -24,7 +60,7 @@ export default function Toggle({ on, onClick, disabled = false, ...props }) {
           font: '700 12px/1 ' + t.dfont,
           cursor: disabled ? 'not-allowed' : 'pointer',
         }}
-        {...props}
+        {...restProps}
       >
         {on ? 'ON' : 'OFF'}
       </AccessibleButton>
@@ -36,6 +72,7 @@ export default function Toggle({ on, onClick, disabled = false, ...props }) {
       aria-checked={on}
       disabled={disabled}
       onClick={onClick}
+      {...ariaProps}
       style={{
         width: '42px',
         height: '24px',
@@ -47,7 +84,7 @@ export default function Toggle({ on, onClick, disabled = false, ...props }) {
         opacity: disabled ? 0.5 : 1,
         background: on === false ? V.surf2 : V.priC,
       }}
-      {...props}
+      {...restProps}
     >
       <span
         style={{

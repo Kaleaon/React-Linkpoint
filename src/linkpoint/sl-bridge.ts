@@ -6,6 +6,8 @@ const READ_ONLY_CALLS = new Set([
   'fetchAnimation',
   'fetchSound',
   'getBalance',
+  'requestPayPrice',
+  'getObjectPayQuote',
   'getDiagnostics',
   'getFriends',
   'getGroups',
@@ -27,6 +29,127 @@ export interface SLBridgeConnectParams {
   start?: string;
   mfaToken?: string;
   mfaHash?: string;
+}
+
+export interface AddObjectParams {
+  shape?: string;
+  pathCurve?: number;
+  profileCurve?: number;
+  position?: number[] | { x: number; y: number; z: number };
+  x?: number;
+  y?: number;
+  z?: number;
+  scale?: number[] | { x: number; y: number; z: number };
+  rotation?: number[] | { x: number; y: number; z: number; w: number };
+  material?: number;
+  groupId?: string;
+  pCode?: number;
+  addFlags?: number;
+  pathBegin?: number;
+  pathEnd?: number;
+  pathScaleX?: number;
+  pathScaleY?: number;
+  pathShearX?: number;
+  pathShearY?: number;
+  pathTwist?: number;
+  pathTwistBegin?: number;
+  pathRadiusOffset?: number;
+  pathTaperX?: number;
+  pathTaperY?: number;
+  pathRevolutions?: number;
+  pathSkew?: number;
+  profileBegin?: number;
+  profileEnd?: number;
+  profileHollow?: number;
+  bypassRaycast?: number;
+  rayTargetId?: string;
+  rayEndIsIntersection?: number;
+  state?: number;
+  parcel?: any;
+  [key: string]: unknown;
+}
+
+export interface AddObjectResult {
+  created: boolean;
+  shape: string;
+  pathCurve: number;
+  profileCurve: number;
+  position: number[];
+  scale: number[];
+  rotation: number[];
+}
+
+export interface LinkObjectsParams {
+  objectLocalIds?: number[];
+  localIds?: number[];
+  [key: string]: unknown;
+}
+
+export interface LinkObjectsResult {
+  linked: boolean;
+  rootLocalId: number;
+  childLocalIds: number[];
+  objectLocalIds: number[];
+}
+
+export interface DelinkObjectsParams {
+  objectLocalIds?: number[];
+  localIds?: number[];
+  [key: string]: unknown;
+}
+
+export interface DelinkObjectsResult {
+  delinked: boolean;
+  objectLocalIds: number[];
+}
+
+export interface UpdatePrimParamsInput {
+  localId?: number;
+  objectLocalId?: number;
+  objectLocalIds?: number[];
+  localIds?: number[];
+  shape?: string;
+  pathCurve?: number;
+  profileCurve?: number;
+  pathBegin?: number;
+  pathEnd?: number;
+  pathScaleX?: number;
+  pathScaleY?: number;
+  pathShearX?: number;
+  pathShearY?: number;
+  pathTwist?: number;
+  pathTwistBegin?: number;
+  pathRadiusOffset?: number;
+  pathTaperX?: number;
+  pathTaperY?: number;
+  pathRevolutions?: number;
+  pathSkew?: number;
+  profileBegin?: number;
+  profileEnd?: number;
+  profileHollow?: number;
+  [key: string]: unknown;
+}
+
+export interface UpdatePrimParamsResult {
+  updated: boolean;
+  objectLocalIds: number[];
+  shapeParams: any;
+}
+
+export interface DeleteObjectParams {
+  localId?: number;
+  objectLocalId?: number;
+  objectLocalIds?: number[];
+  localIds?: number[];
+  destination?: number;
+  destinationId?: string;
+  groupId?: string;
+  [key: string]: unknown;
+}
+
+export interface DeleteObjectResult {
+  deleted: boolean;
+  objectLocalIds: number[];
 }
 
 /** The desktop app's preload API, when running inside it. */
@@ -278,6 +401,20 @@ export class SLBridge extends Utils.EventEmitter {
       () => this.dismissInteraction(params) as any,
     );
   }
+  grantUserRights(params: {
+    agentId?: string;
+    sessionId?: string;
+    targetId: string;
+    rightsMask?: number;
+    packet?: any;
+  }) {
+    return this.call<{
+      success: boolean;
+      targetId: string;
+      rightsMask: number;
+      packet?: any;
+    }>('grantUserRights', params);
+  }
   acceptInventoryOffer(params: { id: string }) {
     return this.call<{ accepted: boolean }>('acceptInventoryOffer', params);
   }
@@ -317,6 +454,21 @@ export class SLBridge extends Utils.EventEmitter {
   }) {
     return this.call<{ touched: string | number }>('touchObject', params);
   }
+  addObject(params: AddObjectParams) {
+    return this.call<AddObjectResult>('addObject', params);
+  }
+  linkObjects(params: LinkObjectsParams) {
+    return this.call<LinkObjectsResult>('linkObjects', params);
+  }
+  delinkObjects(params: DelinkObjectsParams) {
+    return this.call<DelinkObjectsResult>('delinkObjects', params);
+  }
+  updatePrimParams(params: UpdatePrimParamsInput) {
+    return this.call<UpdatePrimParamsResult>('updatePrimParams', params);
+  }
+  deleteObject(params: DeleteObjectParams) {
+    return this.call<DeleteObjectResult>('deleteObject', params);
+  }
   sit(params: { id?: string } = {}) {
     return this.call<{ sitting: string }>('sit', params);
   }
@@ -341,6 +493,35 @@ export class SLBridge extends Utils.EventEmitter {
       isZeroCurrency?: boolean;
       is_zero_currency?: boolean;
     }>('getBalance');
+  }
+  private objectPayManager: any = null;
+
+  bindObjectPayManager(manager: any) {
+    this.objectPayManager = manager;
+  }
+
+  requestPayPrice(params: { objectId: string; timeout?: number }) {
+    return this.call<{
+      objectId: string;
+      defaultPrice: number;
+      buttons: number[];
+      hideCustom: boolean;
+      timestamp: number;
+    }>('requestPayPrice', params);
+  }
+  async getObjectPayQuote(
+    objectId: string,
+    options?: { forceRefresh?: boolean; timeout?: number },
+  ) {
+    if (this.objectPayManager && typeof this.objectPayManager.getQuote === 'function') {
+      return this.objectPayManager.getQuote(objectId, options);
+    }
+    return this.requestPayPrice({ objectId, timeout: options?.timeout });
+  }
+  invalidateObjectPayQuote(objectId?: string) {
+    if (this.objectPayManager && typeof this.objectPayManager.invalidateQuote === 'function') {
+      this.objectPayManager.invalidateQuote(objectId);
+    }
   }
   payObject(params: {
     targetId?: string;

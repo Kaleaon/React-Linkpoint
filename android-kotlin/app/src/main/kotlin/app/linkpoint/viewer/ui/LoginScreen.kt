@@ -15,6 +15,9 @@ import app.linkpoint.core.ViewerIdentity
 import app.linkpoint.core.login.Grid
 import app.linkpoint.viewer.LoginUi
 import app.linkpoint.viewer.ViewerHost
+import app.linkpoint.viewer.ui.crystal.CrystalLoader
+import app.linkpoint.viewer.ui.crystal.CrystalLoaderVariant
+import app.linkpoint.viewer.ui.crystal.LinkpointCrystal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +37,7 @@ fun LoginScreen(host: ViewerHost) {
         Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
+        LinkpointCrystal(modifier = Modifier.size(64.dp))
         Text("LINKPOINT", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
         Text(ViewerIdentity.IDENTITY, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
@@ -87,7 +91,7 @@ fun LoginScreen(host: ViewerHost) {
             enabled = !working && name.isNotBlank() && password.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Log in")
+            if (working) CrystalLoader(modifier = Modifier.size(18.dp), variant = CrystalLoaderVariant.Inline) else Text("Log in")
         }
         Text(
             "Passwords are sent only to the grid's login service and are never stored.",

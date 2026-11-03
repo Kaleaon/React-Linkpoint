@@ -9,21 +9,23 @@ import CrystalLoader from './CrystalLoader.jsx';
  *
  * @param {Object} props
  * @param {number | null | undefined} [props.progress=0] - Percentage value between 0 and 100
- * @param {string | number} [props.height="6px"] - Height of the progress track bar
+ * @param {string | number} [props.height] - Height of the progress track bar (defaults to 4px for 'state-block', 6px for 'default')
  * @param {boolean} [props.showLabel=false] - Whether to render progress text & percentage header
  * @param {string} [props.label="Downloading asset data..."] - Label text rendered in progress header
  * @param {string} [props.className=""] - Additional CSS class name
  * @param {import('react').CSSProperties} [props.style={}] - Inline style overrides for outer wrapper
  * @param {string} [props.ariaLabel] - Custom ARIA label for accessibility
+ * @param {'default' | 'state-block'} [props.variant='default'] - Variant preset layout ('default' or 'state-block')
  */
 export function CrystalProgressBar({
   progress = 0,
-  height = '6px',
+  height,
   showLabel = false,
   label = 'Downloading asset data...',
   className = '',
   style = {},
   ariaLabel,
+  variant = 'default',
 }) {
   const { V } = useTheme?.() || { V: {} };
 
@@ -33,11 +35,18 @@ export function CrystalProgressBar({
   const surf2 = V?.surf2 || 'var(--surf2, rgba(255, 255, 255, 0.1))';
   const outv = V?.outv || 'var(--outv, #365047)';
 
+  const isStateBlock = variant === 'state-block';
+  const defaultTrackWidth = isStateBlock ? '216px' : '100%';
+  const defaultTrackHeight = isStateBlock ? '4px' : '6px';
+  const effectiveHeight = height !== undefined ? height : defaultTrackHeight;
+  const numericHeight =
+    typeof effectiveHeight === 'number' ? `${effectiveHeight}px` : effectiveHeight;
+  const borderRadius = isStateBlock ? '2px' : '4px';
+
   const rawProgress = typeof progress === 'number' && !isNaN(progress) ? progress : 0;
   const clampedProgress = Math.max(0, Math.min(100, rawProgress));
   const roundedPercent = Math.round(clampedProgress);
-
-  const numericHeight = typeof height === 'number' ? `${height}px` : height;
+  const displayProgress = isStateBlock ? roundedPercent : clampedProgress;
 
   return (
     <div
@@ -46,7 +55,7 @@ export function CrystalProgressBar({
         display: 'flex',
         flexDirection: 'column',
         gap: '4px',
-        width: '100%',
+        width: defaultTrackWidth,
         ...style,
       }}
       role="progressbar"
@@ -75,12 +84,13 @@ export function CrystalProgressBar({
       )}
 
       <div
+        data-testid="crystal-progress-track"
         style={{
           width: '100%',
           height: numericHeight,
           background: surf2,
           border: `1px solid ${outv || 'rgba(255,255,255,0.1)'}`,
-          borderRadius: '4px',
+          borderRadius,
           position: 'relative',
           overflow: 'hidden',
           boxSizing: 'border-box',
@@ -89,7 +99,7 @@ export function CrystalProgressBar({
         <div
           data-testid="asset-progress-bar"
           style={{
-            width: `${clampedProgress}%`,
+            width: `${displayProgress}%`,
             height: '100%',
             background: `linear-gradient(90deg, ${priC} 0%, ${sec2} 40%, ${pri} 100%)`,
             transition: 'width 0.2s ease-out',
