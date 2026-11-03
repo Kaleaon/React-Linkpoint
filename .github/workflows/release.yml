@@ -85,6 +85,14 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
         # ~100 MB binary download keeps the other jobs fast.
@@ -143,6 +151,18 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/gradle.properties
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
@@ -211,6 +231,14 @@ jobs:
         uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
         with:
           bun-version-file: package.json
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its
@@ -301,6 +329,14 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Cache Bun dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -326,9 +362,85 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  smoke-test:
+    name: Live grid smoke tests
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version-file: package.json
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.0.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Evaluate grid credentials
+        id: creds
+        env:
+          SL_LOGIN_URL: ${{ secrets.SL_LOGIN_URL }}
+          SL_USERNAME: ${{ secrets.SL_USERNAME }}
+          SL_PASSWORD: ${{ secrets.SL_PASSWORD }}
+        run: |
+          if [ -z "${SL_LOGIN_URL:-}" ] || [ -z "${SL_USERNAME:-}" ] || [ -z "${SL_PASSWORD:-}" ]; then
+            echo "has_credentials=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release grid credentials (SL_LOGIN_URL, SL_USERNAME, SL_PASSWORD) are not configured. Skipping live grid smoke tests."
+            echo "### ⚠️ Live Grid Smoke Test Skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Release grid credentials (\`SL_LOGIN_URL\`, \`SL_USERNAME\`, \`SL_PASSWORD\`) are missing or empty in repository secrets. Skipping live grid smoke test gate job." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "has_credentials=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run live grid smoke test
+        if: ${{ steps.creds.outputs.has_credentials == 'true' }}
+        env:
+          SL_LOGIN_URL: ${{ secrets.SL_LOGIN_URL }}
+          SL_USERNAME: ${{ secrets.SL_USERNAME }}
+          SL_PASSWORD: ${{ secrets.SL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "Starting Linkpoint server..."
+          ./node_modules/.bin/tsx server.ts &
+          SERVER_PID=$!
+          trap 'kill -9 "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          echo "Waiting for Linkpoint server to be ready..."
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null http://127.0.0.1:3000/; then
+              echo "Linkpoint server is ready."
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Timed out waiting for Linkpoint server to start." >&2
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "Executing live grid smoke tests..."
+          node scripts/live-grid-smoke.mjs
+
   release:
     name: Publish GitHub Release
-    needs: [prepare, web, android, ios, desktop]
+    needs: [prepare, web, android, ios, desktop, smoke-test]
     if: ${{ needs.prepare.outputs.is_release == 'true' }}
     runs-on: ubuntu-latest
     permissions:

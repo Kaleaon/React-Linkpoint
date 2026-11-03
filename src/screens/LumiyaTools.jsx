@@ -1100,6 +1100,7 @@ export function ParcelScreen() {
 }
 
 export function TransactionsScreen() {
+  const { V, t } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('30days');
@@ -1163,10 +1164,10 @@ export function TransactionsScreen() {
             alignItems: 'center',
             gap: '6px',
             padding: '8px 14px',
-            backgroundColor: '#0284c7',
-            color: '#ffffff',
+            backgroundColor: V.pri,
+            color: V.onpri,
             border: 'none',
-            borderRadius: '6px',
+            borderRadius: V.rs,
             fontWeight: '600',
             fontSize: '13px',
             cursor: 'pointer',
@@ -1187,34 +1188,26 @@ export function TransactionsScreen() {
         }}
       >
         <section className="runtime-card" style={{ margin: 0, padding: '12px' }}>
-          <small style={{ color: '#94a3b8' }}>Current Balance</small>
-          <strong
-            style={{ fontSize: '18px', color: '#38bdf8', display: 'block', marginTop: '4px' }}
-          >
+          <small style={{ color: V.ink2 }}>Current Balance</small>
+          <strong style={{ fontSize: '18px', color: V.pri, display: 'block', marginTop: '4px' }}>
             L$ {stats.balance === null ? '—' : stats.balance.toLocaleString()}
           </strong>
         </section>
         <section className="runtime-card" style={{ margin: 0, padding: '12px' }}>
-          <small style={{ color: '#94a3b8' }}>Spent (30 days)</small>
-          <strong
-            style={{ fontSize: '18px', color: '#f43f5e', display: 'block', marginTop: '4px' }}
-          >
+          <small style={{ color: V.ink2 }}>Spent (30 days)</small>
+          <strong style={{ fontSize: '18px', color: V.err, display: 'block', marginTop: '4px' }}>
             L$ {stats.totalSpent30Days.toLocaleString()}
           </strong>
         </section>
         <section className="runtime-card" style={{ margin: 0, padding: '12px' }}>
-          <small style={{ color: '#94a3b8' }}>Received (30 days)</small>
-          <strong
-            style={{ fontSize: '18px', color: '#34d399', display: 'block', marginTop: '4px' }}
-          >
+          <small style={{ color: V.ink2 }}>Received (30 days)</small>
+          <strong style={{ fontSize: '18px', color: V.ok, display: 'block', marginTop: '4px' }}>
             L$ {stats.totalReceived30Days.toLocaleString()}
           </strong>
         </section>
         <section className="runtime-card" style={{ margin: 0, padding: '12px' }}>
-          <small style={{ color: '#94a3b8' }}>Total Records</small>
-          <strong
-            style={{ fontSize: '18px', color: '#e2e8f0', display: 'block', marginTop: '4px' }}
-          >
+          <small style={{ color: V.ink2 }}>Total Records</small>
+          <strong style={{ fontSize: '18px', color: V.ink, display: 'block', marginTop: '4px' }}>
             {stats.totalTransactions}
           </strong>
         </section>
@@ -1237,10 +1230,10 @@ export function TransactionsScreen() {
           style={{
             width: '100%',
             padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
+            borderRadius: V.rs,
+            border: `1px solid ${V.outv}`,
+            backgroundColor: V.surf,
+            color: V.ink,
             fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
@@ -1255,10 +1248,10 @@ export function TransactionsScreen() {
           style={{
             width: '100%',
             padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
+            borderRadius: V.rs,
+            border: `1px solid ${V.outv}`,
+            backgroundColor: V.surf,
+            color: V.ink,
             fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
@@ -1271,10 +1264,10 @@ export function TransactionsScreen() {
           style={{
             width: '100%',
             padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
+            borderRadius: V.rs,
+            border: `1px solid ${V.outv}`,
+            backgroundColor: V.surf,
+            color: V.ink,
             fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
@@ -1296,10 +1289,10 @@ export function TransactionsScreen() {
           style={{
             width: '100%',
             padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
+            borderRadius: V.rs,
+            border: `1px solid ${V.outv}`,
+            backgroundColor: V.surf,
+            color: V.ink,
             fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
@@ -1320,10 +1313,10 @@ export function TransactionsScreen() {
           style={{
             width: '100%',
             padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
+            borderRadius: V.rs,
+            border: `1px solid ${V.outv}`,
+            backgroundColor: V.surf,
+            color: V.ink,
             fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
@@ -1338,10 +1331,10 @@ export function TransactionsScreen() {
           style={{
             width: '100%',
             padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
+            borderRadius: V.rs,
+            border: `1px solid ${V.outv}`,
+            backgroundColor: V.surf,
+            color: V.ink,
             fontSize: '13px',
             boxSizing: 'border-box',
             outline: 'none',
@@ -1370,17 +1363,17 @@ export function TransactionsScreen() {
                     <Icon
                       name={entry.targetType === 'object' ? 'box' : 'contact'}
                       size={16}
-                      style={{ color: '#94a3b8' }}
+                      style={{ color: V.ink2 }}
                     />
                     <strong style={{ fontSize: '14px' }}>{entry.description || entry.id}</strong>
                     {entry.status === 'failed' && (
                       <span
                         style={{
                           fontSize: '11px',
-                          backgroundColor: 'rgba(244, 63, 94, 0.2)',
-                          color: '#f43f5e',
+                          backgroundColor: `${V.err}33`,
+                          color: V.err,
                           padding: '2px 6px',
-                          borderRadius: '4px',
+                          borderRadius: V.rs,
                         }}
                       >
                         Failed
@@ -1389,7 +1382,7 @@ export function TransactionsScreen() {
                   </div>
                   <small
                     style={{
-                      color: '#94a3b8',
+                      color: V.ink2,
                       display: 'block',
                       marginTop: '4px',
                       fontSize: '12px',
@@ -1404,12 +1397,12 @@ export function TransactionsScreen() {
                     style={{
                       fontWeight: '700',
                       fontSize: '16px',
-                      color: isNegative ? '#f43f5e' : '#34d399',
+                      color: isNegative ? V.err : V.ok,
                     }}
                   >
                     {isNegative ? `- L$ ${Math.abs(entry.amount)}` : `+ L$ ${entry.amount}`}
                   </span>
-                  <small style={{ display: 'block', color: '#64748b', fontSize: '11px' }}>
+                  <small style={{ display: 'block', color: V.ink2, fontSize: '11px' }}>
                     {entry.type}
                   </small>
                 </div>

@@ -42,7 +42,7 @@ jobs:
             expo=false
             kotlin=false
             desktop=false
-            if grep -qE '^(src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
+            if grep -qE '^(materials/|src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
             if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
             if grep -qE '^(electron/|electron-builder\.config\.js$|scripts/build-desktop\.mjs$|scripts/validate-electron-config\.mjs$|\.github/workflows/ci\.yml$)' <<<"$files"; then desktop=true; fi
           fi
@@ -66,6 +66,13 @@ jobs:
       - run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Cache Filament matc toolchain
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/filament-matc
+          key: filament-matc-${{ runner.os }}-${{ hashFiles('scripts/build-materials.mjs') }}
+          restore-keys: |
+            filament-matc-${{ runner.os }}-
       - name: TypeScript type check
         run: npm run typecheck
       - name: ESLint check
@@ -74,6 +81,8 @@ jobs:
         run: npm run format:check
       - name: Check for fabricated data
         run: npm run check:fake-data
+      - name: Verify material shaders
+        run: npm run check:materials
       - name: Unit tests (Vitest)
         run: npm run test
       - name: Validate Electron configuration
@@ -101,6 +110,10 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/gradle.properties
       - run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -129,6 +142,11 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: |
+            android-kotlin/**/*.gradle*
+            android-kotlin/gradle/wrapper/gradle-wrapper.properties
+            android-kotlin/gradle/libs.versions.toml
+            android-kotlin/gradle.properties
       - name: Unit and end-to-end tests
         run: ./gradlew test --no-daemon
       - name: Assemble debug APK

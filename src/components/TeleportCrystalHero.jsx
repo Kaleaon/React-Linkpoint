@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useId, useImperativeHandle } from 'react';
+import React, { useRef, useId, useImperativeHandle } from 'react';
 import { CRYSTAL } from './linkpointCrystal.js';
 
 /**
@@ -38,7 +38,6 @@ function TeleportCrystalHeroRender(
   const topRef = useRef(null);
   const botRef = useRef(null);
   const coreRef = useRef(null);
-  const rafIdRef = useRef(null);
 
   const isFailed = phase === 'failed';
   const rawP = typeof stepPercent === 'number' ? stepPercent : Number(stepPercent) || 0;
@@ -54,41 +53,35 @@ function TeleportCrystalHeroRender(
   const strokeColor = isFailed ? 'var(--err, #EF4444)' : 'var(--outv, #365047)';
 
   const applyProgressDOM = (pct) => {
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current);
-    }
-    rafIdRef.current = requestAnimationFrame(() => {
-      rafIdRef.current = null;
-      const rawPct = typeof pct === 'number' ? pct : Number(pct) || 0;
-      const validPct = Math.min(100, Math.max(0, rawPct));
-      const currentGap = (256 / 3) * (1 - validPct / 100);
-      const curTopY = -currentGap / 2;
-      const curBotY = currentGap / 2;
-      const curRadius = isFailed
-        ? (14 * 512) / 120
-        : (8 * 512) / 120 + (validPct / 100) * ((8 * 512) / 120);
-      const curOpacity = isFailed ? 0.95 : 0.4 + (validPct / 100) * 0.55;
-      const curScale = isFailed ? 1 : Number((1 + (validPct / 100) * 0.05).toFixed(4));
+    const rawPct = typeof pct === 'number' && Number.isFinite(pct) ? pct : Number(pct) || 0;
+    const validPct = Math.min(100, Math.max(0, rawPct));
+    const currentGap = (256 / 3) * (1 - validPct / 100);
+    const curTopY = -currentGap / 2;
+    const curBotY = currentGap / 2;
+    const curRadius = isFailed
+      ? (14 * 512) / 120
+      : (8 * 512) / 120 + (validPct / 100) * ((8 * 512) / 120);
+    const curOpacity = isFailed ? 0.95 : Number((0.4 + (validPct / 100) * 0.55).toFixed(4));
+    const curScale = isFailed ? 1 : Number((1 + (validPct / 100) * 0.05).toFixed(4));
 
-      if (containerRef.current) {
-        containerRef.current.setAttribute('data-step-percent', String(validPct));
-        containerRef.current.style.setProperty('--tpch-progress', String(validPct));
-        containerRef.current.style.setProperty('--tpch-core-radius', `${curRadius}px`);
-        containerRef.current.style.setProperty('--tpch-core-opacity', `${curOpacity}`);
-        containerRef.current.style.setProperty('--crystal-scale', String(curScale));
-        containerRef.current.style.setProperty('--crystal-glow-opacity', String(curOpacity));
-      }
-      if (topRef.current) {
-        topRef.current.style.transform = `translateY(${curTopY.toFixed(2)}px)`;
-      }
-      if (botRef.current) {
-        botRef.current.style.transform = `translateY(${curBotY.toFixed(2)}px)`;
-      }
-      if (coreRef.current) {
-        coreRef.current.setAttribute('r', String(curRadius));
-        coreRef.current.setAttribute('opacity', String(curOpacity));
-      }
-    });
+    if (containerRef.current) {
+      containerRef.current.setAttribute('data-step-percent', String(validPct));
+      containerRef.current.style.setProperty('--tpch-progress', String(validPct));
+      containerRef.current.style.setProperty('--tpch-core-radius', `${curRadius}px`);
+      containerRef.current.style.setProperty('--tpch-core-opacity', `${curOpacity}`);
+      containerRef.current.style.setProperty('--crystal-scale', String(curScale));
+      containerRef.current.style.setProperty('--crystal-glow-opacity', String(curOpacity));
+    }
+    if (topRef.current) {
+      topRef.current.style.transform = `translateY(${curTopY.toFixed(2)}px)`;
+    }
+    if (botRef.current) {
+      botRef.current.style.transform = `translateY(${curBotY.toFixed(2)}px)`;
+    }
+    if (coreRef.current) {
+      coreRef.current.setAttribute('r', String(curRadius));
+      coreRef.current.setAttribute('opacity', String(curOpacity));
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -96,15 +89,6 @@ function TeleportCrystalHeroRender(
       applyProgressDOM(pct);
     },
   }));
-
-  useEffect(() => {
-    return () => {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-    };
-  }, []);
 
   return (
     <div

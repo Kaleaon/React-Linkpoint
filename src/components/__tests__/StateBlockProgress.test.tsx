@@ -32,7 +32,7 @@ afterEach(async () => {
 });
 
 describe('StateBlock Crystal Gradient Progress Bar', () => {
-  it('renders track, fill with 3-stop linear gradient, and glowing tip when condPack.bar is present', async () => {
+  it('renders track, fill with standard crystal gradient, and diamond crystal cap when condPack.bar is present', async () => {
     vi.spyOn(ThemeContextModule, 'useTheme').mockReturnValue({
       V: {
         pri: '#6CFF9A',
@@ -50,17 +50,29 @@ describe('StateBlock Crystal Gradient Progress Bar', () => {
       <StateBlock status="loading" title="LOADING DATA" body="Fetching..." />,
     );
 
-    const track = host.querySelector('[data-testid="state-block-progress-track"]') as HTMLElement;
-    const fill = host.querySelector('[data-testid="state-block-progress-fill"]') as HTMLElement;
-    const glow = host.querySelector('[data-testid="state-block-progress-glow"]') as HTMLElement;
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const track = host.querySelector('[data-testid="crystal-progress-track"]') as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]') as HTMLElement;
 
+    expect(container).not.toBeNull();
     expect(track).not.toBeNull();
     expect(fill).not.toBeNull();
-    expect(glow).not.toBeNull();
+    expect(cap).not.toBeNull();
 
-    // Verify track styling
-    expect(track.style.width).toBe('216px');
+    // Verify progressbar accessibility attributes
+    expect(container.getAttribute('role')).toBe('progressbar');
+    expect(container.getAttribute('aria-valuenow')).toBe('65');
+    expect(container.getAttribute('aria-valuemin')).toBe('0');
+    expect(container.getAttribute('aria-valuemax')).toBe('100');
+    expect(container.getAttribute('aria-label')).toBe('LOADING DATA');
+
+    // Verify track styling and 216px container width
+    expect(container.style.width).toBe('216px');
     expect(track.style.height).toBe('4px');
+    expect(track.style.borderRadius).toBe('2px');
     expect(track.style.border).toContain('1px solid');
     expect(track.style.border).toContain('54, 80, 71');
     expect(track.style.background).toBe('rgba(255, 255, 255, 0.1)');
@@ -69,13 +81,8 @@ describe('StateBlock Crystal Gradient Progress Bar', () => {
     expect(fill.style.width).toBe('65%');
     expect(fill.style.background).toContain('linear-gradient(90deg');
     expect(fill.style.background).toContain('rgb(18, 59, 39)');
-    expect(fill.style.background).toContain('rgb(108, 255, 154)');
     expect(fill.style.background).toContain('rgb(138, 208, 176)');
-
-    // Verify glowing tip styling
-    expect(glow.style.background).toContain('radial-gradient');
-    expect(glow.style.boxShadow).toContain('6px');
-    expect(glow.style.boxShadow).toContain('#6CFF9A');
+    expect(fill.style.background).toContain('rgb(108, 255, 154)');
   });
 
   it('correctly calculates rounded percentage for progress width', async () => {
@@ -95,11 +102,15 @@ describe('StateBlock Crystal Gradient Progress Bar', () => {
     const host = await mount(
       <StateBlock status="loading" title="SYNCHRONIZING" body="Syncing..." />,
     );
-    const fill = host.querySelector('[data-testid="state-block-progress-fill"]') as HTMLElement;
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
 
     expect(fill).not.toBeNull();
     // Math.round(0.887 * 100) => 89%
     expect(fill.style.width).toBe('89%');
+    expect(container.getAttribute('aria-valuenow')).toBe('89');
   });
 
   it('uses fallback variables when theme tokens are undefined', async () => {
@@ -112,20 +123,19 @@ describe('StateBlock Crystal Gradient Progress Bar', () => {
 
     const host = await mount(<StateBlock status="loading" title="LOADING" body="Please wait..." />);
 
-    const track = host.querySelector('[data-testid="state-block-progress-track"]') as HTMLElement;
-    const fill = host.querySelector('[data-testid="state-block-progress-fill"]') as HTMLElement;
-    const glow = host.querySelector('[data-testid="state-block-progress-glow"]') as HTMLElement;
+    const track = host.querySelector('[data-testid="crystal-progress-track"]') as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]') as HTMLElement;
 
     expect(track).not.toBeNull();
     expect(fill).not.toBeNull();
-    expect(glow).not.toBeNull();
+    expect(cap).not.toBeNull();
 
     expect(track.style.border).toBe('1px solid var(--outv, #365047)');
-    expect(track.style.background).toBe('var(--surf2, rgba(255,255,255,0.1))');
+    expect(track.style.background).toBe('var(--surf2, rgba(255, 255, 255, 0.1))');
     expect(fill.style.background).toBe(
-      'linear-gradient(90deg, var(--priC, #123B27), var(--pri, #6CFF9A), var(--sec2, #8AD0B0))',
+      'linear-gradient(90deg, var(--priC, #123B27) 0%, var(--sec2, #8AD0B0) 40%, var(--pri, #6CFF9A) 100%)',
     );
-    expect(glow.style.background).toContain('var(--pri, #6CFF9A)');
   });
 
   it('reflects updated theme palette tokens', async () => {
@@ -147,15 +157,15 @@ describe('StateBlock Crystal Gradient Progress Bar', () => {
       <StateBlock status="loading" title="SOLARPUNK LOAD" body="Loading..." />,
     );
 
-    const track = host.querySelector('[data-testid="state-block-progress-track"]') as HTMLElement;
-    const fill = host.querySelector('[data-testid="state-block-progress-fill"]') as HTMLElement;
+    const track = host.querySelector('[data-testid="crystal-progress-track"]') as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
 
     expect(track.style.border).toContain('1px solid');
     expect(track.style.border).toContain('179, 208, 191');
     expect(track.style.background).toBe('rgb(226, 242, 232)');
     expect(fill.style.background).toContain('linear-gradient(90deg');
     expect(fill.style.background).toContain('rgb(191, 239, 208)');
-    expect(fill.style.background).toContain('rgb(56, 181, 106)');
     expect(fill.style.background).toContain('rgb(242, 196, 108)');
+    expect(fill.style.background).toContain('rgb(56, 181, 106)');
   });
 });
