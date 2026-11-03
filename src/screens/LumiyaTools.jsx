@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
 import AccessibleInput from '../components/AccessibleInput';
 import AccessibleSelect from '../components/AccessibleSelect';
+import { FocusRing } from '@linkpoint/design-system';
 
 function Empty({ icon, children }) {
   return (
@@ -1224,13 +1225,15 @@ export function TransactionsScreen() {
           marginBottom: '16px',
         }}
       >
-        <AccessibleInput
-          type="text"
-          placeholder="Search description/ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ width: '100%', backgroundColor: V.surf }}
-        />
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <AccessibleInput
+            type="text"
+            placeholder="Search description/ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: '100%', backgroundColor: V.surf }}
+          />
+        </FocusRing>
 
         <AccessibleInput
           type="text"

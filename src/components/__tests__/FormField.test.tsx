@@ -4,8 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import FormField from '../FormField.jsx';
-import AccessibleInput from '../AccessibleInput.jsx';
-import AccessibleSelect from '../AccessibleSelect.jsx';
+import AccessibleInput from '../AccessibleInput';
+import AccessibleSelect from '../AccessibleSelect';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 

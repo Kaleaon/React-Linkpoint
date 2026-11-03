@@ -6,6 +6,7 @@ import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
 import AccessibleInput from './AccessibleInput';
+import { FocusRing } from '@linkpoint/design-system';
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -579,43 +580,47 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     >
                       {currencySymbol}
                     </span>
-                    <AccessibleInput
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="Custom amount"
-                      aria-label="Custom payment amount"
-                      value={customAmount}
-                      onChange={handleCustomChange}
-                      disabled={loading || isZeroCurrency}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px 8px 36px',
-                        border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
-                        fontSize: '14px',
-                        opacity: isZeroCurrency ? 0.5 : 1,
-                      }}
-                    />
+                    <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                      <AccessibleInput
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Custom amount"
+                        aria-label="Custom payment amount"
+                        value={customAmount}
+                        onChange={handleCustomChange}
+                        disabled={loading || isZeroCurrency}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px 8px 36px',
+                          border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                          fontSize: '14px',
+                          opacity: isZeroCurrency ? 0.5 : 1,
+                        }}
+                      />
+                    </FocusRing>
                   </div>
                 </FormField>
               )}
 
               {/* Payment Description */}
               <FormField label="Description / Note">
-                <AccessibleInput
-                  type="text"
-                  placeholder="Note to recipient"
-                  aria-label="Description / Note"
-                  value={description}
-                  onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
-                  disabled={loading || isZeroCurrency}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: `1px solid ${V.outv}`,
-                    fontSize: '14px',
-                    opacity: isZeroCurrency ? 0.5 : 1,
-                  }}
-                />
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <AccessibleInput
+                    type="text"
+                    placeholder="Note to recipient"
+                    aria-label="Description / Note"
+                    value={description}
+                    onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
+                    disabled={loading || isZeroCurrency}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: `1px solid ${V.outv}`,
+                      fontSize: '14px',
+                      opacity: isZeroCurrency ? 0.5 : 1,
+                    }}
+                  />
+                </FocusRing>
               </FormField>
 
               {/* Action Buttons */}

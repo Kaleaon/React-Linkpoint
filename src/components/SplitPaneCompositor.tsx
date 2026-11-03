@@ -6,6 +6,7 @@ import ObjectInspector from './ObjectInspector';
 import DiagnosticsPanel from '../screens/DiagnosticsPanel.jsx';
 import AccessibleChatLog from './AccessibleChatLog.jsx';
 import AccessibleSelect from './AccessibleSelect';
+import { FocusRing } from '@linkpoint/design-system';
 
 export type PaneViewType = 'Viewport' | 'Inspector' | 'Diagnostics' | 'Chat';
 export type WorkstationPreset = 'single' | 'dual' | 'inspector_stack' | 'terminal_split' | 'quad';
@@ -597,23 +598,25 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
                 size={12}
                 color={V.pri}
               />
-              <AccessibleSelect
-                compact
-                value={node.view}
-                onChange={(e) => handleChangeView(node.id, e.target.value as PaneViewType)}
-                aria-label={`Tile tool view selector for pane ${node.id}`}
-                style={{
-                  background: 'transparent',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  padding: '2px 4px',
-                }}
-              >
-                <option value="Viewport">3D Viewport</option>
-                <option value="Inspector">Object Inspector</option>
-                <option value="Diagnostics">Diagnostics</option>
-                <option value="Chat">Spatial Chat</option>
-              </AccessibleSelect>
+              <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                <AccessibleSelect
+                  compact
+                  value={node.view}
+                  onChange={(e) => handleChangeView(node.id, e.target.value as PaneViewType)}
+                  aria-label={`Tile tool view selector for pane ${node.id}`}
+                  style={{
+                    background: 'transparent',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 4px',
+                  }}
+                >
+                  <option value="Viewport">3D Viewport</option>
+                  <option value="Inspector">Object Inspector</option>
+                  <option value="Diagnostics">Diagnostics</option>
+                  <option value="Chat">Spatial Chat</option>
+                </AccessibleSelect>
+              </FocusRing>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
