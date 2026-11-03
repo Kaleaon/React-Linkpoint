@@ -35,7 +35,7 @@ export interface FlatTreeNode {
   depth: number;
   isFolder: boolean;
   isOpen: boolean;
-  isSelected: boolean;
+  isSelected?: boolean;
   node: any;
 }
 
@@ -44,6 +44,7 @@ const OVERSCAN = 5; // Buffer rows rendered above and below the viewport
 
 interface TreeNodeRowProps {
   flatNode: FlatTreeNode;
+  isSelected?: boolean;
   onSelect?: (item: any) => void;
   toggleExpand: (id: string) => void;
   openMenuId: string | null;
@@ -65,9 +66,19 @@ const srOnlyStyle: React.CSSProperties = {
 };
 
 const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
-  ({ flatNode, onSelect, toggleExpand, openMenuId, setOpenMenuId, openMoveModal, announce }) => {
+  ({
+    flatNode,
+    isSelected: isSelectedProp,
+    onSelect,
+    toggleExpand,
+    openMenuId,
+    setOpenMenuId,
+    openMoveModal,
+    announce,
+  }) => {
     const { V } = useSafeTheme();
-    const { id, depth, isFolder, isOpen, isSelected, node } = flatNode;
+    const { id, depth, isFolder, isOpen, node } = flatNode;
+    const isSelected = isSelectedProp !== undefined ? isSelectedProp : !!flatNode.isSelected;
     const isMenuOpen = openMenuId === id;
     const labelId = `inventory-label-${id}`;
 
@@ -408,17 +419,16 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
 
       const isFolder = !!folder;
       const isOpen = !!expandedMap[nodeId];
-      const isSelected = selectedId === nodeId;
 
       if (filterQuery) {
         const nameMatches = String(node.name || '')
           .toLocaleLowerCase()
           .includes(filterQuery);
         if (nameMatches) {
-          result.push({ id: nodeId, depth, isFolder, isOpen, isSelected, node });
+          result.push({ id: nodeId, depth, isFolder, isOpen, node });
         }
       } else {
-        result.push({ id: nodeId, depth, isFolder, isOpen, isSelected, node });
+        result.push({ id: nodeId, depth, isFolder, isOpen, node });
       }
 
       if (isFolder && (isOpen || filterQuery)) {
@@ -431,7 +441,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
 
     traverse(effectiveRootId, 0);
     return result;
-  }, [effectiveRootId, expandedMap, selectedId, revision, filter]);
+  }, [effectiveRootId, expandedMap, revision, filter]);
 
   // Candidate destination folders for Move Modal
   const candidateFolders = useMemo(() => {
@@ -473,12 +483,15 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     return foldersList;
   }, [moveTargetItem]);
 
-  const openMoveModal = (item: any) => {
-    setMoveTargetItem(item);
-    const initialTarget =
-      candidateFolders.find((f) => f.id !== item.parent)?.id || candidateFolders[0]?.id || '';
-    setSelectedTargetFolderId(initialTarget);
-  };
+  const openMoveModal = useCallback(
+    (item: any) => {
+      setMoveTargetItem(item);
+      const initialTarget =
+        candidateFolders.find((f) => f.id !== item.parent)?.id || candidateFolders[0]?.id || '';
+      setSelectedTargetFolderId(initialTarget);
+    },
+    [candidateFolders],
+  );
 
   const handleConfirmMoveToFolder = () => {
     if (!moveTargetItem || !selectedTargetFolderId) return;
@@ -563,6 +576,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
               <TreeNodeRow
                 key={flatNode.id}
                 flatNode={flatNode}
+                isSelected={flatNode.id === selectedId}
                 onSelect={onSelect}
                 toggleExpand={toggleExpand}
                 openMenuId={openMenuId}
