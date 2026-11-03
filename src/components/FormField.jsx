@@ -1,7 +1,7 @@
 import React, { useId } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
-import AccessibleInput from './AccessibleInput.jsx';
-import AccessibleSelect from './AccessibleSelect.jsx';
+import AccessibleInput from './AccessibleInput';
+import AccessibleSelect from './AccessibleSelect';
 
 function isControlElement(element) {
   if (!React.isValidElement(element)) return false;
