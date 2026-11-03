@@ -4,15 +4,16 @@ import CrystalLoader from './CrystalLoader.jsx';
 
 /**
  * @typedef {Object} CrystalProgressBarProps
- * @property {number | null} [progress] - Percentage value between 0 and 100
- * @property {string | number} [height] - Height of the progress track bar
- * @property {boolean} [showLabel] - Whether to render progress text & percentage header
- * @property {string} [label] - Label text rendered in progress header
- * @property {string} [className] - Additional CSS class name
- * @property {import('react').CSSProperties} [style] - Inline style overrides for outer wrapper
+ * @property {number | null | undefined} [progress=0] - Percentage value between 0 and 100
+ * @property {string | number} [height] - Height of the progress track bar (defaults to 4px for 'state-block', 6px for 'default')
+ * @property {boolean} [showLabel=false] - Whether to render progress text & percentage header
+ * @property {string} [label="Downloading asset data..."] - Label text rendered in progress header
+ * @property {string} [className=""] - Additional CSS class name
+ * @property {import('react').CSSProperties} [style={}] - Inline style overrides for outer wrapper
  * @property {string} [ariaLabel] - Custom ARIA label for accessibility
- * @property {boolean} [isFailed] - Whether teleport or loading failed
- * @property {boolean} [error] - Alias for isFailed to render error styling
+ * @property {'default' | 'state-block'} [variant='default'] - Variant preset layout ('default' or 'state-block')
+ * @property {boolean} [isFailed=false] - Whether teleport or loading failed
+ * @property {boolean} [error=false] - Alias for isFailed to render error styling
  */
 
 /**
@@ -25,18 +26,23 @@ import CrystalLoader from './CrystalLoader.jsx';
  */
 
 /**
+ * CrystalProgressBar component for standardized Linkpoint brand styling across loading and downloading workflows.
+ * Supports numerical percentage values from 0 to 100 with smooth transitions, theme custom properties,
+ * and standard crystal brand visual assets.
+ *
  * @param {CrystalProgressBarProps} props
  * @param {React.ForwardedRef<CrystalProgressBarHandle>} ref
  */
 function CrystalProgressBarRender(
   {
     progress = 0,
-    height = '6px',
+    height,
     showLabel = false,
     label = 'Downloading asset data...',
     className = '',
     style = {},
     ariaLabel,
+    variant = 'default',
     isFailed = false,
     error = false,
   },
@@ -59,21 +65,31 @@ function CrystalProgressBarRender(
   const labelRef = useRef(null);
   const labelPercentRef = useRef(null);
 
+  const isStateBlock = variant === 'state-block';
+  const defaultTrackWidth = isStateBlock ? '216px' : '100%';
+  const defaultTrackHeight = isStateBlock ? '4px' : '6px';
+  const effectiveHeight = height !== undefined ? height : defaultTrackHeight;
+  const numericHeight =
+    typeof effectiveHeight === 'number' ? `${effectiveHeight}px` : effectiveHeight;
+  const borderRadius = isStateBlock ? '2px' : '4px';
+
   const rawProgress = typeof progress === 'number' && !isNaN(progress) ? progress : 0;
   const clampedProgress = Math.max(0, Math.min(100, rawProgress));
   const roundedPercent = Math.round(clampedProgress);
+  const displayProgress = isStateBlock ? roundedPercent : clampedProgress;
 
   const updateProgress = (pct) => {
     const num = typeof pct === 'number' ? pct : Number(pct);
     const validPct =
       !Number.isNaN(num) && Number.isFinite(num) ? Math.min(100, Math.max(0, num)) : 0;
     const rounded = Math.round(validPct);
+    const display = isStateBlock ? rounded : validPct;
 
     if (containerRef.current) {
       containerRef.current.setAttribute('aria-valuenow', String(rounded));
     }
     if (fillRef.current) {
-      fillRef.current.style.width = `${validPct}%`;
+      fillRef.current.style.width = `${display}%`;
     }
     if (capRef.current) {
       const isVisible = validPct > 0;
@@ -116,9 +132,7 @@ function CrystalProgressBarRender(
       },
     });
     return handle;
-  }, [showLabel]);
-
-  const numericHeight = typeof height === 'number' ? `${height}px` : height;
+  }, [showLabel, isStateBlock]);
 
   return (
     <div
@@ -128,7 +142,7 @@ function CrystalProgressBarRender(
         display: 'flex',
         flexDirection: 'column',
         gap: '4px',
-        width: '100%',
+        width: defaultTrackWidth,
         ...style,
       }}
       role="progressbar"
@@ -168,7 +182,7 @@ function CrystalProgressBarRender(
           height: numericHeight,
           background: surf2,
           border: `1px solid ${outv || 'rgba(255,255,255,0.1)'}`,
-          borderRadius: '4px',
+          borderRadius,
           position: 'relative',
           overflow: 'hidden',
           boxSizing: 'border-box',
@@ -178,7 +192,7 @@ function CrystalProgressBarRender(
           ref={fillRef}
           data-testid="asset-progress-bar"
           style={{
-            width: `${clampedProgress}%`,
+            width: `${displayProgress}%`,
             height: '100%',
             background: isError
               ? err
