@@ -463,6 +463,7 @@ describe('InventoryTree Accessibility & Single-Pointer Movement', () => {
 
   it('generates visual HTML snapshot for roving focus validation', async () => {
     const fs = await import('fs');
+    const path = await import('path');
     const host = await mount({ selectedId: 'folder-clothes' });
     const fullHtml = `<!DOCTYPE html>
 <html>
@@ -505,6 +506,17 @@ describe('InventoryTree Accessibility & Single-Pointer Movement', () => {
   </div>
 </body>
 </html>`;
-    fs.writeFileSync('/tmp/inventory-tree-preview.html', fullHtml);
+    const previewPath = path.resolve(process.cwd(), 'inventory-tree-preview.html');
+    try {
+      fs.writeFileSync(previewPath, fullHtml);
+      expect(fs.existsSync(previewPath)).toBe(true);
+      expect(fs.readFileSync(previewPath, 'utf-8')).toContain(
+        'Inventory Tree: Roving Tabindex Traversal',
+      );
+    } finally {
+      if (fs.existsSync(previewPath)) {
+        fs.unlinkSync(previewPath);
+      }
+    }
   });
 });
