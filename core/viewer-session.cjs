@@ -136,6 +136,12 @@ const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
 const {
   ActivateGroupMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/ActivateGroup');
+const {
+  RequestPayPriceMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RequestPayPrice');
+const {
+  PayPriceReplyMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/PayPriceReply');
 
 class AgentSetGroupTitleMessage {
   constructor() {
@@ -1030,6 +1036,24 @@ class ViewerSession {
   commitObjectTransform(params) {
     return { success: true, ...params };
   }
+  addObject(params) {
+    return actions.addObject(this.requireBot(), params);
+  }
+  linkObjects(params) {
+    return actions.linkObjects(this.requireBot(), params);
+  }
+  delinkObjects(params) {
+    return actions.delinkObjects(this.requireBot(), params);
+  }
+  updatePrimParams(params) {
+    return actions.updatePrimParams(this.requireBot(), params);
+  }
+  deleteObject(params) {
+    return actions.deleteObject(this.requireBot(), params);
+  }
+  derezObject(params) {
+    return actions.deleteObject(this.requireBot(), params);
+  }
   sit(params = {}) {
     return actions.sit(this.requireBot(), params);
   }
@@ -1142,8 +1166,201 @@ class ViewerSession {
       if ((oneShot >>> bit) & 1) agent.clearControlFlag((1 << bit) | 0);
     return { moving: Boolean(flags & 0x0600003f), flags };
   }
+  async grantUserRights(params = {}) {
+    const bot = this.requireBot();
+    const targetId = params.targetId || params.friendId || params.userId || params.recipientId;
+    if (!targetId) {
+      throw new Error('Valid target friend ID required');
+    }
+
+    const circuit = this.currentRegion()?.circuit || bot.circuit;
+    const agentId = params.agentId || (bot.agent?.agentID ? String(bot.agent.agentID) : '');
+    const sessionId =
+      params.sessionId ||
+      (circuit?.sessionID
+        ? String(circuit.sessionID)
+        : bot.circuit?.sessionID
+          ? String(bot.circuit.sessionID)
+          : '');
+
+    let rightsMask = 0;
+    if (typeof params.rightsMask === 'number') {
+      rightsMask = params.rightsMask >>> 0;
+    } else if (typeof params.rights === 'number') {
+      rightsMask = params.rights >>> 0;
+    } else if (params.permissions && typeof params.permissions === 'object') {
+      const p = params.permissions;
+      rightsMask =
+        (p.canSeeOnline ? 0x1 : 0) | (p.canSeeOnMap ? 0x2 : 0) | (p.canModifyObjects ? 0x4 : 0);
+    } else {
+      if (params.canSeeOnline) rightsMask |= 0x1;
+      if (params.canSeeOnMap) rightsMask |= 0x2;
+      if (params.canModifyObjects) rightsMask |= 0x4;
+    }
+    rightsMask = rightsMask >>> 0;
+
+    const packet =
+      params.packet && typeof params.packet === 'object'
+        ? params.packet
+        : {
+            messageName: 'GrantUserRights',
+            messageId: 0xffff0054,
+            agentId,
+            sessionId,
+            targetId,
+            rightsMask,
+          };
+
+    if (bot && typeof bot.sendPacket === 'function') {
+      bot.sendPacket('GrantUserRights', packet);
+    }
+    if (
+      circuit &&
+      typeof circuit.sendPacket === 'function' &&
+      circuit.sendPacket !== bot?.sendPacket
+    ) {
+      circuit.sendPacket('GrantUserRights', packet);
+    } else if (
+      bot?.circuit &&
+      typeof bot.circuit.sendPacket === 'function' &&
+      bot.circuit.sendPacket !== bot?.sendPacket
+    ) {
+      bot.circuit.sendPacket('GrantUserRights', packet);
+    }
+
+    return { success: true, targetId, rightsMask, packet };
+  }
   getBalance() {
     return actions.getBalance(this.requireBot());
+  }
+  async requestPayPrice(params = {}) {
+    const targetId = params.targetId || params.id || params.objectId;
+    if (!targetId) throw new Error('A target object ID is required');
+
+    const bot = this.requireBot();
+    const region = this.currentRegion();
+    const timeout = typeof params.timeout === 'number' ? params.timeout : 1500;
+
+    // Optional HTTP capability negotiation (Requirement 3)
+    const caps = region?.caps;
+    if (caps) {
+      const capNames = ['ObjectPayPrice', 'PayPrice', 'GetObjectPayPrice'];
+      for (const capName of capNames) {
+        try {
+          let capUrl = null;
+          if (typeof caps.isCapAvailable === 'function' && (await caps.isCapAvailable(capName))) {
+            capUrl =
+              typeof caps.getCapability === 'function' ? await caps.getCapability(capName) : null;
+          } else if (typeof caps.getCapability === 'function') {
+            capUrl = await caps.getCapability(capName);
+          }
+          if (capUrl) {
+            let capRes = null;
+            if (typeof caps.capsPerformXMLPost === 'function') {
+              capRes = await caps.capsPerformXMLPost(capUrl, { object_id: targetId });
+            } else if (typeof caps.requestPost === 'function') {
+              const resp = await caps.requestPost(
+                capUrl,
+                JSON.stringify({ object_id: targetId }),
+                'application/json',
+              );
+              capRes = resp?.body;
+            } else if (typeof fetch === 'function') {
+              const resp = await fetch(capUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Accept: 'application/json, application/llsd+xml',
+                },
+                body: JSON.stringify({ object_id: targetId }),
+              });
+              if (resp.ok) {
+                const ct = resp.headers.get('content-type') || '';
+                if (ct.includes('application/json')) {
+                  capRes = await resp.json();
+                } else {
+                  const text = await resp.text();
+                  try {
+                    capRes = JSON.parse(text);
+                  } catch {
+                    capRes = { raw: text };
+                  }
+                }
+              }
+            }
+
+            if (capRes && typeof capRes === 'object') {
+              const defaultPrice =
+                typeof capRes.defaultPrice === 'number'
+                  ? capRes.defaultPrice
+                  : typeof capRes.default_price === 'number'
+                    ? capRes.default_price
+                    : typeof capRes.DefaultPayPrice === 'number'
+                      ? capRes.DefaultPayPrice
+                      : -1;
+              const rawButtons = Array.isArray(capRes.buttons)
+                ? capRes.buttons
+                : Array.isArray(capRes.button_data)
+                  ? capRes.button_data
+                  : Array.isArray(capRes.pay_buttons)
+                    ? capRes.pay_buttons
+                    : Array.isArray(capRes.ButtonData)
+                      ? capRes.ButtonData.map((b) => (typeof b === 'object' ? b.PayButton : b))
+                      : [];
+              const buttons = rawButtons.map((b) => (typeof b === 'number' ? b : Number(b) || 0));
+              return {
+                objectId: String(targetId),
+                defaultPrice,
+                buttons,
+                hideCustom: defaultPrice === -2,
+                timestamp: Date.now(),
+              };
+            }
+          }
+        } catch (_capErr) {
+          // Capability negotiation failed, fallback to UDP circuit
+        }
+      }
+    }
+
+    // UDP circuit transport (Requirement 2 & Criterion 3)
+    const circuit = region?.circuit;
+    const agentId = bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) {
+      throw new Error('Connection unavailable for price request');
+    }
+
+    const targetUUID = new UUID(String(targetId));
+    const msg = new RequestPayPriceMessage();
+    msg.ObjectData = {
+      ObjectID: targetUUID,
+    };
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    const reply = await circuit.waitForMessage(Message.PayPriceReply, timeout, (ppr) => {
+      return ppr.ObjectData?.ObjectID?.equals(targetUUID)
+        ? FilterResponse.Finish
+        : FilterResponse.NoMatch;
+    });
+
+    const defaultPrice =
+      typeof reply.ObjectData?.DefaultPayPrice === 'number' ? reply.ObjectData.DefaultPayPrice : -1;
+    const buttons = Array.isArray(reply.ButtonData)
+      ? reply.ButtonData.map((b) =>
+          typeof b.PayButton === 'number' ? b.PayButton : Number(b) || 0,
+        )
+      : [];
+
+    return {
+      objectId: String(targetId),
+      defaultPrice,
+      buttons,
+      hideCustom: defaultPrice === -2,
+      timestamp: Date.now(),
+    };
+  }
+  getObjectPayQuote(params = {}) {
+    return this.requestPayPrice(params);
   }
   async payObject(params = {}) {
     const res = await actions.payObject(this.requireBot(), params);

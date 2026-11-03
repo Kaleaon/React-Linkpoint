@@ -39,7 +39,5 @@ jobs:
       - name: Verify design system package integration
         run: npm run sync-design
 
-      - name: Verify build and tests
-        run: |
-          npm run build
-          npm test
+      - name: Run verification checks
+        run: npm run check

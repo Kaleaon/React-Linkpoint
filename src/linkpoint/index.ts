@@ -67,6 +67,14 @@ export * from './search';
 export { AppearanceManager } from './appearance-manager';
 export { AvatarSkeleton } from './avatar-skeleton';
 
+// Object Pay Manager
+export { ObjectPayManager } from './object-pay-manager';
+export type {
+  ObjectPayQuote,
+  ObjectPayQuoteOptions,
+  PrefetchQuoteOptions,
+} from './object-pay-manager';
+
 import { LLSD, LLSDValue, LLSDMap, LLSDArray } from './types';
 import { LLSDXMLParser } from './xmlParser';
 import { LLSDBinaryParser } from './binaryParser';

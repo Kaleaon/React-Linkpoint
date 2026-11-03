@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import React, { createElement, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
