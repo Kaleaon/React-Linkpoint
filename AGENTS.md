@@ -46,6 +46,13 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 - **Assemble Debug APK**: `cd android-kotlin && ./gradlew :app:assembleDebug --no-daemon`
 - **Subproject Guide**: See [`android-kotlin/AGENTS.md`](./android-kotlin/AGENTS.md) for Kotlin guidelines, live OpenSim test execution, and Android SDK environment notes.
 
+### 4. Live Grid Smoke Test Gate (`smoke-test` job)
+
+The release workflow validates simulator connectivity with a live grid smoke test gate job before publishing release packages.
+
+- **Prerequisites**: Linkpoint server running (`npm run start` or `npm run dev`) and grid credentials.
+- **Run Smoke Tests**: `npm run test:live-grid` (or `node scripts/live-grid-smoke.mjs`) with `SL_LOGIN_URL`, `SL_USERNAME`, and `SL_PASSWORD` set. See [`LIVE_GRID_TESTING.md`](./LIVE_GRID_TESTING.md) for full instructions.
+
 ---
 
 ## Workspace Conventions & Rules
