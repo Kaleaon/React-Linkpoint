@@ -475,7 +475,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     );
   }
 
-  const activeData = isDirty && currentSnapshot ? currentSnapshot : selection;
+  const activeData = currentSnapshot || selection;
   const name = activeData.name || selection.name || selection.id || 'Simulator object';
   const typeStr =
     selection.shape || (selection.avatar || selection.isAvatar ? 'Avatar' : 'Primitive');
@@ -485,7 +485,14 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
       ? [Number(activeData.x), Number(activeData.y), Number(activeData.z)]
       : [0, 0, 0];
 
-  const rotationEuler = quatToEulerDegrees(activeData.rotation);
+  const rotationEuler =
+    Array.isArray(activeData.rotation) && activeData.rotation.length === 3
+      ? [
+          Number(activeData.rotation[0]) || 0,
+          Number(activeData.rotation[1]) || 0,
+          Number(activeData.rotation[2]) || 0,
+        ]
+      : quatToEulerDegrees(activeData.rotation);
   const scaleValues = Array.isArray(activeData.scale) ? activeData.scale : [1, 1, 1];
 
   const posStr = Array.isArray(activeData.position)
@@ -494,7 +501,9 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
       ? `${Number(activeData.x).toFixed(1)}, ${Number(activeData.y).toFixed(1)}, ${Number(activeData.z).toFixed(1)}`
       : '—';
   const rotStr = Array.isArray(activeData.rotation)
-    ? activeData.rotation.map((n: number) => Number(n).toFixed(1)).join(', ')
+    ? activeData.rotation.length === 3
+      ? activeData.rotation.map((n: number) => Number(n).toFixed(1)).join(', ')
+      : rotationEuler.map((n: number) => Number(n).toFixed(1)).join(', ')
     : activeData.rx != null
       ? `${Number(activeData.rx).toFixed(1)}, ${Number(activeData.ry).toFixed(1)}, ${Number(activeData.rz).toFixed(1)}`
       : '—';
@@ -657,7 +666,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
               style={{
                 color: V.ink,
                 fontFamily: 'monospace',
-                fontSize: '10px',
+                fontSize: '9px',
                 marginBottom: '2px',
               }}
             >
@@ -693,7 +702,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
               style={{
                 color: V.ink,
                 fontFamily: 'monospace',
-                fontSize: '10px',
+                fontSize: '9px',
                 marginBottom: '2px',
               }}
             >
@@ -727,7 +736,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
               style={{
                 color: V.ink,
                 fontFamily: 'monospace',
-                fontSize: '10px',
+                fontSize: '9px',
                 marginBottom: '2px',
               }}
             >

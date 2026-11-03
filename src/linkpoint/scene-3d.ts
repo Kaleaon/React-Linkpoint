@@ -116,54 +116,54 @@ export class Scene3D extends Utils.EventEmitter {
   public activeGizmoAxis: 'x' | 'y' | 'z' | null = null;
   public gizmoHoverAxis: 'x' | 'y' | 'z' | null = null;
   public canModifySelected: boolean = true;
-
   public editPipeline: any = null;
+
+  public activeGizmo: {
+    targetId: string | null;
+    mode: 'translate' | 'rotate' | 'scale' | null;
+    activeAxis: 'x' | 'y' | 'z' | null;
+  } = {
+    targetId: null,
+    mode: 'translate',
+    activeAxis: null,
+  };
 
   public setEditPipeline(pipeline: any) {
     this.editPipeline = pipeline;
   }
 
-  public get activeGizmo(): {
-    targetId: string | null;
-    mode: 'translate' | 'rotate' | 'scale' | null;
-    activeAxis: 'x' | 'y' | 'z' | null;
-  } {
-    return {
-      targetId: this.selectedObjectId,
-      mode: this.gizmoMode,
-      activeAxis: this.activeGizmoAxis,
-    };
-  }
-
-  public set activeGizmo(val: {
-    targetId: string | null;
-    mode: 'translate' | 'rotate' | 'scale' | null;
-    activeAxis: 'x' | 'y' | 'z' | null;
-  }) {
-    if (val) {
-      if (val.targetId !== undefined) this.selectedObjectId = val.targetId;
-      if (val.mode !== undefined && val.mode !== null) this.gizmoMode = val.mode;
-      if (val.activeAxis !== undefined) this.activeGizmoAxis = val.activeAxis;
-    }
-  }
-
   public setGizmoTarget(objectId: string | null, mode?: 'translate' | 'rotate' | 'scale') {
     this.setGizmoSelectedObject(objectId, true);
+    this.activeGizmo.targetId = objectId;
     if (mode !== undefined) {
       this.setGizmoMode(mode);
     }
   }
 
   public getGizmoTarget(): string | null {
-    return this.selectedObjectId;
+    return this.selectedObjectId || this.activeGizmo.targetId || null;
   }
 
   public applyGizmoTransform(
-    delta: { position?: number[]; rotation?: number[]; scale?: number[] },
-    pipeline?: any,
+    objectIdOrDelta: string | { position?: number[]; rotation?: number[]; scale?: number[] },
+    maybeDeltaOrPipeline?: any,
+    maybePipeline?: any,
   ) {
-    const targetId = this.selectedObjectId;
-    if (!targetId) return null;
+    let targetId: string | null = null;
+    let delta: { position?: number[]; rotation?: number[]; scale?: number[] } | undefined;
+    let pipeline: any = null;
+
+    if (typeof objectIdOrDelta === 'string') {
+      targetId = objectIdOrDelta;
+      delta = maybeDeltaOrPipeline;
+      pipeline = maybePipeline || this.editPipeline;
+    } else {
+      targetId = this.selectedObjectId || this.activeGizmo.targetId;
+      delta = objectIdOrDelta;
+      pipeline = maybeDeltaOrPipeline || this.editPipeline;
+    }
+
+    if (!targetId || !delta) return null;
     const pipe = pipeline || this.editPipeline;
     const obj = this.objects.get(targetId);
     if (!obj) return null;
@@ -208,7 +208,7 @@ export class Scene3D extends Utils.EventEmitter {
   }
 
   public manipulateGizmo(axis: 'x' | 'y' | 'z', amount: number, pipeline?: any) {
-    const mode = this.gizmoMode || 'translate';
+    const mode = this.gizmoMode || this.activeGizmo.mode || 'translate';
     const deltaVec = [
       axis === 'x' ? amount : 0,
       axis === 'y' ? amount : 0,
@@ -689,15 +689,18 @@ export class Scene3D extends Utils.EventEmitter {
 
   setGizmoSelectedObject(id: string | null, canModify: boolean = true) {
     this.selectedObjectId = id;
+    this.activeGizmo.targetId = id;
     this.canModifySelected = canModify;
     if (!id || !canModify) {
       this.activeGizmoAxis = null;
       this.gizmoHoverAxis = null;
+      this.activeGizmo.activeAxis = null;
     }
   }
 
   setGizmoMode(mode: 'translate' | 'rotate' | 'scale') {
     this.gizmoMode = mode;
+    this.activeGizmo.mode = mode;
   }
 
   getGizmoMode(): 'translate' | 'rotate' | 'scale' {
@@ -710,6 +713,7 @@ export class Scene3D extends Utils.EventEmitter {
 
   setActiveGizmoAxis(axis: 'x' | 'y' | 'z' | null) {
     this.activeGizmoAxis = axis;
+    this.activeGizmo.activeAxis = axis;
   }
 
   setGizmoHoverAxis(axis: 'x' | 'y' | 'z' | null) {

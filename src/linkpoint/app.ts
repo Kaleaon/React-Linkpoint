@@ -128,7 +128,6 @@ export class LinkpointApp {
     this.editPipeline = this.objectEditPipeline;
     this.world.setEditPipeline(this.objectEditPipeline);
     this.world.setObjectsManager(this.objects);
-
     this.inventoryCore = this.inventory as any;
     this.inventoryOps = new InventoryOperations(this.inventory as any);
     this.inventoryTypes = new InventorySpecialTypes();

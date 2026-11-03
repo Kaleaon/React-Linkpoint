@@ -2138,8 +2138,8 @@ export class WorldViewer extends Utils.EventEmitter {
     const objectId = hit?.id.replace(/:(body|head|legs)$/, '') || null;
     this.selectedObject = objectId ? this.sceneObjects.get(objectId) || null : null;
     const canModify = this.canModifyObject(this.selectedObject);
-    this.scene3d?.setGizmoSelectedObject?.(objectId, canModify);
     (this.scene3d as any)?.setGizmoTarget?.(objectId);
+    this.scene3d?.setGizmoSelectedObject?.(objectId, canModify);
     const selection = this.selectedObject
       ? { ...this.selectedObject, hitPoint: hit?.point, distance: hit?.distance, canModify }
       : null;
