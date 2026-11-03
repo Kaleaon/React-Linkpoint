@@ -5,6 +5,7 @@ import Icon from '../components/Icon.jsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
+import TouchTarget from '../components/TouchTarget.tsx';
 
 const CAMERA_PRESETS = [
   ['front', 'Front'],
@@ -429,8 +430,8 @@ export default function OutfitViewer() {
                 left: 12,
                 right: 12,
                 padding: '6px 10px',
-                background: 'rgba(15, 23, 42, 0.85)',
-                color: '#cbd5e1',
+                background: V.surf,
+                color: V.ink,
                 fontSize: 11,
                 borderRadius: V.rs,
                 border: `1px solid ${V.outv}`,
@@ -453,7 +454,7 @@ export default function OutfitViewer() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: 'rgba(15, 23, 42, 0.85)',
+              background: V.surf,
               backdropFilter: 'blur(6px)',
               padding: '6px 10px',
               borderRadius: V.rs,
@@ -461,27 +462,29 @@ export default function OutfitViewer() {
             }}
           >
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginRight: 4 }}>
+              <span style={{ fontSize: 10, color: V.ink2, fontWeight: 700, marginRight: 4 }}>
                 CAMERA:
               </span>
               {CAMERA_PRESETS.map(([p, label]) => (
-                <button
+                <TouchTarget
                   key={p}
-                  type="button"
+                  minSize={24}
+                  aria-pressed={cameraPreset === p}
+                  aria-label={`View ${label} camera angle`}
                   onClick={() => applyCameraPreset(p)}
                   style={{
                     padding: '3px 7px',
                     fontSize: 10,
                     fontWeight: 600,
-                    border: `1px solid ${cameraPreset === p ? V.pri : 'rgba(255,255,255,0.2)'}`,
+                    border: `1px solid ${cameraPreset === p ? V.pri : V.outv}`,
                     borderRadius: V.rs,
                     background: cameraPreset === p ? V.pri : 'transparent',
-                    color: cameraPreset === p ? '#fff' : '#cbd5e1',
+                    color: cameraPreset === p ? V.onpri || '#fff' : V.ink,
                     cursor: 'pointer',
                   }}
                 >
                   {label}
-                </button>
+                </TouchTarget>
               ))}
             </div>
 
@@ -497,9 +500,9 @@ export default function OutfitViewer() {
                   fontSize: 10,
                   fontWeight: 600,
                   borderRadius: V.rs,
-                  border: `1px solid ${autoRotate ? V.sec2 : 'rgba(255,255,255,0.2)'}`,
-                  background: autoRotate ? 'rgba(168, 85, 247, 0.3)' : 'transparent',
-                  color: autoRotate ? V.sec2 : '#cbd5e1',
+                  border: `1px solid ${autoRotate ? V.sec2 : V.outv}`,
+                  background: autoRotate ? `${V.sec2}33` : 'transparent',
+                  color: autoRotate ? V.sec2 : V.ink,
                   cursor: 'pointer',
                 }}
               >
@@ -515,8 +518,8 @@ export default function OutfitViewer() {
                   padding: '3px 6px',
                   fontSize: 10,
                   background: 'transparent',
-                  color: '#cbd5e1',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: V.ink,
+                  border: `1px solid ${V.outv}`,
                   borderRadius: V.rs,
                   cursor: 'pointer',
                 }}
