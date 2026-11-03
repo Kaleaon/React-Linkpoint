@@ -1,6 +1,6 @@
 import React from "react";
 import { useTheme } from "./LayoutContext.js";
-import { CrystalMark } from "./BrandedLoader.js";
+import { CrystalMark } from "./CrystalMark.js";
 
 export interface CrystalProgressBarProps {
   progress?: number | null;
@@ -11,6 +11,8 @@ export interface CrystalProgressBarProps {
   style?: React.CSSProperties;
   ariaLabel?: string;
   idPrefix?: string;
+  variant?: "default" | "state-block";
+  tokens?: any;
 }
 
 /**
@@ -20,16 +22,18 @@ export interface CrystalProgressBarProps {
  */
 export const CrystalProgressBar: React.FC<CrystalProgressBarProps> = ({
   progress = 0,
-  height = "6px",
+  height,
   showLabel = false,
   label = "Downloading asset data...",
   className = "",
   style = {},
   ariaLabel,
   idPrefix,
+  variant = "default",
+  tokens,
 }) => {
   const theme = useTheme();
-  const V = (theme as any)?.v || (theme as any)?.V || {};
+  const V = tokens !== undefined ? tokens : ((theme as any)?.v || (theme as any)?.V || {});
 
   const pri = V?.pri || "var(--pri, #6CFF9A)";
   const priC = V?.priC || "var(--priC, #123B27)";
@@ -37,11 +41,18 @@ export const CrystalProgressBar: React.FC<CrystalProgressBarProps> = ({
   const surf2 = V?.surf2 || "var(--surf2, rgba(255, 255, 255, 0.1))";
   const outv = V?.outv || "var(--outv, #365047)";
 
+  const isStateBlock = variant === "state-block";
+  const defaultTrackWidth = isStateBlock ? "216px" : "100%";
+  const defaultTrackHeight = isStateBlock ? "4px" : "6px";
+  const effectiveHeight = height !== undefined ? height : defaultTrackHeight;
+  const numericHeight =
+    typeof effectiveHeight === "number" ? `${effectiveHeight}px` : effectiveHeight;
+  const borderRadius = isStateBlock ? "2px" : "4px";
+
   const rawProgress = typeof progress === "number" && !isNaN(progress) ? progress : 0;
   const clampedProgress = Math.max(0, Math.min(100, rawProgress));
   const roundedPercent = Math.round(clampedProgress);
-
-  const numericHeight = typeof height === "number" ? `${height}px` : height;
+  const displayProgress = isStateBlock ? roundedPercent : clampedProgress;
 
   return (
     <div
@@ -50,7 +61,7 @@ export const CrystalProgressBar: React.FC<CrystalProgressBarProps> = ({
         display: "flex",
         flexDirection: "column",
         gap: "4px",
-        width: "100%",
+        width: defaultTrackWidth,
         ...style,
       }}
       role="progressbar"
@@ -94,12 +105,13 @@ export const CrystalProgressBar: React.FC<CrystalProgressBarProps> = ({
       )}
 
       <div
+        data-testid="crystal-progress-track"
         style={{
           width: "100%",
           height: numericHeight,
           background: surf2,
           border: `1px solid ${outv || "rgba(255,255,255,0.1)"}`,
-          borderRadius: "4px",
+          borderRadius,
           position: "relative",
           overflow: "hidden",
           boxSizing: "border-box",
@@ -108,7 +120,7 @@ export const CrystalProgressBar: React.FC<CrystalProgressBarProps> = ({
         <div
           data-testid="asset-progress-bar"
           style={{
-            width: `${clampedProgress}%`,
+            width: `${displayProgress}%`,
             height: "100%",
             background: `linear-gradient(90deg, ${priC} 0%, ${sec2} 40%, ${pri} 100%)`,
             transition: "width 0.2s ease-out",

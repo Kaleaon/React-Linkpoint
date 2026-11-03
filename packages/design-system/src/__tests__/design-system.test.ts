@@ -30,6 +30,7 @@ import {
   BottomTabs,
   DeviceFrame,
   BrandedLoader,
+  CrystalMark,
   CrystalProgressBar
 } from "../react/index.js";
 
@@ -101,6 +102,7 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(BottomTabs).toBeDefined();
     expect(DeviceFrame).toBeDefined();
     expect(BrandedLoader).toBeDefined();
+    expect(CrystalMark).toBeDefined();
     expect(CrystalProgressBar).toBeDefined();
     expect(useThemeTokens).toBeDefined();
     expect(useLayoutMode).toBeDefined();

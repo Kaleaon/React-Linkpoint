@@ -151,4 +151,70 @@ describe('CrystalProgressBar Component', () => {
     expect(fill).not.toBeNull();
     expect(fill.style.width).toBe('40%');
   });
+
+  it('renders state-block variant with default 216px container width and 4px track height', async () => {
+    const host = await mount(
+      <CrystalProgressBar variant="state-block" progress={60} ariaLabel="Loading scene" />,
+    );
+
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    expect(container).not.toBeNull();
+    expect(container.style.width).toBe('216px');
+    expect(container.getAttribute('role')).toBe('progressbar');
+    expect(container.getAttribute('aria-valuenow')).toBe('60');
+    expect(container.getAttribute('aria-valuemin')).toBe('0');
+    expect(container.getAttribute('aria-valuemax')).toBe('100');
+    expect(container.getAttribute('aria-label')).toBe('Loading scene');
+
+    const track = host.querySelector('[data-testid="crystal-progress-track"]') as HTMLElement;
+    expect(track).not.toBeNull();
+    expect(track.style.height).toBe('4px');
+    expect(track.style.borderRadius).toBe('2px');
+
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    expect(fill).not.toBeNull();
+    expect(fill.style.width).toBe('60%');
+    expect(fill.style.background).toContain('linear-gradient(90deg');
+
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]');
+    expect(cap).not.toBeNull();
+
+    // Verify header text label is omitted by default
+    expect(host.textContent).not.toContain('Downloading asset data...');
+    expect(host.textContent).not.toContain('Loading scene');
+  });
+
+  it('allows overriding dimensions and style in state-block variant', async () => {
+    const host = await mount(
+      <CrystalProgressBar
+        variant="state-block"
+        progress={35}
+        height={8}
+        style={{ width: '180px' }}
+      />,
+    );
+
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    expect(container.style.width).toBe('180px');
+
+    const track = host.querySelector('[data-testid="crystal-progress-track"]') as HTMLElement;
+    expect(track.style.height).toBe('8px');
+  });
+
+  it('retains default 100% width and 6px height when variant is default or omitted', async () => {
+    const hostDefault = await mount(<CrystalProgressBar variant="default" progress={25} />);
+    const containerDefault = hostDefault.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const trackDefault = hostDefault.querySelector(
+      '[data-testid="crystal-progress-track"]',
+    ) as HTMLElement;
+    expect(containerDefault.style.width).toBe('100%');
+    expect(trackDefault.style.height).toBe('6px');
+    expect(trackDefault.style.borderRadius).toBe('4px');
+  });
 });

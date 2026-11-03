@@ -5,6 +5,7 @@ import Icon from '../components/Icon.jsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
+import TouchTarget from '../components/TouchTarget.tsx';
 
 const CAMERA_PRESETS = [
   ['front', 'Front'],
@@ -465,9 +466,11 @@ export default function OutfitViewer() {
                 CAMERA:
               </span>
               {CAMERA_PRESETS.map(([p, label]) => (
-                <button
+                <TouchTarget
                   key={p}
-                  type="button"
+                  minSize={24}
+                  aria-pressed={cameraPreset === p}
+                  aria-label={`View ${label} camera angle`}
                   onClick={() => applyCameraPreset(p)}
                   style={{
                     padding: '3px 7px',
@@ -481,7 +484,7 @@ export default function OutfitViewer() {
                   }}
                 >
                   {label}
-                </button>
+                </TouchTarget>
               ))}
             </div>
 
