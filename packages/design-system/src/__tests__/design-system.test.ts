@@ -30,6 +30,9 @@ import {
   BottomTabs,
   DeviceFrame,
   BrandedLoader,
+  AccessibleButton,
+  AccessibleInput,
+  AccessibleSelect,
   FocusRing,
   useFocusRing
 } from "../react/index.js";
@@ -102,6 +105,9 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(BottomTabs).toBeDefined();
     expect(DeviceFrame).toBeDefined();
     expect(BrandedLoader).toBeDefined();
+    expect(AccessibleButton).toBeDefined();
+    expect(AccessibleInput).toBeDefined();
+    expect(AccessibleSelect).toBeDefined();
     expect(useThemeTokens).toBeDefined();
     expect(useLayoutMode).toBeDefined();
     expect(FocusRing).toBeDefined();
