@@ -44,12 +44,15 @@ const OVERSCAN = 5; // Buffer rows rendered above and below the viewport
 
 interface TreeNodeRowProps {
   flatNode: FlatTreeNode;
+  isFocused: boolean;
   onSelect?: (item: any) => void;
   toggleExpand: (id: string) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   openMoveModal: (item: any) => void;
   announce: (message: string) => void;
+  onFocusNode: (id: string) => void;
+  onNodeKeyDown: (e: React.KeyboardEvent, flatNode: FlatTreeNode) => void;
 }
 
 const srOnlyStyle: React.CSSProperties = {
@@ -65,14 +68,34 @@ const srOnlyStyle: React.CSSProperties = {
 };
 
 const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
-  ({ flatNode, onSelect, toggleExpand, openMenuId, setOpenMenuId, openMoveModal, announce }) => {
+  ({
+    flatNode,
+    isFocused,
+    onSelect,
+    toggleExpand,
+    openMenuId,
+    setOpenMenuId,
+    openMoveModal,
+    announce,
+    onFocusNode,
+    onNodeKeyDown,
+  }) => {
     const { V } = useSafeTheme();
     const { id, depth, isFolder, isOpen, isSelected, node } = flatNode;
     const isMenuOpen = openMenuId === id;
     const labelId = `inventory-label-${id}`;
+    const firstMenuItemRef = useRef<HTMLButtonElement | null>(null);
+
+    // Auto-focus first menuitem when action menu popup opens
+    useEffect(() => {
+      if (isMenuOpen && firstMenuItemRef.current) {
+        firstMenuItemRef.current.focus();
+      }
+    }, [isMenuOpen]);
 
     const handleSelect = (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation();
+      onFocusNode(id);
       if (onSelect) {
         onSelect(node);
       }
@@ -92,6 +115,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
       if (success) {
         announce(`Moved ${node.name} up`);
       }
+      document.getElementById(`inventory-node-${id}`)?.focus();
     };
 
     const handleMoveDown = (e: React.MouseEvent) => {
@@ -101,6 +125,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
       if (success) {
         announce(`Moved ${node.name} down`);
       }
+      document.getElementById(`inventory-node-${id}`)?.focus();
     };
 
     const handleOpenMoveModal = (e: React.MouseEvent) => {
@@ -110,21 +135,54 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleSelect(e);
-        if (isFolder) {
-          toggleExpand(id);
+      // 1. If action menu is open, handle menu navigation / escape without breaking tree roving state
+      if (isMenuOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpenMenuId(null);
+          const rowEl = document.getElementById(`inventory-node-${id}`);
+          rowEl?.focus();
+          return;
         }
-      } else if (e.key === 'ArrowRight' && isFolder && !isOpen) {
-        e.preventDefault();
-        toggleExpand(id);
-        announce(`Expanded ${node.name}`);
-      } else if (e.key === 'ArrowLeft' && isFolder && isOpen) {
-        e.preventDefault();
-        toggleExpand(id);
-        announce(`Collapsed ${node.name}`);
+
+        const target = e.target as HTMLElement;
+        if (target.closest('[role="menu"]')) {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            const menuContainer = target.closest('[role="menu"]');
+            const menuItems = Array.from(
+              menuContainer?.querySelectorAll<HTMLElement>('[role="menuitem"]') || [],
+            );
+            const idx = menuItems.indexOf(target);
+            if (idx !== -1 && menuItems.length > 0) {
+              const nextIdx =
+                e.key === 'ArrowDown'
+                  ? (idx + 1) % menuItems.length
+                  : (idx - 1 + menuItems.length) % menuItems.length;
+              menuItems[nextIdx]?.focus();
+            }
+            return;
+          }
+          if (e.key === 'Enter' || e.key === ' ') {
+            // Let native button click handler run
+            return;
+          }
+          return;
+        }
       }
+
+      // 2. Open action menu shortcut
+      if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpenMenuId(isMenuOpen ? null : id);
+        return;
+      }
+
+      // 3. Delegate arrow keys, Home, End, Enter, Space to treeview roving handler
+      onNodeKeyDown(e, flatNode);
     };
 
     return (
@@ -135,10 +193,15 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         aria-expanded={isFolder ? isOpen : undefined}
         aria-selected={isSelected}
         aria-level={depth + 1}
-        tabIndex={isSelected ? 0 : -1}
+        tabIndex={isFocused ? 0 : -1}
         onClick={handleSelect}
+        onFocus={(e) => {
+          if (e.target === e.currentTarget) {
+            onFocusNode(id);
+          }
+        }}
         onKeyDown={handleKeyDown}
-        className={`inventory-node-row ${isSelected ? 'selected' : ''}`}
+        className={`inventory-node-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -149,6 +212,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
           cursor: 'pointer',
           borderRadius: '4px',
           position: 'relative',
+          outline: isFocused ? `2px solid ${V.pri || '#2563eb'}` : 'none',
+          outlineOffset: '-2px',
           backgroundColor: isSelected ? V.priC || 'rgba(52, 118, 255, 0.15)' : 'transparent',
           color: isSelected ? V.onpriC || '#ffffff' : V.ink || '#e2e8f0',
         }}
@@ -158,6 +223,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
             type="button"
             aria-label={isOpen ? `Collapse ${node.name}` : `Expand ${node.name}`}
             onClick={handleToggleExpand}
+            tabIndex={-1}
             style={{
               background: 'none',
               border: 'none',
@@ -206,6 +272,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
           <button
             type="button"
             aria-label={`Actions for ${node.name}`}
+            tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation();
               setOpenMenuId(isMenuOpen ? null : id);
@@ -247,6 +314,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
               <button
                 type="button"
                 role="menuitem"
+                ref={firstMenuItemRef}
                 onClick={handleMoveUp}
                 style={{
                   background: 'none',
@@ -326,10 +394,18 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   const [moveTargetItem, setMoveTargetItem] = useState<any | null>(null);
   const [selectedTargetFolderId, setSelectedTargetFolderId] = useState<string>('');
   const [announcement, setAnnouncement] = useState<string>('');
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const shouldFocusRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+
+  useEffect(() => {
+    if (selectedId) {
+      setFocusedId(selectedId);
+    }
+  }, [selectedId]);
 
   useEffect(() => {
     const handleUpdate = () => setRevision((v) => v + 1);
@@ -513,6 +589,169 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     return flatNodes.slice(startIndex, endIndex);
   }, [flatNodes, startIndex, endIndex]);
 
+  const flatNodesRef = useRef<FlatTreeNode[]>([]);
+  flatNodesRef.current = flatNodes;
+
+  const rovingTabNodeId = useMemo(() => {
+    if (focusedId && visibleNodes.some((n) => n.id === focusedId)) {
+      return focusedId;
+    }
+    if (selectedId && visibleNodes.some((n) => n.id === selectedId)) {
+      return selectedId;
+    }
+    if (visibleNodes.length > 0) {
+      return visibleNodes[0].id;
+    }
+    return flatNodes[0]?.id || null;
+  }, [focusedId, selectedId, visibleNodes, flatNodes]);
+
+  useEffect(() => {
+    if (shouldFocusRef.current && rovingTabNodeId) {
+      const el = document.getElementById(`inventory-node-${rovingTabNodeId}`);
+      if (el) {
+        shouldFocusRef.current = false;
+        el.focus();
+      } else {
+        const frame = requestAnimationFrame(() => {
+          const delayedEl = document.getElementById(`inventory-node-${rovingTabNodeId}`);
+          if (delayedEl) {
+            shouldFocusRef.current = false;
+            delayedEl.focus();
+          }
+        });
+        return () => cancelAnimationFrame(frame);
+      }
+    }
+  }, [rovingTabNodeId, visibleNodes, scrollTop]);
+
+  const scrollAndFocus = useCallback(
+    (targetId: string, targetIndex: number) => {
+      const container = containerRef.current;
+      if (container) {
+        const clientHeight = container.clientHeight || effectiveViewportHeight || 800;
+        const itemTop = targetIndex * ROW_HEIGHT;
+        const itemBottom = itemTop + ROW_HEIGHT;
+        const currentScrollTop = container.scrollTop;
+        const currentScrollBottom = currentScrollTop + clientHeight;
+
+        let newScrollTop: number | null = null;
+        if (targetIndex === 0) {
+          newScrollTop = 0;
+        } else if (targetIndex === flatNodesRef.current.length - 1) {
+          newScrollTop = Math.max(0, flatNodesRef.current.length * ROW_HEIGHT - clientHeight);
+        } else if (itemBottom > currentScrollBottom) {
+          newScrollTop = itemBottom - clientHeight;
+        } else if (itemTop < currentScrollTop) {
+          newScrollTop = itemTop;
+        }
+
+        if (newScrollTop !== null && newScrollTop !== currentScrollTop) {
+          container.scrollTop = newScrollTop;
+          setScrollTop(newScrollTop);
+        }
+      }
+      shouldFocusRef.current = true;
+      setFocusedId(targetId);
+    },
+    [effectiveViewportHeight],
+  );
+
+  const handleFocusNode = useCallback((id: string) => {
+    setFocusedId(id);
+  }, []);
+
+  const handleNodeKeyDown = useCallback(
+    (e: React.KeyboardEvent, flatNode: FlatTreeNode) => {
+      const nodes = flatNodesRef.current;
+      const currentIndex = nodes.findIndex((n) => n.id === flatNode.id);
+      if (currentIndex === -1) return;
+
+      switch (e.key) {
+        case 'ArrowDown': {
+          e.preventDefault();
+          if (currentIndex < nodes.length - 1) {
+            const nextNode = nodes[currentIndex + 1];
+            scrollAndFocus(nextNode.id, currentIndex + 1);
+          }
+          break;
+        }
+        case 'ArrowUp': {
+          e.preventDefault();
+          if (currentIndex > 0) {
+            const prevNode = nodes[currentIndex - 1];
+            scrollAndFocus(prevNode.id, currentIndex - 1);
+          }
+          break;
+        }
+        case 'Home': {
+          e.preventDefault();
+          if (nodes.length > 0) {
+            scrollAndFocus(nodes[0].id, 0);
+          }
+          break;
+        }
+        case 'End': {
+          e.preventDefault();
+          if (nodes.length > 0) {
+            const lastIdx = nodes.length - 1;
+            scrollAndFocus(nodes[lastIdx].id, lastIdx);
+          }
+          break;
+        }
+        case 'ArrowRight': {
+          e.preventDefault();
+          if (flatNode.isFolder) {
+            if (!flatNode.isOpen) {
+              toggleExpand(flatNode.id);
+              announce(`Expanded ${flatNode.node.name || 'folder'}`);
+            } else if (
+              currentIndex < nodes.length - 1 &&
+              nodes[currentIndex + 1].depth > flatNode.depth
+            ) {
+              const childNode = nodes[currentIndex + 1];
+              scrollAndFocus(childNode.id, currentIndex + 1);
+            }
+          }
+          break;
+        }
+        case 'ArrowLeft': {
+          e.preventDefault();
+          if (flatNode.isFolder && flatNode.isOpen) {
+            toggleExpand(flatNode.id);
+            announce(`Collapsed ${flatNode.node.name || 'folder'}`);
+          } else {
+            let parentIdx = -1;
+            for (let i = currentIndex - 1; i >= 0; i--) {
+              if (nodes[i].depth === flatNode.depth - 1) {
+                parentIdx = i;
+                break;
+              }
+            }
+            if (parentIdx !== -1) {
+              scrollAndFocus(nodes[parentIdx].id, parentIdx);
+            }
+          }
+          break;
+        }
+        case 'Enter':
+        case ' ': {
+          e.preventDefault();
+          if (onSelect) {
+            onSelect(flatNode.node);
+          }
+          announce(`Selected ${flatNode.node.name || 'Unnamed item'}`);
+          if (flatNode.isFolder) {
+            toggleExpand(flatNode.id);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [announce, onSelect, scrollAndFocus, toggleExpand],
+  );
+
   return (
     <div
       ref={containerRef}
@@ -563,12 +802,15 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
               <TreeNodeRow
                 key={flatNode.id}
                 flatNode={flatNode}
+                isFocused={flatNode.id === rovingTabNodeId}
                 onSelect={onSelect}
                 toggleExpand={toggleExpand}
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
                 openMoveModal={openMoveModal}
                 announce={announce}
+                onFocusNode={handleFocusNode}
+                onNodeKeyDown={handleNodeKeyDown}
               />
             ))}
           </div>
