@@ -15,6 +15,9 @@ const METHODS = new Set([
   'teleportHome',
   'joinGroup',
   'activateGroup',
+  'inviteGroupMember',
+  'ejectGroupMember',
+  'modifyGroupRole',
   'wearItem',
   'removeWorn',
   'wearOutfit',
@@ -23,6 +26,8 @@ const METHODS = new Set([
   'saveShape',
   'setAppearance',
   'touchObject',
+  'streamObjectDelta',
+  'commitObjectTransform',
   'addObject',
   'linkObjects',
   'delinkObjects',
@@ -74,6 +79,7 @@ const METHODS = new Set([
   'buyParcel',
   'subdivideParcel',
   'reclaimParcel',
+  'commitObjectTransaction',
 ]);
 
 async function callViewer(session, method, params) {

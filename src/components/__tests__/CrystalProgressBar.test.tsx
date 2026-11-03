@@ -48,6 +48,9 @@ describe('CrystalProgressBar Component', () => {
     expect(fill).not.toBeNull();
     expect(fill.style.width).toBe('45%');
     expect(fill.style.transition).toContain('width 0.2s ease-out');
+
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]');
+    expect(cap).not.toBeNull();
   });
 
   it('clamps numerical percentage values between 0 and 100 and handles invalid inputs', async () => {
