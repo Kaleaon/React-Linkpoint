@@ -343,9 +343,21 @@ describe('BrandedLoader Engine', () => {
     expect(host.textContent).toContain('Mesh Asset');
     expect(host.textContent).toContain('45%');
 
+    const progressContainer = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    expect(progressContainer).not.toBeNull();
+    expect(progressContainer.getAttribute('role')).toBe('progressbar');
+    expect(progressContainer.getAttribute('aria-valuenow')).toBe('45');
+    expect(progressContainer.getAttribute('aria-valuemin')).toBe('0');
+    expect(progressContainer.getAttribute('aria-valuemax')).toBe('100');
+
     const progressBar = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
     expect(progressBar).not.toBeNull();
     expect(progressBar.style.width).toBe('45%');
+
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]');
+    expect(cap).not.toBeNull();
   });
 
   it('renders StateBlock with BrandedLoader variant="screen" during loading state', async () => {

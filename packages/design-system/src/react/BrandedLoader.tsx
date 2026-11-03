@@ -1,5 +1,6 @@
 import React, { useId } from "react";
 import { useTheme } from "./LayoutContext.js";
+import { CrystalProgressBar } from "./CrystalProgressBar.js";
 
 export interface SkeletonBoxProps {
   width?: string;
@@ -359,49 +360,11 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
         </div>
         <SkeletonBox width="100%" height={bodyHeight} borderRadius="6px" />
         {progress !== null && progress !== undefined && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "11px"
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div
-                  style={{ width: 14, height: 14, flex: "none", display: "flex", alignItems: "center", justifyContent: "center" }}
-                  role="img"
-                  aria-label="Loading"
-                  data-testid="crystal-loader"
-                  data-variant="inline"
-                >
-                  <CrystalMark size={14} idPrefix={idPrefix ? `${idPrefix}-progress` : undefined} />
-                </div>
-                <span>Downloading asset data...</span>
-              </span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div
-              style={{
-                width: "100%",
-                height: "6px",
-                background: "var(--surf2, rgba(255,255,255,0.1))",
-                borderRadius: "3px",
-                overflow: "hidden"
-              }}
-            >
-              <div
-                data-testid="asset-progress-bar"
-                style={{
-                  width: `${Math.max(0, Math.min(100, progress))}%`,
-                  height: "100%",
-                  background: "linear-gradient(90deg, var(--pri, #6CFF9A), var(--priC, #123B27))",
-                  transition: "width 0.2s ease-out"
-                }}
-              />
-            </div>
-          </div>
+          <CrystalProgressBar
+            progress={progress}
+            showLabel={true}
+            idPrefix={idPrefix}
+          />
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <SkeletonBox width="90%" height="12px" />
