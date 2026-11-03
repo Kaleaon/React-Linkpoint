@@ -571,6 +571,23 @@ export class SLBridge extends Utils.EventEmitter {
     }>('getTransactionHistory', params);
   }
 
+  commitObjectTransaction(params: {
+    objects?: any[];
+    links?: any[];
+    delinks?: any[];
+    wholeLinkset?: boolean;
+    agentId?: string;
+    sessionId?: string;
+  }) {
+    return this.call<{
+      committed: boolean;
+      chunks: number;
+      objectsUpdated: number;
+      linksUpdated: number;
+      error?: string;
+    }>('commitObjectTransaction', params);
+  }
+
   /**
    * Stream high-frequency throttled object transform delta updates to simulator.
    */
