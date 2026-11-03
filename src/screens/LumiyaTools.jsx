@@ -4,6 +4,7 @@ import { GRIDS, subView } from '../theme/constants.js';
 import Icon from '../components/Icon.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
 import PayDialog from '../components/PayDialog.jsx';
+import FocusTrap from '../components/FocusTrap.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
@@ -900,200 +901,211 @@ export function ParcelScreen() {
 
       {/* Buy Parcel Confirmation Modal */}
       {buyModalOpen && (
-        <div
-          role="dialog"
-          aria-labelledby="buy-land-dialog-title"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
+        <FocusTrap active={buyModalOpen} onEscape={() => setBuyModalOpen(false)}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="buy-land-dialog-title"
             style={{
-              background: V.surf,
-              padding: '20px',
-              borderRadius: '8px',
-              maxWidth: '420px',
-              width: '90%',
-              border: `1px solid ${V.outv}`,
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
             }}
           >
-            <h3 id="buy-land-dialog-title" style={{ marginTop: 0, color: V.pri }}>
-              Confirm Parcel Purchase
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: V.ink2 }}>
-              Target Parcel: <strong>{name}</strong> ({parcelData.Area ?? parcelData.area ?? 4096}{' '}
-              sq.m.)
-              <br />
-              Listed Price:{' '}
-              <strong>L$ {parcelData.SalePrice ?? parcelData.salePrice ?? 1500}</strong>
-            </p>
+            <div
+              style={{
+                background: V.surf,
+                padding: '20px',
+                borderRadius: '8px',
+                maxWidth: '420px',
+                width: '90%',
+                border: `1px solid ${V.outv}`,
+              }}
+            >
+              <h3 id="buy-land-dialog-title" style={{ marginTop: 0, color: V.pri }}>
+                Confirm Parcel Purchase
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: V.ink2 }}>
+                Target Parcel: <strong>{name}</strong> ({parcelData.Area ?? parcelData.area ?? 4096}{' '}
+                sq.m.)
+                <br />
+                Listed Price:{' '}
+                <strong>L$ {parcelData.SalePrice ?? parcelData.salePrice ?? 1500}</strong>
+              </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '12px 0' }}>
-              <label htmlFor="confirm-price-input" style={{ fontSize: '0.8rem', color: V.ink }}>
-                Confirm Price (L$)
-              </label>
-              <input
-                id="confirm-price-input"
-                type="number"
-                value={confirmPrice}
-                onChange={(e) => setConfirmPrice(e.target.value)}
-                placeholder={String(parcelData.SalePrice ?? 1500)}
-                style={{
-                  padding: '6px 10px',
-                  background: V.bg,
-                  color: V.ink,
-                  border: `1px solid ${V.outv}`,
-                  borderRadius: '4px',
-                }}
-              />
-
-              <label htmlFor="confirm-area-input" style={{ fontSize: '0.8rem', color: V.ink }}>
-                Confirm Area (sq.m.)
-              </label>
-              <input
-                id="confirm-area-input"
-                type="number"
-                value={confirmArea}
-                onChange={(e) => setConfirmArea(e.target.value)}
-                placeholder={String(parcelData.Area ?? 4096)}
-                style={{
-                  padding: '6px 10px',
-                  background: V.bg,
-                  color: V.ink,
-                  border: `1px solid ${V.outv}`,
-                  borderRadius: '4px',
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setBuyModalOpen(false)}
-                style={{
-                  padding: '6px 12px',
-                  background: V.bg,
-                  color: V.ink,
-                  border: `1px solid ${V.outv}`,
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '12px 0' }}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteBuyParcel}
-                style={{
-                  padding: '6px 12px',
-                  background: V.pri,
-                  color: V.onpri,
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                Confirm Purchase
-              </button>
+                <label htmlFor="confirm-price-input" style={{ fontSize: '0.8rem', color: V.ink }}>
+                  Confirm Price (L$)
+                </label>
+                <input
+                  id="confirm-price-input"
+                  type="number"
+                  value={confirmPrice}
+                  onChange={(e) => setConfirmPrice(e.target.value)}
+                  placeholder={String(parcelData.SalePrice ?? 1500)}
+                  style={{
+                    padding: '6px 10px',
+                    background: V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: '4px',
+                  }}
+                />
+
+                <label htmlFor="confirm-area-input" style={{ fontSize: '0.8rem', color: V.ink }}>
+                  Confirm Area (sq.m.)
+                </label>
+                <input
+                  id="confirm-area-input"
+                  type="number"
+                  value={confirmArea}
+                  onChange={(e) => setConfirmArea(e.target.value)}
+                  placeholder={String(parcelData.Area ?? 4096)}
+                  style={{
+                    padding: '6px 10px',
+                    background: V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: '4px',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setBuyModalOpen(false)}
+                  style={{
+                    padding: '6px 12px',
+                    background: V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteBuyParcel}
+                  style={{
+                    padding: '6px 12px',
+                    background: V.pri,
+                    color: V.onpri,
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Confirm Purchase
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </FocusTrap>
       )}
 
       {/* Subdivide Land Confirmation Modal */}
       {subdivideModalOpen && (
-        <div
-          role="dialog"
-          aria-labelledby="subdivide-dialog-title"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
+        <FocusTrap active={subdivideModalOpen} onEscape={() => setSubdivideModalOpen(false)}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="subdivide-dialog-title"
             style={{
-              background: V.surf,
-              padding: '20px',
-              borderRadius: '8px',
-              maxWidth: '440px',
-              width: '90%',
-              border: `1px solid ${V.outv}`,
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
             }}
           >
-            <h3 id="subdivide-dialog-title" style={{ marginTop: 0, color: V.pri }}>
-              Confirm Land Subdivision
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: V.ink2 }}>
-              Boundary vertices required to confirm land parcel split boundaries:
-            </p>
+            <div
+              style={{
+                background: V.surf,
+                padding: '20px',
+                borderRadius: '8px',
+                maxWidth: '440px',
+                width: '90%',
+                border: `1px solid ${V.outv}`,
+              }}
+            >
+              <h3 id="subdivide-dialog-title" style={{ marginTop: 0, color: V.pri }}>
+                Confirm Land Subdivision
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: V.ink2 }}>
+                Boundary vertices required to confirm land parcel split boundaries:
+              </p>
 
-            <div style={{ margin: '12px 0' }}>
-              <label htmlFor="confirm-vertices-input" style={{ fontSize: '0.8rem', color: V.ink }}>
-                Boundary Vertices Array (JSON)
-              </label>
-              <textarea
-                id="confirm-vertices-input"
-                rows={3}
-                value={confirmVerticesText}
-                onChange={(e) => setConfirmVerticesText(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  background: V.bg,
-                  color: V.ink,
-                  border: `1px solid ${V.outv}`,
-                  borderRadius: '4px',
-                  marginTop: '4px',
-                  fontFamily: 'monospace',
-                }}
-              />
-            </div>
+              <div style={{ margin: '12px 0' }}>
+                <label
+                  htmlFor="confirm-vertices-input"
+                  style={{ fontSize: '0.8rem', color: V.ink }}
+                >
+                  Boundary Vertices Array (JSON)
+                </label>
+                <textarea
+                  id="confirm-vertices-input"
+                  rows={3}
+                  value={confirmVerticesText}
+                  onChange={(e) => setConfirmVerticesText(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    background: V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: '4px',
+                    marginTop: '4px',
+                    fontFamily: 'monospace',
+                  }}
+                />
+              </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setSubdivideModalOpen(false)}
-                style={{
-                  padding: '6px 12px',
-                  background: V.bg,
-                  color: V.ink,
-                  border: `1px solid ${V.outv}`,
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteSubdivide}
-                style={{
-                  padding: '6px 12px',
-                  background: V.pri,
-                  color: V.onpri,
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                Confirm Subdivision
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSubdivideModalOpen(false)}
+                  style={{
+                    padding: '6px 12px',
+                    background: V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteSubdivide}
+                  style={{
+                    padding: '6px 12px',
+                    background: V.pri,
+                    color: V.onpri,
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Confirm Subdivision
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </FocusTrap>
       )}
     </div>
   );
