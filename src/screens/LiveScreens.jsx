@@ -5,6 +5,7 @@ import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -374,10 +375,15 @@ export function FriendsScreen() {
           {allFriends.length} TOTAL FRIENDS
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
+          <SyncActionButton
             type="button"
             onClick={handleSyncFriends}
-            disabled={syncing || !app.auth.isLoggedIn()}
+            loading={syncing}
+            disabled={!app.auth.isLoggedIn()}
+            iconName="rotate-cw"
+            size={13}
+            idleText="SYNC FRIENDS"
+            loadingText="SYNCING…"
             style={{
               padding: '4px 10px',
               fontSize: '11px',
@@ -387,15 +393,9 @@ export function FriendsScreen() {
               borderRadius: V.rs,
               color: V.pri,
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
             }}
             title="Reload friends list from Second Life"
-          >
-            <Icon name="rotate-cw" size={13} />
-            {syncing ? 'SYNCING…' : 'SYNC FRIENDS'}
-          </button>
+          />
         </div>
       </div>
 
@@ -763,16 +763,16 @@ export function GroupsScreen() {
             <strong style={{ font: `700 11px/1 ${t.font}`, letterSpacing: '.09em' }}>
               {groups.length} GROUP{groups.length === 1 ? '' : 'S'}
             </strong>
-            <button
+            <SyncActionButton
               type="button"
               onClick={refresh}
-              disabled={loading}
+              loading={loading}
+              iconName="refresh-cw"
+              size={14}
               aria-label="Reload groups"
               title="Reload groups"
-              style={{ ...button, width: 34, padding: 0, display: 'grid', placeItems: 'center' }}
-            >
-              <Icon name="refresh-cw" size={14} />
-            </button>
+              style={{ ...button, width: 34, padding: 0 }}
+            />
           </div>
           <label style={{ position: 'relative', display: 'block' }}>
             <span className="sr-only">Search your groups</span>
