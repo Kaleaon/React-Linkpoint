@@ -5,6 +5,7 @@ import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
+import { FocusRing } from '@linkpoint/design-system';
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -24,6 +25,8 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successTx, setSuccessTx] = useState(null);
+  const [quote, setQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
   const submittingRef = useRef(false);
 
   const currencySymbol = app.economy?.currencySymbol || 'L$';
@@ -44,15 +47,96 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
         : null;
 
   useEffect(() => {
+    let active = true;
+    if (isOpen && targetType === 'object' && targetId) {
+      const cached = app.objectPay?.getCachedQuote(targetId);
+      if (cached) {
+        setQuote(cached);
+        setQuoteLoading(false);
+      } else if (app.objectPay?.getQuote) {
+        setQuoteLoading(true);
+        app.objectPay
+          .getQuote(targetId)
+          .then((res) => {
+            if (active && res) {
+              setQuote(res);
+            }
+          })
+          .catch(() => {
+            if (active) setQuote(null);
+          })
+          .finally(() => {
+            if (active) setQuoteLoading(false);
+          });
+      }
+    } else {
+      setQuote(null);
+      setQuoteLoading(false);
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen, targetId, targetType]);
+
+  const dynamicButtons = (() => {
+    if (
+      targetType !== 'object' ||
+      !quote ||
+      !Array.isArray(quote.buttons) ||
+      quote.buttons.length === 0
+    ) {
+      return PRESETS;
+    }
+    const DEFAULT_BUTTONS = [1, 5, 10, 20];
+    const resolved = [];
+    quote.buttons.forEach((val, idx) => {
+      if (val === -2) return; // PAY_BUTTON_HIDE
+      if (val === -1) {
+        resolved.push(DEFAULT_BUTTONS[idx] ?? PRESETS[idx] ?? (idx + 1) * 10);
+      } else if (val > 0) {
+        resolved.push(val);
+      }
+    });
+    return resolved;
+  })();
+
+  const isCustomBlocked = Boolean(
+    targetType === 'object' && (quote?.hideCustom || quote?.defaultPrice === -2),
+  );
+
+  useEffect(() => {
     if (isOpen) {
       if (itemPrice !== null && itemPrice > 0) {
-        if (PRESETS.includes(itemPrice)) {
+        if (dynamicButtons.includes(itemPrice)) {
           setSelectedPreset(itemPrice);
           setIsCustom(false);
           setCustomAmount('');
-        } else {
+        } else if (!isCustomBlocked) {
           setIsCustom(true);
           setCustomAmount(String(itemPrice));
+        } else if (dynamicButtons.length > 0) {
+          setSelectedPreset(dynamicButtons[0]);
+          setIsCustom(false);
+          setCustomAmount('');
+        }
+      } else if (targetType === 'object' && quote) {
+        if (typeof quote.defaultPrice === 'number' && quote.defaultPrice >= 0) {
+          if (dynamicButtons.includes(quote.defaultPrice)) {
+            setSelectedPreset(quote.defaultPrice);
+            setIsCustom(false);
+            setCustomAmount('');
+          } else if (!isCustomBlocked) {
+            setIsCustom(true);
+            setCustomAmount(String(quote.defaultPrice));
+          } else if (dynamicButtons.length > 0) {
+            setSelectedPreset(dynamicButtons[0]);
+            setIsCustom(false);
+            setCustomAmount('');
+          }
+        } else if (dynamicButtons.length > 0) {
+          setSelectedPreset(dynamicButtons[0]);
+          setCustomAmount('');
+          setIsCustom(false);
         }
       } else {
         setSelectedPreset(10);
@@ -67,11 +151,12 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
       setLoading(false);
       submittingRef.current = false;
     }
-  }, [isOpen, targetId, targetName, targetType, itemPrice]);
+  }, [isOpen, targetId, targetName, targetType, itemPrice, quote, isCustomBlocked]);
 
   if (!isOpen) return null;
 
-  const currentAmount = isCustom ? parseInt(customAmount, 10) || 0 : selectedPreset;
+  const currentAmount =
+    isCustom && !isCustomBlocked ? parseInt(customAmount, 10) || 0 : selectedPreset;
   const isExceedingBalance =
     availableBalance !== null && availableBalance !== undefined && currentAmount > availableBalance;
 
@@ -83,7 +168,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
   };
 
   const handleCustomChange = (e) => {
-    if (loading || isZeroCurrency) return;
+    if (loading || isZeroCurrency || isCustomBlocked) return;
     setIsCustom(true);
     setCustomAmount(e.target.value.replace(/[^0-9]/g, ''));
     setError(null);
@@ -424,114 +509,127 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                 </div>
               )}
 
-              {/* Quick-tip Preset Amounts */}
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    color: V.ink2,
-                    fontFamily: t.font,
-                    marginBottom: '8px',
-                  }}
-                >
-                  Quick-tip Presets ({currencySymbol})
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                  {PRESETS.map((preset) => {
-                    const active = !isCustom && selectedPreset === preset;
-                    return (
-                      <button
-                        key={preset}
-                        type="button"
-                        disabled={loading || isZeroCurrency}
-                        onClick={() => handlePresetSelect(preset)}
-                        style={{
-                          padding: '10px 0',
-                          borderRadius: V.rs,
-                          border: active ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
-                          backgroundColor: active ? V.pri : V.bg,
-                          color: active ? V.onpri : V.ink,
-                          fontFamily: t.font,
-                          fontWeight: '600',
-                          fontSize: '14px',
-                          cursor: loading || isZeroCurrency ? 'not-allowed' : 'pointer',
-                          opacity: isZeroCurrency ? 0.5 : 1,
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        {currencySymbol} {preset}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Custom Amount */}
-              <FormField label="Or enter custom amount" error={isCustom && error ? error : null}>
-                <div style={{ position: 'relative' }}>
-                  <span
+              {/* Quick-tip / Fast-pay Preset Amounts */}
+              {dynamicButtons.length > 0 && (
+                <div>
+                  <label
                     style={{
-                      position: 'absolute',
-                      left: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: V.ink2,
+                      display: 'block',
+                      fontSize: '12px',
                       fontWeight: '600',
+                      color: V.ink2,
                       fontFamily: t.font,
+                      marginBottom: '8px',
                     }}
                   >
-                    {currencySymbol}
-                  </span>
+                    {targetType === 'object' ? 'Fast-pay Presets' : 'Quick-tip Presets'} (
+                    {currencySymbol})
+                  </label>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${Math.max(1, Math.min(dynamicButtons.length, 4))}, 1fr)`,
+                      gap: '8px',
+                    }}
+                  >
+                    {dynamicButtons.map((preset) => {
+                      const active = !isCustom && selectedPreset === preset;
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          disabled={loading || isZeroCurrency}
+                          onClick={() => handlePresetSelect(preset)}
+                          style={{
+                            padding: '10px 0',
+                            borderRadius: V.rs,
+                            border: active ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                            backgroundColor: active ? V.pri : V.bg,
+                            color: active ? V.onpri : V.ink,
+                            fontFamily: t.font,
+                            fontWeight: '600',
+                            fontSize: '14px',
+                            cursor: loading || isZeroCurrency ? 'not-allowed' : 'pointer',
+                            opacity: isZeroCurrency ? 0.5 : 1,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {currencySymbol} {preset}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Amount */}
+              {!isCustomBlocked && (
+                <FormField label="Or enter custom amount" error={isCustom && error ? error : null}>
+                  <div style={{ position: 'relative' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: V.ink2,
+                        fontWeight: '600',
+                        fontFamily: t.font,
+                      }}
+                    >
+                      {currencySymbol}
+                    </span>
+                    <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Custom amount"
+                        aria-label="Custom payment amount"
+                        value={customAmount}
+                        onChange={handleCustomChange}
+                        disabled={loading || isZeroCurrency}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px 8px 36px',
+                          borderRadius: V.rs,
+                          border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                          backgroundColor: V.bg,
+                          color: V.ink,
+                          fontFamily: t.font,
+                          fontSize: '14px',
+                          boxSizing: 'border-box',
+                          opacity: isZeroCurrency ? 0.5 : 1,
+                        }}
+                      />
+                    </FocusRing>
+                  </div>
+                </FormField>
+              )}
+
+              {/* Payment Description */}
+              <FormField label="Description / Note">
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
                   <input
                     type="text"
-                    inputMode="numeric"
-                    placeholder="Custom amount"
-                    aria-label="Custom payment amount"
-                    value={customAmount}
-                    onChange={handleCustomChange}
+                    placeholder="Note to recipient"
+                    aria-label="Description / Note"
+                    value={description}
+                    onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
                     disabled={loading || isZeroCurrency}
                     style={{
                       width: '100%',
-                      padding: '8px 12px 8px 36px',
+                      padding: '8px 12px',
                       borderRadius: V.rs,
-                      border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
+                      border: `1px solid ${V.outv}`,
                       backgroundColor: V.bg,
                       color: V.ink,
                       fontFamily: t.font,
                       fontSize: '14px',
                       boxSizing: 'border-box',
-                      outline: 'none',
                       opacity: isZeroCurrency ? 0.5 : 1,
                     }}
                   />
-                </div>
-              </FormField>
-
-              {/* Payment Description */}
-              <FormField label="Description / Note">
-                <input
-                  type="text"
-                  placeholder="Note to recipient"
-                  aria-label="Description / Note"
-                  value={description}
-                  onChange={(e) => !loading && !isZeroCurrency && setDescription(e.target.value)}
-                  disabled={loading || isZeroCurrency}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: V.rs,
-                    border: `1px solid ${V.outv}`,
-                    backgroundColor: V.bg,
-                    color: V.ink,
-                    fontFamily: t.font,
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    opacity: isZeroCurrency ? 0.5 : 1,
-                  }}
-                />
+                </FocusRing>
               </FormField>
 
               {/* Action Buttons */}

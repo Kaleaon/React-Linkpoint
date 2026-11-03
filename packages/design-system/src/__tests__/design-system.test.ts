@@ -31,7 +31,9 @@ import {
   DeviceFrame,
   BrandedLoader,
   CrystalMark,
-  CrystalProgressBar
+  CrystalProgressBar,
+  FocusRing,
+  useFocusRing
 } from "../react/index.js";
 
 import {
@@ -39,7 +41,7 @@ import {
   ConsoleFrame as ConsoleFrameLayout
 } from "../layout/index.js";
 
-import { loadTheme } from "../index.js";
+import { loadTheme, FocusRing as RootFocusRing, useFocusRing as rootUseFocusRing } from "../index.js";
 
 describe("@linkpoint/design-system subpath exports & functional requirements", () => {
   it("Requirement 1: package exports tokens, css, layout, react, and root", () => {
@@ -106,6 +108,10 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(CrystalProgressBar).toBeDefined();
     expect(useThemeTokens).toBeDefined();
     expect(useLayoutMode).toBeDefined();
+    expect(FocusRing).toBeDefined();
+    expect(useFocusRing).toBeDefined();
+    expect(RootFocusRing).toBe(FocusRing);
+    expect(rootUseFocusRing).toBe(useFocusRing);
   });
 
   it("Constraint: theme loader compatibility", async () => {

@@ -1,5 +1,7 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -57,5 +59,57 @@ describe('desktop packaging', () => {
     expect(excluded.has('@img/sharp-linux-x64')).toBe(false);
     expect(excluded.has('@img/sharp-win32-x64')).toBe(false);
     for (const name of ['react', 'vite', 'vitest']) expect(excluded.has(name), name).toBe(true);
+  });
+
+  it('validates Electron configuration and main process entry successfully', () => {
+    const res = spawnSync('node', ['scripts/validate-electron-config.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain(
+      'Electron configuration and main process entry validated successfully.',
+    );
+  });
+
+  it('fails validate-electron-config when electron/main.cjs has invalid syntax', () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'electron-syntax-test-'));
+    try {
+      mkdirSync(path.join(tempDir, 'electron'), { recursive: true });
+      writeFileSync(
+        path.join(tempDir, 'electron', 'main.cjs'),
+        'const syntax_error = { unclosed: ;',
+      );
+      writeFileSync(
+        path.join(tempDir, 'electron-builder.config.js'),
+        'module.exports = { files: ["electron/**/*"], extraMetadata: { main: "electron/main.cjs" } };',
+      );
+      const res = spawnSync('node', ['scripts/validate-electron-config.mjs', tempDir], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      expect(res.status).not.toBe(0);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails validate-electron-config when electron-builder.config.js throws during evaluation', () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'electron-config-test-'));
+    try {
+      mkdirSync(path.join(tempDir, 'electron'), { recursive: true });
+      writeFileSync(path.join(tempDir, 'electron', 'main.cjs'), 'module.exports = {};');
+      writeFileSync(
+        path.join(tempDir, 'electron-builder.config.js'),
+        'throw new Error("Evaluation failure");',
+      );
+      const res = spawnSync('node', ['scripts/validate-electron-config.mjs', tempDir], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      expect(res.status).not.toBe(0);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

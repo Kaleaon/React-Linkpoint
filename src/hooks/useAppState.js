@@ -13,6 +13,8 @@ import { readViewerSettings, saveViewerSettings } from './viewerSettings.js';
 import { Utils } from '../linkpoint/utils';
 import { localCache } from '../linkpoint/local-cache';
 import { app } from '../linkpoint/app';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
+import { deskKind, deskGeometry } from '../theme/deskStyle.js';
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -160,6 +162,8 @@ export function useAppState() {
   });
   const [flMin, setFlMin] = useState({});
   const [flRect, setFlRect] = useState({});
+  const [flMax, setFlMax] = useState({});
+  const [flPrevRect, setFlPrevRect] = useState({});
   const [flZ, setFlZ] = useState(['Map', 'Inventory', 'Friends', 'Radar', 'Chat']);
   const [menu, setMenu] = useState(null);
   const [loginMode, setLoginModeState] = useState('grid');
@@ -667,10 +671,201 @@ export function useAppState() {
     setMenu(null);
   }, []);
 
+  const announceTimerRef = useRef(null);
+  const announceGeometry = useCallback((text, immediate = false) => {
+    if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    if (immediate) {
+      liveRegionAnnouncer.announce(text, 'polite', 'status');
+      return;
+    }
+    announceTimerRef.current = setTimeout(() => {
+      liveRegionAnnouncer.announce(text, 'polite', 'status');
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    };
+  }, []);
+
+  const getDesktopBounds = useCallback(
+    (customBounds) => {
+      if (
+        customBounds &&
+        typeof customBounds.availW === 'number' &&
+        typeof customBounds.availH === 'number'
+      ) {
+        return customBounds;
+      }
+      const t = T();
+      const kind = deskKind(t);
+      const G = deskGeometry(kind);
+      const d = D() || DEVICES.desk;
+      const totalW =
+        typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : d?.w || 1440;
+      const totalH =
+        typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : d?.h || 900;
+      const availW = Math.max(216, totalW - G.rail);
+      const availH = Math.max(96, totalH - G.top - G.dock);
+      return { kind, G, totalW, totalH, availW, availH };
+    },
+    [T, D],
+  );
+
+  const flReset = useCallback(
+    (id) => {
+      if (id) {
+        setFlRect((st) => {
+          const next = { ...st };
+          delete next[id];
+          return next;
+        });
+        setFlMax((m) => ({ ...m, [id]: false }));
+        setFlPrevRect((p) => {
+          const next = { ...p };
+          delete next[id];
+          return next;
+        });
+        const f = FLOATERS.find((x) => x.id === id);
+        const title = f?.title || id;
+        announceGeometry(`${title} reset to default position`, true);
+      } else {
+        setFlRect({});
+        setFlMax({});
+        setFlPrevRect({});
+        announceGeometry('All windows reset to default positions', true);
+      }
+    },
+    [announceGeometry],
+  );
+
+  const flMove = useCallback(
+    (id, dxOrOpts, dyOpt) => {
+      const dx =
+        typeof dxOrOpts === 'object' && dxOrOpts !== null
+          ? (dxOrOpts.dx ?? dxOrOpts.x ?? 0)
+          : dxOrOpts || 0;
+      const dy =
+        typeof dxOrOpts === 'object' && dxOrOpts !== null
+          ? (dxOrOpts.dy ?? dxOrOpts.y ?? 0)
+          : dyOpt || 0;
+      const { availW, availH } = getDesktopBounds();
+      const r = flR(id);
+      const maxX = Math.max(0, availW - r.w);
+      const maxY = Math.max(0, availH - r.h);
+      const newX = Math.max(0, Math.min(maxX, r.x + dx));
+      const newY = Math.max(0, Math.min(maxY, r.y + dy));
+      const next = { ...r, x: newX, y: newY };
+      setFlRect((st) => ({ ...st, [id]: next }));
+      setFlMax((m) => ({ ...m, [id]: false }));
+      flFocus(id);
+      const f = FLOATERS.find((x) => x.id === id);
+      const title = f?.title || id;
+      announceGeometry(`${title} moved to ${newX}, ${newY}`);
+      return next;
+    },
+    [flR, getDesktopBounds, flFocus, announceGeometry],
+  );
+
+  const flResize = useCallback(
+    (id, dwOrOpts, dhOpt) => {
+      const dw =
+        typeof dwOrOpts === 'object' && dwOrOpts !== null
+          ? (dwOrOpts.dw ?? dwOrOpts.w ?? 0)
+          : dwOrOpts || 0;
+      const dh =
+        typeof dwOrOpts === 'object' && dwOrOpts !== null
+          ? (dwOrOpts.dh ?? dwOrOpts.h ?? 0)
+          : dhOpt || 0;
+      const { availW, availH } = getDesktopBounds();
+      const r = flR(id);
+      const maxW = Math.max(216, availW - r.x);
+      const maxH = Math.max(96, availH - r.y);
+      const newW = Math.max(216, Math.min(maxW, r.w + dw));
+      const newH = Math.max(96, Math.min(maxH, r.h + dh));
+      const next = { ...r, w: newW, h: newH };
+      setFlRect((st) => ({ ...st, [id]: next }));
+      setFlMax((m) => ({ ...m, [id]: false }));
+      flFocus(id);
+      const f = FLOATERS.find((x) => x.id === id);
+      const title = f?.title || id;
+      announceGeometry(`${title} resized to ${newW} by ${newH}`);
+      return next;
+    },
+    [flR, getDesktopBounds, flFocus, announceGeometry],
+  );
+
+  const flSnap = useCallback(
+    (id, preset = 'maximize') => {
+      const mode = String(preset).toLowerCase().replace(/[-_]/g, '');
+      const { availW, availH } = getDesktopBounds();
+      const r = flR(id);
+      const f = FLOATERS.find((x) => x.id === id);
+      const title = f?.title || id;
+
+      if (mode === 'restore') {
+        const prev = flPrevRect[id] || { x: 24, y: 24, w: 320, h: 240 };
+        setFlMax((m) => ({ ...m, [id]: false }));
+        setFlRect((st) => ({ ...st, [id]: prev }));
+        flFocus(id);
+        announceGeometry(`${title} restored to ${prev.x}, ${prev.y}`, true);
+        return prev;
+      }
+
+      if (mode === 'maximize' || mode === 'max' || mode === 'full') {
+        if (!flMax[id]) {
+          setFlPrevRect((prev) => ({ ...prev, [id]: r }));
+        }
+        const next = { x: 0, y: 0, w: availW, h: availH };
+        setFlMax((m) => ({ ...m, [id]: true }));
+        setFlRect((st) => ({ ...st, [id]: next }));
+        flFocus(id);
+        announceGeometry(`${title} maximized`, true);
+        return next;
+      }
+
+      if (mode === 'left' || mode === 'snapleft') {
+        if (!flMax[id]) {
+          setFlPrevRect((prev) => ({ ...prev, [id]: prev[id] || r }));
+        }
+        const halfW = Math.floor(availW / 2);
+        const next = { x: 0, y: 0, w: halfW, h: availH };
+        setFlMax((m) => ({ ...m, [id]: false }));
+        setFlRect((st) => ({ ...st, [id]: next }));
+        flFocus(id);
+        announceGeometry(`${title} snapped left`, true);
+        return next;
+      }
+
+      if (mode === 'right' || mode === 'snapright') {
+        if (!flMax[id]) {
+          setFlPrevRect((prev) => ({ ...prev, [id]: prev[id] || r }));
+        }
+        const halfW = Math.floor(availW / 2);
+        const next = { x: halfW, y: 0, w: availW - halfW, h: availH };
+        setFlMax((m) => ({ ...m, [id]: false }));
+        setFlRect((st) => ({ ...st, [id]: next }));
+        flFocus(id);
+        announceGeometry(`${title} snapped right`, true);
+        return next;
+      }
+
+      if (mode === 'reset') {
+        flReset(id);
+        return r;
+      }
+
+      return r;
+    },
+    [flR, getDesktopBounds, flMax, flPrevRect, flFocus, announceGeometry, flReset],
+  );
+
   const flDrag = useCallback(
     (id, e, mode) => {
       e.preventDefault();
       e.stopPropagation();
+      const { availW, availH } = getDesktopBounds();
       const r = flR(id),
         sx = e.clientX,
         sy = e.clientY;
@@ -679,9 +874,20 @@ export function useAppState() {
           dy = ev.clientY - sy;
         const n =
           mode === 'size'
-            ? { x: r.x, y: r.y, w: Math.max(216, r.w + dx), h: Math.max(96, r.h + dy) }
-            : { x: Math.max(0, r.x + dx), y: Math.max(0, r.y + dy), w: r.w, h: r.h };
+            ? {
+                x: r.x,
+                y: r.y,
+                w: Math.max(216, Math.min(availW - r.x, r.w + dx)),
+                h: Math.max(96, Math.min(availH - r.y, r.h + dy)),
+              }
+            : {
+                x: Math.max(0, Math.min(Math.max(0, availW - r.w), r.x + dx)),
+                y: Math.max(0, Math.min(Math.max(0, availH - r.h), r.y + dy)),
+                w: r.w,
+                h: r.h,
+              };
         setFlRect((st) => ({ ...st, [id]: n }));
+        setFlMax((m) => ({ ...m, [id]: false }));
       };
       const up = () => {
         window.removeEventListener('mousemove', move);
@@ -691,7 +897,7 @@ export function useAppState() {
       window.addEventListener('mouseup', up);
       flFocus(id);
     },
-    [flR, flFocus],
+    [flR, getDesktopBounds, flFocus],
   );
 
   const flToggle = useCallback(
@@ -718,6 +924,76 @@ export function useAppState() {
     setScreen((cur) => (cur === id ? (app.auth.isLoggedIn() ? 'Chat' : 'Login') : cur));
     setMenu(null);
   }, []);
+
+  const flSetRect = useCallback(
+    (id, rect) => {
+      if (!id || !rect) return;
+      const r = flR(id);
+      const vpW = typeof window !== 'undefined' ? window.innerWidth : 1440;
+      const vpH = typeof window !== 'undefined' ? window.innerHeight : 900;
+      const G = deskGeometry(deskKind(T()));
+      const availW = Math.max(300, vpW - G.rail);
+      const availH = Math.max(200, vpH - G.top - G.dock);
+
+      const rawW = rect.w !== undefined ? Number(rect.w) : r.w;
+      const rawH = rect.h !== undefined ? Number(rect.h) : r.h;
+      const nextW = Number.isFinite(rawW) ? Math.max(216, Math.min(availW, Math.round(rawW))) : r.w;
+      const nextH = Number.isFinite(rawH) ? Math.max(96, Math.min(availH, Math.round(rawH))) : r.h;
+
+      const rawX = rect.x !== undefined ? Number(rect.x) : r.x;
+      const rawY = rect.y !== undefined ? Number(rect.y) : r.y;
+      const maxX = Math.max(0, availW - nextW);
+      const maxY = Math.max(0, availH - nextH);
+      const nextX = Number.isFinite(rawX) ? Math.max(0, Math.min(maxX, Math.round(rawX))) : r.x;
+      const nextY = Number.isFinite(rawY) ? Math.max(0, Math.min(maxY, Math.round(rawY))) : r.y;
+
+      setFlRect((st) => ({
+        ...st,
+        [id]: { x: nextX, y: nextY, w: nextW, h: nextH },
+      }));
+    },
+    [flR, T],
+  );
+
+  const flApplyPreset = useCallback(
+    (id, presetType) => {
+      if (!id || !presetType) return;
+      const r = flR(id);
+      const def = FLOATERS.find((x) => x.id === id) || { x: 24, y: 24, w: 400, h: 300 };
+      const G = deskGeometry(deskKind(T()));
+      const vpW = typeof window !== 'undefined' ? window.innerWidth : 1440;
+      const vpH = typeof window !== 'undefined' ? window.innerHeight : 900;
+      const availW = Math.max(300, vpW - G.rail);
+      const availH = Math.max(200, vpH - G.top - G.dock);
+
+      const norm = String(presetType)
+        .toLowerCase()
+        .replace(/[^a-z]/g, '');
+      const next = { ...r };
+
+      if (norm.includes('topleft')) {
+        next.x = 16;
+        next.y = 16;
+      } else if (norm.includes('topright')) {
+        next.x = Math.max(0, availW - next.w - 16);
+        next.y = 16;
+      } else if (norm.includes('center')) {
+        next.x = Math.max(0, Math.round((availW - next.w) / 2));
+        next.y = Math.max(0, Math.round((availH - next.h) / 2));
+      } else if (norm.includes('default')) {
+        next.w = def.w;
+        next.h = def.h;
+        next.x = Math.min(next.x, Math.max(0, availW - next.w - 16));
+        next.y = Math.min(next.y, Math.max(0, availH - next.h - 16));
+      }
+
+      setFlRect((st) => ({
+        ...st,
+        [id]: next,
+      }));
+    },
+    [flR, T],
+  );
 
   // ---- worn HUDs (hudDrag/toggleHud) -------------------------------------
   const hudDrag = useCallback(
@@ -910,6 +1186,8 @@ export function useAppState() {
       flOpen,
       flMin,
       flRect,
+      flMax,
+      flPrevRect,
       flZ,
       menu,
       loginMode,
@@ -974,6 +1252,12 @@ export function useAppState() {
       flFocus,
       flToggle,
       flClose,
+      flMove,
+      flResize,
+      flSnap,
+      flReset,
+      flSetRect,
+      flApplyPreset,
       hudDrag,
       toggleHud,
       setHudPicker,

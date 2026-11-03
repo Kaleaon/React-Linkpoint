@@ -11,6 +11,7 @@ import World3D from '../screens/World3D.jsx';
 import { formatHeading, useCameraState } from './cameraReadout.js';
 import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskStyle.js';
 import FormField from './FormField.jsx';
+import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -37,6 +38,25 @@ export default function FloatersDesktop() {
     message: '',
   });
   const [, setRuntimeRevision] = useState(0);
+  const [layoutDialog, setLayoutDialog] = useState({
+    isOpen: false,
+    floaterId: '',
+    section: 'all',
+    triggerEl: null,
+  });
+
+  const openLayoutDialog = (floaterId, section = 'all', triggerEl = null) => {
+    setLayoutDialog({
+      isOpen: true,
+      floaterId,
+      section,
+      triggerEl,
+    });
+  };
+
+  const closeLayoutDialog = () => {
+    setLayoutDialog((prev) => ({ ...prev, isOpen: false }));
+  };
 
   useEffect(() => {
     const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
@@ -330,6 +350,12 @@ export default function FloatersDesktop() {
         const act = f.id === state.screen;
         const rows = act ? null : fBody[f.id] || [];
         const fs = floaterStyle(kind, { V, t, act, ink });
+        const isMaximized = !!state.flMax?.[f.id];
+        const totalW =
+          typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : 1440;
+        const availW = Math.max(216, totalW - G.rail);
+        const btnSize = kind === 'metro' ? 24 : kind === 'sweep' ? 18 : 17;
+        const btnFont = kind === 'metro' ? '700 13px/1 ' + t.dfont : '700 11px/1 ' + t.dfont;
         return (
           <div
             key={f.id}
@@ -340,7 +366,7 @@ export default function FloatersDesktop() {
               top: r.y + DESKTOP_TOP + 'px',
               width: r.w + 'px',
               height: r.h + 'px',
-              zIndex: 10 + Math.max(0, state.flZ.indexOf(f.id)),
+              zIndex: act ? 60 : 10 + Math.max(0, state.flZ.indexOf(f.id)),
               display: 'flex',
               flexDirection: 'column',
               background: V.surf,
@@ -383,21 +409,205 @@ export default function FloatersDesktop() {
               )}
               {kind !== 'metro' && <Icon name={f.icon} size={13} />}
               <span
+                role="separator"
+                tabIndex={0}
+                aria-roledescription="window move handle"
+                aria-label={`${f.title} move handle`}
+                aria-valuenow={r.x}
+                aria-valuemin={0}
+                aria-valuemax={Math.max(0, availW - r.w)}
+                aria-orientation="horizontal"
+                onFocus={() => {
+                  if (!act) actions.flFocus(f.id);
+                }}
+                onKeyDown={(e) => {
+                  const step = e.shiftKey ? 50 : 10;
+                  let handled = false;
+                  if (e.key === 'ArrowLeft') {
+                    actions.flMove(f.id, -step, 0);
+                    handled = true;
+                  } else if (e.key === 'ArrowRight') {
+                    actions.flMove(f.id, step, 0);
+                    handled = true;
+                  } else if (e.key === 'ArrowUp') {
+                    actions.flMove(f.id, 0, -step);
+                    handled = true;
+                  } else if (e.key === 'ArrowDown') {
+                    actions.flMove(f.id, 0, step);
+                    handled = true;
+                  }
+                  if (handled) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
                 style={{
                   flex: 1,
                   minWidth: 0,
                   font: 'inherit',
                   letterSpacing: 'inherit',
                   textTransform: 'inherit',
-                  letterSpacing: 'inherit',
                   overflow: 'hidden',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
+                  cursor: 'move',
                 }}
               >
                 {f.title}
               </span>
-              <span
+
+              {/* Snap Left */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-label="Snap Left"
+                title="Snap Left"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.flSnap(f.id, 'left');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    actions.flSnap(f.id, 'left');
+                  }
+                }}
+                style={{
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
+                  ...fs.control,
+                  font: btnFont,
+                  cursor: 'pointer',
+                  opacity: 0.85,
+                }}
+              >
+                &#x25E7;
+              </button>
+
+              {/* Snap Right */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-label="Snap Right"
+                title="Snap Right"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.flSnap(f.id, 'right');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    actions.flSnap(f.id, 'right');
+                  }
+                }}
+                style={{
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
+                  ...fs.control,
+                  font: btnFont,
+                  cursor: 'pointer',
+                  opacity: 0.85,
+                }}
+              >
+                &#x25E8;
+              </button>
+
+              {/* Maximize / Restore */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-label={isMaximized ? 'Restore' : 'Maximize'}
+                title={isMaximized ? 'Restore' : 'Maximize'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  actions.flSnap(f.id, isMaximized ? 'restore' : 'maximize');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    actions.flSnap(f.id, isMaximized ? 'restore' : 'maximize');
+                  }
+                }}
+                style={{
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
+                  ...fs.control,
+                  font: btnFont,
+                  cursor: 'pointer',
+                  opacity: 0.85,
+                }}
+              >
+                {isMaximized ? '\u274F' : '\u25A1'}
+              </button>
+
+              {/* Layout & Position */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label="Layout & Position"
+                title="Layout & Position"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'all', e.currentTarget);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openLayoutDialog(f.id, 'all', e.currentTarget);
+                  }
+                }}
+                style={{
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
+                  ...fs.control,
+                  font: btnFont,
+                  cursor: 'pointer',
+                  opacity: 0.85,
+                }}
+              >
+                <Icon name="move" size={11} />
+              </button>
+
+              {/* Minimize */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-label="Minimize"
+                title="Minimize"
                 onClick={(e) => {
                   e.stopPropagation();
                   actions.flToggle(f.id);
@@ -410,24 +620,30 @@ export default function FloatersDesktop() {
                   }
                 }}
                 style={{
-                  width: '17px',
-                  height: '17px',
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
                   flex: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
                   ...fs.control,
-                  font: '700 11px/1 ' + t.dfont,
+                  font: btnFont,
                   cursor: 'pointer',
                   opacity: 0.85,
                 }}
-                role="button"
-                tabIndex={0}
-                aria-label="Minimize"
               >
                 &minus;
-              </span>
-              <span
+              </button>
+
+              {/* Close */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-label="Close"
+                title="Close"
                 onClick={(e) => {
                   e.stopPropagation();
                   actions.flClose(f.id);
@@ -440,23 +656,22 @@ export default function FloatersDesktop() {
                   }
                 }}
                 style={{
-                  width: '17px',
-                  height: '17px',
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
                   flex: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
                   ...fs.control,
-                  font: '700 11px/1 ' + t.dfont,
+                  font: btnFont,
                   cursor: 'pointer',
                   opacity: 0.85,
                 }}
-                role="button"
-                tabIndex={0}
-                aria-label="Close"
               >
                 &times;
-              </span>
+              </button>
             </div>
             {rows ? (
               <div
@@ -502,18 +717,85 @@ export default function FloatersDesktop() {
                 ))}
               </div>
             ) : (
-              <div style={{ flex: 1, minHeight: 0, background: V.bg }} />
+              <div style={{ flex: 1, minHeight: 0, background: 'transparent' }} />
             )}
             <div
+              role="separator"
+              tabIndex={0}
+              aria-roledescription="window resize grip"
+              aria-label={`${f.title} resize grip`}
+              aria-valuenow={r.w}
+              aria-valuemin={216}
+              aria-valuemax={availW}
+              aria-orientation="horizontal"
               onMouseDown={(e) => actions.flDrag(f.id, e, 'size')}
+              onKeyDown={(e) => {
+                const step = e.shiftKey ? 50 : 10;
+                let handled = false;
+                if (e.key === 'ArrowRight') {
+                  actions.flResize(f.id, step, 0);
+                  handled = true;
+                } else if (e.key === 'ArrowLeft') {
+                  actions.flResize(f.id, -step, 0);
+                  handled = true;
+                } else if (e.key === 'ArrowDown') {
+                  actions.flResize(f.id, 0, step);
+                  handled = true;
+                } else if (e.key === 'ArrowUp') {
+                  actions.flResize(f.id, 0, -step);
+                  handled = true;
+                }
+                if (handled) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'dimensions', e.currentTarget);
+                }
+              }}
               style={{
                 position: 'absolute',
                 right: 0,
                 bottom: 0,
                 width: '15px',
                 height: '15px',
+                zIndex: 10,
                 cursor: 'nwse-resize',
                 background: 'linear-gradient(135deg,transparent 0 52%,' + fs.grip + ' 52% 100%)',
+                outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-haspopup="dialog"
+              aria-label="Resize window"
+              title="Resize window"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLayoutDialog(f.id, 'dimensions', e.currentTarget);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'dimensions', e.currentTarget);
+                }
+              }}
+              style={{
+                position: 'absolute',
+                right: 0,
+                bottom: 0,
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: 'hidden',
+                clip: 'rect(0, 0, 0, 0)',
+                whiteSpace: 'nowrap',
+                border: 0,
               }}
             />
           </div>
@@ -707,6 +989,14 @@ export default function FloatersDesktop() {
           );
         })}
       </div>
+
+      <WindowLayoutDialog
+        isOpen={layoutDialog.isOpen}
+        onClose={closeLayoutDialog}
+        floaterId={layoutDialog.floaterId}
+        initialSection={layoutDialog.section}
+        triggerEl={layoutDialog.triggerEl}
+      />
     </div>
   );
 }
