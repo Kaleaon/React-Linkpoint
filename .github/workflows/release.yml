@@ -143,6 +143,10 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/gradle.properties
 
       - name: Install dependencies
         # The electron package is only needed by the desktop jobs; skipping its

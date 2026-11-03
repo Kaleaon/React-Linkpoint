@@ -7,6 +7,7 @@ import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
 import SegmentedTabs from '../components/SegmentedTabs.jsx';
+import TouchTarget from '../components/TouchTarget.tsx';
 import { COMPASS } from '../data/content.js';
 
 export default function Radar() {
@@ -26,6 +27,7 @@ export default function Radar() {
   const [itemSubFilter, setItemSubFilter] = useState('all');
 
   // Search & Sorting
+  const searchInputRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('distance'); // "distance" | "name" | "impact"
   const [groupByType, setGroupByType] = useState(false); // whether to group items into In Sim vs On Avatar sections
@@ -581,6 +583,7 @@ export default function Radar() {
               style={{ flex: 1 }}
             >
               <input
+                ref={searchInputRef}
                 aria-label={
                   activeMode === 'person'
                     ? 'Filter residents by name or status'
@@ -605,20 +608,32 @@ export default function Radar() {
                 }}
               />
             </FormField>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
+            {searchQuery ? (
+              <TouchTarget
+                type="button"
+                aria-label="Clear search input"
+                minSize={24}
+                onClick={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
                   color: V.ink2,
-                  cursor: 'pointer',
-                  padding: '0 2px',
+                  padding: 0,
                 }}
               >
-                &times;
-              </button>
-            )}
+                <Icon name="x" size={14} aria-hidden="true" />
+              </TouchTarget>
+            ) : null}
           </div>
         </div>
 

@@ -1024,6 +1024,24 @@ class ViewerSession {
   touchObject(params) {
     return actions.touchObject(this.requireBot(), params);
   }
+  addObject(params) {
+    return actions.addObject(this.requireBot(), params);
+  }
+  linkObjects(params) {
+    return actions.linkObjects(this.requireBot(), params);
+  }
+  delinkObjects(params) {
+    return actions.delinkObjects(this.requireBot(), params);
+  }
+  updatePrimParams(params) {
+    return actions.updatePrimParams(this.requireBot(), params);
+  }
+  deleteObject(params) {
+    return actions.deleteObject(this.requireBot(), params);
+  }
+  derezObject(params) {
+    return actions.deleteObject(this.requireBot(), params);
+  }
   sit(params = {}) {
     return actions.sit(this.requireBot(), params);
   }

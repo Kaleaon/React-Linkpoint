@@ -11,6 +11,7 @@ import World3D from '../screens/World3D.jsx';
 import { formatHeading, useCameraState } from './cameraReadout.js';
 import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskStyle.js';
 import FormField from './FormField.jsx';
+import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -37,6 +38,25 @@ export default function FloatersDesktop() {
     message: '',
   });
   const [, setRuntimeRevision] = useState(0);
+  const [layoutDialog, setLayoutDialog] = useState({
+    isOpen: false,
+    floaterId: '',
+    section: 'all',
+    triggerEl: null,
+  });
+
+  const openLayoutDialog = (floaterId, section = 'all', triggerEl = null) => {
+    setLayoutDialog({
+      isOpen: true,
+      floaterId,
+      section,
+      triggerEl,
+    });
+  };
+
+  const closeLayoutDialog = () => {
+    setLayoutDialog((prev) => ({ ...prev, isOpen: false }));
+  };
 
   useEffect(() => {
     const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
@@ -400,6 +420,38 @@ export default function FloatersDesktop() {
               <span
                 onClick={(e) => {
                   e.stopPropagation();
+                  openLayoutDialog(f.id, 'all', e.currentTarget);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openLayoutDialog(f.id, 'all', e.currentTarget);
+                  }
+                }}
+                style={{
+                  width: '17px',
+                  height: '17px',
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  ...fs.control,
+                  font: '700 11px/1 ' + t.dfont,
+                  cursor: 'pointer',
+                  opacity: 0.85,
+                }}
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label="Layout & Position"
+                title="Layout & Position"
+              >
+                <Icon name="move" size={11} />
+              </span>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
                   actions.flToggle(f.id);
                 }}
                 onKeyDown={(e) => {
@@ -505,7 +557,19 @@ export default function FloatersDesktop() {
               <div style={{ flex: 1, minHeight: 0, background: V.bg }} />
             )}
             <div
+              role="button"
+              tabIndex={0}
+              aria-haspopup="dialog"
+              aria-label="Resize window"
+              title="Resize window"
               onMouseDown={(e) => actions.flDrag(f.id, e, 'size')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'dimensions', e.currentTarget);
+                }
+              }}
               style={{
                 position: 'absolute',
                 right: 0,
@@ -514,6 +578,7 @@ export default function FloatersDesktop() {
                 height: '15px',
                 cursor: 'nwse-resize',
                 background: 'linear-gradient(135deg,transparent 0 52%,' + fs.grip + ' 52% 100%)',
+                outline: 'none',
               }}
             />
           </div>
@@ -707,6 +772,14 @@ export default function FloatersDesktop() {
           );
         })}
       </div>
+
+      <WindowLayoutDialog
+        isOpen={layoutDialog.isOpen}
+        onClose={closeLayoutDialog}
+        floaterId={layoutDialog.floaterId}
+        initialSection={layoutDialog.section}
+        triggerEl={layoutDialog.triggerEl}
+      />
     </div>
   );
 }
