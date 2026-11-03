@@ -23,6 +23,8 @@ const METHODS = new Set([
   'saveShape',
   'setAppearance',
   'touchObject',
+  'streamObjectDelta',
+  'commitObjectTransform',
   'sit',
   'stand',
   'setMovement',

@@ -358,6 +358,33 @@ export class SLBridge extends Utils.EventEmitter {
     }>('getTransactionHistory', params);
   }
 
+  /**
+   * Stream high-frequency throttled object transform delta updates to simulator.
+   */
+  async streamObjectDelta(params: {
+    id: string;
+    type?: 'ObjectPosition' | 'ObjectRotation' | 'ObjectScale' | string;
+    position?: number[];
+    rotation?: number[];
+    scale?: number[];
+    [key: string]: any;
+  }) {
+    return this.call('streamObjectDelta', params);
+  }
+
+  /**
+   * Commit final unthrottled object transform to guarantee grid synchronization on release.
+   */
+  async commitObjectTransform(params: {
+    id: string;
+    position?: number[];
+    rotation?: number[];
+    scale?: number[];
+    [key: string]: any;
+  }) {
+    return this.call('commitObjectTransform', params);
+  }
+
   async sendChat(message: string, channel = 0, type = 1) {
     await this.call('sendChat', { message, channel, type });
   }

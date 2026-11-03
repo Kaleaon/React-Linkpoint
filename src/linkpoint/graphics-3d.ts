@@ -41,6 +41,8 @@ export interface DrawOptions {
   mode?: 'triangles' | 'points';
   /** Defaults to true. Ignored (forced off) for blended alpha mode 2. */
   depthWrite?: boolean;
+  /** Defaults to true. When false, depth testing is disabled for overlay/gizmo rendering. */
+  depthTest?: boolean;
   blend?: boolean;
   cullFace?: boolean;
   blendFunc?: 'additive' | 'blend' | string;
@@ -689,6 +691,7 @@ export class Graphics3D extends Utils.EventEmitter {
       options.blendFunc === 'additive';
     const blend = uniforms.uAlphaMode === 2 || isAdditive || options.blend === true;
     const noDepthWrite = uniforms.uAlphaMode === 2 || isAdditive || options.depthWrite === false;
+    const depthTest = options.depthTest !== false;
     const doubleSided = Boolean(uniforms.uDoubleSided) || options.cullFace === false;
     const points = options.mode === 'points';
     if (blend) {
@@ -700,13 +703,15 @@ export class Graphics3D extends Utils.EventEmitter {
       }
     }
     if (noDepthWrite) gl.depthMask(false);
+    if (!depthTest) gl.disable(gl.DEPTH_TEST);
     if (doubleSided) gl.disable(gl.CULL_FACE);
 
     // Draw
     gl.drawElements(points ? gl.POINTS : gl.TRIANGLES, mesh.indexCount, mesh.indexType, 0);
+    if (doubleSided) gl.enable(gl.CULL_FACE);
+    if (!depthTest) gl.enable(gl.DEPTH_TEST);
     if (noDepthWrite) gl.depthMask(true);
     if (blend) gl.disable(gl.BLEND);
-    if (doubleSided) gl.enable(gl.CULL_FACE);
 
     this.drawCalls++;
     if (!points) this.triangles += mesh.indexCount / 3;

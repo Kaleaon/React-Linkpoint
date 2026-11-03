@@ -16,6 +16,9 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   const [selection, setSelection] = useState<any>(() => app.world.selectedObject);
   const [objects, setObjects] = useState<any[]>(() => app.world.objects || []);
   const [nearbyUsers, setNearbyUsers] = useState<any[]>(() => app.world.nearbyUsers || []);
+  const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>(
+    () => (app.world?.getGizmoMode?.() as 'translate' | 'rotate' | 'scale') || 'translate',
+  );
   const [payDialogOpen, setPayDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -23,6 +26,18 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
 
     const handleSelection = (obj: any) => {
       if (active) setSelection(obj);
+    };
+
+    const handleSelectionUpdated = (obj: any) => {
+      if (active && obj) {
+        setSelection((prev: any) =>
+          prev && (prev.id === obj.id || prev.uuid === obj.id) ? { ...prev, ...obj } : obj,
+        );
+      }
+    };
+
+    const handleGizmoMode = (mode: 'translate' | 'rotate' | 'scale') => {
+      if (active) setGizmoMode(mode);
     };
 
     const handleObjects = (objs: any[]) => {
@@ -34,12 +49,16 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     };
 
     app.world.on('selection_changed', handleSelection);
+    app.world.on('selection_updated', handleSelectionUpdated);
+    app.world.on('gizmo_mode_changed', handleGizmoMode);
     app.world.on('objects_changed', handleObjects);
     app.world.on('nearby_changed', handleNearby);
 
     return () => {
       active = false;
       app.world.off('selection_changed', handleSelection);
+      app.world.off('selection_updated', handleSelectionUpdated);
+      app.world.off('gizmo_mode_changed', handleGizmoMode);
       app.world.off('objects_changed', handleObjects);
       app.world.off('nearby_changed', handleNearby);
     };
@@ -220,11 +239,25 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     : selection.x != null
       ? `${Number(selection.x).toFixed(1)}, ${Number(selection.y).toFixed(1)}, ${Number(selection.z).toFixed(1)}`
       : '—';
+  const rotStr = Array.isArray(selection.rotation)
+    ? selection.rotation.map((n: number) => Number(n).toFixed(1)).join(', ')
+    : selection.rx != null
+      ? `${Number(selection.rx).toFixed(1)}, ${Number(selection.ry).toFixed(1)}, ${Number(selection.rz).toFixed(1)}`
+      : '—';
   const scaleStr = Array.isArray(selection.scale)
     ? selection.scale.map((n: number) => Number(n).toFixed(2)).join(', ')
     : '—';
   const distStr = selection.distance != null ? `${Number(selection.distance).toFixed(1)} m` : '—';
   const uuidStr = selection.id || selection.uuid || 'N/A';
+  const canModify = Boolean(
+    selection &&
+    (typeof app.world?.canModifyObject === 'function'
+      ? app.world.canModifyObject(selection)
+      : selection.canModify !== false &&
+        (selection.ownerMask == null || (selection.ownerMask & 0x4000) !== 0) &&
+        !selection.avatar &&
+        !selection.isAvatar),
+  );
 
   return (
     <div className={className} style={containerStyle}>
@@ -281,11 +314,98 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           <span>Position:</span>
           <span style={{ color: V.ink, fontFamily: 'monospace' }}>{posStr}</span>
 
+          <span>Rotation:</span>
+          <span style={{ color: V.ink, fontFamily: 'monospace' }}>{rotStr}</span>
+
           <span>Scale:</span>
           <span style={{ color: V.ink, fontFamily: 'monospace' }}>{scaleStr}</span>
 
           <span>Owner:</span>
           <span style={{ color: V.ink }}>{selection.owner || 'Region / Public'}</span>
+
+          <span>Perms:</span>
+          <span style={{ color: canModify ? V.ok : '#ef4444', fontWeight: 600 }}>
+            {canModify ? 'Modify Allowed' : 'Locked (No Modify)'}
+          </span>
+        </div>
+
+        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${V.outv}` }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '6px',
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 700,
+                fontSize: '10px',
+                color: V.ink2,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Gizmo Mode
+            </span>
+            {!canModify && (
+              <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 600 }}>
+                Controls Locked
+              </span>
+            )}
+          </div>
+          <div
+            style={{ display: 'flex', gap: '4px' }}
+            role="toolbar"
+            aria-label="Transform Gizmo Mode"
+          >
+            {(
+              [
+                { mode: 'translate', label: 'Move', icon: 'move' },
+                { mode: 'rotate', label: 'Rotate', icon: 'rotate-cw' },
+                { mode: 'scale', label: 'Scale', icon: 'maximize-2' },
+              ] as const
+            ).map(({ mode, label, icon }) => {
+              const isActive = gizmoMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={!canModify}
+                  aria-pressed={isActive}
+                  aria-label={`${label} mode`}
+                  onClick={() => {
+                    if (canModify) {
+                      app.world.setGizmoMode(mode);
+                      setGizmoMode(mode);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    minHeight: '28px',
+                    padding: '4px 6px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    borderRadius: V.rs,
+                    cursor: canModify ? 'pointer' : 'not-allowed',
+                    opacity: canModify ? 1 : 0.5,
+                    border: `1px solid ${isActive && canModify ? V.pri : V.outv}`,
+                    background: isActive && canModify ? V.pri : V.surf2 || V.surf,
+                    color: isActive && canModify ? V.onpri : V.ink,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Icon name={icon} size={11} />
+                  <span>{label.toUpperCase()}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
