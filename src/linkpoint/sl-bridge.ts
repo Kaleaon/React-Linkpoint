@@ -6,6 +6,8 @@ const READ_ONLY_CALLS = new Set([
   'fetchAnimation',
   'fetchSound',
   'getBalance',
+  'requestPayPrice',
+  'getObjectPayQuote',
   'getDiagnostics',
   'getFriends',
   'getGroups',
@@ -309,6 +311,35 @@ export class SLBridge extends Utils.EventEmitter {
       isZeroCurrency?: boolean;
       is_zero_currency?: boolean;
     }>('getBalance');
+  }
+  private objectPayManager: any = null;
+
+  bindObjectPayManager(manager: any) {
+    this.objectPayManager = manager;
+  }
+
+  requestPayPrice(params: { objectId: string; timeout?: number }) {
+    return this.call<{
+      objectId: string;
+      defaultPrice: number;
+      buttons: number[];
+      hideCustom: boolean;
+      timestamp: number;
+    }>('requestPayPrice', params);
+  }
+  async getObjectPayQuote(
+    objectId: string,
+    options?: { forceRefresh?: boolean; timeout?: number },
+  ) {
+    if (this.objectPayManager && typeof this.objectPayManager.getQuote === 'function') {
+      return this.objectPayManager.getQuote(objectId, options);
+    }
+    return this.requestPayPrice({ objectId, timeout: options?.timeout });
+  }
+  invalidateObjectPayQuote(objectId?: string) {
+    if (this.objectPayManager && typeof this.objectPayManager.invalidateQuote === 'function') {
+      this.objectPayManager.invalidateQuote(objectId);
+    }
   }
   payObject(params: {
     targetId?: string;

@@ -27,6 +27,8 @@ const METHODS = new Set([
   'stand',
   'setMovement',
   'getBalance',
+  'requestPayPrice',
+  'getObjectPayQuote',
   'payObject',
   'payAvatar',
   'getTransactionHistory',

@@ -28,6 +28,7 @@ import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
 import { localCache } from './local-cache';
+import { ObjectPayManager } from './object-pay-manager';
 
 import { ChatProtocolAdapter } from './chat-protocol-adapter';
 
@@ -61,6 +62,7 @@ export class LinkpointApp {
   public audio: AudioManager;
   public voice: VoiceManager;
   public economy: EconomyManager;
+  public objectPay: ObjectPayManager;
   public economySyncEngine: EconomySyncEngine;
   public chatAdapter: ChatProtocolAdapter;
 
@@ -109,6 +111,7 @@ export class LinkpointApp {
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
     this.capabilities = new CapabilitiesManager();
     this.economySyncEngine.setCapabilitiesManager(this.capabilities);
+    this.objectPay = new ObjectPayManager(slBridge, this.capabilities, this.world);
     this.avatar = new AvatarManager();
     this.objects = new ObjectManagerExtended();
     this.inventoryCore = this.inventory as any;
@@ -466,6 +469,7 @@ export class LinkpointApp {
       }
       // A new region: its parcel is not known yet, so the voice channel is decided when the parcel arrives.
       this.parcelSound.reset();
+      this.objectPay.onRegionChange();
     });
 
     // The voice channel follows the avatar's parcel: its own channel, the estate channel, or none (parcel flags).
