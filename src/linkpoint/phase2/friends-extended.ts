@@ -26,6 +26,49 @@ export interface SerializedDeclineTeleportPacket {
   payload: Uint8Array;
 }
 
+export const FriendRights = {
+  NONE: 0x0,
+  CAN_SEE_ONLINE: 0x1,
+  CAN_SEE_ON_MAP: 0x2,
+  CAN_MODIFY_OBJECTS: 0x4,
+} as const;
+
+export type FriendRights = (typeof FriendRights)[keyof typeof FriendRights];
+
+export interface GrantUserRightsPacketPayload {
+  agentId: string;
+  sessionId: string;
+  targetId: string;
+  rightsMask: number;
+}
+
+export interface SerializedGrantUserRightsPacket {
+  messageName: string;
+  messageId: number;
+  agentId: string;
+  sessionId: string;
+  targetId: string;
+  rightsMask: number;
+  payload: Uint8Array;
+}
+
+const isValidUuid = (uuidStr: string): boolean => {
+  if (typeof uuidStr !== 'string') return false;
+  const hex = uuidStr.replace(/[{}]/g, '').replace(/-/g, '');
+  return hex.length === 32 && /^[0-9a-fA-F]{32}$/.test(hex);
+};
+
+const uuidToBytes = (uuidStr: string): Uint8Array => {
+  const hex = uuidStr.replace(/[{}]/g, '').replace(/-/g, '');
+  const bytes = new Uint8Array(16);
+  if (hex.length === 32) {
+    for (let i = 0; i < 16; i++) {
+      bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16) || 0;
+    }
+  }
+  return bytes;
+};
+
 /**
  * Serializes a DeclineTeleport UDP packet according to SL protocol standards.
  * Passes the inviting agent ID and session ID in the packet payload.
@@ -43,17 +86,6 @@ export function serializeDeclineTeleportPacket(
   if (!normSessionId) {
     throw new Error('Valid session ID required for DeclineTeleport packet');
   }
-
-  const uuidToBytes = (uuidStr: string): Uint8Array => {
-    const hex = uuidStr.replace(/[{}]/g, '').replace(/-/g, '');
-    const bytes = new Uint8Array(16);
-    if (hex.length === 32) {
-      for (let i = 0; i < 16; i++) {
-        bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16) || 0;
-      }
-    }
-    return bytes;
-  };
 
   const agentIdBytes = uuidToBytes(normAgentId);
   const sessionIdBytes = uuidToBytes(normSessionId);
@@ -73,6 +105,63 @@ export function serializeDeclineTeleportPacket(
 
 /** Alias serializer function for flexible caller usage */
 export const serializeDeclineTeleport = serializeDeclineTeleportPacket;
+
+/**
+ * Serializes a GrantUserRights UDP packet according to SL protocol standards (0xFFFF0054).
+ * Returns a 52-byte payload containing 16-byte AgentID, 16-byte SessionID, 16-byte TargetID,
+ * and 4-byte little-endian rights bitmask.
+ */
+export function serializeGrantUserRightsPacket(
+  agentId: string,
+  sessionId: string,
+  targetId: string,
+  rightsMask: number,
+): SerializedGrantUserRightsPacket {
+  const normAgentId = String(agentId || '').trim();
+  const normSessionId = String(sessionId || '').trim();
+  const normTargetId = String(targetId || '').trim();
+
+  if (!normAgentId || !isValidUuid(normAgentId)) {
+    throw new Error('Valid agent ID required for GrantUserRights packet');
+  }
+  if (!normSessionId || !isValidUuid(normSessionId)) {
+    throw new Error('Valid session ID required for GrantUserRights packet');
+  }
+  if (!normTargetId || !isValidUuid(normTargetId)) {
+    throw new Error('Valid target ID required for GrantUserRights packet');
+  }
+
+  const numRights = Number(rightsMask);
+  if (!Number.isInteger(numRights) || numRights < 0 || numRights > 0xffffffff) {
+    throw new Error('rightsMask must be an unsigned 32-bit integer');
+  }
+  const validRightsMask = numRights >>> 0;
+
+  const agentIdBytes = uuidToBytes(normAgentId);
+  const sessionIdBytes = uuidToBytes(normSessionId);
+  const targetIdBytes = uuidToBytes(normTargetId);
+
+  const payload = new Uint8Array(52);
+  payload.set(agentIdBytes, 0);
+  payload.set(sessionIdBytes, 16);
+  payload.set(targetIdBytes, 32);
+
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  view.setUint32(48, validRightsMask, true);
+
+  return {
+    messageName: 'GrantUserRights',
+    messageId: MessageIDs.GRANT_USER_RIGHTS ?? 0xffff0054,
+    agentId: normAgentId,
+    sessionId: normSessionId,
+    targetId: normTargetId,
+    rightsMask: validRightsMask,
+    payload,
+  };
+}
+
+/** Alias serializer function for flexible caller usage */
+export const serializeGrantUserRights = serializeGrantUserRightsPacket;
 
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
 const isRealName = (name: unknown): name is string =>
@@ -356,30 +445,122 @@ export class FriendsExtended extends Utils.EventEmitter {
 
   /**
    * Feature 48: Friend permissions
-   * Set friend permissions
+   * Set friend permissions and dispatch GrantUserRights packet
    */
-  setFriendPermissions(friendId: string, permissions: any) {
-    if (!friendId || !permissions) {
+  async setFriendPermissions(
+    friendId: string,
+    permissions: any,
+    agentId?: string,
+    sessionId?: string,
+  ) {
+    if (!friendId || permissions === undefined || permissions === null) {
       throw new Error('Valid friend ID and permissions required');
     }
 
-    const friend = this.friends.get(friendId);
+    const isNumber = typeof permissions === 'number';
+    const bitmask = isNumber
+      ? permissions >>> 0
+      : ((permissions.canSeeOnline ? 0x1 : 0) |
+          (permissions.canSeeOnMap ? 0x2 : 0) |
+          (permissions.canModifyObjects ? 0x4 : 0) |
+          (typeof permissions.rightsMask === 'number' ? permissions.rightsMask : 0) |
+          (typeof permissions.rights === 'number' ? permissions.rights : 0)) >>>
+        0;
+
+    const permObj = isNumber
+      ? {
+          canSeeOnline: Boolean(bitmask & 0x1),
+          canSeeOnMap: Boolean(bitmask & 0x2),
+          canModifyObjects: Boolean(bitmask & 0x4),
+          rightsMask: bitmask,
+        }
+      : {
+          canSeeOnline: Boolean(permissions.canSeeOnline),
+          canSeeOnMap: Boolean(permissions.canSeeOnMap),
+          canModifyObjects: Boolean(permissions.canModifyObjects),
+          ...permissions,
+          rightsMask: bitmask,
+        };
+
+    const normalizedId = this.normalizeId(friendId);
+    const friend = this.friends.get(normalizedId) || this.friends.get(friendId);
+    const previous = friend ? { ...friend } : undefined;
     if (friend) {
-      friend.permissions = {
-        canSeeOnline: permissions.canSeeOnline || false,
-        canSeeOnMap: permissions.canSeeOnMap || false,
-        canModifyObjects: permissions.canModifyObjects || false,
-        ...permissions,
-      };
+      friend.permissions = permObj;
+      deltaSelectorStore.emitDelta('contact', normalizedId, 'update', friend, previous);
       console.log(`[FriendsExtended] Updated permissions for: ${friendId}`);
     }
+
+    const resolvedAgentId =
+      agentId ||
+      this.protocol?.agentId ||
+      this.protocol?.circuitContext?.agentId ||
+      '00000000-0000-0000-0000-000000000000';
+    const resolvedSessionId =
+      sessionId ||
+      this.protocol?.sessionId ||
+      this.protocol?.circuitContext?.sessionId ||
+      '00000000-0000-0000-0000-000000000000';
+
+    let packet: SerializedGrantUserRightsPacket | null = null;
+    const targetUuid = isValidUuid(friendId)
+      ? friendId
+      : isValidUuid(normalizedId)
+        ? normalizedId
+        : null;
+
+    if (targetUuid && isValidUuid(resolvedAgentId) && isValidUuid(resolvedSessionId)) {
+      packet = serializeGrantUserRightsPacket(
+        resolvedAgentId,
+        resolvedSessionId,
+        targetUuid,
+        bitmask,
+      );
+    }
+
+    try {
+      if (typeof this.protocol?.grantUserRights === 'function') {
+        await this.protocol.grantUserRights({
+          agentId: resolvedAgentId,
+          sessionId: resolvedSessionId,
+          targetId: targetUuid || normalizedId,
+          rightsMask: bitmask,
+          packet,
+        });
+      } else if (typeof this.protocol?.sendGrantUserRights === 'function') {
+        await this.protocol.sendGrantUserRights(
+          resolvedAgentId,
+          resolvedSessionId,
+          targetUuid || normalizedId,
+          bitmask,
+          packet,
+        );
+      } else if (typeof this.protocol?.sendPacket === 'function') {
+        await this.protocol.sendPacket(packet);
+      }
+    } catch (error) {
+      console.warn('[FriendsExtended] grantUserRights network dispatch failed:', error);
+    }
+
+    this.emit('friend_rights_updated', {
+      friendId: normalizedId,
+      targetId: targetUuid || normalizedId,
+      permissions: permObj,
+      rightsMask: bitmask,
+      packet,
+    });
+
+    return packet;
   }
 
   /**
    * Get friend permissions
    */
   getFriendPermissions(friendId: string) {
-    return this.friends.get(friendId)?.permissions || null;
+    const normalizedId = this.normalizeId(friendId);
+    return (
+      this.friends.get(normalizedId)?.permissions || this.friends.get(friendId)?.permissions || null
+    );
   }
 
   /**
