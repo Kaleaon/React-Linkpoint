@@ -45,6 +45,11 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 - **Assemble Debug APK**: `cd android-kotlin && ./gradlew :app:assembleDebug --no-daemon`
 - **Subproject Guide**: See [`android-kotlin/AGENTS.md`](./android-kotlin/AGENTS.md) for Kotlin guidelines, live OpenSim test execution, and Android SDK environment notes.
 
+### 4. Desktop Directory Packaging (`desktop-dir` job)
+
+- **Build Command**: `npm run build:desktop:dir`
+- **Description**: Packages an unpacked Linux desktop directory (`build-desktop/linux-unpacked`) without code signing to verify Electron packaging configuration, assets, and entry modules on pull requests.
+
 ---
 
 ## Workspace Conventions & Rules
