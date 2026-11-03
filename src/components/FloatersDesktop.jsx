@@ -11,6 +11,7 @@ import World3D from '../screens/World3D.jsx';
 import { formatHeading, useCameraState } from './cameraReadout.js';
 import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskStyle.js';
 import FormField from './FormField.jsx';
+import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -37,6 +38,25 @@ export default function FloatersDesktop() {
     message: '',
   });
   const [, setRuntimeRevision] = useState(0);
+  const [layoutDialog, setLayoutDialog] = useState({
+    isOpen: false,
+    floaterId: '',
+    section: 'all',
+    triggerEl: null,
+  });
+
+  const openLayoutDialog = (floaterId, section = 'all', triggerEl = null) => {
+    setLayoutDialog({
+      isOpen: true,
+      floaterId,
+      section,
+      triggerEl,
+    });
+  };
+
+  const closeLayoutDialog = () => {
+    setLayoutDialog((prev) => ({ ...prev, isOpen: false }));
+  };
 
   useEffect(() => {
     const updateVoice = (next) => setVoice((current) => ({ ...current, ...next }));
@@ -356,39 +376,7 @@ export default function FloatersDesktop() {
             }}
           >
             <div
-              role="separator"
-              tabIndex={0}
-              aria-roledescription="window move handle"
-              aria-label={`${f.title} move handle`}
-              aria-valuenow={r.x}
-              aria-valuemin={0}
-              aria-valuemax={Math.max(0, availW - r.w)}
-              aria-orientation="horizontal"
               onMouseDown={(e) => actions.flDrag(f.id, e, 'move')}
-              onFocus={() => {
-                if (!act) actions.flFocus(f.id);
-              }}
-              onKeyDown={(e) => {
-                const step = e.shiftKey ? 50 : 10;
-                let handled = false;
-                if (e.key === 'ArrowLeft') {
-                  actions.flMove(f.id, -step, 0);
-                  handled = true;
-                } else if (e.key === 'ArrowRight') {
-                  actions.flMove(f.id, step, 0);
-                  handled = true;
-                } else if (e.key === 'ArrowUp') {
-                  actions.flMove(f.id, 0, -step);
-                  handled = true;
-                } else if (e.key === 'ArrowDown') {
-                  actions.flMove(f.id, 0, step);
-                  handled = true;
-                }
-                if (handled) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
               style={{
                 flex: 'none',
                 height: G.bar + 'px',
@@ -421,6 +409,38 @@ export default function FloatersDesktop() {
               )}
               {kind !== 'metro' && <Icon name={f.icon} size={13} />}
               <span
+                role="separator"
+                tabIndex={0}
+                aria-roledescription="window move handle"
+                aria-label={`${f.title} move handle`}
+                aria-valuenow={r.x}
+                aria-valuemin={0}
+                aria-valuemax={Math.max(0, availW - r.w)}
+                aria-orientation="horizontal"
+                onFocus={() => {
+                  if (!act) actions.flFocus(f.id);
+                }}
+                onKeyDown={(e) => {
+                  const step = e.shiftKey ? 50 : 10;
+                  let handled = false;
+                  if (e.key === 'ArrowLeft') {
+                    actions.flMove(f.id, -step, 0);
+                    handled = true;
+                  } else if (e.key === 'ArrowRight') {
+                    actions.flMove(f.id, step, 0);
+                    handled = true;
+                  } else if (e.key === 'ArrowUp') {
+                    actions.flMove(f.id, 0, -step);
+                    handled = true;
+                  } else if (e.key === 'ArrowDown') {
+                    actions.flMove(f.id, 0, step);
+                    handled = true;
+                  }
+                  if (handled) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -430,6 +450,7 @@ export default function FloatersDesktop() {
                   overflow: 'hidden',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
+                  cursor: 'move',
                 }}
               >
                 {f.title}
@@ -541,6 +562,43 @@ export default function FloatersDesktop() {
                 }}
               >
                 {isMaximized ? '\u274F' : '\u25A1'}
+              </button>
+
+              {/* Layout & Position */}
+              <button
+                type="button"
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label="Layout & Position"
+                title="Layout & Position"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'all', e.currentTarget);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openLayoutDialog(f.id, 'all', e.currentTarget);
+                  }
+                }}
+                style={{
+                  width: btnSize + 'px',
+                  height: btnSize + 'px',
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  margin: 0,
+                  ...fs.control,
+                  font: btnFont,
+                  cursor: 'pointer',
+                  opacity: 0.85,
+                }}
+              >
+                <Icon name="move" size={11} />
               </button>
 
               {/* Minimize */}
@@ -690,6 +748,10 @@ export default function FloatersDesktop() {
                 if (handled) {
                   e.preventDefault();
                   e.stopPropagation();
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'dimensions', e.currentTarget);
                 }
               }}
               style={{
@@ -701,6 +763,39 @@ export default function FloatersDesktop() {
                 zIndex: 10,
                 cursor: 'nwse-resize',
                 background: 'linear-gradient(135deg,transparent 0 52%,' + fs.grip + ' 52% 100%)',
+                outline: 'none',
+              }}
+            />
+            <button
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-haspopup="dialog"
+              aria-label="Resize window"
+              title="Resize window"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLayoutDialog(f.id, 'dimensions', e.currentTarget);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openLayoutDialog(f.id, 'dimensions', e.currentTarget);
+                }
+              }}
+              style={{
+                position: 'absolute',
+                right: 0,
+                bottom: 0,
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: 'hidden',
+                clip: 'rect(0, 0, 0, 0)',
+                whiteSpace: 'nowrap',
+                border: 0,
               }}
             />
           </div>
@@ -894,6 +989,14 @@ export default function FloatersDesktop() {
           );
         })}
       </div>
+
+      <WindowLayoutDialog
+        isOpen={layoutDialog.isOpen}
+        onClose={closeLayoutDialog}
+        floaterId={layoutDialog.floaterId}
+        initialSection={layoutDialog.section}
+        triggerEl={layoutDialog.triggerEl}
+      />
     </div>
   );
 }

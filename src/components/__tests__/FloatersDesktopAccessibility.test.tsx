@@ -231,12 +231,13 @@ describe('FloatersDesktop Accessibility & Keyboard Navigation (WCAG 2.2 SC 2.1.1
     const { host, getCtx } = await mountDesktop();
     const chatHandle = host.querySelector<HTMLElement>('[aria-label="Local Chat move handle"]');
     expect(chatHandle).not.toBeNull();
+    const titleBar = chatHandle?.parentElement;
 
-    const maxBtn = chatHandle?.querySelector<HTMLButtonElement>('button[aria-label="Maximize"]');
-    const snapLeftBtn = chatHandle?.querySelector<HTMLButtonElement>(
+    const maxBtn = titleBar?.querySelector<HTMLButtonElement>('button[aria-label="Maximize"]');
+    const snapLeftBtn = titleBar?.querySelector<HTMLButtonElement>(
       'button[aria-label="Snap Left"]',
     );
-    const snapRightBtn = chatHandle?.querySelector<HTMLButtonElement>(
+    const snapRightBtn = titleBar?.querySelector<HTMLButtonElement>(
       'button[aria-label="Snap Right"]',
     );
 
@@ -258,7 +259,7 @@ describe('FloatersDesktop Accessibility & Keyboard Navigation (WCAG 2.2 SC 2.1.1
     expect(announceSpy).toHaveBeenCalledWith('Local Chat maximized', 'polite', 'status');
 
     // Button label toggles to "Restore"
-    const restoreBtn = chatHandle?.querySelector<HTMLButtonElement>('button[aria-label="Restore"]');
+    const restoreBtn = titleBar?.querySelector<HTMLButtonElement>('button[aria-label="Restore"]');
     expect(restoreBtn).not.toBeNull();
 
     // 2. Restore returns to previous coordinates
@@ -294,11 +295,13 @@ describe('FloatersDesktop Accessibility & Keyboard Navigation (WCAG 2.2 SC 2.1.1
 
   it('adapts titlebar action buttons to layout family geometry tokens', async () => {
     const { host, getCtx } = await mountDesktop();
+    const getChatButtons = () =>
+      host
+        .querySelector<HTMLElement>('[aria-label="Local Chat move handle"]')
+        ?.parentElement?.querySelectorAll<HTMLButtonElement>('button') || [];
 
     // Test with default layout family
-    const defaultButtons = host.querySelectorAll<HTMLButtonElement>(
-      '[aria-label="Local Chat move handle"] button',
-    );
+    const defaultButtons = getChatButtons();
     expect(defaultButtons.length).toBeGreaterThanOrEqual(5);
     expect(defaultButtons[0].style.width).toBe('17px');
 
@@ -306,18 +309,14 @@ describe('FloatersDesktop Accessibility & Keyboard Navigation (WCAG 2.2 SC 2.1.1
     await act(async () => {
       getCtx().actions.setLayout('sweep');
     });
-    const sweepButtons = host.querySelectorAll<HTMLButtonElement>(
-      '[aria-label="Local Chat move handle"] button',
-    );
+    const sweepButtons = getChatButtons();
     expect(sweepButtons[0].style.width).toBe('18px');
 
     // Switch to metro (tiles) layout family
     await act(async () => {
       getCtx().actions.setLayout('tiles');
     });
-    const metroButtons = host.querySelectorAll<HTMLButtonElement>(
-      '[aria-label="Local Chat move handle"] button',
-    );
+    const metroButtons = getChatButtons();
     expect(metroButtons[0].style.width).toBe('24px');
   });
 
