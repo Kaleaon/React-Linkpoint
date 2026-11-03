@@ -60,6 +60,7 @@ const METHODS = new Set([
   'updateMuteEntry',
   'removeMuteEntry',
   'searchDir',
+  'grantUserRights',
   'buyParcelPass',
   'updateParcelProperties',
   'buyParcel',
