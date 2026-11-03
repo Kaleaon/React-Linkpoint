@@ -1,7 +1,7 @@
 name: CI
 
-# One workflow for everything that checks a change: the web/TypeScript suite (always), the Expo Android debug APK and
-# the native Kotlin app (only when their files changed).
+# One workflow for everything that checks a change: the web/TypeScript suite (always), the Expo Android debug APK,
+# the native Kotlin app, and desktop directory packaging (only when their files changed).
 on:
   push:
     branches: [main, master, development]
@@ -42,9 +42,9 @@ jobs:
             expo=false
             kotlin=false
             desktop=false
-            if grep -qE '^(materials/|src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
+            if grep -qE '^(materials/|src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
             if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
-            if grep -qE '^(electron/|electron-builder\.config\.js$|scripts/build-desktop\.mjs$|scripts/validate-electron-config\.mjs$|\.github/workflows/ci\.yml$)' <<<"$files"; then desktop=true; fi
+            if grep -qE '^(electron/|core/|electron-builder\.config\..*|scripts/build-desktop\.mjs$|scripts/validate-electron-config\.mjs$|\.github/workflows/ci\.yml$)' <<<"$files"; then desktop=true; fi
           fi
           echo "expo=$expo" >> "$GITHUB_OUTPUT"
           echo "kotlin=$kotlin" >> "$GITHUB_OUTPUT"
@@ -90,6 +90,8 @@ jobs:
         run: npm run check:electron
       - name: Production build
         run: npm run build
+      - name: Server build
+        run: npm run build:server
 
   expo-apk:
     name: Task 2 - Expo Android Debug APK
@@ -164,3 +166,23 @@ jobs:
           path: android-kotlin/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  desktop-dir:
+    name: Task 4 - Desktop Directory Packaging
+    needs: changes
+    if: ${{ needs.changes.outputs.desktop == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.x
+      - uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Package desktop directory
+        run: npm run build:desktop:dir

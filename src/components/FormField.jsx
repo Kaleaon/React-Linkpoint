@@ -1,10 +1,38 @@
 import React, { useId } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
+import AccessibleInput from './AccessibleInput';
+import AccessibleSelect from './AccessibleSelect';
+
+function isControlElement(element) {
+  if (!React.isValidElement(element)) return false;
+  if (typeof element.type === 'string') {
+    return ['input', 'select', 'textarea'].includes(element.type);
+  }
+  if (element.type === AccessibleInput || element.type === AccessibleSelect) {
+    return true;
+  }
+  const type = element.type;
+  const name =
+    (typeof type === 'function' ? type.displayName || type.name : '') ||
+    (typeof type === 'object' && type !== null
+      ? type.displayName || type.name || type.render?.displayName || type.render?.name
+      : '');
+  if (
+    typeof name === 'string' &&
+    (/^(Accessible)?(Input|Select|Textarea)/i.test(name) ||
+      name.toLowerCase().includes('input') ||
+      name.toLowerCase().includes('select') ||
+      name.toLowerCase().includes('textarea'))
+  ) {
+    return true;
+  }
+  return false;
+}
 
 function findControlId(child, fallbackId) {
   if (!React.isValidElement(child)) return fallbackId;
   if (child.props && child.props.id) return child.props.id;
-  if (typeof child.type === 'string' && ['input', 'select', 'textarea'].includes(child.type)) {
+  if (isControlElement(child)) {
     return child.props.id || fallbackId;
   }
   if (child.props && child.props.children) {
@@ -24,7 +52,7 @@ function cloneControlWithAria(element, ariaProps) {
 
   const computedAriaLabel = element.props['aria-label'] || ariaProps['aria-label'];
 
-  if (typeof element.type === 'string' && ['input', 'select', 'textarea'].includes(element.type)) {
+  if (isControlElement(element)) {
     return React.cloneElement(element, {
       id: element.props.id || ariaProps.id,
       'aria-label': computedAriaLabel,
@@ -41,10 +69,7 @@ function cloneControlWithAria(element, ariaProps) {
     const processChildren = (children) => {
       return React.Children.map(children, (child) => {
         if (!applied && React.isValidElement(child)) {
-          if (
-            typeof child.type === 'string' &&
-            ['input', 'select', 'textarea'].includes(child.type)
-          ) {
+          if (isControlElement(child)) {
             applied = true;
             return cloneControlWithAria(child, ariaProps);
           }

@@ -1116,6 +1116,240 @@ async function getTransactionHistory(bot, params = {}) {
   };
 }
 
+async function commitObjectTransaction(bot, params = {}, lib) {
+  if (!bot) throw new Error('Not connected to Second Life');
+  const library = loadLibrary(lib);
+  const objects = Array.isArray(params.objects) ? params.objects : [];
+  const links = Array.isArray(params.links) ? params.links : [];
+  const delinks = Array.isArray(params.delinks) ? params.delinks : [];
+
+  let MultipleObjectUpdateClass = library.MultipleObjectUpdateMessage;
+  let ObjectLinkClass = library.ObjectLinkMessage;
+  let ObjectDelinkClass = library.ObjectDelinkMessage;
+  let UpdateTypeEnum = library.UpdateType;
+  let QuaternionClass = library.Quaternion;
+  let Vector3Class = library.Vector3;
+  let UUIDClass = library.UUID;
+
+  if (!MultipleObjectUpdateClass) {
+    try {
+      MultipleObjectUpdateClass =
+        require('@caspertech/node-metaverse/dist/lib/classes/messages/MultipleObjectUpdate').MultipleObjectUpdateMessage;
+    } catch (_) {}
+  }
+  if (!ObjectLinkClass) {
+    try {
+      ObjectLinkClass =
+        require('@caspertech/node-metaverse/dist/lib/classes/messages/ObjectLink').ObjectLinkMessage;
+    } catch (_) {}
+  }
+  if (!ObjectDelinkClass) {
+    try {
+      ObjectDelinkClass =
+        require('@caspertech/node-metaverse/dist/lib/classes/messages/ObjectDelink').ObjectDelinkMessage;
+    } catch (_) {}
+  }
+  if (!UpdateTypeEnum) {
+    try {
+      UpdateTypeEnum = require('@caspertech/node-metaverse/dist/lib/enums/UpdateType').UpdateType;
+    } catch (_) {
+      UpdateTypeEnum = { Position: 1, Rotation: 2, Scale: 4, Linked: 8 };
+    }
+  }
+  if (!QuaternionClass) {
+    try {
+      QuaternionClass =
+        require('@caspertech/node-metaverse/dist/lib/classes/Quaternion').Quaternion;
+    } catch (_) {}
+  }
+  if (!Vector3Class) {
+    try {
+      Vector3Class = require('@caspertech/node-metaverse/dist/lib/classes/Vector3').Vector3;
+    } catch (_) {}
+  }
+  if (!UUIDClass) {
+    try {
+      UUIDClass = require('@caspertech/node-metaverse/dist/lib/classes/UUID').UUID;
+    } catch (_) {}
+  }
+
+  const agentId = bot.agent?.agentID ? String(bot.agent.agentID) : params.agentId || ZERO_UUID;
+  const circuit = bot.currentRegion?.circuit || bot.circuit;
+  const sessionId = circuit?.sessionID ? String(circuit.sessionID) : params.sessionId || ZERO_UUID;
+
+  const wholeLinkset = Boolean(params.wholeLinkset);
+  const linkedFlag = wholeLinkset ? UpdateTypeEnum.Linked || 8 : 0;
+
+  const rawObjectDataEntries = [];
+  for (const obj of objects) {
+    const localId = Number(obj.localId) || 0;
+    if (localId > 0) {
+      if (obj.position !== undefined && Vector3Class) {
+        const v = Array.isArray(obj.position)
+          ? new Vector3Class([obj.position[0] ?? 0, obj.position[1] ?? 0, obj.position[2] ?? 0])
+          : new Vector3Class([obj.position.x ?? 0, obj.position.y ?? 0, obj.position.z ?? 0]);
+        const buf = typeof v.getBuffer === 'function' ? v.getBuffer() : Buffer.alloc(12);
+        rawObjectDataEntries.push({
+          ObjectLocalID: localId,
+          Type: (UpdateTypeEnum.Position || 1) | linkedFlag,
+          Data: buf,
+        });
+      }
+      if (obj.rotation !== undefined && QuaternionClass) {
+        let q;
+        if (Array.isArray(obj.rotation)) {
+          if (obj.rotation.length >= 4) {
+            q = new QuaternionClass(
+              obj.rotation[0],
+              obj.rotation[1],
+              obj.rotation[2],
+              obj.rotation[3],
+            );
+          } else {
+            const [x, y, z] = obj.rotation;
+            const c1 = Math.cos((x || 0) / 2),
+              s1 = Math.sin((x || 0) / 2);
+            const c2 = Math.cos((y || 0) / 2),
+              s2 = Math.sin((y || 0) / 2);
+            const c3 = Math.cos((z || 0) / 2),
+              s3 = Math.sin((z || 0) / 2);
+            q = new QuaternionClass(
+              s1 * c2 * c3 - c1 * s2 * s3,
+              c1 * s2 * c3 + s1 * c2 * s3,
+              c1 * c2 * s3 - s1 * s2 * c3,
+              c1 * c2 * c3 + s1 * s2 * s3,
+            );
+          }
+        } else {
+          q = new QuaternionClass(
+            obj.rotation.x ?? 0,
+            obj.rotation.y ?? 0,
+            obj.rotation.z ?? 0,
+            obj.rotation.w ?? 1,
+          );
+        }
+        const buf = typeof q.getBuffer === 'function' ? q.getBuffer() : Buffer.alloc(12);
+        rawObjectDataEntries.push({
+          ObjectLocalID: localId,
+          Type: (UpdateTypeEnum.Rotation || 2) | linkedFlag,
+          Data: buf,
+        });
+      }
+      if (obj.scale !== undefined && Vector3Class) {
+        const s = Array.isArray(obj.scale)
+          ? new Vector3Class([obj.scale[0] ?? 0, obj.scale[1] ?? 0, obj.scale[2] ?? 0])
+          : new Vector3Class([obj.scale.x ?? 0, obj.scale.y ?? 0, obj.scale.z ?? 0]);
+        const buf = typeof s.getBuffer === 'function' ? s.getBuffer() : Buffer.alloc(12);
+        rawObjectDataEntries.push({
+          ObjectLocalID: localId,
+          Type: (UpdateTypeEnum.Scale || 4) | linkedFlag,
+          Data: buf,
+        });
+      }
+    }
+  }
+
+  // Chunk MultipleObjectUpdate entries <= 1200 bytes
+  const maxPacketSize = 1200;
+  const BASE_MSG_OVERHEAD = 72;
+  const ENTRY_SIZE = 18;
+  const messagesToSend = [];
+
+  let currentChunk = [];
+  let currentBytes = BASE_MSG_OVERHEAD;
+
+  for (const entry of rawObjectDataEntries) {
+    if (currentBytes + ENTRY_SIZE > maxPacketSize && currentChunk.length > 0) {
+      if (MultipleObjectUpdateClass) {
+        const msg = new MultipleObjectUpdateClass();
+        msg.AgentData = {
+          AgentID: UUIDClass ? new UUIDClass(agentId) : agentId,
+          SessionID: UUIDClass ? new UUIDClass(sessionId) : sessionId,
+        };
+        msg.ObjectData = currentChunk;
+        messagesToSend.push(msg);
+      }
+      currentChunk = [];
+      currentBytes = BASE_MSG_OVERHEAD;
+    }
+    currentChunk.push(entry);
+    currentBytes += ENTRY_SIZE;
+  }
+
+  if (currentChunk.length > 0 || (rawObjectDataEntries.length === 0 && objects.length > 0)) {
+    if (MultipleObjectUpdateClass) {
+      const msg = new MultipleObjectUpdateClass();
+      msg.AgentData = {
+        AgentID: UUIDClass ? new UUIDClass(agentId) : agentId,
+        SessionID: UUIDClass ? new UUIDClass(sessionId) : sessionId,
+      };
+      msg.ObjectData = currentChunk;
+      messagesToSend.push(msg);
+    }
+  }
+
+  // Links
+  if (links.length > 0 && ObjectLinkClass) {
+    const linkMsg = new ObjectLinkClass();
+    linkMsg.AgentData = {
+      AgentID: UUIDClass ? new UUIDClass(agentId) : agentId,
+      SessionID: UUIDClass ? new UUIDClass(sessionId) : sessionId,
+    };
+    linkMsg.ObjectData = [];
+    for (const link of links) {
+      if (
+        link.parentLocalId > 0 &&
+        !linkMsg.ObjectData.some((e) => e.ObjectLocalID === link.parentLocalId)
+      ) {
+        linkMsg.ObjectData.push({ ObjectLocalID: link.parentLocalId });
+      }
+      if (
+        link.childLocalId > 0 &&
+        !linkMsg.ObjectData.some((e) => e.ObjectLocalID === link.childLocalId)
+      ) {
+        linkMsg.ObjectData.push({ ObjectLocalID: link.childLocalId });
+      }
+    }
+    messagesToSend.push(linkMsg);
+  }
+
+  // Delinks
+  if (delinks.length > 0 && ObjectDelinkClass) {
+    const delinkMsg = new ObjectDelinkClass();
+    delinkMsg.AgentData = {
+      AgentID: UUIDClass ? new UUIDClass(agentId) : agentId,
+      SessionID: UUIDClass ? new UUIDClass(sessionId) : sessionId,
+    };
+    delinkMsg.ObjectData = delinks
+      .filter((d) => d.localId > 0)
+      .map((d) => ({ ObjectLocalID: d.localId }));
+    messagesToSend.push(delinkMsg);
+  }
+
+  // Support test bot recording call
+  if (bot.clientCommands?.region?.commitObjectTransaction) {
+    await bot.clientCommands.region.commitObjectTransaction(params);
+  }
+  if (bot.clientCommands?.objects?.commitObjectTransaction) {
+    await bot.clientCommands.objects.commitObjectTransaction(params);
+  }
+
+  // If circuit exists, send messages
+  if (circuit && typeof circuit.sendMessage === 'function') {
+    for (const msg of messagesToSend) {
+      circuit.sendMessage(msg, 1);
+    }
+  }
+
+  const chunksCount = Math.max(1, messagesToSend.length);
+  return {
+    committed: true,
+    chunks: chunksCount,
+    objectsUpdated: objects.length,
+    linksUpdated: links.length + delinks.length,
+  };
+}
+
 module.exports = {
   parseLoginName,
   normalizeStart,
@@ -1138,6 +1372,7 @@ module.exports = {
   payObject,
   payAvatar,
   getTransactionHistory,
+  commitObjectTransaction,
   addObject,
   linkObjects,
   delinkObjects,

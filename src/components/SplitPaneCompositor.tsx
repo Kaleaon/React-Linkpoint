@@ -6,6 +6,7 @@ import ObjectInspector from './ObjectInspector';
 import DiagnosticsPanel from '../screens/DiagnosticsPanel.jsx';
 import AccessibleChatLog from './AccessibleChatLog.jsx';
 import { FocusRing } from '@linkpoint/design-system';
+import AccessibleSelect from './AccessibleSelect';
 
 export type PaneViewType = 'Viewport' | 'Inspector' | 'Diagnostics' | 'Chat';
 export type WorkstationPreset = 'single' | 'dual' | 'inspector_stack' | 'terminal_split' | 'quad';
@@ -598,26 +599,23 @@ export const SplitPaneCompositor: React.FC<SplitPaneCompositorProps> = ({
                 color={V.pri}
               />
               <FocusRing ringColor={V.pri} borderRadius={V.rs}>
-                <select
+                <AccessibleSelect
+                  compact
                   value={node.view}
                   onChange={(e) => handleChangeView(node.id, e.target.value as PaneViewType)}
                   aria-label={`Tile tool view selector for pane ${node.id}`}
                   style={{
                     background: 'transparent',
-                    color: V.ink,
-                    border: `1px solid ${V.outv}`,
-                    borderRadius: V.rs,
                     fontSize: '10px',
                     fontWeight: 700,
                     padding: '2px 4px',
-                    cursor: 'pointer',
                   }}
                 >
                   <option value="Viewport">3D Viewport</option>
                   <option value="Inspector">Object Inspector</option>
                   <option value="Diagnostics">Diagnostics</option>
                   <option value="Chat">Spatial Chat</option>
-                </select>
+                </AccessibleSelect>
               </FocusRing>
             </div>
 

@@ -37,7 +37,7 @@ RUN node scripts/patch-metaverse.cjs
 RUN npm run build
 # ESM format: server.ts uses import.meta.url (via createRequire), which only
 # exists in ESM. .mjs runs as ESM regardless of package.json type.
-RUN npx esbuild server.ts --bundle --platform=node --packages=external --format=esm --outfile=dist-server/server.mjs
+RUN npm run build:server
 
 ENV NODE_ENV=production
 ENV PORT=3000

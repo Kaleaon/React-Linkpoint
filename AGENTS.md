@@ -33,6 +33,7 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 | `npm run check:electron`  | `node scripts/validate-electron-config.mjs`           | Validates Electron config and main entry syntax |
 | `npm run test`            | `vitest run`                                          | Unit and component tests                        |
 | `npm run build`           | `vite build` (+ WASM, materials & imports checks)     | Production build bundle                         |
+| `npm run build:server`    | `esbuild server.ts ...`                               | Backend server bundle                           |
 | **Combined Check**        | `npm run check` or `./scripts/codex-setup.sh --check` | Runs all web CI validation steps                |
 
 ### 2. Expo Android Debug APK (`expo-apk` job)
@@ -47,7 +48,12 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 - **Assemble Debug APK**: `cd android-kotlin && ./gradlew :app:assembleDebug --no-daemon`
 - **Subproject Guide**: See [`android-kotlin/AGENTS.md`](./android-kotlin/AGENTS.md) for Kotlin guidelines, live OpenSim test execution, and Android SDK environment notes.
 
-### 4. Live Grid Smoke Test Gate (`smoke-test` job)
+### 4. Desktop Directory Packaging (`desktop-dir` job)
+
+- **Build Command**: `npm run build:desktop:dir`
+- **Description**: Packages an unpacked Linux desktop directory (`build-desktop/linux-unpacked`) without code signing to verify Electron packaging configuration, assets, and entry modules on pull requests.
+
+### 5. Live Grid Smoke Test Gate (`smoke-test` job)
 
 The release workflow validates simulator connectivity with a live grid smoke test gate job before publishing release packages.
 

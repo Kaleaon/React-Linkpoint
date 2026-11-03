@@ -358,6 +358,38 @@ export class SLBridge extends Utils.EventEmitter {
       params,
     );
   }
+  inviteGroupMember(params: {
+    groupId: string;
+    avatarId?: string;
+    inviteeId?: string;
+    roleId?: string;
+  }) {
+    return this.call<{
+      success: boolean;
+      groupId: string;
+      avatarId: string;
+      roleId?: string;
+    }>('inviteGroupMember', params);
+  }
+  ejectGroupMember(params: { groupId: string; memberId?: string; ejecteeId?: string }) {
+    return this.call<{ success: boolean; groupId: string; memberId: string }>(
+      'ejectGroupMember',
+      params,
+    );
+  }
+  modifyGroupRole(params: {
+    groupId: string;
+    roleId?: string;
+    memberId?: string;
+    change?: number | string;
+    changes?: Array<{ roleId: string; memberId: string; change: number | string }>;
+  }) {
+    return this.call<{
+      success: boolean;
+      groupId: string;
+      changes: Array<{ roleId: string; memberId: string; change: number }>;
+    }>('modifyGroupRole', params);
+  }
   respondScriptDialog(params: { id: string; buttonIndex?: number; text?: string }) {
     return this.call<{ answered: boolean }>('respondScriptDialog', params);
   }
@@ -537,6 +569,50 @@ export class SLBridge extends Utils.EventEmitter {
       transactions: any[];
       hasMore?: boolean;
     }>('getTransactionHistory', params);
+  }
+
+  commitObjectTransaction(params: {
+    objects?: any[];
+    links?: any[];
+    delinks?: any[];
+    wholeLinkset?: boolean;
+    agentId?: string;
+    sessionId?: string;
+  }) {
+    return this.call<{
+      committed: boolean;
+      chunks: number;
+      objectsUpdated: number;
+      linksUpdated: number;
+      error?: string;
+    }>('commitObjectTransaction', params);
+  }
+
+  /**
+   * Stream high-frequency throttled object transform delta updates to simulator.
+   */
+  async streamObjectDelta(params: {
+    id: string;
+    type?: 'ObjectPosition' | 'ObjectRotation' | 'ObjectScale' | string;
+    position?: number[];
+    rotation?: number[];
+    scale?: number[];
+    [key: string]: any;
+  }) {
+    return this.call('streamObjectDelta', params);
+  }
+
+  /**
+   * Commit final unthrottled object transform to guarantee grid synchronization on release.
+   */
+  async commitObjectTransform(params: {
+    id: string;
+    position?: number[];
+    rotation?: number[];
+    scale?: number[];
+    [key: string]: any;
+  }) {
+    return this.call('commitObjectTransform', params);
   }
 
   async sendChat(message: string, channel = 0, type = 1) {

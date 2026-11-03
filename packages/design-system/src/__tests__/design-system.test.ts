@@ -30,6 +30,9 @@ import {
   BottomTabs,
   DeviceFrame,
   BrandedLoader,
+  AccessibleButton,
+  AccessibleInput,
+  AccessibleSelect,
   CrystalMark,
   CrystalProgressBar,
   FocusRing,
@@ -104,6 +107,9 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(BottomTabs).toBeDefined();
     expect(DeviceFrame).toBeDefined();
     expect(BrandedLoader).toBeDefined();
+    expect(AccessibleButton).toBeDefined();
+    expect(AccessibleInput).toBeDefined();
+    expect(AccessibleSelect).toBeDefined();
     expect(CrystalMark).toBeDefined();
     expect(CrystalProgressBar).toBeDefined();
     expect(useThemeTokens).toBeDefined();

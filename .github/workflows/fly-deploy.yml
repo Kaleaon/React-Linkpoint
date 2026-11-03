@@ -17,6 +17,16 @@ on:
       - 'fly.toml'
       - 'package.json'
       - '.npmrc'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+    paths:
+      - 'server.ts'
+      - 'src/server/**'
+      - 'Dockerfile'
+      - 'fly.toml'
+      - 'package.json'
+      - '.npmrc'
   workflow_dispatch:
 
 permissions:
@@ -51,10 +61,13 @@ jobs:
         run: npm run lint
       - name: Unit tests (Vitest)
         run: npm run test
+      - name: Server build
+        run: npm run build:server
 
   deploy:
     name: Deploy to Fly.io
     needs: pre-deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0

@@ -6,6 +6,7 @@ import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
 import { FocusRing } from '@linkpoint/design-system';
+import AccessibleInput from './AccessibleInput';
 
 const PRESETS = [5, 10, 50, 100];
 
@@ -580,7 +581,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                       {currencySymbol}
                     </span>
                     <FocusRing ringColor={V.pri} borderRadius={V.rs}>
-                      <input
+                      <AccessibleInput
                         type="text"
                         inputMode="numeric"
                         placeholder="Custom amount"
@@ -591,13 +592,8 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                         style={{
                           width: '100%',
                           padding: '8px 12px 8px 36px',
-                          borderRadius: V.rs,
                           border: isCustom ? `2px solid ${V.pri}` : `1px solid ${V.outv}`,
-                          backgroundColor: V.bg,
-                          color: V.ink,
-                          fontFamily: t.font,
                           fontSize: '14px',
-                          boxSizing: 'border-box',
                           opacity: isZeroCurrency ? 0.5 : 1,
                         }}
                       />
@@ -609,7 +605,7 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
               {/* Payment Description */}
               <FormField label="Description / Note">
                 <FocusRing ringColor={V.pri} borderRadius={V.rs}>
-                  <input
+                  <AccessibleInput
                     type="text"
                     placeholder="Note to recipient"
                     aria-label="Description / Note"
@@ -619,13 +615,8 @@ export default function PayDialog({ isOpen, onClose, target, onSuccess = null })
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      borderRadius: V.rs,
                       border: `1px solid ${V.outv}`,
-                      backgroundColor: V.bg,
-                      color: V.ink,
-                      fontFamily: t.font,
                       fontSize: '14px',
-                      boxSizing: 'border-box',
                       opacity: isZeroCurrency ? 0.5 : 1,
                     }}
                   />
