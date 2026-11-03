@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import OutfitViewer from '../../screens/OutfitViewer.jsx';
 import { app } from '../app';
@@ -219,5 +220,73 @@ describe('OutfitViewer screen', () => {
       await click(buttonByText(mounted.host, label)!);
     await click(buttonByText(mounted.host, /AUTO-SPIN/)!);
     expect(mounted.host.textContent).toContain('SPINNING');
+  });
+
+  it('consumes ThemeContext tokens for viewport overlays and responds to theme switches', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({ items: [], outfits: [] });
+    mounted = await mountScreen(OutfitViewer);
+
+    const statusBanner = mounted.host.querySelector('div[role="status"]') as HTMLElement;
+    expect(statusBanner).toBeTruthy();
+
+    const cameraLabel = [...mounted.host.querySelectorAll('span')].find(
+      (s) => s.textContent?.trim() === 'CAMERA:',
+    ) as HTMLElement;
+    expect(cameraLabel).toBeTruthy();
+
+    const controlBar = cameraLabel.closest('div')?.parentElement as HTMLElement;
+    expect(controlBar).toBeTruthy();
+    expect(controlBar.style.backdropFilter).toBe('blur(6px)');
+
+    const frontBtn = buttonByText(mounted.host, 'Front') as HTMLButtonElement;
+    const backBtn = buttonByText(mounted.host, 'Back') as HTMLButtonElement;
+    const autoSpinBtn = buttonByText(mounted.host, /AUTO-SPIN/) as HTMLButtonElement;
+    const resetBtn = buttonByText(mounted.host, 'RESET') as HTMLButtonElement;
+
+    // Initially under default palette (ink):
+    // Status banner uses V.surf and V.ink
+    expect(statusBanner.style.background).not.toBe('rgba(15, 23, 42, 0.85)');
+    expect(statusBanner.style.color).not.toBe('#cbd5e1');
+
+    // Control bar container uses V.surf
+    expect(controlBar.style.background).not.toBe('rgba(15, 23, 42, 0.85)');
+
+    // CAMERA label uses V.ink2
+    expect(cameraLabel.style.color).not.toBe('#94a3b8');
+
+    // Selected preset (Front) uses V.pri
+    expect(frontBtn.style.background).not.toBe('transparent');
+    expect(frontBtn.style.border).toContain('solid');
+
+    // Unselected preset (Back) uses transparent background and V.ink
+    expect(backBtn.style.background).toBe('transparent');
+    expect(backBtn.style.color).not.toBe('#cbd5e1');
+
+    // Auto-spin button inactive uses V.ink and transparent background
+    expect(autoSpinBtn.style.color).not.toBe('#cbd5e1');
+    expect(autoSpinBtn.style.background).toBe('transparent');
+
+    // Reset button uses V.ink and not hardcoded slate
+    expect(resetBtn.style.color).not.toBe('#cbd5e1');
+
+    // Activate Auto-spin
+    await click(autoSpinBtn);
+    expect(autoSpinBtn.textContent).toContain('SPINNING');
+    expect(autoSpinBtn.style.background).not.toBe('rgba(168, 85, 247, 0.3)');
+    expect(autoSpinBtn.style.background).not.toBe('transparent');
+
+    // Click back preset to change selection
+    await click(backBtn);
+    expect(backBtn.style.background).not.toBe('transparent');
+    expect(frontBtn.style.background).toBe('transparent');
+
+    // Now switch palette to a daylight theme (paper)
+    const initialBg = controlBar.style.background;
+    await act(async () => {
+      mounted!.ctx.current.actions.setPalette('paper');
+    });
+
+    // Theme switching should update the overlay colors dynamically
+    expect(controlBar.style.background).not.toBe(initialBg);
   });
 });
