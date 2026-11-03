@@ -1614,7 +1614,7 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
   );
 }
 
-function NoticeHistoryUnavailableBanner({ V, onClose }) {
+export function NoticeHistoryUnavailableBanner({ V, onClose }) {
   return (
     <div
       role="alert"
@@ -1637,6 +1637,7 @@ function NoticeHistoryUnavailableBanner({ V, onClose }) {
       </div>
       <button
         type="button"
+        aria-label="Dismiss notice"
         onClick={onClose}
         style={{
           background: 'none',
