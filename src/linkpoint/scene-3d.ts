@@ -109,49 +109,60 @@ export class Scene3D extends Utils.EventEmitter {
   public windVector: number[] | null = null;
   private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 
-  public activeGizmo: {
-    targetId: string | null;
-    mode: 'translate' | 'rotate' | 'scale' | null;
-    activeAxis: 'x' | 'y' | 'z' | null;
-  } = {
-    targetId: null,
-    mode: 'translate',
-    activeAxis: null,
-  };
+  // 3D Transform Gizmo
+  public selectedObjectId: string | null = null;
+  public gizmoMode: 'translate' | 'rotate' | 'scale' = 'translate';
+  public gizmoEnabled: boolean = true;
+  public activeGizmoAxis: 'x' | 'y' | 'z' | null = null;
+  public gizmoHoverAxis: 'x' | 'y' | 'z' | null = null;
+  public canModifySelected: boolean = true;
+
   public editPipeline: any = null;
 
   public setEditPipeline(pipeline: any) {
     this.editPipeline = pipeline;
   }
 
-  public setGizmoMode(mode: 'translate' | 'rotate' | 'scale' | null) {
-    this.activeGizmo.mode = mode;
+  public get activeGizmo(): {
+    targetId: string | null;
+    mode: 'translate' | 'rotate' | 'scale' | null;
+    activeAxis: 'x' | 'y' | 'z' | null;
+  } {
+    return {
+      targetId: this.selectedObjectId,
+      mode: this.gizmoMode,
+      activeAxis: this.activeGizmoAxis,
+    };
   }
 
-  public getGizmoMode(): 'translate' | 'rotate' | 'scale' | null {
-    return this.activeGizmo.mode;
+  public set activeGizmo(val: {
+    targetId: string | null;
+    mode: 'translate' | 'rotate' | 'scale' | null;
+    activeAxis: 'x' | 'y' | 'z' | null;
+  }) {
+    if (val) {
+      if (val.targetId !== undefined) this.selectedObjectId = val.targetId;
+      if (val.mode !== undefined && val.mode !== null) this.gizmoMode = val.mode;
+      if (val.activeAxis !== undefined) this.activeGizmoAxis = val.activeAxis;
+    }
   }
 
   public setGizmoTarget(objectId: string | null, mode?: 'translate' | 'rotate' | 'scale') {
-    this.activeGizmo.targetId = objectId;
+    this.setGizmoSelectedObject(objectId, true);
     if (mode !== undefined) {
-      this.activeGizmo.mode = mode;
+      this.setGizmoMode(mode);
     }
   }
 
   public getGizmoTarget(): string | null {
-    return this.activeGizmo.targetId;
-  }
-
-  public setActiveGizmoAxis(axis: 'x' | 'y' | 'z' | null) {
-    this.activeGizmo.activeAxis = axis;
+    return this.selectedObjectId;
   }
 
   public applyGizmoTransform(
     delta: { position?: number[]; rotation?: number[]; scale?: number[] },
     pipeline?: any,
   ) {
-    const targetId = this.activeGizmo.targetId;
+    const targetId = this.selectedObjectId;
     if (!targetId) return null;
     const pipe = pipeline || this.editPipeline;
     const obj = this.objects.get(targetId);
@@ -197,7 +208,7 @@ export class Scene3D extends Utils.EventEmitter {
   }
 
   public manipulateGizmo(axis: 'x' | 'y' | 'z', amount: number, pipeline?: any) {
-    const mode = this.activeGizmo.mode || 'translate';
+    const mode = this.gizmoMode || 'translate';
     const deltaVec = [
       axis === 'x' ? amount : 0,
       axis === 'y' ? amount : 0,
@@ -233,6 +244,7 @@ export class Scene3D extends Utils.EventEmitter {
     this.terrainCompositionReady = false;
     this.showGrid = true;
     this.underWater = false;
+    this.setGizmoSelectedObject(null);
     this.setEnvironment(null);
   }
 
@@ -328,6 +340,34 @@ export class Scene3D extends Utils.EventEmitter {
       torus.indices,
       torus.normals,
       torus.texCoords,
+    );
+
+    // Transform Gizmo meshes (Translation arrow, Rotation torus, Scale box)
+    const arrow = Primitives3D.createArrow();
+    this.graphics.createMesh(
+      'gizmo-arrow',
+      arrow.vertices,
+      arrow.indices,
+      arrow.normals,
+      arrow.texCoords,
+    );
+
+    const gizmoTorus = Primitives3D.createTorus(1.0, 0.03, 32, 12);
+    this.graphics.createMesh(
+      'gizmo-torus',
+      gizmoTorus.vertices,
+      gizmoTorus.indices,
+      gizmoTorus.normals,
+      gizmoTorus.texCoords,
+    );
+
+    const gizmoScale = Primitives3D.createScaleHandle();
+    this.graphics.createMesh(
+      'gizmo-scale',
+      gizmoScale.vertices,
+      gizmoScale.indices,
+      gizmoScale.normals,
+      gizmoScale.texCoords,
     );
 
     // Until LLMesh/JP2 decoding is available in WebGL, uploaded mesh and sculpt
@@ -639,9 +679,233 @@ export class Scene3D extends Utils.EventEmitter {
   removeObject(id: string) {
     const object = this.objects.get(id);
     if (object) {
+      if (this.selectedObjectId === id) {
+        this.setGizmoSelectedObject(null);
+      }
       this.objects.delete(id);
       this.emit('object_removed', object);
     }
+  }
+
+  setGizmoSelectedObject(id: string | null, canModify: boolean = true) {
+    this.selectedObjectId = id;
+    this.canModifySelected = canModify;
+    if (!id || !canModify) {
+      this.activeGizmoAxis = null;
+      this.gizmoHoverAxis = null;
+    }
+  }
+
+  setGizmoMode(mode: 'translate' | 'rotate' | 'scale') {
+    this.gizmoMode = mode;
+  }
+
+  getGizmoMode(): 'translate' | 'rotate' | 'scale' {
+    return this.gizmoMode;
+  }
+
+  setGizmoEnabled(enabled: boolean) {
+    this.gizmoEnabled = enabled;
+  }
+
+  setActiveGizmoAxis(axis: 'x' | 'y' | 'z' | null) {
+    this.activeGizmoAxis = axis;
+  }
+
+  setGizmoHoverAxis(axis: 'x' | 'y' | 'z' | null) {
+    this.gizmoHoverAxis = axis;
+  }
+
+  /**
+   * Calculate gizmo scale maintaining uniform pixel-space screen size regardless of camera distance.
+   */
+  getGizmoScale(position: number[]): number {
+    const camPos = this.camera.position;
+    const dist = Math.hypot(
+      position[0] - camPos[0],
+      position[1] - camPos[1],
+      position[2] - camPos[2],
+    );
+    return Math.max(0.1, dist * 0.15);
+  }
+
+  /**
+   * Get model matrix for a gizmo axis handle aligned to X, Y, or Z.
+   */
+  getGizmoAxisMatrix(position: number[], scaleFactor: number, axis: 'x' | 'y' | 'z'): Float32Array {
+    const m = this.mat4Identity();
+    this.mat4Scale(m, [scaleFactor, scaleFactor, scaleFactor]);
+    if (axis === 'x') {
+      // Rotate +Z to +X: rotate by +90 deg around Y
+      this.mat4RotateY(m, Math.PI / 2);
+    } else if (axis === 'y') {
+      // Rotate +Z to +Y: rotate by -90 deg around X
+      this.mat4RotateX(m, -Math.PI / 2);
+    }
+    // For 'z', identity rotation points along +Z
+    this.mat4Translate(m, position);
+    return m;
+  }
+
+  /**
+   * Render 3D transform gizmo handles for the selected object with depth testing configured
+   * so handles remain visible through foreground terrain or transparent materials.
+   */
+  renderGizmo(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
+    if (!this.gizmoEnabled || !this.selectedObjectId || !this.canModifySelected) return;
+    const object = this.objects.get(this.selectedObjectId);
+    if (!object || !object.visible || object.hud) return;
+
+    const gizmoScale = this.getGizmoScale(object.position);
+    const meshName =
+      this.gizmoMode === 'rotate'
+        ? 'gizmo-torus'
+        : this.gizmoMode === 'scale'
+          ? 'gizmo-scale'
+          : 'gizmo-arrow';
+
+    const axes: Array<{ axis: 'x' | 'y' | 'z'; baseColor: [number, number, number, number] }> = [
+      { axis: 'x', baseColor: [0.95, 0.2, 0.2, 1.0] },
+      { axis: 'y', baseColor: [0.2, 0.85, 0.2, 1.0] },
+      { axis: 'z', baseColor: [0.2, 0.45, 1.0, 1.0] },
+    ];
+
+    const activeColor: [number, number, number, number] = [1.0, 0.9, 0.15, 1.0];
+    const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
+
+    for (const { axis, baseColor } of axes) {
+      const isHighlighted = this.activeGizmoAxis === axis || this.gizmoHoverAxis === axis;
+      const color = isHighlighted ? activeColor : baseColor;
+      const modelMatrix = this.getGizmoAxisMatrix(object.position, gizmoScale, axis);
+      const normalMatrix = this.mat3FromMat4(modelMatrix);
+
+      this.graphics.drawMesh(
+        meshName,
+        'basic',
+        {
+          uModelMatrix: modelMatrix,
+          uViewMatrix: viewMatrix,
+          uProjectionMatrix: projectionMatrix,
+          uNormalMatrix: normalMatrix,
+          uLightPos: new Float32Array(light.position),
+          uLightColor: new Float32Array(light.color),
+          uAmbientColor: new Float32Array([0.9, 0.9, 0.9]),
+          uColor: new Float32Array(color),
+          uUseTexture: false,
+          uTexTransform: new Float32Array([1, 1, 0, 0]),
+          uTexRotation: 0,
+          uUsePbr: false,
+          uFullBright: true,
+          uCameraPos: new Float32Array(this.camera.position),
+          uMetallic: 0,
+          uRoughness: 1,
+          uEmissive: new Float32Array([0, 0, 0]),
+          uUseMetallicRoughnessTexture: false,
+          uUseNormalTexture: false,
+          uUseEmissiveTexture: false,
+          uAlphaMode: 0,
+          uAlphaCutoff: 0.5,
+          uDoubleSided: true,
+        },
+        { depthTest: false, depthWrite: false, cullFace: false },
+      );
+    }
+  }
+
+  /**
+   * Ray-pick against gizmo handles for active transform manipulation.
+   */
+  pickGizmo(ray: { origin: number[]; direction: number[] }): {
+    id: string;
+    distance: number;
+    point: number[];
+    isGizmo: true;
+    gizmoAxis: 'x' | 'y' | 'z';
+    gizmoMode: 'translate' | 'rotate' | 'scale';
+    objectId: string;
+  } | null {
+    if (!this.gizmoEnabled || !this.selectedObjectId || !this.canModifySelected) return null;
+    const object = this.objects.get(this.selectedObjectId);
+    if (!object || !object.visible || object.hud) return null;
+
+    const gizmoScale = this.getGizmoScale(object.position);
+    const axes: Array<'x' | 'y' | 'z'> = ['x', 'y', 'z'];
+    let bestHit: {
+      id: string;
+      distance: number;
+      point: number[];
+      isGizmo: true;
+      gizmoAxis: 'x' | 'y' | 'z';
+      gizmoMode: 'translate' | 'rotate' | 'scale';
+      objectId: string;
+    } | null = null;
+
+    if (this.gizmoMode === 'translate' || this.gizmoMode === 'scale') {
+      const min = [-0.18, -0.18, 0];
+      const max = [0.18, 0.18, 1.05];
+      for (const axis of axes) {
+        const model = this.getGizmoAxisMatrix(object.position, gizmoScale, axis);
+        const distance = intersectRayOrientedBox(ray, model, min, max);
+        if (distance !== null && distance > 0 && (!bestHit || distance < bestHit.distance)) {
+          const point = ray.origin.map(
+            (val: number, idx: number) => val + ray.direction[idx] * distance,
+          );
+          bestHit = {
+            id: `gizmo:${this.gizmoMode}:${axis}`,
+            distance,
+            point,
+            isGizmo: true,
+            gizmoAxis: axis,
+            gizmoMode: this.gizmoMode,
+            objectId: this.selectedObjectId,
+          };
+        }
+      }
+    } else if (this.gizmoMode === 'rotate') {
+      const center = object.position;
+      const targetRadius = gizmoScale;
+      const ringThickness = gizmoScale * 0.25;
+
+      for (const axis of axes) {
+        const normal = axis === 'x' ? [1, 0, 0] : axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+        const denom =
+          ray.direction[0] * normal[0] +
+          ray.direction[1] * normal[1] +
+          ray.direction[2] * normal[2];
+        if (Math.abs(denom) > 1e-5) {
+          const t =
+            ((center[0] - ray.origin[0]) * normal[0] +
+              (center[1] - ray.origin[1]) * normal[1] +
+              (center[2] - ray.origin[2]) * normal[2]) /
+            denom;
+          if (t > 0 && (!bestHit || t < bestHit.distance)) {
+            const hitPoint = [
+              ray.origin[0] + ray.direction[0] * t,
+              ray.origin[1] + ray.direction[1] * t,
+              ray.origin[2] + ray.direction[2] * t,
+            ];
+            const distFromCenter = Math.hypot(
+              hitPoint[0] - center[0],
+              hitPoint[1] - center[1],
+              hitPoint[2] - center[2],
+            );
+            if (Math.abs(distFromCenter - targetRadius) <= ringThickness) {
+              bestHit = {
+                id: `gizmo:rotate:${axis}`,
+                distance: t,
+                point: hitPoint,
+                isGizmo: true,
+                gizmoAxis: axis,
+                gizmoMode: 'rotate',
+                objectId: this.selectedObjectId,
+              };
+            }
+          }
+        }
+      }
+    }
+
+    return bestHit;
   }
 
   /**
@@ -751,89 +1015,11 @@ export class Scene3D extends Utils.EventEmitter {
       .sort((a, b) => distanceSquared(b) - distanceSquared(a))
       .forEach((object) => this.renderObject(object, viewMatrix, projectionMatrix));
 
-    // Render 3D transform gizmo
+    // Render 3D transform gizmo for selected object before HUD
     this.renderGizmo(viewMatrix, projectionMatrix);
 
     // The HUD goes last, over everything, in its own orthographic view.
     this.renderHud();
-  }
-
-  /**
-   * Render 3D transform gizmo at the target object's position.
-   */
-  renderGizmo(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
-    if (!this.activeGizmo.targetId || !this.activeGizmo.mode) return;
-    const target = this.objects.get(this.activeGizmo.targetId);
-    if (!target || !target.position) return;
-
-    const [tx, ty, tz] = target.position;
-    const dist = Math.hypot(
-      tx - this.camera.position[0],
-      ty - this.camera.position[1],
-      tz - this.camera.position[2],
-    );
-    const gizmoScale = Math.max(0.2, dist * 0.15);
-    const armLength = gizmoScale;
-    const armThickness = gizmoScale * 0.04;
-
-    const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
-
-    const axes = [
-      {
-        axis: 'x' as const,
-        color: [1, 0.2, 0.2, 0.9],
-        position: [tx + armLength / 2, ty, tz],
-        rotation: [0, Math.PI / 2, 0],
-        scale: [armThickness, armThickness, armLength],
-      },
-      {
-        axis: 'y' as const,
-        color: [0.2, 1, 0.2, 0.9],
-        position: [tx, ty + armLength / 2, tz],
-        rotation: [-Math.PI / 2, 0, 0],
-        scale: [armThickness, armThickness, armLength],
-      },
-      {
-        axis: 'z' as const,
-        color: [0.2, 0.4, 1, 0.9],
-        position: [tx, ty, tz + armLength / 2],
-        rotation: [0, 0, 0],
-        scale: [armThickness, armThickness, armLength],
-      },
-    ];
-
-    for (const a of axes) {
-      const isHighlighted = this.activeGizmo.activeAxis === a.axis;
-      const col = isHighlighted ? [1, 1, 0, 1] : a.color;
-      const model = this.calculateModelMatrix(a.position, a.rotation, a.scale);
-      const normal = this.mat3FromMat4(model);
-
-      this.graphics.drawMesh('cylinder', 'basic', {
-        uModelMatrix: model,
-        uViewMatrix: viewMatrix,
-        uProjectionMatrix: projectionMatrix,
-        uNormalMatrix: normal,
-        uLightPos: new Float32Array(light.position),
-        uLightColor: new Float32Array(light.color),
-        uAmbientColor: new Float32Array([0.8, 0.8, 0.8]),
-        uColor: new Float32Array(col),
-        uUseTexture: false,
-        uTexTransform: new Float32Array([1, 1, 0, 0]),
-        uTexRotation: 0,
-        uUsePbr: false,
-        uFullBright: true,
-        uCameraPos: new Float32Array(this.camera.position),
-        uMetallic: 0,
-        uRoughness: 1,
-        uEmissive: new Float32Array([0, 0, 0]),
-        uUseMetallicRoughnessTexture: false,
-        uUseNormalTexture: false,
-        uUseEmissiveTexture: false,
-        uAlphaMode: 0,
-        uAlphaCutoff: 0.5,
-        uDoubleSided: true,
-      });
-    }
   }
 
   /**
@@ -1074,6 +1260,12 @@ export class Scene3D extends Utils.EventEmitter {
   pick(screenX: number, screenY: number, width: number, height: number) {
     if (typeof this.camera.screenToWorldRay !== 'function') return null;
     const ray = this.camera.screenToWorldRay(screenX, screenY, width, height);
+    if (!ray) return null;
+
+    // Check gizmo first so interactive handles always have picking precedence over background objects
+    const gizmoHit = this.pickGizmo(ray);
+    if (gizmoHit) return gizmoHit;
+
     let best: { id: string; distance: number; point: number[] } | null = null;
     for (const object of this.objects.values()) {
       if (!object.visible || object.hud) continue;

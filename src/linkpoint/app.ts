@@ -127,6 +127,8 @@ export class LinkpointApp {
     });
     this.editPipeline = this.objectEditPipeline;
     this.world.setEditPipeline(this.objectEditPipeline);
+    this.world.setObjectsManager(this.objects);
+
     this.inventoryCore = this.inventory as any;
     this.inventoryOps = new InventoryOperations(this.inventory as any);
     this.inventoryTypes = new InventorySpecialTypes();
@@ -555,6 +557,99 @@ export class LinkpointApp {
 
   async clearActiveGroup() {
     return this.activateGroup('00000000-0000-0000-0000-000000000000');
+  }
+
+  async inviteGroupMember(groupId: string, avatarId: string, roleId?: string) {
+    const targetGroupId = groupId ? groupId.trim() : '';
+    const targetAvatarId = avatarId ? avatarId.trim() : '';
+    const targetRoleId = roleId ? roleId.trim() : '00000000-0000-0000-0000-000000000000';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetAvatarId)) {
+      throw new Error(`Invalid avatar ID format: ${targetAvatarId}`);
+    }
+    if (!uuidRegex.test(targetRoleId)) {
+      throw new Error(`Invalid role ID format: ${targetRoleId}`);
+    }
+
+    if (slBridge.connected) {
+      await slBridge.inviteGroupMember({
+        groupId: targetGroupId,
+        avatarId: targetAvatarId,
+        roleId: targetRoleId,
+      });
+    }
+    await this.groups.inviteGroupMember(targetGroupId, targetAvatarId, targetRoleId);
+    return {
+      success: true,
+      groupId: targetGroupId,
+      avatarId: targetAvatarId,
+      roleId: targetRoleId,
+    };
+  }
+
+  async ejectGroupMember(groupId: string, memberId: string) {
+    const targetGroupId = groupId ? groupId.trim() : '';
+    const targetMemberId = memberId ? memberId.trim() : '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetMemberId)) {
+      throw new Error(`Invalid member ID format: ${targetMemberId}`);
+    }
+
+    if (slBridge.connected) {
+      await slBridge.ejectGroupMember({
+        groupId: targetGroupId,
+        memberId: targetMemberId,
+      });
+    }
+    this.groups.removeGroupMember(targetGroupId, targetMemberId);
+    return { success: true, groupId: targetGroupId, memberId: targetMemberId };
+  }
+
+  async modifyGroupRole(
+    groupId: string,
+    roleId: string,
+    memberId: string,
+    change: number | 'add' | 'remove' = 0,
+  ) {
+    const targetGroupId = groupId ? groupId.trim() : '';
+    const targetRoleId = roleId ? roleId.trim() : '';
+    const targetMemberId = memberId ? memberId.trim() : '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetRoleId)) {
+      throw new Error(`Invalid role ID format: ${targetRoleId}`);
+    }
+    if (!uuidRegex.test(targetMemberId)) {
+      throw new Error(`Invalid member ID format: ${targetMemberId}`);
+    }
+
+    if (slBridge.connected) {
+      await slBridge.modifyGroupRole({
+        groupId: targetGroupId,
+        roleId: targetRoleId,
+        memberId: targetMemberId,
+        change,
+      });
+    }
+    await this.groups.modifyGroupRole(targetGroupId, targetRoleId, targetMemberId, change);
+    return {
+      success: true,
+      groupId: targetGroupId,
+      roleId: targetRoleId,
+      memberId: targetMemberId,
+      change,
+    };
   }
 
   async loadGroups() {

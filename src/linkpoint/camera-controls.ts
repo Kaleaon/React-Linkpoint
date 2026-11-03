@@ -23,6 +23,10 @@ export interface CameraControlOptions {
   singleCharShortcutsEnabled?: () => boolean;
   /** Get custom key binding for an action, e.g. 'toggleMouselook'. */
   getCustomBinding?: (action: string) => string | undefined;
+  /** Custom pointer interceptors (e.g. 3D transform gizmo drag). If returns true, camera navigation is bypassed. */
+  onPointerDown?: (event: PointerEvent) => boolean | void;
+  onPointerMove?: (event: PointerEvent) => boolean | void;
+  onPointerUp?: (event: PointerEvent) => boolean | void;
 }
 
 type PointerSample = { x: number; y: number; time: number };
@@ -118,6 +122,9 @@ export class CameraControls {
   }
 
   private onPointerDown = (event: PointerEvent) => {
+    if (this.options.onPointerDown?.(event)) {
+      return;
+    }
     this.canvas.focus({ preventScroll: true });
     try {
       this.canvas.setPointerCapture?.(event.pointerId);
@@ -135,6 +142,9 @@ export class CameraControls {
   };
 
   private onPointerMove = (event: PointerEvent) => {
+    if (this.options.onPointerMove?.(event)) {
+      return;
+    }
     const previous = this.pointers.get(event.pointerId);
     if (!previous) return;
     const time = this.sampleTime(event);
@@ -203,6 +213,16 @@ export class CameraControls {
   };
 
   private onPointerUp = (event: PointerEvent) => {
+    if (this.options.onPointerUp?.(event)) {
+      try {
+        this.canvas.releasePointerCapture?.(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+      this.pointers.delete(event.pointerId);
+      this.pointerStart.delete(event.pointerId);
+      return;
+    }
     const start = this.pointerStart.get(event.pointerId);
     if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) {
       const bounds = this.canvas.getBoundingClientRect();

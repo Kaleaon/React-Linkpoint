@@ -5,6 +5,7 @@ import { DIALOGS } from '../theme/dialogs.js';
 import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TeleportCrystalHero from './TeleportCrystalHero.jsx';
+import CrystalProgressBar from './CrystalProgressBar.jsx';
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -68,7 +69,9 @@ export default function SystemDialog() {
         if (percentTextRef.current) {
           percentTextRef.current.textContent = `${pct}%`;
         }
-        if (progressBarRef.current) {
+        if (progressBarRef.current?.updateProgress) {
+          progressBarRef.current.updateProgress(pct);
+        } else if (progressBarRef.current) {
           progressBarRef.current.style.width = `${pct}%`;
         }
         if (statusTextRef.current && statusText) {
@@ -275,26 +278,14 @@ export default function SystemDialog() {
                 {percent}%
               </span>
             </div>
-            <div
-              style={{
-                width: '100%',
-                height: '8px',
-                background: V.bg,
-                borderRadius: '4px',
-                overflow: 'hidden',
-                border: '1px solid ' + V.outv,
-              }}
-            >
-              <div
-                ref={progressBarRef}
-                style={{
-                  width: `${percent}%`,
-                  height: '100%',
-                  background: isFailed ? V.err : V.pri,
-                  transition: 'width 0.3s ease',
-                }}
-              />
-            </div>
+            <CrystalProgressBar
+              ref={progressBarRef}
+              progress={percent}
+              height="8px"
+              isFailed={isFailed}
+              error={isFailed}
+              ariaLabel="Teleport progress"
+            />
           </div>
 
           {/* Phase Milestones */}

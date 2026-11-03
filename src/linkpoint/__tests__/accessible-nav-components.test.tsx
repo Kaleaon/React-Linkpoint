@@ -6,6 +6,7 @@ import BottomTabs from '../../components/BottomTabs.jsx';
 import SegmentedTabs from '../../components/SegmentedTabs.jsx';
 import MenuBar from '../../components/MenuBar.jsx';
 import RailNav from '../../components/RailNav.jsx';
+import ViewModeSwitcher from '../../components/ViewModeSwitcher.jsx';
 import { useRovingTabindex } from '../../hooks/useRovingTabindex';
 import { mountScreen, unmount, type Mounted } from './ui-helpers.js';
 import fs from 'node:fs';
@@ -357,6 +358,136 @@ describe('useRovingTabindex Hook Specification Compliance', () => {
       root.unmount();
     });
     host.remove();
+  });
+});
+
+describe('Accessible ViewModeSwitcher Component (WCAG 2.2 SC 2.5.8 & 4.1.2)', () => {
+  it('enforces minimum target dimensions of 24px (minHeight and minWidth >= 24px) on all switcher buttons in standard and compact modes', async () => {
+    mounted = await mountScreen(ViewModeSwitcher);
+    const buttons = mounted.host.querySelectorAll('button');
+    expect(buttons.length).toBe(3);
+
+    for (const btn of buttons) {
+      expect(btn.style.height).toBe('24px');
+      expect(btn.style.minHeight).toBe('24px');
+      expect(btn.style.minWidth).toBe('24px');
+      expect(parseInt(btn.style.minHeight, 10)).toBeGreaterThanOrEqual(24);
+      expect(parseInt(btn.style.minWidth, 10)).toBeGreaterThanOrEqual(24);
+    }
+
+    await unmount(mounted);
+    const CompactSwitcher = () => createElement(ViewModeSwitcher, { compact: true });
+    mounted = await mountScreen(CompactSwitcher);
+
+    const compactBtn = mounted.host.querySelector('button');
+    expect(compactBtn).not.toBeNull();
+    expect(compactBtn?.style.height).toBe('24px');
+    expect(compactBtn?.style.minHeight).toBe('24px');
+    expect(compactBtn?.style.minWidth).toBe('24px');
+    expect(parseInt(compactBtn?.style.minHeight || '0', 10)).toBeGreaterThanOrEqual(24);
+    expect(parseInt(compactBtn?.style.minWidth || '0', 10)).toBeGreaterThanOrEqual(24);
+  });
+
+  it('assigns aria-pressed states to all view mode buttons according to active mode and handles auto mode edge cases', async () => {
+    mounted = await mountScreen(ViewModeSwitcher);
+
+    // Case 1: Auto mode with desktop device active
+    await act(async () => {
+      mounted!.ctx.current.actions.setViewMode('auto');
+      mounted!.ctx.current.actions.setDevice('desk');
+    });
+
+    const getBtn = (text: string) =>
+      [...mounted!.host.querySelectorAll('button')].find((b) => b.textContent?.includes(text));
+
+    let mobileBtn = getBtn('MOBILE');
+    let desktopBtn = getBtn('DESKTOP');
+    let autoBtn = getBtn('AUTO');
+
+    expect(mobileBtn?.getAttribute('aria-pressed')).toBe('false');
+    expect(desktopBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(autoBtn?.getAttribute('aria-pressed')).toBe('true');
+
+    // Case 2: Auto mode with mobile device active
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('ios');
+    });
+
+    mobileBtn = getBtn('MOBILE');
+    desktopBtn = getBtn('DESKTOP');
+    autoBtn = getBtn('AUTO');
+
+    expect(mobileBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(desktopBtn?.getAttribute('aria-pressed')).toBe('false');
+    expect(autoBtn?.getAttribute('aria-pressed')).toBe('true');
+
+    // Case 3: Explicit mobile mode
+    await act(async () => {
+      mounted!.ctx.current.actions.setViewMode('mobile');
+    });
+
+    mobileBtn = getBtn('MOBILE');
+    desktopBtn = getBtn('DESKTOP');
+    autoBtn = getBtn('AUTO');
+
+    expect(mobileBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(desktopBtn?.getAttribute('aria-pressed')).toBe('false');
+    expect(autoBtn?.getAttribute('aria-pressed')).toBe('false');
+
+    // Case 4: Explicit desktop mode
+    await act(async () => {
+      mounted!.ctx.current.actions.setViewMode('desktop');
+    });
+
+    mobileBtn = getBtn('MOBILE');
+    desktopBtn = getBtn('DESKTOP');
+    autoBtn = getBtn('AUTO');
+
+    expect(mobileBtn?.getAttribute('aria-pressed')).toBe('false');
+    expect(desktopBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(autoBtn?.getAttribute('aria-pressed')).toBe('false');
+
+    // Case 5: Clicking buttons updates view mode and aria-pressed states
+    await act(async () => {
+      mobileBtn?.click();
+    });
+
+    mobileBtn = getBtn('MOBILE');
+    desktopBtn = getBtn('DESKTOP');
+    autoBtn = getBtn('AUTO');
+
+    expect(mobileBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(desktopBtn?.getAttribute('aria-pressed')).toBe('false');
+    expect(autoBtn?.getAttribute('aria-pressed')).toBe('false');
+
+    await act(async () => {
+      desktopBtn?.click();
+    });
+
+    mobileBtn = getBtn('MOBILE');
+    desktopBtn = getBtn('DESKTOP');
+    autoBtn = getBtn('AUTO');
+
+    expect(mobileBtn?.getAttribute('aria-pressed')).toBe('false');
+    expect(desktopBtn?.getAttribute('aria-pressed')).toBe('true');
+    expect(autoBtn?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('provides accessible aria-label on compact mode button indicating toggle destination', async () => {
+    const CompactSwitcher = () => createElement(ViewModeSwitcher, { compact: true });
+    mounted = await mountScreen(CompactSwitcher);
+
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('desk');
+    });
+    let compactBtn = mounted.host.querySelector('button');
+    expect(compactBtn?.getAttribute('aria-label')).toBe('Switch to mobile view');
+
+    await act(async () => {
+      mounted!.ctx.current.actions.setDevice('ios');
+    });
+    compactBtn = mounted.host.querySelector('button');
+    expect(compactBtn?.getAttribute('aria-label')).toBe('Switch to desktop view');
   });
 });
 

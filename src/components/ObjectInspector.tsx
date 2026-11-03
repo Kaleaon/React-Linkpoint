@@ -53,6 +53,9 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   const [selection, setSelection] = useState<any>(() => app.world.selectedObject);
   const [objects, setObjects] = useState<any[]>(() => app.world.objects || []);
   const [nearbyUsers, setNearbyUsers] = useState<any[]>(() => app.world.nearbyUsers || []);
+  const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>(
+    () => (app.world?.getGizmoMode?.() as 'translate' | 'rotate' | 'scale') || 'translate',
+  );
   const [payDialogOpen, setPayDialogOpen] = useState(false);
 
   // Edit pipeline transactional state
@@ -90,6 +93,23 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
       setCanRedo(app.objectEditPipeline.canRedo());
     };
 
+    const handleSelectionUpdated = (obj: any) => {
+      if (active && obj) {
+        setSelection((prev: any) =>
+          prev && (prev.id === obj.id || prev.uuid === obj.id) ? { ...prev, ...obj } : obj,
+        );
+        if (!app.objectEditPipeline?.isDirty) {
+          setCurrentSnapshot((prev: any) =>
+            prev && (prev.id === obj.id || prev.uuid === obj.id) ? { ...prev, ...obj } : obj,
+          );
+        }
+      }
+    };
+
+    const handleGizmoMode = (mode: 'translate' | 'rotate' | 'scale') => {
+      if (active) setGizmoMode(mode);
+    };
+
     const handleObjects = (objs: any[]) => {
       if (active) setObjects([...objs]);
     };
@@ -112,6 +132,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     };
 
     app.world.on('selection_changed', handleSelection);
+    app.world.on('selection_updated', handleSelectionUpdated);
+    app.world.on('gizmo_mode_changed', handleGizmoMode);
     app.world.on('objects_changed', handleObjects);
     app.world.on('nearby_changed', handleNearby);
 
@@ -128,6 +150,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     return () => {
       active = false;
       app.world.off('selection_changed', handleSelection);
+      app.world.off('selection_updated', handleSelectionUpdated);
+      app.world.off('gizmo_mode_changed', handleGizmoMode);
       app.world.off('objects_changed', handleObjects);
       app.world.off('nearby_changed', handleNearby);
 
@@ -451,11 +475,10 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     );
   }
 
-  const activeData = currentSnapshot || selection;
+  const activeData = isDirty && currentSnapshot ? currentSnapshot : selection;
   const name = activeData.name || selection.name || selection.id || 'Simulator object';
   const typeStr =
     selection.shape || (selection.avatar || selection.isAvatar ? 'Avatar' : 'Primitive');
-
   const positionValues = Array.isArray(activeData.position)
     ? activeData.position
     : activeData.x != null
@@ -465,8 +488,30 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   const rotationEuler = quatToEulerDegrees(activeData.rotation);
   const scaleValues = Array.isArray(activeData.scale) ? activeData.scale : [1, 1, 1];
 
+  const posStr = Array.isArray(activeData.position)
+    ? activeData.position.map((n: number) => Number(n).toFixed(1)).join(', ')
+    : activeData.x != null
+      ? `${Number(activeData.x).toFixed(1)}, ${Number(activeData.y).toFixed(1)}, ${Number(activeData.z).toFixed(1)}`
+      : '—';
+  const rotStr = Array.isArray(activeData.rotation)
+    ? activeData.rotation.map((n: number) => Number(n).toFixed(1)).join(', ')
+    : activeData.rx != null
+      ? `${Number(activeData.rx).toFixed(1)}, ${Number(activeData.ry).toFixed(1)}, ${Number(activeData.rz).toFixed(1)}`
+      : '—';
+  const scaleStr = Array.isArray(activeData.scale)
+    ? activeData.scale.map((n: number) => Number(n).toFixed(2)).join(', ')
+    : '—';
   const distStr = selection.distance != null ? `${Number(selection.distance).toFixed(1)} m` : '—';
   const uuidStr = selection.id || selection.uuid || 'N/A';
+  const canModify = Boolean(
+    selection &&
+    (typeof app.world?.canModifyObject === 'function'
+      ? app.world.canModifyObject(selection)
+      : selection.canModify !== false &&
+        (selection.ownerMask == null || (selection.ownerMask & 0x4000) !== 0) &&
+        !selection.avatar &&
+        !selection.isAvatar),
+  );
 
   return (
     <div className={className} style={containerStyle}>
@@ -607,76 +652,196 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           }}
         >
           <span>Position:</span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {['X', 'Y', 'Z'].map((axis, i) => (
-              <div
-                key={axis}
-                style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
-              >
-                <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  aria-label={`Position ${axis}`}
-                  value={
-                    Number.isFinite(positionValues[i])
-                      ? Math.round(positionValues[i] * 100) / 100
-                      : 0
-                  }
-                  onChange={(e) => handleNumericChange('position', i, parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </div>
-            ))}
+          <div>
+            <div
+              style={{
+                color: V.ink,
+                fontFamily: 'monospace',
+                fontSize: '10px',
+                marginBottom: '2px',
+              }}
+            >
+              {posStr}
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['X', 'Y', 'Z'].map((axis, i) => (
+                <div
+                  key={axis}
+                  style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
+                >
+                  <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    aria-label={`Position ${axis}`}
+                    value={
+                      Number.isFinite(positionValues[i])
+                        ? Math.round(positionValues[i] * 100) / 100
+                        : 0
+                    }
+                    onChange={(e) => handleNumericChange('position', i, parseFloat(e.target.value))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           <span>Rotation:</span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {['X', 'Y', 'Z'].map((axis, i) => (
-              <div
-                key={axis}
-                style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
-              >
-                <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
-                <input
-                  type="number"
-                  step="1"
-                  aria-label={`Rotation ${axis}`}
-                  value={
-                    Number.isFinite(rotationEuler[i]) ? Math.round(rotationEuler[i] * 10) / 10 : 0
-                  }
-                  onChange={(e) => handleNumericChange('rotation', i, parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </div>
-            ))}
+          <div>
+            <div
+              style={{
+                color: V.ink,
+                fontFamily: 'monospace',
+                fontSize: '10px',
+                marginBottom: '2px',
+              }}
+            >
+              {rotStr}
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['X', 'Y', 'Z'].map((axis, i) => (
+                <div
+                  key={axis}
+                  style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
+                >
+                  <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
+                  <input
+                    type="number"
+                    step="1"
+                    aria-label={`Rotation ${axis}`}
+                    value={
+                      Number.isFinite(rotationEuler[i]) ? Math.round(rotationEuler[i] * 10) / 10 : 0
+                    }
+                    onChange={(e) => handleNumericChange('rotation', i, parseFloat(e.target.value))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           <span>Scale:</span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {['X', 'Y', 'Z'].map((axis, i) => (
-              <div
-                key={axis}
-                style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
-              >
-                <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0.01"
-                  aria-label={`Scale ${axis}`}
-                  value={
-                    Number.isFinite(scaleValues[i]) ? Math.round(scaleValues[i] * 100) / 100 : 1
-                  }
-                  onChange={(e) => handleNumericChange('scale', i, parseFloat(e.target.value))}
-                  style={inputStyle}
-                />
-              </div>
-            ))}
+          <div>
+            <div
+              style={{
+                color: V.ink,
+                fontFamily: 'monospace',
+                fontSize: '10px',
+                marginBottom: '2px',
+              }}
+            >
+              {scaleStr}
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['X', 'Y', 'Z'].map((axis, i) => (
+                <div
+                  key={axis}
+                  style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
+                >
+                  <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="0.01"
+                    aria-label={`Scale ${axis}`}
+                    value={
+                      Number.isFinite(scaleValues[i]) ? Math.round(scaleValues[i] * 100) / 100 : 1
+                    }
+                    onChange={(e) => handleNumericChange('scale', i, parseFloat(e.target.value))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           <span>Owner:</span>
           <span style={{ color: V.ink }}>{selection.owner || 'Region / Public'}</span>
+
+          <span>Perms:</span>
+          <span style={{ color: canModify ? V.ok : '#ef4444', fontWeight: 600 }}>
+            {canModify ? 'Modify Allowed' : 'Locked (No Modify)'}
+          </span>
+        </div>
+
+        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${V.outv}` }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '6px',
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 700,
+                fontSize: '10px',
+                color: V.ink2,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Gizmo Mode
+            </span>
+            {!canModify && (
+              <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 600 }}>
+                Controls Locked
+              </span>
+            )}
+          </div>
+          <div
+            style={{ display: 'flex', gap: '4px' }}
+            role="toolbar"
+            aria-label="Transform Gizmo Mode"
+          >
+            {(
+              [
+                { mode: 'translate', label: 'Move', icon: 'move' },
+                { mode: 'rotate', label: 'Rotate', icon: 'rotate-cw' },
+                { mode: 'scale', label: 'Scale', icon: 'maximize-2' },
+              ] as const
+            ).map(({ mode, label, icon }) => {
+              const isActive = gizmoMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  disabled={!canModify}
+                  aria-pressed={isActive}
+                  aria-label={`${label} mode`}
+                  onClick={() => {
+                    if (canModify) {
+                      app.world.setGizmoMode(mode);
+                      setGizmoMode(mode);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    minHeight: '28px',
+                    padding: '4px 6px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    borderRadius: V.rs,
+                    cursor: canModify ? 'pointer' : 'not-allowed',
+                    opacity: canModify ? 1 : 0.5,
+                    border: `1px solid ${isActive && canModify ? V.pri : V.outv}`,
+                    background: isActive && canModify ? V.pri : V.surf2 || V.surf,
+                    color: isActive && canModify ? V.onpri : V.ink,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Icon name={icon} size={11} />
+                  <span>{label.toUpperCase()}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
