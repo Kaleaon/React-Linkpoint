@@ -119,6 +119,17 @@ export class CapabilitiesManager {
   }
 
   /**
+   * Resolves the ObjectPayPrice HTTP capability URL if exposed by the seed capabilities.
+   */
+  getObjectPayPriceUrl(): string | null {
+    return (
+      this.resolveCapability('ObjectPayPrice') ||
+      this.resolveCapability('PayPrice') ||
+      this.resolveCapability('GetObjectPayPrice')
+    );
+  }
+
+  /**
    * Execute PayObject HTTP capability RPC call for scripted object transactions.
    */
   async executePayObjectCapability(
