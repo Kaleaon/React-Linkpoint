@@ -22,6 +22,7 @@ jobs:
     outputs:
       expo: ${{ steps.filter.outputs.expo }}
       kotlin: ${{ steps.filter.outputs.kotlin }}
+      desktop: ${{ steps.filter.outputs.desktop }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
         with:
@@ -34,19 +35,24 @@ jobs:
           set -euo pipefail
           expo=true
           kotlin=true
+          desktop=true
           # Build everything on manual runs, new branches and anything we cannot diff.
           if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             files="$(git diff --name-only "$BASE" HEAD)"
             expo=false
             kotlin=false
-            if grep -qE '^(src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
+            desktop=false
+            if grep -qE '^(materials/|src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|electron-builder\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
             if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
+            if grep -qE '^(electron/|electron-builder\.config\.js$|scripts/build-desktop\.mjs$|scripts/validate-electron-config\.mjs$|\.github/workflows/ci\.yml$)' <<<"$files"; then desktop=true; fi
           fi
           echo "expo=$expo" >> "$GITHUB_OUTPUT"
           echo "kotlin=$kotlin" >> "$GITHUB_OUTPUT"
+          echo "desktop=$desktop" >> "$GITHUB_OUTPUT"
 
   web:
     name: Task 1 - Web & TypeScript Validation
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -60,6 +66,13 @@ jobs:
       - run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - name: Cache Filament matc toolchain
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/filament-matc
+          key: filament-matc-${{ runner.os }}-${{ hashFiles('scripts/build-materials.mjs') }}
+          restore-keys: |
+            filament-matc-${{ runner.os }}-
       - name: TypeScript type check
         run: npm run typecheck
       - name: ESLint check
@@ -68,8 +81,13 @@ jobs:
         run: npm run format:check
       - name: Check for fabricated data
         run: npm run check:fake-data
+      - name: Verify material shaders
+        run: npm run check:materials
       - name: Unit tests (Vitest)
         run: npm run test
+      - name: Validate Electron configuration
+        if: ${{ needs.changes.outputs.desktop == 'true' }}
+        run: npm run check:electron
       - name: Production build
         run: npm run build
 

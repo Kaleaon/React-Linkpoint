@@ -45,7 +45,8 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible,
-.search-input:focus-visible {
+.search-input:focus-visible,
+[role='separator']:focus-visible {
   outline: 2px solid var(--pri, #6cff9a);
   outline-offset: 2px;
 }

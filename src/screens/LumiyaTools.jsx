@@ -7,8 +7,8 @@ import PayDialog from '../components/PayDialog.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
-import AccessibleInput from '../components/AccessibleInput.jsx';
-import AccessibleSelect from '../components/AccessibleSelect.jsx';
+import AccessibleInput from '../components/AccessibleInput';
+import AccessibleSelect from '../components/AccessibleSelect';
 
 function Empty({ icon, children }) {
   return (

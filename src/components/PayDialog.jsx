@@ -5,7 +5,7 @@ import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import FormField from './FormField.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
-import AccessibleInput from './AccessibleInput.jsx';
+import AccessibleInput from './AccessibleInput';
 
 const PRESETS = [5, 10, 50, 100];
 
