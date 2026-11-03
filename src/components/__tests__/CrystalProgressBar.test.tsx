@@ -214,4 +214,114 @@ describe('CrystalProgressBar Component', () => {
     expect(trackDefault.style.height).toBe('6px');
     expect(trackDefault.style.borderRadius).toBe('4px');
   });
+
+  it('attaches imperative handle via React.forwardRef and exposes DOM node references', async () => {
+    const barRef = { current: null as any };
+    const host = await mount(
+      <CrystalProgressBar ref={barRef} progress={20} showLabel={true} label="Loading mesh..." />,
+    );
+
+    expect(barRef.current).not.toBeNull();
+    expect(typeof barRef.current.updateProgress).toBe('function');
+    expect(barRef.current.track).toBeInstanceOf(HTMLElement);
+    expect(barRef.current.fill).toBeInstanceOf(HTMLElement);
+    expect(barRef.current.label).toBeInstanceOf(HTMLElement);
+    expect(barRef.current.container).toBeInstanceOf(HTMLElement);
+
+    const trackElem = host.querySelector('[data-testid="crystal-progress-track"]');
+    const fillElem = host.querySelector('[data-testid="asset-progress-bar"]');
+    const labelElem = host.querySelector('[data-testid="crystal-progress-label"]');
+
+    expect(barRef.current.track).toBe(trackElem);
+    expect(barRef.current.fill).toBe(fillElem);
+    expect(barRef.current.label).toBe(labelElem);
+  });
+
+  it('updates fill width, ARIA valuenow, and cap visibility directly in the DOM on updateProgress call', async () => {
+    const barRef = { current: null as any };
+    const host = await mount(<CrystalProgressBar ref={barRef} progress={0} />);
+
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]') as HTMLElement;
+
+    expect(fill.style.width).toBe('0%');
+    expect(container.getAttribute('aria-valuenow')).toBe('0');
+    expect(cap.style.display).toBe('none');
+
+    await act(async () => {
+      barRef.current.updateProgress(72);
+    });
+
+    expect(fill.style.width).toBe('72%');
+    expect(container.getAttribute('aria-valuenow')).toBe('72');
+    expect(cap.style.display).toBe('flex');
+    expect(cap.style.visibility).toBe('visible');
+
+    await act(async () => {
+      barRef.current.updateProgress(0);
+    });
+
+    expect(fill.style.width).toBe('0%');
+    expect(container.getAttribute('aria-valuenow')).toBe('0');
+    expect(cap.style.display).toBe('none');
+    expect(cap.style.visibility).toBe('hidden');
+  });
+
+  it('clamps numerical percentage values and handles non-numeric inputs in updateProgress', async () => {
+    const barRef = { current: null as any };
+    const host = await mount(<CrystalProgressBar ref={barRef} progress={10} />);
+
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+
+    await act(async () => {
+      barRef.current.updateProgress(-30);
+    });
+    expect(fill.style.width).toBe('0%');
+    expect(container.getAttribute('aria-valuenow')).toBe('0');
+
+    await act(async () => {
+      barRef.current.updateProgress(180);
+    });
+    expect(fill.style.width).toBe('100%');
+    expect(container.getAttribute('aria-valuenow')).toBe('100');
+
+    await act(async () => {
+      barRef.current.updateProgress(NaN);
+    });
+    expect(fill.style.width).toBe('0%');
+    expect(container.getAttribute('aria-valuenow')).toBe('0');
+
+    await act(async () => {
+      barRef.current.updateProgress('invalid');
+    });
+    expect(fill.style.width).toBe('0%');
+    expect(container.getAttribute('aria-valuenow')).toBe('0');
+
+    await act(async () => {
+      barRef.current.updateProgress('55');
+    });
+    expect(fill.style.width).toBe('55%');
+    expect(container.getAttribute('aria-valuenow')).toBe('55');
+  });
+
+  it('supports error styling when isFailed or error prop is true', async () => {
+    const host = await mount(<CrystalProgressBar progress={50} isFailed={true} />);
+    const container = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]') as HTMLElement;
+    const polygon = cap.querySelector('polygon') as SVGPolygonElement;
+
+    expect(container.classList.contains('is-failed')).toBe(true);
+    expect(fill.style.background).not.toContain('linear-gradient');
+    expect(fill.style.background).toBe('rgb(211, 114, 131)');
+    expect(polygon.getAttribute('fill')).toBe('#d37283');
+  });
 });

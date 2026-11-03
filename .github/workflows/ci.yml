@@ -44,7 +44,7 @@ jobs:
             desktop=false
             if grep -qE '^(materials/|src/|public/|android/|scripts/|packages/|App\.tsx$|app\.json$|package\.json$|bun\.lock$|server\.ts$|tsconfig.*\.json$|vite\.config\..*|vitest\.config\..*|babel\.config\..*|capacitor\.config\..*|\.github/workflows/ci\.yml$)' <<<"$files"; then expo=true; fi
             if grep -qE '^(android-kotlin/|\.github/workflows/ci\.yml$)' <<<"$files"; then kotlin=true; fi
-            if grep -qE '^(electron/|core/|electron-builder\.config\..*|scripts/build-desktop\.mjs$|\.github/workflows/ci\.yml$)' <<<"$files"; then desktop=true; fi
+            if grep -qE '^(electron/|core/|electron-builder\.config\..*|scripts/build-desktop\.mjs$|scripts/validate-electron-config\.mjs$|\.github/workflows/ci\.yml$)' <<<"$files"; then desktop=true; fi
           fi
           echo "expo=$expo" >> "$GITHUB_OUTPUT"
           echo "kotlin=$kotlin" >> "$GITHUB_OUTPUT"
@@ -52,6 +52,7 @@ jobs:
 
   web:
     name: Task 1 - Web & TypeScript Validation
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -84,6 +85,9 @@ jobs:
         run: npm run check:materials
       - name: Unit tests (Vitest)
         run: npm run test
+      - name: Validate Electron configuration
+        if: ${{ needs.changes.outputs.desktop == 'true' }}
+        run: npm run check:electron
       - name: Production build
         run: npm run build
 

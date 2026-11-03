@@ -17,6 +17,12 @@ export default function ViewModeSwitcher({ compact = false, style = {} }) {
   const currentMode = state.viewMode || 'auto'; // "mobile" | "desktop" | "auto"
   const isDesktopActive = actions.navMode?.() === 'floaters' || state.device === 'desk';
 
+  const isMobileActive =
+    currentMode === 'mobile' || (!isDesktopActive && currentMode !== 'desktop');
+  const isDesktopModeActive =
+    currentMode === 'desktop' || (isDesktopActive && currentMode !== 'mobile');
+  const isAutoActive = currentMode === 'auto';
+
   const handleSelectMode = (mode) => {
     actions.setViewMode(mode);
   };
@@ -26,12 +32,15 @@ export default function ViewModeSwitcher({ compact = false, style = {} }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 3, ...style }}>
         <button
           type="button"
+          aria-label={isDesktopActive ? 'Switch to mobile view' : 'Switch to desktop view'}
           onClick={() => handleSelectMode(isDesktopActive ? 'mobile' : 'desktop')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 5,
             height: '24px',
+            minHeight: 24,
+            minWidth: 24,
             padding: '0 8px',
             border: `1px solid ${V.outv}`,
             borderRadius: isSweepDesk ? '999px' : V.rs,
@@ -73,23 +82,20 @@ export default function ViewModeSwitcher({ compact = false, style = {} }) {
       {/* Mobile Mode Button */}
       <button
         type="button"
+        aria-pressed={isMobileActive}
         onClick={() => handleSelectMode('mobile')}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 4,
-          height: '22px',
+          height: '24px',
+          minHeight: 24,
+          minWidth: 24,
           padding: '0 7px',
           border: 0,
           borderRadius: isSweepDesk ? '999px' : V.rs,
-          background:
-            currentMode === 'mobile' || (!isDesktopActive && currentMode !== 'desktop')
-              ? V.pri
-              : 'transparent',
-          color:
-            currentMode === 'mobile' || (!isDesktopActive && currentMode !== 'desktop')
-              ? V.onpri
-              : V.ink2,
+          background: isMobileActive ? V.pri : 'transparent',
+          color: isMobileActive ? V.onpri : V.ink2,
           fontSize: '9.5px',
           fontWeight: 700,
           letterSpacing: '.08em',
@@ -105,23 +111,20 @@ export default function ViewModeSwitcher({ compact = false, style = {} }) {
       {/* Desktop Mode Button */}
       <button
         type="button"
+        aria-pressed={isDesktopModeActive}
         onClick={() => handleSelectMode('desktop')}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 4,
-          height: '22px',
+          height: '24px',
+          minHeight: 24,
+          minWidth: 24,
           padding: '0 7px',
           border: 0,
           borderRadius: isSweepDesk ? '999px' : V.rs,
-          background:
-            currentMode === 'desktop' || (isDesktopActive && currentMode !== 'mobile')
-              ? V.pri
-              : 'transparent',
-          color:
-            currentMode === 'desktop' || (isDesktopActive && currentMode !== 'mobile')
-              ? V.onpri
-              : V.ink2,
+          background: isDesktopModeActive ? V.pri : 'transparent',
+          color: isDesktopModeActive ? V.onpri : V.ink2,
           fontSize: '9.5px',
           fontWeight: 700,
           letterSpacing: '.08em',
@@ -137,27 +140,29 @@ export default function ViewModeSwitcher({ compact = false, style = {} }) {
       {/* Auto Button */}
       <button
         type="button"
+        aria-pressed={isAutoActive}
         onClick={() => handleSelectMode('auto')}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 3,
-          height: '22px',
+          height: '24px',
+          minHeight: 24,
+          minWidth: 24,
           padding: '0 6px',
           border: 0,
           borderRadius: isSweepDesk ? '999px' : V.rs,
-          background:
-            currentMode === 'auto'
-              ? isSweepDesk
-                ? V.sec
-                : 'rgba(255,255,255,0.12)'
-              : 'transparent',
-          color: currentMode === 'auto' ? V.ink : V.ink2,
+          background: isAutoActive
+            ? isSweepDesk
+              ? V.sec
+              : 'rgba(255,255,255,0.12)'
+            : 'transparent',
+          color: isAutoActive ? V.ink : V.ink2,
           fontSize: '9px',
           fontWeight: 600,
           letterSpacing: '.06em',
           cursor: 'pointer',
-          opacity: currentMode === 'auto' ? 1 : 0.6,
+          opacity: isAutoActive ? 1 : 0.6,
         }}
         title="Auto-responsive (Switches layout automatically based on viewport size)"
       >
