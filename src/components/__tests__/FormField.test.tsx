@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import FormField from '../FormField.jsx';
+import AccessibleInput from '../AccessibleInput';
+import AccessibleSelect from '../AccessibleSelect';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -144,5 +146,55 @@ describe('<FormField /> Component', () => {
     const help = host.querySelector('small');
     const helpId = help?.getAttribute('id');
     expect(input?.getAttribute('aria-describedby')).toBe(`custom-desc ${helpId}`);
+  });
+
+  it('associates label and error with nested AccessibleInput within a container element', async () => {
+    const host = await mount(
+      <FormField label="Custom Amount" error="Invalid amount">
+        <div className="input-wrapper">
+          <span>$</span>
+          <AccessibleInput placeholder="Enter custom amount" />
+        </div>
+      </FormField>,
+    );
+
+    const input = host.querySelector('input');
+    const label = host.querySelector('label');
+    const alert = host.querySelector('[role="alert"]');
+
+    expect(input).not.toBeNull();
+    expect(label).not.toBeNull();
+    expect(alert).not.toBeNull();
+
+    const inputId = input?.getAttribute('id');
+    expect(inputId).toBeTruthy();
+    expect(label?.getAttribute('for')).toBe(inputId);
+    expect(input?.getAttribute('aria-invalid')).toBe('true');
+    expect(input?.getAttribute('aria-errormessage')).toBe(alert?.getAttribute('id'));
+  });
+
+  it('associates label and ARIA attributes with nested AccessibleSelect within a container element', async () => {
+    const host = await mount(
+      <FormField label="Category">
+        <div className="select-wrapper">
+          <AccessibleSelect
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'active', label: 'Active' },
+            ]}
+          />
+        </div>
+      </FormField>,
+    );
+
+    const select = host.querySelector('select');
+    const label = host.querySelector('label');
+
+    expect(select).not.toBeNull();
+    expect(label).not.toBeNull();
+
+    const selectId = select?.getAttribute('id');
+    expect(selectId).toBeTruthy();
+    expect(label?.getAttribute('for')).toBe(selectId);
   });
 });

@@ -14,6 +14,8 @@ import {
   RailNav as DesignRailNav,
   CrystalProgressBar as DesignCrystalProgressBar,
   LayoutProvider,
+  AccessibleInput as DesignAccessibleInput,
+  AccessibleSelect as DesignAccessibleSelect,
 } from '@linkpoint/design-system/react';
 import { AppProvider, useApp } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
@@ -213,6 +215,38 @@ describe('@linkpoint/design-system package integration', () => {
       const host = await mount(createElement(TestWrapper));
       const navEl = host.querySelector('nav[aria-label="Bottom Navigation"]');
       expect(navEl).not.toBeNull();
+    });
+
+    it('renders AccessibleInput and AccessibleSelect with visible focus outlines and 44px minHeight', async () => {
+      const host = await mount(
+        createElement(
+          'div',
+          null,
+          createElement(DesignAccessibleInput, { placeholder: 'Integration input' }),
+          createElement(DesignAccessibleSelect, {
+            'aria-label': 'Integration select',
+            options: [{ value: 'one', label: 'One' }],
+          }),
+        ),
+      );
+
+      const input = host.querySelector('input') as HTMLInputElement;
+      const select = host.querySelector('select') as HTMLSelectElement;
+
+      expect(input).not.toBeNull();
+      expect(select).not.toBeNull();
+      expect(input.style.minHeight).toBe('44px');
+      expect(select.style.minHeight).toBe('44px');
+
+      await act(async () => {
+        input.focus();
+      });
+      expect(input.style.outline).toContain('2px solid');
+
+      await act(async () => {
+        select.focus();
+      });
+      expect(select.style.outline).toContain('2px solid');
     });
   });
 });

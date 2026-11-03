@@ -9,6 +9,8 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
 import { FocusRing } from '@linkpoint/design-system';
+import AccessibleInput from '../components/AccessibleInput';
+import AccessibleSelect from '../components/AccessibleSelect';
 
 function Empty({ icon, children }) {
   return (
@@ -1236,124 +1238,75 @@ export function TransactionsScreen() {
         }}
       >
         <FocusRing ringColor={V.pri} borderRadius={V.rs}>
-          <input
+          <AccessibleInput
             type="text"
             placeholder="Search description/ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: V.rs,
-              border: `1px solid ${V.outv}`,
-              backgroundColor: V.surf,
-              color: V.ink,
-              fontSize: '13px',
-              boxSizing: 'border-box',
-            }}
+            style={{ width: '100%', backgroundColor: V.surf }}
           />
         </FocusRing>
 
-        <input
-          type="text"
-          placeholder="Filter by Avatar/Target..."
-          value={avatarFilter}
-          onChange={(e) => setAvatarFilter(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: V.rs,
-            border: `1px solid ${V.outv}`,
-            backgroundColor: V.surf,
-            color: V.ink,
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
-        />
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <AccessibleInput
+            type="text"
+            placeholder="Filter by Avatar/Target..."
+            value={avatarFilter}
+            onChange={(e) => setAvatarFilter(e.target.value)}
+            style={{ width: '100%', backgroundColor: V.surf }}
+          />
+        </FocusRing>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: V.rs,
-            border: `1px solid ${V.outv}`,
-            backgroundColor: V.surf,
-            color: V.ink,
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
-        >
-          <option value="all">All Types</option>
-          <option value="payment">Payment</option>
-          <option value="tip">Tip</option>
-          <option value="purchase">Purchase</option>
-          <option value="refund">Refund</option>
-          <option value="transfer">Transfer</option>
-          <option value="credit">Credit (+)</option>
-          <option value="debit">Debit (-)</option>
-        </select>
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <AccessibleSelect
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            style={{ width: '100%', backgroundColor: V.surf }}
+          >
+            <option value="all">All Types</option>
+            <option value="payment">Payment</option>
+            <option value="tip">Tip</option>
+            <option value="purchase">Purchase</option>
+            <option value="refund">Refund</option>
+            <option value="transfer">Transfer</option>
+            <option value="credit">Credit (+)</option>
+            <option value="debit">Debit (-)</option>
+          </AccessibleSelect>
+        </FocusRing>
 
-        <select
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: V.rs,
-            border: `1px solid ${V.outv}`,
-            backgroundColor: V.surf,
-            color: V.ink,
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
-        >
-          <option value="30days">Last 30 Days</option>
-          <option value="14days">Last 14 Days</option>
-          <option value="7days">Last 7 Days</option>
-          <option value="today">Today</option>
-          <option value="all">All History</option>
-        </select>
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <AccessibleSelect
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            style={{ width: '100%', backgroundColor: V.surf }}
+          >
+            <option value="30days">Last 30 Days</option>
+            <option value="14days">Last 14 Days</option>
+            <option value="7days">Last 7 Days</option>
+            <option value="today">Today</option>
+            <option value="all">All History</option>
+          </AccessibleSelect>
+        </FocusRing>
 
-        <input
-          type="date"
-          aria-label="Start date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: V.rs,
-            border: `1px solid ${V.outv}`,
-            backgroundColor: V.surf,
-            color: V.ink,
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
-        />
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <AccessibleInput
+            type="date"
+            aria-label="Start date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{ width: '100%', backgroundColor: V.surf }}
+          />
+        </FocusRing>
 
-        <input
-          type="date"
-          aria-label="End date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: V.rs,
-            border: `1px solid ${V.outv}`,
-            backgroundColor: V.surf,
-            color: V.ink,
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
-        />
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <AccessibleInput
+            type="date"
+            aria-label="End date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            style={{ width: '100%', backgroundColor: V.surf }}
+          />
+        </FocusRing>
       </div>
 
       {/* Transaction List */}
