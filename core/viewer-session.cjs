@@ -137,6 +137,15 @@ const {
   ActivateGroupMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/ActivateGroup');
 const {
+  InviteGroupRequestMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/InviteGroupRequest');
+const {
+  EjectGroupMemberRequestMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/EjectGroupMemberRequest');
+const {
+  GroupRoleChangesMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/GroupRoleChanges');
+const {
   RequestPayPriceMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RequestPayPrice');
 const {
@@ -1033,6 +1042,12 @@ class ViewerSession {
   commitObjectTransaction(params) {
     return actions.commitObjectTransaction(this.requireBot(), params);
   }
+  streamObjectDelta(params) {
+    return { success: true, ...params };
+  }
+  commitObjectTransform(params) {
+    return { success: true, ...params };
+  }
   addObject(params) {
     return actions.addObject(this.requireBot(), params);
   }
@@ -1690,6 +1705,194 @@ class ViewerSession {
       success: true,
       groupId: targetGroupId,
       roleId: targetRoleId,
+    };
+  }
+
+  async inviteGroupMember({ groupId, avatarId, inviteeId, roleId } = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId = groupId && typeof groupId === 'string' ? groupId.trim() : '';
+    const targetAvatarId =
+      (avatarId || inviteeId) && typeof (avatarId || inviteeId) === 'string'
+        ? (avatarId || inviteeId).trim()
+        : '';
+    const targetRoleId =
+      roleId && typeof roleId === 'string' && roleId.trim() ? roleId.trim() : ZERO_UUID;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetAvatarId)) {
+      throw new Error(`Invalid avatar ID format: ${targetAvatarId}`);
+    }
+    if (!uuidRegex.test(targetRoleId)) {
+      throw new Error(`Invalid role ID format: ${targetRoleId}`);
+    }
+
+    if (this.bot) {
+      const circuit = this.currentRegion()?.circuit;
+      if (circuit) {
+        const agentUUIDStr =
+          this.identity.agentId || this.bot.agent?.agentID?.toString() || ZERO_UUID;
+        const sessionUUIDStr = circuit.sessionID?.toString() || ZERO_UUID;
+
+        const msg = new InviteGroupRequestMessage();
+        msg.AgentData = {
+          AgentID: new UUID(agentUUIDStr),
+          SessionID: new UUID(sessionUUIDStr),
+        };
+        msg.GroupData = {
+          GroupID: new UUID(targetGroupId),
+        };
+        msg.InviteData = [
+          {
+            InviteeID: new UUID(targetAvatarId),
+            RoleID: new UUID(targetRoleId),
+          },
+        ];
+        circuit.sendMessage(msg, PacketFlags.Reliable);
+      }
+    }
+
+    this.send('group_member_invited', {
+      groupId: targetGroupId,
+      avatarId: targetAvatarId,
+      roleId: targetRoleId,
+    });
+
+    return {
+      success: true,
+      groupId: targetGroupId,
+      avatarId: targetAvatarId,
+      roleId: targetRoleId,
+    };
+  }
+
+  async ejectGroupMember({ groupId, memberId, ejecteeId } = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId = groupId && typeof groupId === 'string' ? groupId.trim() : '';
+    const targetMemberId =
+      (memberId || ejecteeId) && typeof (memberId || ejecteeId) === 'string'
+        ? (memberId || ejecteeId).trim()
+        : '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+    if (!uuidRegex.test(targetMemberId)) {
+      throw new Error(`Invalid member ID format: ${targetMemberId}`);
+    }
+
+    if (this.bot) {
+      const circuit = this.currentRegion()?.circuit;
+      if (circuit) {
+        const agentUUIDStr =
+          this.identity.agentId || this.bot.agent?.agentID?.toString() || ZERO_UUID;
+        const sessionUUIDStr = circuit.sessionID?.toString() || ZERO_UUID;
+
+        const msg = new EjectGroupMemberRequestMessage();
+        msg.AgentData = {
+          AgentID: new UUID(agentUUIDStr),
+          SessionID: new UUID(sessionUUIDStr),
+        };
+        msg.GroupData = {
+          GroupID: new UUID(targetGroupId),
+        };
+        msg.EjectData = [
+          {
+            EjecteeID: new UUID(targetMemberId),
+          },
+        ];
+        circuit.sendMessage(msg, PacketFlags.Reliable);
+      }
+    }
+
+    this.send('group_member_ejected', {
+      groupId: targetGroupId,
+      memberId: targetMemberId,
+    });
+
+    return {
+      success: true,
+      groupId: targetGroupId,
+      memberId: targetMemberId,
+    };
+  }
+
+  async modifyGroupRole({ groupId, roleId, memberId, change, changes } = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId = groupId && typeof groupId === 'string' ? groupId.trim() : '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId)) {
+      throw new Error(`Invalid group ID format: ${targetGroupId}`);
+    }
+
+    let changeList = [];
+    if (Array.isArray(changes) && changes.length > 0) {
+      changeList = changes;
+    } else if (roleId && memberId) {
+      changeList = [{ roleId, memberId, change }];
+    }
+
+    if (changeList.length === 0) {
+      throw new Error('At least one role change required');
+    }
+
+    const normalizedChanges = changeList.map((c) => {
+      const rId = typeof c.roleId === 'string' ? c.roleId.trim() : '';
+      const mId = typeof c.memberId === 'string' ? c.memberId.trim() : '';
+      if (!uuidRegex.test(rId)) {
+        throw new Error(`Invalid role ID format: ${rId}`);
+      }
+      if (!uuidRegex.test(mId)) {
+        throw new Error(`Invalid member ID format: ${mId}`);
+      }
+      const changeType = c.change === 'remove' || c.change === 1 || c.change === '1' ? 1 : 0;
+      return {
+        roleId: rId,
+        memberId: mId,
+        change: changeType,
+      };
+    });
+
+    if (this.bot) {
+      const circuit = this.currentRegion()?.circuit;
+      if (circuit) {
+        const agentUUIDStr =
+          this.identity.agentId || this.bot.agent?.agentID?.toString() || ZERO_UUID;
+        const sessionUUIDStr = circuit.sessionID?.toString() || ZERO_UUID;
+
+        // Constraint: Bulk role updates exceeding 100 members must process through sequential batches
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < normalizedChanges.length; i += BATCH_SIZE) {
+          const batch = normalizedChanges.slice(i, i + BATCH_SIZE);
+          const msg = new GroupRoleChangesMessage();
+          msg.AgentData = {
+            AgentID: new UUID(agentUUIDStr),
+            SessionID: new UUID(sessionUUIDStr),
+            GroupID: new UUID(targetGroupId),
+          };
+          msg.RoleChange = batch.map((item) => ({
+            RoleID: new UUID(item.roleId),
+            MemberID: new UUID(item.memberId),
+            Change: item.change,
+          }));
+          circuit.sendMessage(msg, PacketFlags.Reliable);
+        }
+      }
+    }
+
+    this.send('group_roles_modified', {
+      groupId: targetGroupId,
+      changes: normalizedChanges,
+    });
+
+    return {
+      success: true,
+      groupId: targetGroupId,
+      changes: normalizedChanges,
     };
   }
 

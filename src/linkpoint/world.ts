@@ -357,6 +357,52 @@ export class WorldViewer extends Utils.EventEmitter {
   public environment: any = null;
   public localEnvironmentHour: number | null = null;
 
+  // 3D Transform Gizmo
+  public gizmoMode: 'translate' | 'rotate' | 'scale' = 'translate';
+  public objectsManager: any = null;
+  public activeGizmoDrag: {
+    objectId: string;
+    axis: 'x' | 'y' | 'z';
+    mode: 'translate' | 'rotate' | 'scale';
+    startX: number;
+    startY: number;
+    initialPosition: [number, number, number];
+    initialRotation: [number, number, number];
+    initialScale: [number, number, number];
+    previousMode?: 'navigate' | 'interact';
+  } | null = null;
+
+  public setObjectsManager(manager: any) {
+    this.objectsManager = manager;
+  }
+
+  public getGizmoMode(): 'translate' | 'rotate' | 'scale' {
+    return this.scene3d?.getGizmoMode?.() || this.gizmoMode;
+  }
+
+  public setGizmoMode(mode: 'translate' | 'rotate' | 'scale') {
+    this.gizmoMode = mode;
+    this.scene3d?.setGizmoMode?.(mode);
+    this.emit('gizmo_mode_changed', mode);
+  }
+
+  public canModifyObject(object: any): boolean {
+    if (!object) return false;
+    if (object.avatar || object.isAvatar) return false;
+    if (typeof object.canModify === 'boolean') return object.canModify;
+    if (object.permissions) {
+      if (typeof object.permissions.modify === 'boolean') return object.permissions.modify;
+      if (typeof object.permissions.canModify === 'boolean') return object.permissions.canModify;
+      if (typeof object.permissions.ownerMask === 'number') {
+        return (object.permissions.ownerMask & 0x4000) !== 0;
+      }
+    }
+    if (this.objectsManager?.hasPermission) {
+      return this.objectsManager.hasPermission(object.id, 'modify');
+    }
+    return true;
+  }
+
   public setLocalEnvironment(hour: number | null) {
     this.localEnvironmentHour = hour == null ? null : ((hour % 1) + 1) % 1;
     this.applyEnvironment();
@@ -1445,6 +1491,9 @@ export class WorldViewer extends Utils.EventEmitter {
           resetView: () => this.resetCamera(),
           toggleMouselook: () => this.toggleCameraMode(),
           focusAt: (x, y) => this.focusAt(x, y),
+          onPointerDown: (event) => this.handleGizmoPointerDown(event),
+          onPointerMove: (event) => this.handleGizmoPointerMove(event),
+          onPointerUp: (event) => this.handleGizmoPointerUp(event),
         },
       );
       this.cameraControls.setVelocityThreshold(this.dragVelocityThreshold);
@@ -1864,6 +1913,218 @@ export class WorldViewer extends Utils.EventEmitter {
     this.emit('camera_changed', this.getCameraState());
   }
 
+  public handleGizmoPointerDown(event: PointerEvent): boolean {
+    if (!this.canvas || !this.scene3d || !this.selectedObject) return false;
+    const canModify = this.canModifyObject(this.selectedObject);
+    if (!canModify) return false;
+
+    const bounds = this.canvas.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+
+    const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
+    if (hit && (hit as any).isGizmo) {
+      const gizmoHit = hit as any;
+      const prevMode = this.interactionMode;
+      this.setInteractionMode('interact');
+      this.scene3d?.setActiveGizmoAxis?.(gizmoHit.gizmoAxis);
+
+      const obj = this.selectedObject;
+      const pos: [number, number, number] = Array.isArray(obj.position)
+        ? [obj.position[0], obj.position[1], obj.position[2]]
+        : [obj.x || 0, obj.y || 0, obj.z || 0];
+      const rot: [number, number, number] = Array.isArray(obj.rotation)
+        ? [obj.rotation[0], obj.rotation[1], obj.rotation[2]]
+        : [0, 0, 0];
+      const scl: [number, number, number] = Array.isArray(obj.scale)
+        ? [obj.scale[0], obj.scale[1], obj.scale[2]]
+        : [1, 1, 1];
+
+      this.activeGizmoDrag = {
+        objectId: obj.id,
+        axis: gizmoHit.gizmoAxis,
+        mode: gizmoHit.gizmoMode || this.gizmoMode,
+        startX: event.clientX,
+        startY: event.clientY,
+        initialPosition: pos,
+        initialRotation: rot,
+        initialScale: scl,
+        previousMode: prevMode,
+      };
+
+      try {
+        this.canvas.setPointerCapture?.(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+      return true;
+    }
+    return false;
+  }
+
+  public handleGizmoPointerMove(event: PointerEvent): boolean {
+    if (!this.activeGizmoDrag || !this.canvas || !this.scene3d || !this.camera3d) {
+      if (
+        this.canvas &&
+        this.scene3d &&
+        this.selectedObject &&
+        this.canModifyObject(this.selectedObject)
+      ) {
+        const bounds = this.canvas.getBoundingClientRect();
+        const x = event.clientX - bounds.left;
+        const y = event.clientY - bounds.top;
+        const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
+        this.scene3d?.setGizmoHoverAxis?.(
+          hit && (hit as any).isGizmo ? (hit as any).gizmoAxis : null,
+        );
+      }
+      return false;
+    }
+
+    const { objectId, axis, mode, startX, startY, initialPosition, initialRotation, initialScale } =
+      this.activeGizmoDrag;
+    const obj = this.sceneObjects.get(objectId);
+    if (!obj) return false;
+
+    const bounds = this.canvas.getBoundingClientRect();
+    const width = bounds.width;
+    const height = bounds.height;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+
+    if (mode === 'translate') {
+      const unitAxis = axis === 'x' ? [1, 0, 0] : axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+      const p0 = initialPosition;
+      const p1 = [p0[0] + unitAxis[0], p0[1] + unitAxis[1], p0[2] + unitAxis[2]];
+
+      const s0 = this.camera3d.worldToScreen(p0, width, height);
+      const s1 = this.camera3d.worldToScreen(p1, width, height);
+
+      let deltaWorld = 0;
+      if (s0 && s1) {
+        const sx = s1[0] - s0[0];
+        const sy = s1[1] - s0[1];
+        const sLen = Math.hypot(sx, sy);
+        if (sLen > 1) {
+          const proj = (dx * sx + dy * sy) / sLen;
+          deltaWorld = proj / sLen;
+        } else {
+          deltaWorld = (dx - dy) * 0.02;
+        }
+      } else {
+        deltaWorld = (dx - dy) * 0.02;
+      }
+
+      const nextPos: [number, number, number] = [
+        initialPosition[0] + (axis === 'x' ? deltaWorld : 0),
+        initialPosition[1] + (axis === 'y' ? deltaWorld : 0),
+        initialPosition[2] + (axis === 'z' ? deltaWorld : 0),
+      ];
+
+      obj.position = nextPos;
+      obj.x = nextPos[0];
+      obj.y = nextPos[1];
+      obj.z = nextPos[2];
+
+      this.scene3d.updateObject(objectId, { position: nextPos });
+      const updated = { ...obj, position: nextPos };
+      this.selectedObject = updated;
+      this.emit('selection_updated', updated);
+      this.emit('object_updated', updated);
+
+      this.objectsManager?.streamPosition(objectId, nextPos, false);
+    } else if (mode === 'scale') {
+      const unitAxis = axis === 'x' ? [1, 0, 0] : axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+      const p0 = initialPosition;
+      const p1 = [p0[0] + unitAxis[0], p0[1] + unitAxis[1], p0[2] + unitAxis[2]];
+
+      const s0 = this.camera3d.worldToScreen(p0, width, height);
+      const s1 = this.camera3d.worldToScreen(p1, width, height);
+
+      let deltaWorld = 0;
+      if (s0 && s1) {
+        const sx = s1[0] - s0[0];
+        const sy = s1[1] - s0[1];
+        const sLen = Math.hypot(sx, sy);
+        if (sLen > 1) {
+          const proj = (dx * sx + dy * sy) / sLen;
+          deltaWorld = proj / sLen;
+        } else {
+          deltaWorld = (dx - dy) * 0.02;
+        }
+      } else {
+        deltaWorld = (dx - dy) * 0.02;
+      }
+
+      const axisIdx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+      const nextScale: [number, number, number] = [...initialScale];
+      nextScale[axisIdx] = Math.max(0.05, initialScale[axisIdx] + deltaWorld);
+
+      obj.scale = nextScale;
+      this.scene3d.updateObject(objectId, { scale: nextScale });
+      const updated = { ...obj, scale: nextScale };
+      this.selectedObject = updated;
+      this.emit('selection_updated', updated);
+      this.emit('object_updated', updated);
+
+      this.objectsManager?.streamScale(objectId, nextScale, false);
+    } else if (mode === 'rotate') {
+      const deltaAngle = (dx - dy) * (Math.PI / 180);
+      const axisIdx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+      const nextRot: [number, number, number] = [...initialRotation];
+      nextRot[axisIdx] = initialRotation[axisIdx] + deltaAngle;
+
+      obj.rotation = nextRot;
+      this.scene3d.updateObject(objectId, { rotation: nextRot });
+      const updated = { ...obj, rotation: nextRot };
+      this.selectedObject = updated;
+      this.emit('selection_updated', updated);
+      this.emit('object_updated', updated);
+
+      this.objectsManager?.streamRotation(objectId, nextRot, false);
+    }
+
+    return true;
+  }
+
+  public handleGizmoPointerUp(event: PointerEvent): boolean {
+    if (!this.activeGizmoDrag) return false;
+    const { objectId, mode, previousMode } = this.activeGizmoDrag;
+    this.scene3d?.setActiveGizmoAxis(null);
+    this.scene3d?.setGizmoHoverAxis(null);
+
+    const obj = this.sceneObjects.get(objectId);
+    if (obj) {
+      if (mode === 'translate') {
+        this.objectsManager?.streamPosition(objectId, obj.position, true);
+        this.objectsManager?.commitTransform(objectId, { position: obj.position });
+      } else if (mode === 'scale') {
+        this.objectsManager?.streamScale(objectId, obj.scale, true);
+        this.objectsManager?.commitTransform(objectId, { scale: obj.scale });
+      } else if (mode === 'rotate') {
+        this.objectsManager?.streamRotation(objectId, obj.rotation, true);
+        this.objectsManager?.commitTransform(objectId, { rotation: obj.rotation });
+      }
+
+      const updated = { ...obj };
+      this.selectedObject = updated;
+      this.emit('selection_changed', updated);
+      this.emit('object_updated', updated);
+    }
+
+    if (previousMode && previousMode !== this.interactionMode) {
+      this.setInteractionMode(previousMode);
+    }
+    this.activeGizmoDrag = null;
+
+    try {
+      this.canvas?.releasePointerCapture?.(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+
   public pickObject(x: number, y: number) {
     if (this.interactionMode === 'navigate') return null;
     if (!this.canvas || !this.scene3d) return null;
@@ -1871,11 +2132,16 @@ export class WorldViewer extends Utils.EventEmitter {
     if (this.touchHudAt(x, y)) return null;
     const bounds = this.canvas.getBoundingClientRect();
     const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
+    if (hit && (hit as any).isGizmo) {
+      return hit;
+    }
     const objectId = hit?.id.replace(/:(body|head|legs)$/, '') || null;
     this.selectedObject = objectId ? this.sceneObjects.get(objectId) || null : null;
+    const canModify = this.canModifyObject(this.selectedObject);
     (this.scene3d as any)?.setGizmoTarget?.(objectId);
+    this.scene3d?.setGizmoSelectedObject?.(objectId, canModify);
     const selection = this.selectedObject
-      ? { ...this.selectedObject, hitPoint: hit?.point, distance: hit?.distance }
+      ? { ...this.selectedObject, hitPoint: hit?.point, distance: hit?.distance, canModify }
       : null;
     this.emit('selection_changed', selection);
     return selection;

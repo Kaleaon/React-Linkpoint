@@ -493,4 +493,211 @@ export class Primitives3D {
 
     return tangents;
   }
+
+  /**
+   * Create an arrow mesh along the +Z axis for gizmo translation handles.
+   */
+  static createArrow(
+    shaftRadius: number = 0.025,
+    shaftLength: number = 0.75,
+    headRadius: number = 0.08,
+    headLength: number = 0.25,
+    segments: number = 16,
+  ) {
+    const vertices: number[] = [];
+    const normals: number[] = [];
+    const texCoords: number[] = [];
+    const indices: number[] = [];
+
+    const addConeSection = (
+      rBottom: number,
+      rTop: number,
+      zBottom: number,
+      zTop: number,
+      hasBottomCap: boolean,
+      hasTopCap: boolean,
+    ) => {
+      const baseIdx = vertices.length / 3;
+      const height = zTop - zBottom;
+      const slope = height > 0 ? (rBottom - rTop) / height : 0;
+      const normalLen = Math.hypot(1, slope);
+
+      for (let ring = 0; ring <= 1; ring++) {
+        const radius = ring === 0 ? rBottom : rTop;
+        const z = ring === 0 ? zBottom : zTop;
+        for (let seg = 0; seg <= segments; seg++) {
+          const theta = (seg * 2 * Math.PI) / segments;
+          const cos = Math.cos(theta);
+          const sin = Math.sin(theta);
+          vertices.push(radius * cos, radius * sin, z);
+          normals.push(cos / normalLen, sin / normalLen, slope / normalLen);
+          texCoords.push(seg / segments, ring);
+        }
+      }
+      for (let seg = 0; seg < segments; seg++) {
+        const first = baseIdx + seg;
+        const second = baseIdx + seg + segments + 1;
+        indices.push(first, first + 1, second);
+        indices.push(second, first + 1, second + 1);
+      }
+
+      if (hasBottomCap && rBottom > 0) {
+        const center = vertices.length / 3;
+        vertices.push(0, 0, zBottom);
+        normals.push(0, 0, -1);
+        texCoords.push(0.5, 0.5);
+        for (let seg = 0; seg <= segments; seg++) {
+          const theta = (seg * 2 * Math.PI) / segments;
+          vertices.push(rBottom * Math.cos(theta), rBottom * Math.sin(theta), zBottom);
+          normals.push(0, 0, -1);
+          texCoords.push(0.5 + 0.5 * Math.cos(theta), 0.5 + 0.5 * Math.sin(theta));
+        }
+        for (let seg = 0; seg < segments; seg++) {
+          indices.push(center, center + seg + 2, center + seg + 1);
+        }
+      }
+
+      if (hasTopCap && rTop > 0) {
+        const center = vertices.length / 3;
+        vertices.push(0, 0, zTop);
+        normals.push(0, 0, 1);
+        texCoords.push(0.5, 0.5);
+        for (let seg = 0; seg <= segments; seg++) {
+          const theta = (seg * 2 * Math.PI) / segments;
+          vertices.push(rTop * Math.cos(theta), rTop * Math.sin(theta), zTop);
+          normals.push(0, 0, 1);
+          texCoords.push(0.5 + 0.5 * Math.cos(theta), 0.5 + 0.5 * Math.sin(theta));
+        }
+        for (let seg = 0; seg < segments; seg++) {
+          indices.push(center, center + seg + 1, center + seg + 2);
+        }
+      }
+    };
+
+    addConeSection(shaftRadius, shaftRadius, 0, shaftLength, true, false);
+    addConeSection(headRadius, 0.001, shaftLength, shaftLength + headLength, true, true);
+
+    return { vertices, normals, texCoords, indices };
+  }
+
+  /**
+   * Create a scale handle mesh along the +Z axis with a shaft and cube tip.
+   */
+  static createScaleHandle(
+    shaftRadius: number = 0.025,
+    shaftLength: number = 0.8,
+    boxSize: number = 0.14,
+    segments: number = 16,
+  ) {
+    const arrow = Primitives3D.createArrow(shaftRadius, shaftLength, 0, 0, segments);
+    const vertices = [...arrow.vertices];
+    const normals = [...arrow.normals];
+    const texCoords = [...arrow.texCoords];
+    const indices = [...arrow.indices];
+
+    const s = boxSize / 2;
+    const cz = shaftLength + s;
+    const base = vertices.length / 3;
+
+    const cubeVertices = [
+      -s,
+      -s,
+      cz + s,
+      s,
+      -s,
+      cz + s,
+      s,
+      s,
+      cz + s,
+      -s,
+      s,
+      cz + s,
+      -s,
+      -s,
+      cz - s,
+      -s,
+      s,
+      cz - s,
+      s,
+      s,
+      cz - s,
+      s,
+      -s,
+      cz - s,
+      -s,
+      s,
+      cz - s,
+      -s,
+      s,
+      cz + s,
+      s,
+      s,
+      cz + s,
+      s,
+      s,
+      cz - s,
+      -s,
+      -s,
+      cz - s,
+      s,
+      -s,
+      cz - s,
+      s,
+      -s,
+      cz + s,
+      -s,
+      -s,
+      cz + s,
+      s,
+      -s,
+      cz - s,
+      s,
+      s,
+      cz - s,
+      s,
+      s,
+      cz + s,
+      s,
+      -s,
+      cz + s,
+      -s,
+      -s,
+      cz - s,
+      -s,
+      -s,
+      cz + s,
+      -s,
+      s,
+      cz + s,
+      -s,
+      s,
+      cz - s,
+    ];
+
+    const cubeNormals = [
+      0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 1, 0, 0, 1, 0,
+      0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
+      -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
+    ];
+
+    const cubeTexCoords = [
+      0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1,
+      0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1,
+    ];
+
+    const cubeIndices = [
+      0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18,
+      16, 18, 19, 20, 21, 22, 20, 22, 23,
+    ].map((i) => i + base);
+
+    vertices.push(...cubeVertices);
+    normals.push(...cubeNormals);
+    texCoords.push(...cubeTexCoords);
+    indices.push(...cubeIndices);
+
+    return { vertices, normals, texCoords, indices };
+  }
 }
+
+export const createArrow = Primitives3D.createArrow;
+export const createScaleHandle = Primitives3D.createScaleHandle;

@@ -452,6 +452,8 @@ export default function Search() {
       {retryStatus ? (
         <div
           data-testid="retry-status-banner"
+          role="status"
+          aria-live="polite"
           style={{
             margin: '0 16px 10px',
             padding: '8px 12px',
@@ -474,6 +476,8 @@ export default function Search() {
       {error ? (
         <div
           data-testid="search-error-banner"
+          role="alert"
+          aria-live="assertive"
           style={{
             margin: '0 16px 10px',
             padding: '10px 12px',
