@@ -29,8 +29,9 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 | `npm run lint`            | `eslint .`                                            | ESLint linting rules                    |
 | `npm run format:check`    | `prettier --check .`                                  | Prettier code formatting check          |
 | `npm run check:fake-data` | `node scripts/check-fake-data.mjs`                    | Verifies no fabricated mock data exists |
+| `npm run check:materials` | `node scripts/build-materials.mjs --check`            | Verifies material shader binaries       |
 | `npm run test`            | `vitest run`                                          | Unit and component tests                |
-| `npm run build`           | `vite build` (+ WASM & imports checks)                | Production build bundle                 |
+| `npm run build`           | `vite build` (+ WASM, materials & imports checks)     | Production build bundle                 |
 | `npm run build:server`    | `esbuild server.ts ...`                               | Backend server bundle                   |
 | **Combined Check**        | `npm run check` or `./scripts/codex-setup.sh --check` | Runs all web CI validation steps        |
 
@@ -45,6 +46,13 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 - **Unit Tests**: `cd android-kotlin && ./gradlew test --no-daemon`
 - **Assemble Debug APK**: `cd android-kotlin && ./gradlew :app:assembleDebug --no-daemon`
 - **Subproject Guide**: See [`android-kotlin/AGENTS.md`](./android-kotlin/AGENTS.md) for Kotlin guidelines, live OpenSim test execution, and Android SDK environment notes.
+
+### 4. Live Grid Smoke Test Gate (`smoke-test` job)
+
+The release workflow validates simulator connectivity with a live grid smoke test gate job before publishing release packages.
+
+- **Prerequisites**: Linkpoint server running (`npm run start` or `npm run dev`) and grid credentials.
+- **Run Smoke Tests**: `npm run test:live-grid` (or `node scripts/live-grid-smoke.mjs`) with `SL_LOGIN_URL`, `SL_USERNAME`, and `SL_PASSWORD` set. See [`LIVE_GRID_TESTING.md`](./LIVE_GRID_TESTING.md) for full instructions.
 
 ---
 

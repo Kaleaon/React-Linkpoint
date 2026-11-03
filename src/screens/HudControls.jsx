@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
 import TouchTarget from '../components/TouchTarget.tsx';
+import HudLayoutDialog from '../components/HudLayoutDialog.jsx';
 
 // Worn HUDs the simulator has sent. Pick one to show it over the view, zoom it,
 // tap its buttons to touch them, hide it. Renders nothing until there is a HUD.
@@ -11,6 +12,8 @@ export default function HudControls({ bottomOffset, collapsed = false, outfitDra
   const [displayed, setDisplayed] = useState(() => app.world.displayedHud);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState('');
+  const [hudLayoutOpen, setHudLayoutOpen] = useState(false);
+  const hudLayoutBtnRef = useRef(null);
 
   useEffect(() => {
     if (outfitDrawerOpen || collapsed) {
@@ -191,9 +194,24 @@ export default function HudControls({ bottomOffset, collapsed = false, outfitDra
             >
               HIDE
             </TouchTarget>
+            <TouchTarget
+              ref={hudLayoutBtnRef}
+              minSize={44}
+              aria-haspopup="dialog"
+              aria-label="HUD Layout"
+              onClick={() => setHudLayoutOpen(true)}
+              style={small}
+            >
+              HUD Layout
+            </TouchTarget>
           </>
         ) : null}
       </div>
+      <HudLayoutDialog
+        isOpen={hudLayoutOpen}
+        onClose={() => setHudLayoutOpen(false)}
+        triggerEl={hudLayoutBtnRef.current}
+      />
     </div>
   );
 }

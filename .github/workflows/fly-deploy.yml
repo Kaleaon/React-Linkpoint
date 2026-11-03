@@ -18,6 +18,7 @@ on:
       - 'package.json'
       - '.npmrc'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - 'server.ts'
