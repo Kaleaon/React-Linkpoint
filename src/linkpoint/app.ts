@@ -37,6 +37,7 @@ import { EventQueueManager } from './phase2/event-queue';
 import { CapabilitiesManager } from './phase2/capabilities';
 import { AvatarManager } from './phase2/avatar';
 import { ObjectManagerExtended } from './phase2/objects-extended';
+import { ObjectEditPipeline } from './phase2/object-edit-pipeline';
 import { InventoryCore } from './phase2/inventory-core';
 import { InventoryOperations } from './phase2/inventory-ops';
 import { InventorySpecialTypes } from './phase2/inventory-types';
@@ -72,6 +73,8 @@ export class LinkpointApp {
   public capabilities: CapabilitiesManager;
   public avatar: AvatarManager;
   public objects: ObjectManagerExtended;
+  public objectEditPipeline: ObjectEditPipeline;
+  public editPipeline: ObjectEditPipeline;
   public inventoryCore: InventoryCore;
   public inventoryOps: InventoryOperations;
   public inventoryTypes: InventorySpecialTypes;
@@ -116,6 +119,14 @@ export class LinkpointApp {
     this.objectPay = new ObjectPayManager(slBridge, this.capabilities, this.world);
     this.avatar = new AvatarManager();
     this.objects = new ObjectManagerExtended();
+    this.objectEditPipeline = new ObjectEditPipeline({
+      world: this.world,
+      objectsManager: this.objects,
+      bridge: slBridge,
+      protocol: this.protocol,
+    });
+    this.editPipeline = this.objectEditPipeline;
+    this.world.setEditPipeline(this.objectEditPipeline);
     this.world.setObjectsManager(this.objects);
     this.inventoryCore = this.inventory as any;
     this.inventoryOps = new InventoryOperations(this.inventory as any);

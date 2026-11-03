@@ -564,6 +564,18 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return this.balance;
   }
 
+  async commitObjectTransaction(params: {
+    objects?: any[];
+    links?: any[];
+    delinks?: any[];
+    wholeLinkset?: boolean;
+    agentId?: string;
+    sessionId?: string;
+  }) {
+    if (!this.connected) throw new Error('Not connected to a grid');
+    return slBridge.commitObjectTransaction(params);
+  }
+
   async sendChat(message: string, channel: number = 0, type: number = 1) {
     if (!this.connected) throw new Error('Not connected to a grid');
     await slBridge.sendChat(message, channel, type);

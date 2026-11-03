@@ -33,6 +33,8 @@ import {
   AccessibleButton,
   AccessibleInput,
   AccessibleSelect,
+  CrystalMark,
+  CrystalProgressBar,
   FocusRing,
   useFocusRing
 } from "../react/index.js";
@@ -108,6 +110,8 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(AccessibleButton).toBeDefined();
     expect(AccessibleInput).toBeDefined();
     expect(AccessibleSelect).toBeDefined();
+    expect(CrystalMark).toBeDefined();
+    expect(CrystalProgressBar).toBeDefined();
     expect(useThemeTokens).toBeDefined();
     expect(useLayoutMode).toBeDefined();
     expect(FocusRing).toBeDefined();

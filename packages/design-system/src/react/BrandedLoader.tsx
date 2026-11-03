@@ -1,5 +1,9 @@
-import React, { useId } from "react";
+import React from "react";
 import { useTheme } from "./LayoutContext.js";
+import { CrystalProgressBar } from "./CrystalProgressBar.js";
+import { CrystalMark, type CrystalMarkProps } from "./CrystalMark.js";
+
+export { CrystalMark, type CrystalMarkProps };
 
 export interface SkeletonBoxProps {
   width?: string;
@@ -35,153 +39,6 @@ export const SkeletonBox: React.FC<SkeletonBoxProps> = ({
       }}
       aria-hidden="true"
     />
-  );
-};
-
-export interface CrystalMarkProps {
-  size?: number;
-  idPrefix?: string;
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-export const CrystalMark: React.FC<CrystalMarkProps> = ({
-  size = 88,
-  idPrefix,
-  className = "",
-  style = {}
-}) => {
-  const reactId = useId();
-  const cleanId = reactId.replace(/:/g, "");
-  const prefix = idPrefix ? idPrefix.replace(/:/g, "") : `lpld-${cleanId}`;
-  const gradA = `${prefix}-a`;
-  const gradB = `${prefix}-b`;
-  const gradCore = `${prefix}-core`;
-
-  return (
-    <svg
-      viewBox="0 0 512 512"
-      aria-hidden="true"
-      className={className}
-      style={{
-        width: size,
-        height: size,
-        display: "block",
-        overflow: "visible",
-        ...style
-      }}
-    >
-      <defs>
-        <linearGradient id={gradA} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="var(--pri,#6CFF9A)" />
-          <stop offset="100%" stopColor="var(--priC,#123B27)" />
-        </linearGradient>
-        <linearGradient id={gradB} x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="var(--sec2,#8AD0B0)" />
-          <stop offset="100%" stopColor="var(--sec,#365047)" />
-        </linearGradient>
-        <radialGradient id={gradCore} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity=".95" />
-          <stop offset="55%" stopColor="var(--pri,#6CFF9A)" stopOpacity=".8" />
-          <stop offset="100%" stopColor="var(--pri,#6CFF9A)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <circle
-        className="lpld-ring"
-        cx="256"
-        cy="256"
-        r="25.6"
-        fill="none"
-        stroke="var(--pri,#6CFF9A)"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
-      <g className="lpld-bot">
-        <polygon
-          points="256,472 120,342 256,292"
-          fill={`url(#${gradB})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="0.9"
-        />
-        <polygon
-          points="256,472 256,292 392,342"
-          fill={`url(#${gradA})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="0.9"
-        />
-        <polygon
-          points="256,472 392,342 256,392"
-          fill={`url(#${gradB})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="0.6"
-        />
-        <polygon
-          points="256,472 256,392 120,342"
-          fill={`url(#${gradA})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="0.6"
-        />
-      </g>
-      <g className="lpld-top">
-        <polygon
-          points="256,40 392,170 256,220"
-          fill={`url(#${gradA})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="1.0"
-        />
-        <polygon
-          points="256,40 256,220 120,170"
-          fill={`url(#${gradB})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="1.0"
-        />
-        <polygon
-          points="256,40 120,170 256,120"
-          fill={`url(#${gradA})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="0.6"
-        />
-        <polygon
-          points="256,40 256,120 392,170"
-          fill={`url(#${gradB})`}
-          stroke="var(--outv,#365047)"
-          strokeWidth="1"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          opacity="0.6"
-        />
-        <polyline
-          points="120,170 256,120 392,170"
-          fill="none"
-          stroke="var(--pri,#6CFF9A)"
-          strokeOpacity=".45"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-      </g>
-      <circle className="lpld-core" cx="256" cy="256" r="64" fill={`url(#${gradCore})`} />
-    </svg>
   );
 };
 
@@ -359,49 +216,11 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({
         </div>
         <SkeletonBox width="100%" height={bodyHeight} borderRadius="6px" />
         {progress !== null && progress !== undefined && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "11px"
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div
-                  style={{ width: 14, height: 14, flex: "none", display: "flex", alignItems: "center", justifyContent: "center" }}
-                  role="img"
-                  aria-label="Loading"
-                  data-testid="crystal-loader"
-                  data-variant="inline"
-                >
-                  <CrystalMark size={14} idPrefix={idPrefix ? `${idPrefix}-progress` : undefined} />
-                </div>
-                <span>Downloading asset data...</span>
-              </span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div
-              style={{
-                width: "100%",
-                height: "6px",
-                background: "var(--surf2, rgba(255,255,255,0.1))",
-                borderRadius: "3px",
-                overflow: "hidden"
-              }}
-            >
-              <div
-                data-testid="asset-progress-bar"
-                style={{
-                  width: `${Math.max(0, Math.min(100, progress))}%`,
-                  height: "100%",
-                  background: "linear-gradient(90deg, var(--pri, #6CFF9A), var(--priC, #123B27))",
-                  transition: "width 0.2s ease-out"
-                }}
-              />
-            </div>
-          </div>
+          <CrystalProgressBar
+            progress={progress}
+            showLabel={true}
+            idPrefix={idPrefix}
+          />
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <SkeletonBox width="90%" height="12px" />

@@ -12,6 +12,42 @@ export interface ObjectInspectorProps {
   className?: string;
 }
 
+function quatToEulerDegrees(
+  [x = 0, y = 0, z = 0, w = 1]: number[] = [0, 0, 0, 1],
+): [number, number, number] {
+  const sinX = 2 * (w * x + y * z);
+  const cosX = 1 - 2 * (x * x + y * y);
+  const sinY = Math.max(-1, Math.min(1, 2 * (w * y - z * x)));
+  const sinZ = 2 * (w * z + x * y);
+  const cosZ = 1 - 2 * (y * y + z * z);
+  const radX = Math.atan2(sinX, cosX);
+  const radY = Math.asin(sinY);
+  const radZ = Math.atan2(sinZ, cosZ);
+  return [
+    Math.round(((radX * 180) / Math.PI) * 10) / 10,
+    Math.round(((radY * 180) / Math.PI) * 10) / 10,
+    Math.round(((radZ * 180) / Math.PI) * 10) / 10,
+  ];
+}
+
+function eulerDegreesToQuat([degX, degY, degZ]: number[]): number[] {
+  const radX = (degX * Math.PI) / 180;
+  const radY = (degY * Math.PI) / 180;
+  const radZ = (degZ * Math.PI) / 180;
+  const c1 = Math.cos(radX / 2),
+    s1 = Math.sin(radX / 2);
+  const c2 = Math.cos(radY / 2),
+    s2 = Math.sin(radY / 2);
+  const c3 = Math.cos(radZ / 2),
+    s3 = Math.sin(radZ / 2);
+  return [
+    s1 * c2 * c3 - c1 * s2 * s3,
+    c1 * s2 * c3 + s1 * c2 * s3,
+    c1 * c2 * s3 - s1 * s2 * c3,
+    c1 * c2 * c3 + s1 * s2 * s3,
+  ];
+}
+
 export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, className }) => {
   const { V, t } = useTheme();
   const [selection, setSelection] = useState<any>(() => app.world.selectedObject);
@@ -22,11 +58,39 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
   );
   const [payDialogOpen, setPayDialogOpen] = useState(false);
 
+  // Edit pipeline transactional state
+  const [isDirty, setIsDirty] = useState<boolean>(() => app.objectEditPipeline?.isDirty || false);
+  const [canUndo, setCanUndo] = useState<boolean>(() => app.objectEditPipeline?.canUndo() || false);
+  const [canRedo, setCanRedo] = useState<boolean>(() => app.objectEditPipeline?.canRedo() || false);
+  const [currentSnapshot, setCurrentSnapshot] = useState<any>(() =>
+    selection?.id ? app.objectEditPipeline?.getSnapshot(selection.id) || selection : null,
+  );
+
+  // Confirmation dialog on deselecting with unsaved changes
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    nextAction: (() => void) | null;
+  }>({
+    open: false,
+    nextAction: null,
+  });
+
   useEffect(() => {
     let active = true;
 
     const handleSelection = (obj: any) => {
-      if (active) setSelection(obj);
+      if (!active) return;
+      setSelection(obj);
+      if (obj?.id) {
+        app.objectEditPipeline.beginSession(obj);
+        const snap = app.objectEditPipeline.getSnapshot(obj.id) || obj;
+        setCurrentSnapshot(snap);
+      } else {
+        setCurrentSnapshot(null);
+      }
+      setIsDirty(app.objectEditPipeline.isDirty);
+      setCanUndo(app.objectEditPipeline.canUndo());
+      setCanRedo(app.objectEditPipeline.canRedo());
     };
 
     const handleSelectionUpdated = (obj: any) => {
@@ -34,6 +98,11 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
         setSelection((prev: any) =>
           prev && (prev.id === obj.id || prev.uuid === obj.id) ? { ...prev, ...obj } : obj,
         );
+        if (!app.objectEditPipeline?.isDirty) {
+          setCurrentSnapshot((prev: any) =>
+            prev && (prev.id === obj.id || prev.uuid === obj.id) ? { ...prev, ...obj } : obj,
+          );
+        }
       }
     };
 
@@ -49,11 +118,34 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
       if (active) setNearbyUsers([...users]);
     };
 
+    const handlePipelineChange = () => {
+      if (!active) return;
+      setIsDirty(app.objectEditPipeline.isDirty);
+      setCanUndo(app.objectEditPipeline.canUndo());
+      setCanRedo(app.objectEditPipeline.canRedo());
+      if (selection?.id) {
+        const snap = app.objectEditPipeline.getSnapshot(selection.id);
+        if (snap) {
+          setCurrentSnapshot(snap);
+        }
+      }
+    };
+
     app.world.on('selection_changed', handleSelection);
     app.world.on('selection_updated', handleSelectionUpdated);
     app.world.on('gizmo_mode_changed', handleGizmoMode);
     app.world.on('objects_changed', handleObjects);
     app.world.on('nearby_changed', handleNearby);
+
+    app.objectEditPipeline.on('change', handlePipelineChange);
+    app.objectEditPipeline.on('session_started', handlePipelineChange);
+    app.objectEditPipeline.on('committed', handlePipelineChange);
+    app.objectEditPipeline.on('discarded', handlePipelineChange);
+    app.objectEditPipeline.on('session_cancelled', handlePipelineChange);
+
+    if (app.world.selectedObject?.id) {
+      handleSelection(app.world.selectedObject);
+    }
 
     return () => {
       active = false;
@@ -62,7 +154,50 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
       app.world.off('gizmo_mode_changed', handleGizmoMode);
       app.world.off('objects_changed', handleObjects);
       app.world.off('nearby_changed', handleNearby);
+
+      app.objectEditPipeline.off('change', handlePipelineChange);
+      app.objectEditPipeline.off('session_started', handlePipelineChange);
+      app.objectEditPipeline.off('committed', handlePipelineChange);
+      app.objectEditPipeline.off('discarded', handlePipelineChange);
+      app.objectEditPipeline.off('session_cancelled', handlePipelineChange);
     };
+  }, [selection?.id]);
+
+  // Keyboard shortcut listeners (Ctrl+Z, Ctrl+Y, Esc)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac =
+        typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        if (app.objectEditPipeline.canUndo()) {
+          e.preventDefault();
+          app.objectEditPipeline.undo();
+        }
+      } else if (
+        mod &&
+        (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))
+      ) {
+        if (app.objectEditPipeline.canRedo()) {
+          e.preventDefault();
+          app.objectEditPipeline.redo();
+        }
+      } else if (e.key === 'Escape') {
+        if (app.objectEditPipeline.isDirty) {
+          e.preventDefault();
+          setConfirmDialog({
+            open: true,
+            nextAction: () => {
+              handleDeselect();
+            },
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleSelectObject = (obj: any) => {
@@ -75,6 +210,75 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     app.world.selectedObject = null;
     app.world.emit('selection_changed', null);
     setSelection(null);
+    setCurrentSnapshot(null);
+  };
+
+  const requestDeselect = () => {
+    if (app.objectEditPipeline.isDirty) {
+      setConfirmDialog({
+        open: true,
+        nextAction: () => {
+          handleDeselect();
+        },
+      });
+    } else {
+      handleDeselect();
+    }
+  };
+
+  const requestSelectObject = (obj: any) => {
+    if (app.objectEditPipeline.isDirty) {
+      setConfirmDialog({
+        open: true,
+        nextAction: () => {
+          handleSelectObject(obj);
+        },
+      });
+    } else {
+      handleSelectObject(obj);
+    }
+  };
+
+  const handleConfirmSave = async () => {
+    const next = confirmDialog.nextAction;
+    try {
+      await app.objectEditPipeline.commit();
+    } catch (err) {
+      console.error('Failed to commit pending edits on save confirmation:', err);
+    }
+    setConfirmDialog({ open: false, nextAction: null });
+    if (next) next();
+  };
+
+  const handleConfirmDiscard = () => {
+    const next = confirmDialog.nextAction;
+    app.objectEditPipeline.discard();
+    setConfirmDialog({ open: false, nextAction: null });
+    if (next) next();
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmDialog({ open: false, nextAction: null });
+  };
+
+  const handleApply = async () => {
+    try {
+      await app.objectEditPipeline.commit();
+    } catch (error) {
+      console.error('Failed to commit object edits:', error);
+    }
+  };
+
+  const handleDiscard = () => {
+    app.objectEditPipeline.discard();
+  };
+
+  const handleUndo = () => {
+    app.objectEditPipeline.undo();
+  };
+
+  const handleRedo = () => {
+    app.objectEditPipeline.redo();
   };
 
   const handleFocus = () => {
@@ -95,11 +299,36 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     });
   };
 
+  const handleNumericChange = (
+    field: 'position' | 'rotation' | 'scale',
+    index: number,
+    value: number,
+  ) => {
+    if (!selection?.id || Number.isNaN(value)) return;
+    const snap = app.objectEditPipeline.getSnapshot(selection.id) || currentSnapshot || selection;
+
+    if (field === 'position') {
+      const next = [...(snap.position || [0, 0, 0])];
+      next[index] = value;
+      app.objectEditPipeline.modifyObject(selection.id, { position: next });
+    } else if (field === 'rotation') {
+      const currentEuler = quatToEulerDegrees(snap.rotation);
+      currentEuler[index] = value;
+      const nextQuat = eulerDegreesToQuat(currentEuler);
+      app.objectEditPipeline.modifyObject(selection.id, { rotation: nextQuat });
+    } else if (field === 'scale') {
+      const next = [...(snap.scale || [1, 1, 1])];
+      next[index] = Math.max(0.01, value);
+      app.objectEditPipeline.modifyObject(selection.id, { scale: next });
+    }
+  };
+
   const containerStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
     width: '100%',
+    position: 'relative',
     background: V.surf,
     color: V.ink,
     fontFamily: t.font,
@@ -134,6 +363,18 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     fontWeight: 700,
     cursor: 'pointer',
     flex: 1,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '3px 4px',
+    background: V.surf,
+    color: V.ink,
+    border: `1px solid ${V.outv}`,
+    borderRadius: V.rs,
+    fontSize: '10px',
+    fontFamily: 'monospace',
+    boxSizing: 'border-box',
   };
 
   if (!selection) {
@@ -187,7 +428,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
               <button
                 key={item.id || item.uuid || idx}
                 type="button"
-                onClick={() => handleSelectObject(item)}
+                onClick={() => requestSelectObject(item)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -234,21 +475,40 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     );
   }
 
-  const name = selection.name || selection.id || 'Simulator object';
+  const activeData = currentSnapshot || selection;
+  const name = activeData.name || selection.name || selection.id || 'Simulator object';
   const typeStr =
     selection.shape || (selection.avatar || selection.isAvatar ? 'Avatar' : 'Primitive');
-  const posStr = Array.isArray(selection.position)
-    ? selection.position.map((n: number) => Number(n).toFixed(1)).join(', ')
-    : selection.x != null
-      ? `${Number(selection.x).toFixed(1)}, ${Number(selection.y).toFixed(1)}, ${Number(selection.z).toFixed(1)}`
+  const positionValues = Array.isArray(activeData.position)
+    ? activeData.position
+    : activeData.x != null
+      ? [Number(activeData.x), Number(activeData.y), Number(activeData.z)]
+      : [0, 0, 0];
+
+  const rotationEuler =
+    Array.isArray(activeData.rotation) && activeData.rotation.length === 3
+      ? [
+          Number(activeData.rotation[0]) || 0,
+          Number(activeData.rotation[1]) || 0,
+          Number(activeData.rotation[2]) || 0,
+        ]
+      : quatToEulerDegrees(activeData.rotation);
+  const scaleValues = Array.isArray(activeData.scale) ? activeData.scale : [1, 1, 1];
+
+  const posStr = Array.isArray(activeData.position)
+    ? activeData.position.map((n: number) => Number(n).toFixed(1)).join(', ')
+    : activeData.x != null
+      ? `${Number(activeData.x).toFixed(1)}, ${Number(activeData.y).toFixed(1)}, ${Number(activeData.z).toFixed(1)}`
       : '—';
-  const rotStr = Array.isArray(selection.rotation)
-    ? selection.rotation.map((n: number) => Number(n).toFixed(1)).join(', ')
-    : selection.rx != null
-      ? `${Number(selection.rx).toFixed(1)}, ${Number(selection.ry).toFixed(1)}, ${Number(selection.rz).toFixed(1)}`
+  const rotStr = Array.isArray(activeData.rotation)
+    ? activeData.rotation.length === 3
+      ? activeData.rotation.map((n: number) => Number(n).toFixed(1)).join(', ')
+      : rotationEuler.map((n: number) => Number(n).toFixed(1)).join(', ')
+    : activeData.rx != null
+      ? `${Number(activeData.rx).toFixed(1)}, ${Number(activeData.ry).toFixed(1)}, ${Number(activeData.rz).toFixed(1)}`
       : '—';
-  const scaleStr = Array.isArray(selection.scale)
-    ? selection.scale.map((n: number) => Number(n).toFixed(2)).join(', ')
+  const scaleStr = Array.isArray(activeData.scale)
+    ? activeData.scale.map((n: number) => Number(n).toFixed(2)).join(', ')
     : '—';
   const distStr = selection.distance != null ? `${Number(selection.distance).toFixed(1)} m` : '—';
   const uuidStr = selection.id || selection.uuid || 'N/A';
@@ -278,23 +538,106 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             OBJECT INSPECTOR
           </strong>
         </div>
-        <button
-          type="button"
-          onClick={handleDeselect}
-          aria-label="Deselect object"
-          title="Deselect object"
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isDirty && (
+            <span
+              data-testid="unsaved-status-pill"
+              style={{
+                background: '#f59e0b',
+                color: '#111827',
+                fontSize: '9px',
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: '10px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              Unsaved Modifications
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={requestDeselect}
+            aria-label="Deselect object"
+            title="Deselect object"
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: V.ink2,
+              cursor: 'pointer',
+              padding: '2px 4px',
+              fontSize: '14px',
+              fontWeight: 700,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Transactional Action Bar: Apply, Discard, Undo, Redo */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+        <TouchTarget
+          onClick={handleApply}
+          disabled={!isDirty}
+          aria-label="Apply Changes"
           style={{
-            background: 'transparent',
-            border: 0,
-            color: V.ink2,
-            cursor: 'pointer',
-            padding: '2px 4px',
-            fontSize: '14px',
-            fontWeight: 700,
+            ...btnStyle,
+            background: isDirty ? '#10b981' : V.surf2 || V.surf,
+            color: isDirty ? '#ffffff' : V.ink2,
+            opacity: isDirty ? 1 : 0.5,
+            minHeight: '28px',
           }}
         >
-          ✕
-        </button>
+          <Icon name="check" size={11} />
+          <span>APPLY</span>
+        </TouchTarget>
+        <TouchTarget
+          onClick={handleDiscard}
+          disabled={!isDirty}
+          aria-label="Discard Changes"
+          style={{
+            ...btnStyle,
+            background: isDirty ? '#ef4444' : V.surf2 || V.surf,
+            color: isDirty ? '#ffffff' : V.ink2,
+            opacity: isDirty ? 1 : 0.5,
+            minHeight: '28px',
+          }}
+        >
+          <Icon name="x" size={11} />
+          <span>DISCARD</span>
+        </TouchTarget>
+        <TouchTarget
+          onClick={handleUndo}
+          disabled={!canUndo}
+          aria-label="Undo"
+          title="Undo (Ctrl+Z)"
+          style={{
+            ...btnStyle,
+            opacity: canUndo ? 1 : 0.5,
+            minHeight: '28px',
+          }}
+        >
+          <Icon name="rotate-ccw" size={11} />
+          <span>UNDO</span>
+        </TouchTarget>
+        <TouchTarget
+          onClick={handleRedo}
+          disabled={!canRedo}
+          aria-label="Redo"
+          title="Redo (Ctrl+Y)"
+          style={{
+            ...btnStyle,
+            opacity: canRedo ? 1 : 0.5,
+            minHeight: '28px',
+          }}
+        >
+          <Icon name="rotate-cw" size={11} />
+          <span>REDO</span>
+        </TouchTarget>
       </div>
 
       <div style={cardStyle}>
@@ -305,23 +648,122 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           {typeStr} · Distance: {distStr}
         </div>
 
+        {/* Dual Control Surface: Interactive Numerical Inputs */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '70px 1fr',
-            gap: '4px',
+            gridTemplateColumns: '60px 1fr',
+            gap: '6px',
             fontSize: '10px',
             color: V.ink2,
+            alignItems: 'center',
+            marginBottom: '6px',
           }}
         >
           <span>Position:</span>
-          <span style={{ color: V.ink, fontFamily: 'monospace' }}>{posStr}</span>
+          <div>
+            <div
+              style={{
+                color: V.ink,
+                fontFamily: 'monospace',
+                fontSize: '9px',
+                marginBottom: '2px',
+              }}
+            >
+              {posStr}
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['X', 'Y', 'Z'].map((axis, i) => (
+                <div
+                  key={axis}
+                  style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
+                >
+                  <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    aria-label={`Position ${axis}`}
+                    value={
+                      Number.isFinite(positionValues[i])
+                        ? Math.round(positionValues[i] * 100) / 100
+                        : 0
+                    }
+                    onChange={(e) => handleNumericChange('position', i, parseFloat(e.target.value))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <span>Rotation:</span>
-          <span style={{ color: V.ink, fontFamily: 'monospace' }}>{rotStr}</span>
+          <div>
+            <div
+              style={{
+                color: V.ink,
+                fontFamily: 'monospace',
+                fontSize: '9px',
+                marginBottom: '2px',
+              }}
+            >
+              {rotStr}
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['X', 'Y', 'Z'].map((axis, i) => (
+                <div
+                  key={axis}
+                  style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
+                >
+                  <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
+                  <input
+                    type="number"
+                    step="1"
+                    aria-label={`Rotation ${axis}`}
+                    value={
+                      Number.isFinite(rotationEuler[i]) ? Math.round(rotationEuler[i] * 10) / 10 : 0
+                    }
+                    onChange={(e) => handleNumericChange('rotation', i, parseFloat(e.target.value))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <span>Scale:</span>
-          <span style={{ color: V.ink, fontFamily: 'monospace' }}>{scaleStr}</span>
+          <div>
+            <div
+              style={{
+                color: V.ink,
+                fontFamily: 'monospace',
+                fontSize: '9px',
+                marginBottom: '2px',
+              }}
+            >
+              {scaleStr}
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {['X', 'Y', 'Z'].map((axis, i) => (
+                <div
+                  key={axis}
+                  style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '2px' }}
+                >
+                  <span style={{ fontSize: '9px', color: V.ink2, fontWeight: 700 }}>{axis}</span>
+                  <input
+                    type="number"
+                    step="0.05"
+                    min="0.01"
+                    aria-label={`Scale ${axis}`}
+                    value={
+                      Number.isFinite(scaleValues[i]) ? Math.round(scaleValues[i] * 100) / 100 : 1
+                    }
+                    onChange={(e) => handleNumericChange('scale', i, parseFloat(e.target.value))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <span>Owner:</span>
           <span style={{ color: V.ink }}>{selection.owner || 'Region / Public'}</span>
@@ -493,6 +935,104 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           </div>
         </div>
       </CollapsibleSystemDetails>
+
+      {/* Confirmation Dialog when Closing or Deselecting with Unsaved Changes */}
+      {confirmDialog.open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-dialog-title"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '16px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            style={{
+              background: V.bg,
+              border: `1px solid ${V.pri}`,
+              borderRadius: V.rs,
+              padding: '14px',
+              width: '100%',
+              maxWidth: '260px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+            }}
+          >
+            <h3
+              id="confirm-dialog-title"
+              style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                color: V.ink,
+                marginTop: 0,
+                marginBottom: '6px',
+              }}
+            >
+              Save or Discard changes?
+            </h3>
+            <p style={{ fontSize: '10px', color: V.ink2, margin: '0 0 12px 0', lineHeight: 1.4 }}>
+              You have uncommitted modifications. Would you like to save or discard them before
+              deselecting?
+            </p>
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                style={{
+                  background: '#10b981',
+                  color: '#ffffff',
+                  border: 0,
+                  borderRadius: V.rs,
+                  padding: '4px 10px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDiscard}
+                style={{
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 0,
+                  borderRadius: V.rs,
+                  padding: '4px 10px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                style={{
+                  background: 'transparent',
+                  color: V.ink2,
+                  border: `1px solid ${V.outv}`,
+                  borderRadius: V.rs,
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PayDialog
         isOpen={payDialogOpen}

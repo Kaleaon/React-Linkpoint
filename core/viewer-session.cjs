@@ -1039,6 +1039,9 @@ class ViewerSession {
   touchObject(params) {
     return actions.touchObject(this.requireBot(), params);
   }
+  commitObjectTransaction(params) {
+    return actions.commitObjectTransaction(this.requireBot(), params);
+  }
   streamObjectDelta(params) {
     return { success: true, ...params };
   }
