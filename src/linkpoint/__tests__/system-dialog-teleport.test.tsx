@@ -246,4 +246,72 @@ describe('SystemDialog Teleport Sheet', () => {
     expect(host.textContent).toContain('50%');
     expect(host.textContent).toContain('Connecting to region...');
   });
+
+  it('renders CrystalProgressBar at 8px height with ARIA semantics during teleportation', async () => {
+    const host = await mount();
+    await act(async () => {
+      app.interactions.startTeleportSession('Crystal Region');
+    });
+
+    const progressContainer = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    expect(progressContainer).not.toBeNull();
+    expect(progressContainer.getAttribute('role')).toBe('progressbar');
+    expect(progressContainer.getAttribute('aria-valuenow')).toBe('10');
+    expect(progressContainer.getAttribute('aria-label')).toBe('Teleport progress');
+
+    const track = host.querySelector('[data-testid="crystal-progress-track"]') as HTMLElement;
+    expect(track.style.height).toBe('8px');
+
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    expect(fill.style.width).toBe('10%'); // Initial startTeleportSession has 10%
+    expect(fill.style.background).toContain('linear-gradient');
+
+    const cap = host.querySelector('[data-testid="crystal-progress-cap"]') as HTMLElement;
+    expect(cap).not.toBeNull();
+    expect(cap.style.display).toBe('flex');
+  });
+
+  it('updates CrystalProgressBar imperatively on teleport_tick events without React re-render', async () => {
+    const host = await mount();
+    await act(async () => {
+      app.interactions.startTeleportSession('Dynamic Tick Region');
+    });
+
+    const progressContainer = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+
+    await act(async () => {
+      app.interactions.emit('teleport_tick', {
+        stepPercent: 84,
+        statusText: 'Connecting to sim...',
+      });
+      await new Promise((r) => requestAnimationFrame(r));
+    });
+
+    expect(progressContainer.getAttribute('aria-valuenow')).toBe('84');
+    expect(fill.style.width).toBe('84%');
+    expect(host.textContent).toContain('84%');
+    expect(host.textContent).toContain('Connecting to sim...');
+  });
+
+  it('applies error token styling to CrystalProgressBar when teleport session fails', async () => {
+    const host = await mount();
+    await act(async () => {
+      app.interactions.startTeleportSession('Faulty Region');
+      app.interactions.failTeleportSession('Region handshake failed');
+    });
+
+    const progressContainer = host.querySelector(
+      '[data-testid="crystal-progress-bar-container"]',
+    ) as HTMLElement;
+    expect(progressContainer.classList.contains('is-failed')).toBe(true);
+
+    const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+    expect(fill.style.background).not.toContain('linear-gradient');
+    expect(fill.style.background).toBeTruthy();
+  });
 });
