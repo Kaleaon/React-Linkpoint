@@ -12,6 +12,7 @@ import {
   Card as DesignCard,
   BottomTabs as DesignBottomTabs,
   RailNav as DesignRailNav,
+  CrystalProgressBar as DesignCrystalProgressBar,
   LayoutProvider,
 } from '@linkpoint/design-system/react';
 import { AppProvider, useApp } from '../../context/AppContext.jsx';
@@ -146,6 +147,46 @@ describe('@linkpoint/design-system package integration', () => {
       });
 
       expect(host.textContent).toContain('World');
+
+      await act(async () => {
+        root.unmount();
+      });
+      host.remove();
+    });
+
+    it('renders DesignCrystalProgressBar with ARIA attributes and diamond cap', async () => {
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const root = createRoot(host);
+
+      const bar = createElement(DesignCrystalProgressBar, {
+        progress: 60,
+        showLabel: true,
+        label: 'Loading Mesh...',
+      });
+      await act(async () => {
+        root.render(
+          createElement(LayoutProvider, {
+            initialLayout: 'terminal',
+            initialPalette: 'ink',
+            children: bar,
+          }),
+        );
+      });
+
+      const container = host.querySelector('[data-testid="crystal-progress-bar-container"]');
+      expect(container).not.toBeNull();
+      expect(container?.getAttribute('role')).toBe('progressbar');
+      expect(container?.getAttribute('aria-valuenow')).toBe('60');
+
+      const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+      expect(fill).not.toBeNull();
+      expect(fill.style.width).toBe('60%');
+
+      const cap = host.querySelector('[data-testid="crystal-progress-cap"]');
+      expect(cap).not.toBeNull();
+      expect(host.textContent).toContain('Loading Mesh...');
+      expect(host.textContent).toContain('60%');
 
       await act(async () => {
         root.unmount();
