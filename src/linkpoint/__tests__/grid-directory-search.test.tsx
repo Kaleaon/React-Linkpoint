@@ -341,6 +341,9 @@ describe('Search component UI', () => {
     // Non-transient error immediately renders fallback error banner without retry status
     expect(mounted.host.textContent).toContain('Invalid query syntax');
     expect(mounted.host.textContent).not.toContain('Retrying search... Attempt 1/3');
+    const errBanner = mounted.host.querySelector('[data-testid="search-error-banner"]');
+    expect(errBanner?.getAttribute('role')).toBe('alert');
+    expect(errBanner?.getAttribute('aria-live')).toBe('assertive');
     expect(searchSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -356,6 +359,9 @@ describe('Search component UI', () => {
     });
 
     expect(mounted.host.textContent).toContain('Retrying search... Attempt 1/3');
+    const retryBanner = mounted.host.querySelector('[data-testid="retry-status-banner"]');
+    expect(retryBanner?.getAttribute('role')).toBe('status');
+    expect(retryBanner?.getAttribute('aria-live')).toBe('polite');
 
     // Change input before 1st backoff delay finishes
     await act(async () => {
