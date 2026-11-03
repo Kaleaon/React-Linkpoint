@@ -260,4 +260,99 @@ describe('InventoryTree DOM Virtualization & Viewport Windowing', () => {
     expect(menu).not.toBeNull();
     expect(menu?.getAttribute('aria-label')).toBe('Actions menu for Virtual Action Item 2');
   });
+
+  it('scrolls virtualized container and imperatively shifts focus when navigating across viewport boundaries', async () => {
+    const COUNT = 200;
+    const itemIds: string[] = [];
+    for (let i = 0; i < COUNT; i++) {
+      const id = `bound-item-${i}`;
+      itemIds.push(id);
+      app.inventory.items.set(id, {
+        id,
+        name: `Boundary Item ${i}`,
+        type: 'item',
+        parent: 'folder-boundary',
+      });
+    }
+
+    const folderBoundary = {
+      id: 'folder-boundary',
+      name: 'Boundary Folder',
+      type: 'folder',
+      parent: 'root-id',
+      children: itemIds,
+    };
+
+    const rootFolder = {
+      id: 'root-id',
+      name: 'Root',
+      type: 'folder',
+      parent: null,
+      children: ['folder-boundary'],
+    };
+
+    app.inventory.rootFolder = rootFolder;
+    app.inventory.folders.set('root-id', rootFolder);
+    app.inventory.folders.set('folder-boundary', folderBoundary);
+
+    const host = await mount();
+    const container = host.querySelector('.inventory-tree-container') as HTMLDivElement;
+    Object.defineProperty(container, 'clientHeight', { value: 360, configurable: true });
+
+    // Expand Boundary Folder
+    const expandBtn = host.querySelector('button[aria-label="Expand Boundary Folder"]');
+    await click(expandBtn);
+
+    // Initial state: container.scrollTop is 0
+    expect(container.scrollTop).toBe(0);
+
+    // Navigate to Boundary Folder
+    const folderNode = host.querySelector('#inventory-node-folder-boundary') as HTMLElement;
+    await act(async () => {
+      folderNode.focus();
+    });
+
+    // Press End key: scrolls to bottom and imperatively focuses last item (item 199)
+    await act(async () => {
+      folderNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+
+    expect(container.scrollTop).toBeGreaterThan(0);
+    const lastItemNode = host.querySelector('#inventory-node-bound-item-199') as HTMLElement;
+    expect(lastItemNode).not.toBeNull();
+    expect(lastItemNode.getAttribute('tabindex')).toBe('0');
+    expect(document.activeElement).toBe(lastItemNode);
+
+    // Active DOM treeitems remain under 50 elements even after scrolling to bottom
+    const activeTreeItems = host.querySelectorAll('[role="treeitem"]');
+    expect(activeTreeItems.length).toBeLessThan(50);
+
+    // Press Home key: scrolls container back to top (scrollTop=0) and focuses Root node
+    await act(async () => {
+      lastItemNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    });
+
+    expect(container.scrollTop).toBe(0);
+    const rootNode = host.querySelector('#inventory-node-root-id') as HTMLElement;
+    expect(rootNode).not.toBeNull();
+    expect(rootNode.getAttribute('tabindex')).toBe('0');
+    expect(document.activeElement).toBe(rootNode);
+
+    // Sequential ArrowDown navigation past viewport boundary (360px height = 10 items)
+    // Moving 15 items down past the boundary
+    let currActive = rootNode;
+    for (let i = 0; i < 15; i++) {
+      await act(async () => {
+        currActive.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      });
+      currActive = document.activeElement as HTMLElement;
+    }
+
+    // After 15 downward steps, container must have scrolled down
+    expect(container.scrollTop).toBeGreaterThan(0);
+    expect(currActive).not.toBeNull();
+    expect(currActive.getAttribute('tabindex')).toBe('0');
+    // Root was 0, folder-boundary was 1, so 15 steps reaches bound-item-13
+    expect(currActive.id).toBe('inventory-node-bound-item-13');
+  });
 });
