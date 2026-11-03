@@ -699,6 +699,7 @@ export default function Chat() {
                 alignItems: 'center',
                 gap: 6,
                 overflowX: 'auto',
+                paddingTop: 2,
                 paddingBottom: 2,
               }}
             >
@@ -707,12 +708,17 @@ export default function Chat() {
               </span>
               <button
                 type="button"
+                aria-pressed={!selectedContact}
                 onClick={() => {
                   setSelectedContact('');
                   actions?.setChip('');
                 }}
                 style={{
-                  padding: '2px 8px',
+                  minHeight: 24,
+                  minWidth: 24,
+                  padding: '4px 8px',
+                  alignItems: 'center',
+                  boxSizing: 'border-box',
                   fontSize: '10px',
                   borderRadius: V.rs,
                   border: `1px solid ${!selectedContact ? V.pri : V.outv}`,
@@ -730,12 +736,17 @@ export default function Chat() {
                   <button
                     key={f.id}
                     type="button"
+                    aria-pressed={isSelected}
                     onClick={() => {
                       setSelectedContact(f.name);
                       actions?.setChip(f.name);
                     }}
                     style={{
-                      padding: '2px 8px',
+                      minHeight: 24,
+                      minWidth: 24,
+                      padding: '4px 8px',
+                      alignItems: 'center',
+                      boxSizing: 'border-box',
                       fontSize: '10px',
                       borderRadius: V.rs,
                       border: `1px solid ${isSelected ? V.pri : V.outv}`,
@@ -743,7 +754,6 @@ export default function Chat() {
                       color: isSelected ? V.onpri : V.ink,
                       cursor: 'pointer',
                       display: 'flex',
-                      alignItems: 'center',
                       gap: 4,
                       flexShrink: 0,
                     }}
@@ -771,12 +781,17 @@ export default function Chat() {
                     <button
                       key={t.contactId}
                       type="button"
+                      aria-pressed={isSelected}
                       onClick={() => {
                         setSelectedContact(t.contactName);
                         actions?.setChip(t.contactName);
                       }}
                       style={{
-                        padding: '2px 8px',
+                        minHeight: 24,
+                        minWidth: 24,
+                        padding: '4px 8px',
+                        alignItems: 'center',
+                        boxSizing: 'border-box',
                         fontSize: '10px',
                         borderRadius: V.rs,
                         border: `1px solid ${isSelected ? V.pri : V.outv}`,
