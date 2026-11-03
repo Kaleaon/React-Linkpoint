@@ -1,6 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="face1Grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6CFF9A" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#123B27" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="face2Grad" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8AD0B0" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#365047" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="face3Grad" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#365047" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#123B27" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="face4Grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6CFF9A" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#8AD0B0" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
   <rect width="512" height="512" rx="112" fill="#0f172a"/>
-  <circle cx="256" cy="188" r="92" fill="#38bdf8"/>
-  <path d="M128 336c0-44 36-80 80-80h96c44 0 80 36 80 80v64H128v-64z" fill="#e2e8f0"/>
-  <path d="M256 134l22 44 49 7-35 34 8 49-44-23-44 23 8-49-35-34 49-7 22-44z" fill="#0f172a"/>
+  <g class="crystal-bot">
+    <polygon points="392,342 256,392 120,342 256,292" fill="#123B27" stroke="#365047" stroke-opacity="0.6" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,472 392,342 256,392" fill="url(#face4Grad)" opacity="0.9" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,472 256,392 120,342" fill="url(#face3Grad)" opacity="0.9" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,472 120,342 256,292" fill="url(#face1Grad)" opacity="0.9" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,472 256,292 392,342" fill="url(#face2Grad)" opacity="0.9" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+  </g>
+  <g class="crystal-top">
+    <polygon points="392,170 256,220 120,170 256,120" fill="#123B27" stroke="#6CFF9A" stroke-opacity="0.6" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,40 392,170 256,220" fill="url(#face1Grad)" opacity="1.0" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,40 256,220 120,170" fill="url(#face2Grad)" opacity="1.0" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,40 120,170 256,120" fill="url(#face3Grad)" opacity="0.9" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="256,40 256,120 392,170" fill="url(#face4Grad)" opacity="0.9" stroke="#365047" stroke-width="1.5" stroke-linejoin="round"/>
+    <polyline points="120,170 256,120 392,170" fill="none" stroke="#6CFF9A" stroke-opacity="0.45" stroke-width="1.5" stroke-linejoin="round"/>
+  </g>
 </svg>
