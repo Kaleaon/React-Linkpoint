@@ -9,7 +9,7 @@ import SegmentedTabs from '../SegmentedTabs.jsx';
 import SplitPaneCompositor from '../SplitPaneCompositor';
 import PayDialog from '../PayDialog.jsx';
 import { TransactionsScreen } from '../../screens/LumiyaTools.jsx';
-import { FocusRing, useFocusRing } from '../FocusRing.jsx';
+import { FocusRing, useFocusRing } from '../FocusRing';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 

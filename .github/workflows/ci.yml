@@ -92,6 +92,10 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/gradle/wrapper/gradle-wrapper.properties
+            android/gradle.properties
       - run: bun install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -120,6 +124,11 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+          cache-dependency-path: |
+            android-kotlin/**/*.gradle*
+            android-kotlin/gradle/wrapper/gradle-wrapper.properties
+            android-kotlin/gradle/libs.versions.toml
+            android-kotlin/gradle.properties
       - name: Unit and end-to-end tests
         run: ./gradlew test --no-daemon
       - name: Assemble debug APK

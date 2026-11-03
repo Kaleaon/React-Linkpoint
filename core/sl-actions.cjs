@@ -226,6 +226,535 @@ function stand(bot) {
   return { standing: true };
 }
 
+// ---- building protocol actions ---------------------------------------------
+
+const SHAPE_DEFAULTS = {
+  box: { pathCurve: 16, profileCurve: 1 },
+  cube: { pathCurve: 16, profileCurve: 1 },
+  cylinder: { pathCurve: 16, profileCurve: 0 },
+  cone: { pathCurve: 16, profileCurve: 0 },
+  prism: { pathCurve: 16, profileCurve: 2 },
+  sphere: { pathCurve: 32, profileCurve: 5 },
+  torus: { pathCurve: 32, profileCurve: 0 },
+  tube: { pathCurve: 32, profileCurve: 1 },
+  ring: { pathCurve: 32, profileCurve: 2 },
+};
+
+function getSessionCircuit(bot) {
+  let region = null;
+  try {
+    region =
+      bot?.currentRegion ||
+      (typeof bot?.getCurrentRegion === 'function' ? bot.getCurrentRegion() : null);
+  } catch {
+    region = null;
+  }
+  const circuit =
+    region?.circuit ||
+    bot?.circuit ||
+    bot?.clientCommands?.region?.circuit ||
+    bot?.clientCommands?.circuit;
+  const agentID = bot?.agent?.agentID || bot?.agentID || bot?.clientCommands?.agent?.agentID;
+  const sessionID = circuit?.sessionID || bot?.sessionID || (agentID ? agentID : undefined);
+  return { region, circuit, agentID, sessionID };
+}
+
+function resolveMessages(lib) {
+  const loaded = loadLibrary(lib);
+  const getCls = (name, relativePath, fallback) => {
+    if (loaded && loaded[name]) return loaded[name];
+    try {
+      return require(relativePath)[name];
+    } catch {
+      return fallback;
+    }
+  };
+
+  const ObjectAddMessage = getCls(
+    'ObjectAddMessage',
+    '@caspertech/node-metaverse/dist/lib/classes/messages/ObjectAdd',
+    class ObjectAddMessage {},
+  );
+  const ObjectLinkMessage = getCls(
+    'ObjectLinkMessage',
+    '@caspertech/node-metaverse/dist/lib/classes/messages/ObjectLink',
+    class ObjectLinkMessage {},
+  );
+  const ObjectDelinkMessage = getCls(
+    'ObjectDelinkMessage',
+    '@caspertech/node-metaverse/dist/lib/classes/messages/ObjectDelink',
+    class ObjectDelinkMessage {},
+  );
+  const ObjectShapeMessage = getCls(
+    'ObjectShapeMessage',
+    '@caspertech/node-metaverse/dist/lib/classes/messages/ObjectShape',
+    class ObjectShapeMessage {},
+  );
+  const DeRezObjectMessage = getCls(
+    'DeRezObjectMessage',
+    '@caspertech/node-metaverse/dist/lib/classes/messages/DeRezObject',
+    class DeRezObjectMessage {},
+  );
+  const Quaternion = getCls(
+    'Quaternion',
+    '@caspertech/node-metaverse/dist/lib/classes/Quaternion',
+    class Quaternion {
+      constructor(x, y, z, w) {
+        this.x = x ?? 0;
+        this.y = y ?? 0;
+        this.z = z ?? 0;
+        this.w = w ?? 1;
+      }
+      static getIdentity() {
+        return new Quaternion(0, 0, 0, 1);
+      }
+    },
+  );
+  const Vector3 = getCls(
+    'Vector3',
+    '@caspertech/node-metaverse/dist/lib/classes/Vector3',
+    class Vector3 {
+      constructor(v) {
+        const arr = Array.isArray(v) ? v : [v?.x ?? 0, v?.y ?? 0, v?.z ?? 0];
+        this.x = arr[0];
+        this.y = arr[1];
+        this.z = arr[2];
+      }
+      static getZero() {
+        return new Vector3([0, 0, 0]);
+      }
+    },
+  );
+  const UUID = getCls(
+    'UUID',
+    '@caspertech/node-metaverse/dist/lib/classes/UUID',
+    class UUID {
+      constructor(s) {
+        this.s = String(s || '00000000-0000-0000-0000-000000000000');
+      }
+      toString() {
+        return this.s;
+      }
+      static zero() {
+        return new UUID('00000000-0000-0000-0000-000000000000');
+      }
+      static random() {
+        return new UUID('00000000-0000-0000-0000-000000000000');
+      }
+    },
+  );
+  const PacketFlags = loaded?.PacketFlags || { Reliable: 1, Resent: 2, Zerocoded: 4 };
+  const PCode = loaded?.PCode || { Prim: 9, Avatar: 47 };
+  const PrimFlags = loaded?.PrimFlags || { CreateSelected: 2 };
+  const DeRezDestination = loaded?.DeRezDestination || { AgentInventoryTake: 4 };
+
+  return {
+    ObjectAddMessage,
+    ObjectLinkMessage,
+    ObjectDelinkMessage,
+    ObjectShapeMessage,
+    DeRezObjectMessage,
+    Quaternion,
+    Vector3,
+    UUID,
+    PacketFlags,
+    PCode,
+    PrimFlags,
+    DeRezDestination,
+  };
+}
+
+/**
+ * Rezzes a new primitive in world. Verifies parcel build permissions and prim limits.
+ */
+async function addObject(bot, params = {}, lib) {
+  const { ObjectAddMessage, Quaternion, Vector3, UUID, PacketFlags, PCode, PrimFlags } =
+    resolveMessages(lib);
+
+  const { region, circuit, agentID, sessionID } = getSessionCircuit(bot);
+  if (!circuit?.sendMessage) {
+    throw new Error('Not connected to Second Life or region circuit unavailable');
+  }
+
+  const shapeName = String(params.shape || 'box').toLowerCase();
+  const defaults = SHAPE_DEFAULTS[shapeName] || SHAPE_DEFAULTS.box;
+  const pathCurve =
+    params.pathCurve !== undefined ? finite(params.pathCurve, 'pathCurve') : defaults.pathCurve;
+  const profileCurve =
+    params.profileCurve !== undefined
+      ? finite(params.profileCurve, 'profileCurve')
+      : defaults.profileCurve;
+
+  let pos = [128, 128, 25];
+  if (params.position) {
+    pos = (
+      Array.isArray(params.position)
+        ? params.position
+        : [params.position.x, params.position.y, params.position.z]
+    )
+      .slice(0, 3)
+      .map((n, i) => finite(n, `position coordinate ${i}`));
+  } else if (params.x !== undefined || params.y !== undefined || params.z !== undefined) {
+    pos = [finite(params.x ?? 128, 'x'), finite(params.y ?? 128, 'y'), finite(params.z ?? 25, 'z')];
+  }
+
+  let parcel = params.parcel || null;
+  if (!parcel && region) {
+    try {
+      if (typeof region.getParcelProperties === 'function') {
+        parcel = region.getParcelProperties(pos[0], pos[1]);
+      } else if (typeof commands(bot)?.region?.getParcelAt === 'function') {
+        parcel = await commands(bot).region.getParcelAt(pos[0], pos[1]);
+      }
+    } catch {
+      parcel = null;
+    }
+  }
+
+  if (parcel) {
+    if (typeof parcel.canIRez === 'function' && !parcel.canIRez()) {
+      throw new Error('Rezzing is not permitted on this parcel');
+    }
+    const maxPrims = Number(parcel.MaxPrims);
+    const totalPrims = Number(parcel.TotalPrims);
+    if (
+      Number.isFinite(maxPrims) &&
+      maxPrims > 0 &&
+      Number.isFinite(totalPrims) &&
+      totalPrims >= maxPrims
+    ) {
+      throw new Error('Parcel prim limit reached');
+    }
+  }
+
+  let scale = [0.5, 0.5, 0.5];
+  if (params.scale) {
+    scale = (
+      Array.isArray(params.scale) ? params.scale : [params.scale.x, params.scale.y, params.scale.z]
+    )
+      .slice(0, 3)
+      .map((n, i) => finite(n, `scale coordinate ${i}`));
+  }
+
+  let rot = [0, 0, 0, 1];
+  if (params.rotation) {
+    rot = Array.isArray(params.rotation)
+      ? params.rotation.slice(0, 4).map((n, i) => finite(n, `rotation ${i}`))
+      : [
+          finite(params.rotation.x ?? 0, 'rot.x'),
+          finite(params.rotation.y ?? 0, 'rot.y'),
+          finite(params.rotation.z ?? 0, 'rot.z'),
+          finite(params.rotation.w ?? 1, 'rot.w'),
+        ];
+  }
+
+  const agentUuid = agentID instanceof UUID ? agentID : new UUID(agentID || ZERO_UUID);
+  const sessionUuid = sessionID instanceof UUID ? sessionID : new UUID(sessionID || ZERO_UUID);
+  const groupUuid = params.groupId
+    ? new UUID(requireUuid(params.groupId, 'groupId'))
+    : bot?.agent?.activeGroupID || UUID.zero();
+
+  const msg = new ObjectAddMessage();
+  msg.AgentData = {
+    AgentID: agentUuid,
+    SessionID: sessionUuid,
+    GroupID: groupUuid,
+  };
+
+  const posVec = new Vector3(pos);
+  const scaleVec = new Vector3(scale);
+  const rotQuat = new Quaternion(rot[0], rot[1], rot[2], rot[3]);
+
+  msg.ObjectData = {
+    PCode: params.pCode !== undefined ? finite(params.pCode, 'pCode') : (PCode?.Prim ?? 9),
+    Material: params.material !== undefined ? finite(params.material, 'material') : 3,
+    AddFlags:
+      params.addFlags !== undefined
+        ? finite(params.addFlags, 'addFlags')
+        : (PrimFlags?.CreateSelected ?? 2),
+    PathCurve: pathCurve,
+    ProfileCurve: profileCurve,
+    PathBegin: params.pathBegin !== undefined ? finite(params.pathBegin, 'pathBegin') : 0,
+    PathEnd: params.pathEnd !== undefined ? finite(params.pathEnd, 'pathEnd') : 0,
+    PathScaleX: params.pathScaleX !== undefined ? finite(params.pathScaleX, 'pathScaleX') : 100,
+    PathScaleY: params.pathScaleY !== undefined ? finite(params.pathScaleY, 'pathScaleY') : 100,
+    PathShearX: params.pathShearX !== undefined ? finite(params.pathShearX, 'pathShearX') : 0,
+    PathShearY: params.pathShearY !== undefined ? finite(params.pathShearY, 'pathShearY') : 0,
+    PathTwist: params.pathTwist !== undefined ? finite(params.pathTwist, 'pathTwist') : 0,
+    PathTwistBegin:
+      params.pathTwistBegin !== undefined ? finite(params.pathTwistBegin, 'pathTwistBegin') : 0,
+    PathRadiusOffset:
+      params.pathRadiusOffset !== undefined
+        ? finite(params.pathRadiusOffset, 'pathRadiusOffset')
+        : 0,
+    PathTaperX: params.pathTaperX !== undefined ? finite(params.pathTaperX, 'pathTaperX') : 0,
+    PathTaperY: params.pathTaperY !== undefined ? finite(params.pathTaperY, 'pathTaperY') : 0,
+    PathRevolutions:
+      params.pathRevolutions !== undefined ? finite(params.pathRevolutions, 'pathRevolutions') : 0,
+    PathSkew: params.pathSkew !== undefined ? finite(params.pathSkew, 'pathSkew') : 0,
+    ProfileBegin:
+      params.profileBegin !== undefined ? finite(params.profileBegin, 'profileBegin') : 0,
+    ProfileEnd: params.profileEnd !== undefined ? finite(params.profileEnd, 'profileEnd') : 0,
+    ProfileHollow:
+      params.profileHollow !== undefined ? finite(params.profileHollow, 'profileHollow') : 0,
+    BypassRaycast:
+      params.bypassRaycast !== undefined ? finite(params.bypassRaycast, 'bypassRaycast') : 1,
+    RayStart: posVec,
+    RayEnd: posVec,
+    RayTargetID: params.rayTargetId
+      ? new UUID(requireUuid(params.rayTargetId, 'rayTargetId'))
+      : UUID.zero(),
+    RayEndIsIntersection:
+      params.rayEndIsIntersection !== undefined
+        ? finite(params.rayEndIsIntersection, 'rayEndIsIntersection')
+        : 0,
+    Scale: scaleVec,
+    Rotation: rotQuat,
+    State: params.state !== undefined ? finite(params.state, 'state') : 0,
+  };
+
+  circuit.sendMessage(msg, PacketFlags?.Reliable ?? 1);
+  return {
+    created: true,
+    shape: shapeName,
+    pathCurve,
+    profileCurve,
+    position: pos,
+    scale,
+    rotation: rot,
+  };
+}
+
+/**
+ * Links two or more objects into a linkset. The last selected object becomes the root parent.
+ */
+async function linkObjects(bot, params = {}, lib) {
+  const { ObjectLinkMessage, UUID, PacketFlags } = resolveMessages(lib);
+  const { circuit, agentID, sessionID } = getSessionCircuit(bot);
+  if (!circuit?.sendMessage) {
+    throw new Error('Not connected to Second Life or region circuit unavailable');
+  }
+
+  const rawIds = params.objectLocalIds || params.localIds;
+  if (!Array.isArray(rawIds) || rawIds.length < 2) {
+    throw new Error('Linking requires at least two selected objects');
+  }
+
+  const ids = rawIds.map((id, index) => {
+    const num = Math.floor(finite(id, `objectLocalIds[${index}]`));
+    if (num <= 0) throw new Error('Valid positive object local ID required for linking');
+    return num;
+  });
+
+  const agentUuid = agentID instanceof UUID ? agentID : new UUID(agentID || ZERO_UUID);
+  const sessionUuid = sessionID instanceof UUID ? sessionID : new UUID(sessionID || ZERO_UUID);
+
+  const msg = new ObjectLinkMessage();
+  msg.AgentData = {
+    AgentID: agentUuid,
+    SessionID: sessionUuid,
+  };
+  msg.ObjectData = ids.map((localId) => ({ ObjectLocalID: localId }));
+
+  circuit.sendMessage(msg, PacketFlags?.Reliable ?? 1);
+
+  const rootLocalId = ids[ids.length - 1];
+  const childLocalIds = ids.slice(0, -1);
+  return {
+    linked: true,
+    rootLocalId,
+    childLocalIds,
+    objectLocalIds: ids,
+  };
+}
+
+/**
+ * Delinks one or more objects from their linksets.
+ */
+async function delinkObjects(bot, params = {}, lib) {
+  const { ObjectDelinkMessage, UUID, PacketFlags } = resolveMessages(lib);
+  const { circuit, agentID, sessionID } = getSessionCircuit(bot);
+  if (!circuit?.sendMessage) {
+    throw new Error('Not connected to Second Life or region circuit unavailable');
+  }
+
+  const rawIds = params.objectLocalIds || params.localIds;
+  if (!Array.isArray(rawIds) || rawIds.length === 0) {
+    throw new Error('Delinking requires at least one object local ID');
+  }
+
+  const ids = rawIds.map((id, index) => {
+    const num = Math.floor(finite(id, `objectLocalIds[${index}]`));
+    if (num <= 0) throw new Error('Valid positive object local ID required for delinking');
+    return num;
+  });
+
+  const agentUuid = agentID instanceof UUID ? agentID : new UUID(agentID || ZERO_UUID);
+  const sessionUuid = sessionID instanceof UUID ? sessionID : new UUID(sessionID || ZERO_UUID);
+
+  const msg = new ObjectDelinkMessage();
+  msg.AgentData = {
+    AgentID: agentUuid,
+    SessionID: sessionUuid,
+  };
+  msg.ObjectData = ids.map((localId) => ({ ObjectLocalID: localId }));
+
+  circuit.sendMessage(msg, PacketFlags?.Reliable ?? 1);
+
+  return {
+    delinked: true,
+    objectLocalIds: ids,
+  };
+}
+
+/**
+ * Updates primitive shape geometry parameters across the network.
+ */
+async function updatePrimParams(bot, params = {}, lib) {
+  const { ObjectShapeMessage, UUID, PacketFlags } = resolveMessages(lib);
+  const { circuit, agentID, sessionID } = getSessionCircuit(bot);
+  if (!circuit?.sendMessage) {
+    throw new Error('Not connected to Second Life or region circuit unavailable');
+  }
+
+  let targets = [];
+  if (params.localId !== undefined) {
+    targets = [Math.floor(finite(params.localId, 'localId'))];
+  } else if (params.objectLocalId !== undefined) {
+    targets = [Math.floor(finite(params.objectLocalId, 'objectLocalId'))];
+  } else if (Array.isArray(params.objectLocalIds) && params.objectLocalIds.length > 0) {
+    targets = params.objectLocalIds.map((id, idx) =>
+      Math.floor(finite(id, `objectLocalIds[${idx}]`)),
+    );
+  } else if (Array.isArray(params.localIds) && params.localIds.length > 0) {
+    targets = params.localIds.map((id, idx) => Math.floor(finite(id, `localIds[${idx}]`)));
+  }
+
+  if (targets.length === 0) {
+    throw new Error('Target object local ID is required');
+  }
+
+  const shapeName = params.shape ? String(params.shape).toLowerCase() : undefined;
+  const defaults = shapeName && SHAPE_DEFAULTS[shapeName] ? SHAPE_DEFAULTS[shapeName] : {};
+
+  const pathCurve =
+    params.pathCurve !== undefined
+      ? finite(params.pathCurve, 'pathCurve')
+      : (defaults.pathCurve ?? 16);
+  const profileCurve =
+    params.profileCurve !== undefined
+      ? finite(params.profileCurve, 'profileCurve')
+      : (defaults.profileCurve ?? 1);
+
+  const agentUuid = agentID instanceof UUID ? agentID : new UUID(agentID || ZERO_UUID);
+  const sessionUuid = sessionID instanceof UUID ? sessionID : new UUID(sessionID || ZERO_UUID);
+
+  const msg = new ObjectShapeMessage();
+  msg.AgentData = {
+    AgentID: agentUuid,
+    SessionID: sessionUuid,
+  };
+
+  msg.ObjectData = targets.map((id) => ({
+    ObjectLocalID: id,
+    PathCurve: pathCurve,
+    ProfileCurve: profileCurve,
+    PathBegin: params.pathBegin !== undefined ? finite(params.pathBegin, 'pathBegin') : 0,
+    PathEnd: params.pathEnd !== undefined ? finite(params.pathEnd, 'pathEnd') : 0,
+    PathScaleX: params.pathScaleX !== undefined ? finite(params.pathScaleX, 'pathScaleX') : 100,
+    PathScaleY: params.pathScaleY !== undefined ? finite(params.pathScaleY, 'pathScaleY') : 100,
+    PathShearX: params.pathShearX !== undefined ? finite(params.pathShearX, 'pathShearX') : 0,
+    PathShearY: params.pathShearY !== undefined ? finite(params.pathShearY, 'pathShearY') : 0,
+    PathTwist: params.pathTwist !== undefined ? finite(params.pathTwist, 'pathTwist') : 0,
+    PathTwistBegin:
+      params.pathTwistBegin !== undefined ? finite(params.pathTwistBegin, 'pathTwistBegin') : 0,
+    PathRadiusOffset:
+      params.pathRadiusOffset !== undefined
+        ? finite(params.pathRadiusOffset, 'pathRadiusOffset')
+        : 0,
+    PathTaperX: params.pathTaperX !== undefined ? finite(params.pathTaperX, 'pathTaperX') : 0,
+    PathTaperY: params.pathTaperY !== undefined ? finite(params.pathTaperY, 'pathTaperY') : 0,
+    PathRevolutions:
+      params.pathRevolutions !== undefined ? finite(params.pathRevolutions, 'pathRevolutions') : 0,
+    PathSkew: params.pathSkew !== undefined ? finite(params.pathSkew, 'pathSkew') : 0,
+    ProfileBegin:
+      params.profileBegin !== undefined ? finite(params.profileBegin, 'profileBegin') : 0,
+    ProfileEnd: params.profileEnd !== undefined ? finite(params.profileEnd, 'profileEnd') : 0,
+    ProfileHollow:
+      params.profileHollow !== undefined ? finite(params.profileHollow, 'profileHollow') : 0,
+  }));
+
+  circuit.sendMessage(msg, PacketFlags?.Reliable ?? 1);
+
+  return {
+    updated: true,
+    objectLocalIds: targets,
+    shapeParams: {
+      pathCurve,
+      profileCurve,
+      ...params,
+    },
+  };
+}
+
+/**
+ * Deletes / derezzes one or more objects in world.
+ */
+async function deleteObject(bot, params = {}, lib) {
+  const { DeRezObjectMessage, UUID, PacketFlags } = resolveMessages(lib);
+  const { circuit, agentID, sessionID } = getSessionCircuit(bot);
+  if (!circuit?.sendMessage) {
+    throw new Error('Not connected to Second Life or region circuit unavailable');
+  }
+
+  let targets = [];
+  if (params.localId !== undefined) {
+    targets = [Math.floor(finite(params.localId, 'localId'))];
+  } else if (params.objectLocalId !== undefined) {
+    targets = [Math.floor(finite(params.objectLocalId, 'objectLocalId'))];
+  } else if (Array.isArray(params.objectLocalIds) && params.objectLocalIds.length > 0) {
+    targets = params.objectLocalIds.map((id, idx) =>
+      Math.floor(finite(id, `objectLocalIds[${idx}]`)),
+    );
+  } else if (Array.isArray(params.localIds) && params.localIds.length > 0) {
+    targets = params.localIds.map((id, idx) => Math.floor(finite(id, `localIds[${idx}]`)));
+  }
+
+  if (targets.length === 0) {
+    throw new Error('Target object local ID is required for deletion');
+  }
+
+  const agentUuid = agentID instanceof UUID ? agentID : new UUID(agentID || ZERO_UUID);
+  const sessionUuid = sessionID instanceof UUID ? sessionID : new UUID(sessionID || ZERO_UUID);
+  const groupUuid = params.groupId
+    ? new UUID(requireUuid(params.groupId, 'groupId'))
+    : bot?.agent?.activeGroupID || UUID.zero();
+
+  const msg = new DeRezObjectMessage();
+  msg.AgentData = {
+    AgentID: agentUuid,
+    SessionID: sessionUuid,
+  };
+  msg.AgentBlock = {
+    GroupID: groupUuid,
+    Destination: params.destination !== undefined ? finite(params.destination, 'destination') : 4,
+    DestinationID: params.destinationId
+      ? new UUID(requireUuid(params.destinationId, 'destinationId'))
+      : UUID.zero(),
+    TransactionID: UUID.random ? UUID.random() : UUID.zero(),
+    PacketCount: 1,
+    PacketNumber: 0,
+  };
+  msg.ObjectData = targets.map((id) => ({ ObjectLocalID: id }));
+
+  circuit.sendMessage(msg, PacketFlags?.Reliable ?? 1);
+
+  return {
+    deleted: true,
+    objectLocalIds: targets,
+  };
+}
+
 /** The account's currency balance as reported by the grid. */
 async function getBalance(bot) {
   const balance = await commands(bot).grid.getBalance();
@@ -609,4 +1138,11 @@ module.exports = {
   payObject,
   payAvatar,
   getTransactionHistory,
+  addObject,
+  linkObjects,
+  delinkObjects,
+  updatePrimParams,
+  deleteObject,
+  derezObject: deleteObject,
+  SHAPE_DEFAULTS,
 };

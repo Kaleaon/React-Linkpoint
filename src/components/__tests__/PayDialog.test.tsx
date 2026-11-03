@@ -274,4 +274,133 @@ describe('PayDialog Component', () => {
 
     expect(host.textContent).toContain('Insufficient L$ balance');
   });
+
+  it('renders dynamic fast-pay preset buttons mapped from quote buttons', async () => {
+    app.economy.balance = 500;
+    const objectId = 'vendor-custom-buttons';
+
+    // Mock app.objectPay.getQuote
+    const quoteSpy = vi.spyOn(app.objectPay, 'getQuote').mockResolvedValueOnce({
+      objectId,
+      defaultPrice: 100,
+      buttons: [25, 50, 100, 250],
+      hideCustom: false,
+      timestamp: Date.now(),
+    });
+
+    const host = await mount(
+      createElement(PayDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        target: {
+          id: objectId,
+          name: 'Dynamic Vendor',
+          type: 'object',
+        },
+      }),
+    );
+
+    // Wait for quote resolution
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(quoteSpy).toHaveBeenCalledWith(objectId);
+    expect(host.textContent).toContain('Fast-pay Presets');
+
+    // Fast-pay buttons should match quote buttons: 25, 50, 100, 250
+    const buttons = Array.from(host.querySelectorAll('button')).filter((b) =>
+      b.textContent?.includes('L$'),
+    );
+    const buttonTexts = buttons.map((b) => b.textContent?.trim());
+    expect(buttonTexts).toContain('L$ 25');
+    expect(buttonTexts).toContain('L$ 50');
+    expect(buttonTexts).toContain('L$ 100');
+    expect(buttonTexts).toContain('L$ 250');
+
+    // Default price is 100, so pay button should default to L$ 100
+    const payBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(payBtn.textContent).toContain('Pay L$ 100');
+
+    // Custom amount input should be present since hideCustom is false
+    const customInput = host.querySelector('input[placeholder="Custom amount"]');
+    expect(customInput).not.toBeNull();
+  });
+
+  it('suppresses custom amount input when quote specifies hideCustom (defaultPrice = -2)', async () => {
+    app.economy.balance = 500;
+    const objectId = 'vendor-fixed-prices';
+
+    vi.spyOn(app.objectPay, 'getQuote').mockResolvedValueOnce({
+      objectId,
+      defaultPrice: -2,
+      buttons: [100, 200, 300, 400],
+      hideCustom: true,
+      timestamp: Date.now(),
+    });
+
+    const host = await mount(
+      createElement(PayDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        target: {
+          id: objectId,
+          name: 'Fixed Price Vendor',
+          type: 'object',
+        },
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Custom amount input should NOT be rendered when hideCustom is true
+    const customInput = host.querySelector('input[placeholder="Custom amount"]');
+    expect(customInput).toBeNull();
+    expect(host.textContent).not.toContain('Or enter custom amount');
+
+    // Presets should be rendered
+    expect(host.textContent).toContain('Fast-pay Presets');
+    const buttons = Array.from(host.querySelectorAll('button')).filter((b) =>
+      b.textContent?.includes('L$'),
+    );
+    const buttonTexts = buttons.map((b) => b.textContent?.trim());
+    expect(buttonTexts).toContain('L$ 100');
+    expect(buttonTexts).toContain('L$ 200');
+    expect(buttonTexts).toContain('L$ 300');
+    expect(buttonTexts).toContain('L$ 400');
+  });
+
+  it('uses cached quote immediately without triggering redundant network query', async () => {
+    app.economy.balance = 500;
+    const objectId = 'vendor-cached-instant';
+
+    vi.spyOn(app.objectPay, 'getCachedQuote').mockReturnValueOnce({
+      objectId,
+      defaultPrice: 300,
+      buttons: [100, 200, 300, 400],
+      hideCustom: false,
+      timestamp: Date.now(),
+    });
+    const getQuoteSpy = vi.spyOn(app.objectPay, 'getQuote');
+
+    const host = await mount(
+      createElement(PayDialog, {
+        isOpen: true,
+        onClose: vi.fn(),
+        target: {
+          id: objectId,
+          name: 'Cached Vendor',
+          type: 'object',
+        },
+      }),
+    );
+
+    // No network getQuote should have been called because it was cached
+    expect(getQuoteSpy).not.toHaveBeenCalled();
+
+    const payBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(payBtn.textContent).toContain('Pay L$ 300');
+  });
 });

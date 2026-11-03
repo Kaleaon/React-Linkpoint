@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
 
@@ -86,16 +87,19 @@ export default function Inventory() {
             aria-label="Filter inventory"
           />
         </label>
-        <button
+        <SyncActionButton
           type="button"
           onClick={handleRefresh}
-          disabled={refreshing || isLoading || !app.auth.isLoggedIn()}
+          loading={refreshing || isLoading}
+          disabled={!app.auth.isLoggedIn()}
+          iconName="rotate-cw"
+          size={14}
+          idleText="REFRESH"
+          loadingText="FETCHING…"
+          title="Reload Second Life inventory"
           style={{
             height: '40px',
             padding: '0 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
             background: V.surf,
             border: `1px solid ${V.outv}`,
             borderRadius: V.rs,
@@ -105,11 +109,7 @@ export default function Inventory() {
             cursor: 'pointer',
             flex: 'none',
           }}
-          title="Reload Second Life inventory"
-        >
-          <Icon name="rotate-cw" size={14} />
-          {refreshing || isLoading ? 'FETCHING…' : 'REFRESH'}
-        </button>
+        />
       </div>
       <div className="live-list">
         {showSkeletons ? (

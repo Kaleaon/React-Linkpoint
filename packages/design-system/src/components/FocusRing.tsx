@@ -157,21 +157,25 @@ export const FocusRing = React.forwardRef<HTMLElement, FocusRingProps>(function 
   // Extract ref from childProps (React 19) or child.ref (React 18)
   const childRef = childProps.ref ?? (resolvedChild as any).ref;
 
-  const mergedRef = (node: any) => {
-    if (typeof forwardedRef === 'function') {
-      forwardedRef(node);
-    } else if (forwardedRef && typeof forwardedRef === 'object' && 'current' in forwardedRef) {
-      (forwardedRef as React.MutableRefObject<any>).current = node;
-    }
+  const mergedRef = useCallback(
+    (node: any) => {
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(node);
+      } else if (forwardedRef && typeof forwardedRef === 'object' && 'current' in forwardedRef) {
+        (forwardedRef as React.MutableRefObject<any>).current = node;
+      }
 
-    if (typeof childRef === 'function') {
-      childRef(node);
-    } else if (childRef && typeof childRef === 'object' && 'current' in childRef) {
-      childRef.current = node;
-    }
-  };
+      if (typeof childRef === 'function') {
+        childRef(node);
+      } else if (childRef && typeof childRef === 'object' && 'current' in childRef) {
+        childRef.current = node;
+      }
+    },
+    [forwardedRef, childRef]
+  );
 
   const resolvedBorderRadius = borderRadius ?? childProps.style?.borderRadius;
+  const baseTransition = style?.transition || childProps.style?.transition;
 
   const mergedStyle: React.CSSProperties = {
     ...childProps.style,
@@ -183,8 +187,8 @@ export const FocusRing = React.forwardRef<HTMLElement, FocusRingProps>(function 
           ...(resolvedBorderRadius !== undefined ? { borderRadius: resolvedBorderRadius } : {}),
         }
       : {}),
-    transition: childProps.style?.transition
-      ? `${childProps.style.transition}, outline 0.15s ease, outline-offset 0.15s ease`
+    transition: baseTransition
+      ? `${baseTransition}, outline 0.15s ease, outline-offset 0.15s ease`
       : 'outline 0.15s ease, outline-offset 0.15s ease',
   };
 

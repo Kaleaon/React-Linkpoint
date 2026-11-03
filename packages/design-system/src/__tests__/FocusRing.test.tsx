@@ -77,6 +77,18 @@ describe('FocusRing and useFocusRing Accessibility Primitive', () => {
     expect(button.style.borderRadius).toBe('8px');
   });
 
+  it('supports explicit transition passed via style prop', async () => {
+    const host = await mount(
+      <FocusRing style={{ transition: 'opacity 0.3s ease' }}>
+        <button type="button">Transition Test</button>
+      </FocusRing>
+    );
+
+    const button = host.querySelector('button') as HTMLButtonElement;
+    expect(button.style.transition).toContain('opacity 0.3s ease');
+    expect(button.style.transition).toContain('outline 0.15s ease');
+  });
+
   it('Constraint: preserves child ref and forwards component ref to the underlying DOM node', async () => {
     const focusRingRef = createRef<HTMLInputElement>();
     const childRef = createRef<HTMLInputElement>();

@@ -6,11 +6,21 @@ import { CSUB, subView, setSub } from '../theme/constants.js';
 import { inkOn } from '@linkpoint/design-system/tokens';
 import { FocusRing } from '@linkpoint/design-system';
 import { app } from '../linkpoint/app';
+import { useRovingTabindex } from '../hooks/useRovingTabindex';
 
-// Ported from `segTabs`/`segWrap`/`hasSeg`. The labels come from CSUB — the one
-// sub-view table the LCARS rail also renders — so a screen gains a tab strip by
-// appearing there, not by being named here.
 /**
+ * SegmentedTabs component provides accessible sub-navigation tabs across screens.
+ *
+ * Complies with WAI-ARIA APG Tabs Pattern and WCAG 2.2 standards:
+ * - WCAG 2.2 SC 2.1.1 Keyboard (https://www.w3.org/TR/WCAG22/#keyboard)
+ * - WCAG 2.2 SC 2.4.3 Focus Order (https://www.w3.org/TR/WCAG22/#focus-order)
+ * - WCAG 2.2 SC 4.1.2 Name, Role, Value (https://www.w3.org/TR/WCAG22/#name-role-value)
+ * - WAI-ARIA APG Tabs Pattern (https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)
+ *
+ * Ported from `segTabs`/`segWrap`/`hasSeg`. The labels come from CSUB — the one
+ * sub-view table the LCARS rail also renders — so a screen gains a tab strip by
+ * appearing there, not by being named here.
+ *
  * @param {{ screen?: string }} [props]
  */
 export default function SegmentedTabs({ screen } = {}) {
@@ -32,13 +42,22 @@ export default function SegmentedTabs({ screen } = {}) {
     };
   }, []);
 
+  const curSub = subView(state, scr) || '';
+  const csubEntries = CSUB[scr] || [];
+  const tabIds = csubEntries.map(([label]) => label);
+  const { getTabIndex, getTabRef, handleKeyDown, handleClick } = useRovingTabindex({
+    tabs: tabIds,
+    activeTab: curSub,
+    onSelect: (label) => setSub(actions, scr, label),
+    activationMode: 'auto',
+  });
+
   // Search and Radar render SegmentedTabs internally within their screen bodies.
   // When SegmentedTabs is invoked without an explicit screen prop from top-level
   // ScreenBody, skip rendering for Search and Radar to prevent double-rendering.
   if (!screen && (scr === 'Search' || scr === 'Radar')) return null;
 
   if (!norm) return null;
-  const curSub = subView(state, scr);
   // 3D View is immersive with no header to hang a strip under — it carries its
   // CAM/GFX switch in-scene instead. All other CSUB screens get standard SegmentedTabs.
   if (!CSUB[scr] || scr === '3D View') return null;
@@ -113,6 +132,7 @@ export default function SegmentedTabs({ screen } = {}) {
     <div role="tablist" aria-label={scr + ' views'} style={wrap}>
       {tabs.map((x) => {
         const active = isActive(x.label);
+        const panelId = `panel-${scr.toLowerCase().replace(/\s+/g, '-')}-${x.label.toLowerCase().replace(/\s+/g, '-')}`;
         const style = {
           ...base,
           ...(consoleLayout
@@ -140,18 +160,15 @@ export default function SegmentedTabs({ screen } = {}) {
         return (
           <FocusRing key={x.label} ringColor={V.pri} borderRadius={style.borderRadius}>
             <button
+              ref={getTabRef(x.label)}
               type="button"
               data-tab={x.label}
-              onClick={() => setSub(actions, scr, x.label)}
+              onClick={() => handleClick(x.label)}
               role="tab"
-              tabIndex={0}
+              tabIndex={getTabIndex(x.label)}
               aria-selected={active}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSub(actions, scr, x.label);
-                }
-              }}
+              aria-controls={panelId}
+              onKeyDown={(e) => handleKeyDown(e, x.label)}
               style={{ cursor: 'pointer', border: 'none', ...style }}
             >
               <span style={{ font: 'inherit', letterSpacing: 'inherit' }}>{x.label}</span>
