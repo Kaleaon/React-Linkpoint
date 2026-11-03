@@ -364,6 +364,34 @@ export class WorldViewer extends Utils.EventEmitter {
   public simSunHour: number | null = null;
   public terrain: { size: number; heights: number[] } | null = null;
   public selectedObject: any = null;
+  public editPipeline: any = null;
+
+  public setEditPipeline(pipeline: any) {
+    this.editPipeline = pipeline;
+    if (pipeline) {
+      pipeline.world = this;
+    }
+    if (this.scene3d && typeof (this.scene3d as any).setEditPipeline === 'function') {
+      (this.scene3d as any).setEditPipeline(pipeline);
+    }
+  }
+
+  public restoreObjectTransform(
+    objectId: string,
+    transform: { position?: number[]; rotation?: number[]; scale?: number[] },
+  ) {
+    const obj = this.sceneObjects.get(objectId);
+    if (!obj) return;
+    if (transform.position) obj.position = [...transform.position];
+    if (transform.rotation) obj.rotation = [...transform.rotation];
+    if (transform.scale) obj.scale = [...transform.scale];
+    this.applySceneObject(obj);
+    if (this.selectedObject && this.selectedObject.id === objectId) {
+      this.selectedObject = { ...this.selectedObject, ...transform };
+      this.emit('selection_changed', this.selectedObject);
+    }
+    this.emit('objects_changed', this.objects);
+  }
   /** The worn HUD shown over the view, if any. Its size is a fraction of the view height. */
   public displayedHud: { id: string; size: number } | null = null;
   private hudSignature = '';
@@ -610,9 +638,11 @@ export class WorldViewer extends Utils.EventEmitter {
         y: CoordinateNormalizer.normalizeRegionTileCoordinate(reply.region_y),
       };
       this.emit('region_changed', this.region);
+      this.editPipeline?.cancelSession('region_change');
       void this.loadScene();
     });
     this.protocol.on('disconnected', () => {
+      this.editPipeline?.cancelSession('disconnect');
       this.region = null;
       this.avatarPosition = null;
       this.avatarRotation = null;
@@ -655,6 +685,7 @@ export class WorldViewer extends Utils.EventEmitter {
         x: CoordinateNormalizer.normalizeRegionTileCoordinate(data.regionX ?? data.region_x ?? 0),
         y: CoordinateNormalizer.normalizeRegionTileCoordinate(data.regionY ?? data.region_y ?? 0),
       };
+      this.editPipeline?.cancelSession('region_change');
       this.emit('region_changed', { ...this.region });
       this.updateLocationDisplay();
     });
@@ -1451,6 +1482,9 @@ export class WorldViewer extends Utils.EventEmitter {
 
       const scene = new Scene3D(graphics, this.camera3d);
       this.scene3d = scene;
+      if (this.editPipeline && typeof (scene as any).setEditPipeline === 'function') {
+        (scene as any).setEditPipeline(this.editPipeline);
+      }
       await scene.init();
       if (stale()) return;
       this.applyEnvironment();
@@ -1834,6 +1868,7 @@ export class WorldViewer extends Utils.EventEmitter {
     const hit = this.scene3d.pick(x, y, bounds.width, bounds.height);
     const objectId = hit?.id.replace(/:(body|head|legs)$/, '') || null;
     this.selectedObject = objectId ? this.sceneObjects.get(objectId) || null : null;
+    (this.scene3d as any)?.setGizmoTarget?.(objectId);
     const selection = this.selectedObject
       ? { ...this.selectedObject, hitPoint: hit?.point, distance: hit?.distance }
       : null;

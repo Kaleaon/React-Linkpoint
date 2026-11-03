@@ -1024,6 +1024,9 @@ class ViewerSession {
   touchObject(params) {
     return actions.touchObject(this.requireBot(), params);
   }
+  commitObjectTransaction(params) {
+    return actions.commitObjectTransaction(this.requireBot(), params);
+  }
   sit(params = {}) {
     return actions.sit(this.requireBot(), params);
   }

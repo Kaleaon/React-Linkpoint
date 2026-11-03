@@ -65,6 +65,7 @@ const METHODS = new Set([
   'buyParcel',
   'subdivideParcel',
   'reclaimParcel',
+  'commitObjectTransaction',
 ]);
 
 async function callViewer(session, method, params) {

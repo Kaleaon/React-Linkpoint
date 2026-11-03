@@ -109,6 +109,111 @@ export class Scene3D extends Utils.EventEmitter {
   public windVector: number[] | null = null;
   private now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 
+  public activeGizmo: {
+    targetId: string | null;
+    mode: 'translate' | 'rotate' | 'scale' | null;
+    activeAxis: 'x' | 'y' | 'z' | null;
+  } = {
+    targetId: null,
+    mode: 'translate',
+    activeAxis: null,
+  };
+  public editPipeline: any = null;
+
+  public setEditPipeline(pipeline: any) {
+    this.editPipeline = pipeline;
+  }
+
+  public setGizmoMode(mode: 'translate' | 'rotate' | 'scale' | null) {
+    this.activeGizmo.mode = mode;
+  }
+
+  public getGizmoMode(): 'translate' | 'rotate' | 'scale' | null {
+    return this.activeGizmo.mode;
+  }
+
+  public setGizmoTarget(objectId: string | null, mode?: 'translate' | 'rotate' | 'scale') {
+    this.activeGizmo.targetId = objectId;
+    if (mode !== undefined) {
+      this.activeGizmo.mode = mode;
+    }
+  }
+
+  public getGizmoTarget(): string | null {
+    return this.activeGizmo.targetId;
+  }
+
+  public setActiveGizmoAxis(axis: 'x' | 'y' | 'z' | null) {
+    this.activeGizmo.activeAxis = axis;
+  }
+
+  public applyGizmoTransform(
+    delta: { position?: number[]; rotation?: number[]; scale?: number[] },
+    pipeline?: any,
+  ) {
+    const targetId = this.activeGizmo.targetId;
+    if (!targetId) return null;
+    const pipe = pipeline || this.editPipeline;
+    const obj = this.objects.get(targetId);
+    if (!obj) return null;
+
+    const nextPos = delta.position
+      ? [
+          (obj.position?.[0] || 0) + delta.position[0],
+          (obj.position?.[1] || 0) + delta.position[1],
+          (obj.position?.[2] || 0) + delta.position[2],
+        ]
+      : undefined;
+
+    const nextRot = delta.rotation
+      ? [
+          (obj.rotation?.[0] || 0) + delta.rotation[0],
+          (obj.rotation?.[1] || 0) + delta.rotation[1],
+          (obj.rotation?.[2] || 0) + delta.rotation[2],
+          obj.rotation?.[3] ?? 1,
+        ]
+      : undefined;
+
+    const nextScale = delta.scale
+      ? [
+          Math.max(0.01, (obj.scale?.[0] || 1) + delta.scale[0]),
+          Math.max(0.01, (obj.scale?.[1] || 1) + delta.scale[1]),
+          Math.max(0.01, (obj.scale?.[2] || 1) + delta.scale[2]),
+        ]
+      : undefined;
+
+    if (pipe && typeof pipe.modifyObject === 'function') {
+      return pipe.modifyObject(targetId, {
+        position: nextPos,
+        rotation: nextRot,
+        scale: nextScale,
+      });
+    }
+
+    if (nextPos) obj.position = nextPos;
+    if (nextRot) obj.rotation = nextRot;
+    if (nextScale) obj.scale = nextScale;
+    return obj;
+  }
+
+  public manipulateGizmo(axis: 'x' | 'y' | 'z', amount: number, pipeline?: any) {
+    const mode = this.activeGizmo.mode || 'translate';
+    const deltaVec = [
+      axis === 'x' ? amount : 0,
+      axis === 'y' ? amount : 0,
+      axis === 'z' ? amount : 0,
+    ];
+
+    if (mode === 'translate') {
+      return this.applyGizmoTransform({ position: deltaVec }, pipeline);
+    } else if (mode === 'rotate') {
+      return this.applyGizmoTransform({ rotation: deltaVec }, pipeline);
+    } else if (mode === 'scale') {
+      return this.applyGizmoTransform({ scale: deltaVec }, pipeline);
+    }
+    return null;
+  }
+
   public setWindVector(wind: number[]) {
     if (Array.isArray(wind) && wind.length >= 3) {
       this.windVector = [Number(wind[0]) || 0, Number(wind[1]) || 0, Number(wind[2]) || 0];
@@ -646,8 +751,89 @@ export class Scene3D extends Utils.EventEmitter {
       .sort((a, b) => distanceSquared(b) - distanceSquared(a))
       .forEach((object) => this.renderObject(object, viewMatrix, projectionMatrix));
 
+    // Render 3D transform gizmo
+    this.renderGizmo(viewMatrix, projectionMatrix);
+
     // The HUD goes last, over everything, in its own orthographic view.
     this.renderHud();
+  }
+
+  /**
+   * Render 3D transform gizmo at the target object's position.
+   */
+  renderGizmo(viewMatrix: Float32Array, projectionMatrix: Float32Array) {
+    if (!this.activeGizmo.targetId || !this.activeGizmo.mode) return;
+    const target = this.objects.get(this.activeGizmo.targetId);
+    if (!target || !target.position) return;
+
+    const [tx, ty, tz] = target.position;
+    const dist = Math.hypot(
+      tx - this.camera.position[0],
+      ty - this.camera.position[1],
+      tz - this.camera.position[2],
+    );
+    const gizmoScale = Math.max(0.2, dist * 0.15);
+    const armLength = gizmoScale;
+    const armThickness = gizmoScale * 0.04;
+
+    const light = this.lights[0] || { position: [100, 100, 200], color: [1, 1, 1] };
+
+    const axes = [
+      {
+        axis: 'x' as const,
+        color: [1, 0.2, 0.2, 0.9],
+        position: [tx + armLength / 2, ty, tz],
+        rotation: [0, Math.PI / 2, 0],
+        scale: [armThickness, armThickness, armLength],
+      },
+      {
+        axis: 'y' as const,
+        color: [0.2, 1, 0.2, 0.9],
+        position: [tx, ty + armLength / 2, tz],
+        rotation: [-Math.PI / 2, 0, 0],
+        scale: [armThickness, armThickness, armLength],
+      },
+      {
+        axis: 'z' as const,
+        color: [0.2, 0.4, 1, 0.9],
+        position: [tx, ty, tz + armLength / 2],
+        rotation: [0, 0, 0],
+        scale: [armThickness, armThickness, armLength],
+      },
+    ];
+
+    for (const a of axes) {
+      const isHighlighted = this.activeGizmo.activeAxis === a.axis;
+      const col = isHighlighted ? [1, 1, 0, 1] : a.color;
+      const model = this.calculateModelMatrix(a.position, a.rotation, a.scale);
+      const normal = this.mat3FromMat4(model);
+
+      this.graphics.drawMesh('cylinder', 'basic', {
+        uModelMatrix: model,
+        uViewMatrix: viewMatrix,
+        uProjectionMatrix: projectionMatrix,
+        uNormalMatrix: normal,
+        uLightPos: new Float32Array(light.position),
+        uLightColor: new Float32Array(light.color),
+        uAmbientColor: new Float32Array([0.8, 0.8, 0.8]),
+        uColor: new Float32Array(col),
+        uUseTexture: false,
+        uTexTransform: new Float32Array([1, 1, 0, 0]),
+        uTexRotation: 0,
+        uUsePbr: false,
+        uFullBright: true,
+        uCameraPos: new Float32Array(this.camera.position),
+        uMetallic: 0,
+        uRoughness: 1,
+        uEmissive: new Float32Array([0, 0, 0]),
+        uUseMetallicRoughnessTexture: false,
+        uUseNormalTexture: false,
+        uUseEmissiveTexture: false,
+        uAlphaMode: 0,
+        uAlphaCutoff: 0.5,
+        uDoubleSided: true,
+      });
+    }
   }
 
   /**
