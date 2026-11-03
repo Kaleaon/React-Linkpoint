@@ -123,6 +123,7 @@ export const MessageIDs = {
   TELEPORT_FINISH: lowFrequencyId(69),
   TELEPORT_FAILED: lowFrequencyId(74),
   DECLINE_TELEPORT: lowFrequencyId(122),
+  GRANT_USER_RIGHTS: lowFrequencyId(84),
   PARCEL_PROPERTIES: lowFrequencyId(253),
   PARCEL_BUY_PASS: lowFrequencyId(255),
   PARCEL_PROPERTIES_UPDATE: lowFrequencyId(256),

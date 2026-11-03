@@ -48,6 +48,35 @@ export function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
   const [noteText, setNoteText] = useState(() => contact?.note || '');
   const [linkInputs, setLinkInputs] = useState({});
   const [linkErrors, setLinkErrors] = useState({});
+  const [permissions, setPermissions] = useState(() => friend?.permissions || {});
+
+  useEffect(() => {
+    setPermissions(friend?.permissions || {});
+  }, [friend?.id, friend?.permissions]);
+
+  useEffect(() => {
+    if (!friend?.id) return;
+    const onRightsUpdated = (data) => {
+      if (data && (data.friendId === friend.id || data.targetId === friend.id)) {
+        setPermissions(data.permissions || {});
+      }
+    };
+    app.friends?.on?.('friend_rights_updated', onRightsUpdated);
+    app.friends?.on?.('friend_updated', onRightsUpdated);
+    return () => {
+      app.friends?.removeListener?.('friend_rights_updated', onRightsUpdated);
+      app.friends?.removeListener?.('friend_updated', onRightsUpdated);
+    };
+  }, [friend?.id]);
+
+  const togglePermission = (key) => {
+    const updated = {
+      ...permissions,
+      [key]: !permissions[key],
+    };
+    setPermissions(updated);
+    app.friends?.setFriendPermissions?.(friend.id, updated);
+  };
 
   useEffect(() => {
     setNoteText(contact?.note || '');
@@ -120,16 +149,68 @@ export function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
         >
           {friend.onlineStatus || 'offline'}
         </dd>
-        <dt style={{ fontWeight: 700, color: V.ink2 }}>Permissions</dt>
-        <dd style={{ margin: 0 }}>
-          {friend.permissions?.canSeeOnline ? '✓ See online status ' : ''}
-          {friend.permissions?.canSeeOnMap ? '✓ Map location ' : ''}
-          {friend.permissions?.canModifyObjects ? '✓ Modify objects' : ''}
-          {!friend.permissions?.canSeeOnline &&
-          !friend.permissions?.canSeeOnMap &&
-          !friend.permissions?.canModifyObjects
-            ? 'Standard friendship'
-            : ''}
+        <dt style={{ fontWeight: 700, color: V.ink2, marginBottom: 4 }}>Permissions</dt>
+        <dd style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label
+            htmlFor={`inspector-perm-online-${friend.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            <input
+              type="checkbox"
+              id={`inspector-perm-online-${friend.id}`}
+              name="canSeeOnline"
+              aria-label="canSeeOnline"
+              checked={Boolean(permissions.canSeeOnline)}
+              onChange={() => togglePermission('canSeeOnline')}
+            />
+            <span>See online status</span>
+          </label>
+          <label
+            htmlFor={`inspector-perm-map-${friend.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            <input
+              type="checkbox"
+              id={`inspector-perm-map-${friend.id}`}
+              name="canSeeOnMap"
+              aria-label="canSeeOnMap"
+              checked={Boolean(permissions.canSeeOnMap)}
+              onChange={() => togglePermission('canSeeOnMap')}
+            />
+            <span>Map location</span>
+          </label>
+          <label
+            htmlFor={`inspector-perm-modify-${friend.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            <input
+              type="checkbox"
+              id={`inspector-perm-modify-${friend.id}`}
+              name="canModifyObjects"
+              aria-label="canModifyObjects"
+              checked={Boolean(permissions.canModifyObjects)}
+              onChange={() => togglePermission('canModifyObjects')}
+            />
+            <span>Modify objects</span>
+          </label>
         </dd>
       </dl>
 

@@ -1160,6 +1160,70 @@ class ViewerSession {
       if ((oneShot >>> bit) & 1) agent.clearControlFlag((1 << bit) | 0);
     return { moving: Boolean(flags & 0x0600003f), flags };
   }
+  async grantUserRights(params = {}) {
+    const bot = this.requireBot();
+    const targetId = params.targetId || params.friendId || params.userId || params.recipientId;
+    if (!targetId) {
+      throw new Error('Valid target friend ID required');
+    }
+
+    const circuit = this.currentRegion()?.circuit || bot.circuit;
+    const agentId = params.agentId || (bot.agent?.agentID ? String(bot.agent.agentID) : '');
+    const sessionId =
+      params.sessionId ||
+      (circuit?.sessionID
+        ? String(circuit.sessionID)
+        : bot.circuit?.sessionID
+          ? String(bot.circuit.sessionID)
+          : '');
+
+    let rightsMask = 0;
+    if (typeof params.rightsMask === 'number') {
+      rightsMask = params.rightsMask >>> 0;
+    } else if (typeof params.rights === 'number') {
+      rightsMask = params.rights >>> 0;
+    } else if (params.permissions && typeof params.permissions === 'object') {
+      const p = params.permissions;
+      rightsMask =
+        (p.canSeeOnline ? 0x1 : 0) | (p.canSeeOnMap ? 0x2 : 0) | (p.canModifyObjects ? 0x4 : 0);
+    } else {
+      if (params.canSeeOnline) rightsMask |= 0x1;
+      if (params.canSeeOnMap) rightsMask |= 0x2;
+      if (params.canModifyObjects) rightsMask |= 0x4;
+    }
+    rightsMask = rightsMask >>> 0;
+
+    const packet =
+      params.packet && typeof params.packet === 'object'
+        ? params.packet
+        : {
+            messageName: 'GrantUserRights',
+            messageId: 0xffff0054,
+            agentId,
+            sessionId,
+            targetId,
+            rightsMask,
+          };
+
+    if (bot && typeof bot.sendPacket === 'function') {
+      bot.sendPacket('GrantUserRights', packet);
+    }
+    if (
+      circuit &&
+      typeof circuit.sendPacket === 'function' &&
+      circuit.sendPacket !== bot?.sendPacket
+    ) {
+      circuit.sendPacket('GrantUserRights', packet);
+    } else if (
+      bot?.circuit &&
+      typeof bot.circuit.sendPacket === 'function' &&
+      bot.circuit.sendPacket !== bot?.sendPacket
+    ) {
+      bot.circuit.sendPacket('GrantUserRights', packet);
+    }
+
+    return { success: true, targetId, rightsMask, packet };
+  }
   getBalance() {
     return actions.getBalance(this.requireBot());
   }

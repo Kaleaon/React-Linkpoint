@@ -56,6 +56,7 @@ export default function ContactsScreen() {
     app.friends.on('friend_added', bump);
     app.friends.on('friend_updated', bump);
     app.friends.on('friend_removed', bump);
+    app.friends.on('friend_rights_updated', bump);
     app.protocol.on('friends_loaded', bump);
     setContacts(app.contacts.list());
     return () => {
@@ -63,6 +64,7 @@ export default function ContactsScreen() {
       app.friends.off('friend_added', bump);
       app.friends.off('friend_updated', bump);
       app.friends.off('friend_removed', bump);
+      app.friends.off('friend_rights_updated', bump);
       app.protocol.off('friends_loaded', bump);
     };
   }, []);
@@ -398,7 +400,38 @@ function ContactDetail({
   const [linkInputs, setLinkInputs] = useState({});
   const [linkErrors, setLinkErrors] = useState({});
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [permissions, setPermissions] = useState(
+    () => app.friends?.getFriendPermissions?.(contact.id) || {},
+  );
   const fileRef = useRef(null);
+
+  useEffect(() => {
+    setPermissions(app.friends?.getFriendPermissions?.(contact.id) || {});
+  }, [contact.id]);
+
+  useEffect(() => {
+    if (!contact.id) return;
+    const onRightsUpdated = (data) => {
+      if (data && (data.friendId === contact.id || data.targetId === contact.id)) {
+        setPermissions(data.permissions || {});
+      }
+    };
+    app.friends?.on?.('friend_rights_updated', onRightsUpdated);
+    app.friends?.on?.('friend_updated', onRightsUpdated);
+    return () => {
+      app.friends?.removeListener?.('friend_rights_updated', onRightsUpdated);
+      app.friends?.removeListener?.('friend_updated', onRightsUpdated);
+    };
+  }, [contact.id]);
+
+  const togglePermission = (key) => {
+    const updated = {
+      ...permissions,
+      [key]: !permissions[key],
+    };
+    setPermissions(updated);
+    app.friends?.setFriendPermissions?.(contact.id, updated);
+  };
 
   useEffect(() => {
     setNote(contact.note);
@@ -556,6 +589,54 @@ function ContactDetail({
             font: `400 12.5px/1.5 ${t.font}`,
           }}
         />
+      </div>
+
+      <div style={{ display: 'grid', gap: 6 }}>
+        <span style={label}>PERMISSIONS</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '12px' }}>
+          <label
+            htmlFor={`contact-perm-online-${contact.id}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          >
+            <input
+              type="checkbox"
+              id={`contact-perm-online-${contact.id}`}
+              name="canSeeOnline"
+              aria-label="canSeeOnline"
+              checked={Boolean(permissions.canSeeOnline)}
+              onChange={() => togglePermission('canSeeOnline')}
+            />
+            <span>See online status</span>
+          </label>
+          <label
+            htmlFor={`contact-perm-map-${contact.id}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          >
+            <input
+              type="checkbox"
+              id={`contact-perm-map-${contact.id}`}
+              name="canSeeOnMap"
+              aria-label="canSeeOnMap"
+              checked={Boolean(permissions.canSeeOnMap)}
+              onChange={() => togglePermission('canSeeOnMap')}
+            />
+            <span>Map location</span>
+          </label>
+          <label
+            htmlFor={`contact-perm-modify-${contact.id}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          >
+            <input
+              type="checkbox"
+              id={`contact-perm-modify-${contact.id}`}
+              name="canModifyObjects"
+              aria-label="canModifyObjects"
+              checked={Boolean(permissions.canModifyObjects)}
+              onChange={() => togglePermission('canModifyObjects')}
+            />
+            <span>Modify objects</span>
+          </label>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gap: 10 }}>

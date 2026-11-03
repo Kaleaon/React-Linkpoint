@@ -369,6 +369,20 @@ export class SLBridge extends Utils.EventEmitter {
       () => this.dismissInteraction(params) as any,
     );
   }
+  grantUserRights(params: {
+    agentId?: string;
+    sessionId?: string;
+    targetId: string;
+    rightsMask?: number;
+    packet?: any;
+  }) {
+    return this.call<{
+      success: boolean;
+      targetId: string;
+      rightsMask: number;
+      packet?: any;
+    }>('grantUserRights', params);
+  }
   acceptInventoryOffer(params: { id: string }) {
     return this.call<{ accepted: boolean }>('acceptInventoryOffer', params);
   }

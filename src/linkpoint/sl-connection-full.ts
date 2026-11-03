@@ -452,6 +452,18 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.declineLure(request);
   }
 
+  /** Grant user rights to a friend. */
+  async grantUserRights(request: {
+    agentId?: string;
+    sessionId?: string;
+    targetId: string;
+    rightsMask: number;
+    packet?: any;
+  }) {
+    this.requireConnected();
+    return slBridge.grantUserRights(request);
+  }
+
   /** Accept an inventory offer. */
   async acceptInventoryOffer(request: { id: string }) {
     this.requireConnected();
