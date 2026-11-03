@@ -8,6 +8,10 @@ permissions:
   contents: read
   checks: write
 
+concurrency:
+  group: jules-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   jules-review:
     name: Automated PR Review
