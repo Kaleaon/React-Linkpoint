@@ -8,6 +8,7 @@ import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
+import GroupAdminFloater from '../components/GroupAdminFloater.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import Radar from './Radar.jsx';
@@ -586,6 +587,24 @@ export function GroupsScreen() {
   const [activeGroupId, setActiveGroupId] = useState(() => app.groups.getActiveGroupId());
   const [activating, setActivating] = useState(false);
   const [lastActivateTime, setLastActivateTime] = useState(0);
+  const [showAdminFloater, setShowAdminFloater] = useState(false);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setGroups(app.groups.getGroups());
+      setDetailRefresh((v) => v + 1);
+    };
+    app.groups.on('roles_updated', handleUpdate);
+    app.groups.on('role_updated', handleUpdate);
+    app.groups.on('members_updated', handleUpdate);
+    app.groups.on('member_ejected', handleUpdate);
+    return () => {
+      app.groups.off('roles_updated', handleUpdate);
+      app.groups.off('role_updated', handleUpdate);
+      app.groups.off('members_updated', handleUpdate);
+      app.groups.off('member_ejected', handleUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleActiveChanged = (payload) => {
@@ -1028,6 +1047,24 @@ export function GroupsScreen() {
                 )}
                 <button
                   type="button"
+                  onClick={() => setShowAdminFloater((open) => !open)}
+                  aria-label="Manage Group"
+                  style={{
+                    ...button,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: V.surf,
+                    borderColor: V.outv,
+                    color: V.ink,
+                  }}
+                >
+                  <Icon name="settings" size={14} style={{ color: V.pri }} />
+                  MANAGE GROUP
+                </button>
+                <button
+                  type="button"
                   onClick={openChat}
                   style={{
                     ...button,
@@ -1198,6 +1235,13 @@ export function GroupsScreen() {
           </>
         )}
       </main>
+      {showAdminFloater && selected && (
+        <GroupAdminFloater
+          groupId={selected.id}
+          group={selected}
+          onClose={() => setShowAdminFloater(false)}
+        />
+      )}
     </div>
   );
 }
