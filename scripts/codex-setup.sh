@@ -92,6 +92,7 @@ if [[ "$RUN_CHECKS" == true ]]; then
   node scripts/check-fake-data.mjs
   ./node_modules/.bin/vitest run
   node scripts/build-wasm.mjs --check
+  node scripts/build-materials.mjs --check
   node scripts/check-source-imports.mjs
   ./node_modules/.bin/vite build
 else

@@ -8,6 +8,7 @@ import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
 import SegmentedTabs from '../components/SegmentedTabs.jsx';
+import TouchTarget from '../components/TouchTarget.tsx';
 
 const TABS = [
   { id: 'PEOPLE', category: 'people', label: 'People', icon: 'users' },
@@ -32,6 +33,8 @@ function normalizeTab(rawTab) {
 export default function Search() {
   const { state, actions } = useApp();
   const { V, t } = useTheme();
+
+  const searchInputRef = useRef(null);
 
   const [friendsList, setFriendsList] = useState(() => app.friends.getFriends());
   const [nearbyList, setNearbyList] = useState(() =>
@@ -318,6 +321,7 @@ export default function Search() {
             style={{ flex: 1 }}
           >
             <input
+              ref={searchInputRef}
               className="search-input"
               aria-label={
                 activeTabId === 'SEARCH'
@@ -350,12 +354,30 @@ export default function Search() {
             />
           </FormField>
           {state.searchQuery ? (
-            <div
-              onClick={() => actions.setSearchQuery('')}
-              style={{ cursor: 'pointer', color: V.ink2, display: 'flex', alignItems: 'center' }}
+            <TouchTarget
+              type="button"
+              aria-label="Clear search input"
+              minSize={24}
+              onClick={() => {
+                actions.setSearchQuery('');
+                searchInputRef.current?.focus();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: V.ink2,
+                padding: 0,
+              }}
             >
-              <Icon name="x" size={16} />
-            </div>
+              <Icon name="x" size={16} aria-hidden="true" />
+            </TouchTarget>
           ) : null}
         </div>
       </div>

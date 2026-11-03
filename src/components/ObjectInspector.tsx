@@ -5,6 +5,7 @@ import Icon from './Icon.jsx';
 import TouchTarget from './TouchTarget';
 import PayDialog from './PayDialog.jsx';
 import CollapsibleSystemDetails from './CollapsibleSystemDetails';
+import BuildingToolbar from './BuildingToolbar';
 
 export interface ObjectInspectorProps {
   style?: React.CSSProperties;
@@ -378,6 +379,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           </p>
         </div>
 
+        <BuildingToolbar compact={false} style={{ marginBottom: '10px' }} />
+
         <div
           style={{
             fontWeight: 700,
@@ -710,6 +713,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           <span>PAY OBJECT</span>
         </TouchTarget>
       </div>
+
+      <BuildingToolbar selectedObject={selection} style={{ marginBottom: '10px' }} />
 
       <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
         <div

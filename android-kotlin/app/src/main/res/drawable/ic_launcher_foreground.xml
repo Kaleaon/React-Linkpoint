@@ -1,5 +1,88 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#6CFF9A" android:pathData="M54,26 L78,54 L54,82 L30,54 Z" />
-    <path android:fillColor="#0A1112" android:pathData="M54,40 L66,54 L54,68 L42,54 Z" />
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Bottom Pyramid Faces -->
+    <path
+        android:name="bot_base"
+        android:fillColor="#152620"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M71,64.75 L54,71 L37,64.75 L54,58.5 Z" />
+    <path
+        android:name="bot_face_back_left"
+        android:fillColor="#1B4230"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,81 L37,64.75 L54,58.5 Z" />
+    <path
+        android:name="bot_face_back_right"
+        android:fillColor="#3D9B68"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,81 L54,58.5 L71,64.75 Z" />
+    <path
+        android:name="bot_face_front_left"
+        android:fillColor="#285842"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,81 L54,71 L37,64.75 Z" />
+    <path
+        android:name="bot_face_front_right"
+        android:fillColor="#54D486"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,81 L71,64.75 L54,71 Z" />
+
+    <!-- Top Pyramid Faces -->
+    <path
+        android:name="top_base"
+        android:fillColor="#1A2F27"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M71,43.25 L54,49.5 L37,43.25 L54,37 Z" />
+    <path
+        android:name="top_face_back_left"
+        android:fillColor="#24523C"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,27 L37,43.25 L54,37 Z" />
+    <path
+        android:name="top_face_back_right"
+        android:fillColor="#44B375"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,27 L54,37 L71,43.25 Z" />
+    <path
+        android:name="top_face_front_left"
+        android:fillColor="#8AD0B0"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,27 L54,49.5 L37,43.25 Z" />
+    <path
+        android:name="top_face_front_right"
+        android:fillColor="#6CFF9A"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.6"
+        android:strokeLineJoin="round"
+        android:pathData="M54,27 L71,43.25 L54,49.5 Z" />
+
+    <!-- Center Core Diamond -->
+    <path
+        android:name="core_diamond"
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#0A1112"
+        android:strokeWidth="0.4"
+        android:pathData="M54,52.25 L55.75,54 L54,55.75 L52.25,54 Z" />
 </vector>

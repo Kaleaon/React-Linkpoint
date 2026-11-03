@@ -16,6 +16,8 @@ import { UpdateType } from '@caspertech/node-metaverse/dist/lib/enums/UpdateType
 import { Vector3 } from '@caspertech/node-metaverse/dist/lib/classes/Vector3';
 import { Quaternion } from '@caspertech/node-metaverse/dist/lib/classes/Quaternion';
 import { UUID } from '@caspertech/node-metaverse/dist/lib/classes/UUID';
+import { Utils } from '../utils';
+import { slBridge } from '../sl-bridge';
 
 export const MAX_UDP_PACKET_SIZE = 1200;
 
@@ -92,10 +94,112 @@ function toVector3(pos?: number[] | { x: number; y: number; z: number }): Vector
   return new Vector3([pos.x ?? 0, pos.y ?? 0, pos.z ?? 0]);
 }
 
-export class ObjectManagerExtended {
+export class ObjectManagerExtended extends Utils.EventEmitter {
   private objects: Map<string, any> = new Map();
   private selectedObjects: Set<string> = new Set();
   private parentChildMap: Map<string, Set<string>> = new Map();
+
+  constructor(private bridge?: any) {
+    super();
+  }
+
+  private getBridge() {
+    return this.bridge || slBridge;
+  }
+
+  /**
+   * Dispatches ObjectAdd over RPC and notifies listeners on confirmation.
+   */
+  async addObject(params: any) {
+    const result = await this.getBridge().addObject(params);
+    this.emit('object_added', { result, params });
+    this.emit('objectAdded', { result, params });
+    return result;
+  }
+
+  /**
+   * Links multiple objects with the last selected object as the root parent.
+   * Updates internal parentChildMap and emits event notifications upon confirmation.
+   */
+  async linkObjects(params: any) {
+    const result = await this.getBridge().linkObjects(params);
+    if (result && result.rootLocalId !== undefined && Array.isArray(result.childLocalIds)) {
+      const rootId = String(result.rootLocalId);
+      for (const childId of result.childLocalIds) {
+        this.linkChild(rootId, String(childId));
+      }
+    } else if (params && (params.objectLocalIds || params.localIds)) {
+      const ids = (params.objectLocalIds || params.localIds).map(String);
+      if (ids.length >= 2) {
+        const rootId = ids[ids.length - 1];
+        for (let i = 0; i < ids.length - 1; i++) {
+          this.linkChild(rootId, ids[i]);
+        }
+      }
+    }
+    this.emit('objects_linked', result);
+    this.emit('link', result);
+    return result;
+  }
+
+  /**
+   * Delinks objects, updating internal parent-child relationships and emitting events.
+   */
+  async delinkObjects(params: any) {
+    const result = await this.getBridge().delinkObjects(params);
+    const ids = result?.objectLocalIds || params?.objectLocalIds || params?.localIds || [];
+    for (const id of ids) {
+      this.unlinkChild(String(id));
+    }
+    this.emit('objects_delinked', result);
+    this.emit('delink', result);
+    return result;
+  }
+
+  /**
+   * Updates primitive parameters across the network, updates local cache and emits events.
+   */
+  async updatePrimParams(params: any) {
+    const result = await this.getBridge().updatePrimParams(params);
+    const targets =
+      result?.objectLocalIds ||
+      (params.localId !== undefined ? [params.localId] : []) ||
+      params.objectLocalIds ||
+      params.localIds ||
+      [];
+    for (const targetId of targets) {
+      const idStr = String(targetId);
+      const existing = this.objects.get(idStr)?.primParams || {};
+      this.setPrimParams(idStr, { ...existing, ...params });
+    }
+    this.emit('prim_params_updated', { result, params });
+    return result;
+  }
+
+  /**
+   * Derezzes / deletes objects from the simulator and local maps.
+   */
+  async deleteObject(params: any) {
+    const result = await this.getBridge().deleteObject(params);
+    const ids =
+      result?.objectLocalIds ||
+      (params.localId !== undefined ? [params.localId] : []) ||
+      params.objectLocalIds ||
+      params.localIds ||
+      [];
+    for (const id of ids) {
+      const idStr = String(id);
+      this.unlinkChild(idStr);
+      this.objects.delete(idStr);
+      this.selectedObjects.delete(idStr);
+    }
+    this.emit('object_deleted', { result, params });
+    return result;
+  }
+
+  async derezObject(params: any) {
+    return this.deleteObject(params);
+  }
 
   /**
    * Feature 17: Prim parameters (shape, material, texture)

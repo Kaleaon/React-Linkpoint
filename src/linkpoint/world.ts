@@ -393,7 +393,7 @@ export class WorldViewer extends Utils.EventEmitter {
     this.emit('objects_changed', this.objects);
   }
   /** The worn HUD shown over the view, if any. Its size is a fraction of the view height. */
-  public displayedHud: { id: string; size: number } | null = null;
+  public displayedHud: { id: string; size: number; pan?: [number, number] } | null = null;
   private hudSignature = '';
   private sceneObjects = new Map<string, any>();
   private localObjectIds = new Map<number, string>();
@@ -1490,7 +1490,12 @@ export class WorldViewer extends Utils.EventEmitter {
       this.applyEnvironment();
       this.applyTerrainMaterials();
       if (this.terrain) scene.setTerrain(this.terrain.heights, this.terrain.size);
-      if (this.displayedHud) scene.setDisplayedHud(this.displayedHud.id, this.displayedHud.size);
+      if (this.displayedHud)
+        scene.setDisplayedHud(
+          this.displayedHud.id,
+          this.displayedHud.size,
+          this.displayedHud.pan || [0, 0],
+        );
       await this.loadBody();
       if (stale()) return;
       this.installBodyMeshes(scene);
@@ -2256,15 +2261,20 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   /** Show one HUD over the view (or hide it). Unknown ids are ignored. */
-  public setDisplayedHud(id: string | null, size: number = HUD_SIZE.initial) {
+  public setDisplayedHud(
+    id: string | null,
+    size: number = HUD_SIZE.initial,
+    pan: [number, number] = [0, 0],
+  ) {
     const known = id ? this.getHuds().some((hud) => hud.id === id) : true;
     if (!known) return false;
     this.displayedHud = id
-      ? { id, size: Math.max(HUD_SIZE.min, Math.min(HUD_SIZE.max, size)) }
+      ? { id, size: Math.max(HUD_SIZE.min, Math.min(HUD_SIZE.max, size)), pan: pan || [0, 0] }
       : null;
     this.scene3d?.setDisplayedHud(
       this.displayedHud ? this.displayedHud.id : null,
       this.displayedHud?.size,
+      this.displayedHud?.pan || [0, 0],
     );
     this.emit('hud_display_changed', this.displayedHud ? { ...this.displayedHud } : null);
     return true;
@@ -2273,7 +2283,39 @@ export class WorldViewer extends Utils.EventEmitter {
   /** Make the displayed HUD larger or smaller. */
   public zoomHud(direction: 1 | -1) {
     if (!this.displayedHud) return;
-    this.setDisplayedHud(this.displayedHud.id, this.displayedHud.size + direction * HUD_SIZE.step);
+    this.setDisplayedHud(
+      this.displayedHud.id,
+      this.displayedHud.size + direction * HUD_SIZE.step,
+      this.displayedHud.pan || [0, 0],
+    );
+  }
+
+  /** Set the HUD overlay offset/pan in view units. */
+  public setHudPan(pan: [number, number]) {
+    if (!this.displayedHud) return;
+    this.setDisplayedHud(this.displayedHud.id, this.displayedHud.size, pan);
+  }
+
+  /** Apply positioning preset to the displayed HUD overlay. */
+  public applyHudPreset(presetType: string) {
+    if (!this.displayedHud) return;
+    const norm = String(presetType)
+      .toLowerCase()
+      .replace(/[^a-z]/g, '');
+    let pan: [number, number] = [0, 0];
+    if (norm.includes('topleft')) {
+      pan = [-0.5, 0.5];
+    } else if (norm.includes('topright')) {
+      pan = [0.5, 0.5];
+    } else if (norm.includes('bottomleft')) {
+      pan = [-0.5, -0.5];
+    } else if (norm.includes('bottomright')) {
+      pan = [0.5, -0.5];
+    } else {
+      // 'center', 'centeroverlay', etc.
+      pan = [0, 0];
+    }
+    this.setHudPan(pan);
   }
 
   /** Re-announce the HUD list when it changed, and drop the displayed HUD if it is gone. */

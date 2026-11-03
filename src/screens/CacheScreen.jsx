@@ -5,6 +5,7 @@ import { useErrorRecovery } from '../context/ErrorRecoveryContext';
 import { app } from '../linkpoint/app';
 import { localCache, COMMON_FLASHDRIVE_PRESETS, validateMountPath } from '../linkpoint/local-cache';
 import Icon from '../components/Icon.jsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import FormField from '../components/FormField.jsx';
 
 export default function CacheScreen() {
@@ -430,14 +431,16 @@ export default function CacheScreen() {
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {recoveryError.retryAction && (
-              <button
+              <SyncActionButton
                 type="button"
                 onClick={() => recoveryError.retryAction()}
-                disabled={busy}
+                loading={busy}
+                iconName="refresh-cw"
+                size={14}
+                idleText="Retry Operation"
+                loadingText="Retrying…"
                 style={btnStyle(true)}
-              >
-                <Icon name="refresh-cw" size={14} /> Retry Operation
-              </button>
+              />
             )}
             <button
               type="button"
@@ -841,14 +844,16 @@ export default function CacheScreen() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-          <button
+          <SyncActionButton
             type="button"
             onClick={handleRebuildFromGrid}
-            disabled={busy}
+            loading={busy}
+            iconName="refresh-cw"
+            size={14}
+            idleText="REBUILD FROM GRID (FORCE)"
+            loadingText="REBUILDING…"
             style={{ ...btnStyle(false), flex: 1, borderColor: V.pri, color: V.pri }}
-          >
-            <Icon name="refresh-cw" size={14} /> REBUILD FROM GRID (FORCE)
-          </button>
+          />
           <button
             type="button"
             onClick={handleClearCache}

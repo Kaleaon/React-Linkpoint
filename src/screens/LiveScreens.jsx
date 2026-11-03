@@ -5,8 +5,10 @@ import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import CollapsibleSystemDetails from '../components/CollapsibleSystemDetails';
+import GroupAdminFloater from '../components/GroupAdminFloater.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import Radar from './Radar.jsx';
@@ -46,6 +48,35 @@ export function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
   const [noteText, setNoteText] = useState(() => contact?.note || '');
   const [linkInputs, setLinkInputs] = useState({});
   const [linkErrors, setLinkErrors] = useState({});
+  const [permissions, setPermissions] = useState(() => friend?.permissions || {});
+
+  useEffect(() => {
+    setPermissions(friend?.permissions || {});
+  }, [friend?.id, friend?.permissions]);
+
+  useEffect(() => {
+    if (!friend?.id) return;
+    const onRightsUpdated = (data) => {
+      if (data && (data.friendId === friend.id || data.targetId === friend.id)) {
+        setPermissions(data.permissions || {});
+      }
+    };
+    app.friends?.on?.('friend_rights_updated', onRightsUpdated);
+    app.friends?.on?.('friend_updated', onRightsUpdated);
+    return () => {
+      app.friends?.removeListener?.('friend_rights_updated', onRightsUpdated);
+      app.friends?.removeListener?.('friend_updated', onRightsUpdated);
+    };
+  }, [friend?.id]);
+
+  const togglePermission = (key) => {
+    const updated = {
+      ...permissions,
+      [key]: !permissions[key],
+    };
+    setPermissions(updated);
+    app.friends?.setFriendPermissions?.(friend.id, updated);
+  };
 
   useEffect(() => {
     setNoteText(contact?.note || '');
@@ -118,16 +149,68 @@ export function FriendContactInspector({ friend, onClose, onStartIm, V, t }) {
         >
           {friend.onlineStatus || 'offline'}
         </dd>
-        <dt style={{ fontWeight: 700, color: V.ink2 }}>Permissions</dt>
-        <dd style={{ margin: 0 }}>
-          {friend.permissions?.canSeeOnline ? '✓ See online status ' : ''}
-          {friend.permissions?.canSeeOnMap ? '✓ Map location ' : ''}
-          {friend.permissions?.canModifyObjects ? '✓ Modify objects' : ''}
-          {!friend.permissions?.canSeeOnline &&
-          !friend.permissions?.canSeeOnMap &&
-          !friend.permissions?.canModifyObjects
-            ? 'Standard friendship'
-            : ''}
+        <dt style={{ fontWeight: 700, color: V.ink2, marginBottom: 4 }}>Permissions</dt>
+        <dd style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label
+            htmlFor={`inspector-perm-online-${friend.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            <input
+              type="checkbox"
+              id={`inspector-perm-online-${friend.id}`}
+              name="canSeeOnline"
+              aria-label="canSeeOnline"
+              checked={Boolean(permissions.canSeeOnline)}
+              onChange={() => togglePermission('canSeeOnline')}
+            />
+            <span>See online status</span>
+          </label>
+          <label
+            htmlFor={`inspector-perm-map-${friend.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            <input
+              type="checkbox"
+              id={`inspector-perm-map-${friend.id}`}
+              name="canSeeOnMap"
+              aria-label="canSeeOnMap"
+              checked={Boolean(permissions.canSeeOnMap)}
+              onChange={() => togglePermission('canSeeOnMap')}
+            />
+            <span>Map location</span>
+          </label>
+          <label
+            htmlFor={`inspector-perm-modify-${friend.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            <input
+              type="checkbox"
+              id={`inspector-perm-modify-${friend.id}`}
+              name="canModifyObjects"
+              aria-label="canModifyObjects"
+              checked={Boolean(permissions.canModifyObjects)}
+              onChange={() => togglePermission('canModifyObjects')}
+            />
+            <span>Modify objects</span>
+          </label>
         </dd>
       </dl>
 
@@ -374,10 +457,15 @@ export function FriendsScreen() {
           {allFriends.length} TOTAL FRIENDS
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
+          <SyncActionButton
             type="button"
             onClick={handleSyncFriends}
-            disabled={syncing || !app.auth.isLoggedIn()}
+            loading={syncing}
+            disabled={!app.auth.isLoggedIn()}
+            iconName="rotate-cw"
+            size={13}
+            idleText="SYNC FRIENDS"
+            loadingText="SYNCING…"
             style={{
               padding: '4px 10px',
               fontSize: '11px',
@@ -387,15 +475,9 @@ export function FriendsScreen() {
               borderRadius: V.rs,
               color: V.pri,
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
             }}
             title="Reload friends list from Second Life"
-          >
-            <Icon name="rotate-cw" size={13} />
-            {syncing ? 'SYNCING…' : 'SYNC FRIENDS'}
-          </button>
+          />
         </div>
       </div>
 
@@ -586,6 +668,24 @@ export function GroupsScreen() {
   const [activeGroupId, setActiveGroupId] = useState(() => app.groups.getActiveGroupId());
   const [activating, setActivating] = useState(false);
   const [lastActivateTime, setLastActivateTime] = useState(0);
+  const [showAdminFloater, setShowAdminFloater] = useState(false);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setGroups(app.groups.getGroups());
+      setDetailRefresh((v) => v + 1);
+    };
+    app.groups.on('roles_updated', handleUpdate);
+    app.groups.on('role_updated', handleUpdate);
+    app.groups.on('members_updated', handleUpdate);
+    app.groups.on('member_ejected', handleUpdate);
+    return () => {
+      app.groups.off('roles_updated', handleUpdate);
+      app.groups.off('role_updated', handleUpdate);
+      app.groups.off('members_updated', handleUpdate);
+      app.groups.off('member_ejected', handleUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleActiveChanged = (payload) => {
@@ -763,16 +863,16 @@ export function GroupsScreen() {
             <strong style={{ font: `700 11px/1 ${t.font}`, letterSpacing: '.09em' }}>
               {groups.length} GROUP{groups.length === 1 ? '' : 'S'}
             </strong>
-            <button
+            <SyncActionButton
               type="button"
               onClick={refresh}
-              disabled={loading}
+              loading={loading}
+              iconName="refresh-cw"
+              size={14}
               aria-label="Reload groups"
               title="Reload groups"
-              style={{ ...button, width: 34, padding: 0, display: 'grid', placeItems: 'center' }}
-            >
-              <Icon name="refresh-cw" size={14} />
-            </button>
+              style={{ ...button, width: 34, padding: 0 }}
+            />
           </div>
           <label style={{ position: 'relative', display: 'block' }}>
             <span className="sr-only">Search your groups</span>
@@ -1028,6 +1128,24 @@ export function GroupsScreen() {
                 )}
                 <button
                   type="button"
+                  onClick={() => setShowAdminFloater((open) => !open)}
+                  aria-label="Manage Group"
+                  style={{
+                    ...button,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: V.surf,
+                    borderColor: V.outv,
+                    color: V.ink,
+                  }}
+                >
+                  <Icon name="settings" size={14} style={{ color: V.pri }} />
+                  MANAGE GROUP
+                </button>
+                <button
+                  type="button"
                   onClick={openChat}
                   style={{
                     ...button,
@@ -1198,6 +1316,13 @@ export function GroupsScreen() {
           </>
         )}
       </main>
+      {showAdminFloater && selected && (
+        <GroupAdminFloater
+          groupId={selected.id}
+          group={selected}
+          onClose={() => setShowAdminFloater(false)}
+        />
+      )}
     </div>
   );
 }
