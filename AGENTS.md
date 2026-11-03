@@ -33,6 +33,7 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 | `npm run check:electron`  | `node scripts/validate-electron-config.mjs`           | Validates Electron config and main entry syntax |
 | `npm run test`            | `vitest run`                                          | Unit and component tests                        |
 | `npm run build`           | `vite build` (+ WASM, materials & imports checks)     | Production build bundle                         |
+| `npm run build:server`    | `esbuild server.ts ...`                               | Backend server bundle                           |
 | **Combined Check**        | `npm run check` or `./scripts/codex-setup.sh --check` | Runs all web CI validation steps                |
 
 ### 2. Expo Android Debug APK (`expo-apk` job)
