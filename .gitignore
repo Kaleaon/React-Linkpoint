@@ -2,6 +2,7 @@ node_modules/
 build/
 build-desktop/
 dist/
+dist-server/
 coverage/
 work/
 .DS_Store
