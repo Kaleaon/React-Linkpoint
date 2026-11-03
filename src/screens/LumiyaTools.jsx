@@ -7,6 +7,8 @@ import PayDialog from '../components/PayDialog.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
+import AccessibleInput from '../components/AccessibleInput.jsx';
+import AccessibleSelect from '../components/AccessibleSelect.jsx';
 
 function Empty({ icon, children }) {
   return (
@@ -1229,56 +1231,26 @@ export function TransactionsScreen() {
           marginBottom: '16px',
         }}
       >
-        <input
+        <AccessibleInput
           type="text"
           placeholder="Search description/ID..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          style={{ width: '100%' }}
         />
 
-        <input
+        <AccessibleInput
           type="text"
           placeholder="Filter by Avatar/Target..."
           value={avatarFilter}
           onChange={(e) => setAvatarFilter(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          style={{ width: '100%' }}
         />
 
-        <select
+        <AccessibleSelect
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          style={{ width: '100%' }}
         >
           <option value="all">All Types</option>
           <option value="payment">Payment</option>
@@ -1288,64 +1260,34 @@ export function TransactionsScreen() {
           <option value="transfer">Transfer</option>
           <option value="credit">Credit (+)</option>
           <option value="debit">Debit (-)</option>
-        </select>
+        </AccessibleSelect>
 
-        <select
+        <AccessibleSelect
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          style={{ width: '100%' }}
         >
           <option value="30days">Last 30 Days</option>
           <option value="14days">Last 14 Days</option>
           <option value="7days">Last 7 Days</option>
           <option value="today">Today</option>
           <option value="all">All History</option>
-        </select>
+        </AccessibleSelect>
 
-        <input
+        <AccessibleInput
           type="date"
           aria-label="Start date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          style={{ width: '100%' }}
         />
 
-        <input
+        <AccessibleInput
           type="date"
           aria-label="End date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid #334155',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            fontSize: '13px',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          style={{ width: '100%' }}
         />
       </div>
 

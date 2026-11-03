@@ -29,7 +29,10 @@ import {
   TileNav,
   BottomTabs,
   DeviceFrame,
-  BrandedLoader
+  BrandedLoader,
+  AccessibleButton,
+  AccessibleInput,
+  AccessibleSelect
 } from "../react/index.js";
 
 import {
@@ -100,6 +103,9 @@ describe("@linkpoint/design-system subpath exports & functional requirements", (
     expect(BottomTabs).toBeDefined();
     expect(DeviceFrame).toBeDefined();
     expect(BrandedLoader).toBeDefined();
+    expect(AccessibleButton).toBeDefined();
+    expect(AccessibleInput).toBeDefined();
+    expect(AccessibleSelect).toBeDefined();
     expect(useThemeTokens).toBeDefined();
     expect(useLayoutMode).toBeDefined();
   });
