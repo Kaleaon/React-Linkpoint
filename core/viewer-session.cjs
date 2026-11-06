@@ -118,6 +118,199 @@ class DirEventsQueryMessage {
   }
 }
 
+class ParcelPropertiesUpdateMessage {
+  constructor() {
+    this.name = 'ParcelPropertiesUpdate';
+    this.messageFlags = 20; // MessageFlags.Zerocoded | MessageFlags.FrequencyLow
+    this.id = 0xffff0100 >>> 0; // 4294902016 (Low-frequency message ID 0xFFFF0100)
+    this.AgentData = {
+      AgentID: UUID.zero(),
+      SessionID: UUID.zero(),
+    };
+    this.ParcelData = {
+      LocalID: 0,
+      ParcelFlags: 0,
+      AuthBuyerID: UUID.zero(),
+      SnapshotID: UUID.zero(),
+      UserLocation: [0, 0, 0],
+      UserLookAt: [0, 0, 0],
+      Category: 0,
+      Name: Buffer.alloc(0),
+      Desc: Buffer.alloc(0),
+      MusicURL: Buffer.alloc(0),
+      MediaURL: Buffer.alloc(0),
+      MediaID: UUID.zero(),
+      MediaAutoScale: 0,
+      GroupID: UUID.zero(),
+      PassPrice: 0,
+      PassHours: 0,
+      DirectoryFee: 0,
+      LandingType: 0,
+    };
+  }
+
+  getSize() {
+    return (
+      32 + // AgentData (AgentID: 16, SessionID: 16)
+      4 + // LocalID
+      4 + // ParcelFlags
+      16 + // AuthBuyerID
+      16 + // SnapshotID
+      12 + // UserLocation (3x float)
+      12 + // UserLookAt (3x float)
+      1 + // Category
+      1 +
+      this.ParcelData.Name.length +
+      2 +
+      this.ParcelData.Desc.length +
+      1 +
+      this.ParcelData.MusicURL.length +
+      1 +
+      this.ParcelData.MediaURL.length +
+      16 + // MediaID
+      1 + // MediaAutoScale
+      16 + // GroupID
+      4 + // PassPrice
+      4 + // PassHours
+      4 + // DirectoryFee
+      1 // LandingType
+    );
+  }
+
+  writeToBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData.AgentID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.SessionID.writeToBuffer(buf, pos);
+    pos += 16;
+    buf.writeInt32LE(this.ParcelData.LocalID, pos);
+    pos += 4;
+    buf.writeUInt32LE(this.ParcelData.ParcelFlags, pos);
+    pos += 4;
+    this.ParcelData.AuthBuyerID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.ParcelData.SnapshotID.writeToBuffer(buf, pos);
+    pos += 16;
+
+    const loc = this.ParcelData.UserLocation;
+    buf.writeFloatLE(Array.isArray(loc) ? loc[0] || 0 : loc.x || 0, pos);
+    pos += 4;
+    buf.writeFloatLE(Array.isArray(loc) ? loc[1] || 0 : loc.y || 0, pos);
+    pos += 4;
+    buf.writeFloatLE(Array.isArray(loc) ? loc[2] || 0 : loc.z || 0, pos);
+    pos += 4;
+
+    const look = this.ParcelData.UserLookAt;
+    buf.writeFloatLE(Array.isArray(look) ? look[0] || 0 : look.x || 0, pos);
+    pos += 4;
+    buf.writeFloatLE(Array.isArray(look) ? look[1] || 0 : look.y || 0, pos);
+    pos += 4;
+    buf.writeFloatLE(Array.isArray(look) ? look[2] || 0 : look.z || 0, pos);
+    pos += 4;
+
+    buf.writeUInt8(this.ParcelData.Category, pos++);
+
+    buf.writeUInt8(this.ParcelData.Name.length, pos++);
+    this.ParcelData.Name.copy(buf, pos);
+    pos += this.ParcelData.Name.length;
+
+    buf.writeUInt16LE(this.ParcelData.Desc.length, pos);
+    pos += 2;
+    this.ParcelData.Desc.copy(buf, pos);
+    pos += this.ParcelData.Desc.length;
+
+    buf.writeUInt8(this.ParcelData.MusicURL.length, pos++);
+    this.ParcelData.MusicURL.copy(buf, pos);
+    pos += this.ParcelData.MusicURL.length;
+
+    buf.writeUInt8(this.ParcelData.MediaURL.length, pos++);
+    this.ParcelData.MediaURL.copy(buf, pos);
+    pos += this.ParcelData.MediaURL.length;
+
+    this.ParcelData.MediaID.writeToBuffer(buf, pos);
+    pos += 16;
+    buf.writeUInt8(this.ParcelData.MediaAutoScale, pos++);
+    this.ParcelData.GroupID.writeToBuffer(buf, pos);
+    pos += 16;
+    buf.writeInt32LE(this.ParcelData.PassPrice, pos);
+    pos += 4;
+    buf.writeFloatLE(this.ParcelData.PassHours, pos);
+    pos += 4;
+    buf.writeInt32LE(this.ParcelData.DirectoryFee, pos);
+    pos += 4;
+    buf.writeUInt8(this.ParcelData.LandingType, pos++);
+
+    return pos - startPos;
+  }
+}
+
+function sanitizeParcelProperties(params = {}) {
+  const localId = Number(params.localId ?? params.LocalID ?? 0) | 0;
+  const flags =
+    Number(params.parcelFlags ?? params.flags ?? params.Flags ?? params.ParcelFlags ?? 0) >>> 0;
+  const name = String(params.name ?? params.Name ?? '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim()
+    .slice(0, 255);
+  const desc = String(params.desc ?? params.description ?? params.Desc ?? '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .slice(0, 65535);
+  const musicUrl = String(params.musicUrl ?? params.MusicURL ?? '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim()
+    .slice(0, 255);
+  const mediaUrl = String(params.mediaUrl ?? params.MediaURL ?? '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .trim()
+    .slice(0, 255);
+  const sanitizeUUIDStr = (id) => {
+    if (!id) return '00000000-0000-0000-0000-000000000000';
+    const str = String(id).trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+      ? str
+      : '00000000-0000-0000-0000-000000000000';
+  };
+  const mediaId = sanitizeUUIDStr(params.mediaId ?? params.MediaID);
+  const mediaAutoScale = Number(params.mediaAutoScale ?? params.MediaAutoScale ?? 0) & 0xff;
+  const landingType = Number(params.landingType ?? params.LandingType ?? 0) & 0xff;
+  const category = Number(params.category ?? params.Category ?? 0) & 0xff;
+  const passPrice = Number(params.passPrice ?? params.PassPrice ?? 0) | 0;
+  const passHours = Number(params.passHours ?? params.PassHours ?? 0);
+  const directoryFee = Number(params.directoryFee ?? params.DirectoryFee ?? 0) | 0;
+  const authBuyerId = sanitizeUUIDStr(params.authBuyerId ?? params.AuthBuyerID);
+  const snapshotId = sanitizeUUIDStr(params.snapshotId ?? params.SnapshotID);
+  const groupId = sanitizeUUIDStr(params.groupId ?? params.GroupID);
+  const userLocation = Array.isArray(params.userLocation ?? params.UserLocation)
+    ? (params.userLocation ?? params.UserLocation).slice(0, 3).map(Number)
+    : [0, 0, 0];
+  const userLookAt = Array.isArray(params.userLookAt ?? params.UserLookAt)
+    ? (params.userLookAt ?? params.UserLookAt).slice(0, 3).map(Number)
+    : [0, 0, 0];
+
+  return {
+    localId,
+    parcelFlags: flags,
+    flags,
+    name,
+    desc,
+    description: desc,
+    musicUrl,
+    mediaUrl,
+    mediaId,
+    mediaAutoScale,
+    landingType,
+    category,
+    passPrice,
+    passHours,
+    directoryFee,
+    authBuyerId,
+    snapshotId,
+    groupId,
+    userLocation,
+    userLookAt,
+  };
+}
+
 function sanitizeQueryString(input) {
   if (!input) return '';
   const sanitized = String(input)
@@ -2428,8 +2621,196 @@ class ViewerSession {
   }
 
   async updateParcelProperties(params = {}) {
-    if (!this.bot) throw new Error('Not connected');
-    return { success: true, parcel: params };
+    const bot = this.requireBot ? this.requireBot() : this.bot;
+    if (!bot) throw new Error('Not connected');
+
+    const sanitized = sanitizeParcelProperties(params);
+    const region = this.currentRegion ? this.currentRegion() : bot.currentRegion;
+    const caps = region?.caps || bot.caps;
+    const timeoutMs = typeof params.timeout === 'number' ? params.timeout : 1000;
+
+    // 1. Probing capability endpoints before falling back to UDP
+    let capUrl = null;
+    if (caps) {
+      const capNames = ['ParcelPropertiesUpdate', 'UpdateParcelProperties'];
+      for (const capName of capNames) {
+        try {
+          const capPromise = (async () => {
+            if (typeof caps.isCapAvailable === 'function') {
+              const avail = await caps.isCapAvailable(capName);
+              if (avail && typeof caps.getCapability === 'function') {
+                return await caps.getCapability(capName);
+              }
+            } else if (typeof caps.getCapability === 'function') {
+              return await caps.getCapability(capName);
+            } else if (typeof caps.resolveCapability === 'function') {
+              return caps.resolveCapability(capName);
+            } else if (caps[capName]) {
+              return caps[capName];
+            }
+            return null;
+          })();
+
+          const resolved = await Promise.race([
+            capPromise,
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Cap lookup timeout')), timeoutMs),
+            ),
+          ]);
+          if (resolved) {
+            capUrl = String(resolved);
+            break;
+          }
+        } catch {
+          // Probe error or timeout; continue checking or proceed to UDP fallback
+        }
+      }
+    }
+
+    // 2. If capability endpoint found, attempt HTTP POST with sanitized LLSD
+    if (capUrl) {
+      try {
+        const llsdMap = {
+          local_id: sanitized.localId,
+          LocalID: sanitized.localId,
+          flags: sanitized.parcelFlags,
+          parcel_flags: sanitized.parcelFlags,
+          ParcelFlags: sanitized.parcelFlags,
+          name: sanitized.name,
+          Name: sanitized.name,
+          description: sanitized.desc,
+          desc: sanitized.desc,
+          Desc: sanitized.desc,
+          music_url: sanitized.musicUrl,
+          MusicURL: sanitized.musicUrl,
+          media_url: sanitized.mediaUrl,
+          MediaURL: sanitized.mediaUrl,
+          media_id: sanitized.mediaId,
+          MediaID: sanitized.mediaId,
+          media_auto_scale: sanitized.mediaAutoScale,
+          MediaAutoScale: sanitized.mediaAutoScale,
+          landing_type: sanitized.landingType,
+          LandingType: sanitized.landingType,
+          category: sanitized.category,
+          Category: sanitized.category,
+          pass_price: sanitized.passPrice,
+          PassPrice: sanitized.passPrice,
+          pass_hours: sanitized.passHours,
+          PassHours: sanitized.passHours,
+          directory_fee: sanitized.directoryFee,
+          DirectoryFee: sanitized.directoryFee,
+          auth_buyer_id: sanitized.authBuyerId,
+          AuthBuyerID: sanitized.authBuyerId,
+          snapshot_id: sanitized.snapshotId,
+          SnapshotID: sanitized.snapshotId,
+          group_id: sanitized.groupId,
+          GroupID: sanitized.groupId,
+          user_location: sanitized.userLocation,
+          UserLocation: sanitized.userLocation,
+          user_look_at: sanitized.userLookAt,
+          UserLookAt: sanitized.userLookAt,
+        };
+
+        const postPromise = (async () => {
+          if (typeof caps.capsPerformXMLPost === 'function') {
+            return await caps.capsPerformXMLPost(capUrl, llsdMap);
+          } else if (typeof caps.requestPost === 'function') {
+            const xml = LLSD.LLSD.formatXML(llsdMap);
+            const resp = await caps.requestPost(capUrl, xml, 'application/llsd+xml');
+            if (resp && resp.status >= 200 && resp.status < 300) {
+              return resp.body
+                ? typeof resp.body === 'string'
+                  ? LLSD.LLSD.parseXML(resp.body)
+                  : resp.body
+                : {};
+            }
+            throw new Error(`HTTP ${resp?.status || 500}`);
+          } else if (typeof fetch === 'function') {
+            const xml = LLSD.LLSD.formatXML(llsdMap);
+            const resp = await fetch(capUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/llsd+xml',
+                Accept: 'application/llsd+xml, application/json',
+              },
+              body: xml,
+            });
+            if (!resp.ok) {
+              throw new Error(`HTTP ${resp.status}`);
+            }
+            const text = await resp.text();
+            try {
+              return LLSD.LLSD.parseXML(text);
+            } catch {
+              return { raw: text };
+            }
+          }
+          throw new Error('No HTTP POST transport available on caps');
+        })();
+
+        const response = await Promise.race([
+          postPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Cap post timeout')), timeoutMs),
+          ),
+        ]);
+
+        return {
+          success: true,
+          transport: 'capability',
+          endpoint: capUrl,
+          parcel: sanitized,
+          response: response || {},
+        };
+      } catch (_capErr) {
+        // Capability failed, timed out, or returned 404 -> fallback to reliable UDP
+      }
+    }
+
+    // 3. Reliable UDP circuit transport fallback
+    const circuit = region?.circuit || bot.circuit;
+    const agentId = bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) {
+      throw new Error('Circuit connection unavailable for parcel update');
+    }
+
+    const msg = new ParcelPropertiesUpdateMessage();
+    msg.AgentData = {
+      AgentID: agentId instanceof UUID ? agentId : new UUID(String(agentId)),
+      SessionID:
+        circuit.sessionID instanceof UUID
+          ? circuit.sessionID
+          : new UUID(String(circuit.sessionID || '00000000-0000-0000-0000-000000000000')),
+    };
+    msg.ParcelData = {
+      LocalID: sanitized.localId,
+      ParcelFlags: sanitized.parcelFlags,
+      AuthBuyerID: new UUID(sanitized.authBuyerId),
+      SnapshotID: new UUID(sanitized.snapshotId),
+      UserLocation: sanitized.userLocation,
+      UserLookAt: sanitized.userLookAt,
+      Category: sanitized.category,
+      Name: Buffer.from(sanitized.name, 'utf8'),
+      Desc: Buffer.from(sanitized.desc, 'utf8'),
+      MusicURL: Buffer.from(sanitized.musicUrl, 'utf8'),
+      MediaURL: Buffer.from(sanitized.mediaUrl, 'utf8'),
+      MediaID: new UUID(sanitized.mediaId),
+      MediaAutoScale: sanitized.mediaAutoScale,
+      GroupID: new UUID(sanitized.groupId),
+      PassPrice: sanitized.passPrice,
+      PassHours: sanitized.passHours,
+      DirectoryFee: sanitized.directoryFee,
+      LandingType: sanitized.landingType,
+    };
+
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    return {
+      success: true,
+      transport: 'udp',
+      messageId: '0xFFFF0100',
+      parcel: sanitized,
+    };
   }
 
   async buyParcel(params = {}) {
@@ -2456,4 +2837,6 @@ module.exports = {
   serializeFriend,
   serializeTerrainMaterials,
   PCode,
+  ParcelPropertiesUpdateMessage,
+  sanitizeParcelProperties,
 };

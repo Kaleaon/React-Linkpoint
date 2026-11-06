@@ -249,7 +249,10 @@ export function ParcelScreen() {
         landingType: Number(landingType),
         parcelFlags: Number(parcelFlags),
       });
-      setStatusMessage('Parcel properties updated and transmitted successfully.');
+      const transportNote = app.world?.lastParcelTransport
+        ? ` via ${app.world.lastParcelTransport.toUpperCase()}`
+        : '';
+      setStatusMessage(`Parcel properties updated and transmitted successfully${transportNote}.`);
     } catch (err) {
       setStatusMessage(`Update failed: ${err.message}`);
     }
