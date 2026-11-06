@@ -11,6 +11,8 @@ import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
 import VoiceDevices from '../components/VoiceDevices.jsx';
+import AccessibleInput from '../components/AccessibleInput';
+import AccessibleSelect from '../components/AccessibleSelect';
 import { LAYOUTS, PALETTES, PALETTE_FAMILIES as FAMILIES } from '@linkpoint/design-system/tokens';
 import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import { formatKeyString, parseKeyString, isValidKeyBinding } from '../linkpoint/key-bindings.ts';
@@ -358,7 +360,7 @@ export default function Settings() {
     >
       <aside className="settings-categories">
         <FormField label="Search settings">
-          <input
+          <AccessibleInput
             type="search"
             aria-label="Search settings"
             value={search}
@@ -454,7 +456,7 @@ export default function Settings() {
           <h2 id="appearance-heading">Appearance &amp; format</h2>
           <div className="settings-field-grid">
             <FormField label="Layout">
-              <select
+              <AccessibleSelect
                 id="settings-layout-select"
                 aria-label="Layout"
                 value={state.layout}
@@ -465,10 +467,10 @@ export default function Settings() {
                     {value.name}
                   </option>
                 ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
             <FormField label="Colour theme">
-              <select
+              <AccessibleSelect
                 id="settings-theme-select"
                 aria-label="Colour theme"
                 value={state.palette}
@@ -491,10 +493,10 @@ export default function Settings() {
                         {x.name}
                       </option>
                     ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
             <FormField label="App format">
-              <select
+              <AccessibleSelect
                 id="settings-format-select"
                 aria-label="App format"
                 value={state.viewMode}
@@ -503,10 +505,10 @@ export default function Settings() {
                 <option value="auto">Automatic</option>
                 <option value="mobile">Mobile touch</option>
                 <option value="desktop">Desktop windows</option>
-              </select>
+              </AccessibleSelect>
             </FormField>
             <FormField label="Content density">
-              <select
+              <AccessibleSelect
                 id="settings-density-select"
                 aria-label="Content density"
                 value={state.customTheme.density}
@@ -515,7 +517,7 @@ export default function Settings() {
                 <option value="standard">Standard</option>
                 <option value="comfortable">Comfortable</option>
                 <option value="compact">Compact</option>
-              </select>
+              </AccessibleSelect>
             </FormField>
           </div>
           <SwitchSetting
@@ -535,7 +537,7 @@ export default function Settings() {
           <h2 id="graphics-heading">Graphics &amp; performance</h2>
           <div className="settings-field-grid">
             <FormField label="Draw distance">
-              <select
+              <AccessibleSelect
                 id="settings-draw-distance-select"
                 aria-label="Draw distance"
                 value={state.prefs.draw}
@@ -544,10 +546,10 @@ export default function Settings() {
                 {['20 m', '32 m', '64 m', '96 m', '128 m', '192 m', '256 m'].map((value) => (
                   <option key={value}>{value}</option>
                 ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
             <FormField label="Camera field of view">
-              <select
+              <AccessibleSelect
                 id="settings-fov-select"
                 aria-label="Camera field of view"
                 value={state.prefs.fov}
@@ -558,7 +560,7 @@ export default function Settings() {
                     {value}°
                   </option>
                 ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
             {isFeatureVisible('quality', devMode) && (
               <FormField
@@ -569,7 +571,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-graphics-quality-select"
                   aria-label="Graphics quality"
                   disabled
@@ -580,11 +582,11 @@ export default function Settings() {
                   {['Low', 'Balanced', 'High', 'Ultra'].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
             <FormField label="Frame rate cap">
-              <select
+              <AccessibleSelect
                 id="settings-frame-rate-select"
                 aria-label="Frame rate cap"
                 value={state.prefs.fps}
@@ -593,7 +595,7 @@ export default function Settings() {
                 {['30 fps', '45 fps', '60 fps', 'Uncapped'].map((value) => (
                   <option key={value}>{value}</option>
                 ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
             {isFeatureVisible('complexity', devMode) && (
               <FormField
@@ -604,7 +606,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-avatar-complexity-select"
                   aria-label="Avatar complexity"
                   disabled
@@ -615,7 +617,7 @@ export default function Settings() {
                   {['20 000', '40 000', '80 000', '160 000', 'No limit'].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
             {isFeatureVisible('bandwidth', devMode) && (
@@ -627,7 +629,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-bandwidth-limit-select"
                   aria-label="Bandwidth limit"
                   disabled
@@ -638,7 +640,7 @@ export default function Settings() {
                   {['500 kbps', '1 500 kbps', '3 000 kbps', 'Unlimited'].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
           </div>
@@ -666,7 +668,7 @@ export default function Settings() {
           <h2 id="sound-voice-heading">Sound &amp; audio</h2>
           <div className="settings-field-grid">
             <FormField label="Master volume">
-              <select
+              <AccessibleSelect
                 id="settings-master-volume-select"
                 aria-label="Master volume"
                 value={state.prefs.volume}
@@ -675,7 +677,7 @@ export default function Settings() {
                 {['Muted', '25%', '50%', '70%', '100%'].map((value) => (
                   <option key={value}>{value}</option>
                 ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
             {[
               ['voiceVolume', 'Voice volume'],
@@ -684,7 +686,7 @@ export default function Settings() {
               ['ambientVolume', 'Ambient sounds'],
             ].map(([key, label]) => (
               <FormField key={key} label={label}>
-                <select
+                <AccessibleSelect
                   id={`settings-${key}`}
                   aria-label={label}
                   value={state.prefs[key]}
@@ -693,7 +695,7 @@ export default function Settings() {
                   {['Muted', '25%', '50%', '70%', '100%'].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
+                </AccessibleSelect>
               </FormField>
             ))}
           </div>
@@ -758,7 +760,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-translation-select"
                   aria-label="Translate incoming chat"
                   disabled
@@ -771,7 +773,7 @@ export default function Settings() {
                       <option key={value}>{value}</option>
                     ),
                   )}
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
             {isFeatureVisible('maturity', devMode) && (
@@ -783,7 +785,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-maturity-select"
                   aria-label="Maturity rating"
                   disabled
@@ -794,7 +796,7 @@ export default function Settings() {
                   {['General', 'Moderate', 'Adult'].map((value) => (
                     <option key={value}>{value}</option>
                   ))}
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
           </div>
@@ -982,7 +984,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-cache-limit-select"
                   aria-label="Cache size"
                   disabled
@@ -995,7 +997,7 @@ export default function Settings() {
                       {value >= 1024 ? `${value / 1024} GB` : `${value} MB`}
                     </option>
                   ))}
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
             {isFeatureVisible('cacheLoc', devMode) && (
@@ -1007,7 +1009,7 @@ export default function Settings() {
                   </span>
                 }
               >
-                <select
+                <AccessibleSelect
                   id="settings-cache-location-select"
                   aria-label="Cache location"
                   disabled
@@ -1017,7 +1019,7 @@ export default function Settings() {
                 >
                   <option>Internal storage</option>
                   <option>Removable storage</option>
-                </select>
+                </AccessibleSelect>
               </FormField>
             )}
           </div>
