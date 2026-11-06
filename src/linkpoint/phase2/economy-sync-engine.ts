@@ -370,6 +370,14 @@ export class EconomySyncEngine extends Utils.EventEmitter {
 
         this.emit('transport_used', { transportType, count: batchResult.transactions.length });
 
+        if (typeof batchResult.balance === 'number') {
+          this.emit('balance_updated', {
+            balance: batchResult.balance,
+            currencySymbol: batchResult.currencySymbol,
+            isZeroCurrency: batchResult.isZeroCurrency,
+          });
+        }
+
         const newRecords: TransactionRecord[] = [];
         let maxBatchTimestamp = currentCursor;
 
@@ -380,6 +388,7 @@ export class EconomySyncEngine extends Utils.EventEmitter {
             !knownIds.has(record.id) &&
             (options.forceFullSync || record.timestamp > currentCursor)
           ) {
+            record.agentId = targetAgentId;
             knownIds.add(record.id);
             newRecords.push(record);
             if (record.timestamp > maxBatchTimestamp) {
@@ -432,6 +441,7 @@ export class EconomySyncEngine extends Utils.EventEmitter {
       this.isSyncing = false;
     }
 
+    await localCache.pruneOldTransactions(targetAgentId, 30);
     const updatedTransactions = await localCache.getTransactions(targetAgentId);
     this.emit('sync_completed', {
       agentId: targetAgentId,
@@ -441,6 +451,10 @@ export class EconomySyncEngine extends Utils.EventEmitter {
     });
 
     return updatedTransactions;
+  }
+
+  public isSyncActive(): boolean {
+    return this.isSyncing;
   }
 
   public getStats() {

@@ -508,17 +508,19 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     if (effectiveRootId) {
       traverse(effectiveRootId, 0);
     } else {
-      const topLevelFolders = Array.from(app.inventory.folders.values()).filter(
-        (f: { parent?: string }) => !f.parent || !app.inventory.folders.has(f.parent),
-      );
-      const topLevelItems = Array.from(app.inventory.items.values()).filter(
-        (i: { parent?: string }) => !i.parent || !app.inventory.folders.has(i.parent),
-      );
-      for (const f of topLevelFolders) {
-        traverse(f.id, 0);
+      for (const [id, folder] of app.inventory.folders.entries()) {
+        if (
+          !folder.parent ||
+          folder.parent === 'root' ||
+          !app.inventory.folders.has(folder.parent)
+        ) {
+          traverse(id, 0);
+        }
       }
-      for (const i of topLevelItems) {
-        traverse(i.id, 0);
+      for (const [id, item] of app.inventory.items.entries()) {
+        if (!item.parent || item.parent === 'root' || !app.inventory.folders.has(item.parent)) {
+          traverse(id, 0);
+        }
       }
     }
     return result;

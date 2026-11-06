@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { app } from '../linkpoint/app.ts';
+import { economyService } from '../services/EconomyService.ts';
 import { GRIDS, subView } from '../theme/constants.js';
 import Icon from '../components/Icon.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
@@ -248,7 +249,10 @@ export function ParcelScreen() {
         landingType: Number(landingType),
         parcelFlags: Number(parcelFlags),
       });
-      setStatusMessage('Parcel properties updated and transmitted successfully.');
+      const transportNote = app.world?.lastParcelTransport
+        ? ` via ${app.world.lastParcelTransport.toUpperCase()}`
+        : '';
+      setStatusMessage(`Parcel properties updated and transmitted successfully${transportNote}.`);
     } catch (err) {
       setStatusMessage(`Update failed: ${err.message}`);
     }
@@ -1125,20 +1129,55 @@ export function TransactionsScreen() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payTarget, setPayTarget] = useState({ id: '', name: 'Resident', type: 'avatar' });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(() => {
+    return Boolean(app.economy?.isSyncing?.() || economyService?.isSyncingTransactions?.());
+  });
+
+  const handleRefresh = async () => {
+    setIsSyncing(true);
+    try {
+      await app.economy.fetchHistory();
+    } catch (err) {
+      console.warn('[TransactionsScreen] Statement refresh failed:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   useEffect(() => {
     void app.economy.init();
     void app.economy.fetchHistory();
 
     const updateHandler = () => setRefreshTrigger((prev) => prev + 1);
+    const syncStartHandler = () => setIsSyncing(true);
+    const syncEndHandler = () => setIsSyncing(false);
+
     app.economy.on('transactions_updated', updateHandler);
     app.economy.on('transaction_added', updateHandler);
     app.economy.on('balance_updated', updateHandler);
+    app.economy.on('delta_batch_received', updateHandler);
+    app.economy.on('sync_started', syncStartHandler);
+    app.economy.on('sync_completed', syncEndHandler);
+    app.economy.on('sync_error', syncEndHandler);
+
+    economyService.on('batch_committed', updateHandler);
+    economyService.on('sync_started', syncStartHandler);
+    economyService.on('sync_completed', syncEndHandler);
+    economyService.on('sync_error', syncEndHandler);
 
     return () => {
       app.economy.off('transactions_updated', updateHandler);
       app.economy.off('transaction_added', updateHandler);
       app.economy.off('balance_updated', updateHandler);
+      app.economy.off('delta_batch_received', updateHandler);
+      app.economy.off('sync_started', syncStartHandler);
+      app.economy.off('sync_completed', syncEndHandler);
+      app.economy.off('sync_error', syncEndHandler);
+
+      economyService.off('batch_committed', updateHandler);
+      economyService.off('sync_started', syncStartHandler);
+      economyService.off('sync_completed', syncEndHandler);
+      economyService.off('sync_error', syncEndHandler);
     };
   }, []);
 
@@ -1171,26 +1210,80 @@ export function TransactionsScreen() {
           marginBottom: '16px',
         }}
       >
-        <h2 style={{ margin: 0 }}>Transaction Ledger (30-Day Cache)</h2>
-        <button
-          onClick={() => openPayDialog('', 'Nearby Target', 'avatar')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 14px',
-            backgroundColor: V.pri,
-            color: V.onpri,
-            border: 'none',
-            borderRadius: V.rs,
-            fontWeight: '600',
-            fontSize: '13px',
-            cursor: 'pointer',
-          }}
-        >
-          <Icon name="banknote" size={16} />
-          <span>Pay / Tip</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 style={{ margin: 0 }}>Transaction Ledger (30-Day Cache)</h2>
+          {isSyncing && (
+            <span
+              role="status"
+              aria-live="polite"
+              data-testid="sync-indicator"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: V.pri,
+                backgroundColor: V.surf,
+                border: '1px solid ' + V.outv,
+                padding: '3px 8px',
+                borderRadius: V.rs,
+              }}
+            >
+              <Icon name="refresh-cw" size={12} style={{ animation: 'spin 1s linear infinite' }} />
+              <span>Syncing...</span>
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isSyncing}
+            aria-label="Refresh transactions"
+            data-testid="refresh-transactions-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              backgroundColor: V.surf,
+              color: V.ink,
+              border: '1px solid ' + V.outv,
+              borderRadius: V.rs,
+              fontWeight: '600',
+              fontSize: '13px',
+              cursor: isSyncing ? 'not-allowed' : 'pointer',
+              opacity: isSyncing ? 0.6 : 1,
+            }}
+          >
+            <Icon
+              name="refresh-cw"
+              size={16}
+              style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }}
+            />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={() => openPayDialog('', 'Nearby Target', 'avatar')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              backgroundColor: V.pri,
+              color: V.onpri,
+              border: 'none',
+              borderRadius: V.rs,
+              fontWeight: '600',
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="banknote" size={16} />
+            <span>Pay / Tip</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary Metrics */}
