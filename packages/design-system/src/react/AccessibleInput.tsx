@@ -26,6 +26,10 @@ export interface AccessibleInputProps
   focusRingColor?: string;
   /** Whether the control should render in compact mode (bypasses 44px minHeight default) */
   compact?: boolean;
+  /** The element type to render as, e.g. "input" or "textarea" */
+  as?: "input" | "textarea" | React.ElementType;
+  /** Rows attribute when rendered as textarea */
+  rows?: number;
 }
 
 /**
@@ -44,6 +48,8 @@ export interface AccessibleInputProps
 export const AccessibleInput = forwardRef<HTMLInputElement, AccessibleInputProps>(
   (
     {
+      as,
+      rows,
       style,
       disabled = false,
       compact = false,
@@ -96,13 +102,16 @@ export const AccessibleInput = forwardRef<HTMLInputElement, AccessibleInputProps
       baseStyle.outlineOffset = "2px";
     }
 
+    const Component = (as || "input") as React.ElementType;
+
     return (
-      <input
+      <Component
         ref={ref}
         disabled={disabled}
         aria-disabled={disabled || undefined}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        rows={rows}
         style={baseStyle}
         {...props}
       />

@@ -12,6 +12,8 @@ import { Utils } from '../utils';
 import { ChatProtocolAdapter } from '../chat-protocol-adapter';
 import type { CapabilitiesManager } from './capabilities';
 import type { NoticeStore, SavedNotice } from '../notices';
+import { indexedDBStore } from '../indexeddb-store';
+import { slBridge } from '../sl-bridge';
 
 export const GROUP_POWERS = {
   None: 0n,
@@ -24,6 +26,10 @@ export const GROUP_POWERS = {
   AssignMemberLimited: 1n << 7n, // 128n
   AssignMember: 1n << 8n, // 256n
   ChangeActions: 1n << 9n, // 512n
+  NoticesSend: 1n << 14n,
+  NOTICES_SEND: 1n << 14n,
+  NoticesReceive: 1n << 15n,
+  NOTICES_RECEIVE: 1n << 15n,
   All: 0xffffffffffffffffn,
 } as const;
 
@@ -395,6 +401,127 @@ export class GroupsManager extends Utils.EventEmitter {
 
     this.groupNotices.get(groupId)!.push(notice);
     console.log(`[Groups] Added notice to group ${groupId}: ${notice.subject}`);
+  }
+
+  /**
+   * Send a group notice to all group members.
+   * Dispatches via protocol/bridge and records into NoticeStore and IndexedDB.
+   */
+  async sendGroupNotice(
+    groupId: string,
+    noticeData: {
+      subject: string;
+      message: string;
+      attachment?: {
+        itemId?: string;
+        itemName?: string;
+        itemType?: number;
+        ownerId?: string;
+        [key: string]: any;
+      } | null;
+      [key: string]: any;
+    },
+  ): Promise<SavedNotice> {
+    if (!groupId) {
+      throw new Error('Valid group ID required');
+    }
+    const cleanSubject = String(noticeData?.subject || '').trim();
+    const cleanMessage = String(noticeData?.message || '').trim();
+    if (!cleanSubject) {
+      throw new Error('Subject is required');
+    }
+    if (!cleanMessage) {
+      throw new Error('Message is required');
+    }
+    if (new TextEncoder().encode(cleanSubject).length > 63) {
+      throw new Error('Subject must not exceed 63 bytes');
+    }
+    if (new TextEncoder().encode(cleanMessage).length > 512) {
+      throw new Error('Message must not exceed 512 bytes');
+    }
+
+    let dispatchRes: any = null;
+    if (slBridge.connected) {
+      dispatchRes = await slBridge.sendGroupNotice({
+        groupId,
+        subject: cleanSubject,
+        message: cleanMessage,
+        attachment: noticeData.attachment,
+      });
+    } else if (this.protocol && typeof (this.protocol as any).sendGroupNotice === 'function') {
+      try {
+        dispatchRes = await (this.protocol as any).sendGroupNotice({
+          groupId,
+          subject: cleanSubject,
+          message: cleanMessage,
+          attachment: noticeData.attachment,
+        });
+      } catch {
+        // Fall back to local dispatch if protocol is offline
+      }
+    }
+
+    const hasAttachment = Boolean(
+      noticeData.attachment && (noticeData.attachment.itemId || noticeData.attachment.itemName),
+    );
+
+    const savedRecord: any = {
+      id:
+        dispatchRes?.id ||
+        noticeData.id ||
+        `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      groupId,
+      subject: cleanSubject,
+      message: cleanMessage,
+      from: dispatchRes?.from || noticeData.from || 'You',
+      timestamp: dispatchRes?.timestamp || noticeData.timestamp || Date.now(),
+      hasAttachment,
+      attachment: hasAttachment
+        ? {
+            hasAttachment: true,
+            attachmentName:
+              noticeData.attachment?.itemName || noticeData.attachment?.attachmentName || null,
+            attachmentItemId:
+              noticeData.attachment?.itemId || noticeData.attachment?.attachmentItemId || null,
+            attachmentType:
+              noticeData.attachment?.itemType ?? noticeData.attachment?.attachmentType ?? null,
+            attachmentOwnerId:
+              noticeData.attachment?.ownerId ?? noticeData.attachment?.attachmentOwnerId ?? null,
+            savedToInventoryAt: null,
+          }
+        : null,
+      attachmentName:
+        noticeData.attachment?.itemName || noticeData.attachment?.attachmentName || null,
+      attachmentItemId:
+        noticeData.attachment?.itemId || noticeData.attachment?.attachmentItemId || null,
+      attachmentType:
+        noticeData.attachment?.itemType ?? noticeData.attachment?.attachmentType ?? null,
+      attachmentOwnerId:
+        noticeData.attachment?.ownerId ?? noticeData.attachment?.attachmentOwnerId ?? null,
+    };
+
+    // Add to in-memory group notices
+    this.addGroupNotice(groupId, savedRecord);
+
+    // Save into NoticeStore and IndexedDB
+    const store = this.noticeStore;
+    let savedNotice: SavedNotice | null = null;
+    if (store) {
+      savedNotice = store.receive(savedRecord);
+      const agentId = (store as any).currentAgentId || 'local_user';
+      await indexedDBStore
+        .saveGroupNotices(agentId, groupId, [savedNotice || savedRecord])
+        .catch(() => {});
+      const cache = store.getGroupCache(groupId);
+      if (cache) {
+        await store.setGroupCache(groupId, [savedNotice || savedRecord, ...cache.notices]);
+      }
+    } else {
+      await indexedDBStore.saveGroupNotices('local_user', groupId, [savedRecord]).catch(() => {});
+    }
+
+    this.emit('group_notice_sent', { groupId, notice: savedNotice || savedRecord });
+    return (savedNotice || savedRecord) as SavedNotice;
   }
 
   /**

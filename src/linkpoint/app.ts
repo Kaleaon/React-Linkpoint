@@ -620,6 +620,18 @@ export class LinkpointApp {
     return { success: true, groupId: targetGroupId, memberId: targetMemberId };
   }
 
+  async sendGroupNotice(
+    groupId: string,
+    noticeData: {
+      subject: string;
+      message: string;
+      attachment?: any;
+      [key: string]: any;
+    },
+  ) {
+    return this.groups.sendGroupNotice(groupId, noticeData);
+  }
+
   async modifyGroupRole(
     groupId: string,
     roleId: string,

@@ -80,6 +80,7 @@ export const AccessibleButton: React.FC<AccessibleButtonProps> = ({
       role={role}
       tabIndex={computedTabIndex}
       aria-disabled={disabled || undefined}
+      disabled={Component === "button" ? disabled : undefined}
       onClick={disabled ? undefined : onClick}
       onKeyDown={handleKeyDown}
       {...props}
