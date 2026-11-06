@@ -6,10 +6,11 @@ import TouchTarget from '../components/TouchTarget.tsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
+import InventoryTree from '../components/InventoryTree.tsx';
 
 /** Inventory rows come directly from InventoryManager capability responses. */
 export default function Inventory() {
-  const { V, t } = useTheme();
+  const { V } = useTheme();
   const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
@@ -33,29 +34,10 @@ export default function Inventory() {
     };
   }, []);
 
-  const rows = useMemo(() => {
-    const query = filter.trim().toLocaleLowerCase();
-    const folders = Array.from(app.inventory.folders.values()).map((entry) => ({
-      ...entry,
-      folder: true,
-    }));
-    const items = Array.from(app.inventory.items.values()).map((entry) => ({
-      ...entry,
-      folder: false,
-    }));
-    return [...folders, ...items]
-      .filter(
-        (entry) =>
-          !query ||
-          String(entry.name || '')
-            .toLocaleLowerCase()
-            .includes(query),
-      )
-      .sort(
-        (a, b) =>
-          Number(b.folder) - Number(a.folder) || String(a.name).localeCompare(String(b.name)),
-      );
-  }, [filter, revision]);
+  const hasItems = useMemo(() => {
+    void revision;
+    return app.inventory.folders.size > 0 || app.inventory.items.size > 0;
+  }, [revision]);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -70,7 +52,20 @@ export default function Inventory() {
     }
   };
 
-  const showSkeletons = (isLoading || refreshing) && rows.length === 0;
+  const handleSelect = (entry) => {
+    const isFolder = Boolean(
+      entry?.folder || entry?.type === 'folder' || app.inventory.folders.has(entry?.id),
+    );
+    setSelected({
+      ...entry,
+      folder: isFolder,
+    });
+    if (isFolder && entry?.id) {
+      void app.inventory.fetchFolderContents(entry.id);
+    }
+  };
+
+  const showSkeletons = (isLoading || refreshing) && !hasItems;
 
   return (
     <section className="live-screen">
@@ -114,25 +109,8 @@ export default function Inventory() {
       <div className="live-list">
         {showSkeletons ? (
           <SkeletonLoader type="row" count={6} />
-        ) : rows.length ? (
-          rows.map((entry) => (
-            <button
-              className="inventory-row inventory-button"
-              key={entry.id}
-              style={{ borderColor: V.outv }}
-              onClick={() => {
-                setSelected(entry);
-                if (entry.folder) void app.inventory.fetchFolderContents(entry.id);
-              }}
-            >
-              <Icon
-                name={entry.folder ? 'folder' : 'file'}
-                size={17}
-                style={{ color: entry.folder ? V.pri : V.sec2 }}
-              />
-              <span style={{ font: `400 13px/1.3 ${t.font}` }}>{entry.name || 'Unnamed item'}</span>
-            </button>
-          ))
+        ) : hasItems ? (
+          <InventoryTree filter={filter} selectedId={selected?.id} onSelect={handleSelect} />
         ) : (
           <div className="honest-empty">
             <Icon name="folder-open" size={28} />
