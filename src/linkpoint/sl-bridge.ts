@@ -103,6 +103,16 @@ export interface DelinkObjectsResult {
   objectLocalIds: number[];
 }
 
+export interface ParcelUpdateResult {
+  success: boolean;
+  transport: 'capability' | 'udp';
+  endpoint?: string;
+  messageId?: string;
+  parcel?: any;
+  response?: any;
+  [key: string]: unknown;
+}
+
 export interface UpdatePrimParamsInput {
   localId?: number;
   objectLocalId?: number;
@@ -630,7 +640,7 @@ export class SLBridge extends Utils.EventEmitter {
   async buyParcelPass(localId: number) {
     return this.call('buyParcelPass', { localId });
   }
-  async updateParcelProperties(data: any) {
+  async updateParcelProperties(data: any): Promise<ParcelUpdateResult> {
     return this.call('updateParcelProperties', data);
   }
   async buyParcel(data: { localId: number; price: number; area: number; forGroup?: boolean }) {
