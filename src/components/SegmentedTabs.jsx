@@ -52,10 +52,10 @@ export default function SegmentedTabs({ screen } = {}) {
     activationMode: 'auto',
   });
 
-  // Search and Radar render SegmentedTabs internally within their screen bodies.
+  // Search, Radar, and Profile render SegmentedTabs internally within their screen bodies.
   // When SegmentedTabs is invoked without an explicit screen prop from top-level
-  // ScreenBody, skip rendering for Search and Radar to prevent double-rendering.
-  if (!screen && (scr === 'Search' || scr === 'Radar')) return null;
+  // ScreenBody, skip rendering for Search, Radar, and Profile to prevent double-rendering.
+  if (!screen && (scr === 'Search' || scr === 'Radar' || scr === 'Profile')) return null;
 
   if (!norm) return null;
   // 3D View is immersive with no header to hang a strip under — it carries its
