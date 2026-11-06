@@ -344,6 +344,15 @@ const {
 const {
   PayPriceReplyMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/PayPriceReply');
+const {
+  PurgeInventoryDescendentsMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/PurgeInventoryDescendents');
+const {
+  RemoveInventoryItemMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryItem');
+const {
+  RemoveInventoryFolderMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryFolder');
 
 class AgentSetGroupTitleMessage {
   constructor() {
@@ -2271,6 +2280,142 @@ class ViewerSession {
       folder: false,
     }));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
+  }
+
+  async purgeInventoryTrash({ folderId } = {}) {
+    const bot = this.requireBot();
+    const region = this.currentRegion();
+    const circuit = region?.circuit;
+    const agentId = this.identity?.agent_id || bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error('Not connected to simulator');
+
+    let targetFolderId = folderId;
+    if (!targetFolderId) {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      const trashFolder =
+        skeleton &&
+        Array.from(skeleton.values()).find(
+          (f) =>
+            f.typeDefault === FolderType.Trash ||
+            f.name?.toLowerCase() === 'trash' ||
+            f.typeDefault === 13 ||
+            f.typeDefault === 14,
+        );
+      if (trashFolder?.folderID) {
+        targetFolderId = trashFolder.folderID.toString();
+      }
+    }
+    if (!targetFolderId) {
+      throw new Error('Trash folder not found');
+    }
+
+    const msg = new PurgeInventoryDescendentsMessage();
+    msg.AgentData = {
+      AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+      SessionID: circuit.sessionID
+        ? typeof circuit.sessionID === 'string'
+          ? new UUID(circuit.sessionID)
+          : circuit.sessionID
+        : UUID.zero(),
+    };
+    msg.InventoryData = {
+      FolderID: typeof targetFolderId === 'string' ? new UUID(targetFolderId) : targetFolderId,
+    };
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    try {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      const skeletonFolder = skeleton?.get(targetFolderId);
+      if (skeletonFolder) {
+        if (Array.isArray(skeletonFolder.items)) skeletonFolder.items = [];
+        if (typeof skeletonFolder.getChildFolders === 'function') {
+          const childFolders = skeletonFolder.getChildFolders() || [];
+          for (const cf of childFolders) {
+            if (cf.folderID) skeleton.delete(cf.folderID.toString());
+          }
+        }
+      }
+    } catch {
+      /* ignore cache cleanup failure */
+    }
+
+    return { success: true, folderId: targetFolderId };
+  }
+
+  async removeInventoryItem({ itemId } = {}) {
+    if (!itemId) throw new Error('itemId is required');
+    const bot = this.requireBot();
+    const region = this.currentRegion();
+    const circuit = region?.circuit;
+    const agentId = this.identity?.agent_id || bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error('Not connected to simulator');
+
+    const msg = new RemoveInventoryItemMessage();
+    msg.AgentData = {
+      AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+      SessionID: circuit.sessionID
+        ? typeof circuit.sessionID === 'string'
+          ? new UUID(circuit.sessionID)
+          : circuit.sessionID
+        : UUID.zero(),
+    };
+    msg.InventoryData = [
+      {
+        ItemID: typeof itemId === 'string' ? new UUID(itemId) : itemId,
+      },
+    ];
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    try {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      if (skeleton) {
+        for (const folder of skeleton.values()) {
+          if (Array.isArray(folder.items)) {
+            folder.items = folder.items.filter((i) => i.itemID?.toString() !== itemId);
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return { success: true, itemId };
+  }
+
+  async removeInventoryFolder({ folderId } = {}) {
+    if (!folderId) throw new Error('folderId is required');
+    const bot = this.requireBot();
+    const region = this.currentRegion();
+    const circuit = region?.circuit;
+    const agentId = this.identity?.agent_id || bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error('Not connected to simulator');
+
+    const msg = new RemoveInventoryFolderMessage();
+    msg.AgentData = {
+      AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+      SessionID: circuit.sessionID
+        ? typeof circuit.sessionID === 'string'
+          ? new UUID(circuit.sessionID)
+          : circuit.sessionID
+        : UUID.zero(),
+    };
+    msg.FolderData = [
+      {
+        FolderID: typeof folderId === 'string' ? new UUID(folderId) : folderId,
+      },
+    ];
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    try {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      if (skeleton) {
+        skeleton.delete(folderId);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return { success: true, folderId };
   }
 
   /**

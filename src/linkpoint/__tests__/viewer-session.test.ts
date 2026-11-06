@@ -871,4 +871,77 @@ describe('live group detail bridge', () => {
     };
     await expect(session.getGroups()).rejects.toThrow('Group list could not be loaded');
   });
+
+  it('dispatches PurgeInventoryDescendents packet when emptying trash', async () => {
+    const session = new ViewerSession(() => undefined);
+    const sendMessage = vi.fn();
+    const trashId = '00000000-0000-0000-0000-000000000014';
+    const agentId = '00000000-0000-0000-0000-000000000001';
+    const sessId = '00000000-0000-0000-0000-000000000002';
+    session.identity = { agent_id: agentId };
+    session.bot = {
+      agent: {
+        agentID: agentId,
+        inventory: {
+          main: {
+            skeleton: new Map([
+              [
+                trashId,
+                {
+                  folderID: { toString: () => trashId },
+                  name: 'Trash',
+                  typeDefault: FolderType.Trash,
+                  items: [{ itemID: { toString: () => 'item-1' } }],
+                  getChildFolders: () => [],
+                },
+              ],
+            ]),
+          },
+        },
+      },
+      currentRegion: { circuit: { sendMessage, sessionID: sessId } },
+    };
+
+    const result = await session.purgeInventoryTrash({ folderId: trashId });
+    expect(result).toEqual({ success: true, folderId: trashId });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [msg] = sendMessage.mock.calls[0];
+    expect(msg.name).toBe('PurgeInventoryDescendents');
+    expect(msg.InventoryData.FolderID.toString()).toBe(trashId);
+  });
+
+  it('dispatches RemoveInventoryItem packet when permanently deleting an item', async () => {
+    const session = new ViewerSession(() => undefined);
+    const sendMessage = vi.fn();
+    const itemId = '00000000-0000-0000-0000-000000000099';
+    const agentId = '00000000-0000-0000-0000-000000000001';
+    const sessId = '00000000-0000-0000-0000-000000000002';
+    session.identity = { agent_id: agentId };
+    session.bot = {
+      agent: {
+        agentID: agentId,
+        inventory: {
+          main: {
+            skeleton: new Map([
+              [
+                'trash-folder',
+                {
+                  folderID: { toString: () => 'trash-folder' },
+                  items: [{ itemID: { toString: () => itemId } }],
+                },
+              ],
+            ]),
+          },
+        },
+      },
+      currentRegion: { circuit: { sendMessage, sessionID: sessId } },
+    };
+
+    const result = await session.removeInventoryItem({ itemId });
+    expect(result).toEqual({ success: true, itemId });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [msg] = sendMessage.mock.calls[0];
+    expect(msg.name).toBe('RemoveInventoryItem');
+    expect(msg.InventoryData[0].ItemID.toString()).toBe(itemId);
+  });
 });

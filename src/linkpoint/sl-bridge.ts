@@ -697,6 +697,23 @@ export class SLBridge extends Utils.EventEmitter {
       ? this.call('getInventory', folderId ? { folderId } : {})
       : { folders: [], items: [] };
   }
+  async purgeInventoryTrash(folderId?: string) {
+    if (!this.connected) return { success: false };
+    return this.call<{ success: boolean; folderId?: string }>(
+      'purgeInventoryTrash',
+      folderId ? { folderId } : {},
+    );
+  }
+  async removeInventoryItem(itemId: string) {
+    if (!this.connected) return { success: false };
+    return this.call<{ success: boolean; itemId: string }>('removeInventoryItem', { itemId });
+  }
+  async removeInventoryFolder(folderId: string) {
+    if (!this.connected) return { success: false };
+    return this.call<{ success: boolean; folderId: string }>('removeInventoryFolder', {
+      folderId,
+    });
+  }
   async fetchScene() {
     if (!this.connected) return [];
     try {
