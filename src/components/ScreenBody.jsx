@@ -31,10 +31,10 @@ import {
   GenericInventoryScreen,
   SearchScreen,
 } from '../screens/LiveScreens.jsx';
+import DiagnosticsContainer from '../screens/DiagnosticsContainer.jsx';
 import {
   AOScreen,
   AccountsScreen,
-  DiagnosticsScreen,
   GridsScreen,
   MediaScreen,
   NotecardsScreen,
@@ -124,7 +124,7 @@ export default function ScreenBody() {
           {norm && scr === 'Teleport' && <TeleportScreen />}
           {norm && scr === 'Parcel' && <ParcelScreen />}
           {norm && scr === 'Transactions' && <TransactionsScreen />}
-          {norm && scr === 'Diagnostics' && <DiagnosticsScreen />}
+          {norm && scr === 'Diagnostics' && <DiagnosticsContainer />}
           {norm && scr === 'AO' && <AOScreen />}
           {scr === 'Login' && <Login />}
           {scr === 'Search' && <Search />}
