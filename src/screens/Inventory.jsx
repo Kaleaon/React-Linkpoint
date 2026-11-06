@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
@@ -6,6 +6,10 @@ import TouchTarget from '../components/TouchTarget.tsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
+import InventoryTree from '../components/InventoryTree.tsx';
+import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer.ts';
+
+const INVENTORY_VIEW_MODE_KEY = 'linkpoint_inventory_view_mode';
 
 /** Inventory rows come directly from InventoryManager capability responses. */
 export default function Inventory() {
@@ -14,6 +18,73 @@ export default function Inventory() {
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
   const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
+  const [announcement, setAnnouncement] = useState('');
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem(INVENTORY_VIEW_MODE_KEY);
+      if (saved === 'flat' || saved === 'tree') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'tree';
+  });
+
+  const treeBtnRef = useRef(null);
+  const flatBtnRef = useRef(null);
+
+  const handleViewModeChange = (mode) => {
+    if (mode !== 'tree' && mode !== 'flat') return;
+    setViewMode(mode);
+    try {
+      localStorage.setItem(INVENTORY_VIEW_MODE_KEY, mode);
+    } catch {
+      // ignore
+    }
+    const message = mode === 'tree' ? 'Tree view mode active' : 'Flat view mode active';
+    setAnnouncement(message);
+    try {
+      liveRegionAnnouncer.announce(message, 'polite', 'status');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSwitcherKeyDown = (event, currentMode) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const nextMode = currentMode === 'tree' ? 'flat' : 'tree';
+      handleViewModeChange(nextMode);
+      if (nextMode === 'flat') {
+        flatBtnRef.current?.focus();
+      } else {
+        treeBtnRef.current?.focus();
+      }
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const nextMode = currentMode === 'flat' ? 'tree' : 'flat';
+      handleViewModeChange(nextMode);
+      if (nextMode === 'tree') {
+        treeBtnRef.current?.focus();
+      } else {
+        flatBtnRef.current?.focus();
+      }
+    }
+  };
+
+  const handleSelectItem = (entry) => {
+    if (!entry) {
+      setSelected(null);
+      return;
+    }
+    const isFolder = entry.folder !== undefined ? Boolean(entry.folder) : entry.type === 'folder';
+    const normalized = { ...entry, folder: isFolder };
+    setSelected(normalized);
+    if (isFolder) {
+      void app.inventory.fetchFolderContents(entry.id);
+    }
+  };
 
   useEffect(() => {
     const refresh = () => setRevision((value) => value + 1);
@@ -74,6 +145,9 @@ export default function Inventory() {
 
   return (
     <section className="live-screen">
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <label
           className="filter-field"
@@ -87,6 +161,82 @@ export default function Inventory() {
             aria-label="Filter inventory"
           />
         </label>
+        <div
+          role="group"
+          aria-label="Inventory view mode"
+          className="inventory-view-switcher"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '2px',
+            background: V.surf,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            gap: '2px',
+            height: '40px',
+            boxSizing: 'border-box',
+            flex: 'none',
+          }}
+        >
+          <button
+            ref={treeBtnRef}
+            type="button"
+            role="button"
+            aria-label="Tree view"
+            aria-pressed={viewMode === 'tree'}
+            tabIndex={viewMode === 'tree' ? 0 : -1}
+            onClick={() => handleViewModeChange('tree')}
+            onKeyDown={(e) => handleSwitcherKeyDown(e, 'tree')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              height: '100%',
+              padding: '0 10px',
+              border: 0,
+              borderRadius: V.rs ? `calc(${V.rs} - 2px)` : '4px',
+              background: viewMode === 'tree' ? V.pri : 'transparent',
+              color: viewMode === 'tree' ? V.onpri : V.ink2 || V.ink,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            title="Hierarchical folder tree view"
+          >
+            <Icon name="folder-tree" size={14} />
+            <span>Tree</span>
+          </button>
+          <button
+            ref={flatBtnRef}
+            type="button"
+            role="button"
+            aria-label="Flat view"
+            aria-pressed={viewMode === 'flat'}
+            tabIndex={viewMode === 'flat' ? 0 : -1}
+            onClick={() => handleViewModeChange('flat')}
+            onKeyDown={(e) => handleSwitcherKeyDown(e, 'flat')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              height: '100%',
+              padding: '0 10px',
+              border: 0,
+              borderRadius: V.rs ? `calc(${V.rs} - 2px)` : '4px',
+              background: viewMode === 'flat' ? V.pri : 'transparent',
+              color: viewMode === 'flat' ? V.onpri : V.ink2 || V.ink,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            title="Flat search list view"
+          >
+            <Icon name="list" size={14} />
+            <span>Flat</span>
+          </button>
+        </div>
         <SyncActionButton
           type="button"
           onClick={handleRefresh}
@@ -111,19 +261,27 @@ export default function Inventory() {
           }}
         />
       </div>
-      <div className="live-list">
+      <div
+        className="live-list"
+        style={
+          viewMode === 'tree' && !showSkeletons ? { padding: 0, overflow: 'hidden' } : undefined
+        }
+      >
         {showSkeletons ? (
           <SkeletonLoader type="row" count={6} />
+        ) : viewMode === 'tree' ? (
+          <InventoryTree filter={filter} selectedId={selected?.id} onSelect={handleSelectItem} />
         ) : rows.length ? (
           rows.map((entry) => (
             <button
               className="inventory-row inventory-button"
               key={entry.id}
-              style={{ borderColor: V.outv }}
-              onClick={() => {
-                setSelected(entry);
-                if (entry.folder) void app.inventory.fetchFolderContents(entry.id);
+              style={{
+                borderColor: V.outv,
+                backgroundColor:
+                  selected?.id === entry.id ? V.priC || 'rgba(52, 118, 255, 0.15)' : undefined,
               }}
+              onClick={() => handleSelectItem(entry)}
             >
               <Icon
                 name={entry.folder ? 'folder' : 'file'}
