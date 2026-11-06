@@ -8,6 +8,7 @@ import {
   ArrowUp,
   ArrowDown,
   FolderInput,
+  Trash2,
   X,
 } from 'lucide-react';
 import { app } from '../linkpoint/app';
@@ -51,6 +52,8 @@ interface TreeNodeRowProps {
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   openMoveModal: (item: any) => void;
+  openEmptyTrashModal?: () => void;
+  onDeleteNode?: (flatNode: FlatTreeNode) => void;
   announce: (message: string) => void;
   onFocusNode: (id: string) => void;
   onNodeKeyDown: (e: React.KeyboardEvent, flatNode: FlatTreeNode) => void;
@@ -78,6 +81,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     openMenuId,
     setOpenMenuId,
     openMoveModal,
+    openEmptyTrashModal,
+    onDeleteNode,
     announce,
     onFocusNode,
     onNodeKeyDown,
@@ -88,6 +93,22 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     const isMenuOpen = openMenuId === id;
     const labelId = `inventory-label-${id}`;
     const firstMenuItemRef = useRef<HTMLButtonElement | null>(null);
+
+    const isProtected = isMenuOpen && isFolder ? app.inventory.isProtectedFolder(node) : false;
+    const isTrashFolder =
+      isMenuOpen && isFolder
+        ? node.folderType === 13 ||
+          node.folderType === 14 ||
+          String(node.name || '')
+            .trim()
+            .toLowerCase() === 'trash' ||
+          app.inventory.getTrashFolder()?.id === id
+        : false;
+    const hasTrashChildren =
+      isTrashFolder &&
+      ((Array.isArray(node.children) && node.children.length > 0) ||
+        (Array.isArray(app.inventory.folders.get(id)?.children) &&
+          (app.inventory.folders.get(id)?.children?.length ?? 0) > 0));
 
     // Auto-focus first menuitem when action menu popup opens
     useEffect(() => {
@@ -137,6 +158,22 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
       openMoveModal(node);
     };
 
+    const handleDelete = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setOpenMenuId(null);
+      if (onDeleteNode) {
+        onDeleteNode(flatNode);
+      }
+    };
+
+    const handleOpenEmptyTrash = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setOpenMenuId(null);
+      if (openEmptyTrashModal) {
+        openEmptyTrashModal();
+      }
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
       // 1. If action menu is open, handle menu navigation / escape without breaking tree roving state
       if (isMenuOpen) {
@@ -184,7 +221,17 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         return;
       }
 
-      // 3. Delegate arrow keys, Home, End, Enter, Space to treeview roving handler
+      // 3. Keyboard Delete / Backspace workflow
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onDeleteNode) {
+          onDeleteNode(flatNode);
+        }
+        return;
+      }
+
+      // 4. Delegate arrow keys, Home, End, Enter, Space to treeview roving handler
       onNodeKeyDown(e, flatNode);
     };
 
@@ -375,6 +422,50 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 <FolderInput size={14} />
                 Move to Folder
               </button>
+              {!isProtected && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleDelete}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: V.ink || '#f8fafc',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  Delete
+                </button>
+              )}
+              {isTrashFolder && hasTrashChildren && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleOpenEmptyTrash}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: V.ink || '#f8fafc',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  Empty Trash
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -395,6 +486,8 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [moveTargetItem, setMoveTargetItem] = useState<any | null>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any | null>(null);
+  const [emptyTrashModalOpen, setEmptyTrashModalOpen] = useState(false);
   const [selectedTargetFolderId, setSelectedTargetFolderId] = useState<string>('');
   const [announcement, setAnnouncement] = useState<string>('');
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -575,6 +668,56 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     },
     [candidateFolders],
   );
+
+  const handleDeleteNode = useCallback(
+    (flatNode: FlatTreeNode) => {
+      const isProtected = app.inventory.isProtectedFolder(flatNode.id);
+      if (isProtected) {
+        announce('System folders cannot be deleted');
+        return;
+      }
+
+      const inTrash = app.inventory.isItemInTrash(flatNode.id);
+      if (inTrash) {
+        setDeleteConfirmItem(flatNode.node);
+        return;
+      }
+
+      const success = app.inventory.moveToTrash(flatNode.id);
+      if (success) {
+        announce('Moved item to Trash');
+      }
+    },
+    [announce],
+  );
+
+  const handleOpenEmptyTrashModal = useCallback(() => {
+    setEmptyTrashModalOpen(true);
+  }, []);
+
+  const handleConfirmEmptyTrash = async () => {
+    setEmptyTrashModalOpen(false);
+    try {
+      await app.inventory.emptyTrash();
+      announce('Trash emptied successfully');
+    } catch (err) {
+      console.error('Failed to empty trash:', err);
+      announce('Failed to empty trash');
+    }
+  };
+
+  const handleConfirmDeleteItem = async () => {
+    if (!deleteConfirmItem) return;
+    const itemToDelete = deleteConfirmItem;
+    setDeleteConfirmItem(null);
+    try {
+      await app.inventory.permanentlyDeleteItem(itemToDelete.id);
+      announce(`Permanently deleted ${itemToDelete.name || 'item'}`);
+    } catch (err) {
+      console.error('Failed to delete item:', err);
+      announce('Failed to delete item');
+    }
+  };
 
   const handleConfirmMoveToFolder = () => {
     if (!moveTargetItem || !selectedTargetFolderId) return;
@@ -765,6 +908,12 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
           }
           break;
         }
+        case 'Delete':
+        case 'Backspace': {
+          e.preventDefault();
+          handleDeleteNode(flatNode);
+          break;
+        }
         default:
           break;
       }
@@ -829,6 +978,8 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
                 openMoveModal={openMoveModal}
+                openEmptyTrashModal={handleOpenEmptyTrashModal}
+                onDeleteNode={handleDeleteNode}
                 announce={announce}
                 onFocusNode={handleFocusNode}
                 onNodeKeyDown={handleNodeKeyDown}
@@ -963,6 +1114,214 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 }}
               >
                 Move to Folder
+              </button>
+            </div>
+          </div>
+        </FocusTrap>
+      )}
+
+      {/* Empty Trash Confirmation Modal */}
+      {emptyTrashModalOpen && (
+        <FocusTrap
+          active={emptyTrashModalOpen}
+          onEscape={() => setEmptyTrashModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="empty-trash-modal-title"
+            style={{
+              backgroundColor: V.surf || '#1e293b',
+              border: `1px solid ${V.bdg || '#334155'}`,
+              borderRadius: '8px',
+              padding: '1.25rem',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              color: V.ink || '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1rem',
+              }}
+            >
+              <h3
+                id="empty-trash-modal-title"
+                style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+              >
+                Empty Trash
+              </h3>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                onClick={() => setEmptyTrashModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: V.ink2 || '#94a3b8',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p
+              style={{ fontSize: '0.875rem', color: V.ink2 || '#cbd5e1', marginBottom: '1.25rem' }}
+            >
+              Are you sure you want to permanently delete all items in the Trash folder? This
+              operation cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setEmptyTrashModalOpen(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.bdg || '#334155',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: V.ink || '#f8fafc',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEmptyTrash}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.err || '#ef4444',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </FocusTrap>
+      )}
+
+      {/* Delete Item Confirmation Modal for Items in Trash */}
+      {deleteConfirmItem && (
+        <FocusTrap
+          active={!!deleteConfirmItem}
+          onEscape={() => setDeleteConfirmItem(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-confirm-modal-title"
+            style={{
+              backgroundColor: V.surf || '#1e293b',
+              border: `1px solid ${V.bdg || '#334155'}`,
+              borderRadius: '8px',
+              padding: '1.25rem',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              color: V.ink || '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1rem',
+              }}
+            >
+              <h3
+                id="delete-confirm-modal-title"
+                style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+              >
+                Delete Permanently
+              </h3>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                onClick={() => setDeleteConfirmItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: V.ink2 || '#94a3b8',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p
+              style={{ fontSize: '0.875rem', color: V.ink2 || '#cbd5e1', marginBottom: '1.25rem' }}
+            >
+              Are you sure you want to permanently delete <strong>{deleteConfirmItem.name}</strong>?
+              This operation cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmItem(null)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.bdg || '#334155',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: V.ink || '#f8fafc',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteItem}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.err || '#ef4444',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Confirm
               </button>
             </div>
           </div>

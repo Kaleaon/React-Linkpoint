@@ -103,6 +103,16 @@ export interface DelinkObjectsResult {
   objectLocalIds: number[];
 }
 
+export interface ParcelUpdateResult {
+  success: boolean;
+  transport: 'capability' | 'udp';
+  endpoint?: string;
+  messageId?: string;
+  parcel?: any;
+  response?: any;
+  [key: string]: unknown;
+}
+
 export interface UpdatePrimParamsInput {
   localId?: number;
   objectLocalId?: number;
@@ -325,6 +335,14 @@ export class SLBridge extends Utils.EventEmitter {
   }
   wearOutfit(params: { folderId: string }) {
     return this.call<{ worn: number; baked: boolean; reason?: string }>('wearOutfit', params);
+  }
+  saveOutfitAs(params: { name: string; itemIds?: string[] }) {
+    return this.call<{
+      folderId: string;
+      itemCount: number;
+      failedCount?: number;
+      failedItemIds?: string[];
+    }>('saveOutfitAs', params);
   }
   detachAttachment(params: { id: string }) {
     return this.call<{ detached: string }>('detachAttachment', params);
@@ -630,7 +648,7 @@ export class SLBridge extends Utils.EventEmitter {
   async buyParcelPass(localId: number) {
     return this.call('buyParcelPass', { localId });
   }
-  async updateParcelProperties(data: any) {
+  async updateParcelProperties(data: any): Promise<ParcelUpdateResult> {
     return this.call('updateParcelProperties', data);
   }
   async buyParcel(data: { localId: number; price: number; area: number; forGroup?: boolean }) {
@@ -673,6 +691,15 @@ export class SLBridge extends Utils.EventEmitter {
     if (!this.connected) throw new Error('Connect to a grid to load notice details');
     return this.call<any>('getGroupNoticeDetail', { noticeId, groupId });
   }
+  async sendGroupNotice(params: {
+    groupId: string;
+    subject: string;
+    message: string;
+    attachment?: any;
+  }) {
+    if (!this.connected) throw new Error('Connect to a grid to send group notices');
+    return this.call<any>('sendGroupNotice', params);
+  }
 
   async fetchOutfit() {
     return this.connected
@@ -686,6 +713,23 @@ export class SLBridge extends Utils.EventEmitter {
     return this.connected
       ? this.call('getInventory', folderId ? { folderId } : {})
       : { folders: [], items: [] };
+  }
+  async purgeInventoryTrash(folderId?: string) {
+    if (!this.connected) return { success: false };
+    return this.call<{ success: boolean; folderId?: string }>(
+      'purgeInventoryTrash',
+      folderId ? { folderId } : {},
+    );
+  }
+  async removeInventoryItem(itemId: string) {
+    if (!this.connected) return { success: false };
+    return this.call<{ success: boolean; itemId: string }>('removeInventoryItem', { itemId });
+  }
+  async removeInventoryFolder(folderId: string) {
+    if (!this.connected) return { success: false };
+    return this.call<{ success: boolean; folderId: string }>('removeInventoryFolder', {
+      folderId,
+    });
   }
   async fetchScene() {
     if (!this.connected) return [];

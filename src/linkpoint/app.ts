@@ -549,6 +549,13 @@ export class LinkpointApp {
     return slBridge.fetchOutfit();
   }
 
+  async saveOutfitAs(params: { name: string; itemIds?: string[] }) {
+    if (!this.auth.isLoggedIn() || !slBridge.connected) {
+      throw new Error('Not connected to Second Life');
+    }
+    return slBridge.saveOutfitAs(params);
+  }
+
   async activateGroup(groupId: string, roleId?: string) {
     const targetGroupId = groupId ? groupId.trim() : '00000000-0000-0000-0000-000000000000';
     const targetRoleId = roleId ? roleId.trim() : '00000000-0000-0000-0000-000000000000';
@@ -624,6 +631,18 @@ export class LinkpointApp {
     }
     this.groups.removeGroupMember(targetGroupId, targetMemberId);
     return { success: true, groupId: targetGroupId, memberId: targetMemberId };
+  }
+
+  async sendGroupNotice(
+    groupId: string,
+    noticeData: {
+      subject: string;
+      message: string;
+      attachment?: any;
+      [key: string]: any;
+    },
+  ) {
+    return this.groups.sendGroupNotice(groupId, noticeData);
   }
 
   async modifyGroupRole(
