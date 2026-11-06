@@ -28,7 +28,7 @@ import {
  *   readOnly?: boolean,
  *   initialMode?: 'view' | 'edit',
  *   onSave?: ((params: { itemId: string; name?: string; text: string }) => Promise<any>) | null,
- *   onDirtyChange?: ((isDirty: boolean) => void) | null,
+ *   onDirtyChange?: ((isDirty: boolean, text: string) => void) | null,
  * }} props
  */
 export default function AssetContainer({
@@ -153,7 +153,7 @@ export default function AssetContainer({
     if (prevAssetIdRef.current !== asset?.id) {
       prevAssetIdRef.current = asset?.id;
       setIsDirty(false);
-      onDirtyChange?.(false);
+      onDirtyChange?.(false, '');
       setSaveError(null);
       setSaveSuccess(false);
       setMode(initialMode);
@@ -169,13 +169,13 @@ export default function AssetContainer({
     setText(val);
     const dirty = val !== initialText;
     setIsDirty(dirty);
-    onDirtyChange?.(dirty);
+    onDirtyChange?.(dirty, val);
   };
 
   const handleCancel = () => {
     setText(initialText);
     setIsDirty(false);
-    onDirtyChange?.(false);
+    onDirtyChange?.(false, initialText);
     setMode('view');
     setSaveError(null);
   };
@@ -205,7 +205,7 @@ export default function AssetContainer({
       }
       setInitialText(text);
       setIsDirty(false);
-      onDirtyChange?.(false);
+      onDirtyChange?.(false, text);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {

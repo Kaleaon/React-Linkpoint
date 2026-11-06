@@ -232,7 +232,7 @@ describe('AssetContainer Text Asset Viewer & Editor UI', () => {
       typeInto(textarea, 'Updated meeting minutes with action items.');
     });
 
-    expect(dirtySpy).toHaveBeenCalledWith(true);
+    expect(dirtySpy).toHaveBeenCalledWith(true, 'Updated meeting minutes with action items.');
 
     const saveBtn = mounted.host.querySelector('button[aria-label="Save notecard"]') as HTMLElement;
     await click(saveBtn);
@@ -242,7 +242,7 @@ describe('AssetContainer Text Asset Viewer & Editor UI', () => {
       name: 'Meeting Minutes',
       text: 'Updated meeting minutes with action items.',
     });
-    expect(dirtySpy).toHaveBeenLastCalledWith(false);
+    expect(dirtySpy).toHaveBeenLastCalledWith(false, 'Updated meeting minutes with action items.');
   });
 });
 
@@ -334,6 +334,118 @@ describe('Inventory Screen Embedded Notecard Inspector & Tabs', () => {
     expect(mounted.host.querySelector('[role="alertdialog"]')).toBeNull();
     expect(mounted.host.textContent).toContain('Notecard 2');
   });
+
+  it('saves modified dirty text when user selects SAVE & CONTINUE in dirty confirmation dialog', async () => {
+    app.inventory.items.set('nc-save-1', {
+      id: 'nc-save-1',
+      name: 'Original Title',
+      folder: false,
+      assetType: 7,
+      data: encodeLindenText('Original cached body text'),
+    });
+    app.inventory.items.set('nc-save-2', {
+      id: 'nc-save-2',
+      name: 'Second Notecard',
+      folder: false,
+      assetType: 7,
+      data: encodeLindenText('Second body text'),
+    });
+    app.inventory.emit('inventory_loaded');
+
+    const saveSpy = vi.spyOn(app.assets, 'saveNotecard').mockResolvedValue({
+      item_id: 'nc-save-1',
+      asset_id: 'new-asset-id',
+      name: 'Original Title',
+      modified: 1700000000,
+    } as any);
+
+    mounted = await mountScreen(Inventory);
+
+    // Select first notecard
+    const rows = mounted.host.querySelectorAll('.inventory-row');
+    await click(rows[0] as HTMLElement);
+
+    // Click EDIT and modify text
+    const editBtn = mounted.host.querySelector('button[aria-label="Edit notecard"]') as HTMLElement;
+    await click(editBtn);
+    const textarea = mounted.host.querySelector(
+      '[data-testid="notecard-text-editor"]',
+    ) as HTMLTextAreaElement;
+    await act(async () => {
+      typeInto(textarea, 'Brand new edits written by user!');
+    });
+
+    // Attempt to switch to second item
+    const secondRow = mounted.host.querySelectorAll('.inventory-row')[1] as HTMLElement;
+    await click(secondRow);
+
+    const dialog = mounted.host.querySelector('[role="alertdialog"]');
+    expect(dialog).toBeTruthy();
+
+    // Click SAVE & CONTINUE
+    const saveContinueBtn = buttonByText(dialog as HTMLElement, 'SAVE & CONTINUE');
+    expect(saveContinueBtn).toBeTruthy();
+    await click(saveContinueBtn!);
+
+    // Ensure saveNotecard received the modified dirty text and not the original cached text
+    expect(saveSpy).toHaveBeenCalledWith({
+      itemId: 'nc-save-1',
+      name: 'Original Title',
+      text: 'Brand new edits written by user!',
+    });
+
+    // Dialog dismissed and second card selected
+    expect(mounted.host.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(mounted.host.textContent).toContain('Second Notecard');
+  });
+
+  it('keeps confirmation dialog open and does not discard edits if save fails on SAVE & CONTINUE', async () => {
+    app.inventory.items.set('nc-fail-1', {
+      id: 'nc-fail-1',
+      name: 'Failing Card',
+      folder: false,
+      assetType: 7,
+      data: encodeLindenText('Initial text'),
+    });
+    app.inventory.items.set('nc-fail-2', {
+      id: 'nc-fail-2',
+      name: 'Target Card',
+      folder: false,
+      assetType: 7,
+      data: encodeLindenText('Target text'),
+    });
+    app.inventory.emit('inventory_loaded');
+
+    vi.spyOn(app.assets, 'saveNotecard').mockRejectedValue(new Error('Network failure'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mounted = await mountScreen(Inventory);
+
+    const rows = mounted.host.querySelectorAll('.inventory-row');
+    await click(rows[0] as HTMLElement);
+
+    const editBtn = mounted.host.querySelector('button[aria-label="Edit notecard"]') as HTMLElement;
+    await click(editBtn);
+    const textarea = mounted.host.querySelector(
+      '[data-testid="notecard-text-editor"]',
+    ) as HTMLTextAreaElement;
+    await act(async () => {
+      typeInto(textarea, 'Edits that fail to upload');
+    });
+
+    // Try to select second card
+    await click(rows[1] as HTMLElement);
+
+    const dialog = mounted.host.querySelector('[role="alertdialog"]');
+    expect(dialog).toBeTruthy();
+
+    const saveContinueBtn = buttonByText(dialog as HTMLElement, 'SAVE & CONTINUE');
+    await click(saveContinueBtn!);
+
+    // Save failed, dialog should still be present and target card not loaded
+    expect(mounted.host.querySelector('[role="alertdialog"]')).toBeTruthy();
+    expect(warnSpy).toHaveBeenCalled();
+  });
 });
 
 describe('LumiyaTools NotecardsScreen Embedded Editor', () => {
@@ -358,5 +470,61 @@ describe('LumiyaTools NotecardsScreen Embedded Editor', () => {
     expect(mounted.host.querySelector('[data-testid="asset-loaded-state"]')).toBeTruthy();
     expect(mounted.host.textContent).toContain('Field guide instructions for explorer.');
     expect(mounted.host.querySelector('button[aria-label="Edit notecard"]')).toBeTruthy();
+  });
+
+  it('saves modified dirty text and keeps dialog open on failure in NotecardsScreen', async () => {
+    app.inventory.items.set('tool-nc-a', {
+      id: 'tool-nc-a',
+      name: 'Guide A',
+      folder: false,
+      assetType: 7,
+      data: encodeLindenText('Initial text A'),
+    });
+    app.inventory.items.set('tool-nc-b', {
+      id: 'tool-nc-b',
+      name: 'Guide B',
+      folder: false,
+      assetType: 7,
+      data: encodeLindenText('Initial text B'),
+    });
+    app.inventory.emit('inventory_loaded');
+
+    const saveSpy = vi.spyOn(app.assets, 'saveNotecard').mockResolvedValue({
+      item_id: 'tool-nc-a',
+      asset_id: 'tool-nc-a-new',
+      name: 'Guide A',
+      modified: 1700000000,
+    } as any);
+
+    mounted = await mountScreen(NotecardsScreen);
+
+    const cards = mounted.host.querySelectorAll('.runtime-card-button');
+    await click(cards[0] as HTMLElement);
+
+    const editBtn = mounted.host.querySelector('button[aria-label="Edit notecard"]') as HTMLElement;
+    await click(editBtn);
+
+    const textarea = mounted.host.querySelector(
+      '[data-testid="notecard-text-editor"]',
+    ) as HTMLTextAreaElement;
+    await act(async () => {
+      typeInto(textarea, 'Modified Guide A text');
+    });
+
+    // Attempt to switch to card B
+    await click(cards[1] as HTMLElement);
+
+    const dialog = mounted.host.querySelector('[role="alertdialog"]');
+    expect(dialog).toBeTruthy();
+
+    const saveBtn = buttonByText(dialog as HTMLElement, 'SAVE & CONTINUE');
+    await click(saveBtn!);
+
+    expect(saveSpy).toHaveBeenCalledWith({
+      itemId: 'tool-nc-a',
+      name: 'Guide A',
+      text: 'Modified Guide A text',
+    });
+    expect(mounted.host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 });

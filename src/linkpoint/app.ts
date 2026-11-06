@@ -444,7 +444,7 @@ export class LinkpointApp {
         void slBridge.requestMuteList().catch(() => {});
       }
       void this.muteList.flushPendingQueue();
-      await this.economy.init(user?.agent_id);
+      void this.economy.fetchHistory();
       await this.inventory.load();
       await this.loadFriends();
       try {
@@ -457,7 +457,15 @@ export class LinkpointApp {
       }
     });
 
-    this.protocol.on('capabilities_ready', (caps: any) => {
+    this.protocol.on('capabilities_ready', async (caps: any) => {
+      if (caps && typeof caps === 'object') {
+        try {
+          await this.capabilities.parseSeedCapability(caps);
+          void this.economy.fetchHistory();
+        } catch (err) {
+          console.warn('[LinkpointApp] Capabilities parseSeedCapability failed:', err);
+        }
+      }
       if (caps?.EventQueueGet && !this.eventQueue.isPolling) {
         this.eventQueue.startPolling(caps.EventQueueGet).catch((err) => {
           console.warn('[LinkpointApp] EventQueue startPolling failed:', err);

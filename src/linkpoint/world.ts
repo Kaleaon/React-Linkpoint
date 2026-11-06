@@ -348,6 +348,13 @@ export class WorldViewer extends Utils.EventEmitter {
   private dragDisplacementThreshold = 3;
 
   public region: any = null;
+  public lastParcelTransport?: 'capability' | 'udp';
+  public lastTransportReceipt?: {
+    transport: 'capability' | 'udp';
+    timestamp: number;
+    localId: number;
+    [key: string]: any;
+  };
   public objects: any[] = [];
   public nearbyUsers: any[] = [];
   private typingTimers = new Map<string, any>();
@@ -3448,14 +3455,111 @@ export class WorldViewer extends Utils.EventEmitter {
 
     const packetBytes = serializeParcelPropertiesUpdate(mergedData);
 
+    let transport: 'capability' | 'udp' = 'udp';
+
     if (typeof this.protocol?.sendPacket === 'function') {
-      await this.protocol.sendPacket('ParcelPropertiesUpdate', mergedData, packetBytes);
+      let capDispatched = false;
+      const capCandidates = ['ParcelPropertiesUpdate', 'UpdateParcelProperties'];
+      let capUrl: string | undefined;
+
+      for (const name of capCandidates) {
+        if (typeof this.protocol.getCapability === 'function') {
+          try {
+            capUrl = await Promise.race([
+              Promise.resolve(this.protocol.getCapability(name)),
+              new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 1000)),
+            ]);
+          } catch {
+            capUrl = undefined;
+          }
+        } else if (this.protocol.capabilities?.[name]) {
+          capUrl = this.protocol.capabilities[name];
+        } else if (this.region?.capabilities?.[name]) {
+          capUrl = this.region.capabilities[name];
+        }
+        if (capUrl) break;
+      }
+
+      if (capUrl) {
+        try {
+          const llsdMap = {
+            local_id: mergedData.localId,
+            LocalID: mergedData.localId,
+            flags: mergedData.parcelFlags,
+            parcel_flags: mergedData.parcelFlags,
+            ParcelFlags: mergedData.parcelFlags,
+            name: mergedData.name,
+            Name: mergedData.name,
+            desc: mergedData.desc,
+            description: mergedData.desc,
+            Desc: mergedData.desc,
+            music_url: mergedData.musicUrl,
+            MusicURL: mergedData.musicUrl,
+            media_url: mergedData.mediaUrl,
+            MediaURL: mergedData.mediaUrl,
+            media_id: mergedData.mediaId,
+            MediaID: mergedData.mediaId,
+            landing_type: mergedData.landingType,
+            LandingType: mergedData.landingType,
+            pass_price: mergedData.passPrice,
+            PassPrice: mergedData.passPrice,
+            pass_hours: mergedData.passHours,
+            PassHours: mergedData.passHours,
+            category: mergedData.category,
+            Category: mergedData.category,
+          };
+          if (typeof this.protocol.postCapability === 'function') {
+            await Promise.race([
+              this.protocol.postCapability(capUrl, llsdMap),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000)),
+            ]);
+            capDispatched = true;
+            transport = 'capability';
+          } else if (typeof fetch === 'function') {
+            const resp = await Promise.race([
+              fetch(capUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/llsd+xml',
+                  Accept: 'application/llsd+xml, application/json',
+                },
+                body: JSON.stringify(llsdMap),
+              }),
+              new Promise<Response>((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), 1000),
+              ),
+            ]);
+            if (resp.ok) {
+              capDispatched = true;
+              transport = 'capability';
+            }
+          }
+        } catch {
+          capDispatched = false;
+        }
+      }
+
+      if (!capDispatched) {
+        await this.protocol.sendPacket('ParcelPropertiesUpdate', mergedData, packetBytes);
+        transport = 'udp';
+      }
     } else if (typeof slBridge?.call === 'function' && slBridge.connected) {
-      await slBridge.call('updateParcelProperties', mergedData);
+      const res = await slBridge.updateParcelProperties(mergedData);
+      if (res?.transport) {
+        transport = res.transport;
+      }
     }
+
+    this.lastParcelTransport = transport;
+    this.lastTransportReceipt = {
+      transport,
+      timestamp: Date.now(),
+      localId: mergedData.localId,
+    };
 
     const updatedParcel = {
       ...currentParcel,
+      transport,
       LocalID: mergedData.localId,
       Name: mergedData.name,
       name: mergedData.name,
