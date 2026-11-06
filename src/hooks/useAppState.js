@@ -165,7 +165,11 @@ export function useAppState() {
     Map: true,
     Settings: false,
     AO: false,
+    Notecard: false,
   });
+  const [notecardItem, setNotecardItem] = useState(null);
+  const [notecardReadOnly, setNotecardReadOnly] = useState(false);
+  const [notecardDrafts, setNotecardDrafts] = useState({});
   const [flMin, setFlMin] = useState({});
   const [flRect, setFlRect] = useState({});
   const [flMax, setFlMax] = useState({});
@@ -1001,6 +1005,49 @@ export function useAppState() {
     [flR, T],
   );
 
+  // ---- notecard floater actions ------------------------------------------
+  const openNotecard = useCallback(
+    (item, options = {}) => {
+      setNotecardItem(item || null);
+      setNotecardReadOnly(Boolean(options.readOnly));
+      if (options.text !== undefined && item?.id) {
+        setNotecardDrafts((prev) => ({ ...prev, [item.id]: options.text }));
+      }
+      flFocus('Notecard');
+    },
+    [flFocus],
+  );
+
+  const closeNotecard = useCallback(() => {
+    flClose('Notecard');
+  }, [flClose]);
+
+  const setNotecardDraft = useCallback((itemId, text) => {
+    if (!itemId) return;
+    setNotecardDrafts((prev) => {
+      if (text === undefined) {
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      }
+      return { ...prev, [itemId]: text };
+    });
+  }, []);
+
+  const notecardDrag = useCallback((e, mode) => flDrag('Notecard', e, mode), [flDrag]);
+
+  const notecardResize = useCallback((dw, dh) => flResize('Notecard', dw, dh), [flResize]);
+
+  const notecardMinimize = useCallback(() => flToggle('Notecard'), [flToggle]);
+
+  const notecardSnap = useCallback((dir) => flSnap('Notecard', dir), [flSnap]);
+
+  const notecardClose = useCallback(() => flClose('Notecard'), [flClose]);
+
+  const notecardFocus = useCallback(() => flFocus('Notecard'), [flFocus]);
+
+  const notecardReset = useCallback(() => flReset('Notecard'), [flReset]);
+
   // ---- worn HUDs (hudDrag/toggleHud) -------------------------------------
   const hudDrag = useCallback(
     (id, e) => {
@@ -1214,8 +1261,21 @@ export function useAppState() {
       cacheCleared,
       camPreset,
       asyncDataState,
+      notecardItem,
+      notecardReadOnly,
+      notecardDrafts,
     },
     actions: {
+      openNotecard,
+      closeNotecard,
+      setNotecardDraft,
+      notecardDrag,
+      notecardResize,
+      notecardMinimize,
+      notecardSnap,
+      notecardClose,
+      notecardFocus,
+      notecardReset,
       setAsyncDataDomainState,
       setAsyncDataState: setAsyncDataDomainState,
       setLayout,

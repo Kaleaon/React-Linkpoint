@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
@@ -27,6 +28,7 @@ function getStoredViewMode() {
 /** Dual-mode composite inventory view supporting hierarchical tree navigation and flat table search. */
 export default function Inventory() {
   const { V, t } = useTheme();
+  const { actions } = useApp();
   const [viewMode, setViewMode] = useState(getStoredViewMode);
   const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState('');
@@ -286,6 +288,11 @@ export default function Inventory() {
             filter={filter}
             selectedId={selected?.id}
             onSelect={handleSelect}
+            onItemActivate={(entry) => {
+              if (Number(entry.assetType) === 7) {
+                actions.openNotecard?.(entry);
+              }
+            }}
             className="inventory-tree-mode"
           />
         </div>
@@ -327,6 +334,11 @@ export default function Inventory() {
                           : 'transparent',
                     }}
                     onClick={() => handleSelect(entry)}
+                    onDoubleClick={() => {
+                      if (Number(entry.assetType) === 7) {
+                        actions.openNotecard?.(entry);
+                      }
+                    }}
                   >
                     <Icon
                       name={entry.folder ? 'folder' : 'file'}
@@ -383,6 +395,33 @@ export default function Inventory() {
                 </>
               ) : null}
             </dl>
+            {Number(selected.assetType) === 7 && (
+              <div style={{ marginTop: '12px' }}>
+                <button
+                  type="button"
+                  className="sync-action-btn"
+                  onClick={() => actions.openNotecard?.(selected)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: V.pri,
+                    color: V.onpri || V.bg,
+                    border: 'none',
+                    borderRadius: V.rs,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Icon name="file-text" size={14} />
+                  <span>Open Notecard</span>
+                </button>
+              </div>
+            )}
           </AssetContainer>
         </aside>
       ) : null}

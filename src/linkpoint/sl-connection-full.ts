@@ -611,6 +611,16 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
+  async fetchNotecard(id: string, itemId?: string) {
+    if (!this.connected) throw new Error('Not connected to a grid');
+    return await slBridge.fetchNotecard(id, itemId);
+  }
+
+  async saveNotecard(params: { itemId: string; data?: string; text?: string }) {
+    if (!this.connected) throw new Error('Not connected to a grid');
+    return await slBridge.saveNotecard(params);
+  }
+
   // A group message is never spoken in the region: it goes to the group's chat session or fails.
   async sendGroupMessage(groupId: string, message: string) {
     if (!this.connected) throw new Error('Not connected to a grid');

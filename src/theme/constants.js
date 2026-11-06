@@ -46,6 +46,7 @@ const INITIAL_FLOATERS = [
   { id: 'Search', title: 'Search', icon: 'search', x: 390, y: 70, w: 520, h: 440 },
   { id: 'Contacts', title: 'Contacts', icon: 'contact', x: 360, y: 90, w: 500, h: 460 },
   { id: 'Calendar', title: 'Calendar', icon: 'calendar', x: 420, y: 90, w: 500, h: 470 },
+  { id: 'Notecard', title: 'Notecard', icon: 'file-text', x: 280, y: 70, w: 540, h: 480 },
 ];
 export const FLOATERS = INITIAL_FLOATERS.concat(
   NAV_ALL.filter(({ id }) => id !== '3D View' && !INITIAL_FLOATERS.some((f) => f.id === id)).map(

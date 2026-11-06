@@ -12,6 +12,7 @@ import { formatHeading, useCameraState } from './cameraReadout.js';
 import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskStyle.js';
 import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
+import NotecardFloater from './NotecardFloater.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -106,7 +107,9 @@ export default function FloatersDesktop() {
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
   const flFocused =
-    state.flOpen[state.screen] && !state.flMin[state.screen] ? actions.flR(state.screen) : null;
+    state.screen !== 'Notecard' && state.flOpen[state.screen] && !state.flMin[state.screen]
+      ? actions.flR(state.screen)
+      : null;
 
   const sendQuickChat = async (e) => {
     e?.preventDefault();
@@ -346,6 +349,9 @@ export default function FloatersDesktop() {
       <DesktopChrome />
 
       {openFloaters.map((f) => {
+        if (f.id === 'Notecard') {
+          return <NotecardFloater key={f.id} />;
+        }
         const r = actions.flR(f.id);
         const act = f.id === state.screen;
         const rows = act ? null : fBody[f.id] || [];

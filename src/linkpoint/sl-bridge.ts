@@ -5,6 +5,7 @@ import { rateLimitedFetch } from './rate-limited-fetch';
 const READ_ONLY_CALLS = new Set([
   'fetchAnimation',
   'fetchSound',
+  'fetchNotecard',
   'getBalance',
   'requestPayPrice',
   'getObjectPayQuote',
@@ -808,6 +809,19 @@ export class SLBridge extends Utils.EventEmitter {
   }
   fetchSound(id: string): Promise<{ requested: boolean }> {
     return this.call('fetchSound', { id });
+  }
+  fetchNotecard(
+    id: string,
+    itemId?: string,
+  ): Promise<{ id: string; itemId?: string; data: string; base64?: string; size: number }> {
+    return this.call('fetchNotecard', { id, itemId });
+  }
+  saveNotecard(params: {
+    itemId: string;
+    data?: string;
+    text?: string;
+  }): Promise<{ success: boolean; itemId: string; newAssetId?: string }> {
+    return this.call('saveNotecard', params);
   }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   /** `regionHandle` provisions on a neighbouring region (cross-region voice) instead of the current one. */

@@ -55,6 +55,8 @@ const METHODS = new Set([
   'dismissInteraction',
   'fetchAnimation',
   'fetchSound',
+  'fetchNotecard',
+  'saveNotecard',
   'getMapBlocks',
   'getFriends',
   'getGroups',

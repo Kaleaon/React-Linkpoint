@@ -653,6 +653,150 @@ class ViewerSession {
     );
   }
 
+  /**
+   * Download a notecard asset through ViewerAsset capability, falling back to simulator transfer.
+   */
+  async downloadNotecard(assetId) {
+    if (!assetId) throw new Error('A notecard asset ID is required');
+    const caps = this.currentRegion()?.caps;
+    if (caps?.getCapability) {
+      try {
+        const capUrl = await caps.getCapability('ViewerAsset');
+        if (capUrl && typeof caps.requestGet === 'function') {
+          const url = `${String(capUrl).replace(/\/?$/, '/')}?notecard_id=${encodeURIComponent(assetId)}`;
+          const response = await caps.requestGet(url, { responseType: 'buffer' });
+          if (response?.body) {
+            return Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
+          }
+        }
+      } catch (capErr) {
+        console.warn(
+          `[SL Session] ViewerAsset notecard download failed for ${assetId}:`,
+          capErr.message || capErr,
+        );
+      }
+    }
+    // Fallback: asset transfer packet via node-metaverse clientCommands
+    if (this.bot?.clientCommands?.asset?.transfer) {
+      try {
+        const { AssetType, UUID } = require('@caspertech/node-metaverse');
+        const {
+          TransferChannelType,
+        } = require('@caspertech/node-metaverse/dist/lib/enums/TransferChannelType');
+        const {
+          TransferSourceType,
+        } = require('@caspertech/node-metaverse/dist/lib/enums/TransferSourceTypes');
+        const params = Buffer.alloc(20);
+        new UUID(assetId).writeToBuffer(params, 0);
+        params.writeInt32LE(AssetType.Notecard, 16);
+        const buffer = await this.bot.clientCommands.asset.transfer(
+          TransferChannelType.Asset,
+          TransferSourceType.Asset,
+          false,
+          params,
+        );
+        if (buffer && buffer.length > 0) return buffer;
+      } catch (transferErr) {
+        console.warn(
+          `[SL Session] Asset transfer failed for ${assetId}:`,
+          transferErr.message || transferErr,
+        );
+      }
+    }
+    throw new Error(`Notecard ${assetId} unavailable: ViewerAsset capability failed`);
+  }
+
+  async fetchNotecard({ id, itemId } = {}) {
+    const assetId = id || itemId;
+    if (!assetId) throw new Error('A notecard asset ID or item ID is required');
+    this.requireBot();
+    const buffer = await this.queueAssetDownload(() => this.downloadNotecard(assetId));
+    return {
+      id: assetId,
+      itemId: itemId || id,
+      data: buffer.toString('utf-8'),
+      base64: buffer.toString('base64'),
+      size: buffer.length,
+    };
+  }
+
+  async saveNotecard({ itemId, data, text } = {}) {
+    if (!itemId) throw new Error('An inventory item ID is required to save notecard');
+    const bot = this.requireBot();
+    let payload;
+    if (data) {
+      payload = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf-8');
+    } else if (text !== undefined) {
+      const textBuf = Buffer.from(String(text), 'utf-8');
+      const lines = [
+        'Linden text version 2',
+        '{',
+        'LLEmbeddedItems version 1',
+        '{',
+        'count 0',
+        '}',
+        `Text length ${textBuf.length}`,
+        `${textBuf.toString('utf-8')}}`,
+        '',
+      ];
+      payload = Buffer.from(lines.join('\n'), 'utf-8');
+    } else {
+      throw new Error('Notecard data or text is required');
+    }
+
+    if (payload.length > 65536) {
+      throw new Error('Notecard exceeds 65536 byte limit');
+    }
+
+    const caps = this.currentRegion()?.caps;
+    if (caps?.capsPostXML && caps?.capsRequestUpload) {
+      try {
+        const LLSD = require('@caspertech/llsd');
+        const xmlPayload = {
+          item_id: new LLSD.UUID(itemId.toString()),
+        };
+        const result = await caps.capsPostXML('UpdateNotecardAgentInventory', xmlPayload);
+        if (result && result.uploader) {
+          const uploadResult = await caps.capsRequestUpload(result.uploader, payload);
+          if (uploadResult && (uploadResult.state === 'complete' || uploadResult.new_asset_id)) {
+            const newAssetId = uploadResult.new_asset_id ? String(uploadResult.new_asset_id) : null;
+            return { success: true, itemId, newAssetId };
+          }
+        }
+      } catch (capErr) {
+        console.warn(
+          '[SL Session] UpdateNotecardAgentInventory capability failed:',
+          capErr.message || capErr,
+        );
+      }
+    }
+
+    // Standard upload fallback
+    if (bot.clientCommands?.inventory?.findItem) {
+      try {
+        const item = bot.clientCommands.inventory.findItem(itemId);
+        if (item && item.parentFolder?.handleStandardInventoryUpload) {
+          const { InventoryType } = require('@caspertech/node-metaverse');
+          await item.parentFolder.handleStandardInventoryUpload(
+            InventoryType.Notecard,
+            itemId,
+            payload,
+          );
+          return { success: true, itemId };
+        }
+      } catch (fallbackErr) {
+        console.warn(
+          '[SL Session] Standard upload fallback failed:',
+          fallbackErr.message || fallbackErr,
+        );
+      }
+    }
+
+    throw new Error(
+      'Failed to save notecard: UpdateNotecardAgentInventory capability and standard upload failed',
+    );
+  }
+
   loadTexture(assetId) {
     if (!assetId) return;
     this.streamAsset(

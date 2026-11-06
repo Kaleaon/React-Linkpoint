@@ -10,6 +10,7 @@ import {
   FolderInput,
   Trash2,
   X,
+  FileText,
 } from 'lucide-react';
 import { app } from '../linkpoint/app';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -29,6 +30,7 @@ export interface InventoryTreeProps {
   onSelect?: (item: any) => void;
   className?: string;
   filter?: string;
+  onItemActivate?: (item: any) => void;
 }
 
 export interface FlatTreeNode {
@@ -57,6 +59,7 @@ interface TreeNodeRowProps {
   announce: (message: string) => void;
   onFocusNode: (id: string) => void;
   onNodeKeyDown: (e: React.KeyboardEvent, flatNode: FlatTreeNode) => void;
+  onItemActivate?: (item: any) => void;
 }
 
 const srOnlyStyle: React.CSSProperties = {
@@ -86,6 +89,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     announce,
     onFocusNode,
     onNodeKeyDown,
+    onItemActivate,
   }) => {
     const { V } = useSafeTheme();
     const { id, depth, isFolder, isOpen, node } = flatNode;
@@ -245,6 +249,11 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         aria-level={depth + 1}
         tabIndex={isFocused ? 0 : -1}
         onClick={handleSelect}
+        onDoubleClick={() => {
+          if (!isFolder) {
+            onItemActivate?.(node);
+          }
+        }}
         onFocus={(e) => {
           if (e.target === e.currentTarget) {
             onFocusNode(id);
@@ -361,6 +370,32 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 flexDirection: 'column',
               }}
             >
+              {!isFolder && Number(node.assetType) === 7 && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(null);
+                    onItemActivate?.(node);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: V.ink || '#f8fafc',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  <FileText size={14} style={{ color: V.pri || '#38bdf8' }} />
+                  Open Notecard
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
@@ -480,6 +515,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   onSelect,
   className,
   filter,
+  onItemActivate,
 }) => {
   const { V } = useSafeTheme();
   const [revision, setRevision] = useState(0);
@@ -983,6 +1019,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 announce={announce}
                 onFocusNode={handleFocusNode}
                 onNodeKeyDown={handleNodeKeyDown}
+                onItemActivate={onItemActivate}
               />
             ))}
           </div>

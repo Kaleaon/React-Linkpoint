@@ -71,7 +71,7 @@ lint, 27 focused tests and production build passed again.
    for paid enrollment or destructive membership changes.
 4. **Inventory and appearance workflows.** Make complete folder snapshots replace
    stale children atomically while preserving partial fetches. Verify outfit
-   wear/remove, permission changes, notecard asset editing and gestures. Add full
+   wear/remove, permission changes and gestures (notecard asset decoding, editing, and saving are supported via NotecardFloater). Add full
    avatar appearance editing and distinguish simulator baking from local baking.
 5. **Remaining settings.** Wire graphics presets, avatar complexity, bandwidth,
    typing, browser notification permissions, privacy rights, persisted/grid-synchronized mute lists, media autoplay,
