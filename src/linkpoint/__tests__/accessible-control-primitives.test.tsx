@@ -6,6 +6,8 @@ import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import PayDialog from '../../components/PayDialog.jsx';
 import SplitPaneCompositor from '../../components/SplitPaneCompositor';
+import VoiceDevices from '../../components/VoiceDevices.jsx';
+import Settings from '../../screens/Settings.jsx';
 import { TransactionsScreen } from '../../screens/LumiyaTools.jsx';
 import { computeThemeTokens } from '@linkpoint/design-system/tokens';
 
@@ -119,5 +121,82 @@ describe('Accessible Control Primitives Integration', () => {
 
     expect(searchInput.style.outline).toContain('2px solid');
     expect(searchInput.style.outlineOffset).toBe('2px');
+  });
+
+  it('renders Settings search input with AccessibleInput and visible keyboard focus ring', async () => {
+    const host = await mountWithApp(<Settings />);
+
+    const searchInput = host.querySelector('input[type="search"]') as HTMLInputElement;
+    expect(searchInput).not.toBeNull();
+    expect(searchInput.style.minHeight).toBe('44px');
+    expect(searchInput.style.outline).not.toBe('none');
+
+    await act(async () => {
+      searchInput.focus();
+    });
+
+    expect(searchInput.style.outline).toContain('2px solid');
+    expect(searchInput.style.outlineOffset).toBe('2px');
+
+    await act(async () => {
+      searchInput.blur();
+    });
+
+    expect(searchInput.style.outline).toBe('');
+  });
+
+  it('renders Settings preference dropdown controls with AccessibleSelect and visible focus rings', async () => {
+    const host = await mountWithApp(<Settings />);
+
+    const selects = host.querySelectorAll('select');
+    expect(selects.length).toBeGreaterThanOrEqual(10);
+
+    const themeSelect = host.querySelector('#settings-theme-select') as HTMLSelectElement;
+    expect(themeSelect).not.toBeNull();
+    const optgroups = themeSelect.querySelectorAll('optgroup');
+    expect(optgroups.length).toBeGreaterThan(0);
+
+    for (const select of selects) {
+      expect(select.style.minHeight).toBe('44px');
+      expect(select.style.outline).not.toBe('none');
+
+      if (!select.disabled) {
+        await act(async () => {
+          select.focus();
+        });
+        expect(select.style.outline).toContain('2px solid');
+        expect(select.style.outlineOffset).toBe('2px');
+
+        await act(async () => {
+          select.blur();
+        });
+        expect(select.style.outline).toBe('');
+      }
+    }
+  });
+
+  it('renders VoiceDevices selectors with AccessibleSelect, 44px touch targets, and focus rings', async () => {
+    const host = await mountWithApp(<VoiceDevices />);
+
+    const selects = host.querySelectorAll('select');
+    expect(selects.length).toBe(2);
+
+    for (const select of selects) {
+      expect(select.style.minHeight).toBe('44px');
+      expect(select.style.outline).not.toBe('none');
+
+      if (!select.disabled) {
+        await act(async () => {
+          select.focus();
+        });
+        expect(select.style.outline).toContain('2px solid');
+        expect(select.style.outlineOffset).toBe('2px');
+
+        await act(async () => {
+          select.blur();
+        });
+        expect(select.style.outline).toBe('');
+      }
+    }
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { app } from '../linkpoint/app.ts';
 import FormField from './FormField.jsx';
+import AccessibleSelect from './AccessibleSelect';
 
 export default function VoiceDevices() {
   const [devices, setDevices] = useState([]);
@@ -64,7 +65,7 @@ export default function VoiceDevices() {
               key={kind}
               label={kind === 'audioinput' ? 'Voice microphone' : 'Voice speakers'}
             >
-              <select
+              <AccessibleSelect
                 id={`settings-voice-${kind}`}
                 value={selected[key]}
                 disabled={
@@ -81,7 +82,7 @@ export default function VoiceDevices() {
                     {d.label || `${kind === 'audioinput' ? 'Microphone' : 'Speakers'} ${i + 1}`}
                   </option>
                 ))}
-              </select>
+              </AccessibleSelect>
             </FormField>
           );
         })}
