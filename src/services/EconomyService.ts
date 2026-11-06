@@ -8,6 +8,7 @@
 import { Utils } from '../linkpoint/utils';
 import { liveRegionAnnouncer } from './LiveRegionAnnouncer';
 import { TransactionRecord, PaymentParams } from '../linkpoint/economy-manager';
+import type { SyncProgressEvent } from '../linkpoint/phase2/economy-sync-engine';
 
 export interface PendingTransactionRequest {
   id: string;
@@ -33,6 +34,9 @@ export class EconomyService extends Utils.EventEmitter {
   private pendingQueue: PendingTransactionRequest[] = [];
   private timeoutMs: number = 120000; // 2 minutes default timeout
   private autoApprove: boolean = false;
+  private transactions: TransactionRecord[] = [];
+  private isSyncing: boolean = false;
+  private syncHandler?: () => Promise<TransactionRecord[]>;
 
   constructor(options?: EconomyServiceOptions) {
     super();
@@ -57,6 +61,81 @@ export class EconomyService extends Utils.EventEmitter {
 
   public setTimeoutMs(ms: number): void {
     this.timeoutMs = Math.max(0, ms);
+  }
+
+  public isTransactionSyncing(): boolean {
+    return this.isSyncing;
+  }
+
+  public isSyncingTransactions(): boolean {
+    return this.isSyncing;
+  }
+
+  public getTransactions(): TransactionRecord[] {
+    return [...this.transactions];
+  }
+
+  public setTransactions(transactions: TransactionRecord[]): void {
+    this.transactions = [...transactions];
+    this.emit('transactions_updated', this.transactions);
+  }
+
+  public registerSyncHandler(handler: () => Promise<TransactionRecord[]>): void {
+    this.syncHandler = handler;
+  }
+
+  public async refreshTransactions(): Promise<TransactionRecord[]> {
+    if (this.syncHandler) {
+      return this.syncHandler();
+    }
+    return this.transactions;
+  }
+
+  public notifySyncStarted(event?: any): void {
+    this.isSyncing = true;
+    this.emit('sync_started', event);
+  }
+
+  public notifyBatchCommitted(event: SyncProgressEvent): void {
+    if (Array.isArray(event?.batch)) {
+      const existingIds = new Set(this.transactions.map((t) => t.id));
+      for (const record of event.batch) {
+        if (!existingIds.has(record.id)) {
+          this.transactions.push(record);
+          existingIds.add(record.id);
+        }
+      }
+    }
+    this.emit('batch_committed', event);
+    this.emit('delta_batch_received', event);
+    this.emit('sync_progress', event);
+    this.emit('transactions_updated', this.getTransactions());
+  }
+
+  public notifySyncProgress(event: SyncProgressEvent): void {
+    this.emit('sync_progress', event);
+  }
+
+  public notifySyncCompleted(event: any): void {
+    this.isSyncing = false;
+    if (Array.isArray(event?.transactions)) {
+      this.transactions = [...event.transactions];
+    }
+    this.emit('sync_completed', event);
+    this.emit('transactions_updated', this.getTransactions());
+  }
+
+  public notifySyncError(error: any): void {
+    this.isSyncing = false;
+    this.emit('sync_error', error);
+  }
+
+  public notifySyncPaused(event?: any): void {
+    this.emit('sync_paused', event);
+  }
+
+  public notifySyncResumed(): void {
+    this.emit('sync_resumed');
   }
 
   public getPendingRequests(): PendingTransactionRequest[] {

@@ -150,6 +150,7 @@ export class EconomyManager extends Utils.EventEmitter {
     this.syncEngine = syncEngine || new EconomySyncEngine();
     this.setupListeners();
     this.setupSyncEngineListeners();
+    economyService.registerSyncHandler(() => this.fetchHistory());
   }
 
   public setGridCurrency(symbol: string = 'L$', isZeroCurrency = false): void {
@@ -161,18 +162,70 @@ export class EconomyManager extends Utils.EventEmitter {
     });
   }
 
+  public isSyncing(): boolean {
+    return this.syncEngine.isSyncActive();
+  }
+
   private setupSyncEngineListeners(): void {
+    this.syncEngine.on('sync_started', (event: any) => {
+      this.emit('sync_started', event);
+      economyService.notifySyncStarted(event);
+    });
+
     this.syncEngine.on('delta_batch_received', (event: SyncProgressEvent) => {
       if (Array.isArray(event.batch)) {
         for (const tx of event.batch) {
           void this.recordTransaction(tx, false);
         }
-        this.emit('transactions_updated', this.getTransactions());
+        const updated = this.getTransactions();
+        this.emit('transactions_updated', updated);
+        this.emit('delta_batch_received', event);
+        economyService.notifyBatchCommitted(event);
       }
     });
 
-    this.syncEngine.on('sync_completed', () => {
-      this.emit('transactions_updated', this.getTransactions());
+    this.syncEngine.on('sync_progress', (event: SyncProgressEvent) => {
+      this.emit('sync_progress', event);
+      economyService.notifySyncProgress(event);
+    });
+
+    this.syncEngine.on('sync_completed', (event: any) => {
+      const updated = this.getTransactions();
+      this.emit('transactions_updated', updated);
+      this.emit('sync_completed', event);
+      economyService.notifySyncCompleted({ ...event, transactions: updated });
+    });
+
+    this.syncEngine.on('sync_error', (err: any) => {
+      this.emit('sync_error', err);
+      economyService.notifySyncError(err);
+    });
+
+    this.syncEngine.on('sync_paused', (event: any) => {
+      this.emit('sync_paused', event);
+      economyService.notifySyncPaused(event);
+    });
+
+    this.syncEngine.on('sync_resumed', () => {
+      this.emit('sync_resumed');
+      economyService.notifySyncResumed();
+    });
+
+    this.syncEngine.on('balance_updated', (data: any) => {
+      if (typeof data?.balance === 'number' || data?.balance === null) {
+        this.balance = data.balance;
+      }
+      if (data?.currencySymbol) {
+        this.currencySymbol = data.currencySymbol;
+      }
+      if (typeof data?.isZeroCurrency === 'boolean') {
+        this.isZeroCurrency = data.isZeroCurrency;
+      }
+      this.emit('balance_updated', {
+        balance: this.balance,
+        currencySymbol: this.currencySymbol,
+        isZeroCurrency: this.isZeroCurrency,
+      });
     });
   }
 
@@ -227,6 +280,7 @@ export class EconomyManager extends Utils.EventEmitter {
     // Load cached 30-day transaction history from IndexedDB
     const cached = await localCache.getTransactions(this.activeAgentId);
     this.transactions = cached;
+    economyService.setTransactions(this.transactions);
     this.emit('transactions_updated', this.transactions);
   }
 
@@ -502,6 +556,7 @@ export class EconomyManager extends Utils.EventEmitter {
 
     // Sync to IndexedDB
     await localCache.saveTransaction(this.activeAgentId, record);
+    economyService.setTransactions(this.transactions);
 
     if (emitEvent) {
       this.emit('transaction_added', record);
