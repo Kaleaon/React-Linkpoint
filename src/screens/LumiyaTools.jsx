@@ -11,6 +11,7 @@ import Toggle from '../components/Toggle.jsx';
 import { FocusRing } from '@linkpoint/design-system';
 import AccessibleInput from '../components/AccessibleInput';
 import AccessibleSelect from '../components/AccessibleSelect';
+import { decodeLindenText } from '../linkpoint/notecard.ts';
 
 function Empty({ icon, children }) {
   return (
@@ -96,11 +97,30 @@ export function MediaScreen() {
 }
 
 export function NotecardsScreen() {
+  const { actions } = useApp();
+  const { V } = useTheme();
   const cards = useMemo(
     () => Array.from(app.inventory.items.values()).filter((item) => Number(item.assetType) === 7),
     [],
   );
   const [selected, setSelected] = useState(null);
+
+  const decodedContent = useMemo(() => {
+    if (!selected) return '';
+    const raw = selected.data || selected.text;
+    if (typeof raw === 'string') {
+      if (raw.startsWith('Linden text version')) {
+        try {
+          return decodeLindenText(raw).text;
+        } catch {
+          return raw;
+        }
+      }
+      return raw;
+    }
+    return selected.description || '';
+  }, [selected]);
+
   return (
     <div className="tool-page">
       <h2>Notecards</h2>
@@ -109,7 +129,10 @@ export function NotecardsScreen() {
           <button
             className="runtime-card runtime-card-button"
             key={card.id}
-            onClick={() => setSelected(card)}
+            onClick={() => {
+              setSelected(card);
+              actions?.openNotecard?.(card);
+            }}
           >
             <Icon name="file-text" size={18} />
             <span>{card.name}</span>
@@ -120,8 +143,36 @@ export function NotecardsScreen() {
       )}
       {selected ? (
         <AssetContainer asset={selected} title={selected.name}>
-          <h3>{selected.name}</h3>
-          <p>{selected.description || selected.data || 'Notecard asset content loaded.'}</p>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '8px',
+            }}
+          >
+            <h3 style={{ margin: 0 }}>{selected.name}</h3>
+            <button
+              type="button"
+              className="sync-action-btn"
+              onClick={() => actions?.openNotecard?.(selected)}
+              style={{
+                background: V?.pri,
+                color: V?.onpri || V?.bg,
+                border: 'none',
+                borderRadius: V?.rs,
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Open in Floater
+            </button>
+          </div>
+          <p style={{ whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
+            {decodedContent || selected.description || '―'}
+          </p>
           <small>{selected.id}</small>
         </AssetContainer>
       ) : null}

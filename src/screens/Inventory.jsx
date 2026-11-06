@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
@@ -10,6 +11,7 @@ import AssetContainer from '../components/AssetContainer.jsx';
 /** Inventory rows come directly from InventoryManager capability responses. */
 export default function Inventory() {
   const { V, t } = useTheme();
+  const { actions } = useApp();
   const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
@@ -124,6 +126,11 @@ export default function Inventory() {
                 setSelected(entry);
                 if (entry.folder) void app.inventory.fetchFolderContents(entry.id);
               }}
+              onDoubleClick={() => {
+                if (Number(entry.assetType) === 7) {
+                  actions.openNotecard?.(entry);
+                }
+              }}
             >
               <Icon
                 name={entry.folder ? 'folder' : 'file'}
@@ -175,6 +182,33 @@ export default function Inventory() {
                 </>
               ) : null}
             </dl>
+            {Number(selected.assetType) === 7 && (
+              <div style={{ marginTop: '12px' }}>
+                <button
+                  type="button"
+                  className="sync-action-btn"
+                  onClick={() => actions.openNotecard?.(selected)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: V.pri,
+                    color: V.onpri || V.bg,
+                    border: 'none',
+                    borderRadius: V.rs,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Icon name="file-text" size={14} />
+                  <span>Open Notecard</span>
+                </button>
+              </div>
+            )}
           </AssetContainer>
         </aside>
       ) : null}
