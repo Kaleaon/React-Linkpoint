@@ -67,6 +67,9 @@ const {
 const {
   DirClassifiedQueryMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirClassifiedQuery');
+const {
+  ParcelBuyMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/ParcelBuy');
 const { DirFindFlags } = require('@caspertech/node-metaverse/dist/lib/enums/DirFindFlags');
 
 class DirEventsQueryMessage {
@@ -451,6 +454,7 @@ class ViewerSession {
     this.objectSounds = new Map();
     this.transactions = [];
     this.pending = new interactions.PendingInteractions();
+    this.pendingParcelTransactions = new Map();
     this.activeGroupId = '00000000-0000-0000-0000-000000000000';
     this.activeRoleId = '00000000-0000-0000-0000-000000000000';
     /** Filled in by connect(): who is logged in and where. */
@@ -847,18 +851,27 @@ class ViewerSession {
       }));
     }
 
-    this.subscribe(events.onParcelPropertiesEvent, 'parcel-properties', (parcel) => ({
-      id: parcel.LocalID,
-      name: parcel.Name || '',
-      description: parcel.Desc || '',
-      area: parcel.Area,
-      ownerId: parcel.OwnerID?.toString?.() || null,
-      groupId: parcel.GroupID?.toString?.() || null,
-      maxPrims: parcel.MaxPrims,
-      totalPrims: parcel.TotalPrims,
-      musicUrl: parcel.MusicURL || '',
-      mediaUrl: parcel.MediaURL || '',
-    }));
+    this.subscribe(events.onParcelPropertiesEvent, 'parcel-properties', (parcel) => {
+      if (this.pendingParcelTransactions) {
+        for (const [handle, tx] of this.pendingParcelTransactions.entries()) {
+          if (tx.localId === parcel.LocalID) {
+            this.pendingParcelTransactions.delete(handle);
+          }
+        }
+      }
+      return {
+        id: parcel.LocalID,
+        name: parcel.Name || '',
+        description: parcel.Desc || '',
+        area: parcel.Area,
+        ownerId: parcel.OwnerID?.toString?.() || null,
+        groupId: parcel.GroupID?.toString?.() || null,
+        maxPrims: parcel.MaxPrims,
+        totalPrims: parcel.TotalPrims,
+        musicUrl: parcel.MusicURL || '',
+        mediaUrl: parcel.MediaURL || '',
+      };
+    });
 
     this.subscriptions.push(
       events.onAvatarEnteredRegion.subscribe((avatar) => this.trackAvatar(avatar)),
@@ -2869,6 +2882,7 @@ class ViewerSession {
     this.friendNames.clear();
     this.decodedAssets.clear();
     this.pending.clear();
+    this.pendingParcelTransactions.clear();
     if (!this.bot) return;
     const bot = this.bot;
     this.bot = null;
@@ -3079,7 +3093,66 @@ class ViewerSession {
 
   async buyParcel(params = {}) {
     if (!this.bot) throw new Error('Not connected');
-    return { success: true, ...params };
+    const circuit = this.currentRegion()?.circuit || this.bot?.circuit;
+    if (!circuit) throw new Error('Circuit not available');
+
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const agentIdStr =
+      this.identity?.agentId ||
+      this.identity?.agent_id ||
+      this.bot?.agent?.agentID?.toString() ||
+      ZERO_UUID;
+    const sessionUUIDStr =
+      circuit.sessionID?.toString() || this.bot?.circuit?.sessionID?.toString() || ZERO_UUID;
+    const localId = Number(params.localId || 0);
+    const price = Number(params.price || 0);
+    const area = Number(params.area || 0);
+    const forGroup = Boolean(params.forGroup || params.isGroupOwned);
+    const groupIdStr = params.groupId || ZERO_UUID;
+
+    const msg = new ParcelBuyMessage();
+    msg.AgentData = {
+      AgentID: new UUID(agentIdStr),
+      SessionID: new UUID(sessionUUIDStr),
+    };
+    msg.Data = {
+      GroupID: new UUID(groupIdStr),
+      IsGroupOwned: forGroup,
+      RemoveContribution: Boolean(params.removeContribution),
+      LocalID: localId,
+      Final: Boolean(params.final !== false),
+    };
+    msg.ParcelData = {
+      Price: price,
+      Area: area,
+    };
+
+    const handle = `parcel_buy_${localId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.pendingParcelTransactions.set(handle, {
+      handle,
+      localId,
+      price,
+      area,
+      forGroup,
+      groupId: groupIdStr,
+      timestamp: Date.now(),
+    });
+
+    if (typeof circuit.sendMessage === 'function') {
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+    } else if (typeof this.bot.sendPacket === 'function') {
+      this.bot.sendPacket('ParcelBuy', msg);
+    }
+
+    return {
+      success: true,
+      handle,
+      localId,
+      price,
+      area,
+      forGroup,
+      ...params,
+    };
   }
 
   async subdivideParcel(params = {}) {

@@ -144,6 +144,39 @@ describe('EconomyService Middleware Subsystem', () => {
     );
   });
 
+  describe('Pre-flight balance validation', () => {
+    it('sets and gets current balance', () => {
+      expect(service.getCurrentBalance()).toBeNull();
+      service.setCurrentBalance(1250);
+      expect(service.getCurrentBalance()).toBe(1250);
+      service.setCurrentBalance(null);
+      expect(service.getCurrentBalance()).toBeNull();
+    });
+
+    it('validateBalance passes when balance is sufficient or equal to required price', () => {
+      service.setCurrentBalance(1500);
+      expect(service.validateBalance(1500)).toBe(true);
+      expect(service.validateBalance(1000)).toBe(true);
+      expect(service.validateBalance(2000, 2500)).toBe(true);
+    });
+
+    it('validateBalance aborts with error when balance is lower than required price', () => {
+      service.setCurrentBalance(350);
+      expect(() => service.validateBalance(1500)).toThrow(
+        'Insufficient L$ balance: required L$ 1,500, available L$ 350',
+      );
+
+      expect(() => service.validateBalance(500, 100)).toThrow(
+        'Insufficient L$ balance: required L$ 500, available L$ 100',
+      );
+    });
+
+    it('validateBalance passes when balance is unknown (null) to avoid blocking uninitialized states', () => {
+      service.setCurrentBalance(null);
+      expect(service.validateBalance(1500)).toBe(true);
+    });
+  });
+
   it('coordinates transaction state and notifies listeners when batches commit', () => {
     const batchCommittedSpy = vi.fn();
     const txUpdatedSpy = vi.fn();

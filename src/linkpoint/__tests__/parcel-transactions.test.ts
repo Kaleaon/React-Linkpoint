@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WorldViewer, serializeParcelBuyPass, serializeParcelPropertiesUpdate } from '../world';
+import {
+  WorldViewer,
+  serializeParcelBuy,
+  serializeParcelBuyPass,
+  serializeParcelPropertiesUpdate,
+} from '../world';
 import { slBridge } from '../sl-bridge';
 
 describe('Parcel Land Transaction Controls & Serialization', () => {
@@ -25,6 +30,67 @@ describe('Parcel Land Transaction Controls & Serialization', () => {
       // LocalID at offset 36 (little endian S32)
       const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       expect(view.getInt32(36, true)).toBe(42);
+    });
+  });
+
+  describe('serializeParcelBuy', () => {
+    it('serializes ParcelBuy UDP binary packet correctly with 0xffff0101 header and 67-byte length', () => {
+      const payload = {
+        agentId: '11111111-2222-3333-4444-555555555555',
+        sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        groupId: '99999999-8888-7777-6666-555555555555',
+        isGroupOwned: false,
+        removeContribution: false,
+        localId: 42,
+        final: true,
+        price: 1500,
+        area: 4096,
+      };
+
+      const bytes = serializeParcelBuy(payload);
+
+      // Low frequency message 257 (0x0101): 0xff, 0xff, 0x01, 0x01
+      expect(bytes[0]).toBe(0xff);
+      expect(bytes[1]).toBe(0xff);
+      expect(bytes[2]).toBe(0x01);
+      expect(bytes[3]).toBe(0x01);
+
+      // Total length: 4 (header) + 16 (AgentID) + 16 (SessionID) + 16 (GroupID) + 1 (IsGroupOwned) + 1 (RemoveContribution) + 4 (LocalID) + 1 (Final) + 4 (Price) + 4 (Area) = 67
+      expect(bytes.length).toBe(67);
+
+      // Flags and fields verification
+      expect(bytes[52]).toBe(0); // IsGroupOwned = false
+      expect(bytes[53]).toBe(0); // RemoveContribution = false
+
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      expect(view.getInt32(54, true)).toBe(42); // LocalID
+      expect(bytes[58]).toBe(1); // Final = true
+      expect(view.getInt32(59, true)).toBe(1500); // Price
+      expect(view.getInt32(63, true)).toBe(4096); // Area
+    });
+
+    it('serializes group purchase with isGroupOwned=1 and forGroup flag', () => {
+      const payload = {
+        agentId: '11111111-2222-3333-4444-555555555555',
+        sessionId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        groupId: '99999999-8888-7777-6666-555555555555',
+        forGroup: true,
+        removeContribution: true,
+        localId: 105,
+        price: 3200,
+        area: 8192,
+      };
+
+      const bytes = serializeParcelBuy(payload);
+      expect(bytes.length).toBe(67);
+      expect(bytes[52]).toBe(1); // isGroupOwned
+      expect(bytes[53]).toBe(1); // removeContribution
+
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      expect(view.getInt32(54, true)).toBe(105);
+      expect(bytes[58]).toBe(1); // final default true
+      expect(view.getInt32(59, true)).toBe(3200);
+      expect(view.getInt32(63, true)).toBe(8192);
     });
   });
 
@@ -120,7 +186,23 @@ describe('Parcel Land Transaction Controls & Serialization', () => {
           if (!this.listeners[event]) this.listeners[event] = [];
           this.listeners[event].push(fn);
         },
-        sendPacket: vi.fn().mockResolvedValue(true),
+        off(event: string, fn: Function) {
+          if (this.listeners[event]) {
+            this.listeners[event] = this.listeners[event].filter((cb: any) => cb !== fn);
+          }
+        },
+        emit(event: string, ...args: any[]) {
+          this.listeners[event]?.forEach((fn: any) => fn(...args));
+        },
+        sendPacket: vi.fn().mockImplementation(async (packetName: string, data: any) => {
+          if (packetName === 'ParcelBuy') {
+            const targetId = data?.localId ?? 42;
+            mockProtocol.emit('ParcelProperties', {
+              ParcelData: [{ LocalID: targetId, OwnerID: mockProtocol.agentId }],
+            });
+          }
+          return true;
+        }),
       };
 
       viewer = new WorldViewer(mockProtocol);
@@ -227,11 +309,127 @@ describe('Parcel Land Transaction Controls & Serialization', () => {
       });
 
       expect(result).toBe(true);
+      expect(mockProtocol.sendPacket).toHaveBeenCalledWith(
+        'ParcelBuy',
+        expect.objectContaining({ localId: 42, price: 1500, area: 4096 }),
+        expect.any(Uint8Array),
+      );
+      expect(viewer.region.parcel.OwnerID).toBe(mockProtocol.agentId);
       expect(boughtSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           localId: 42,
           price: 1500,
           area: 4096,
+        }),
+      );
+    });
+
+    it('buyParcel aborts before network transmission when balance is lower than required price', async () => {
+      await expect(
+        viewer.buyParcel({
+          price: 1500,
+          area: 4096,
+          confirmedPrice: 1500,
+          confirmedArea: 4096,
+          localId: 42,
+          currentBalance: 500, // Insufficient balance
+        }),
+      ).rejects.toThrow(/Insufficient L\$ balance: required L\$ 1,500, available L\$ 500/);
+
+      expect(mockProtocol.sendPacket).not.toHaveBeenCalled();
+      expect(viewer.region.parcel.OwnerID).toBeUndefined();
+    });
+
+    it('buyParcel rejects and preserves original ownership when simulator emits parcel_buy_failed', async () => {
+      mockProtocol.sendPacket = vi.fn().mockImplementation(async () => {
+        mockProtocol.emit('parcel_buy_failed', { reason: 'Land is no longer for sale' });
+        return true;
+      });
+
+      await expect(
+        viewer.buyParcel({
+          price: 1500,
+          area: 4096,
+          confirmedPrice: 1500,
+          confirmedArea: 4096,
+          localId: 42,
+          currentBalance: 5000,
+        }),
+      ).rejects.toThrow(/Land is no longer for sale/);
+
+      expect(viewer.region.parcel.OwnerID).toBeUndefined();
+    });
+
+    it('buyParcel rejects when simulator confirms a different resident owner', async () => {
+      mockProtocol.sendPacket = vi.fn().mockImplementation(async () => {
+        mockProtocol.emit('ParcelProperties', {
+          ParcelData: [{ LocalID: 42, OwnerID: 'different-agent-id-9999' }],
+        });
+        return true;
+      });
+
+      await expect(
+        viewer.buyParcel({
+          price: 1500,
+          area: 4096,
+          confirmedPrice: 1500,
+          confirmedArea: 4096,
+          localId: 42,
+          currentBalance: 5000,
+        }),
+      ).rejects.toThrow(/Parcel purchase rejected by simulator/);
+
+      expect(viewer.region.parcel.OwnerID).not.toBe(mockProtocol.agentId);
+    });
+
+    it('buyParcel rejects and preserves local cache when simulator confirmation times out', async () => {
+      // Simulator does not respond
+      mockProtocol.sendPacket = vi.fn().mockResolvedValue(true);
+
+      await expect(
+        viewer.buyParcel({
+          price: 1500,
+          area: 4096,
+          confirmedPrice: 1500,
+          confirmedArea: 4096,
+          localId: 42,
+          currentBalance: 2000,
+          timeoutMs: 50,
+        }),
+      ).rejects.toThrow(/Parcel purchase confirmation timed out after 50ms/);
+
+      expect(viewer.region.parcel.OwnerID).toBeUndefined();
+    });
+
+    it('buyParcel succeeds for group purchase and updates GroupID on positive confirmation', async () => {
+      const targetGroupId = '44444444-5555-6666-7777-888888888888';
+      mockProtocol.sendPacket = vi.fn().mockImplementation(async () => {
+        mockProtocol.emit('ParcelProperties', {
+          ParcelData: [{ LocalID: 42, GroupID: targetGroupId, isGroupOwned: true }],
+        });
+        return true;
+      });
+
+      const boughtSpy = vi.fn();
+      viewer.on('parcel_bought', boughtSpy);
+
+      const result = await viewer.buyParcel({
+        price: 1500,
+        area: 4096,
+        confirmedPrice: 1500,
+        confirmedArea: 4096,
+        localId: 42,
+        forGroup: true,
+        groupId: targetGroupId,
+        currentBalance: 3000,
+      });
+
+      expect(result).toBe(true);
+      expect(viewer.region.parcel.GroupID).toBe(targetGroupId);
+      expect(boughtSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localId: 42,
+          forGroup: true,
         }),
       );
     });
