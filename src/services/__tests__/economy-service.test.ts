@@ -143,4 +143,69 @@ describe('EconomyService Middleware Subsystem', () => {
       'assertive',
     );
   });
+
+  it('coordinates transaction state and notifies listeners when batches commit', () => {
+    const batchCommittedSpy = vi.fn();
+    const txUpdatedSpy = vi.fn();
+    service.on('batch_committed', batchCommittedSpy);
+    service.on('transactions_updated', txUpdatedSpy);
+
+    const testBatch = [
+      {
+        id: 'batch-tx-1',
+        agentId: 'agent-1',
+        targetId: 'target-1',
+        targetName: 'Store',
+        targetType: 'object' as const,
+        amount: -50,
+        type: 'payment' as const,
+        description: 'Shirt purchase',
+        timestamp: Date.now(),
+        status: 'success' as const,
+      },
+    ];
+
+    service.notifySyncStarted({ agentId: 'agent-1' });
+    expect(service.isTransactionSyncing()).toBe(true);
+
+    service.notifyBatchCommitted({
+      agentId: 'agent-1',
+      batch: testBatch,
+      lastSyncedTimestamp: testBatch[0].timestamp,
+      totalFetched: 1,
+      isLastBatch: true,
+    });
+
+    expect(batchCommittedSpy).toHaveBeenCalledOnce();
+    expect(txUpdatedSpy).toHaveBeenCalled();
+    expect(service.getTransactions().length).toBe(1);
+    expect(service.getTransactions()[0].id).toBe('batch-tx-1');
+
+    service.notifySyncCompleted({ agentId: 'agent-1', totalFetched: 1, transactions: testBatch });
+    expect(service.isTransactionSyncing()).toBe(false);
+  });
+
+  it('delegates refreshTransactions to registered sync handler', async () => {
+    const mockTxs = [
+      {
+        id: 'refreshed-1',
+        agentId: 'agent-1',
+        targetId: 't-1',
+        targetName: 'User',
+        targetType: 'avatar' as const,
+        amount: 25,
+        type: 'tip' as const,
+        description: 'Tip',
+        timestamp: Date.now(),
+        status: 'success' as const,
+      },
+    ];
+
+    const handler = vi.fn().mockResolvedValue(mockTxs);
+    service.registerSyncHandler(handler);
+
+    const result = await service.refreshTransactions();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(result).toEqual(mockTxs);
+  });
 });

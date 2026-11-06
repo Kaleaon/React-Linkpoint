@@ -783,7 +783,7 @@ export class InventoryManager extends Utils.EventEmitter {
         }
       }
       const parentFolder = this.folders.get(parentId);
-      if (parentFolder && Array.isArray(parentFolder.children)) {
+      if (parentFolder && parentFolder.children) {
         for (const childId of parentFolder.children) {
           if (this.folders.has(childId) && !folderIds.has(childId)) {
             folderIds.add(childId);
@@ -801,7 +801,7 @@ export class InventoryManager extends Utils.EventEmitter {
     }
     for (const fid of allFolderIds) {
       const f = this.folders.get(fid);
-      if (f && Array.isArray(f.children)) {
+      if (f && f.children) {
         for (const childId of f.children) {
           if (this.items.has(childId)) {
             itemIds.add(childId);
@@ -827,8 +827,12 @@ export class InventoryManager extends Utils.EventEmitter {
 
     if (item.parent) {
       const parentFolder = this.folders.get(item.parent);
-      if (parentFolder && Array.isArray(parentFolder.children)) {
-        parentFolder.children = parentFolder.children.filter((childId: string) => childId !== id);
+      if (parentFolder && parentFolder.children) {
+        if (parentFolder.children instanceof Set) {
+          parentFolder.children.delete(id);
+        } else if (Array.isArray(parentFolder.children)) {
+          parentFolder.children = parentFolder.children.filter((childId: string) => childId !== id);
+        }
       }
     }
 
@@ -888,8 +892,12 @@ export class InventoryManager extends Utils.EventEmitter {
     // Remove from parent's children
     if (folder.parent) {
       const parentFolder = this.folders.get(folder.parent);
-      if (parentFolder && Array.isArray(parentFolder.children)) {
-        parentFolder.children = parentFolder.children.filter((childId: string) => childId !== id);
+      if (parentFolder && parentFolder.children) {
+        if (parentFolder.children instanceof Set) {
+          parentFolder.children.delete(id);
+        } else if (Array.isArray(parentFolder.children)) {
+          parentFolder.children = parentFolder.children.filter((childId: string) => childId !== id);
+        }
       }
     }
 
@@ -930,7 +938,11 @@ export class InventoryManager extends Utils.EventEmitter {
     for (const id of folderIds) {
       this.folders.delete(id);
     }
-    trash.children = [];
+    if (trash.children instanceof Set) {
+      trash.children.clear();
+    } else {
+      trash.children = [];
+    }
 
     const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
     try {

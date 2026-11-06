@@ -213,7 +213,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
           }
         }}
         onKeyDown={handleKeyDown}
-        className={`inventory-node-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
+        className={`inventory-node-row inventory-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -503,8 +503,6 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
 
   // Construct flat linear array of expanded tree nodes for virtual rendering
   const flatNodes = useMemo(() => {
-    if (!effectiveRootId) return [];
-
     const filterQuery = (filter || '').trim().toLocaleLowerCase();
     const result: FlatTreeNode[] = [];
     const visited = new Set<string>();
@@ -540,7 +538,24 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
       }
     };
 
-    traverse(effectiveRootId, 0);
+    if (effectiveRootId) {
+      traverse(effectiveRootId, 0);
+    } else {
+      for (const [id, folder] of app.inventory.folders.entries()) {
+        if (
+          !folder.parent ||
+          folder.parent === 'root' ||
+          !app.inventory.folders.has(folder.parent)
+        ) {
+          traverse(id, 0);
+        }
+      }
+      for (const [id, item] of app.inventory.items.entries()) {
+        if (!item.parent || item.parent === 'root' || !app.inventory.folders.has(item.parent)) {
+          traverse(id, 0);
+        }
+      }
+    }
     return result;
   }, [effectiveRootId, expandedMap, revision, filter]);
 
@@ -851,11 +866,11 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
         aria-label="Inventory Tree"
         style={{
           position: 'relative',
-          minHeight: effectiveRootId ? `${totalHeight}px` : 'auto',
+          minHeight: effectiveRootId || flatNodes.length > 0 ? `${totalHeight}px` : 'auto',
           width: '100%',
         }}
       >
-        {effectiveRootId ? (
+        {effectiveRootId || flatNodes.length > 0 ? (
           <div
             style={{
               position: 'absolute',

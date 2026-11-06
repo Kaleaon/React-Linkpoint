@@ -326,4 +326,83 @@ describe('InventoryManager Direct Item Deletion & Trash Purge', () => {
     expect(trashFolder.children).toEqual([]);
     expect(purgeSpy).toHaveBeenCalledWith(expect.any(String), 'trash-id');
   });
+
+  it('supports Set data structure for folder children during item/folder deletion and trash purge', async () => {
+    app.inventory.setRootFolder('root-folder');
+    const rootFolder = {
+      id: 'root-folder',
+      name: 'My Inventory',
+      parent: null,
+      children: new Set(['trash-id', 'parent-set-folder']),
+    };
+    const trashFolder = {
+      id: 'trash-id',
+      name: 'Trash',
+      parent: 'root-folder',
+      folderType: LLFolderType.Trash,
+      children: new Set(['trash-set-item', 'trash-set-subfolder']),
+    };
+    const trashSetSubfolder = {
+      id: 'trash-set-subfolder',
+      name: 'Trash Subfolder',
+      parent: 'trash-id',
+      children: new Set(['trash-nested-item']),
+    };
+    const parentSetFolder = {
+      id: 'parent-set-folder',
+      name: 'Parent Folder',
+      parent: 'root-folder',
+      children: new Set(['item-in-set', 'folder-in-set']),
+    };
+    const folderInSet = {
+      id: 'folder-in-set',
+      name: 'Child Folder',
+      parent: 'parent-set-folder',
+      children: new Set(),
+    };
+
+    app.inventory.folders.set('root-folder', rootFolder);
+    app.inventory.folders.set('trash-id', trashFolder);
+    app.inventory.folders.set('trash-set-subfolder', trashSetSubfolder);
+    app.inventory.folders.set('parent-set-folder', parentSetFolder);
+    app.inventory.folders.set('folder-in-set', folderInSet);
+
+    app.inventory.items.set('item-in-set', {
+      id: 'item-in-set',
+      name: 'Item In Set',
+      parent: 'parent-set-folder',
+    });
+    app.inventory.items.set('trash-set-item', {
+      id: 'trash-set-item',
+      name: 'Trash Item',
+      parent: 'trash-id',
+    });
+    app.inventory.items.set('trash-nested-item', {
+      id: 'trash-nested-item',
+      name: 'Trash Nested Item',
+      parent: 'trash-set-subfolder',
+    });
+
+    // Verify Set traversal in getTrashItemCount
+    expect(app.inventory.getTrashItemCount()).toBe(3); // 2 items + 1 subfolder
+
+    // Test deleteItem with Set children
+    const deleteItemSuccess = await app.inventory.deleteItem('item-in-set');
+    expect(deleteItemSuccess).toBe(true);
+    expect(parentSetFolder.children.has('item-in-set')).toBe(false);
+    expect(app.inventory.items.has('item-in-set')).toBe(false);
+
+    // Test deleteFolder with Set children
+    const deleteFolderSuccess = await app.inventory.deleteFolder('folder-in-set');
+    expect(deleteFolderSuccess).toBe(true);
+    expect(parentSetFolder.children.has('folder-in-set')).toBe(false);
+    expect(app.inventory.folders.has('folder-in-set')).toBe(false);
+
+    // Test purgeTrash with Set children
+    const purgeSuccess = await app.inventory.purgeTrash();
+    expect(purgeSuccess).toBe(true);
+    expect(trashFolder.children instanceof Set).toBe(true);
+    expect((trashFolder.children as Set<string>).size).toBe(0);
+    expect(app.inventory.getTrashItemCount()).toBe(0);
+  });
 });

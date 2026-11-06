@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import { localCache } from '../linkpoint/local-cache.ts';
@@ -8,18 +8,42 @@ import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
 import FocusTrap from '../components/FocusTrap.jsx';
+import { InventoryTree } from '../components/InventoryTree.tsx';
 
-/** Inventory rows come directly from InventoryManager capability responses. */
+export const INVENTORY_VIEW_MODE_KEY = 'linkpoint_inventory_view_mode';
+const FLAT_ROW_HEIGHT = 40;
+const FLAT_OVERSCAN = 5;
+
+function getStoredViewMode() {
+  try {
+    const saved = localStorage.getItem(INVENTORY_VIEW_MODE_KEY);
+    if (saved === 'tree' || saved === 'flat') {
+      return saved;
+    }
+  } catch {
+    // Storage may be unavailable
+  }
+  return 'tree';
+}
+
+/** Dual-mode composite inventory view supporting hierarchical tree navigation and flat table search. */
 export default function Inventory() {
   const { V, t } = useTheme();
+  const [viewMode, setViewMode] = useState(getStoredViewMode);
   const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
   const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
+  const [refreshing, setRefreshing] = useState(false);
   const [showEmptyTrashModal, setShowEmptyTrashModal] = useState(false);
   const [purgingTrash, setPurgingTrash] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deletingItem, setDeletingItem] = useState(false);
+
+  // Virtualized flat table container measurements
+  const flatContainerRef = useRef(null);
+  const [flatScrollTop, setFlatScrollTop] = useState(0);
+  const [flatViewportHeight, setFlatViewportHeight] = useState(0);
 
   useEffect(() => {
     const refresh = () => setRevision((value) => value + 1);
@@ -51,7 +75,37 @@ export default function Inventory() {
     return app.inventory.getTrashItemCount();
   }, [revision]);
 
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(INVENTORY_VIEW_MODE_KEY, mode);
+    } catch {
+      // Storage may be disabled
+    }
+  };
+
+  const handleSelect = (entry) => {
+    if (!entry) {
+      setSelected(null);
+      return;
+    }
+    const isFolder = Boolean(
+      entry.folder ||
+      entry.type === 'folder' ||
+      entry.isFolder ||
+      app.inventory.folders.has(entry.id),
+    );
+    setSelected({
+      ...entry,
+      folder: isFolder,
+    });
+    if (isFolder) {
+      void app.inventory.fetchFolderContents(entry.id);
+    }
+  };
+
   const rows = useMemo(() => {
+    void revision;
     const query = filter.trim().toLocaleLowerCase();
     const folders = Array.from(app.inventory.folders.values()).map((entry) => ({
       ...entry,
@@ -75,7 +129,49 @@ export default function Inventory() {
       );
   }, [filter, revision]);
 
-  const [refreshing, setRefreshing] = useState(false);
+  // Measure flat list viewport height for virtualization
+  useEffect(() => {
+    if (viewMode !== 'flat') return;
+    const el = flatContainerRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      if (el.clientHeight > 0) {
+        setFlatViewportHeight(el.clientHeight);
+      }
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+  }, [viewMode]);
+
+  const handleFlatScroll = (e) => {
+    setFlatScrollTop(e.currentTarget.scrollTop);
+  };
+
+  const effectiveViewportHeight =
+    flatViewportHeight || (flatContainerRef.current?.clientHeight ?? 0) || 800;
+  const totalCount = rows.length;
+  const totalHeight = totalCount * FLAT_ROW_HEIGHT;
+  const visibleCount = Math.ceil(effectiveViewportHeight / FLAT_ROW_HEIGHT);
+  const rawStartIndex = Math.floor(flatScrollTop / FLAT_ROW_HEIGHT);
+  const startIndex = Math.max(
+    0,
+    Math.min(rawStartIndex - FLAT_OVERSCAN, Math.max(0, totalCount - visibleCount)),
+  );
+  const endIndex = Math.min(
+    totalCount,
+    Math.max(
+      startIndex + visibleCount + FLAT_OVERSCAN * 2,
+      rawStartIndex + visibleCount + FLAT_OVERSCAN,
+    ),
+  );
+  const visibleRows = useMemo(() => rows.slice(startIndex, endIndex), [rows, startIndex, endIndex]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -134,6 +230,75 @@ export default function Inventory() {
             aria-label="Filter inventory"
           />
         </label>
+        <div
+          role="group"
+          aria-label="View mode"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '2px',
+            background: V.surf,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            gap: '2px',
+            height: '40px',
+            boxSizing: 'border-box',
+            flex: 'none',
+          }}
+        >
+          <TouchTarget
+            type="button"
+            minSize={24}
+            aria-label="Tree View"
+            aria-pressed={viewMode === 'tree'}
+            onClick={() => handleViewModeChange('tree')}
+            title="Tree View"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              height: '34px',
+              padding: '0 10px',
+              border: 0,
+              borderRadius: V.rs,
+              background: viewMode === 'tree' ? V.pri : 'transparent',
+              color: viewMode === 'tree' ? V.onpri || '#ffffff' : V.ink2 || '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="folder-tree" size={15} />
+            <span>Tree View</span>
+          </TouchTarget>
+          <TouchTarget
+            type="button"
+            minSize={24}
+            aria-label="Flat Table"
+            aria-pressed={viewMode === 'flat'}
+            onClick={() => handleViewModeChange('flat')}
+            title="Flat Table"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              height: '34px',
+              padding: '0 10px',
+              border: 0,
+              borderRadius: V.rs,
+              background: viewMode === 'flat' ? V.pri : 'transparent',
+              color: viewMode === 'flat' ? V.onpri || '#ffffff' : V.ink2 || '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="list" size={15} />
+            <span>Flat Table</span>
+          </TouchTarget>
+        </div>
         <button
           type="button"
           onClick={() => setShowEmptyTrashModal(true)}
@@ -199,76 +364,119 @@ export default function Inventory() {
           }}
         />
       </div>
-      <div className="live-list">
-        {showSkeletons ? (
+      {showSkeletons ? (
+        <div className="live-list">
           <SkeletonLoader type="row" count={6} />
-        ) : rows.length ? (
-          rows.map((entry) => (
+        </div>
+      ) : viewMode === 'tree' ? (
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <InventoryTree
+            filter={filter}
+            selectedId={selected?.id}
+            onSelect={handleSelect}
+            className="inventory-tree-mode"
+          />
+        </div>
+      ) : (
+        <div
+          className="live-list"
+          ref={flatContainerRef}
+          onScroll={handleFlatScroll}
+          style={{ overflowY: 'auto', position: 'relative' }}
+        >
+          {rows.length ? (
             <div
-              key={entry.id}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
+                height: `${totalHeight}px`,
+                position: 'relative',
                 width: '100%',
               }}
             >
-              <button
-                className="inventory-row inventory-button"
-                style={{ borderColor: V.outv, flex: 1 }}
-                onClick={() => {
-                  setSelected(entry);
-                  if (entry.folder) void app.inventory.fetchFolderContents(entry.id);
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  transform: `translateY(${startIndex * FLAT_ROW_HEIGHT}px)`,
                 }}
               >
-                <Icon
-                  name={entry.folder ? 'folder' : 'file'}
-                  size={17}
-                  style={{ color: entry.folder ? V.pri : V.sec2 }}
-                />
-                <span style={{ font: `400 13px/1.3 ${t.font}` }}>
-                  {entry.name || 'Unnamed item'}
-                </span>
-              </button>
-              {!app.inventory.isSystemFolder(entry) && (
-                <button
-                  type="button"
-                  aria-label={`Delete ${entry.name || 'item'}`}
-                  title={`Delete ${entry.name || 'item'}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setItemToDelete(entry);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: `1px solid ${V.outv}`,
-                    borderRadius: V.rs,
-                    color: V.err || '#ef4444',
-                    cursor: 'pointer',
-                    padding: '8px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '38px',
-                    flex: 'none',
-                  }}
-                >
-                  <Icon name="trash-2" size={15} />
-                </button>
-              )}
+                {visibleRows.map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      width: '100%',
+                      height: `${FLAT_ROW_HEIGHT}px`,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <button
+                      className="inventory-row inventory-button"
+                      style={{
+                        borderColor: V.outv,
+                        height: '100%',
+                        flex: 1,
+                        backgroundColor:
+                          selected?.id === entry.id
+                            ? V.priC || 'rgba(52, 118, 255, 0.15)'
+                            : 'transparent',
+                      }}
+                      onClick={() => handleSelect(entry)}
+                    >
+                      <Icon
+                        name={entry.folder ? 'folder' : 'file'}
+                        size={17}
+                        style={{ color: entry.folder ? V.pri : V.sec2 }}
+                      />
+                      <span style={{ font: `400 13px/1.3 ${t.font}` }}>
+                        {entry.name || 'Unnamed item'}
+                      </span>
+                    </button>
+                    {!app.inventory.isSystemFolder(entry) && (
+                      <button
+                        type="button"
+                        aria-label={`Delete ${entry.name || 'item'}`}
+                        title={`Delete ${entry.name || 'item'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setItemToDelete(entry);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: `1px solid ${V.outv}`,
+                          borderRadius: V.rs,
+                          color: V.err || '#ef4444',
+                          cursor: 'pointer',
+                          padding: '0 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '34px',
+                          flex: 'none',
+                        }}
+                      >
+                        <Icon name="trash-2" size={15} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          ))
-        ) : (
-          <div className="honest-empty">
-            <Icon name="folder-open" size={28} />
-            <p>
-              {app.auth.isLoggedIn()
-                ? 'No inventory data has been loaded by the grid.'
-                : 'Connect to a grid to load inventory.'}
-            </p>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="honest-empty">
+              <Icon name="folder-open" size={28} />
+              <p>
+                {app.auth.isLoggedIn()
+                  ? 'No inventory data has been loaded by the grid.'
+                  : 'Connect to a grid to load inventory.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {selected ? (
         <aside className="record-detail" style={{ background: V.surf, borderColor: V.outv }}>
           <TouchTarget
