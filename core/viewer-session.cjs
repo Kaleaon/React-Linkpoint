@@ -67,6 +67,15 @@ const {
 const {
   DirClassifiedQueryMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/DirClassifiedQuery');
+const {
+  RemoveInventoryItemMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryItem');
+const {
+  RemoveInventoryFolderMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryFolder');
+const {
+  PurgeInventoryDescendentsMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/PurgeInventoryDescendents');
 const { DirFindFlags } = require('@caspertech/node-metaverse/dist/lib/enums/DirFindFlags');
 
 class DirEventsQueryMessage {
@@ -2078,6 +2087,103 @@ class ViewerSession {
       folder: false,
     }));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
+  }
+
+  async deleteInventoryItem(params = {}) {
+    const itemId = params?.itemId || params?.id;
+    if (!itemId) throw new Error('Valid item ID required');
+    const bot = this.requireBot();
+    const circuit = this.currentRegion()?.circuit;
+    if (!circuit?.sendMessage || !bot.agent?.agentID) throw new Error(NOT_CONNECTED);
+
+    const message = new RemoveInventoryItemMessage();
+    message.AgentData = {
+      AgentID: bot.agent.agentID,
+      SessionID: circuit.sessionID,
+    };
+    message.InventoryData = [{ ItemID: new UUID(itemId) }];
+    circuit.sendMessage(message, PacketFlags.Reliable);
+
+    try {
+      bot.agent?.inventory?.main?.itemsByID?.delete?.(String(itemId).toLowerCase());
+    } catch {
+      /* ignore cache eviction error */
+    }
+
+    return { success: true, itemId: String(itemId) };
+  }
+
+  async deleteInventoryFolder(params = {}) {
+    const folderId = params?.folderId || params?.id;
+    if (!folderId) throw new Error('Valid folder ID required');
+    const bot = this.requireBot();
+    const circuit = this.currentRegion()?.circuit;
+    if (!circuit?.sendMessage || !bot.agent?.agentID) throw new Error(NOT_CONNECTED);
+
+    // Root folder guardrail
+    const root = bot.clientCommands?.inventory?.getInventoryRoot();
+    if (root && root.folderID?.toString() === String(folderId)) {
+      throw new Error('Cannot delete root folder');
+    }
+
+    // Standard system folder guardrail
+    const skeletonFolder = bot.agent?.inventory?.main?.skeleton?.get?.(String(folderId));
+    if (
+      skeletonFolder &&
+      skeletonFolder.typeDefault !== FolderType.None &&
+      skeletonFolder.typeDefault !== -1 &&
+      skeletonFolder.typeDefault !== undefined
+    ) {
+      throw new Error('Cannot delete standard system folders');
+    }
+
+    const message = new RemoveInventoryFolderMessage();
+    message.AgentData = {
+      AgentID: bot.agent.agentID,
+      SessionID: circuit.sessionID,
+    };
+    message.FolderData = [{ FolderID: new UUID(folderId) }];
+    circuit.sendMessage(message, PacketFlags.Reliable);
+
+    try {
+      bot.agent?.inventory?.main?.skeleton?.delete?.(String(folderId));
+    } catch {
+      /* ignore cache eviction error */
+    }
+
+    return { success: true, folderId: String(folderId) };
+  }
+
+  async purgeInventoryTrash(params = {}) {
+    const bot = this.requireBot();
+    const circuit = this.currentRegion()?.circuit;
+    if (!circuit?.sendMessage || !bot.agent?.agentID) throw new Error(NOT_CONNECTED);
+
+    let trashFolderId = params?.folderId || params?.id;
+    if (!trashFolderId) {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      const trash =
+        skeleton &&
+        Array.from(skeleton.values()).find(
+          (f) => f.typeDefault === FolderType.Trash || f.name === 'Trash',
+        );
+      trashFolderId = trash?.folderID?.toString();
+    }
+    if (!trashFolderId) {
+      throw new Error('Trash folder not found');
+    }
+
+    const message = new PurgeInventoryDescendentsMessage();
+    message.AgentData = {
+      AgentID: bot.agent.agentID,
+      SessionID: circuit.sessionID,
+    };
+    message.InventoryData = {
+      FolderID: new UUID(trashFolderId),
+    };
+    circuit.sendMessage(message, PacketFlags.Reliable);
+
+    return { success: true, folderId: String(trashFolderId) };
   }
 
   /**

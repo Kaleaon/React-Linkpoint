@@ -445,8 +445,184 @@ class LocalCacheManager extends Utils.EventEmitter {
   }
 
   /**
-   * Save texture image data URL / blob to cache.
+   * Evict deleted inventory item from memory cache and IndexedDB storage.
    */
+  public async evictItem(agentId: string, itemId: string): Promise<void> {
+    try {
+      await indexedDBStore.deleteItem(agentId, itemId);
+    } catch {
+      // ignore
+    }
+
+    const mem = this.memoryCache.get(`inv_${agentId}`);
+    if (mem?.data?.items) {
+      mem.data.items = mem.data.items.filter((i: any) => i.id !== itemId);
+      this.memoryCache.set(`inv_${agentId}`, mem);
+    }
+
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        const tx = db.transaction([STORE_INVENTORY], 'readwrite');
+        const req = tx.objectStore(STORE_INVENTORY).get(`inv_${agentId}`);
+        req.onsuccess = () => {
+          if (req.result?.data?.items) {
+            req.result.data.items = req.result.data.items.filter((i: any) => i.id !== itemId);
+            const putTx = db.transaction([STORE_INVENTORY], 'readwrite');
+            putTx.objectStore(STORE_INVENTORY).put(req.result);
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Evict deleted inventory folder and its descendants from memory cache and IndexedDB storage.
+   */
+  public async evictFolder(agentId: string, folderId: string): Promise<void> {
+    try {
+      await indexedDBStore.deleteFolder(agentId, folderId);
+    } catch {
+      // ignore
+    }
+
+    const mem = this.memoryCache.get(`inv_${agentId}`);
+    if (mem?.data) {
+      const descendantFolders = new Set<string>([folderId]);
+      let added = true;
+      while (added) {
+        added = false;
+        for (const f of mem.data.folders || []) {
+          if (descendantFolders.has(f.parent) && !descendantFolders.has(f.id)) {
+            descendantFolders.add(f.id);
+            added = true;
+          }
+        }
+      }
+      mem.data.folders = (mem.data.folders || []).filter((f: any) => !descendantFolders.has(f.id));
+      mem.data.items = (mem.data.items || []).filter(
+        (i: any) => !descendantFolders.has(i.parent || i.folderId),
+      );
+      this.memoryCache.set(`inv_${agentId}`, mem);
+    }
+
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        const tx = db.transaction([STORE_INVENTORY], 'readwrite');
+        const req = tx.objectStore(STORE_INVENTORY).get(`inv_${agentId}`);
+        req.onsuccess = () => {
+          if (req.result?.data) {
+            const descendantFolders = new Set<string>([folderId]);
+            let added = true;
+            while (added) {
+              added = false;
+              for (const f of req.result.data.folders || []) {
+                if (descendantFolders.has(f.parent) && !descendantFolders.has(f.id)) {
+                  descendantFolders.add(f.id);
+                  added = true;
+                }
+              }
+            }
+            req.result.data.folders = (req.result.data.folders || []).filter(
+              (f: any) => !descendantFolders.has(f.id),
+            );
+            req.result.data.items = (req.result.data.items || []).filter(
+              (i: any) => !descendantFolders.has(i.parent || i.folderId),
+            );
+            const putTx = db.transaction([STORE_INVENTORY], 'readwrite');
+            putTx.objectStore(STORE_INVENTORY).put(req.result);
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Purge descendants of the Trash folder from memory cache and IndexedDB storage.
+   */
+  public async purgeTrash(agentId: string, trashFolderId: string): Promise<void> {
+    try {
+      await indexedDBStore.purgeFolderDescendants(agentId, trashFolderId);
+    } catch {
+      // ignore
+    }
+
+    const mem = this.memoryCache.get(`inv_${agentId}`);
+    if (mem?.data) {
+      const descendantFolders = new Set<string>();
+      let added = true;
+      while (added) {
+        added = false;
+        for (const f of mem.data.folders || []) {
+          if (
+            (f.parent === trashFolderId || descendantFolders.has(f.parent)) &&
+            !descendantFolders.has(f.id)
+          ) {
+            descendantFolders.add(f.id);
+            added = true;
+          }
+        }
+      }
+      mem.data.folders = (mem.data.folders || []).filter((f: any) => !descendantFolders.has(f.id));
+      const trashTree = new Set<string>([trashFolderId, ...descendantFolders]);
+      mem.data.items = (mem.data.items || []).filter(
+        (i: any) => !trashTree.has(i.parent || i.folderId),
+      );
+      const trashFolder = (mem.data.folders || []).find((f: any) => f.id === trashFolderId);
+      if (trashFolder) {
+        trashFolder.children = [];
+      }
+      this.memoryCache.set(`inv_${agentId}`, mem);
+    }
+
+    try {
+      const db = await this.initIDB();
+      if (db) {
+        const tx = db.transaction([STORE_INVENTORY], 'readwrite');
+        const req = tx.objectStore(STORE_INVENTORY).get(`inv_${agentId}`);
+        req.onsuccess = () => {
+          if (req.result?.data) {
+            const descendantFolders = new Set<string>();
+            let added = true;
+            while (added) {
+              added = false;
+              for (const f of req.result.data.folders || []) {
+                if (
+                  (f.parent === trashFolderId || descendantFolders.has(f.parent)) &&
+                  !descendantFolders.has(f.id)
+                ) {
+                  descendantFolders.add(f.id);
+                  added = true;
+                }
+              }
+            }
+            req.result.data.folders = (req.result.data.folders || []).filter(
+              (f: any) => !descendantFolders.has(f.id),
+            );
+            const trashTree = new Set<string>([trashFolderId, ...descendantFolders]);
+            req.result.data.items = (req.result.data.items || []).filter(
+              (i: any) => !trashTree.has(i.parent || i.folderId),
+            );
+            const trashFolder = (req.result.data.folders || []).find(
+              (f: any) => f.id === trashFolderId,
+            );
+            if (trashFolder) {
+              trashFolder.children = [];
+            }
+            const putTx = db.transaction([STORE_INVENTORY], 'readwrite');
+            putTx.objectStore(STORE_INVENTORY).put(req.result);
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
   public async saveTexture(uuid: string, dataUrl: string): Promise<void> {
     const entry = { uuid, dataUrl, timestamp: Date.now() };
     this.memoryCache.set(`tex_${uuid}`, entry);

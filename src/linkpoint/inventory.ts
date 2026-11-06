@@ -693,6 +693,265 @@ export class InventoryManager extends Utils.EventEmitter {
     return true;
   }
 
+  isSystemFolder(folderOrId: any): boolean {
+    if (!folderOrId) return false;
+    const folder = typeof folderOrId === 'string' ? this.folders.get(folderOrId) : folderOrId;
+    if (!folder) return false;
+
+    // Root folder
+    if (
+      folder.id === this.rootFolder?.id ||
+      !folder.parent ||
+      folder.parent === 'root' ||
+      folder.parent === ''
+    ) {
+      return true;
+    }
+
+    // Explicit system folderType
+    if (
+      folder.folderType !== undefined &&
+      folder.folderType !== null &&
+      folder.folderType !== -1 &&
+      folder.folderType !== LLFolderType.None
+    ) {
+      return true;
+    }
+
+    // Standard system folder names
+    const systemNames = new Set([
+      'my inventory',
+      'trash',
+      'lost and found',
+      'objects',
+      'textures',
+      'sounds',
+      'animations',
+      'gestures',
+      'calling cards',
+      'landmarks',
+      'clothing',
+      'body parts',
+      'notecards',
+      'scripts',
+      'current outfit',
+      'my outfits',
+      'favorites',
+      'inbox',
+      'outbox',
+      'settings',
+    ]);
+    const name = String(folder.name || '')
+      .trim()
+      .toLowerCase();
+    if (systemNames.has(name)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  getTrashFolder(): any | null {
+    for (const folder of this.folders.values()) {
+      if (
+        folder.folderType === LLFolderType.Trash ||
+        folder.folderType === 13 ||
+        folder.folderType === 14 ||
+        String(folder.name || '')
+          .trim()
+          .toLowerCase() === 'trash'
+      ) {
+        return folder;
+      }
+    }
+    return null;
+  }
+
+  getTrashDescendantIds(): { folderIds: Set<string>; itemIds: Set<string> } {
+    const folderIds = new Set<string>();
+    const itemIds = new Set<string>();
+    const trash = this.getTrashFolder();
+    if (!trash) return { folderIds, itemIds };
+
+    const queue: string[] = [trash.id];
+    while (queue.length > 0) {
+      const parentId = queue.shift()!;
+      for (const [id, f] of this.folders.entries()) {
+        if (f.parent === parentId && id !== parentId && !folderIds.has(id)) {
+          folderIds.add(id);
+          queue.push(id);
+        }
+      }
+      const parentFolder = this.folders.get(parentId);
+      if (parentFolder && Array.isArray(parentFolder.children)) {
+        for (const childId of parentFolder.children) {
+          if (this.folders.has(childId) && !folderIds.has(childId)) {
+            folderIds.add(childId);
+            queue.push(childId);
+          }
+        }
+      }
+    }
+
+    const allFolderIds = new Set<string>([trash.id, ...folderIds]);
+    for (const [id, item] of this.items.entries()) {
+      if (item.parent && allFolderIds.has(item.parent)) {
+        itemIds.add(id);
+      }
+    }
+    for (const fid of allFolderIds) {
+      const f = this.folders.get(fid);
+      if (f && Array.isArray(f.children)) {
+        for (const childId of f.children) {
+          if (this.items.has(childId)) {
+            itemIds.add(childId);
+          }
+        }
+      }
+    }
+
+    return { folderIds, itemIds };
+  }
+
+  getTrashItemCount(): number {
+    const { folderIds, itemIds } = this.getTrashDescendantIds();
+    return itemIds.size + folderIds.size;
+  }
+
+  async deleteItem(id: string): Promise<boolean> {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Valid item ID required');
+    }
+    const item = this.items.get(id);
+    if (!item) return false;
+
+    if (item.parent) {
+      const parentFolder = this.folders.get(item.parent);
+      if (parentFolder && Array.isArray(parentFolder.children)) {
+        parentFolder.children = parentFolder.children.filter((childId: string) => childId !== id);
+      }
+    }
+
+    this.items.delete(id);
+
+    const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
+    try {
+      await localCache.evictItem(agentId, id);
+    } catch (err) {
+      console.warn('[Inventory] Failed to evict item from cache:', err);
+    }
+
+    if (slBridge.connected) {
+      try {
+        await slBridge.deleteInventoryItem(id);
+      } catch (err) {
+        console.warn('[Inventory] Simulator item deletion packet error:', err);
+      }
+    }
+
+    await this.persistToCache();
+    this.emit('inventory_updated', { type: 'item_deleted', id });
+    return true;
+  }
+
+  async deleteFolder(id: string): Promise<boolean> {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Valid folder ID required');
+    }
+    const folder = this.folders.get(id);
+    if (!folder) return false;
+
+    if (this.isSystemFolder(folder)) {
+      throw new Error('Cannot delete root or standard system folders');
+    }
+
+    // Collect all descendant folders
+    const descendantFolderIds = new Set<string>([id]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const [fid, f] of this.folders.entries()) {
+        if (descendantFolderIds.has(f.parent) && !descendantFolderIds.has(fid)) {
+          descendantFolderIds.add(fid);
+          added = true;
+        }
+      }
+    }
+
+    // Collect and remove all descendant items
+    for (const [itemId, item] of this.items.entries()) {
+      if (item.parent && descendantFolderIds.has(item.parent)) {
+        this.items.delete(itemId);
+      }
+    }
+
+    // Remove from parent's children
+    if (folder.parent) {
+      const parentFolder = this.folders.get(folder.parent);
+      if (parentFolder && Array.isArray(parentFolder.children)) {
+        parentFolder.children = parentFolder.children.filter((childId: string) => childId !== id);
+      }
+    }
+
+    // Remove descendant folders
+    for (const fid of descendantFolderIds) {
+      this.folders.delete(fid);
+    }
+
+    const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
+    try {
+      await localCache.evictFolder(agentId, id);
+    } catch (err) {
+      console.warn('[Inventory] Failed to evict folder from cache:', err);
+    }
+
+    if (slBridge.connected) {
+      try {
+        await slBridge.deleteInventoryFolder(id);
+      } catch (err) {
+        console.warn('[Inventory] Simulator folder deletion packet error:', err);
+      }
+    }
+
+    await this.persistToCache();
+    this.emit('inventory_updated', { type: 'folder_deleted', id });
+    return true;
+  }
+
+  async purgeTrash(): Promise<boolean> {
+    const trash = this.getTrashFolder();
+    if (!trash) return false;
+
+    const { folderIds, itemIds } = this.getTrashDescendantIds();
+
+    for (const id of itemIds) {
+      this.items.delete(id);
+    }
+    for (const id of folderIds) {
+      this.folders.delete(id);
+    }
+    trash.children = [];
+
+    const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
+    try {
+      await localCache.purgeTrash(agentId, trash.id);
+    } catch (err) {
+      console.warn('[Inventory] Failed to purge trash from cache:', err);
+    }
+
+    if (slBridge.connected) {
+      try {
+        await slBridge.purgeInventoryTrash(trash.id);
+      } catch (err) {
+        console.warn('[Inventory] Simulator purge trash packet error:', err);
+      }
+    }
+
+    await this.persistToCache();
+    this.emit('inventory_updated', { type: 'trash_purged', folderId: trash.id });
+    return true;
+  }
+
   createFolder(folderId: string, folderData: any) {
     if (!folderId || typeof folderId !== 'string') {
       throw new Error('Valid folder ID required');

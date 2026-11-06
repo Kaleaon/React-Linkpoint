@@ -307,6 +307,152 @@ export class IndexedDBStore {
     });
   }
 
+  public async deleteItem(agentId: string, itemId: string): Promise<void> {
+    this.memItems.delete(`${agentId}:${itemId}`);
+    const db = await this.getDB();
+    if (!db) return;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_INVENTORY_ITEMS], 'readwrite');
+        const store = tx.objectStore(STORE_INVENTORY_ITEMS);
+        store.delete([agentId, itemId]);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async deleteFolder(agentId: string, folderId: string): Promise<void> {
+    const descendantFolderIds = new Set<string>([folderId]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const [, f] of this.memFolders.entries()) {
+        if (
+          f.agentId === agentId &&
+          descendantFolderIds.has(f.parent) &&
+          !descendantFolderIds.has(f.id)
+        ) {
+          descendantFolderIds.add(f.id);
+          added = true;
+        }
+      }
+    }
+
+    for (const fid of descendantFolderIds) {
+      this.memFolders.delete(`${agentId}:${fid}`);
+    }
+    for (const [key, item] of this.memItems.entries()) {
+      if (item.agentId === agentId && descendantFolderIds.has(item.folderId)) {
+        this.memItems.delete(key);
+      }
+    }
+
+    const db = await this.getDB();
+    if (!db) return;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_INVENTORY_FOLDERS, STORE_INVENTORY_ITEMS], 'readwrite');
+        const folderStore = tx.objectStore(STORE_INVENTORY_FOLDERS);
+        const itemStore = tx.objectStore(STORE_INVENTORY_ITEMS);
+
+        for (const fid of descendantFolderIds) {
+          folderStore.delete([agentId, fid]);
+        }
+
+        const itemIndex = itemStore.index('by_folder');
+        for (const fid of descendantFolderIds) {
+          const range = IDBKeyRange.only([agentId, fid]);
+          const req = itemIndex.openCursor(range);
+          req.onsuccess = (e: any) => {
+            const cursor = e.target.result;
+            if (cursor) {
+              cursor.delete();
+              cursor.continue();
+            }
+          };
+        }
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async purgeFolderDescendants(agentId: string, folderId: string): Promise<void> {
+    const descendantFolderIds = new Set<string>();
+    let added = true;
+    while (added) {
+      added = false;
+      for (const [, f] of this.memFolders.entries()) {
+        if (f.agentId === agentId) {
+          if (
+            (f.parent === folderId || descendantFolderIds.has(f.parent)) &&
+            !descendantFolderIds.has(f.id)
+          ) {
+            descendantFolderIds.add(f.id);
+            added = true;
+          }
+        }
+      }
+    }
+
+    for (const fid of descendantFolderIds) {
+      this.memFolders.delete(`${agentId}:${fid}`);
+    }
+    for (const [key, item] of this.memItems.entries()) {
+      if (
+        item.agentId === agentId &&
+        (item.folderId === folderId || descendantFolderIds.has(item.folderId))
+      ) {
+        this.memItems.delete(key);
+      }
+    }
+
+    const db = await this.getDB();
+    if (!db) return;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_INVENTORY_FOLDERS, STORE_INVENTORY_ITEMS], 'readwrite');
+        const folderStore = tx.objectStore(STORE_INVENTORY_FOLDERS);
+        const itemStore = tx.objectStore(STORE_INVENTORY_ITEMS);
+
+        for (const fid of descendantFolderIds) {
+          folderStore.delete([agentId, fid]);
+        }
+
+        const foldersToClear = [folderId, ...descendantFolderIds];
+        const itemIndex = itemStore.index('by_folder');
+        for (const fid of foldersToClear) {
+          const range = IDBKeyRange.only([agentId, fid]);
+          const req = itemIndex.openCursor(range);
+          req.onsuccess = (e: any) => {
+            const cursor = e.target.result;
+            if (cursor) {
+              cursor.delete();
+              cursor.continue();
+            }
+          };
+        }
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
   /**
    * Paged Query Method: getFolderContentsPage
    * Direct IndexDB cursor/range query without loading or allocating full inventory trees.

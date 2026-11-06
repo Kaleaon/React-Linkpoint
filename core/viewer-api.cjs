@@ -80,6 +80,9 @@ const METHODS = new Set([
   'subdivideParcel',
   'reclaimParcel',
   'commitObjectTransaction',
+  'deleteInventoryItem',
+  'deleteInventoryFolder',
+  'purgeInventoryTrash',
 ]);
 
 async function callViewer(session, method, params) {

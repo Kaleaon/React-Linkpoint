@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
+import { localCache } from '../linkpoint/local-cache.ts';
 import Icon from '../components/Icon.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
+import FocusTrap from '../components/FocusTrap.jsx';
 
 /** Inventory rows come directly from InventoryManager capability responses. */
 export default function Inventory() {
@@ -14,6 +16,10 @@ export default function Inventory() {
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
   const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
+  const [showEmptyTrashModal, setShowEmptyTrashModal] = useState(false);
+  const [purgingTrash, setPurgingTrash] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deletingItem, setDeletingItem] = useState(false);
 
   useEffect(() => {
     const refresh = () => setRevision((value) => value + 1);
@@ -24,14 +30,26 @@ export default function Inventory() {
     app.inventory.on('inventory_updated', refresh);
     app.inventory.on('inventory_loading_start', startLoading);
     app.inventory.on('inventory_loading_end', stopLoading);
+    if (typeof localCache?.on === 'function') {
+      localCache.on('cache_updated', refresh);
+      localCache.on('cache_cleared', refresh);
+    }
 
     return () => {
       app.inventory.off('inventory_loaded', refresh);
       app.inventory.off('inventory_updated', refresh);
       app.inventory.off('inventory_loading_start', startLoading);
       app.inventory.off('inventory_loading_end', stopLoading);
+      if (typeof localCache?.off === 'function') {
+        localCache.off('cache_updated', refresh);
+        localCache.off('cache_cleared', refresh);
+      }
     };
   }, []);
+
+  const trashCount = useMemo(() => {
+    return app.inventory.getTrashItemCount();
+  }, [revision]);
 
   const rows = useMemo(() => {
     const query = filter.trim().toLocaleLowerCase();
@@ -70,6 +88,35 @@ export default function Inventory() {
     }
   };
 
+  const handleConfirmEmptyTrash = async () => {
+    setPurgingTrash(true);
+    try {
+      await app.inventory.purgeTrash();
+    } finally {
+      setPurgingTrash(false);
+      setShowEmptyTrashModal(false);
+    }
+  };
+
+  const handleConfirmDeleteItem = async () => {
+    if (!itemToDelete) return;
+    setDeletingItem(true);
+    const target = itemToDelete;
+    try {
+      if (target.folder) {
+        await app.inventory.deleteFolder(target.id);
+      } else {
+        await app.inventory.deleteItem(target.id);
+      }
+      if (selected?.id === target.id) {
+        setSelected(null);
+      }
+    } finally {
+      setDeletingItem(false);
+      setItemToDelete(null);
+    }
+  };
+
   const showSkeletons = (isLoading || refreshing) && rows.length === 0;
 
   return (
@@ -87,6 +134,47 @@ export default function Inventory() {
             aria-label="Filter inventory"
           />
         </label>
+        <button
+          type="button"
+          onClick={() => setShowEmptyTrashModal(true)}
+          disabled={trashCount === 0 || purgingTrash}
+          title={trashCount === 0 ? 'Trash is empty' : `Empty Trash (${trashCount} items)`}
+          aria-label={`Empty Trash (${trashCount} items)`}
+          style={{
+            height: '40px',
+            padding: '0 12px',
+            background: V.surf,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            color: trashCount === 0 ? V.ink2 || '#94a3b8' : V.err || '#ef4444',
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: trashCount === 0 || purgingTrash ? 'not-allowed' : 'pointer',
+            opacity: trashCount === 0 ? 0.5 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            flex: 'none',
+          }}
+        >
+          <Icon name="trash-2" size={14} />
+          <span>EMPTY TRASH</span>
+          <span
+            className="trash-count-badge"
+            style={{
+              background: trashCount > 0 ? V.err || '#ef4444' : V.bdg || '#334155',
+              color: '#ffffff',
+              borderRadius: '9999px',
+              padding: '1px 6px',
+              fontSize: '10px',
+              fontWeight: 700,
+              minWidth: '16px',
+              textAlign: 'center',
+            }}
+          >
+            {trashCount}
+          </span>
+        </button>
         <SyncActionButton
           type="button"
           onClick={handleRefresh}
@@ -116,22 +204,59 @@ export default function Inventory() {
           <SkeletonLoader type="row" count={6} />
         ) : rows.length ? (
           rows.map((entry) => (
-            <button
-              className="inventory-row inventory-button"
+            <div
               key={entry.id}
-              style={{ borderColor: V.outv }}
-              onClick={() => {
-                setSelected(entry);
-                if (entry.folder) void app.inventory.fetchFolderContents(entry.id);
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                width: '100%',
               }}
             >
-              <Icon
-                name={entry.folder ? 'folder' : 'file'}
-                size={17}
-                style={{ color: entry.folder ? V.pri : V.sec2 }}
-              />
-              <span style={{ font: `400 13px/1.3 ${t.font}` }}>{entry.name || 'Unnamed item'}</span>
-            </button>
+              <button
+                className="inventory-row inventory-button"
+                style={{ borderColor: V.outv, flex: 1 }}
+                onClick={() => {
+                  setSelected(entry);
+                  if (entry.folder) void app.inventory.fetchFolderContents(entry.id);
+                }}
+              >
+                <Icon
+                  name={entry.folder ? 'folder' : 'file'}
+                  size={17}
+                  style={{ color: entry.folder ? V.pri : V.sec2 }}
+                />
+                <span style={{ font: `400 13px/1.3 ${t.font}` }}>
+                  {entry.name || 'Unnamed item'}
+                </span>
+              </button>
+              {!app.inventory.isSystemFolder(entry) && (
+                <button
+                  type="button"
+                  aria-label={`Delete ${entry.name || 'item'}`}
+                  title={`Delete ${entry.name || 'item'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemToDelete(entry);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    color: V.err || '#ef4444',
+                    cursor: 'pointer',
+                    padding: '8px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '38px',
+                    flex: 'none',
+                  }}
+                >
+                  <Icon name="trash-2" size={15} />
+                </button>
+              )}
+            </div>
           ))
         ) : (
           <div className="honest-empty">
@@ -175,9 +300,279 @@ export default function Inventory() {
                 </>
               ) : null}
             </dl>
+            {!app.inventory.isSystemFolder(selected) && (
+              <button
+                type="button"
+                onClick={() => setItemToDelete(selected)}
+                style={{
+                  marginTop: '16px',
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: V.err || '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: V.rs,
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Icon name="trash-2" size={14} />
+                <span>Delete {selected.folder ? 'Folder' : 'Item'}</span>
+              </button>
+            )}
           </AssetContainer>
         </aside>
       ) : null}
+
+      {/* Empty Trash Confirmation Modal */}
+      {showEmptyTrashModal && (
+        <FocusTrap
+          active={showEmptyTrashModal}
+          onEscape={() => !purgingTrash && setShowEmptyTrashModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="empty-trash-modal-title"
+            style={{
+              backgroundColor: V.surf || '#1e293b',
+              border: `1px solid ${V.outv || '#334155'}`,
+              borderRadius: '8px',
+              padding: '1.25rem',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              color: V.pri || '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1rem',
+              }}
+            >
+              <h3
+                id="empty-trash-modal-title"
+                style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+              >
+                Empty Trash
+              </h3>
+              <TouchTarget
+                minSize={24}
+                onClick={() => !purgingTrash && setShowEmptyTrashModal(false)}
+                aria-label="Close dialog"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: V.sec2 || '#94a3b8',
+                  cursor: purgingTrash ? 'not-allowed' : 'pointer',
+                  fontSize: '18px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </TouchTarget>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: V.pri || '#cbd5e1', marginBottom: '0.75rem' }}>
+              Are you sure you want to empty the Trash folder containing{' '}
+              <strong>
+                {trashCount} item{trashCount === 1 ? '' : 's'}
+              </strong>
+              ?
+            </p>
+
+            <div
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${V.err || '#ef4444'}`,
+                borderRadius: '6px',
+                padding: '0.75rem',
+                fontSize: '0.8125rem',
+                color: V.err || '#ef4444',
+                marginBottom: '1.25rem',
+              }}
+            >
+              Warning: All contents in the Trash folder will be permanently destroyed. This action
+              is irreversible.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                disabled={purgingTrash}
+                onClick={() => setShowEmptyTrashModal(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.surf || '#334155',
+                  border: `1px solid ${V.outv || '#475569'}`,
+                  borderRadius: V.rs,
+                  color: V.pri || '#f8fafc',
+                  fontSize: '0.875rem',
+                  cursor: purgingTrash ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={purgingTrash}
+                onClick={handleConfirmEmptyTrash}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.err || '#ef4444',
+                  border: 'none',
+                  borderRadius: V.rs,
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: purgingTrash ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {purgingTrash ? 'Emptying…' : 'Empty Trash'}
+              </button>
+            </div>
+          </div>
+        </FocusTrap>
+      )}
+
+      {/* Direct Item Deletion Confirmation Modal */}
+      {itemToDelete && (
+        <FocusTrap
+          active={!!itemToDelete}
+          onEscape={() => !deletingItem && setItemToDelete(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-item-modal-title"
+            style={{
+              backgroundColor: V.surf || '#1e293b',
+              border: `1px solid ${V.outv || '#334155'}`,
+              borderRadius: '8px',
+              padding: '1.25rem',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              color: V.pri || '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1rem',
+              }}
+            >
+              <h3
+                id="delete-item-modal-title"
+                style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+              >
+                Confirm Deletion
+              </h3>
+              <TouchTarget
+                minSize={24}
+                onClick={() => !deletingItem && setItemToDelete(null)}
+                aria-label="Close dialog"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: V.sec2 || '#94a3b8',
+                  cursor: deletingItem ? 'not-allowed' : 'pointer',
+                  fontSize: '18px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </TouchTarget>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: V.pri || '#cbd5e1', marginBottom: '0.75rem' }}>
+              Are you sure you want to permanently delete{' '}
+              <strong>{itemToDelete.name || 'this item'}</strong>?
+            </p>
+
+            <div
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${V.err || '#ef4444'}`,
+                borderRadius: '6px',
+                padding: '0.75rem',
+                fontSize: '0.8125rem',
+                color: V.err || '#ef4444',
+                marginBottom: '1.25rem',
+              }}
+            >
+              Warning: Permanent asset deletion is irreversible. This item will be permanently
+              destroyed.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                disabled={deletingItem}
+                onClick={() => setItemToDelete(null)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.surf || '#334155',
+                  border: `1px solid ${V.outv || '#475569'}`,
+                  borderRadius: V.rs,
+                  color: V.pri || '#f8fafc',
+                  fontSize: '0.875rem',
+                  cursor: deletingItem ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingItem}
+                onClick={handleConfirmDeleteItem}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.err || '#ef4444',
+                  border: 'none',
+                  borderRadius: V.rs,
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: deletingItem ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {deletingItem ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </FocusTrap>
+      )}
     </section>
   );
 }

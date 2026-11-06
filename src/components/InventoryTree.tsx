@@ -8,6 +8,7 @@ import {
   ArrowUp,
   ArrowDown,
   FolderInput,
+  Trash2,
   X,
 } from 'lucide-react';
 import { app } from '../linkpoint/app';
@@ -51,6 +52,7 @@ interface TreeNodeRowProps {
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   openMoveModal: (item: any) => void;
+  openDeleteModal: (item: any) => void;
   announce: (message: string) => void;
   onFocusNode: (id: string) => void;
   onNodeKeyDown: (e: React.KeyboardEvent, flatNode: FlatTreeNode) => void;
@@ -78,6 +80,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     openMenuId,
     setOpenMenuId,
     openMoveModal,
+    openDeleteModal,
     announce,
     onFocusNode,
     onNodeKeyDown,
@@ -135,6 +138,12 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
       e.stopPropagation();
       setOpenMenuId(null);
       openMoveModal(node);
+    };
+
+    const handleOpenDeleteModal = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setOpenMenuId(null);
+      openDeleteModal(node);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -375,6 +384,28 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
                 <FolderInput size={14} />
                 Move to Folder
               </button>
+              {(!isFolder || !app.inventory.isSystemFolder(node)) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleOpenDeleteModal}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: V.err || '#ef4444',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -395,6 +426,8 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [moveTargetItem, setMoveTargetItem] = useState<any | null>(null);
+  const [deleteTargetItem, setDeleteTargetItem] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [selectedTargetFolderId, setSelectedTargetFolderId] = useState<string>('');
   const [announcement, setAnnouncement] = useState<string>('');
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -570,6 +603,35 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
       announce(`Moved ${moveTargetItem.name} to folder ${targetName}`);
     }
     setMoveTargetItem(null);
+  };
+
+  const openDeleteModal = useCallback((item: any) => {
+    setDeleteTargetItem(item);
+  }, []);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetItem) return;
+    setIsDeleting(true);
+    const itemToDelete = deleteTargetItem;
+    const itemName = itemToDelete.name || 'item';
+    const isTargetFolder =
+      itemToDelete.type === 'folder' || !!app.inventory.folders.get(itemToDelete.id);
+    try {
+      if (isTargetFolder) {
+        await app.inventory.deleteFolder(itemToDelete.id);
+      } else {
+        await app.inventory.deleteItem(itemToDelete.id);
+      }
+      announce(`Permanently deleted ${itemName}`);
+      if (selectedId === itemToDelete.id && onSelect) {
+        onSelect(null);
+      }
+    } catch (err: any) {
+      announce(`Failed to delete ${itemName}: ${err.message || 'Error'}`);
+    } finally {
+      setIsDeleting(false);
+      setDeleteTargetItem(null);
+    }
   };
 
   // Compute virtual list window bounds
@@ -814,6 +876,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
                 openMoveModal={openMoveModal}
+                openDeleteModal={openDeleteModal}
                 announce={announce}
                 onFocusNode={handleFocusNode}
                 onNodeKeyDown={handleNodeKeyDown}
@@ -948,6 +1011,123 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 }}
               >
                 Move to Folder
+              </button>
+            </div>
+          </div>
+        </FocusTrap>
+      )}
+
+      {/* Permanent Deletion Confirmation Modal */}
+      {deleteTargetItem && (
+        <FocusTrap
+          active={!!deleteTargetItem}
+          onEscape={() => !isDeleting && setDeleteTargetItem(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+            style={{
+              backgroundColor: V.surf || '#1e293b',
+              border: `1px solid ${V.bdg || '#334155'}`,
+              borderRadius: '8px',
+              padding: '1.25rem',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              color: V.ink || '#f8fafc',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1rem',
+              }}
+            >
+              <h3 id="delete-modal-title" style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
+                Confirm Deletion
+              </h3>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                disabled={isDeleting}
+                onClick={() => setDeleteTargetItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: V.ink2 || '#94a3b8',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: V.ink || '#cbd5e1', marginBottom: '0.75rem' }}>
+              Are you sure you want to permanently delete{' '}
+              <strong>{deleteTargetItem.name || 'this item'}</strong>?
+            </p>
+
+            <div
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${V.err || '#ef4444'}`,
+                borderRadius: '6px',
+                padding: '0.75rem',
+                fontSize: '0.8125rem',
+                color: V.err || '#ef4444',
+                marginBottom: '1.25rem',
+              }}
+            >
+              Warning: Permanent asset deletion is irreversible. This item will be permanently
+              destroyed.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setDeleteTargetItem(null)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.bdg || '#334155',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: V.ink || '#f8fafc',
+                  fontSize: '0.875rem',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: V.err || '#ef4444',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isDeleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
