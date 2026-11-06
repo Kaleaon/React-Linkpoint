@@ -5,6 +5,8 @@ import Icon from '../components/Icon.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
 import PayDialog from '../components/PayDialog.jsx';
 import FocusTrap from '../components/FocusTrap.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
+import { economyService } from '../services/EconomyService';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Toggle from '../components/Toggle.jsx';
@@ -183,6 +185,22 @@ export function ParcelScreen() {
   const [confirmArea, setConfirmArea] = useState('');
   const [subdivideModalOpen, setSubdivideModalOpen] = useState(false);
   const [confirmVerticesText, setConfirmVerticesText] = useState('');
+  const [balance, setBalance] = useState(() => app.economy?.balance ?? null);
+  const [isPendingBuy, setIsPendingBuy] = useState(false);
+  const [buyError, setBuyError] = useState(null);
+
+  useEffect(() => {
+    const handleBalance = (val) => {
+      const b = typeof val === 'number' ? val : val?.balance;
+      if (typeof b === 'number' || b === null) setBalance(b);
+    };
+    app.economy?.on?.('balance_updated', handleBalance);
+    app.protocol?.on?.('balance_updated', handleBalance);
+    return () => {
+      app.economy?.off?.('balance_updated', handleBalance);
+      app.protocol?.off?.('balance_updated', handleBalance);
+    };
+  }, []);
 
   useEffect(() => {
     const updateParcel = (data) => {
@@ -255,8 +273,21 @@ export function ParcelScreen() {
   };
 
   const handleExecuteBuyParcel = async () => {
+    if (isPendingBuy) return;
     const requiredPrice = Number(parcelData.SalePrice ?? parcelData.salePrice ?? 1500);
     const requiredArea = Number(parcelData.Area ?? parcelData.area ?? 4096);
+    setBuyError(null);
+
+    // Pre-flight balance check via EconomyService before network transmission
+    try {
+      economyService.validateBalance(requiredPrice, balance);
+    } catch (balErr) {
+      setBuyError(balErr.message);
+      setStatusMessage(`Purchase blocked: ${balErr.message}`);
+      return;
+    }
+
+    setIsPendingBuy(true);
     try {
       await app.world.buyParcel({
         price: requiredPrice,
@@ -264,11 +295,19 @@ export function ParcelScreen() {
         confirmedPrice: Number(confirmPrice),
         confirmedArea: Number(confirmArea),
         localId: parcelData.LocalID || parcelData.id || 1,
+        currentBalance: balance,
       });
       setStatusMessage(`Parcel purchased successfully for L$ ${requiredPrice}!`);
       setBuyModalOpen(false);
+      setConfirmPrice('');
+      setConfirmArea('');
     } catch (err) {
-      setStatusMessage(`Purchase blocked: ${err.message}`);
+      // Criterion 5: If the simulator rejects or times out, the floater presents an actionable error message and keeps modal open for user review.
+      const errorMsg = err.message || 'Parcel purchase failed';
+      setBuyError(errorMsg);
+      setStatusMessage(`Purchase blocked: ${errorMsg}`);
+    } finally {
+      setIsPendingBuy(false);
     }
   };
 
@@ -437,7 +476,11 @@ export function ParcelScreen() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
               <button
                 type="button"
-                onClick={() => setBuyModalOpen(true)}
+                onClick={() => {
+                  setBuyError(null);
+                  setIsPendingBuy(false);
+                  setBuyModalOpen(true);
+                }}
                 style={{
                   padding: '8px 14px',
                   background: V.pri,
@@ -903,118 +946,209 @@ export function ParcelScreen() {
       )}
 
       {/* Buy Parcel Confirmation Modal */}
-      {buyModalOpen && (
-        <FocusTrap active={buyModalOpen} onEscape={() => setBuyModalOpen(false)}>
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="buy-land-dialog-title"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000,
-            }}
-          >
-            <div
-              style={{
-                background: V.surf,
-                padding: '20px',
-                borderRadius: '8px',
-                maxWidth: '420px',
-                width: '90%',
-                border: `1px solid ${V.outv}`,
-              }}
+      {buyModalOpen &&
+        (() => {
+          const requiredBuyPrice = Number(parcelData.SalePrice ?? parcelData.salePrice ?? 1500);
+          const isInsufficientBalance =
+            balance !== null && typeof balance === 'number' && balance < requiredBuyPrice;
+
+          return (
+            <FocusTrap
+              active={buyModalOpen}
+              onEscape={() => !isPendingBuy && setBuyModalOpen(false)}
             >
-              <h3 id="buy-land-dialog-title" style={{ marginTop: 0, color: V.pri }}>
-                Confirm Parcel Purchase
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: V.ink2 }}>
-                Target Parcel: <strong>{name}</strong> ({parcelData.Area ?? parcelData.area ?? 4096}{' '}
-                sq.m.)
-                <br />
-                Listed Price:{' '}
-                <strong>L$ {parcelData.SalePrice ?? parcelData.salePrice ?? 1500}</strong>
-              </p>
-
               <div
-                style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '12px 0' }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="buy-land-dialog-title"
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(0,0,0,0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1000,
+                }}
               >
-                <label htmlFor="confirm-price-input" style={{ fontSize: '0.8rem', color: V.ink }}>
-                  Confirm Price (L$)
-                </label>
-                <input
-                  id="confirm-price-input"
-                  type="number"
-                  value={confirmPrice}
-                  onChange={(e) => setConfirmPrice(e.target.value)}
-                  placeholder={String(parcelData.SalePrice ?? 1500)}
+                <div
                   style={{
-                    padding: '6px 10px',
-                    background: V.bg,
-                    color: V.ink,
+                    background: V.surf,
+                    padding: '20px',
+                    borderRadius: '8px',
+                    maxWidth: '420px',
+                    width: '90%',
                     border: `1px solid ${V.outv}`,
-                    borderRadius: '4px',
-                  }}
-                />
-
-                <label htmlFor="confirm-area-input" style={{ fontSize: '0.8rem', color: V.ink }}>
-                  Confirm Area (sq.m.)
-                </label>
-                <input
-                  id="confirm-area-input"
-                  type="number"
-                  value={confirmArea}
-                  onChange={(e) => setConfirmArea(e.target.value)}
-                  placeholder={String(parcelData.Area ?? 4096)}
-                  style={{
-                    padding: '6px 10px',
-                    background: V.bg,
-                    color: V.ink,
-                    border: `1px solid ${V.outv}`,
-                    borderRadius: '4px',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setBuyModalOpen(false)}
-                  style={{
-                    padding: '6px 12px',
-                    background: V.bg,
-                    color: V.ink,
-                    border: `1px solid ${V.outv}`,
-                    borderRadius: '4px',
-                    cursor: 'pointer',
                   }}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExecuteBuyParcel}
-                  style={{
-                    padding: '6px 12px',
-                    background: V.pri,
-                    color: V.onpri,
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  Confirm Purchase
-                </button>
+                  <h3 id="buy-land-dialog-title" style={{ marginTop: 0, color: V.pri }}>
+                    Confirm Parcel Purchase
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: V.ink2 }}>
+                    Target Parcel: <strong>{name}</strong> (
+                    {parcelData.Area ?? parcelData.area ?? 4096} sq.m.)
+                    <br />
+                    Listed Price: <strong>L$ {requiredBuyPrice}</strong>
+                    <br />
+                    Current Balance:{' '}
+                    <strong>
+                      {balance !== null && typeof balance === 'number'
+                        ? `L$ ${balance.toLocaleString()}`
+                        : '—'}
+                    </strong>
+                  </p>
+
+                  {/* Insufficient balance warning banner */}
+                  {isInsufficientBalance && (
+                    <div
+                      role="alert"
+                      style={{
+                        padding: '8px 12px',
+                        margin: '10px 0',
+                        borderRadius: '4px',
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#ef4444',
+                        fontSize: '0.85rem',
+                        fontWeight: 500,
+                      }}
+                    >
+                      ⚠️ Insufficient funds: Your current balance (L$ {balance.toLocaleString()}) is
+                      less than the required price (L$ {requiredBuyPrice.toLocaleString()}).
+                    </div>
+                  )}
+
+                  {/* Actionable error banner on rejection or timeout */}
+                  {buyError && (
+                    <div
+                      role="alert"
+                      style={{
+                        padding: '8px 12px',
+                        margin: '10px 0',
+                        borderRadius: '4px',
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#ef4444',
+                        fontSize: '0.85rem',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {buyError}
+                    </div>
+                  )}
+
+                  {/* Pending confirmation spinner with CrystalLoader */}
+                  {isPendingBuy ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        padding: '24px 0',
+                      }}
+                    >
+                      <CrystalLoader size={40} />
+                      <span style={{ fontSize: '0.85rem', color: V.ink, fontWeight: 500 }}>
+                        Awaiting grid simulator confirmation...
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        margin: '12px 0',
+                      }}
+                    >
+                      <label
+                        htmlFor="confirm-price-input"
+                        style={{ fontSize: '0.8rem', color: V.ink }}
+                      >
+                        Confirm Price (L$)
+                      </label>
+                      <input
+                        id="confirm-price-input"
+                        type="number"
+                        value={confirmPrice}
+                        onChange={(e) => setConfirmPrice(e.target.value)}
+                        placeholder={String(requiredBuyPrice)}
+                        disabled={isPendingBuy}
+                        style={{
+                          padding: '6px 10px',
+                          background: V.bg,
+                          color: V.ink,
+                          border: `1px solid ${V.outv}`,
+                          borderRadius: '4px',
+                        }}
+                      />
+
+                      <label
+                        htmlFor="confirm-area-input"
+                        style={{ fontSize: '0.8rem', color: V.ink }}
+                      >
+                        Confirm Area (sq.m.)
+                      </label>
+                      <input
+                        id="confirm-area-input"
+                        type="number"
+                        value={confirmArea}
+                        onChange={(e) => setConfirmArea(e.target.value)}
+                        placeholder={String(parcelData.Area ?? 4096)}
+                        disabled={isPendingBuy}
+                        style={{
+                          padding: '6px 10px',
+                          background: V.bg,
+                          color: V.ink,
+                          border: `1px solid ${V.outv}`,
+                          borderRadius: '4px',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setBuyModalOpen(false)}
+                      disabled={isPendingBuy}
+                      style={{
+                        padding: '6px 12px',
+                        background: V.bg,
+                        color: V.ink,
+                        border: `1px solid ${V.outv}`,
+                        borderRadius: '4px',
+                        cursor: isPendingBuy ? 'not-allowed' : 'pointer',
+                        opacity: isPendingBuy ? 0.6 : 1,
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteBuyParcel}
+                      disabled={isPendingBuy || isInsufficientBalance}
+                      style={{
+                        padding: '6px 12px',
+                        background: isInsufficientBalance ? V.outv : V.pri,
+                        color: isInsufficientBalance ? V.ink2 : V.onpri,
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: isPendingBuy || isInsufficientBalance ? 'not-allowed' : 'pointer',
+                        fontWeight: 600,
+                        opacity: isPendingBuy || isInsufficientBalance ? 0.6 : 1,
+                      }}
+                    >
+                      {isPendingBuy ? 'Processing...' : 'Confirm Purchase'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </FocusTrap>
-      )}
+            </FocusTrap>
+          );
+        })()}
 
       {/* Subdivide Land Confirmation Modal */}
       {subdivideModalOpen && (

@@ -33,6 +33,7 @@ export class EconomyService extends Utils.EventEmitter {
   private pendingQueue: PendingTransactionRequest[] = [];
   private timeoutMs: number = 120000; // 2 minutes default timeout
   private autoApprove: boolean = false;
+  private currentBalance: number | null = null;
 
   constructor(options?: EconomyServiceOptions) {
     super();
@@ -49,6 +50,29 @@ export class EconomyService extends Utils.EventEmitter {
       EconomyService.instance = new EconomyService();
     }
     return EconomyService.instance;
+  }
+
+  public setCurrentBalance(balance: number | null): void {
+    this.currentBalance = balance;
+  }
+
+  public getCurrentBalance(): number | null {
+    return this.currentBalance;
+  }
+
+  /**
+   * Pre-flight balance check: Validates that the resident has sufficient L$ balance
+   * before initiating a financial transaction (e.g. land purchase).
+   * Aborts with a user-facing warning if balance is lower than the required amount.
+   */
+  public validateBalance(requiredAmount: number, balance?: number | null): boolean {
+    const bal = balance !== undefined ? balance : this.currentBalance;
+    if (bal !== null && typeof bal === 'number' && bal < requiredAmount) {
+      throw new Error(
+        `Insufficient L$ balance: required L$ ${requiredAmount.toLocaleString()}, available L$ ${bal.toLocaleString()}`,
+      );
+    }
+    return true;
   }
 
   public setAutoApprove(enabled: boolean): void {

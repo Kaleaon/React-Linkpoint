@@ -38,6 +38,7 @@ import { RegionWind } from './wind';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { MediaTexturePipeline } from './media-pipeline';
 import { ObjectMediaParser, type PrimFaceMedia, type MediaPlaybackState } from './world-viewer';
+import { economyService } from '../services/EconomyService';
 
 export interface FlexiParams {
   softness: number;
@@ -52,6 +53,63 @@ export interface ParcelBuyPassData {
   agentId?: string;
   sessionId?: string;
   localId: number;
+}
+
+export interface ParcelBuyData {
+  agentId?: string;
+  sessionId?: string;
+  groupId?: string;
+  isGroupOwned?: boolean;
+  forGroup?: boolean;
+  removeContribution?: boolean;
+  localId: number;
+  final?: boolean;
+  price: number;
+  area: number;
+}
+
+/**
+ * Serializes a ParcelBuy UDP packet (Message ID: 0xFFFF0101).
+ * Contains 4-byte message header 0xffff0101, agent IDs, group flags, parcel IDs, and pricing metrics.
+ */
+export function serializeParcelBuy(data: ParcelBuyData): Uint8Array {
+  const agentId = data.agentId || '00000000-0000-0000-0000-000000000000';
+  const sessionId = data.sessionId || '00000000-0000-0000-0000-000000000000';
+  const groupId = data.groupId || '00000000-0000-0000-0000-000000000000';
+  const isGroupOwned = Boolean(data.isGroupOwned || data.forGroup);
+  const removeContribution = Boolean(data.removeContribution);
+  const localId = Number(data.localId) || 0;
+  const final = data.final !== false;
+  const price = Number(data.price) || 0;
+  const area = Number(data.area) || 0;
+
+  // Low-frequency message 257 (0x0101)
+  const header = new Uint8Array([0xff, 0xff, 0x01, 0x01]);
+  // 4 (header) + 16 (agentId) + 16 (sessionId) + 16 (groupId) + 1 (isGroupOwned) + 1 (removeContribution) + 4 (localId) + 1 (final) + 4 (price) + 4 (area) = 67 bytes
+  const buffer = new Uint8Array(67);
+  buffer.set(header, 0);
+
+  const writeUuid = (uuidStr: string, offset: number) => {
+    const hex = uuidStr.replace(/-/g, '');
+    for (let i = 0; i < 16; i++) {
+      buffer[offset + i] = parseInt(hex.substring(i * 2, i * 2 + 2) || '0', 16);
+    }
+  };
+
+  writeUuid(agentId, 4);
+  writeUuid(sessionId, 20);
+  writeUuid(groupId, 36);
+
+  buffer[52] = isGroupOwned ? 1 : 0;
+  buffer[53] = removeContribution ? 1 : 0;
+
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt32(54, localId, true);
+  buffer[58] = final ? 1 : 0;
+  view.setInt32(59, price, true);
+  view.setInt32(63, area, true);
+
+  return buffer;
 }
 
 export interface ParcelPropertiesUpdateData {
@@ -3485,7 +3543,12 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   /**
-   * Buy parcel with price & area confirmation guardrails.
+   * Verified Two-Phase Parcel Transaction Coordinator with Balance Pre-Flight.
+   * Phase 1: Pre-flight price, area, and resident L$ balance validation, followed by
+   *          serializing and transmitting the ParcelBuy UDP packet (Message ID 0xFFFF0101).
+   * Phase 2: Awaits simulator parcel property updates and matches ownership changes
+   *          (with a 10-second timeout safeguard) before updating local parcel state
+   *          and emitting parcel_bought.
    */
   public async buyParcel(options: {
     price: number;
@@ -3494,8 +3557,26 @@ export class WorldViewer extends Utils.EventEmitter {
     confirmedArea?: number;
     localId?: number;
     forGroup?: boolean;
+    groupId?: string;
+    removeContribution?: boolean;
+    currentBalance?: number | null;
+    timeoutMs?: number;
+    waitForConfirmation?: boolean;
   }): Promise<boolean> {
-    const { price, area, confirmedPrice, confirmedArea, localId, forGroup } = options;
+    const {
+      price,
+      area,
+      confirmedPrice,
+      confirmedArea,
+      localId,
+      forGroup,
+      groupId,
+      removeContribution,
+      currentBalance,
+      timeoutMs = 10000,
+      waitForConfirmation = true,
+    } = options;
+
     if (confirmedPrice === undefined || confirmedPrice !== price) {
       throw new Error(
         `Parcel purchase failed: confirmed price (${confirmedPrice}) does not match required price (${price})`,
@@ -3507,21 +3588,173 @@ export class WorldViewer extends Utils.EventEmitter {
       );
     }
 
-    const targetLocalId = localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0;
+    // Phase 1: Pre-flight balance check via EconomyService before network transmission
+    economyService.validateBalance(price, currentBalance);
 
-    if (typeof slBridge?.call === 'function' && slBridge.connected) {
-      await slBridge.call('buyParcel', { localId: targetLocalId, price, area, forGroup });
-    }
+    const targetLocalId = Number(
+      localId ?? this.region?.parcel?.LocalID ?? this.region?.parcel?.id ?? 0,
+    );
+    const agentId = this.protocol?.agentId || '00000000-0000-0000-0000-000000000000';
+    const sessionId = this.protocol?.sessionId || '00000000-0000-0000-0000-000000000000';
+    const targetGroupId = groupId || '00000000-0000-0000-0000-000000000000';
+    const isGroupOwned = Boolean(forGroup);
 
-    this.emit('parcel_bought', {
+    const buyPayload: ParcelBuyData = {
+      agentId,
+      sessionId,
+      groupId: targetGroupId,
+      isGroupOwned,
+      forGroup: isGroupOwned,
+      removeContribution: Boolean(removeContribution),
       localId: targetLocalId,
+      final: true,
       price,
       area,
-      forGroup: Boolean(forGroup),
-      timestamp: Date.now(),
-    });
+    };
 
-    return true;
+    const packetBytes = serializeParcelBuy(buyPayload);
+
+    // Phase 2: Setup simulator confirmation listener if confirmation wait is enabled
+    let confirmationPromise: Promise<any> | null = null;
+    let cleanupListeners = () => {};
+
+    if (waitForConfirmation) {
+      confirmationPromise = new Promise((resolve, reject) => {
+        let timer: any = null;
+
+        const onParcelUpdate = (data: any) => {
+          const parcels = data?.ParcelData || data?.parcels || data?.parcelData;
+          const parcel = Array.isArray(parcels) ? parcels[0] : parcels || data;
+          if (!parcel) return;
+
+          const pLocalId = Number(parcel.LocalID ?? parcel.localId ?? parcel.id ?? 0);
+          if (pLocalId !== targetLocalId) return;
+
+          const parcelOwner = parcel.OwnerID ?? parcel.ownerId;
+          const parcelGroup = parcel.GroupID ?? parcel.groupId;
+
+          const isOwnerConfirmed = isGroupOwned
+            ? (parcelGroup && parcelGroup === targetGroupId) ||
+              parcel.isGroupOwned ||
+              parcel.IsGroupOwned ||
+              parcelOwner === targetGroupId
+            : parcelOwner && parcelOwner === agentId;
+
+          if (isOwnerConfirmed) {
+            if (timer) clearTimeout(timer);
+            cleanupListeners();
+            resolve(parcel);
+          } else if (parcelOwner !== undefined || parcelGroup !== undefined) {
+            if (timer) clearTimeout(timer);
+            cleanupListeners();
+            reject(
+              new Error(
+                'Parcel purchase rejected by simulator: parcel ownership belongs to another resident',
+              ),
+            );
+          }
+        };
+
+        const onParcelRejected = (errData: any) => {
+          if (timer) clearTimeout(timer);
+          cleanupListeners();
+          const msg =
+            (typeof errData === 'string' ? errData : errData?.message || errData?.reason) ||
+            'Parcel purchase rejected by simulator';
+          reject(new Error(msg));
+        };
+
+        cleanupListeners = () => {
+          if (typeof this.protocol?.off === 'function') {
+            this.protocol.off('ParcelProperties', onParcelUpdate);
+            this.protocol.off('ParcelPropertiesUpdate', onParcelUpdate);
+            this.protocol.off('parcel_buy_failed', onParcelRejected);
+          }
+          if (typeof slBridge?.off === 'function') {
+            slBridge.off('parcel-properties', onParcelUpdate);
+            slBridge.off('parcel_buy_failed', onParcelRejected);
+          }
+          this.off('parcel_changed', onParcelUpdate);
+        };
+
+        if (typeof this.protocol?.on === 'function') {
+          this.protocol.on('ParcelProperties', onParcelUpdate);
+          this.protocol.on('ParcelPropertiesUpdate', onParcelUpdate);
+          this.protocol.on('parcel_buy_failed', onParcelRejected);
+        }
+        if (typeof slBridge?.on === 'function') {
+          slBridge.on('parcel-properties', onParcelUpdate);
+          slBridge.on('parcel_buy_failed', onParcelRejected);
+        }
+        this.on('parcel_changed', onParcelUpdate);
+
+        timer = setTimeout(() => {
+          cleanupListeners();
+          reject(
+            new Error(
+              `Parcel purchase confirmation timed out after ${timeoutMs}ms without simulator confirmation`,
+            ),
+          );
+        }, timeoutMs);
+      });
+    }
+
+    try {
+      // Transmit to active protocol circuit
+      if (typeof this.protocol?.sendPacket === 'function') {
+        await this.protocol.sendPacket('ParcelBuy', buyPayload, packetBytes);
+      }
+      if (typeof slBridge?.call === 'function' && slBridge.connected) {
+        await slBridge.call('buyParcel', {
+          localId: targetLocalId,
+          price,
+          area,
+          forGroup: isGroupOwned,
+          groupId: targetGroupId,
+          removeContribution,
+        });
+      }
+
+      let confirmedParcel: any = null;
+      if (confirmationPromise) {
+        confirmedParcel = await confirmationPromise;
+      }
+
+      // Update local parcel ownership state ONLY after positive confirmation (Criterion 4)
+      const updatedOwner = isGroupOwned ? targetGroupId || agentId : agentId;
+      const currentParcel = this.region?.parcel || {};
+      const updatedParcel = {
+        ...currentParcel,
+        ...(confirmedParcel || {}),
+        LocalID: targetLocalId,
+        OwnerID: updatedOwner,
+        ownerId: updatedOwner,
+        GroupID: isGroupOwned
+          ? targetGroupId
+          : currentParcel.GroupID || '00000000-0000-0000-0000-000000000000',
+        groupId: isGroupOwned
+          ? targetGroupId
+          : currentParcel.groupId || '00000000-0000-0000-0000-000000000000',
+      };
+
+      this.region = { ...this.region, parcel: updatedParcel };
+      this.emit('parcel_changed', { ...updatedParcel });
+      this.emit('region_changed', { ...this.region });
+
+      this.emit('parcel_bought', {
+        localId: targetLocalId,
+        price,
+        area,
+        forGroup: Boolean(forGroup),
+        timestamp: Date.now(),
+        ownerId: updatedParcel.OwnerID,
+      });
+
+      return true;
+    } catch (err) {
+      cleanupListeners();
+      throw err;
+    }
   }
 
   /**

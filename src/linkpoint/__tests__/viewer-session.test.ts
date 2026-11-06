@@ -871,4 +871,57 @@ describe('live group detail bridge', () => {
     };
     await expect(session.getGroups()).rejects.toThrow('Group list could not be loaded');
   });
+
+  describe('buyParcel protocol forwarding and pending transaction tracking', () => {
+    it('throws when not connected or circuit is missing', async () => {
+      const session = new ViewerSession(() => undefined);
+      await expect(session.buyParcel({ localId: 42, price: 1500, area: 4096 })).rejects.toThrow(
+        'Not connected',
+      );
+
+      session.bot = {};
+      await expect(session.buyParcel({ localId: 42, price: 1500, area: 4096 })).rejects.toThrow(
+        'Circuit not available',
+      );
+    });
+
+    it('forwards ParcelBuyMessage reliably through circuit and tracks pending handle', async () => {
+      const session = new ViewerSession(() => undefined);
+      const sendMessage = vi.fn();
+      const mockCircuit = {
+        sessionID: { toString: () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' },
+        sendMessage,
+      };
+      session.bot = {
+        agent: { agentID: { toString: () => '11111111-2222-3333-4444-555555555555' } },
+        circuit: mockCircuit,
+      };
+
+      const result = await session.buyParcel({
+        localId: 77,
+        price: 2500,
+        area: 4096,
+        forGroup: true,
+        groupId: '88888888-9999-aaaa-bbbb-cccccccccccc',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.localId).toBe(77);
+      expect(result.handle).toMatch(/^parcel_buy_77_/);
+      expect(session.pendingParcelTransactions.has(result.handle)).toBe(true);
+
+      expect(sendMessage).toHaveBeenCalledOnce();
+      const [msg, flags] = sendMessage.mock.calls[0];
+      expect(msg.name).toBe('ParcelBuy');
+      expect(msg.Data.LocalID).toBe(77);
+      expect(msg.Data.IsGroupOwned).toBe(true);
+      expect(msg.ParcelData.Price).toBe(2500);
+      expect(msg.ParcelData.Area).toBe(4096);
+      expect(flags).toBe(64); // PacketFlags.Reliable (0x40)
+
+      // Verify close() clears pending transactions
+      await session.close();
+      expect(session.pendingParcelTransactions.size).toBe(0);
+    });
+  });
 });

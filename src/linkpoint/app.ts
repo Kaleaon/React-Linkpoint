@@ -27,6 +27,7 @@ import { RLV_STRINGS } from './rlv-data';
 import { moneySoundFor } from './sound-standards';
 import { CoordinateNormalizer } from './coordinate-normalizer';
 import { economyManager, EconomyManager } from './economy-manager';
+import { economyService } from '../services/EconomyService';
 import { localCache } from './local-cache';
 import { ObjectPayManager } from './object-pay-manager';
 
@@ -111,6 +112,10 @@ export class LinkpointApp {
     this.voice = new VoiceManager();
     this.economy = economyManager;
     this.economySyncEngine = this.economy.syncEngine;
+    this.economy.on('balance_updated', (data: any) => {
+      const b = typeof data === 'number' ? data : data?.balance;
+      if (typeof b === 'number' || b === null) economyService.setCurrentBalance(b);
+    });
 
     // Initialize Phase 2 Managers
     this.eventQueue = new EventQueueManager(this.protocol as any); // Type cast for now
@@ -521,6 +526,7 @@ export class LinkpointApp {
     // UI sounds the viewer plays for L$ changes, with its threshold (UISndMoneyChangeThreshold).
     let lastBalance: number | null = null;
     this.protocol.on('balance_updated', (balance: number | null) => {
+      economyService.setCurrentBalance(typeof balance === 'number' ? balance : null);
       if (typeof balance === 'number' && lastBalance !== null) {
         const sound = moneySoundFor(balance - lastBalance);
         if (sound) this.audio.playUi(sound);
