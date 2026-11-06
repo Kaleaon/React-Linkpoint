@@ -326,6 +326,14 @@ export class SLBridge extends Utils.EventEmitter {
   wearOutfit(params: { folderId: string }) {
     return this.call<{ worn: number; baked: boolean; reason?: string }>('wearOutfit', params);
   }
+  saveOutfitAs(params: { name: string; itemIds?: string[] }) {
+    return this.call<{
+      folderId: string;
+      itemCount: number;
+      failedCount?: number;
+      failedItemIds?: string[];
+    }>('saveOutfitAs', params);
+  }
   detachAttachment(params: { id: string }) {
     return this.call<{ detached: string }>('detachAttachment', params);
   }

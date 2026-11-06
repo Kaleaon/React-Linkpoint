@@ -6,6 +6,7 @@ import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
 import TouchTarget from '../components/TouchTarget.tsx';
+import FocusTrap from '../components/FocusTrap.jsx';
 
 const CAMERA_PRESETS = [
   ['front', 'Front'],
@@ -50,6 +51,16 @@ export default function OutfitViewer() {
     edited: {},
   });
   const [shapeGroup, setShapeGroup] = useState('shape_body');
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveOutfitName, setSaveOutfitName] = useState('');
+  const [saveCategories, setSaveCategories] = useState({
+    clothing: true,
+    body: true,
+    attachment: true,
+    other: true,
+  });
+  const [saveError, setSaveError] = useState('');
+  const [focusedOutfitId, setFocusedOutfitId] = useState(null);
 
   const canvasRef = useRef(null);
 
@@ -307,6 +318,114 @@ export default function OutfitViewer() {
           ? 'No outfit items match the current filter.'
           : 'The grid reports nothing worn.';
 
+  const categoryCounts = useMemo(() => {
+    const counts = { clothing: 0, body: 0, attachment: 0, other: 0 };
+    for (const item of wornItems) {
+      const cat = item.category || 'other';
+      if (counts[cat] !== undefined) counts[cat]++;
+      else counts.other++;
+    }
+    return counts;
+  }, [wornItems]);
+
+  const itemsToSave = useMemo(() => {
+    return wornItems.filter((item) => {
+      const cat = item.category || 'other';
+      return saveCategories[cat] !== false;
+    });
+  }, [wornItems, saveCategories]);
+
+  const trimmedSaveName = saveOutfitName.trim();
+  const isNameEmpty = trimmedSaveName.length === 0;
+  const isNameDuplicate = useMemo(() => {
+    if (isNameEmpty) return false;
+    return (outfitState.outfits || []).some(
+      (o) => (o.name || '').trim().toLowerCase() === trimmedSaveName.toLowerCase(),
+    );
+  }, [isNameEmpty, trimmedSaveName, outfitState.outfits]);
+
+  const validationError = useMemo(() => {
+    if (isNameEmpty) return 'Outfit name is required.';
+    if (isNameDuplicate) return 'An outfit with that name already exists.';
+    return '';
+  }, [isNameEmpty, isNameDuplicate]);
+
+  const openSaveModal = useCallback(() => {
+    setSaveOutfitName('');
+    setSaveError('');
+    setSaveCategories({
+      clothing: true,
+      body: true,
+      attachment: true,
+      other: true,
+    });
+    setSaveModalOpen(true);
+  }, []);
+
+  const closeSaveModal = useCallback(() => {
+    if (busy) return;
+    setSaveModalOpen(false);
+    setSaveOutfitName('');
+    setSaveError('');
+  }, [busy]);
+
+  const handleSaveOutfit = useCallback(
+    async (e) => {
+      if (e) e.preventDefault();
+      const finalName = saveOutfitName.trim().slice(0, 63);
+      if (!finalName || isNameDuplicate || itemsToSave.length === 0 || busy) return;
+      setBusy(true);
+      setSaveError('');
+      try {
+        const itemIds = itemsToSave.map((item) => item.id);
+        const res = await slBridge.saveOutfitAs({ name: finalName, itemIds });
+        setSaveModalOpen(false);
+        setSaveOutfitName('');
+
+        const savedCount = res?.itemCount ?? itemsToSave.length;
+        const failedCount = res?.failedCount ?? 0;
+        if (failedCount > 0) {
+          say(
+            `Saved outfit "${finalName}" with ${savedCount} item(s) (${failedCount} item(s) could not be linked).`,
+          );
+        } else {
+          say(`Saved outfit "${finalName}".`);
+        }
+
+        const updated = await app.loadOutfit();
+        setWornItems(Array.isArray(updated?.items) ? updated.items : []);
+        setOutfitState({
+          loading: false,
+          error: '',
+          loaded: true,
+          outfits: Array.isArray(updated?.outfits) ? updated.outfits : [],
+        });
+
+        if (res?.folderId) {
+          setFocusedOutfitId(res.folderId);
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Failed to save outfit.';
+        setSaveError(msg);
+        say(msg);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [saveOutfitName, isNameDuplicate, itemsToSave, busy, say],
+  );
+
+  useEffect(() => {
+    if (!focusedOutfitId) return;
+    const targetElement =
+      document.getElementById(`outfit-${focusedOutfitId}`) ||
+      document.getElementById(`wear-outfit-${focusedOutfitId}`);
+    if (targetElement) {
+      targetElement.focus();
+      targetElement.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [focusedOutfitId, outfitState.outfits]);
+
   return (
     <section
       className="live-screen outfit-viewer-screen"
@@ -562,24 +681,46 @@ export default function OutfitViewer() {
                 >
                   <Icon name="package" size={16} /> WORN OUTFIT ITEMS ({wornItems.length})
                 </h2>
-                <button
-                  type="button"
-                  disabled={outfitState.loading || !loggedIn}
-                  onClick={() => void loadOutfit()}
-                  title="Read what you are wearing from Second Life again"
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    background: V.pri,
-                    color: V.onpri || '#fff',
-                    border: 'none',
-                    borderRadius: V.rs,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {outfitState.loading ? 'LOADING…' : 'REFRESH'}
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    disabled={busy || !loggedIn || wornItems.length === 0}
+                    onClick={openSaveModal}
+                    title="Save currently worn items as a new outfit"
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      background: V.pri,
+                      color: V.onpri || '#fff',
+                      border: 'none',
+                      borderRadius: V.rs,
+                      cursor:
+                        busy || !loggedIn || wornItems.length === 0 ? 'not-allowed' : 'pointer',
+                      opacity: busy || !loggedIn || wornItems.length === 0 ? 0.6 : 1,
+                    }}
+                  >
+                    SAVE OUTFIT AS
+                  </button>
+                  <button
+                    type="button"
+                    disabled={outfitState.loading || !loggedIn}
+                    onClick={() => void loadOutfit()}
+                    title="Read what you are wearing from Second Life again"
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      background: V.pri,
+                      color: V.onpri || '#fff',
+                      border: 'none',
+                      borderRadius: V.rs,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {outfitState.loading ? 'LOADING…' : 'REFRESH'}
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: 6 }}>
@@ -769,51 +910,88 @@ export default function OutfitViewer() {
                 )
               ) : null}
 
-              <h2 style={{ margin: '6px 0 0', fontSize: 13, fontWeight: 700, color: V.pri }}>
-                SAVED OUTFITS ({outfitState.outfits.length})
-              </h2>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  margin: '6px 0 0',
+                }}
+              >
+                <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: V.pri }}>
+                  SAVED OUTFITS ({outfitState.outfits.length})
+                </h2>
+                <button
+                  type="button"
+                  disabled={busy || !loggedIn || wornItems.length === 0}
+                  onClick={openSaveModal}
+                  title="Save currently worn items as a new outfit"
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    background: V.pri,
+                    color: V.onpri || '#fff',
+                    border: 'none',
+                    borderRadius: V.rs,
+                    cursor: busy || !loggedIn || wornItems.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: busy || !loggedIn || wornItems.length === 0 ? 0.6 : 1,
+                  }}
+                >
+                  SAVE OUTFIT AS
+                </button>
+              </div>
               {outfitState.outfits.length ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {outfitState.outfits.map((outfit) => (
-                    <div
-                      key={outfit.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '5px 10px',
-                        fontSize: 12,
-                        color: V.ink,
-                        background: V.bg,
-                        border: `1px solid ${V.outv}`,
-                        borderRadius: V.rs,
-                      }}
-                    >
-                      <span style={{ flex: 1 }}>{outfit.name}</span>
-                      <button
-                        type="button"
-                        disabled={busy || !loggedIn}
-                        onClick={() =>
-                          void change(
-                            () => slBridge.wearOutfit({ folderId: outfit.id }),
-                            `Now wearing the outfit ${outfit.name}.`,
-                          )
-                        }
+                  {outfitState.outfits.map((outfit) => {
+                    const isFocused = focusedOutfitId === outfit.id;
+                    return (
+                      <div
+                        key={outfit.id}
+                        id={`outfit-${outfit.id}`}
+                        tabIndex={isFocused ? 0 : -1}
                         style={{
-                          padding: '3px 8px',
-                          fontSize: 10,
-                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '5px 10px',
+                          fontSize: 12,
+                          color: V.ink,
+                          background: isFocused ? `${V.pri}1f` : V.bg,
+                          border: `1px solid ${isFocused ? V.pri : V.outv}`,
                           borderRadius: V.rs,
-                          border: `1px solid ${V.pri}`,
-                          background: V.pri,
-                          color: V.onpri || '#fff',
-                          cursor: 'pointer',
+                          outline: isFocused ? `2px solid ${V.pri}` : 'none',
                         }}
                       >
-                        WEAR OUTFIT
-                      </button>
-                    </div>
-                  ))}
+                        <span style={{ flex: 1, fontWeight: isFocused ? 700 : 400 }}>
+                          {outfit.name}
+                        </span>
+                        <button
+                          id={`wear-outfit-${outfit.id}`}
+                          type="button"
+                          disabled={busy || !loggedIn}
+                          onClick={() =>
+                            void change(
+                              () => slBridge.wearOutfit({ folderId: outfit.id }),
+                              `Now wearing the outfit ${outfit.name}.`,
+                            )
+                          }
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            borderRadius: V.rs,
+                            border: `1px solid ${V.pri}`,
+                            background: V.pri,
+                            color: V.onpri || '#fff',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          WEAR OUTFIT
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 note(outfitState.loaded ? 'No saved outfits in My Outfits.' : '—')
@@ -1025,6 +1203,230 @@ export default function OutfitViewer() {
           )}
         </div>
       </div>
+
+      {saveModalOpen && (
+        <FocusTrap
+          active={saveModalOpen}
+          onEscape={closeSaveModal}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16,
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-outfit-title"
+            aria-describedby="save-outfit-desc"
+            style={{
+              background: V.surf,
+              color: V.ink,
+              border: `1px solid ${V.outv}`,
+              borderRadius: V.rm || '8px',
+              padding: 20,
+              width: '100%',
+              maxWidth: 420,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+              boxSizing: 'border-box',
+            }}
+          >
+            <form onSubmit={handleSaveOutfit}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 4,
+                }}
+              >
+                <h3
+                  id="save-outfit-title"
+                  style={{ margin: 0, fontSize: 14, fontWeight: 700, color: V.pri }}
+                >
+                  SAVE OUTFIT AS
+                </h3>
+                <button
+                  type="button"
+                  onClick={closeSaveModal}
+                  aria-label="Close dialog"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: V.ink2,
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    padding: 4,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p id="save-outfit-desc" style={{ margin: '0 0 14px', fontSize: 11, color: V.ink2 }}>
+                Snapshot currently worn items into a new outfit folder under My Outfits.
+              </p>
+
+              <label
+                htmlFor="save-outfit-name-input"
+                style={{
+                  display: 'block',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: V.ink,
+                  marginBottom: 4,
+                }}
+              >
+                OUTFIT NAME
+              </label>
+              <input
+                id="save-outfit-name-input"
+                type="text"
+                maxLength={63}
+                value={saveOutfitName}
+                onChange={(e) => setSaveOutfitName(e.target.value)}
+                placeholder="e.g. Evening Casual"
+                autoFocus
+                aria-invalid={Boolean(validationError)}
+                aria-describedby={validationError ? 'save-outfit-error' : undefined}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '6px 8px',
+                  fontSize: 12,
+                  background: V.bg,
+                  color: V.ink,
+                  border: `1px solid ${validationError ? V.err || '#ef4444' : V.outv}`,
+                  borderRadius: V.rs,
+                  outline: 'none',
+                }}
+              />
+              <div
+                id="save-outfit-error"
+                role="alert"
+                style={{
+                  minHeight: 18,
+                  marginTop: 3,
+                  fontSize: 11,
+                  color: V.err || '#ef4444',
+                }}
+              >
+                {validationError || saveError}
+              </div>
+
+              <div style={{ margin: '10px 0 14px' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: V.ink,
+                    marginBottom: 6,
+                  }}
+                >
+                  INCLUDE WORN CATEGORIES
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
+                    { key: 'clothing', label: 'Clothing' },
+                    { key: 'body', label: 'Body Parts' },
+                    { key: 'attachment', label: 'Attachments' },
+                  ].map(({ key, label }) => {
+                    const count = categoryCounts[key] || 0;
+                    return (
+                      <label
+                        key={key}
+                        htmlFor={`save-cat-${key}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontSize: 12,
+                          color: V.ink,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          id={`save-cat-${key}`}
+                          type="checkbox"
+                          checked={Boolean(saveCategories[key])}
+                          onChange={(e) =>
+                            setSaveCategories((prev) => ({
+                              ...prev,
+                              [key]: e.target.checked,
+                            }))
+                          }
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>
+                          {label} ({count})
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: V.ink2, marginTop: 8 }}>
+                  {itemsToSave.length} worn item(s) selected to link.
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 8,
+                  marginTop: 16,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={closeSaveModal}
+                  disabled={busy}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: 'transparent',
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    cursor: busy ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  disabled={Boolean(validationError) || itemsToSave.length === 0 || busy}
+                  style={{
+                    padding: '5px 14px',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: V.pri,
+                    color: V.onpri || '#fff',
+                    border: 'none',
+                    borderRadius: V.rs,
+                    cursor:
+                      Boolean(validationError) || itemsToSave.length === 0 || busy
+                        ? 'not-allowed'
+                        : 'pointer',
+                    opacity: Boolean(validationError) || itemsToSave.length === 0 || busy ? 0.6 : 1,
+                  }}
+                >
+                  {busy ? 'SAVING…' : 'SAVE'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </FocusTrap>
+      )}
     </section>
   );
 }

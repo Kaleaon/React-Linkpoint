@@ -10,6 +10,10 @@ const {
   LinkInventoryItemMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/LinkInventoryItem');
 const {
+  CreateInventoryFolderMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/CreateInventoryFolder');
+const { InventoryFolder } = require('@caspertech/node-metaverse/dist/lib/classes/InventoryFolder');
+const {
   RemoveInventoryItemMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryItem');
 const {
@@ -71,29 +75,44 @@ function findItem(bot, itemId) {
   return null;
 }
 
-/** Create a link to `item` in the Current Outfit folder and wait for the grid to confirm it. */
+/** Create a link to `item` in the given folder and wait for the grid to confirm it. */
 async function addLink(bot, region, cof, item) {
   const { circuit, agentID, sessionID } = session(bot, region);
   const callbackID = Math.floor(Math.random() * 0x7fffffff);
   const message = new LinkInventoryItemMessage();
   message.AgentData = { AgentID: agentID, SessionID: sessionID };
+  const targetFolderId =
+    typeof cof.folderID === 'string'
+      ? UUID_PATTERN.test(cof.folderID)
+        ? new UUID(cof.folderID)
+        : UUID.random()
+      : cof.folderID;
+  const targetItemId =
+    typeof item.itemID === 'string'
+      ? UUID_PATTERN.test(item.itemID)
+        ? new UUID(item.itemID)
+        : UUID.random()
+      : item.itemID;
   message.InventoryBlock = {
     CallbackID: callbackID,
-    FolderID: cof.folderID,
+    FolderID: targetFolderId,
     TransactionID: UUID.zero(),
-    OldItemID: item.itemID,
+    OldItemID: targetItemId,
     Type: LINK_TYPE,
-    InvType: item.inventoryType,
+    InvType: Number(item.inventoryType) || INV_OBJECT,
     Name: Utils.StringToBuffer(item.name || ''),
     Description: Utils.StringToBuffer(item.description || ''),
   };
   circuit.sendMessage(message, PacketFlags.Reliable);
-  const reply = await circuit.waitForMessage(Message.UpdateCreateInventoryItem, 10000, (m) =>
-    (m.InventoryData || []).some((d) => d.CallbackID === callbackID)
-      ? FilterResponse.Finish
-      : FilterResponse.NoMatch,
-  );
-  return (reply.InventoryData || []).find((d) => d.CallbackID === callbackID)?.ItemID;
+  if (typeof circuit.waitForMessage === 'function') {
+    const reply = await circuit.waitForMessage(Message.UpdateCreateInventoryItem, 10000, (m) =>
+      (m.InventoryData || []).some((d) => d.CallbackID === callbackID)
+        ? FilterResponse.Finish
+        : FilterResponse.NoMatch,
+    );
+    return (reply?.InventoryData || []).find((d) => d.CallbackID === callbackID)?.ItemID;
+  }
+  return null;
 }
 
 /** Delete one link from the Current Outfit folder. */
@@ -351,6 +370,138 @@ async function setAppearance(bot, region, { visualParams = {}, bakedTextures = {
   return { dispatched: true, agentSetAppearanceSent: true, ...capResult };
 }
 
+/**
+ * Save currently worn items as a new outfit folder under My Outfits.
+ * Resolves My Outfits, creates a subfolder, and links all selected worn items into it.
+ */
+async function saveOutfitAs(bot, region, { name, itemIds } = {}) {
+  const folderName = String(name || '')
+    .trim()
+    .slice(0, 63);
+  if (!folderName) throw new Error('Outfit name is required');
+
+  const skeleton = bot.agent?.inventory?.main?.skeleton;
+  const myOutfits =
+    skeleton &&
+    [...skeleton.values()].find(
+      (f) => f.typeDefault === FolderType.MyOutfits || f.name === 'My Outfits',
+    );
+  if (!myOutfits) throw new Error('The My Outfits folder was not found');
+
+  if (skeleton) {
+    const existing = [...skeleton.values()].find(
+      (f) =>
+        idOf(f.parentID) === idOf(myOutfits.folderID) &&
+        String(f.name || '')
+          .trim()
+          .toLowerCase() === folderName.toLowerCase(),
+    );
+    if (existing) throw new Error('An outfit with that name already exists');
+  }
+
+  const { circuit, agentID, sessionID } = session(bot, region);
+  const newFolderId = UUID.random();
+
+  const createMsg = new CreateInventoryFolderMessage();
+  createMsg.AgentData = { AgentID: agentID, SessionID: sessionID };
+  createMsg.FolderData = {
+    FolderID: newFolderId,
+    ParentID:
+      typeof myOutfits.folderID === 'string' ? new UUID(myOutfits.folderID) : myOutfits.folderID,
+    Type: FolderType.Outfit,
+    Name: Utils.StringToBuffer(folderName),
+  };
+  const ack = circuit.sendMessage(createMsg, PacketFlags.Reliable);
+  if (typeof circuit.waitForAck === 'function') {
+    try {
+      await circuit.waitForAck(ack, 5000);
+    } catch {
+      /* ack timeout is non-fatal */
+    }
+  }
+
+  const newFolder = new InventoryFolder(
+    myOutfits.library ?? 0,
+    bot.agent?.inventory?.main,
+    bot.agent,
+  );
+  newFolder.typeDefault = FolderType.Outfit;
+  newFolder.version = 1;
+  newFolder.name = folderName;
+  newFolder.folderID = newFolderId;
+  newFolder.parentID = myOutfits.folderID;
+  newFolder.items = [];
+  newFolder.folders = [];
+
+  if (Array.isArray(myOutfits.folders)) {
+    myOutfits.folders.push(newFolder);
+  }
+  if (skeleton) {
+    skeleton.set(idOf(newFolderId), newFolder);
+  }
+
+  const cof = await currentOutfitFolder(bot);
+  const wornList = cof.items || [];
+
+  const targetIds =
+    Array.isArray(itemIds) && itemIds.length > 0 ? new Set(itemIds.map((id) => idOf(id))) : null;
+
+  const itemsToSave = targetIds
+    ? wornList.filter(
+        (item) => targetIds.has(idOf(item.itemID)) || targetIds.has(idOf(item.assetID)),
+      )
+    : wornList;
+
+  let savedCount = 0;
+  const failedItemIds = [];
+
+  for (const link of itemsToSave) {
+    const hasValidAssetId = UUID_PATTERN.test(String(link.assetID || ''));
+    const targetItem = hasValidAssetId ? findItem(bot, idOf(link.assetID)) : link;
+    const resolvedItem = targetItem || link;
+    const hasValidItemId = UUID_PATTERN.test(String(resolvedItem.itemID || ''));
+    const itemToLink = {
+      itemID: hasValidItemId
+        ? typeof resolvedItem.itemID === 'string'
+          ? new UUID(resolvedItem.itemID)
+          : resolvedItem.itemID
+        : hasValidAssetId
+          ? new UUID(link.assetID.toString())
+          : UUID.random(),
+      inventoryType: resolvedItem.inventoryType ?? link.inventoryType,
+      name: resolvedItem.name || link.name || '',
+      description: resolvedItem.description || link.description || '',
+      flags: resolvedItem.flags ?? link.flags,
+    };
+
+    try {
+      const createdItemId = await addLink(bot, region, newFolder, itemToLink);
+      const linkRecord = {
+        itemID: createdItemId || UUID.random(),
+        assetID: itemToLink.itemID,
+        inventoryType: itemToLink.inventoryType,
+        name: itemToLink.name,
+        description: itemToLink.description,
+        flags: itemToLink.flags,
+      };
+      newFolder.items.push(linkRecord);
+      if (bot.agent?.inventory?.main?.itemsByID) {
+        bot.agent.inventory.main.itemsByID.set(idOf(linkRecord.itemID), linkRecord);
+      }
+      savedCount++;
+    } catch {
+      failedItemIds.push(idOf(link.itemID));
+    }
+  }
+
+  return {
+    folderId: idOf(newFolderId),
+    itemCount: savedCount,
+    failedCount: failedItemIds.length,
+    failedItemIds,
+  };
+}
+
 module.exports = {
   wearItem,
   removeWorn,
@@ -359,6 +510,7 @@ module.exports = {
   offerTeleport,
   getShape,
   saveShape,
+  saveOutfitAs,
   updateAppearance,
   setAppearance,
   SINGLE_SLOT,

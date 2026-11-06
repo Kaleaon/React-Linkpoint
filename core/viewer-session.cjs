@@ -1097,6 +1097,9 @@ class ViewerSession {
   wearOutfit(params) {
     return outfit.wearOutfit(this.requireBot(), this.currentRegion(), params);
   }
+  saveOutfitAs(params) {
+    return outfit.saveOutfitAs(this.requireBot(), this.currentRegion(), params);
+  }
   detachAttachment(params) {
     return outfit.detachAttachment(this.requireBot(), this.currentRegion(), params);
   }
