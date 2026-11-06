@@ -35,6 +35,49 @@ export function validateElectronConfig(options = {}) {
     throw new Error("electron-builder.config.js extraMetadata.main must be 'electron/main.cjs'");
   }
 
+  // 3. Verify desktop icon generation utility succeeds before packaging
+  const iconGeneratorScript = resolve(cwd, 'scripts/generate-desktop-icons.mjs');
+  if (existsSync(iconGeneratorScript)) {
+    execFileSync(process.execPath, [iconGeneratorScript], {
+      cwd,
+      stdio: options.stdio || 'inherit',
+    });
+
+    const requiredSizes = [16, 32, 48, 64, 128, 256, 512, 1024];
+    for (const size of requiredSizes) {
+      const pngPath = resolve(cwd, `build/icons/${size}x${size}.png`);
+      if (!existsSync(pngPath)) {
+        throw new Error(`Missing expected generated icon: ${pngPath}`);
+      }
+    }
+
+    const icoPath = resolve(cwd, 'build/icons/icon.ico');
+    if (!existsSync(icoPath)) {
+      throw new Error(`Missing expected generated ICO file: ${icoPath}`);
+    }
+
+    const icnsPath = resolve(cwd, 'build/icons/icon.icns');
+    if (!existsSync(icnsPath)) {
+      throw new Error(`Missing expected generated ICNS file: ${icnsPath}`);
+    }
+
+    const iconPngPath = resolve(cwd, 'build/icons/icon.png');
+    if (!existsSync(iconPngPath)) {
+      throw new Error(`Missing expected generated PNG runtime icon: ${iconPngPath}`);
+    }
+
+    const hasIconInFiles = config.files.some(
+      (entry) =>
+        typeof entry === 'string' &&
+        (entry.includes('build/icons') || entry.includes('build/**/*')),
+    );
+    if (!hasIconInFiles) {
+      throw new Error(
+        "electron-builder.config.js files list must include 'build/icons/**/*' for window icon packaging",
+      );
+    }
+  }
+
   return config;
 }
 

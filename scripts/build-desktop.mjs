@@ -8,8 +8,38 @@
  * arguments are forwarded, e.g. `npm run build:desktop -- --linux AppImage`.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const forwarded = process.argv.slice(2);
+
+function findCachedElectronZip() {
+  const cacheBase = join(homedir(), '.cache', 'electron');
+  if (!existsSync(cacheBase)) return null;
+  for (const entry of readdirSync(cacheBase, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith('.zip')) {
+      return join(cacheBase, entry.name);
+    }
+    if (entry.isDirectory()) {
+      const sub = join(cacheBase, entry.name);
+      for (const subEntry of readdirSync(sub, { withFileTypes: true })) {
+        if (subEntry.isFile() && subEntry.name.endsWith('.zip')) {
+          return join(sub, subEntry.name);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+const extraArgs = [];
+if (!forwarded.some((arg) => arg.includes('electronDist'))) {
+  const cachedZip = findCachedElectronZip();
+  if (cachedZip) {
+    extraArgs.push(`--config.electronDist=${cachedZip}`);
+  }
+}
 
 function run(command, args, env = {}) {
   const result = spawnSync(command, args, {
@@ -30,6 +60,7 @@ function run(command, args, env = {}) {
 
 run('node', ['scripts/build-wasm.mjs', '--check']);
 run('node', ['scripts/check-source-imports.mjs']);
+run('node', ['scripts/generate-desktop-icons.mjs']);
 run('npx', ['--no-install', 'vite', 'build'], { VITE_BASE_PATH: './' });
 // The config is passed explicitly: electron-builder's auto-discovery does not
 // pick up electron-builder.config.js here, and silently falling back to its
@@ -40,5 +71,6 @@ run('npx', [
   'electron-builder',
   '--config',
   'electron-builder.config.js',
+  ...extraArgs,
   ...forwarded,
 ]);

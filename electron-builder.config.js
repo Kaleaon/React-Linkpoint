@@ -136,12 +136,18 @@ module.exports = {
   copyright: 'Copyright © Linkpoint contributors',
   asar: true,
 
-  directories: { output: 'build-desktop' },
+  directories: {
+    output: 'build-desktop',
+    buildResources: 'build',
+  },
 
   files: [
     'dist/**/*',
     'electron/**/*',
     'core/**/*',
+    'build/icons/**/*',
+    'scripts/patch-metaverse.cjs',
+    'src/linkpoint/viewer-identity.ts',
     'package.json',
     ...unusedTopLevelPackages(rootDir).map((name) => `!node_modules/${name}/**/*`),
   ],
@@ -151,6 +157,7 @@ module.exports = {
   artifactName: '${productName}-${version}-${os}-${arch}.${ext}',
 
   win: {
+    icon: 'build/icons/icon.ico',
     target: [
       { target: 'nsis', arch: ['x64', 'arm64'] },
       // A single executable that can be copied to a USB drive and launched
@@ -170,6 +177,7 @@ module.exports = {
   },
 
   mac: {
+    icon: 'build/icons/icon.icns',
     category: 'public.app-category.social-networking',
     target: [
       { target: 'dmg', arch: ['x64', 'arm64'] },
@@ -179,6 +187,7 @@ module.exports = {
   dmg: { writeUpdateInfo: false },
 
   linux: {
+    icon: 'build/icons',
     category: 'Network',
     synopsis: 'Second Life communicator and viewer utility suite',
     maintainer: 'Linkpoint Contributors <noreply@users.noreply.github.com>',
