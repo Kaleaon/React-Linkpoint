@@ -21,6 +21,7 @@ const METHODS = new Set([
   'wearItem',
   'removeWorn',
   'wearOutfit',
+  'saveOutfitAs',
   'detachAttachment',
   'offerTeleport',
   'saveShape',
