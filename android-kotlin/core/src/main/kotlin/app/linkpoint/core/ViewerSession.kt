@@ -58,6 +58,8 @@ class ViewerSession(
     val region: StateFlow<RegionInfo?> = _region
     private val _balance = MutableStateFlow<Int?>(null)
     val balance: StateFlow<Int?> = _balance
+    private val _teleportSession = MutableStateFlow<TeleportSessionState?>(null)
+    val teleportSession: StateFlow<TeleportSessionState?> = _teleportSession
     private val _notices = MutableSharedFlow<ViewerNotice>(extraBufferCapacity = 32)
     val notices: SharedFlow<ViewerNotice> = _notices
     /** Raw simulator messages the 3D layer subscribes to (object updates etc.). */
@@ -171,6 +173,113 @@ class ViewerSession(
         lastTeleportRequest = msg; teleportRetriesLeft = 1
         teleportAskedAt = clock()
         circuit?.send(msg)
+    }
+
+    fun startTeleportSession(destination: String): TeleportSessionState {
+        val state = TeleportSessionState(
+            active = true,
+            destination = destination,
+            phase = TeleportPhase.INITIATING,
+            stepPercent = 15,
+            statusText = "Resolving $destination...",
+            startedAt = clock()
+        )
+        _teleportSession.value = state
+        return state
+    }
+
+    fun updateTeleportProgress(
+        phase: TeleportPhase,
+        stepPercent: Int,
+        statusText: String,
+        regionName: String? = null
+    ) {
+        val cur = _teleportSession.value
+        val validPercent = stepPercent.coerceIn(0, 100)
+        _teleportSession.value = if (cur == null) {
+            TeleportSessionState(
+                active = true,
+                destination = regionName ?: "Destination",
+                regionName = regionName,
+                phase = phase,
+                stepPercent = validPercent,
+                statusText = statusText,
+                startedAt = clock()
+            )
+        } else {
+            cur.copy(
+                phase = phase,
+                stepPercent = validPercent,
+                statusText = statusText.ifBlank { cur.statusText },
+                regionName = regionName ?: cur.regionName
+            )
+        }
+    }
+
+    fun failTeleportSession(reason: String) {
+        val cur = _teleportSession.value
+        _teleportSession.value = if (cur == null) {
+            TeleportSessionState(
+                active = true,
+                destination = "Destination",
+                phase = TeleportPhase.FAILED,
+                stepPercent = 0,
+                statusText = "Teleport failed: $reason",
+                error = reason,
+                startedAt = clock()
+            )
+        } else {
+            cur.copy(
+                phase = TeleportPhase.FAILED,
+                statusText = "Teleport failed: $reason",
+                error = reason
+            )
+        }
+    }
+
+    fun completeTeleportSession(regionName: String? = null) {
+        val cur = _teleportSession.value ?: return
+        _teleportSession.value = cur.copy(
+            phase = TeleportPhase.COMPLETED,
+            stepPercent = 100,
+            statusText = "Arrived at destination",
+            regionName = regionName ?: cur.regionName,
+            completedAt = clock()
+        )
+        scope.launch {
+            delay(500)
+            _teleportSession.value = null
+        }
+    }
+
+    fun cancelTeleportSession() {
+        teleportAskedAt = 0
+        lastTeleportRequest = null
+        awaitingRetryStart = false
+        _teleportSession.value = null
+    }
+
+    fun retryTeleport() {
+        val current = _teleportSession.value
+        val dest = current?.destination ?: return
+        startTeleportSession(dest)
+        val lastReq = lastTeleportRequest
+        if (dest.equals("home", ignoreCase = true)) {
+            teleportHome()
+        } else if (lastReq != null) {
+            scope.launch {
+                settleChildren()
+                sendTeleportRequest(lastReq)
+            }
+        } else {
+            scope.launch {
+                try {
+                    teleport(dest)
+                } catch (e: Exception) {
+                    failTeleportSession(e.message ?: "Teleport failed")
+                }
+            }
+        }
     }
 
     /** Set when we have asked for a teleport and not yet arrived or heard that it failed. */
@@ -337,6 +446,7 @@ class ViewerSession(
                 val seed = info["SeedCapability"]?.toString() ?: ""
                 val code = (info["CircuitCode"] as? Number)?.toInt() ?: login!!.circuitCode
                 _notices.tryEmit(ViewerNotice.Teleport("Arriving at the new region…"))
+                updateTeleportProgress(TeleportPhase.ARRIVING, 90, "Arriving at destination...")
                 val retry = lastTeleportRequest?.takeIf { teleportRetriesLeft > 0 }
                 try {
                     // With a retry available, do not wait the full handshake budget on a connection that is not going to work.
@@ -346,12 +456,13 @@ class ViewerSession(
                     if (retry != null && teleportRetriesLeft > 0) {
                         teleportRetriesLeft--
                         _notices.tryEmit(ViewerNotice.Teleport("The teleport did not complete; trying again…"))
+                        updateTeleportProgress(TeleportPhase.CONTACTING, 40, "The teleport did not complete; trying again…")
                         delay(1_000)
                         teleportAskedAt = clock()
                         retriedAt = clock(); awaitingRetryStart = true
                         circuit?.send(retry)
                     } else {
-                        lastTeleportRequest = null
+                        failTeleportSession(ex.message ?: "Teleport failed")
                         _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${ex.message}"))
                     }
                 }
@@ -463,6 +574,7 @@ class ViewerSession(
                 _region.update { RegionInfo(it?.name, it?.access, m.regionHandle, m.position, it?.waterHeight, it?.terrain) }
                 movementDone?.complete(Unit)
                 sendAgentUpdate()
+                completeTeleportSession(_region.value?.name)
             }
             is Incoming.OnlineStatus -> _friends.update { list ->
                 list.map { f -> if (f.id in m.ids) f.copy(online = m.online) else f }
@@ -474,19 +586,37 @@ class ViewerSession(
             }
             is Incoming.CoarseLocations -> { coarse = m; applyCoarse(m) }
             is Incoming.MoneyBalance -> if (m.success) _balance.value = m.balance
-            is Incoming.TeleportStart -> { awaitingRetryStart = false; _notices.tryEmit(ViewerNotice.Teleport("Teleport started")) }
-            is Incoming.TeleportProgress -> _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
+            is Incoming.TeleportStart -> {
+                awaitingRetryStart = false
+                updateTeleportProgress(TeleportPhase.CONTACTING, 40, "Contacting destination region...")
+                _notices.tryEmit(ViewerNotice.Teleport("Teleport started"))
+            }
+            is Incoming.TeleportProgress -> {
+                val currentPct = _teleportSession.value?.stepPercent ?: 40
+                val nextPct = if (currentPct < 65) 65 else currentPct
+                val msg = m.message.ifBlank { "Preparing avatar transfer..." }
+                updateTeleportProgress(TeleportPhase.PREPARING, nextPct, msg)
+                _notices.tryEmit(ViewerNotice.Teleport(m.message.ifBlank { "Teleporting…" }))
+            }
             is Incoming.TeleportFailed -> if (awaitingRetryStart && clock() - retriedAt < STALE_FAILURE_WINDOW_MS) {
                 // OpenSim reports the abandoned first attempt as failed before it starts the one we re-requested
                 // (it handles the new request only once the old transfer has timed out).
                 awaitingRetryStart = false
+                updateTeleportProgress(TeleportPhase.CONTACTING, 40, "Continuing with the new teleport request")
                 _notices.tryEmit(ViewerNotice.Teleport("Continuing with the new teleport request"))
-            } else { teleportAskedAt = 0; lastTeleportRequest = null; _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}")) }
+            } else {
+                teleportAskedAt = 0
+                failTeleportSession(m.reason)
+                _notices.tryEmit(ViewerNotice.Error("Teleport failed: ${m.reason}"))
+            }
             is Incoming.TeleportLocal -> {
                 // Same region, new spot: our position (which is also the camera we report) must follow.
                 teleportAskedAt = 0; lastTeleportRequest = null
                 _region.update { it?.copy(position = m.position) }
                 sendAgentUpdate()
+                if (_teleportSession.value != null) {
+                    completeTeleportSession()
+                }
                 _notices.tryEmit(ViewerNotice.Teleport("Teleported within the region"))
                 processPendingChildren()
             }
@@ -645,7 +775,11 @@ class ViewerSession(
     fun acceptOffer(offer: PendingOffer) {
         requireConnected()
         when (offer) {
-            is PendingOffer.Lure -> { val lure = offer.id; scope.launch { settleChildren(); sendTeleportRequest(Messages.teleportLureRequest(agentId, sessionId, lure)) } }
+            is PendingOffer.Lure -> {
+                val lure = offer.id
+                startTeleportSession(offer.fromName.ifBlank { "Destination" })
+                scope.launch { settleChildren(); sendTeleportRequest(Messages.teleportLureRequest(agentId, sessionId, lure)) }
+            }
             is PendingOffer.Friend -> {
                 val inv = _inventory.value
                 val cards = inv.folders.values.firstOrNull { it.typeDefault == 2 }?.id ?: inv.rootId ?: UUID(0, 0)
@@ -666,16 +800,31 @@ class ViewerSession(
     /** Teleport to a region by name. Looks the region up on the grid map first; throws if it is unknown. */
     suspend fun teleport(regionName: String, x: Float = 128f, y: Float = 128f, z: Float = 30f) {
         requireConnected()
+        startTeleportSession(regionName.trim())
         val wait = CompletableDeferred<List<MapBlockInfo>>().also { mapReply = it }
         circuit!!.send(Messages.mapNameRequest(agentId, sessionId, regionName.trim()))
-        val blocks = withTimeoutOrNull(15_000) { wait.await() } ?: throw java.io.IOException("The grid did not answer the region lookup")
-        val block = blocks.firstOrNull { it.name.equals(regionName.trim(), true) } ?: throw IllegalArgumentException("No region named \"$regionName\"")
+        val blocks = try {
+            withTimeoutOrNull(15_000) { wait.await() } ?: throw java.io.IOException("The grid did not answer the region lookup")
+        } catch (e: Exception) {
+            failTeleportSession(e.message ?: "The grid did not answer the region lookup")
+            throw e
+        }
+        val block = blocks.firstOrNull { it.name.equals(regionName.trim(), true) }
+        if (block == null) {
+            val err = IllegalArgumentException("No region named \"$regionName\"")
+            failTeleportSession(err.message ?: "No region named \"$regionName\"")
+            throw err
+        }
         val handle = ((block.x * 256L) shl 32) or (block.y * 256L)
         settleChildren()
         sendTeleportRequest(Messages.teleportLocationRequest(agentId, sessionId, handle, x, y, z))
     }
 
-    fun teleportHome() { requireConnected(); scope.launch { settleChildren(); sendTeleportRequest(Messages.teleportHome(agentId, sessionId)) } }
+    fun teleportHome() {
+        requireConnected()
+        startTeleportSession("Home")
+        scope.launch { settleChildren(); sendTeleportRequest(Messages.teleportHome(agentId, sessionId)) }
+    }
 
     suspend fun logout() {
         if (_state.value == ConnectionState.DISCONNECTED) return
@@ -693,6 +842,8 @@ class ViewerSession(
         circuit?.close(); circuit = null
         closeChildren()
         _nearby.value = emptyList()
+        _teleportSession.value = null
+        lastTeleportRequest = null
         _state.value = ConnectionState.DISCONNECTED
     }
 

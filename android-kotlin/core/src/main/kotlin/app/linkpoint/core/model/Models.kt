@@ -101,3 +101,28 @@ sealed class PendingOffer {
     data class Lure(override val id: UUID, override val fromName: String, override val text: String) : PendingOffer()
     data class Friend(override val id: UUID, override val fromName: String, override val text: String) : PendingOffer()
 }
+
+enum class TeleportPhase {
+    INITIATING,
+    CONTACTING,
+    PREPARING,
+    ARRIVING,
+    COMPLETED,
+    FAILED,
+    CANCELLED;
+
+    val wireName: String get() = name.lowercase()
+}
+
+/** Active teleport session state for mobile modal overlay and visual progress indicators. */
+data class TeleportSessionState(
+    val active: Boolean = true,
+    val destination: String,
+    val regionName: String? = null,
+    val phase: TeleportPhase = TeleportPhase.INITIATING,
+    val stepPercent: Int = 10,
+    val statusText: String = "",
+    val error: String? = null,
+    val startedAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null,
+)

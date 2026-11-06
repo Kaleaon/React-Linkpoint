@@ -12,6 +12,7 @@ import app.linkpoint.core.model.ViewerNotice
 import app.linkpoint.viewer.ViewerHost
 import app.linkpoint.viewer.theme.LinkpointTheme
 import app.linkpoint.viewer.theme.Palettes
+import app.linkpoint.viewer.ui.crystal.TeleportModalSheet
 
 enum class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     CHAT("Chat", Icons.Filled.Chat),
@@ -48,13 +49,16 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
 
     LaunchedEffect(session) {
         session.notices.collect { n ->
-            snack.showSnackbar(
-                when (n) {
-                    is ViewerNotice.Teleport -> n.text
-                    is ViewerNotice.Disconnected -> "Disconnected: ${n.reason}"
-                    is ViewerNotice.Error -> n.text
-                },
-            )
+            when (n) {
+                is ViewerNotice.Teleport -> Unit // Presented in branded TeleportModalSheet
+                is ViewerNotice.Disconnected -> snack.showSnackbar("Disconnected: ${n.reason}")
+                is ViewerNotice.Error -> {
+                    // Suppress error snackbar if teleport modal session is handling it
+                    if (session.teleportSession.value == null) {
+                        snack.showSnackbar(n.text)
+                    }
+                }
+            }
         }
     }
 
@@ -96,6 +100,7 @@ private fun Main(host: ViewerHost, state: ConnectionState) {
             }
             }
             ErrorRecoveryModal(host, onNavigateFallback = { tab = it })
+            TeleportModalSheet(session)
         }
     }
 }

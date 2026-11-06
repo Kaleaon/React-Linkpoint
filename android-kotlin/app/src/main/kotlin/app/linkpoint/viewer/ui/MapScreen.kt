@@ -41,7 +41,11 @@ fun MapScreen(host: ViewerHost) {
             OutlinedTextField(destination, { destination = it }, Modifier.weight(1f), label = { Text("Teleport to region") }, singleLine = true)
             Button(enabled = destination.isNotBlank(), onClick = {
                 scope.launch {
-                    try { host.session.teleport(destination) } catch (e: Exception) { snack.showSnackbar(e.message ?: "Teleport failed") }
+                    try { host.session.teleport(destination) } catch (e: Exception) {
+                        if (host.session.teleportSession.value == null) {
+                            snack.showSnackbar(e.message ?: "Teleport failed")
+                        }
+                    }
                 }
             }) { Text("Go") }
         }
