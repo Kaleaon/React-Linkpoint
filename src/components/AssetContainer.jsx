@@ -1,14 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
-import CrystalProgressBar from './CrystalProgressBar.jsx';
 import { SkeletonAssetPlaceholder } from './SkeletonLoader.jsx';
+import TouchTarget from './TouchTarget.tsx';
+import { app } from '../linkpoint/app.ts';
+import {
+  decodeLindenText,
+  validateNotecardLength,
+  MAX_NOTECARD_BYTES,
+} from '../linkpoint/notecard.ts';
 
 /**
  * AssetContainer component with skeleton UI placeholder, progressive download progress listener,
- * smooth transition to loaded asset content, and clear error state with retry.
- * @param {{ asset?: any, onFetch?: ((asset: any, onProgress: (loaded: number, total: number) => void) => Promise<any>) | null, onProgress?: ((percent: number, loaded: number, total: number) => void) | null, autoFetch?: boolean, title?: string | null, renderContent?: ((data: any) => import("react").ReactNode) | null, children?: import("react").ReactNode, style?: import("react").CSSProperties, className?: string }} props
+ * smooth transition to loaded asset content, clear error state with retry, and embedded text notecard editor.
+ * @param {{
+ *   asset?: any,
+ *   onFetch?: ((asset: any, onProgress: (loaded: number, total: number) => void) => Promise<any>) | null,
+ *   onProgress?: ((percent: number, loaded: number, total: number) => void) | null,
+ *   autoFetch?: boolean,
+ *   title?: string | null,
+ *   renderContent?: ((data: any, asset: any) => import("react").ReactNode) | null,
+ *   children?: import("react").ReactNode,
+ *   style?: import("react").CSSProperties,
+ *   className?: string,
+ *   editable?: boolean,
+ *   readOnly?: boolean,
+ *   initialMode?: 'view' | 'edit',
+ *   onSave?: ((params: { itemId: string; name?: string; text: string }) => Promise<any>) | null,
+ *   onDirtyChange?: ((isDirty: boolean) => void) | null,
+ * }} props
  */
 export default function AssetContainer({
   asset = null,
@@ -20,14 +41,39 @@ export default function AssetContainer({
   children = null,
   style = {},
   className = '',
+  editable = false,
+  readOnly = false,
+  initialMode = 'view',
+  onSave = null,
+  onDirtyChange = null,
 }) {
-  const { V, t } = useTheme?.() || { V: {}, t: { font: 'sans-serif' } };
+  const { V } = useTheme?.() || { V: {} };
 
   const [status, setStatus] = useState(asset?.data ? 'loaded' : 'idle'); // "idle" | "loading" | "downloading" | "loaded" | "error"
   const [progress, setProgress] = useState(0); // 0 to 100
   const [bytesInfo, setBytesInfo] = useState({ loaded: 0, total: 0 });
   const [loadedData, setLoadedData] = useState(asset?.data || null);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // Text editor state
+  const isNotecard = Number(asset?.assetType) === 7 || editable;
+  const [mode, setMode] = useState(initialMode); // 'view' | 'edit'
+  const [text, setText] = useState(() => (asset?.data ? decodeLindenText(asset.data) : ''));
+  const [initialText, setInitialText] = useState(() =>
+    asset?.data ? decodeLindenText(asset.data) : '',
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const isLoggedIn = useMemo(() => {
+    try {
+      return Boolean(app?.auth?.isLoggedIn?.());
+    } catch {
+      return true;
+    }
+  }, []);
 
   const handleProgress = useCallback(
     (loadedBytes, totalBytes) => {
@@ -56,9 +102,22 @@ export default function AssetContainer({
     try {
       if (onFetch) {
         const result = await onFetch(asset, handleProgress);
-        setLoadedData(result || asset?.data || true);
+        const resolved = result || asset?.data || true;
+        setLoadedData(resolved);
+        const decoded = typeof resolved === 'string' ? decodeLindenText(resolved) : '';
+        setText(decoded);
+        setInitialText(decoded);
       } else if (asset?.data) {
         setLoadedData(asset.data);
+        const decoded = decodeLindenText(asset.data);
+        setText(decoded);
+        setInitialText(decoded);
+      } else if (Number(asset?.assetType) === 7 && app?.assets?.fetchNotecard) {
+        const result = await app.assets.fetchNotecard(asset, handleProgress);
+        setLoadedData(result);
+        const decoded = decodeLindenText(result);
+        setText(decoded);
+        setInitialText(decoded);
       } else {
         // Fallback progress simulation if no custom fetch provided
         handleProgress(50, 100);
@@ -77,6 +136,9 @@ export default function AssetContainer({
   useEffect(() => {
     if (asset?.data && !onFetch) {
       setLoadedData(asset.data);
+      const decoded = decodeLindenText(asset.data);
+      setText(decoded);
+      setInitialText(decoded);
       setStatus('loaded');
       return;
     }
@@ -85,8 +147,72 @@ export default function AssetContainer({
     }
   }, [asset, autoFetch, executeFetch, onFetch]);
 
+  // Reset editor state when asset changes
+  const prevAssetIdRef = useRef(asset?.id);
+  useEffect(() => {
+    if (prevAssetIdRef.current !== asset?.id) {
+      prevAssetIdRef.current = asset?.id;
+      setIsDirty(false);
+      onDirtyChange?.(false);
+      setSaveError(null);
+      setSaveSuccess(false);
+      setMode(initialMode);
+    }
+  }, [asset?.id, initialMode, onDirtyChange]);
+
   const handleRetry = () => {
     void executeFetch();
+  };
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    setText(val);
+    const dirty = val !== initialText;
+    setIsDirty(dirty);
+    onDirtyChange?.(dirty);
+  };
+
+  const handleCancel = () => {
+    setText(initialText);
+    setIsDirty(false);
+    onDirtyChange?.(false);
+    setMode('view');
+    setSaveError(null);
+  };
+
+  const validation = useMemo(() => validateNotecardLength(text), [text]);
+
+  const handleSave = async () => {
+    if (!validation.valid) {
+      setSaveError(validation.error || 'Text exceeds maximum length');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      if (onSave) {
+        await onSave({ itemId: asset?.id, name: asset?.name, text });
+      } else if (app?.assets?.saveNotecard) {
+        await app.assets.saveNotecard({
+          itemId: asset?.id,
+          name: asset?.name,
+          description: asset?.description,
+          text,
+        });
+      }
+      setInitialText(text);
+      setIsDirty(false);
+      onDirtyChange?.(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save notecard');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const displayTitle = title || asset?.name || 'Asset View';
@@ -107,6 +233,8 @@ export default function AssetContainer({
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           ...style,
         }}
         data-testid="asset-downloading-state"
@@ -139,6 +267,8 @@ export default function AssetContainer({
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           ...style,
         }}
         role="alert"
@@ -190,6 +320,8 @@ export default function AssetContainer({
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
         ...style,
       }}
       data-testid="asset-loaded-state"
@@ -198,6 +330,249 @@ export default function AssetContainer({
         renderContent(loadedData, asset)
       ) : children ? (
         children
+      ) : isNotecard ? (
+        <div
+          className="notecard-editor-container"
+          style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Icon name="file-text" size={16} style={{ color: V?.pri || '#6CFF9A' }} />
+              <span style={{ fontWeight: 700, fontSize: '13px', color: V?.ink || '#fff' }}>
+                {displayTitle}
+              </span>
+              <span
+                style={{
+                  fontSize: '10px',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  background:
+                    mode === 'edit'
+                      ? 'rgba(108,255,154,0.15)'
+                      : V?.surf2 || 'rgba(255,255,255,0.08)',
+                  color: mode === 'edit' ? V?.pri || '#6CFF9A' : V?.ink2 || '#aaa',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                }}
+              >
+                {mode === 'edit' ? 'Editing' : 'Read-Only'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {mode === 'view' ? (
+                <TouchTarget
+                  minSize={24}
+                  onClick={() => setMode('edit')}
+                  disabled={readOnly || !isLoggedIn}
+                  aria-label="Edit notecard"
+                  title={!isLoggedIn ? 'Log in to edit notecards' : 'Edit notecard text'}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    background: V?.pri || '#6CFF9A',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: V?.rs || '4px',
+                    cursor: readOnly || !isLoggedIn ? 'not-allowed' : 'pointer',
+                    opacity: readOnly || !isLoggedIn ? 0.5 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Icon name="edit-3" size={13} />
+                  EDIT
+                </TouchTarget>
+              ) : (
+                <>
+                  <TouchTarget
+                    minSize={24}
+                    onClick={handleCancel}
+                    disabled={isSaving}
+                    aria-label="Cancel editing"
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: 'transparent',
+                      color: V?.ink2 || '#aaa',
+                      border: `1px solid ${V?.outv || 'rgba(255,255,255,0.2)'}`,
+                      borderRadius: V?.rs || '4px',
+                      cursor: isSaving ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    CANCEL
+                  </TouchTarget>
+                  <TouchTarget
+                    minSize={24}
+                    onClick={handleSave}
+                    disabled={isSaving || !validation.valid || !isDirty}
+                    aria-label="Save notecard"
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: V?.pri || '#6CFF9A',
+                      color: '#000',
+                      border: 'none',
+                      borderRadius: V?.rs || '4px',
+                      cursor: isSaving || !validation.valid || !isDirty ? 'not-allowed' : 'pointer',
+                      opacity: isSaving || !validation.valid || !isDirty ? 0.5 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <Icon name="save" size={13} />
+                    {isSaving ? 'SAVING…' : 'SAVE'}
+                  </TouchTarget>
+                </>
+              )}
+            </div>
+          </div>
+
+          {!isLoggedIn && (
+            <div
+              role="status"
+              data-testid="notecard-login-prompt"
+              style={{
+                padding: '6px 10px',
+                fontSize: '11px',
+                borderRadius: '4px',
+                background: 'rgba(255, 170, 0, 0.15)',
+                border: '1px solid rgba(255, 170, 0, 0.3)',
+                color: '#ffbb33',
+              }}
+            >
+              Connect to a grid to edit notecards.
+            </div>
+          )}
+
+          {saveSuccess && (
+            <div
+              role="status"
+              data-testid="notecard-save-success"
+              style={{
+                padding: '6px 10px',
+                fontSize: '11px',
+                borderRadius: '4px',
+                background: 'rgba(108, 255, 154, 0.15)',
+                border: '1px solid rgba(108, 255, 154, 0.3)',
+                color: V?.pri || '#6CFF9A',
+              }}
+            >
+              Notecard saved successfully.
+            </div>
+          )}
+
+          {saveError && (
+            <div
+              role="alert"
+              data-testid="notecard-save-error"
+              style={{
+                padding: '6px 10px',
+                fontSize: '11px',
+                borderRadius: '4px',
+                background: 'rgba(255, 77, 77, 0.15)',
+                border: '1px solid rgba(255, 77, 77, 0.3)',
+                color: V?.err || '#ff4d4d',
+              }}
+            >
+              {saveError}
+            </div>
+          )}
+
+          {!validation.valid && (
+            <div
+              role="alert"
+              data-testid="notecard-validation-error"
+              style={{
+                padding: '6px 10px',
+                fontSize: '11px',
+                borderRadius: '4px',
+                background: 'rgba(255, 77, 77, 0.15)',
+                border: '1px solid rgba(255, 77, 77, 0.3)',
+                color: V?.err || '#ff4d4d',
+              }}
+            >
+              {validation.error}
+            </div>
+          )}
+
+          {mode === 'edit' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <textarea
+                aria-label="Notecard text editor"
+                data-testid="notecard-text-editor"
+                value={text}
+                onChange={handleTextChange}
+                rows={8}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  minHeight: '160px',
+                  maxHeight: '360px',
+                  resize: 'vertical',
+                  fontFamily: 'monospace, sans-serif',
+                  fontSize: '12px',
+                  lineHeight: '1.4',
+                  padding: '10px',
+                  background: V?.surf2 || 'rgba(0,0,0,0.3)',
+                  color: V?.ink || '#fff',
+                  border: `1px solid ${validation.valid ? V?.outv || 'rgba(255,255,255,0.15)' : V?.err || '#ff4d4d'}`,
+                  borderRadius: V?.rs || '4px',
+                  outline: 'none',
+                }}
+              />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '10px',
+                  color: V?.ink2 || '#aaa',
+                }}
+              >
+                <span>{isDirty ? 'Unsaved changes' : 'No changes'}</span>
+                <span style={{ color: !validation.valid ? V?.err || '#ff4d4d' : undefined }}>
+                  {validation.byteLength.toLocaleString()} / {MAX_NOTECARD_BYTES.toLocaleString()}{' '}
+                  bytes
+                </span>
+              </div>
+            </div>
+          ) : (
+            <pre
+              data-testid="notecard-text-view"
+              style={{
+                fontFamily: 'monospace, sans-serif',
+                fontSize: '12px',
+                lineHeight: '1.4',
+                background: V?.surf2 || 'rgba(0,0,0,0.3)',
+                color: V?.ink || '#fff',
+                padding: '10px',
+                borderRadius: V?.rs || '4px',
+                overflowX: 'auto',
+                overflowY: 'auto',
+                maxHeight: '360px',
+                minHeight: '60px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                margin: 0,
+              }}
+            >
+              {text || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Empty notecard.</span>}
+            </pre>
+          )}
+        </div>
       ) : (
         <div>
           <div

@@ -80,6 +80,8 @@ const METHODS = new Set([
   'subdivideParcel',
   'reclaimParcel',
   'commitObjectTransaction',
+  'fetchNotecard',
+  'saveNotecard',
 ]);
 
 async function callViewer(session, method, params) {

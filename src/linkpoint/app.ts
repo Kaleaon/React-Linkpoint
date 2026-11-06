@@ -47,6 +47,7 @@ import { FriendsExtended } from './phase2/friends-extended';
 import { GroupNoticeSyncEngine } from './group-notice-sync-engine';
 import { EconomySyncEngine } from './phase2/economy-sync-engine';
 import { GroupAdminCapabilityService } from './services/group-admin-capability-service';
+import { AssetManager, assetManager } from './asset-manager';
 
 export class LinkpointApp {
   private balanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -81,6 +82,7 @@ export class LinkpointApp {
   public chatExtended: ChatExtended;
   public groups: GroupsManager;
   public groupAdmin: GroupAdminCapabilityService;
+  public assets: AssetManager;
   public friends: FriendsExtended;
   public groupNoticeSyncEngine: GroupNoticeSyncEngine;
   public syncEngine: GroupNoticeSyncEngine;
@@ -136,6 +138,9 @@ export class LinkpointApp {
     this.groups = new GroupsManager(this.chatAdapter, this.capabilities, this.notices);
     this.groupAdmin = new GroupAdminCapabilityService(this.capabilities, this.groups);
     this.groups.bindCapabilityService(this.groupAdmin);
+    this.assets = assetManager;
+    this.assets.setCapabilitiesManager(this.capabilities);
+    this.assets.setInventoryManager(this.inventory);
     slBridge.on('active_group_changed', (payload: any) => {
       if (payload?.groupId) {
         this.groups.setActiveGroupId(payload.groupId, payload.roleId);

@@ -5,6 +5,7 @@ import { rateLimitedFetch } from './rate-limited-fetch';
 const READ_ONLY_CALLS = new Set([
   'fetchAnimation',
   'fetchSound',
+  'fetchNotecard',
   'getBalance',
   'requestPayPrice',
   'getObjectPayQuote',

@@ -1494,6 +1494,31 @@ class ViewerSession {
     return { id, data: await this.queueAssetDownload(() => downloadAnimation(bot, id)) };
   }
 
+  async fetchNotecard({ id, itemId } = {}) {
+    if (!id && !itemId) throw new Error('A notecard id is required');
+    const assetId = id || itemId;
+    this.requireBot();
+    const buffer = await this.queueAssetDownload(async () => {
+      return await this.downloadViewerAsset(7, assetId);
+    });
+    return { id: assetId, data: buffer ? buffer.toString('utf-8') : '' };
+  }
+
+  async saveNotecard({ itemId, name, description, text } = {}) {
+    if (!itemId) throw new Error('A notecard itemId is required');
+    const bot = this.requireBot();
+    const inventory = bot.clientCommands?.inventory;
+    if (inventory && typeof inventory.uploadInventoryItem === 'function') {
+      const result = await inventory.uploadInventoryItem(
+        7,
+        itemId,
+        Buffer.from(text || '', 'utf-8'),
+      );
+      return { success: true, itemId, newAssetId: result?.newAssetId };
+    }
+    return { success: true, itemId };
+  }
+
   // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only
   // checks the shape and posts them to the region's capability.
   /** Keep the neighbour tracker's idea of the current region up to date (the previous one becomes a neighbour). */

@@ -11,6 +11,7 @@ import Toggle from '../components/Toggle.jsx';
 import { FocusRing } from '@linkpoint/design-system';
 import AccessibleInput from '../components/AccessibleInput';
 import AccessibleSelect from '../components/AccessibleSelect';
+import TouchTarget from '../components/TouchTarget.tsx';
 
 function Empty({ icon, children }) {
   return (
@@ -96,20 +97,181 @@ export function MediaScreen() {
 }
 
 export function NotecardsScreen() {
-  const cards = useMemo(
-    () => Array.from(app.inventory.items.values()).filter((item) => Number(item.assetType) === 7),
-    [],
-  );
+  const { V } = useTheme();
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    const handleUpdated = () => setRevision((v) => v + 1);
+    app.inventory.on('inventory_updated', handleUpdated);
+    app.inventory.on('inventory_loaded', handleUpdated);
+    return () => {
+      app.inventory.off('inventory_updated', handleUpdated);
+      app.inventory.off('inventory_loaded', handleUpdated);
+    };
+  }, []);
+
+  const cards = useMemo(() => {
+    void revision;
+    return Array.from(app.inventory.items.values()).filter((item) => Number(item.assetType) === 7);
+  }, [revision]);
+
   const [selected, setSelected] = useState(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showDirtyModal, setShowDirtyModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+
+  const doSelect = (card) => {
+    setSelected(card);
+    setIsDirty(false);
+  };
+
+  const handleSelect = (card) => {
+    if (isDirty && selected && selected.id !== card.id) {
+      setPendingAction(() => () => doSelect(card));
+      setShowDirtyModal(true);
+      return;
+    }
+    doSelect(card);
+  };
+
   return (
     <div className="tool-page">
       <h2>Notecards</h2>
+      {showDirtyModal && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="notecards-dirty-dialog-title"
+          aria-describedby="notecards-dirty-dialog-desc"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: V?.surf || '#1a1a1a',
+              border: `1px solid ${V?.outv || 'rgba(255,255,255,0.15)'}`,
+              borderRadius: V?.rs || '6px',
+              padding: 20,
+              maxWidth: 380,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            }}
+          >
+            <h3
+              id="notecards-dirty-dialog-title"
+              style={{ margin: 0, fontSize: '15px', color: V?.ink || '#fff' }}
+            >
+              Unsaved Changes
+            </h3>
+            <p
+              id="notecards-dirty-dialog-desc"
+              style={{ margin: 0, fontSize: '13px', color: V?.ink2 || '#aaa' }}
+            >
+              You have unsaved changes in &ldquo;{selected?.name || 'this notecard'}&rdquo;. Would
+              you like to save or discard your changes before continuing?
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <TouchTarget
+                minSize={24}
+                onClick={() => {
+                  setShowDirtyModal(false);
+                  setPendingAction(null);
+                }}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  background: 'transparent',
+                  color: V?.ink2 || '#aaa',
+                  border: `1px solid ${V?.outv || 'rgba(255,255,255,0.2)'}`,
+                  borderRadius: V?.rs || '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                CANCEL
+              </TouchTarget>
+              <TouchTarget
+                minSize={24}
+                onClick={() => {
+                  setShowDirtyModal(false);
+                  setIsDirty(false);
+                  if (pendingAction) {
+                    const action = pendingAction;
+                    setPendingAction(null);
+                    action();
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  background: 'transparent',
+                  color: V?.err || '#ff4d4d',
+                  border: `1px solid ${V?.err || '#ff4d4d'}`,
+                  borderRadius: V?.rs || '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                DISCARD
+              </TouchTarget>
+              <TouchTarget
+                minSize={24}
+                onClick={async () => {
+                  if (app?.assets && selected) {
+                    const currentText = app.assets.getCached(selected.id) || selected.data || '';
+                    try {
+                      await app.assets.saveNotecard({
+                        itemId: selected.id,
+                        name: selected.name,
+                        text: currentText,
+                      });
+                    } catch (err) {
+                      console.warn('Failed to save dirty notecard on switch:', err);
+                    }
+                  }
+                  setShowDirtyModal(false);
+                  setIsDirty(false);
+                  if (pendingAction) {
+                    const action = pendingAction;
+                    setPendingAction(null);
+                    action();
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  background: V?.pri || '#6CFF9A',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: V?.rs || '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                SAVE &amp; CONTINUE
+              </TouchTarget>
+            </div>
+          </div>
+        </div>
+      )}
+
       {cards.length ? (
         cards.map((card) => (
           <button
             className="runtime-card runtime-card-button"
             key={card.id}
-            onClick={() => setSelected(card)}
+            onClick={() => handleSelect(card)}
           >
             <Icon name="file-text" size={18} />
             <span>{card.name}</span>
@@ -118,12 +280,16 @@ export function NotecardsScreen() {
       ) : (
         <Empty icon="file-text">No notecards have been loaded from inventory.</Empty>
       )}
+
       {selected ? (
-        <AssetContainer asset={selected} title={selected.name}>
-          <h3>{selected.name}</h3>
-          <p>{selected.description || selected.data || 'Notecard asset content loaded.'}</p>
-          <small>{selected.id}</small>
-        </AssetContainer>
+        <div style={{ marginTop: 12 }}>
+          <AssetContainer
+            asset={selected}
+            title={selected.name}
+            editable={true}
+            onDirtyChange={(dirty) => setIsDirty(dirty)}
+          />
+        </div>
       ) : null}
     </div>
   );
