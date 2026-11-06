@@ -144,4 +144,82 @@ describe('Linden Text Codec', () => {
     const encodedBytes = encodeLindenTextBytes(oversizedString);
     expect(isNotecardOversized(encodedBytes)).toBe(true);
   });
+
+  it('safely handles embedded item named "Text length" without corrupting decode stream', () => {
+    const embeddedBlock = [
+      'LLEmbeddedItems version 1',
+      '{',
+      'count 1',
+      '{',
+      'ext char index 0',
+      '\tinv_item\t0',
+      '\t\titem_id\t12345678-1234-1234-1234-123456789abc',
+      '\t\tparent_id\t00000000-0000-0000-0000-000000000000',
+      '\t\tname\tText length 999999|',
+      '}',
+      '}',
+    ].join('\n');
+
+    const expectedText = 'Actual notecard body text.';
+    const textBytes = new TextEncoder().encode(expectedText);
+    const rawNotecard = [
+      'Linden text version 2',
+      '{',
+      embeddedBlock,
+      `Text length ${textBytes.length}`,
+      `${expectedText}}`,
+    ].join('\n');
+
+    const decoded = decodeLindenText(rawNotecard);
+    expect(decoded.version).toBe(2);
+    expect(decoded.text).toBe(expectedText);
+    expect(decoded.hasEmbeddedItems).toBe(true);
+    expect(decoded.embeddedItemsCount).toBe(1);
+    expect(decoded.embeddedItemsRaw).toContain('Text length 999999');
+  });
+
+  it('preserves large embedded items block exceeding 8192 bytes without truncation', () => {
+    // Generate an embedded items block larger than 8192 bytes
+    const items: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      items.push(
+        [
+          '{',
+          `ext char index ${i}`,
+          `\tinv_item\t0`,
+          `\t\titem_id\t00000000-0000-0000-0000-${String(i).padStart(12, '0')}`,
+          `\t\tparent_id\t11111111-1111-1111-1111-111111111111`,
+          `\t\tname\tVery Long Item Name Descriptive Text Number ${i} padding content ${'X'.repeat(150)}|`,
+          '}',
+        ].join('\n'),
+      );
+    }
+
+    const embeddedBlock = [
+      'LLEmbeddedItems version 1',
+      '{',
+      `count ${items.length}`,
+      items.join('\n'),
+      '}',
+    ].join('\n');
+
+    expect(embeddedBlock.length).toBeGreaterThan(8192);
+
+    const bodyText = 'Notecard body following large embedded items.';
+    const textBytes = new TextEncoder().encode(bodyText);
+    const rawNotecard = [
+      'Linden text version 2',
+      '{',
+      embeddedBlock,
+      `Text length ${textBytes.length}`,
+      `${bodyText}}`,
+    ].join('\n');
+
+    const decoded = decodeLindenText(rawNotecard);
+    expect(decoded.text).toBe(bodyText);
+    expect(decoded.embeddedItemsCount).toBe(40);
+    expect(decoded.hasEmbeddedItems).toBe(true);
+    expect(decoded.embeddedItemsRaw).toBeDefined();
+    expect(decoded.embeddedItemsRaw?.length).toBeGreaterThan(8192);
+  });
 });

@@ -212,7 +212,7 @@ export default function NotecardFloater({
       setIsDirty(false);
       // Clear draft on successful save
       if (itemId && actions.setNotecardDraft) {
-        actions.setNotecardDraft(itemId, text);
+        actions.setNotecardDraft(itemId, undefined);
       }
       // Update local item cache
       if (currentItem) {

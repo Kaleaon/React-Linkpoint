@@ -308,4 +308,41 @@ describe('NotecardFloater Component', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(host.textContent).toContain('Recovered text after retry.');
   });
+
+  it('clears isolated draft on successful save', async () => {
+    const notecardItem = {
+      id: 'item-nc-draft-clear',
+      name: 'Draft Document',
+      text: 'Original content',
+      assetType: 7,
+    };
+
+    const mockSave = vi.fn().mockResolvedValue({ success: true });
+
+    const host = await mount(
+      createElement(NotecardFloater, {
+        item: notecardItem,
+        onSave: mockSave,
+      }),
+    );
+
+    const textarea = host.querySelector('textarea') as HTMLTextAreaElement;
+    await act(async () => {
+      setTextareaValue(textarea, 'Edited content to be saved');
+    });
+
+    const saveButton = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Save'),
+    );
+    expect(saveButton?.hasAttribute('disabled')).toBe(false);
+
+    await act(async () => {
+      saveButton?.click();
+    });
+
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    // After save, dirty state is reset
+    expect(saveButton?.hasAttribute('disabled')).toBe(true);
+    expect(host.textContent).not.toContain('Draft Document*');
+  });
 });

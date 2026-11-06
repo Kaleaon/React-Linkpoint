@@ -1018,7 +1018,14 @@ export function useAppState() {
 
   const setNotecardDraft = useCallback((itemId, text) => {
     if (!itemId) return;
-    setNotecardDrafts((prev) => ({ ...prev, [itemId]: text }));
+    setNotecardDrafts((prev) => {
+      if (text === undefined) {
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      }
+      return { ...prev, [itemId]: text };
+    });
   }, []);
 
   const notecardDrag = useCallback((e, mode) => flDrag('Notecard', e, mode), [flDrag]);

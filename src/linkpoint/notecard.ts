@@ -64,9 +64,7 @@ export function decodeLindenText(input: Uint8Array | ArrayBuffer | string): Deco
   }
 
   // Convert header bytes to ASCII text for parsing initial tokens
-  const headerPreview = new TextDecoder('latin1').decode(
-    bytes.subarray(0, Math.min(bytes.length, 8192)),
-  );
+  const headerPreview = new TextDecoder('latin1').decode(bytes);
   const headerMatch = headerPreview.match(/^Linden text version\s+(\d+)/);
   if (!headerMatch) {
     throw new Error('Invalid Linden Text header: missing "Linden text version"');
@@ -88,6 +86,7 @@ export function decodeLindenText(input: Uint8Array | ArrayBuffer | string): Deco
   let embeddedItemsRaw: string | undefined;
   let embeddedItemsCount = 0;
   let hasEmbeddedItems = false;
+  let lastHeaderOffset = openingBraceIndex;
 
   const embeddedMatch = headerPreview
     .slice(openingBraceIndex + 1)
@@ -124,6 +123,7 @@ export function decodeLindenText(input: Uint8Array | ArrayBuffer | string): Deco
     if (embeddedEndOffset !== -1) {
       // Capture the entire LLEmbeddedItems block preserving item definitions
       embeddedItemsRaw = headerPreview.slice(embeddedStartOffset, embeddedEndOffset + 1).trim();
+      lastHeaderOffset = embeddedEndOffset;
     }
   }
 
@@ -132,7 +132,7 @@ export function decodeLindenText(input: Uint8Array | ArrayBuffer | string): Deco
   // We can search the ASCII bytes directly for 'Text length'
   const textLengthPattern = [84, 101, 120, 116, 32, 108, 101, 110, 103, 116, 104]; // "Text length" in ASCII
   let textLengthPos = -1;
-  for (let i = 0; i < bytes.length - textLengthPattern.length; i++) {
+  for (let i = lastHeaderOffset; i < bytes.length - textLengthPattern.length; i++) {
     let match = true;
     for (let j = 0; j < textLengthPattern.length; j++) {
       if (bytes[i + j] !== textLengthPattern[j]) {
