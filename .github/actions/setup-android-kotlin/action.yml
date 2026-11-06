@@ -1,0 +1,26 @@
+name: 'Setup Android Kotlin Environment'
+description: 'Sets up Java and Gradle cache for Android Kotlin builds and tests'
+inputs:
+  java-version:
+    description: 'The Java version to set up'
+    required: false
+    default: '21'
+  distribution:
+    description: 'The Java distribution to set up'
+    required: false
+    default: 'temurin'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Java
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+      with:
+        distribution: ${{ inputs.distribution }}
+        java-version: ${{ inputs.java-version }}
+        cache: gradle
+        cache-dependency-path: |
+          android-kotlin/**/*.gradle*
+          android-kotlin/gradle/wrapper/gradle-wrapper.properties
+          android-kotlin/gradle/libs.versions.toml
+          android-kotlin/gradle.properties
