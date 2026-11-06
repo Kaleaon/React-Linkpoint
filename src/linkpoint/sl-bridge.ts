@@ -673,6 +673,15 @@ export class SLBridge extends Utils.EventEmitter {
     if (!this.connected) throw new Error('Connect to a grid to load notice details');
     return this.call<any>('getGroupNoticeDetail', { noticeId, groupId });
   }
+  async sendGroupNotice(params: {
+    groupId: string;
+    subject: string;
+    message: string;
+    attachment?: any;
+  }) {
+    if (!this.connected) throw new Error('Connect to a grid to send group notices');
+    return this.call<any>('sendGroupNotice', params);
+  }
 
   async fetchOutfit() {
     return this.connected

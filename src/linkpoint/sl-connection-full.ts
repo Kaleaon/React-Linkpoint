@@ -501,6 +501,16 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.acceptGroupNoticeAttachment(request);
   }
 
+  async sendGroupNotice(params: {
+    groupId: string;
+    subject: string;
+    message: string;
+    attachment?: any;
+  }) {
+    this.requireConnected();
+    return slBridge.sendGroupNotice(params);
+  }
+
   /** Forget an interaction on the server. Nothing is sent to the grid. */
   async dismissInteraction(id: string) {
     this.requireConnected();

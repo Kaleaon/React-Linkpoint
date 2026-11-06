@@ -60,6 +60,7 @@ const METHODS = new Set([
   'getGroupDetails',
   'getGroupNotices',
   'getGroupNoticeDetail',
+  'sendGroupNotice',
   'getInventory',
   'getOutfit',
   'getShape',

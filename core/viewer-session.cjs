@@ -132,6 +132,13 @@ const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message')
 const { MessageFlags } = require('@caspertech/node-metaverse/dist/lib/enums/MessageFlags');
 const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
 const { FilterResponse } = require('@caspertech/node-metaverse/dist/lib/enums/FilterResponse');
+const {
+  InstantMessageDialog,
+} = require('@caspertech/node-metaverse/dist/lib/enums/InstantMessageDialog');
+const { Vector3 } = require('@caspertech/node-metaverse/dist/lib/classes/Vector3');
+const {
+  ImprovedInstantMessageMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/ImprovedInstantMessage');
 const { Utils } = require('@caspertech/node-metaverse/dist/lib/classes/Utils');
 const {
   ActivateGroupMessage,
@@ -2031,6 +2038,115 @@ class ViewerSession {
       return await groups.requestGroupNotice(noticeId, groupId);
     }
     return { id: noticeId, groupId };
+  }
+
+  async sendGroupNotice(params = {}) {
+    const { groupId, subject, message, attachment } = params || {};
+    if (
+      !groupId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupId)
+    ) {
+      throw new Error('Valid group ID required');
+    }
+    const cleanSubject = String(subject || '').trim();
+    const cleanMessage = String(message || '').trim();
+    if (!cleanSubject) {
+      throw new Error('Subject is required');
+    }
+    if (!cleanMessage) {
+      throw new Error('Message is required');
+    }
+    if (Buffer.byteLength(cleanSubject, 'utf8') > 63) {
+      throw new Error('Subject must not exceed 63 bytes');
+    }
+    if (Buffer.byteLength(cleanMessage, 'utf8') > 512) {
+      throw new Error('Message must not exceed 512 bytes');
+    }
+
+    const bot = this.requireBot();
+    const circuit =
+      this.currentRegion()?.circuit || bot.circuit || bot.clientCommands?.groups?.circuit;
+    const agent = bot.agent;
+    const agentId = this.identity?.agent_id || agent?.agentID;
+
+    if (!circuit?.sendMessage || !agentId) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    const agentName =
+      (agent?.firstName ? `${agent.firstName} ${agent.lastName || ''}`.trim() : '') ||
+      this.identity?.username ||
+      'Resident';
+
+    let binaryBucket = Buffer.alloc(0);
+    if (attachment) {
+      if (Buffer.isBuffer(attachment)) {
+        binaryBucket = attachment;
+      } else if (attachment.itemId || attachment.id || attachment.attachmentItemId) {
+        binaryBucket = Buffer.alloc(18);
+        binaryBucket[0] = 1;
+        binaryBucket[1] = Number(
+          attachment.itemType ??
+            attachment.type ??
+            attachment.assetType ??
+            attachment.attachmentType ??
+            0,
+        );
+        const itemUuidStr = String(
+          attachment.itemId || attachment.id || attachment.attachmentItemId,
+        );
+        const itemUuid = new UUID(itemUuidStr);
+        itemUuid.writeToBuffer(binaryBucket, 2);
+      }
+    }
+
+    const im = new ImprovedInstantMessageMessage();
+    im.AgentData = {
+      AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+      SessionID: circuit.sessionID
+        ? typeof circuit.sessionID === 'string'
+          ? new UUID(circuit.sessionID)
+          : circuit.sessionID
+        : UUID.zero(),
+    };
+    im.MessageBlock = {
+      FromGroup: false,
+      ToAgentID: new UUID(groupId),
+      ParentEstateID: 0,
+      RegionID: UUID.zero(),
+      Position: Vector3.getZero(),
+      Offline: 0,
+      Dialog: InstantMessageDialog.GroupNotice, // 32
+      ID: UUID.zero(),
+      Timestamp: Math.floor(Date.now() / 1000),
+      FromAgentName: Utils.StringToBuffer(agentName),
+      Message: Utils.StringToBuffer(`${cleanSubject}|${cleanMessage}`),
+      BinaryBucket: binaryBucket,
+    };
+    im.EstateBlock = {
+      EstateID: 0,
+    };
+
+    const seq = circuit.sendMessage(im, PacketFlags.Reliable);
+    if (typeof circuit.waitForAck === 'function') {
+      try {
+        await circuit.waitForAck(seq, 10000);
+      } catch (err) {
+        console.warn('[ViewerSession] Group notice ack timeout, continuing:', err);
+      }
+    }
+
+    return {
+      success: true,
+      id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      groupId,
+      subject: cleanSubject,
+      message: cleanMessage,
+      from: agentName,
+      hasAttachment: binaryBucket.length > 0,
+      attachment: binaryBucket.length > 0 ? attachment : null,
+      timestamp: Date.now(),
+    };
   }
 
   async getInventory({ folderId } = {}) {

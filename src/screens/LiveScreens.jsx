@@ -16,6 +16,7 @@ import ContactsScreen from './ContactsScreen.jsx';
 import CalendarScreen from './CalendarScreen.jsx';
 import FocusTrap from '../components/FocusTrap.jsx';
 import { GROUP_POWERS, hasGroupPower } from '../linkpoint/phase2/groups.ts';
+import { CreateGroupNoticeModal } from '../components/CreateGroupNoticeModal.jsx';
 
 function Empty({ icon, children }) {
   return (
@@ -675,6 +676,7 @@ export function GroupsScreen() {
   const [rolesTarget, setRolesTarget] = useState(null);
   const [memberFilter, setMemberFilter] = useState('');
   const [showAdminFloater, setShowAdminFloater] = useState(false);
+  const [showNoticeModal, setShowNoticeModal] = useState(false);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -841,6 +843,9 @@ export function GroupsScreen() {
       userPowers,
       GROUP_POWERS.AssignMember | GROUP_POWERS.AssignMemberLimited | GROUP_POWERS.All,
     );
+  const canSendNotices =
+    isOwner ||
+    hasGroupPower(userPowers, (1n << 14n) | (GROUP_POWERS.NOTICES_SEND || 0n) | GROUP_POWERS.All);
   const hasModerationPowers = canInvite || canEject || canAssignRoles;
 
   const memberNeedle = memberFilter.trim().toLowerCase();
@@ -1539,14 +1544,52 @@ export function GroupsScreen() {
                 </div>
               ) : null}
               {section === 'NOTICES' ? (
-                <GroupNoticesDetailList
-                  notices={[...notices].reverse()}
-                  groupId={selected.id}
-                  V={V}
-                  t={t}
-                  detailStatus={detailStatus}
-                  onRetry={() => setDetailRefresh((c) => c + 1)}
-                />
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '10px 14px',
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                      background: V.surf,
+                    }}
+                  >
+                    <strong style={{ fontSize: 13, letterSpacing: '.06em' }}>
+                      {notices.length} NOTICE{notices.length === 1 ? '' : 'S'}
+                    </strong>
+                    {canSendNotices ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowNoticeModal(true)}
+                        aria-label="Create Notice"
+                        style={{
+                          ...button,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: V.pri,
+                          borderColor: V.pri,
+                          color: V.onpri,
+                        }}
+                      >
+                        <Icon name="plus" size={14} />
+                        CREATE NOTICE
+                      </button>
+                    ) : null}
+                  </div>
+                  <GroupNoticesDetailList
+                    notices={[...notices].reverse()}
+                    groupId={selected.id}
+                    V={V}
+                    t={t}
+                    detailStatus={detailStatus}
+                    onRetry={() => setDetailRefresh((c) => c + 1)}
+                  />
+                </div>
               ) : null}
             </div>
           </>
@@ -1560,6 +1603,21 @@ export function GroupsScreen() {
           groupName={selected.name}
           roles={roles}
           onInviteSuccess={() => setDetailRefresh((c) => c + 1)}
+          V={V}
+          t={t}
+        />
+      ) : null}
+
+      {showNoticeModal && selected ? (
+        <CreateGroupNoticeModal
+          isOpen={showNoticeModal}
+          onClose={() => setShowNoticeModal(false)}
+          groupId={selected.id}
+          groupName={selected.name}
+          onNoticeSuccess={() => {
+            setDetailRefresh((c) => c + 1);
+            refreshNotices((c) => c + 1);
+          }}
           V={V}
           t={t}
         />
@@ -3388,3 +3446,5 @@ export function EditMemberRolesModal({
     </FocusTrap>
   );
 }
+
+export { CreateGroupNoticeModal };
