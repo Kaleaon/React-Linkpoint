@@ -143,11 +143,17 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
   it('defaults to hierarchical tree view mode on initial launch (Firestorm parity)', async () => {
     const host = await mount(createElement(Inventory));
 
-    const switcherGroup = host.querySelector('[role="group"][aria-label="Inventory view mode"]');
+    const switcherGroup = host.querySelector(
+      '[role="group"][aria-label="View mode"], [role="group"][aria-label="Inventory view mode"]',
+    );
     expect(switcherGroup).toBeTruthy();
 
-    const treeBtn = host.querySelector('button[aria-label="Tree view"]');
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]');
+    const treeBtn = host.querySelector(
+      'button[aria-label="Tree View"], button[aria-label="Tree view"]',
+    );
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    );
     expect(treeBtn).toBeTruthy();
     expect(flatBtn).toBeTruthy();
 
@@ -166,8 +172,12 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
   it('switches between hierarchical tree and flat list in one click and persists preference', async () => {
     const host = await mount(createElement(Inventory));
 
-    const treeBtn = host.querySelector('button[aria-label="Tree view"]');
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]');
+    const treeBtn = host.querySelector(
+      'button[aria-label="Tree View"], button[aria-label="Tree view"]',
+    );
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    );
 
     // 1-click switch to flat view
     await click(flatBtn);
@@ -198,8 +208,12 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
 
     const host = await mount(createElement(Inventory));
 
-    const treeBtn = host.querySelector('button[aria-label="Tree view"]');
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]');
+    const treeBtn = host.querySelector(
+      'button[aria-label="Tree View"], button[aria-label="Tree view"]',
+    );
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    );
 
     expect(flatBtn?.getAttribute('aria-pressed')).toBe('true');
     expect(treeBtn?.getAttribute('aria-pressed')).toBe('false');
@@ -222,7 +236,9 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
     expect(filterInput.value).toBe('Shirt');
 
     // Switch to flat mode
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]');
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    );
     await click(flatBtn);
 
     // Filter value is preserved
@@ -237,7 +253,9 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
     expect(flatRows[0].textContent).toContain('Blue Shirt');
 
     // Switch back to tree mode
-    const treeBtn = host.querySelector('button[aria-label="Tree view"]');
+    const treeBtn = host.querySelector(
+      'button[aria-label="Tree View"], button[aria-label="Tree view"]',
+    );
     await click(treeBtn);
 
     const treeFilterInput = host.querySelector(
@@ -264,7 +282,9 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
     expect(aside?.textContent).toContain('Orientation instructions');
 
     // Switch to flat view
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]');
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    );
     await click(flatBtn);
 
     // Detail drawer is preserved
@@ -284,7 +304,9 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
     expect(aside?.textContent).toContain('Casual blue shirt');
 
     // Switch back to tree view
-    const treeBtn = host.querySelector('button[aria-label="Tree view"]');
+    const treeBtn = host.querySelector(
+      'button[aria-label="Tree View"], button[aria-label="Tree view"]',
+    );
     await click(treeBtn);
 
     // Detail drawer remains open with Blue Shirt
@@ -296,8 +318,12 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
   it('supports keyboard navigation with arrow keys and announces mode change to screen readers', async () => {
     const host = await mount(createElement(Inventory));
 
-    const treeBtn = host.querySelector('button[aria-label="Tree view"]') as HTMLButtonElement;
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]') as HTMLButtonElement;
+    const treeBtn = host.querySelector(
+      'button[aria-label="Tree View"], button[aria-label="Tree view"]',
+    ) as HTMLButtonElement;
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    ) as HTMLButtonElement;
     const liveRegion = host.querySelector('[role="status"][aria-live="polite"]');
 
     // Focus tree button
@@ -351,7 +377,9 @@ describe('Inventory View Switcher & Hierarchy Parity', () => {
     let syncBtn = host.querySelector('button[title="Reload Second Life inventory"]');
     expect(syncBtn).toBeTruthy();
 
-    const flatBtn = host.querySelector('button[aria-label="Flat view"]');
+    const flatBtn = host.querySelector(
+      'button[aria-label="Flat Table"], button[aria-label="Flat view"]',
+    );
     await click(flatBtn);
 
     syncBtn = host.querySelector('button[title="Reload Second Life inventory"]');

@@ -139,16 +139,7 @@ jobs:
         working-directory: android-kotlin
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-          cache-dependency-path: |
-            android-kotlin/**/*.gradle*
-            android-kotlin/gradle/wrapper/gradle-wrapper.properties
-            android-kotlin/gradle/libs.versions.toml
-            android-kotlin/gradle.properties
+      - uses: ./.github/actions/setup-android-kotlin
       - name: Unit and end-to-end tests
         run: ./gradlew test --no-daemon
       - name: Assemble debug APK
