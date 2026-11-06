@@ -93,6 +93,8 @@ function patchCapsSeedRetry(content) {
 }
 
 function applyPatches(options = {}) {
+  // When running from an asar archive, packages were already patched at build time.
+  if (__dirname.includes('.asar')) return;
   const { strict = require.main === module } = options;
 
   // 1. Packet.js: ignore harmless packet padding / newer unparsed fields
@@ -385,7 +387,11 @@ class AgentTypingMessage {
 }
 exports.AgentTypingMessage = AgentTypingMessage;
 `;
-    fs.writeFileSync(agentTypingPath, agentTypingCode, 'utf8');
+    try {
+      fs.writeFileSync(agentTypingPath, agentTypingCode, 'utf8');
+    } catch (err) {
+      if (!fs.existsSync(agentTypingPath)) throw err;
+    }
 
     const agentTypingDtsPath = path.join(messagesDir, 'AgentTyping.d.ts');
     const agentTypingDtsCode = `import { UUID } from "../UUID";
@@ -407,7 +413,11 @@ export class AgentTypingMessage {
     readFromBuffer(buf: Buffer, pos: number): number;
 }
 `;
-    fs.writeFileSync(agentTypingDtsPath, agentTypingDtsCode, 'utf8');
+    try {
+      fs.writeFileSync(agentTypingDtsPath, agentTypingDtsCode, 'utf8');
+    } catch (err) {
+      if (!fs.existsSync(agentTypingDtsPath)) throw err;
+    }
 
     const messageEnumPath = path.join(
       __dirname,
