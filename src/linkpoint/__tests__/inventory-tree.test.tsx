@@ -440,7 +440,7 @@ describe('InventoryTree Accessibility & Single-Pointer Movement', () => {
     expect(menu).not.toBeNull();
 
     const menuItems = host.querySelectorAll('[role="menuitem"]');
-    expect(menuItems.length).toBe(3);
+    expect(menuItems.length).toBe(4);
 
     // First item receives focus on menu open
     expect(document.activeElement).toBe(menuItems[0]);
