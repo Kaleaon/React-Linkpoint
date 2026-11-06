@@ -203,8 +203,8 @@ export const CSUB = {
     ['CACHE', '· 02'],
   ],
   Diagnostics: [
-    ['AGNI', '· 01'],
-    ['ADITI', '· 02'],
+    ['TELEMETRY', '· 01'],
+    ['CAPABILITIES', '· 02'],
   ],
   Outfits: [
     ['WORN', '· 01'],

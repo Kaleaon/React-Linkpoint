@@ -75,10 +75,16 @@ export function useAppState() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [viewMode, deviceForViewport]);
-  const [screen, setScreen] = useState('Login');
+  const [screen, setScreen] = useState(() => {
+    try {
+      const param = new URLSearchParams(window.location.search).get('screen');
+      if (param) return param;
+    } catch {}
+    return 'Login';
+  });
   const [dialog, setDialog] = useState(/** @type {string | null} */ (null));
   const [dense, setDense] = useState(customTheme.density === 'compact');
-  const [tabs, setTabs] = useState({ Chat: 'LOCAL', Friends: 'ALL', Diagnostics: 'AGNI' });
+  const [tabs, setTabs] = useState({ Chat: 'LOCAL', Friends: 'ALL', Diagnostics: 'TELEMETRY' });
   const [chip, setChip] = useState('');
   const [tileOk, setTileOk] = useState(true);
   const [invOpen, setInvOpen] = useState({ Objects: true });
