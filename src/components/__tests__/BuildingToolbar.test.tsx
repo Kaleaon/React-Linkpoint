@@ -163,10 +163,12 @@ describe('BuildingToolbar Component', () => {
     expect(onLink).toHaveBeenCalledWith([101, 102]);
   });
 
-  it('calls onDelink and onDerez when action buttons are clicked', async () => {
+  it('opens confirmation modal before derezzing and dispatches onDerez only after confirmation', async () => {
     const onDelink = vi.fn();
     const onDerez = vi.fn();
     const dummyObj = { id: 'obj-1', localId: 101, name: 'Selected Prim' };
+    app.world.region = { name: 'Ahern' };
+
     const host = await mount(
       <BuildingToolbar
         selectedObject={dummyObj}
@@ -200,6 +202,184 @@ describe('BuildingToolbar Component', () => {
     await act(async () => {
       derezBtn?.click();
     });
+
+    // Initial click opens modal without invoking deletion
+    expect(onDerez).not.toHaveBeenCalled();
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.textContent).toContain('Confirm Object Derez');
+    expect(dialog?.textContent).toContain('Selected Prim');
+    expect(dialog?.textContent).toContain('101');
+    expect(dialog?.textContent).toContain('Ahern');
+
+    // Confirm Derez invokes deletion and closes modal
+    const confirmBtn = Array.from(dialog!.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm Derez'),
+    );
+    expect(confirmBtn).toBeDefined();
+    await act(async () => {
+      confirmBtn?.click();
+    });
+
+    expect(onDerez).toHaveBeenCalledTimes(1);
     expect(onDerez).toHaveBeenCalledWith([101]);
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+
+    app.world.region = null;
+  });
+
+  it('cancels derez modal via Cancel button and Escape key while trapping keyboard focus', async () => {
+    const onDerez = vi.fn();
+    const dummyObj = { id: 'obj-2', localId: 202, name: 'Sculpted Fountain' };
+
+    const host = await mount(
+      <BuildingToolbar selectedObject={dummyObj} simulatorName="Morris" onDerez={onDerez} />,
+    );
+
+    const linksetTabBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'LINKSET & DEREZ',
+    );
+    await act(async () => {
+      linksetTabBtn?.click();
+    });
+
+    const derezBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('DEREZ SELECTED OBJECT'),
+    ) as HTMLButtonElement;
+    derezBtn.focus();
+
+    await act(async () => {
+      derezBtn.click();
+    });
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain('Morris');
+
+    const cancelBtn = Array.from(dialog!.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Cancel',
+    ) as HTMLButtonElement;
+    const confirmBtn = Array.from(dialog!.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm Derez'),
+    ) as HTMLButtonElement;
+
+    // FocusTrap focuses first interactive control (Cancel) on mount
+    expect(document.activeElement).toBe(cancelBtn);
+
+    // Tab wraps focus inside modal
+    confirmBtn.focus();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(cancelBtn);
+
+    // Cancel button closes modal without deleting
+    await act(async () => {
+      cancelBtn.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(derezBtn);
+
+    // Re-open and dismiss via Escape key
+    await act(async () => {
+      derezBtn.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
+  });
+
+  it('falls back to primitive shape and local ID when custom name and simulator metadata are missing', async () => {
+    app.world.region = null;
+    const onDerez = vi.fn();
+    const unnamedObj = { id: 'obj-3', localId: 303, shape: 'cylinder' };
+
+    const host = await mount(<BuildingToolbar selectedObject={unnamedObj} onDerez={onDerez} />);
+
+    const linksetTabBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'LINKSET & DEREZ',
+    );
+    await act(async () => {
+      linksetTabBtn?.click();
+    });
+
+    const derezBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('DEREZ SELECTED OBJECT'),
+    );
+    await act(async () => {
+      derezBtn?.click();
+    });
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.querySelector('[data-testid="derez-target-name"]')?.textContent).toBe(
+      'Cylinder #303',
+    );
+    expect(dialog?.querySelector('[data-testid="derez-target-local-id"]')?.textContent).toBe('303');
+    expect(dialog?.querySelector('[data-testid="derez-target-simulator"]')?.textContent).toBe('—');
+  });
+
+  it('dismisses the confirmation modal without deleting when object selection changes', async () => {
+    const onDerez = vi.fn();
+    const firstObj = { id: 'obj-10', localId: 410, name: 'First Crate' };
+    const secondObj = { id: 'obj-20', localId: 420, name: 'Second Crate' };
+
+    const host = await mount(<BuildingToolbar selectedObject={firstObj} onDerez={onDerez} />);
+
+    const linksetTabBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'LINKSET & DEREZ',
+    );
+    await act(async () => {
+      linksetTabBtn?.click();
+    });
+
+    const derezBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('DEREZ SELECTED OBJECT'),
+    );
+    await act(async () => {
+      derezBtn?.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="derez-target-name"]')?.textContent).toBe(
+      'First Crate',
+    );
+
+    // Re-render with a different selectedObject prop while modal is open
+    await act(async () => {
+      mounted!.root.render(
+        createElement(
+          AppProvider,
+          null,
+          createElement(
+            ThemeProvider,
+            null,
+            <BuildingToolbar selectedObject={secondObj} onDerez={onDerez} />,
+          ),
+        ),
+      );
+    });
+
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
+
+    // Also verify dismissal when world selection_changed fires
+    await act(async () => {
+      derezBtn?.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+
+    await act(async () => {
+      app.world.emit('selection_changed', null);
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
   });
 });

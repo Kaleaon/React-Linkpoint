@@ -184,6 +184,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           app.objectEditPipeline.redo();
         }
       } else if (e.key === 'Escape') {
+        if (e.defaultPrevented) return;
         if (app.objectEditPipeline.isDirty) {
           e.preventDefault();
           setConfirmDialog({
@@ -377,6 +378,13 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
     boxSizing: 'border-box',
   };
 
+  const activeSimulatorName =
+    (app.world as any)?.regionName ||
+    app.world?.region?.name ||
+    (app.protocol as any)?.authReply?.sim_name ||
+    app.protocol?.getDiagnostics?.()?.simName ||
+    null;
+
   if (!selection) {
     const combinedList = [
       ...nearbyUsers.map((u) => ({ ...u, isAvatar: true })),
@@ -403,7 +411,11 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           </p>
         </div>
 
-        <BuildingToolbar compact={false} style={{ marginBottom: '10px' }} />
+        <BuildingToolbar
+          compact={false}
+          simulatorName={activeSimulatorName}
+          style={{ marginBottom: '10px' }}
+        />
 
         <div
           style={{
@@ -888,7 +900,11 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
         </TouchTarget>
       </div>
 
-      <BuildingToolbar selectedObject={selection} style={{ marginBottom: '10px' }} />
+      <BuildingToolbar
+        selectedObject={selection}
+        simulatorName={activeSimulatorName}
+        style={{ marginBottom: '10px' }}
+      />
 
       <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
         <div
