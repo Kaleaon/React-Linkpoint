@@ -4,6 +4,8 @@ import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
@@ -681,17 +683,21 @@ export function GroupsScreen() {
   useEffect(() => {
     const handleUpdate = () => {
       setGroups(app.groups.getGroups());
-      setDetailRefresh((v) => v + 1);
+      refreshNotices((v) => v + 1);
     };
     app.groups.on('roles_updated', handleUpdate);
     app.groups.on('role_updated', handleUpdate);
     app.groups.on('members_updated', handleUpdate);
     app.groups.on('member_ejected', handleUpdate);
+    app.groups.on('member_removed', handleUpdate);
+    app.groups.on('member_invited', handleUpdate);
     return () => {
       app.groups.off('roles_updated', handleUpdate);
       app.groups.off('role_updated', handleUpdate);
       app.groups.off('members_updated', handleUpdate);
       app.groups.off('member_ejected', handleUpdate);
+      app.groups.off('member_removed', handleUpdate);
+      app.groups.off('member_invited', handleUpdate);
     };
   }, []);
 
@@ -707,23 +713,6 @@ export function GroupsScreen() {
     return () => {
       app.groups.off('active_group_changed', handleActiveChanged);
       slBridge.off('active_group_changed', handleActiveChanged);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleModerationChange = () => {
-      setGroups(app.groups.getGroups());
-      setDetailRefresh((value) => value + 1);
-    };
-    app.groups.on('member_removed', handleModerationChange);
-    app.groups.on('member_invited', handleModerationChange);
-    app.groups.on('members_updated', handleModerationChange);
-    app.groups.on('roles_updated', handleModerationChange);
-    return () => {
-      app.groups.off('member_removed', handleModerationChange);
-      app.groups.off('member_invited', handleModerationChange);
-      app.groups.off('members_updated', handleModerationChange);
-      app.groups.off('roles_updated', handleModerationChange);
     };
   }, []);
 
@@ -2031,7 +2020,7 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+export function NoticeAttachmentBanner({ notice, V: propV = undefined, t: propT = undefined }) {
   const theme = useTheme();
   const V = propV || theme.V;
   const t = propT || theme.t;
@@ -2161,9 +2150,11 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button
+        <AccessibleButton
+          as="button"
           type="button"
           disabled={saving || isSaved}
+          aria-busy={saving ? 'true' : undefined}
           onClick={handleSave}
           style={{
             ...btnStyle,
@@ -2174,9 +2165,13 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
             cursor: saving || isSaved ? 'default' : 'pointer',
           }}
         >
-          <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          {saving ? (
+            <CrystalLoader size={13} variant="inline" />
+          ) : (
+            <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          )}
           {saving ? 'SAVING...' : isSaved ? 'SAVED TO INVENTORY' : 'SAVE TO INVENTORY'}
-        </button>
+        </AccessibleButton>
 
         {isLandmark ? (
           <button
