@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { act, useSyncExternalStore } from 'react';
 import Settings from '../../screens/Settings.jsx';
 import { FriendsScreen, NoticesScreen } from '../../screens/LiveScreens.jsx';
 import { app } from '../app';
@@ -15,6 +15,43 @@ import {
 } from './ui-helpers';
 
 const google = vi.hoisted(() => ({ signOut: vi.fn() }));
+const reconnectOverride = vi.hoisted(() => {
+  let value: boolean | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (next: boolean | null) => {
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+});
+vi.mock('../../context/AppContext.jsx', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../context/AppContext.jsx')>();
+  return {
+    ...actual,
+    useApp: () => {
+      const ctx = actual.useApp();
+      const reconnecting = useSyncExternalStore(
+        reconnectOverride.subscribe,
+        reconnectOverride.get,
+        reconnectOverride.get,
+      );
+      if (reconnecting === null) return ctx;
+      return {
+        ...ctx,
+        state: {
+          ...ctx.state,
+          reconnecting,
+        },
+      };
+    },
+  };
+});
 vi.mock('../../services/google.ts', () => ({
   loadGoogle: async () => ({
     auth: { signOutGoogle: google.signOut, getGoogleToken: () => null, signInWithGoogle: vi.fn() },
@@ -34,6 +71,7 @@ beforeEach(() => {
   app.friends.replaceFriends([]);
   app.preferences.set('integrations', 'google', false);
   google.signOut.mockReset();
+  reconnectOverride.set(null);
 });
 afterEach(async () => {
   await unmount(mounted);
@@ -284,5 +322,82 @@ describe('Friends: auto-syncing to Contacts', () => {
     expect(app.contacts.size).toBe(2);
     expect(app.contacts.has('f-1')).toBe(true);
     expect(app.contacts.has('f-2')).toBe(true);
+  });
+});
+
+describe('Settings: session reconnect button loading indicator', () => {
+  it('renders AccessibleButton with idle text and flex alignment, routing to Login on click', async () => {
+    mounted = await mountScreen(Settings);
+    const reconnectBtn = buttonByText(mounted.host, 'Reconnect to Grid');
+    expect(reconnectBtn).toBeDefined();
+    expect(reconnectBtn!.getAttribute('role')).toBe('button');
+    expect(reconnectBtn!.tabIndex).toBe(0);
+    expect(reconnectBtn!.disabled).toBe(false);
+    expect(reconnectBtn!.getAttribute('aria-disabled')).toBeNull();
+    expect(reconnectBtn!.style.display).toBe('flex');
+    expect(reconnectBtn!.style.alignItems).toBe('center');
+    expect(reconnectBtn!.style.justifyContent).toBe('center');
+    expect(reconnectBtn!.style.gap).toBe('8px');
+    expect(reconnectBtn!.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+
+    await click(reconnectBtn);
+    expect(mounted.ctx.current.state.screen).toBe('Login');
+  });
+
+  it('displays 16px inline CrystalLoader during active grid reconnection and restores idle state afterward', async () => {
+    const loggedInSpy = vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    try {
+      mounted = await mountScreen(Settings);
+      const initialScreen = mounted.ctx.current.state.screen;
+      expect(buttonByText(mounted.host, 'Reconnect to Grid')).toBeDefined();
+      expect(buttonByText(mounted.host, 'Disconnect')).toBeDefined();
+      expect(mounted.host.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+
+      await act(async () => {
+        reconnectOverride.set(true);
+      });
+
+      const reconnectingBtn = buttonByText(mounted.host, 'Reconnecting…');
+      expect(reconnectingBtn).toBeDefined();
+      expect(reconnectingBtn!.disabled).toBe(true);
+      expect(reconnectingBtn!.getAttribute('aria-disabled')).toBe('true');
+      expect(reconnectingBtn!.tabIndex).toBe(-1);
+      expect(reconnectingBtn!.style.display).toBe('flex');
+      expect(reconnectingBtn!.style.alignItems).toBe('center');
+      expect(reconnectingBtn!.style.justifyContent).toBe('center');
+      expect(reconnectingBtn!.style.gap).toBe('8px');
+
+      const loader = reconnectingBtn!.querySelector(
+        '[data-testid="crystal-loader"]',
+      ) as HTMLElement;
+      expect(loader).not.toBeNull();
+      expect(loader.getAttribute('data-variant')).toBe('inline');
+      expect(loader.style.width).toBe('16px');
+      expect(loader.style.height).toBe('16px');
+
+      const disconnectBtn = buttonByText(mounted.host, 'Disconnect');
+      expect(disconnectBtn).toBeDefined();
+      expect(disconnectBtn!.disabled).toBe(false);
+
+      await act(async () => {
+        reconnectingBtn!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+        );
+      });
+      expect(mounted.ctx.current.state.screen).toBe(initialScreen);
+
+      await act(async () => {
+        reconnectOverride.set(false);
+      });
+
+      const restoredBtn = buttonByText(mounted.host, 'Reconnect to Grid');
+      expect(restoredBtn).toBeDefined();
+      expect(restoredBtn!.disabled).toBe(false);
+      expect(restoredBtn!.getAttribute('aria-disabled')).toBeNull();
+      expect(restoredBtn!.tabIndex).toBe(0);
+      expect(restoredBtn!.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    } finally {
+      loggedInSpy.mockRestore();
+    }
   });
 });
