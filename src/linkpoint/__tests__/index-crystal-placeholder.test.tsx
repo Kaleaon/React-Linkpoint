@@ -11,7 +11,7 @@ import App from '../../App.tsx';
 
 describe('Web Entry Document Inline SVG Crystal Brand Placeholder', () => {
   const indexPath = path.resolve(process.cwd(), 'index.html');
-  const manifestPath = path.resolve(process.cwd(), 'public/manifest.webmanifest');
+  const indexCssPath = path.resolve(process.cwd(), 'src/index.css');
   const iconSvgPath = path.resolve(process.cwd(), 'public/icons/icon.svg');
 
   const parseHtmlDom = (html: string): Document => {
@@ -21,25 +21,25 @@ describe('Web Entry Document Inline SVG Crystal Brand Placeholder', () => {
 
   it('defines critical dark viewport styles, crystal keyframes, and prefers-reduced-motion rules in <head>', () => {
     const html = fs.readFileSync(indexPath, 'utf-8');
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-      background_color: string;
-    };
+    const indexCss = fs.readFileSync(indexCssPath, 'utf-8');
     const doc = parseHtmlDom(html);
 
     const styleEl = doc.head.querySelector('style');
     expect(styleEl).not.toBeNull();
     const css = styleEl?.textContent || '';
 
-    // Dark background matches manifest background_color (#0b1020)
-    expect(manifest.background_color.toLowerCase()).toBe('#0b1020');
-    expect(css.toLowerCase()).toContain('#0b1020');
+    // Dark background matches src/index.css body background (#000)
+    expect(indexCss.toLowerCase()).toContain('background: #000');
+    expect(css.toLowerCase()).toContain('background: #000');
 
-    // Viewport centering rules scoped to placeholder wrapper
-    expect(css).toContain('.lp-boot-placeholder');
+    // Viewport centering and crystal sizing rules
+    expect(css).toContain('#root');
+    expect(css).toContain('.lp-boot-crystal');
     expect(css).toContain('display: flex');
     expect(css).toContain('align-items: center');
     expect(css).toContain('justify-content: center');
-    expect(css).toContain('min-height: 100vh');
+    expect(css).toContain('height: 100%');
+    expect(css).toContain('overflow: visible');
 
     // Keyframe animations matching src/index.css
     expect(css).toContain('@keyframes lpldTop');
@@ -68,9 +68,12 @@ describe('Web Entry Document Inline SVG Crystal Brand Placeholder', () => {
     const svg = root?.querySelector('svg');
     expect(svg).not.toBeNull();
     expect(svg?.getAttribute('viewBox')).toBe('0 0 512 512');
+    expect(svg?.getAttribute('width')).toBe('88');
+    expect(svg?.getAttribute('height')).toBe('88');
     expect(svg?.getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
-    expect(svg?.getAttribute('role')).toBe('img');
+    expect(svg?.getAttribute('role')).toBe('status');
     expect(svg?.getAttribute('aria-label')).toBe('Loading Linkpoint');
+    expect(svg?.getAttribute('focusable')).toBe('false');
 
     // Verify SVG itself parses cleanly as strict XML
     const xmlDoc = new DOMParser().parseFromString(svg!.outerHTML, 'image/svg+xml');
@@ -133,7 +136,7 @@ describe('Web Entry Document Inline SVG Crystal Brand Placeholder', () => {
     document.body.appendChild(host);
 
     // Pre-mount: placeholder exists inside #root
-    expect(host.querySelector('.lp-boot-placeholder')).not.toBeNull();
+    expect(host.querySelector('svg.lp-boot-crystal')).not.toBeNull();
     expect(host.querySelector('svg[aria-label="Loading Linkpoint"]')).not.toBeNull();
 
     const root = createRoot(host);
@@ -147,7 +150,7 @@ describe('Web Entry Document Inline SVG Crystal Brand Placeholder', () => {
       });
 
       // Post-mount: placeholder is cleanly removed and replaced by App UI
-      expect(host.querySelector('.lp-boot-placeholder')).toBeNull();
+      expect(host.querySelector('svg.lp-boot-crystal')).toBeNull();
       expect(host.querySelector('svg[aria-label="Loading Linkpoint"]')).toBeNull();
       expect(host.querySelector('.device-frame')).not.toBeNull();
     } finally {
