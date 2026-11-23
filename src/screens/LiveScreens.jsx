@@ -681,17 +681,21 @@ export function GroupsScreen() {
   useEffect(() => {
     const handleUpdate = () => {
       setGroups(app.groups.getGroups());
-      setDetailRefresh((v) => v + 1);
+      refreshNotices((v) => v + 1);
     };
     app.groups.on('roles_updated', handleUpdate);
     app.groups.on('role_updated', handleUpdate);
     app.groups.on('members_updated', handleUpdate);
     app.groups.on('member_ejected', handleUpdate);
+    app.groups.on('member_removed', handleUpdate);
+    app.groups.on('member_invited', handleUpdate);
     return () => {
       app.groups.off('roles_updated', handleUpdate);
       app.groups.off('role_updated', handleUpdate);
       app.groups.off('members_updated', handleUpdate);
       app.groups.off('member_ejected', handleUpdate);
+      app.groups.off('member_removed', handleUpdate);
+      app.groups.off('member_invited', handleUpdate);
     };
   }, []);
 
@@ -707,23 +711,6 @@ export function GroupsScreen() {
     return () => {
       app.groups.off('active_group_changed', handleActiveChanged);
       slBridge.off('active_group_changed', handleActiveChanged);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleModerationChange = () => {
-      setGroups(app.groups.getGroups());
-      setDetailRefresh((value) => value + 1);
-    };
-    app.groups.on('member_removed', handleModerationChange);
-    app.groups.on('member_invited', handleModerationChange);
-    app.groups.on('members_updated', handleModerationChange);
-    app.groups.on('roles_updated', handleModerationChange);
-    return () => {
-      app.groups.off('member_removed', handleModerationChange);
-      app.groups.off('member_invited', handleModerationChange);
-      app.groups.off('members_updated', handleModerationChange);
-      app.groups.off('roles_updated', handleModerationChange);
     };
   }, []);
 
