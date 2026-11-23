@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import OutfitViewer from '../../screens/OutfitViewer.jsx';
 import { app } from '../app';
@@ -203,6 +204,101 @@ describe('Save Outfit As Workflow in OutfitViewer', () => {
       name: 'Casual Look',
       itemIds: ['worn-shape-id', 'worn-jacket-id'],
     });
+  });
+
+  it('displays inline CrystalLoader inside submit button while saving is pending and clears upon completion or error', async () => {
+    vi.spyOn(app, 'loadOutfit').mockResolvedValue({
+      items: sampleWorn,
+      outfits: [],
+    });
+
+    type SaveOutfitResult = Awaited<ReturnType<typeof slBridge.saveOutfitAs>>;
+    let resolveSave: (value: SaveOutfitResult) => void = () => {};
+    let rejectSave: (reason?: unknown) => void = () => {};
+
+    const saveSpy = vi.spyOn(slBridge, 'saveOutfitAs').mockImplementationOnce(
+      () =>
+        new Promise<SaveOutfitResult>((resolve, reject) => {
+          resolveSave = resolve;
+          rejectSave = reject;
+        }),
+    );
+
+    mounted = await mountScreen(OutfitViewer);
+    await click(buttonByText(mounted.host, /Outfit Items/)!);
+
+    const openModalBtn = [...mounted.host.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'SAVE OUTFIT AS',
+    );
+    await click(openModalBtn);
+
+    let dialog = mounted.host.querySelector('[role="dialog"]')!;
+    const cancelBtn = [...dialog.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'CANCEL',
+    ) as HTMLButtonElement;
+
+    // Cancelling before submitting unmounts modal without triggering loader
+    await click(cancelBtn);
+    expect(mounted.host.querySelector('[role="dialog"]')).toBeNull();
+    expect(mounted.host.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(saveSpy).not.toHaveBeenCalled();
+
+    // Reopen modal and enter a valid outfit name
+    await click(openModalBtn);
+    dialog = mounted.host.querySelector('[role="dialog"]')!;
+    const input = dialog.querySelector('#save-outfit-name-input') as HTMLInputElement;
+    await typeInto(input, 'Crystal Test Outfit');
+
+    const submitBtn = dialog.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submitBtn.textContent?.trim()).toBe('SAVE');
+    expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(submitBtn.style.display).toBe('inline-flex');
+    expect(submitBtn.style.alignItems).toBe('center');
+    expect(submitBtn.style.gap).toBe('6px');
+
+    // Trigger save and inspect pending state
+    await click(submitBtn);
+
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(submitBtn.disabled).toBe(true);
+    expect(submitBtn.textContent).toContain('SAVING…');
+
+    const loader = submitBtn.querySelector('[data-testid="crystal-loader"]') as HTMLElement | null;
+    expect(loader).not.toBeNull();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.style.width).toBe('14px');
+    expect(loader?.style.height).toBe('14px');
+
+    // Simulate failure first to verify busy state resets and loader clears on error
+    await act(async () => {
+      rejectSave(new Error('Grid inventory timeout'));
+    });
+
+    expect(submitBtn.disabled).toBe(false);
+    expect(submitBtn.textContent?.trim()).toBe('SAVE');
+    expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(dialog.querySelector('#save-outfit-error')?.textContent).toContain(
+      'Grid inventory timeout',
+    );
+
+    // Retry with pending promise that succeeds, verifying loader appears then clears with modal close
+    saveSpy.mockImplementationOnce(
+      () =>
+        new Promise<SaveOutfitResult>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    await click(submitBtn);
+    expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+    expect(submitBtn.textContent).toContain('SAVING…');
+
+    await act(async () => {
+      resolveSave({ folderId: 'saved-folder-id', itemCount: 3 });
+    });
+
+    expect(mounted.host.querySelector('[role="dialog"]')).toBeNull();
+    expect(mounted.host.querySelector('[data-testid="crystal-loader"]')).toBeNull();
   });
 
   it('Requirement 6 & Acceptance Criteria 2 & 3: reloads outfit list upon completion, closes dialog, and focuses the new outfit', async () => {

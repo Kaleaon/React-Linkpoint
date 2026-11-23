@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Icon from './Icon.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import AccessibleInput from './AccessibleInput.tsx';
 import AccessibleButton from './AccessibleButton.jsx';
@@ -47,11 +48,36 @@ export function CreateGroupNoticeModal({
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [selectedAttachmentId, setSelectedAttachmentId] = useState('');
+  const [inventoryRevision, setInventoryRevision] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const inventory = app.inventory;
+    if (!isOpen || !inventory) return undefined;
+
+    const handleInventoryUpdate = () => setInventoryRevision((rev) => rev + 1);
+    if (typeof inventory.on === 'function') {
+      inventory.on('inventory_loaded', handleInventoryUpdate);
+      inventory.on('inventory_updated', handleInventoryUpdate);
+    }
+
+    const itemCount = inventory.items ? inventory.items.size : 0;
+    if (itemCount === 0 && !inventory.isLoading && typeof inventory.load === 'function') {
+      void Promise.resolve(inventory.load()).catch(() => undefined);
+    }
+
+    return () => {
+      if (typeof inventory.off === 'function') {
+        inventory.off('inventory_loaded', handleInventoryUpdate);
+        inventory.off('inventory_updated', handleInventoryUpdate);
+      }
+    };
+  }, [isOpen]);
+
   const eligibleItems = useMemo(() => {
-    if (!app.inventory || !app.inventory.items) return [];
+    void inventoryRevision;
+    if (!isOpen || !app.inventory || !app.inventory.items) return [];
     const items = [];
     for (const item of app.inventory.items.values()) {
       const type = Number(item.assetType ?? item.type);
@@ -65,7 +91,14 @@ export function CreateGroupNoticeModal({
       }
     }
     return items.sort((a, b) => a.name.localeCompare(b.name));
-  }, [isOpen]);
+  }, [isOpen, inventoryRevision]);
+
+  useEffect(() => {
+    if (!isOpen || !selectedAttachmentId) return;
+    if (!eligibleItems.some((item) => item.id === selectedAttachmentId)) {
+      setSelectedAttachmentId('');
+    }
+  }, [isOpen, eligibleItems, selectedAttachmentId]);
 
   const selectedAttachment = useMemo(() => {
     if (!selectedAttachmentId) return null;
@@ -392,7 +425,11 @@ export function CreateGroupNoticeModal({
                   gap: 6,
                 }}
               >
-                <Icon name="send" size={13} />
+                {submitting ? (
+                  <CrystalLoader size={13} variant="inline" />
+                ) : (
+                  <Icon name="send" size={13} />
+                )}
                 <span>{submitting ? 'Sending…' : 'Send Notice'}</span>
               </AccessibleButton>
             </div>

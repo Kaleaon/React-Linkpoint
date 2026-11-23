@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useId } from 'react';
+import { FocusRing } from '@linkpoint/design-system';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useRovingTabindex } from '../hooks/useRovingTabindex';
 import { app } from '../linkpoint/app';
 import FocusTrap from './FocusTrap.jsx';
 import Icon from './Icon.jsx';
@@ -16,6 +18,18 @@ export const PRIM_SHAPES = [
 ] as const;
 
 export type PrimShapeType = (typeof PRIM_SHAPES)[number]['id'];
+
+const PRIM_SHAPE_IDS: readonly PrimShapeType[] = PRIM_SHAPES.map((shape) => shape.id);
+
+const TOOLBAR_MODES = [
+  { id: 'create', label: 'REZ PRIM' },
+  { id: 'edit', label: 'SHAPE PARAMS' },
+  { id: 'linkset', label: 'LINKSET & DEREZ' },
+] as const;
+
+type ToolbarMode = (typeof TOOLBAR_MODES)[number]['id'];
+
+const TOOLBAR_MODE_IDS: readonly ToolbarMode[] = TOOLBAR_MODES.map((mode) => mode.id);
 
 export interface BuildingToolbarProps {
   selectedObject?: any;
@@ -98,9 +112,23 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(
     null,
   );
-  const [activeTab, setActiveTab] = useState<'create' | 'edit' | 'linkset'>('create');
+  const [activeTab, setActiveTab] = useState<ToolbarMode>('create');
   const [showDerezConfirm, setShowDerezConfirm] = useState<boolean>(false);
   const [confirmTargetKey, setConfirmTargetKey] = useState<string | null>(null);
+
+  const modeRoving = useRovingTabindex<ToolbarMode>({
+    tabs: TOOLBAR_MODE_IDS,
+    activeTab,
+    onSelect: setActiveTab,
+    orientation: 'horizontal',
+  });
+
+  const shapeRoving = useRovingTabindex<PrimShapeType>({
+    tabs: PRIM_SHAPE_IDS,
+    activeTab: selectedShape,
+    onSelect: setSelectedShape,
+    orientation: 'both',
+  });
 
   // Local object selection tracking if not supplied via props
   const [currentObject, setCurrentObject] = useState<any>(
@@ -498,30 +526,24 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
 
       {/* Mode navigation */}
       <div style={{ display: 'flex', gap: '4px' }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('create')}
-          style={tabBtnStyle(activeTab === 'create')}
-          aria-pressed={activeTab === 'create'}
-        >
-          REZ PRIM
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('edit')}
-          style={tabBtnStyle(activeTab === 'edit')}
-          aria-pressed={activeTab === 'edit'}
-        >
-          SHAPE PARAMS
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('linkset')}
-          style={tabBtnStyle(activeTab === 'linkset')}
-          aria-pressed={activeTab === 'linkset'}
-        >
-          LINKSET & DEREZ
-        </button>
+        {TOOLBAR_MODES.map((mode) => {
+          const isActive = activeTab === mode.id;
+          return (
+            <FocusRing key={mode.id} ringColor={V.pri} borderRadius={V.rs}>
+              <button
+                ref={modeRoving.getTabRef(mode.id)}
+                type="button"
+                tabIndex={modeRoving.getTabIndex(mode.id)}
+                onClick={() => modeRoving.handleClick(mode.id)}
+                onKeyDown={(e) => modeRoving.handleKeyDown(e, mode.id)}
+                style={tabBtnStyle(isActive)}
+                aria-pressed={isActive}
+              >
+                {mode.label}
+              </button>
+            </FocusRing>
+          );
+        })}
       </div>
 
       {/* Tab: Rez Primitive Shape */}
@@ -549,31 +571,35 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
               {PRIM_SHAPES.map((shape) => {
                 const isSelected = selectedShape === shape.id;
                 return (
-                  <button
-                    key={shape.id}
-                    type="button"
-                    onClick={() => setSelectedShape(shape.id)}
-                    aria-label={`Select ${shape.label} shape`}
-                    aria-pressed={isSelected}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '6px 4px',
-                      background: isSelected ? V.pri : V.surf,
-                      color: isSelected ? V.onpri : V.ink,
-                      border: `1px solid ${isSelected ? V.pri : V.outv}`,
-                      borderRadius: V.rs,
-                      fontSize: '9px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      gap: '3px',
-                    }}
-                  >
-                    <Icon name={shape.icon} size={13} />
-                    <span>{shape.label}</span>
-                  </button>
+                  <FocusRing key={shape.id} ringColor={V.pri} borderRadius={V.rs}>
+                    <button
+                      ref={shapeRoving.getTabRef(shape.id)}
+                      type="button"
+                      tabIndex={shapeRoving.getTabIndex(shape.id)}
+                      onClick={() => shapeRoving.handleClick(shape.id)}
+                      onKeyDown={(e) => shapeRoving.handleKeyDown(e, shape.id)}
+                      aria-label={`Select ${shape.label} shape`}
+                      aria-pressed={isSelected}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '6px 4px',
+                        background: isSelected ? V.pri : V.surf,
+                        color: isSelected ? V.onpri : V.ink,
+                        border: `1px solid ${isSelected ? V.pri : V.outv}`,
+                        borderRadius: V.rs,
+                        fontSize: '9px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        gap: '3px',
+                      }}
+                    >
+                      <Icon name={shape.icon} size={13} />
+                      <span>{shape.label}</span>
+                    </button>
+                  </FocusRing>
                 );
               })}
             </div>

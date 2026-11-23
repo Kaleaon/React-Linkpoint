@@ -8,6 +8,7 @@ import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
+import FocusRing from '../components/FocusRing.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
@@ -348,54 +349,58 @@ export default function World3D({ desktopBackdrop = false }) {
         <div
           style={{ position: 'absolute', top: 14, right: 14, zIndex: 40, display: 'flex', gap: 8 }}
         >
-          <TouchTarget
-            minSize={44}
-            aria-label="Reset Camera View"
-            title="Reset Camera View"
-            onClick={handleResetView}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 10px',
-              background: 'rgba(0, 0, 0, 0.75)',
-              color: V.ink,
-              border: `1px solid ${V.outv}`,
-              borderRadius: V.rs,
-              fontSize: 11,
-              fontWeight: 700,
-              backdropFilter: 'blur(6px)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="home" size={14} />
-            <span>RESET</span>
-          </TouchTarget>
-          <TouchTarget
-            minSize={44}
-            aria-label="Show 3D overlays"
-            title="Show overlays (Shortcut: H)"
-            onClick={toggleOverlays}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              background: 'rgba(0, 0, 0, 0.75)',
-              color: V.pri,
-              border: `1px solid ${V.pri}`,
-              borderRadius: V.rs,
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              backdropFilter: 'blur(6px)',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="eye" size={16} />
-            <span>SHOW OVERLAYS (H)</span>
-          </TouchTarget>
+          <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+            <TouchTarget
+              minSize={44}
+              aria-label="Reset Camera View"
+              title="Reset Camera View"
+              onClick={handleResetView}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 10px',
+                background: 'rgba(0, 0, 0, 0.75)',
+                color: V.ink,
+                border: `1px solid ${V.outv}`,
+                borderRadius: V.rs,
+                fontSize: 11,
+                fontWeight: 700,
+                backdropFilter: 'blur(6px)',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name="home" size={14} />
+              <span>RESET</span>
+            </TouchTarget>
+          </FocusRing>
+          <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+            <TouchTarget
+              minSize={44}
+              aria-label="Show 3D overlays"
+              title="Show overlays (Shortcut: H)"
+              onClick={toggleOverlays}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                background: 'rgba(0, 0, 0, 0.75)',
+                color: V.pri,
+                border: `1px solid ${V.pri}`,
+                borderRadius: V.rs,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.5px',
+                backdropFilter: 'blur(6px)',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name="eye" size={16} />
+              <span>SHOW OVERLAYS (H)</span>
+            </TouchTarget>
+          </FocusRing>
         </div>
       )}
 
@@ -455,52 +460,56 @@ export default function World3D({ desktopBackdrop = false }) {
               gap: 6,
             }}
           >
-            <TouchTarget
-              minSize={44}
-              aria-label="Reset Camera View"
-              title="Reset View"
-              onClick={handleResetView}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 8px',
-                background: 'rgba(0, 0, 0, 0.7)',
-                color: V.ink,
-                border: `1px solid ${V.outv}`,
-                borderRadius: V.rs,
-                fontSize: 10,
-                fontWeight: 700,
-                backdropFilter: 'blur(4px)',
-                cursor: 'pointer',
-              }}
-            >
-              <Icon name="home" size={13} />
-              <span>RESET</span>
-            </TouchTarget>
-            <TouchTarget
-              minSize={44}
-              aria-label="Hide 3D overlays"
-              title="Hide all overlays (Shortcut: H)"
-              onClick={toggleOverlays}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '4px 8px',
-                background: 'rgba(0, 0, 0, 0.7)',
-                color: V.pri,
-                border: `1px solid ${V.outv}`,
-                borderRadius: V.rs,
-                fontSize: 10,
-                fontWeight: 700,
-                backdropFilter: 'blur(4px)',
-                cursor: 'pointer',
-              }}
-            >
-              <Icon name="eye-off" size={13} />
-              <span>HIDE UI (H)</span>
-            </TouchTarget>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={44}
+                aria-label="Reset Camera View"
+                title="Reset View"
+                onClick={handleResetView}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 8px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  color: V.ink,
+                  border: `1px solid ${V.outv}`,
+                  borderRadius: V.rs,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  backdropFilter: 'blur(4px)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="home" size={13} />
+                <span>RESET</span>
+              </TouchTarget>
+            </FocusRing>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={44}
+                aria-label="Hide 3D overlays"
+                title="Hide all overlays (Shortcut: H)"
+                onClick={toggleOverlays}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '4px 8px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  color: V.pri,
+                  border: `1px solid ${V.outv}`,
+                  borderRadius: V.rs,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  backdropFilter: 'blur(4px)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="eye-off" size={13} />
+                <span>HIDE UI (H)</span>
+              </TouchTarget>
+            </FocusRing>
           </div>
 
           {/* Diagnostics Widget in Top-Left */}
@@ -534,63 +543,68 @@ export default function World3D({ desktopBackdrop = false }) {
                 >
                   <strong>{region}</strong>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      type="button"
-                      aria-label="Collapse scene statistics"
-                      title="Collapse details"
-                      onClick={() => setDiagnosticsExpanded(false)}
-                      style={{
-                        background: 'transparent',
-                        border: 0,
-                        color: V.pri,
-                        cursor: 'pointer',
-                        padding: '1px 4px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                      }}
-                    >
-                      [−]
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Close scene statistics"
-                      title="Close info"
-                      onClick={() => setShowDiagnostics(false)}
-                      style={{
-                        background: 'transparent',
-                        border: 0,
-                        color: V.ink2,
-                        cursor: 'pointer',
-                        padding: '1px 4px',
-                        fontSize: 11,
-                      }}
-                    >
-                      ✕
-                    </button>
+                    <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                      <TouchTarget
+                        minSize={24}
+                        padding="1px 4px"
+                        aria-label="Collapse scene statistics"
+                        title="Collapse details"
+                        onClick={() => setDiagnosticsExpanded(false)}
+                        style={{
+                          background: 'transparent',
+                          border: 0,
+                          color: V.pri,
+                          borderRadius: V.rs,
+                          fontSize: 11,
+                          fontWeight: 700,
+                        }}
+                      >
+                        [−]
+                      </TouchTarget>
+                    </FocusRing>
+                    <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                      <TouchTarget
+                        minSize={24}
+                        padding="1px 4px"
+                        aria-label="Close scene statistics"
+                        title="Close info"
+                        onClick={() => setShowDiagnostics(false)}
+                        style={{
+                          background: 'transparent',
+                          border: 0,
+                          color: V.ink2,
+                          borderRadius: V.rs,
+                          fontSize: 11,
+                        }}
+                      >
+                        ✕
+                      </TouchTarget>
+                    </FocusRing>
                   </div>
                 </div>
                 Pos: {position.join(', ')}
                 <br />
                 {dataStatus}
                 {app.world.getAssetErrors().length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleRefreshScene}
-                    title="Download the failed meshes and textures again"
-                    style={{
-                      marginLeft: 6,
-                      cursor: 'pointer',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: V.pri,
-                      background: 'transparent',
-                      border: `1px solid ${V.outv}`,
-                      borderRadius: V.rs,
-                      padding: '1px 6px',
-                    }}
-                  >
-                    RETRY
-                  </button>
+                  <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                    <TouchTarget
+                      minSize={24}
+                      padding="1px 6px"
+                      onClick={handleRefreshScene}
+                      title="Download the failed meshes and textures again"
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: V.pri,
+                        background: 'transparent',
+                        border: `1px solid ${V.outv}`,
+                        borderRadius: V.rs,
+                      }}
+                    >
+                      RETRY
+                    </TouchTarget>
+                  </FocusRing>
                 )}
                 <br />
                 {objectCount} simulator objects
@@ -618,22 +632,23 @@ export default function World3D({ desktopBackdrop = false }) {
                     : 'Tap an object to inspect it'}
                 </div>
                 <div style={{ marginTop: 4 }}>
-                  <button
-                    type="button"
-                    onClick={handleRefreshScene}
-                    disabled={!app.auth.isLoggedIn()}
-                    style={{
-                      padding: '2px 8px',
-                      fontSize: '10px',
-                      background: V.pri,
-                      color: V.onpri,
-                      border: 0,
-                      borderRadius: V.rs,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    SYNC SCENE
-                  </button>
+                  <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                    <TouchTarget
+                      minSize={24}
+                      padding="2px 8px"
+                      onClick={handleRefreshScene}
+                      disabled={!app.auth.isLoggedIn()}
+                      style={{
+                        fontSize: '10px',
+                        background: V.pri,
+                        color: V.onpri,
+                        border: 0,
+                        borderRadius: V.rs,
+                      }}
+                    >
+                      SYNC SCENE
+                    </TouchTarget>
+                  </FocusRing>
                 </div>
                 {!ready && !error ? (
                   <>
@@ -680,67 +695,73 @@ export default function World3D({ desktopBackdrop = false }) {
                 >
                   <strong>{region}</strong> · {position.join(', ')}
                 </span>
-                <button
-                  type="button"
-                  aria-label="Expand scene statistics"
-                  title="Expand details"
-                  onClick={() => setDiagnosticsExpanded(true)}
-                  style={{
-                    background: 'transparent',
-                    border: 0,
-                    color: V.pri,
-                    cursor: 'pointer',
-                    padding: '2px 4px',
-                    fontSize: 10,
-                    fontWeight: 700,
-                  }}
-                >
-                  [+]
-                </button>
-                <button
-                  type="button"
-                  aria-label="Hide scene statistics"
-                  title="Hide"
-                  onClick={() => setShowDiagnostics(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 0,
-                    color: V.ink2,
-                    cursor: 'pointer',
-                    padding: '2px 4px',
-                    fontSize: 10,
-                  }}
-                >
-                  ✕
-                </button>
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <TouchTarget
+                    minSize={24}
+                    padding="2px 4px"
+                    aria-label="Expand scene statistics"
+                    title="Expand details"
+                    onClick={() => setDiagnosticsExpanded(true)}
+                    style={{
+                      background: 'transparent',
+                      border: 0,
+                      color: V.pri,
+                      borderRadius: V.rs,
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  >
+                    [+]
+                  </TouchTarget>
+                </FocusRing>
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <TouchTarget
+                    minSize={24}
+                    padding="2px 4px"
+                    aria-label="Hide scene statistics"
+                    title="Hide"
+                    onClick={() => setShowDiagnostics(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 0,
+                      color: V.ink2,
+                      borderRadius: V.rs,
+                      fontSize: 10,
+                    }}
+                  >
+                    ✕
+                  </TouchTarget>
+                </FocusRing>
               </output>
             )
           ) : (
-            <TouchTarget
-              minSize={44}
-              aria-label="Show scene information"
-              title="Show scene info"
-              onClick={() => setShowDiagnostics(true)}
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: isCompactViewport ? 66 : 12,
-                zIndex: 22,
-                background: 'rgba(0, 0, 0, 0.65)',
-                color: V.pri,
-                border: `1px solid ${V.outv}`,
-                borderRadius: V.rs,
-                padding: '4px 6px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                fontSize: 10,
-                cursor: 'pointer',
-              }}
-            >
-              <Icon name="info" size={13} />
-              <span>INFO</span>
-            </TouchTarget>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={44}
+                aria-label="Show scene information"
+                title="Show scene info"
+                onClick={() => setShowDiagnostics(true)}
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  top: isCompactViewport ? 66 : 12,
+                  zIndex: 22,
+                  background: 'rgba(0, 0, 0, 0.65)',
+                  color: V.pri,
+                  border: `1px solid ${V.outv}`,
+                  borderRadius: V.rs,
+                  padding: '4px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 10,
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="info" size={13} />
+                <span>INFO</span>
+              </TouchTarget>
+            </FocusRing>
           )}
 
           {/* Mode Selector Top-Center */}
@@ -766,85 +787,93 @@ export default function World3D({ desktopBackdrop = false }) {
               zIndex: 24,
             }}
           >
-            <button
-              type="button"
-              aria-pressed={interactionMode === 'navigate'}
-              aria-label="Navigate Mode"
-              onClick={() => app.world.setInteractionMode('navigate')}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: '4px 8px',
-                background: interactionMode === 'navigate' ? V.pri : 'transparent',
-                color: interactionMode === 'navigate' ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              NAVIGATE
-            </button>
-            <button
-              type="button"
-              aria-pressed={interactionMode === 'interact'}
-              aria-label="Interact Mode"
-              onClick={() => app.world.setInteractionMode('interact')}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: '4px 8px',
-                background: interactionMode === 'interact' ? V.pri : 'transparent',
-                color: interactionMode === 'interact' ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              INTERACT
-            </button>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={24}
+                padding="4px 8px"
+                aria-pressed={interactionMode === 'navigate'}
+                aria-label="Navigate Mode"
+                onClick={() => app.world.setInteractionMode('navigate')}
+                style={{
+                  ...button,
+                  minWidth: 24,
+                  background: interactionMode === 'navigate' ? V.pri : 'transparent',
+                  color: interactionMode === 'navigate' ? V.onpri : V.ink,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: V.rs,
+                  border: 0,
+                }}
+              >
+                NAVIGATE
+              </TouchTarget>
+            </FocusRing>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={24}
+                padding="4px 8px"
+                aria-pressed={interactionMode === 'interact'}
+                aria-label="Interact Mode"
+                onClick={() => app.world.setInteractionMode('interact')}
+                style={{
+                  ...button,
+                  minWidth: 24,
+                  background: interactionMode === 'interact' ? V.pri : 'transparent',
+                  color: interactionMode === 'interact' ? V.onpri : V.ink,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: V.rs,
+                  border: 0,
+                }}
+              >
+                INTERACT
+              </TouchTarget>
+            </FocusRing>
             <div style={{ width: 1, height: 16, background: V.outv, margin: '0 2px' }} />
-            <button
-              type="button"
-              aria-pressed={!panMode}
-              aria-label="Orbit View Mode"
-              title="1-finger drag orbits view"
-              onClick={() => app.world.setPanMode?.(false)}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: '4px 6px',
-                background: !panMode ? V.pri : 'transparent',
-                color: !panMode ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              ORBIT
-            </button>
-            <button
-              type="button"
-              aria-pressed={panMode}
-              aria-label="Pan View Mode"
-              title="1-finger drag pans view"
-              onClick={() => app.world.setPanMode?.(true)}
-              style={{
-                ...button,
-                minWidth: 0,
-                padding: '4px 6px',
-                background: panMode ? V.pri : 'transparent',
-                color: panMode ? V.onpri : V.ink,
-                fontSize: 10,
-                fontWeight: 700,
-                borderRadius: V.rs,
-                border: 0,
-              }}
-            >
-              PAN
-            </button>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={24}
+                padding="4px 6px"
+                aria-pressed={!panMode}
+                aria-label="Orbit View Mode"
+                title="1-finger drag orbits view"
+                onClick={() => app.world.setPanMode?.(false)}
+                style={{
+                  ...button,
+                  minWidth: 24,
+                  background: !panMode ? V.pri : 'transparent',
+                  color: !panMode ? V.onpri : V.ink,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: V.rs,
+                  border: 0,
+                }}
+              >
+                ORBIT
+              </TouchTarget>
+            </FocusRing>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <TouchTarget
+                minSize={24}
+                padding="4px 6px"
+                aria-pressed={panMode}
+                aria-label="Pan View Mode"
+                title="1-finger drag pans view"
+                onClick={() => app.world.setPanMode?.(true)}
+                style={{
+                  ...button,
+                  minWidth: 24,
+                  background: panMode ? V.pri : 'transparent',
+                  color: panMode ? V.onpri : V.ink,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: V.rs,
+                  border: 0,
+                }}
+              >
+                PAN
+              </TouchTarget>
+            </FocusRing>
           </div>
 
           {/* Selected Object Inspector */}
@@ -874,26 +903,28 @@ export default function World3D({ desktopBackdrop = false }) {
                 >
                   SELECTED
                 </span>
-                <button
-                  type="button"
-                  aria-label="Deselect object"
-                  title="Deselect (Escape)"
-                  onClick={() => {
-                    setSelection(null);
-                    app.world.selectObject(null);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 0,
-                    color: V.ink2,
-                    cursor: 'pointer',
-                    padding: '2px 4px',
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  ✕
-                </button>
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <TouchTarget
+                    minSize={24}
+                    padding="2px 4px"
+                    aria-label="Deselect object"
+                    title="Deselect (Escape)"
+                    onClick={() => {
+                      setSelection(null);
+                      app.world.selectObject(null);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 0,
+                      color: V.ink2,
+                      borderRadius: V.rs,
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    ✕
+                  </TouchTarget>
+                </FocusRing>
               </div>
               <strong style={{ display: 'block', marginTop: 3 }}>
                 {selection.name || selection.id || 'Simulator object'}
@@ -902,41 +933,50 @@ export default function World3D({ desktopBackdrop = false }) {
                 {selection.shape || (selection.avatar ? 'Avatar' : 'Object')} ·{' '}
                 {selection.distance?.toFixed?.(1) || '—'} m
               </span>
-              <TouchTarget
-                onClick={() => app.world.focusSelectedObject()}
-                style={{
-                  ...button,
-                  width: '100%',
-                  minHeight: 32,
-                  marginTop: 8,
-                  background: V.pri,
-                  color: V.onpri,
-                  fontSize: 10,
-                }}
-              >
-                FOCUS CAMERA
-              </TouchTarget>
+              <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                <TouchTarget
+                  minSize={24}
+                  onClick={() => app.world.focusSelectedObject()}
+                  style={{
+                    ...button,
+                    width: '100%',
+                    minHeight: 32,
+                    marginTop: 8,
+                    background: V.pri,
+                    color: V.onpri,
+                    fontSize: 10,
+                  }}
+                >
+                  FOCUS CAMERA
+                </TouchTarget>
+              </FocusRing>
               {!selection.avatar && app.auth.isLoggedIn() ? (
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <TouchTarget
-                    onClick={() => void app.world.touchSelected()}
-                    style={{ ...button, flex: 1, minHeight: 32, fontSize: 10 }}
-                  >
-                    TOUCH
-                  </TouchTarget>
-                  <TouchTarget
-                    onClick={() =>
-                      void app.protocol.sit(selection.id).catch((error) =>
-                        app.world.emit('action_failed', {
-                          action: 'sit',
-                          message: error instanceof Error ? error.message : 'Sit failed',
-                        }),
-                      )
-                    }
-                    style={{ ...button, flex: 1, minHeight: 32, fontSize: 10 }}
-                  >
-                    SIT
-                  </TouchTarget>
+                  <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                    <TouchTarget
+                      minSize={24}
+                      onClick={() => void app.world.touchSelected()}
+                      style={{ ...button, flex: 1, minHeight: 32, fontSize: 10 }}
+                    >
+                      TOUCH
+                    </TouchTarget>
+                  </FocusRing>
+                  <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                    <TouchTarget
+                      minSize={24}
+                      onClick={() =>
+                        void app.protocol.sit(selection.id).catch((error) =>
+                          app.world.emit('action_failed', {
+                            action: 'sit',
+                            message: error instanceof Error ? error.message : 'Sit failed',
+                          }),
+                        )
+                      }
+                      style={{ ...button, flex: 1, minHeight: 32, fontSize: 10 }}
+                    >
+                      SIT
+                    </TouchTarget>
+                  </FocusRing>
                 </div>
               ) : null}
             </aside>
@@ -1009,56 +1049,59 @@ export default function World3D({ desktopBackdrop = false }) {
             </span>
             {voice.state === 'connected' ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => app.voice.setMuted(!voice.muted)}
-                  style={{
-                    padding: '2px 8px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    background: voice.muted ? V.pri : 'rgba(255, 255, 255, 0.12)',
-                    color: voice.muted ? V.onpri : V.ink,
-                    border: `1px solid ${V.outv}`,
-                    borderRadius: V.rs,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {voice.muted ? 'UNMUTE MIC' : 'MUTE MIC'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void app.voice.disconnect()}
-                  style={{
-                    padding: '2px 6px',
-                    fontSize: '10px',
-                    background: 'transparent',
-                    color: V.err,
-                    border: `1px solid ${V.err}`,
-                    borderRadius: V.rs,
-                    cursor: 'pointer',
-                  }}
-                >
-                  LEAVE
-                </button>
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <TouchTarget
+                    minSize={24}
+                    padding="2px 8px"
+                    onClick={() => app.voice.setMuted(!voice.muted)}
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      background: voice.muted ? V.pri : 'rgba(255, 255, 255, 0.12)',
+                      color: voice.muted ? V.onpri : V.ink,
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                    }}
+                  >
+                    {voice.muted ? 'UNMUTE MIC' : 'MUTE MIC'}
+                  </TouchTarget>
+                </FocusRing>
+                <FocusRing ringColor={V.err} borderRadius={V.rs}>
+                  <TouchTarget
+                    minSize={24}
+                    padding="2px 6px"
+                    onClick={() => void app.voice.disconnect()}
+                    style={{
+                      fontSize: '10px',
+                      background: 'transparent',
+                      color: V.err,
+                      border: `1px solid ${V.err}`,
+                      borderRadius: V.rs,
+                    }}
+                  >
+                    LEAVE
+                  </TouchTarget>
+                </FocusRing>
               </>
             ) : (
-              <button
-                type="button"
-                disabled={!app.auth.isLoggedIn()}
-                onClick={() => void app.voice.connect().catch(() => {})}
-                style={{
-                  padding: '2px 8px',
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  background: V.pri,
-                  color: V.onpri,
-                  border: 0,
-                  borderRadius: V.rs,
-                  cursor: 'pointer',
-                }}
-              >
-                JOIN VOICE
-              </button>
+              <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                <TouchTarget
+                  minSize={24}
+                  padding="2px 8px"
+                  disabled={!app.auth.isLoggedIn()}
+                  onClick={() => void app.voice.connect().catch(() => {})}
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    background: V.pri,
+                    color: V.onpri,
+                    border: 0,
+                    borderRadius: V.rs,
+                  }}
+                >
+                  JOIN VOICE
+                </TouchTarget>
+              </FocusRing>
             )}
           </div>
 
@@ -1097,23 +1140,25 @@ export default function World3D({ desktopBackdrop = false }) {
                 }}
               >
                 <span>SPATIAL CHAT</span>
-                <button
-                  type="button"
-                  aria-label="Close spatial chat overlay"
-                  title="Close chat overlay"
-                  onClick={() => setShowChatOverlay(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 0,
-                    color: V.ink2,
-                    cursor: 'pointer',
-                    padding: '2px 4px',
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}
-                >
-                  ✕
-                </button>
+                <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+                  <TouchTarget
+                    minSize={24}
+                    padding="2px 4px"
+                    aria-label="Close spatial chat overlay"
+                    title="Close chat overlay"
+                    onClick={() => setShowChatOverlay(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 0,
+                      color: V.ink2,
+                      borderRadius: V.rs,
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  >
+                    ✕
+                  </TouchTarget>
+                </FocusRing>
               </div>
               <AccessibleChatLog
                 messages={spatialMessages}
@@ -1203,52 +1248,50 @@ export function World3DActionBar() {
         {connected ? `CONNECTED — LIVE SECOND LIFE SCENE (${count} OBJECTS)` : 'DISCONNECTED'}
       </span>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <button
-          type="button"
-          aria-label="Reset camera view to avatar"
-          title="Reset Camera View (Shortcut: Home)"
-          onClick={() => {
-            app.world.resetCamera?.();
-          }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '4px 8px',
-            background: 'transparent',
-            color: V.ink,
-            border: `1px solid ${V.outv}`,
-            borderRadius: V.rs,
-            fontSize: '10px',
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          <Icon name="home" size={13} />
-          <span>RESET VIEW</span>
-        </button>
-        <button
-          type="button"
-          aria-label={overlaysVisible ? 'Hide 3D view overlays' : 'Show 3D view overlays'}
-          title="Toggle overlays (Shortcut: H)"
-          onClick={handleToggle}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '4px 10px',
-            background: overlaysVisible ? 'transparent' : V.pri,
-            color: overlaysVisible ? V.pri : V.onpri,
-            border: `1px solid ${V.pri}`,
-            borderRadius: V.rs,
-            fontSize: '10px',
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          <Icon name={overlaysVisible ? 'eye-off' : 'eye'} size={13} />
-          <span>{overlaysVisible ? 'HIDE OVERLAYS (H)' : 'SHOW OVERLAYS (H)'}</span>
-        </button>
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <TouchTarget
+            minSize={24}
+            padding="4px 8px"
+            aria-label="Reset camera view to avatar"
+            title="Reset Camera View (Shortcut: Home)"
+            onClick={() => {
+              app.world.resetCamera?.();
+            }}
+            style={{
+              gap: 5,
+              background: 'transparent',
+              color: V.ink,
+              border: `1px solid ${V.outv}`,
+              borderRadius: V.rs,
+              fontSize: '10px',
+              fontWeight: 700,
+            }}
+          >
+            <Icon name="home" size={13} />
+            <span>RESET VIEW</span>
+          </TouchTarget>
+        </FocusRing>
+        <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+          <TouchTarget
+            minSize={24}
+            padding="4px 10px"
+            aria-label={overlaysVisible ? 'Hide 3D view overlays' : 'Show 3D view overlays'}
+            title="Toggle overlays (Shortcut: H)"
+            onClick={handleToggle}
+            style={{
+              gap: 5,
+              background: overlaysVisible ? 'transparent' : V.pri,
+              color: overlaysVisible ? V.pri : V.onpri,
+              border: `1px solid ${V.pri}`,
+              borderRadius: V.rs,
+              fontSize: '10px',
+              fontWeight: 700,
+            }}
+          >
+            <Icon name={overlaysVisible ? 'eye-off' : 'eye'} size={13} />
+            <span>{overlaysVisible ? 'HIDE OVERLAYS (H)' : 'SHOW OVERLAYS (H)'}</span>
+          </TouchTarget>
+        </FocusRing>
       </div>
     </div>
   );
