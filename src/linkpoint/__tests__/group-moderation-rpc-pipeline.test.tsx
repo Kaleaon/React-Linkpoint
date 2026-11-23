@@ -518,6 +518,263 @@ describe('Group Moderation RPC Protocol Pipeline & In-Client UI Controls', () =>
       await unmount(mounted);
     });
 
+    it('mounts inline CrystalLoader in InviteMemberModal during pending submission and blocks concurrent submits', async () => {
+      let resolveInvite!: (value: Awaited<ReturnType<typeof app.inviteGroupMember>>) => void;
+      const inviteSpy = vi.spyOn(app, 'inviteGroupMember').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveInvite = resolve;
+          }),
+      );
+      const onInviteSuccess = vi.fn();
+      const onClose = vi.fn();
+
+      const mounted = await mountScreen(() => (
+        <InviteMemberModal
+          isOpen={true}
+          onClose={onClose}
+          groupId="11111111-1111-1111-1111-111111111111"
+          groupName="Space Explorers"
+          roles={[{ id: 'role-1', name: 'Scout' }]}
+          onInviteSuccess={onInviteSuccess}
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      const avatarInput = mounted.host.querySelector('#invite-avatar-id') as HTMLInputElement;
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setter.call(avatarInput, '22222222-2222-2222-2222-222222222222');
+        avatarInput.dispatchEvent(new Event('input', { bubbles: true }));
+        avatarInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await flush();
+
+      const submitBtn = mounted.host.querySelector('button[type="submit"]') as HTMLButtonElement;
+      const cancelBtn = buttonByText(mounted.host, /^Cancel$/i) as HTMLButtonElement;
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(submitBtn.disabled).toBe(false);
+
+      const form = mounted.host.querySelector('form')!;
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+      await flush();
+
+      const loader = submitBtn.querySelector('[data-testid="crystal-loader"]');
+      expect(loader).not.toBeNull();
+      expect(loader?.getAttribute('data-variant')).toBe('inline');
+      expect(submitBtn.textContent).toContain('Sending…');
+      expect(submitBtn.disabled).toBe(true);
+      expect(cancelBtn.disabled).toBe(true);
+      expect(inviteSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+      expect(inviteSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveInvite({
+          success: true,
+          groupId: '11111111-1111-1111-1111-111111111111',
+          avatarId: '22222222-2222-2222-2222-222222222222',
+          roleId: '',
+        });
+      });
+      await flush();
+
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(submitBtn.textContent).toContain('Send Invite');
+      expect(onInviteSuccess).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      await unmount(mounted);
+    });
+
+    it('replaces static icon with inline CrystalLoader in EjectConfirmModal during pending ejection and blocks double taps', async () => {
+      let resolveEject!: (value: Awaited<ReturnType<typeof app.ejectGroupMember>>) => void;
+      const ejectSpy = vi.spyOn(app, 'ejectGroupMember').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveEject = resolve;
+          }),
+      );
+      const onEjectSuccess = vi.fn();
+      const onClose = vi.fn();
+      const member = {
+        id: '22222222-2222-2222-2222-222222222222',
+        name: 'Griefer Avatar',
+      };
+
+      const mounted = await mountScreen(() => (
+        <EjectConfirmModal
+          isOpen={true}
+          onClose={onClose}
+          groupId="11111111-1111-1111-1111-111111111111"
+          groupName="Builders Guild"
+          member={member}
+          onEjectSuccess={onEjectSuccess}
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      const confirmBtn = buttonByText(mounted.host, /Confirm Eject/i) as HTMLButtonElement;
+      const cancelBtn = buttonByText(mounted.host, /^Cancel$/i) as HTMLButtonElement;
+      expect(confirmBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(confirmBtn.querySelectorAll('svg').length).toBe(1);
+
+      await act(async () => {
+        confirmBtn.click();
+        confirmBtn.click();
+      });
+      await flush();
+
+      const loader = confirmBtn.querySelector('[data-testid="crystal-loader"]');
+      expect(loader).not.toBeNull();
+      expect(loader?.getAttribute('data-variant')).toBe('inline');
+      // Static user-x icon is replaced, leaving only the CrystalLoader SVG inside the button
+      expect(confirmBtn.querySelectorAll('svg').length).toBe(1);
+      expect(confirmBtn.textContent).toContain('Ejecting…');
+      expect(confirmBtn.disabled).toBe(true);
+      expect(cancelBtn.disabled).toBe(true);
+      expect(ejectSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveEject({
+          success: true,
+          groupId: '11111111-1111-1111-1111-111111111111',
+          memberId: member.id,
+        });
+      });
+      await flush();
+
+      expect(confirmBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(confirmBtn.textContent).toContain('Confirm Eject');
+      expect(onEjectSuccess).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      await unmount(mounted);
+    });
+
+    it('mounts inline CrystalLoader in EditMemberRolesModal during pending role updates and blocks concurrent saves', async () => {
+      let resolveModify!: (value: Awaited<ReturnType<typeof app.modifyGroupRole>>) => void;
+      const modifyRoleSpy = vi.spyOn(app, 'modifyGroupRole').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveModify = resolve;
+          }),
+      );
+      const onRolesSuccess = vi.fn();
+      const onClose = vi.fn();
+      const member = {
+        id: '22222222-2222-2222-2222-222222222222',
+        name: 'Cadet Avatar',
+        roles: ['role-everyone'],
+      };
+      const roles = [
+        { id: 'role-everyone', name: 'Everyone' },
+        { id: 'role-officer', name: 'Officer' },
+      ];
+
+      const mounted = await mountScreen(() => (
+        <EditMemberRolesModal
+          isOpen={true}
+          onClose={onClose}
+          groupId="11111111-1111-1111-1111-111111111111"
+          groupName="Fleet Command"
+          member={member}
+          roles={roles}
+          onRolesSuccess={onRolesSuccess}
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      const checkboxes = mounted.host.querySelectorAll('input[type="checkbox"]');
+      await click(checkboxes[1]);
+      await flush();
+
+      const saveBtn = buttonByText(mounted.host, /Save Roles/i) as HTMLButtonElement;
+      const cancelBtn = buttonByText(mounted.host, /^Cancel$/i) as HTMLButtonElement;
+      expect(saveBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(saveBtn.disabled).toBe(false);
+
+      await act(async () => {
+        saveBtn.click();
+        saveBtn.click();
+      });
+      await flush();
+
+      const loader = saveBtn.querySelector('[data-testid="crystal-loader"]');
+      expect(loader).not.toBeNull();
+      expect(loader?.getAttribute('data-variant')).toBe('inline');
+      expect(saveBtn.textContent).toContain('Saving…');
+      expect(saveBtn.disabled).toBe(true);
+      expect(cancelBtn.disabled).toBe(true);
+      expect(modifyRoleSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveModify({
+          success: true,
+          groupId: '11111111-1111-1111-1111-111111111111',
+          roleId: 'role-officer',
+          memberId: member.id,
+          change: 0,
+        });
+      });
+      await flush();
+
+      expect(saveBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(saveBtn.textContent).toContain('Save Roles');
+      expect(onRolesSuccess).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+
+      await unmount(mounted);
+    });
+
+    it('unmounts CrystalLoader cleanly and restores interactive state when a moderation submission rejects', async () => {
+      vi.spyOn(app, 'ejectGroupMember').mockRejectedValueOnce(new Error('Circuit not connected'));
+      const onClose = vi.fn();
+      const member = {
+        id: '22222222-2222-2222-2222-222222222222',
+        name: 'Griefer Avatar',
+      };
+
+      const mounted = await mountScreen(() => (
+        <EjectConfirmModal
+          isOpen={true}
+          onClose={onClose}
+          groupId="11111111-1111-1111-1111-111111111111"
+          groupName="Builders Guild"
+          member={member}
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      const confirmBtn = buttonByText(mounted.host, /Confirm Eject/i) as HTMLButtonElement;
+      await click(confirmBtn);
+      await flush();
+
+      expect(confirmBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(confirmBtn.disabled).toBe(false);
+      expect(confirmBtn.textContent).toContain('Confirm Eject');
+      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toMatch(
+        /Simulator connection unavailable/,
+      );
+      expect(onClose).not.toHaveBeenCalled();
+
+      await unmount(mounted);
+    });
+
     it('GroupsScreen shows OFFICER ACCESS and INVITE button when agent has invite powers, and hides for read-only member', async () => {
       const groupId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
       const myAgentId = '11111111-1111-1111-1111-111111111111';
@@ -573,6 +830,47 @@ describe('Group Moderation RPC Protocol Pipeline & In-Client UI Controls', () =>
       ) as HTMLButtonElement;
       expect(otherEjectBtn).not.toBeNull();
       expect(otherEjectBtn?.disabled).toBe(false);
+
+      await unmount(mounted);
+    });
+
+    it('GroupsScreen renders store updates from loadGroupDetails without triggering an infinite loadGroupDetails loop', async () => {
+      const groupId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+      app.groups.replaceGroups([{ id: groupId, name: 'Loop Guard Guild' }]);
+      vi.spyOn(app, 'loadGroups').mockResolvedValue(app.groups.getGroups());
+
+      const loadDetailsSpy = vi
+        .spyOn(app, 'loadGroupDetails')
+        .mockImplementation(async (id, section) => {
+          if (section === 'members') {
+            const nextMembers = [{ id: '33333333-3333-3333-3333-333333333333', name: 'Ada' }];
+            app.groups.replaceMembers(id, nextMembers);
+            return nextMembers;
+          }
+          if (section === 'roles') {
+            const nextRoles = [{ id: 'role-architect', name: 'Architect', title: 'Chief Builder' }];
+            app.groups.replaceRoles(id, nextRoles);
+            return nextRoles;
+          }
+          return {};
+        });
+
+      const mounted = await mountScreen(GroupsScreen);
+      await flush();
+
+      await click(buttonByText(mounted.host, /MEMBERS/i));
+      await flush();
+
+      const memberCalls = loadDetailsSpy.mock.calls.filter(([, sec]) => sec === 'members');
+      expect(memberCalls.length).toBe(1);
+      expect(mounted.host.textContent).toContain('Ada');
+
+      await click(buttonByText(mounted.host, /ROLES/i));
+      await flush();
+
+      const roleCalls = loadDetailsSpy.mock.calls.filter(([, sec]) => sec === 'roles');
+      expect(roleCalls.length).toBe(1);
+      expect(mounted.host.textContent).toContain('Architect');
 
       await unmount(mounted);
     });

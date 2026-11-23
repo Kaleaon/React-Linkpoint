@@ -164,7 +164,6 @@ export function useAppState() {
     Inventory: true,
     Map: true,
     Settings: false,
-    AO: false,
     Notecard: false,
   });
   const [notecardItem, setNotecardItem] = useState(null);
@@ -1103,9 +1102,10 @@ export function useAppState() {
   const cPress = useCallback(
     (k) => {
       const b = CBTN[k];
+      if (!b) return;
       if (k === 'ao') {
-        if (navMode() === 'floaters') flToggle('AO');
-        else setScreen('AO');
+        setCReason(b.label + ' — NOT AVAILABLE IN THIS VIEWER YET');
+        notify('Animation Overrider is not available yet.');
         return;
       }
       if (b.nav) {
@@ -1116,7 +1116,7 @@ export function useAppState() {
       }
       setCReason(b.label + ' — NOT AVAILABLE IN THIS VIEWER YET');
     },
-    [navMode, flToggle, flFocus, setScreen],
+    [navMode, flFocus, setScreen, notify],
   );
 
   // ---- console dock hold-to-edit / radar long-press ----------------------

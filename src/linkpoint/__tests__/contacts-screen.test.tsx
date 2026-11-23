@@ -4,6 +4,7 @@ import { act } from 'react';
 import ContactsScreen from '../../screens/ContactsScreen.jsx';
 import ContactAvatar from '../../components/ContactAvatar.jsx';
 import { app } from '../app';
+import { slBridge } from '../sl-bridge';
 import {
   buttonByText,
   click,
@@ -142,12 +143,13 @@ describe('Contacts screen', () => {
     await new Promise((r) => setTimeout(r, 350));
     expect(app.contacts.get(friends[0].id)!.note).toBe('met at the market');
 
-    await click(buttonByText(mounted.host, 'REMOVE CONTACT'));
+    await click(buttonByText(mounted.host, 'REMOVE FRIEND'));
     expect(app.contacts.has(friends[0].id)).toBe(true); // asked first, not removed yet
     await click(buttonByText(mounted.host, 'KEEP'));
-    await click(buttonByText(mounted.host, 'REMOVE CONTACT'));
-    await click(buttonByText(mounted.host, 'REMOVE'));
+    await click(buttonByText(mounted.host, 'REMOVE FRIEND'));
+    await click(buttonByText(mounted.host, 'REMOVE FROM ADDRESS BOOK ONLY'));
     expect(app.contacts.has(friends[0].id)).toBe(false);
+    expect(app.friends.hasFriend(friends[0].id)).toBe(true);
   });
 
   it('refuses an unsupported photo file with a message and changes nothing', async () => {
@@ -180,6 +182,79 @@ describe('Contacts screen', () => {
     await click(buttonByText(mounted.host, 'USE PROFILE PICTURE'));
     expect(fetchPhoto).toHaveBeenCalledWith('Pat Resident');
     expect(mounted.host.textContent).toContain('has no public profile picture');
+  });
+
+  it('offers a teleport via slBridge.offerTeleport when logged in and notifies on success', async () => {
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    const offerSpy = vi
+      .spyOn(slBridge, 'offerTeleport')
+      .mockResolvedValue({ offered: friends[0].id });
+    await seedFriends();
+    mounted = await mountScreen(ContactsScreen);
+    await click(row(mounted.host, 'Pat Resident'));
+
+    const offerBtn = buttonByText(mounted.host, 'OFFER TELEPORT');
+    expect(offerBtn).toBeDefined();
+    expect(offerBtn?.disabled).toBe(false);
+
+    await click(offerBtn);
+    await flush();
+
+    expect(offerSpy).toHaveBeenCalledWith({ id: friends[0].id });
+    expect(mounted.ctx.current.state.toast).toBe('Teleport offered to Pat Resident');
+  });
+
+  it('notifies an error when slBridge.offerTeleport rejects in ContactsScreen', async () => {
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    const offerSpy = vi
+      .spyOn(slBridge, 'offerTeleport')
+      .mockRejectedValue(new Error('Teleport lure blocked'));
+    await seedFriends();
+    mounted = await mountScreen(ContactsScreen);
+    await click(row(mounted.host, 'Pat Resident'));
+
+    await click(buttonByText(mounted.host, 'OFFER TELEPORT'));
+    await flush();
+
+    expect(offerSpy).toHaveBeenCalledWith({ id: friends[0].id });
+    expect(mounted.ctx.current.state.toast).toBe('Teleport lure blocked');
+  });
+
+  it('disables OFFER TELEPORT when logged out or when contact ID is missing', async () => {
+    const isLoggedInSpy = vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(false);
+    const offerSpy = vi.spyOn(slBridge, 'offerTeleport');
+    await seedFriends();
+    mounted = await mountScreen(ContactsScreen);
+    await click(row(mounted.host, 'Pat Resident'));
+
+    const loggedOutBtn = buttonByText(mounted.host, 'OFFER TELEPORT');
+    expect(loggedOutBtn).toBeDefined();
+    expect(loggedOutBtn?.disabled).toBe(true);
+    await click(loggedOutBtn);
+    expect(offerSpy).not.toHaveBeenCalled();
+
+    isLoggedInSpy.mockReturnValue(true);
+    vi.spyOn(app.contacts, 'list').mockReturnValue([
+      {
+        id: '',
+        name: 'No Id Contact',
+        note: '',
+        photo: null,
+        links: [],
+        googleResourceName: null,
+        savedAt: 0,
+        updatedAt: 0,
+      },
+    ]);
+    await unmount(mounted);
+    mounted = await mountScreen(ContactsScreen);
+    await click(row(mounted.host, 'No Id Contact'));
+
+    const missingIdBtn = buttonByText(mounted.host, 'OFFER TELEPORT');
+    expect(missingIdBtn).toBeDefined();
+    expect(missingIdBtn?.disabled).toBe(true);
+    await click(missingIdBtn);
+    expect(offerSpy).not.toHaveBeenCalled();
   });
 
   it('exports a backup of what is saved', async () => {

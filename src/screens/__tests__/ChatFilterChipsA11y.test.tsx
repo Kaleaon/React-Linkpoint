@@ -40,7 +40,7 @@ const click = async (el: Element | null) => {
   });
 };
 
-describe('Chat recipient filter chips accessibility (WCAG 2.2 SC 4.1.2, 2.5.8, 2.4.7)', () => {
+describe('Chat recipient filter chips accessibility (WCAG 2.2 SC 1.4.1, 4.1.2, 2.5.8, 2.4.7)', () => {
   const origGetFriends = app.friends.getFriends;
   const origGetIMThreads = app.chat.getIMThreads;
 
@@ -91,6 +91,28 @@ describe('Chat recipient filter chips accessibility (WCAG 2.2 SC 4.1.2, 2.5.8, 2
     expect(aliceBtn?.getAttribute('aria-pressed')).toBe('false');
     expect(bobBtn?.getAttribute('aria-pressed')).toBe('false');
     expect(charlieBtn?.getAttribute('aria-pressed')).toBe('false');
+
+    // Screen reader presence status announcements (WCAG 2.2 SC 4.1.2 / Technique G14)
+    expect(aliceBtn?.textContent).toBe('Alice Resident (online)');
+    expect(bobBtn?.textContent).toBe('Bob Resident (offline)');
+    expect(charlieBtn?.textContent).toBe('Charlie Unlisted');
+    expect(aliceBtn?.querySelector('.sr-only')?.textContent?.trim()).toBe('(online)');
+    expect(bobBtn?.querySelector('.sr-only')?.textContent?.trim()).toBe('(offline)');
+    expect(charlieBtn?.querySelector('.sr-only')).toBeNull();
+    expect(allBtn?.querySelector('.sr-only')).toBeNull();
+
+    // Presence indicator shape differentiation & decorative hiding (WCAG 2.2 SC 1.4.1 / Technique G182)
+    const aliceDot = aliceBtn?.querySelector('span[aria-hidden="true"]') as HTMLElement | null;
+    const bobDot = bobBtn?.querySelector('span[aria-hidden="true"]') as HTMLElement | null;
+    expect(aliceDot).not.toBeNull();
+    expect(bobDot).not.toBeNull();
+    expect(aliceDot?.style.borderRadius).toBe('50%');
+    expect(aliceDot?.style.background).toBe('rgb(34, 197, 94)');
+    expect(bobDot?.style.borderRadius).toBe('50%');
+    expect(bobDot?.style.background).toBe('transparent');
+    expect(bobDot?.style.border).toContain('solid');
+    expect(bobDot?.style.boxSizing).toBe('border-box');
+    expect(charlieBtn?.querySelector('span[aria-hidden="true"]')).toBeNull();
   });
 
   it('updates aria-pressed correctly when clicking friend filter buttons', async () => {
@@ -186,5 +208,31 @@ describe('Chat recipient filter chips accessibility (WCAG 2.2 SC 4.1.2, 2.5.8, 2
     expect(container?.style.paddingTop).toBe('2px');
     expect(container?.style.paddingBottom).toBe('2px');
     expect(container?.style.overflowX).toBe('auto');
+  });
+
+  it('defaults safely to offline ring shape and (offline) screen reader text when onlineStatus is missing or undefined', async () => {
+    app.friends.getFriends = () =>
+      [
+        { id: 'f-missing', name: 'Dana Unknown' },
+        { id: 'f-undef', name: 'Evan Undefined', onlineStatus: undefined },
+      ] as unknown as ReturnType<typeof origGetFriends>;
+
+    const host = await mount(<ChatHarness />);
+
+    const buttons = Array.from(host.querySelectorAll('button'));
+    const danaBtn = buttons.find((b) => b.textContent?.includes('Dana Unknown'));
+    const evanBtn = buttons.find((b) => b.textContent?.includes('Evan Undefined'));
+
+    expect(danaBtn?.textContent).toBe('Dana Unknown (offline)');
+    expect(evanBtn?.textContent).toBe('Evan Undefined (offline)');
+    expect(danaBtn?.querySelector('.sr-only')?.textContent?.trim()).toBe('(offline)');
+    expect(evanBtn?.querySelector('.sr-only')?.textContent?.trim()).toBe('(offline)');
+
+    const danaDot = danaBtn?.querySelector('span[aria-hidden="true"]') as HTMLElement | null;
+    const evanDot = evanBtn?.querySelector('span[aria-hidden="true"]') as HTMLElement | null;
+    expect(danaDot?.style.background).toBe('transparent');
+    expect(danaDot?.style.border).toContain('solid');
+    expect(evanDot?.style.background).toBe('transparent');
+    expect(evanDot?.style.border).toContain('solid');
   });
 });
