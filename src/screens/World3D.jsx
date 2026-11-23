@@ -8,6 +8,8 @@ import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
+import SecondaryViewLoader from '../components/SecondaryViewLoader.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
@@ -24,6 +26,7 @@ export default function World3D({ desktopBackdrop = false }) {
   const sectionRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
   const [position, setPosition] = useState([0, 0, 0]);
   const [objectCount, setObjectCount] = useState(app.world.objects.length);
   const [cameraPreset, setCameraPreset] = useState('rear');
@@ -295,12 +298,15 @@ export default function World3D({ desktopBackdrop = false }) {
   };
 
   const handleRefreshScene = async () => {
+    setIsSyncing(true);
     try {
       await app.world.retryFailedAssets();
       setObjectCount(app.world.objects.length);
       refresh();
     } catch (err) {
       console.warn('Refresh scene error:', err);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -618,28 +624,31 @@ export default function World3D({ desktopBackdrop = false }) {
                     : 'Tap an object to inspect it'}
                 </div>
                 <div style={{ marginTop: 4 }}>
-                  <button
+                  <SyncActionButton
                     type="button"
                     onClick={handleRefreshScene}
+                    loading={isSyncing}
                     disabled={!app.auth.isLoggedIn()}
+                    iconName="rotate-cw"
+                    size={14}
+                    idleText="SYNC SCENE"
+                    loadingText="SYNCING…"
+                    title="Synchronize scene assets"
                     style={{
-                      padding: '2px 8px',
+                      padding: '4px 10px',
                       fontSize: '10px',
+                      fontWeight: 700,
                       background: V.pri,
                       color: V.onpri,
                       border: 0,
                       borderRadius: V.rs,
-                      cursor: 'pointer',
                     }}
-                  >
-                    SYNC SCENE
-                  </button>
+                  />
                 </div>
                 {!ready && !error ? (
-                  <>
-                    <br />
-                    Starting renderer…
-                  </>
+                  <div style={{ marginTop: 4 }}>
+                    <SecondaryViewLoader layout="inline" size={14} label="Starting renderer…" />
+                  </div>
                 ) : null}
                 {error ? (
                   <>
