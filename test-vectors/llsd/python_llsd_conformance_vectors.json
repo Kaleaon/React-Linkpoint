@@ -1,0 +1,560 @@
+{
+  "version": "1.0.0",
+  "upstream_source": "https://github.com/secondlife/python-llsd",
+  "upstream_license": "MIT",
+  "description": "Canonical LLSD XML, Notation, and Binary (<?llsd/binary?>) conformance and malformed-input test vectors modeled on secondlife/python-llsd.",
+  "conformance_vectors": [
+    {
+      "id": "undef_self_closing",
+      "category": "undef",
+      "description": "Self-closing <undef/> tag, '!' notation token, and '!' binary tag with <?llsd/binary?> header.",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><llsd><undef/></llsd>",
+      "notation": "<?llsd/notation?>\n!",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a21",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "undef"
+      }
+    },
+    {
+      "id": "undef_empty_llsd_root",
+      "category": "undef",
+      "description": "Empty <llsd/> document root yields undef (null) per python-llsd.",
+      "xml": "<llsd/>",
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "undef"
+      }
+    },
+    {
+      "id": "boolean_true_literal",
+      "category": "boolean",
+      "description": "Boolean true across <boolean>true</boolean>, notation 'true', and binary '1'.",
+      "xml": "<llsd><boolean>true</boolean></llsd>",
+      "notation": "true",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a31",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "boolean",
+        "value": true
+      }
+    },
+    {
+      "id": "boolean_false_numeric_and_empty",
+      "category": "boolean",
+      "description": "Empty <boolean/> tag, notation 'f', and headerless binary '0' decode to false.",
+      "xml": "<llsd><boolean/></llsd>",
+      "notation": "f",
+      "binary_hex": "30",
+      "binary_has_header": false,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "boolean",
+        "value": false
+      }
+    },
+    {
+      "id": "integer_zero_empty_tag",
+      "category": "integer",
+      "description": "Empty <integer/> tag defaults to 0, matching notation i0 and 32-bit big-endian binary.",
+      "xml": "<llsd><integer/></llsd>",
+      "notation": "i0",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a6900000000",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "integer",
+        "value": 0
+      }
+    },
+    {
+      "id": "integer_positive_42",
+      "category": "integer",
+      "description": "Positive 32-bit signed integer 42 across XML, notation, and binary.",
+      "xml": "<llsd><integer>42</integer></llsd>",
+      "notation": "i42",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a690000002a",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "integer",
+        "value": 42
+      }
+    },
+    {
+      "id": "integer_max_int32",
+      "category": "integer",
+      "description": "Maximum signed 32-bit integer (2147483647 / 0x7fffffff).",
+      "xml": "<llsd><integer>2147483647</integer></llsd>",
+      "notation": "i2147483647",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a697fffffff",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "integer",
+        "value": 2147483647
+      }
+    },
+    {
+      "id": "integer_min_int32",
+      "category": "integer",
+      "description": "Minimum signed 32-bit integer (-2147483648 / -0x80000000).",
+      "xml": "<llsd><integer>-2147483648</integer></llsd>",
+      "notation": "i-2147483648",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a6980000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "integer",
+        "value": -2147483648
+      }
+    },
+    {
+      "id": "real_empty_zero",
+      "category": "real",
+      "description": "Empty <real/> tag defaults to 0.0.",
+      "xml": "<llsd><real/></llsd>",
+      "notation": "r0.0",
+      "binary_hex": "720000000000000000",
+      "binary_has_header": false,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "real",
+        "value": 0.0
+      }
+    },
+    {
+      "id": "real_pi_double_precision",
+      "category": "real",
+      "description": "IEEE-754 double precision pi across XML, notation, and big-endian binary.",
+      "xml": "<llsd><real>3.141592653589793</real></llsd>",
+      "notation": "r3.141592653589793",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a72400921fb54442d18",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "real",
+        "value": 3.141592653589793
+      }
+    },
+    {
+      "id": "real_negative_zero",
+      "category": "real",
+      "description": "IEEE-754 negative zero (-0.0) sign bit preservation.",
+      "xml": "<llsd><real>-0.0</real></llsd>",
+      "notation": "r-0.0",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a728000000000000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "real",
+        "special": "-0.0"
+      }
+    },
+    {
+      "id": "real_positive_infinity",
+      "category": "real",
+      "description": "IEEE-754 positive infinity ('inf') in XML, notation, and binary.",
+      "xml": "<llsd><real>inf</real></llsd>",
+      "notation": "rinf",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a727ff0000000000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "real",
+        "special": "inf"
+      }
+    },
+    {
+      "id": "real_negative_infinity",
+      "category": "real",
+      "description": "IEEE-754 negative infinity ('-inf') in XML, notation, and binary.",
+      "xml": "<llsd><real>-inf</real></llsd>",
+      "notation": "r-inf",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a72fff0000000000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "real",
+        "special": "-inf"
+      }
+    },
+    {
+      "id": "real_nan",
+      "category": "real",
+      "description": "IEEE-754 quiet NaN ('nan') in XML, notation, and binary.",
+      "xml": "<llsd><real>nan</real></llsd>",
+      "notation": "rnan",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a727ff8000000000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "real",
+        "special": "nan"
+      }
+    },
+    {
+      "id": "string_empty",
+      "category": "string",
+      "description": "Empty string across <string/>, '' notation, and zero-length binary string.",
+      "xml": "<llsd><string/></llsd>",
+      "notation": "''",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a7300000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "string",
+        "value": ""
+      }
+    },
+    {
+      "id": "string_whitespace_preservation",
+      "category": "string",
+      "description": "Leading, trailing, and newline whitespace inside <string> must never be trimmed.",
+      "xml": "<llsd><string>  leading and trailing\n\tspaces  </string></llsd>",
+      "notation": "'  leading and trailing\\n\\tspaces  '",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a730000002020206c656164696e6720616e6420747261696c696e670a097370616365732020",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "string",
+        "value": "  leading and trailing\n\tspaces  "
+      }
+    },
+    {
+      "id": "string_xml_entities_and_escapes",
+      "category": "string",
+      "description": "XML predefined entity references (&amp;, &lt;, &gt;, &quot;, &apos;) and notation backslash escapes.",
+      "xml": "<llsd><string>LSL &amp; SLua &lt;vector&gt; &quot;quoted&quot; &apos;single&apos;</string></llsd>",
+      "notation": "\"LSL & SLua <vector> \\\"quoted\\\" 'single'\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a73000000254c534c202620534c7561203c766563746f723e202271756f74656422202773696e676c6527",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "string",
+        "value": "LSL & SLua <vector> \"quoted\" 'single'"
+      }
+    },
+    {
+      "id": "string_sized_utf8_multibyte",
+      "category": "string",
+      "description": "Multi-byte UTF-8 string using byte-counted notation literal s(byte_len)\"...\".",
+      "xml": "<llsd><string>Hippos λ Second Life 🌐</string></llsd>",
+      "notation": "s(26)\"Hippos λ Second Life 🌐\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a730000001a486970706f7320cebb205365636f6e64204c69666520f09f8c90",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "string",
+        "value": "Hippos λ Second Life 🌐"
+      }
+    },
+    {
+      "id": "uuid_nil_empty_tag",
+      "category": "uuid",
+      "description": "Empty <uuid/> tag normalizes to canonical nil UUID 00000000-0000-0000-0000-000000000000.",
+      "xml": "<llsd><uuid/></llsd>",
+      "notation": "u00000000-0000-0000-0000-000000000000",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a7500000000000000000000000000000000",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "uuid",
+        "value": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    {
+      "id": "uuid_canonical_lowercase",
+      "category": "uuid",
+      "description": "Mixed-case UUID normalizes to canonical lowercase 8-4-4-4-12 string and 16-octet binary.",
+      "xml": "<llsd><uuid>D7F4AECA-88F1-4F73-B712-1D44876B26F5</uuid></llsd>",
+      "notation": "ud7f4aeca-88f1-4f73-b712-1d44876b26f5",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a75d7f4aeca88f14f73b7121d44876b26f5",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "uuid",
+        "value": "d7f4aeca-88f1-4f73-b712-1d44876b26f5"
+      }
+    },
+    {
+      "id": "date_unix_epoch_empty",
+      "category": "date",
+      "description": "Empty <date/> defaults to Unix epoch 1970-01-01T00:00:00.000Z.",
+      "xml": "<llsd><date/></llsd>",
+      "notation": "d\"1970-01-01T00:00:00Z\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a640000000000000000",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "date",
+        "epoch_ms": 0
+      }
+    },
+    {
+      "id": "date_iso8601_fractional_utc",
+      "category": "date",
+      "description": "ISO-8601 UTC timestamp with millisecond precision (2024-06-15T18:30:45.250Z).",
+      "xml": "<llsd><date>2024-06-15T18:30:45.250Z</date></llsd>",
+      "notation": "d\"2024-06-15T18:30:45.250Z\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a6441d99b7775500000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "date",
+        "epoch_ms": 1718476245250
+      }
+    },
+    {
+      "id": "uri_capability_https",
+      "category": "uri",
+      "description": "HTTPS simulator capability seed URI.",
+      "xml": "<llsd><uri>https://simhost-01.agni.lindenlab.com:12043/cap/00000000-0000-0000-0000-000000000001</uri></llsd>",
+      "notation": "l\"https://simhost-01.agni.lindenlab.com:12043/cap/00000000-0000-0000-0000-000000000001\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a6c0000005468747470733a2f2f73696d686f73742d30312e61676e692e6c696e64656e6c61622e636f6d3a31323034332f6361702f30303030303030302d303030302d303030302d303030302d303030303030303030303031",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "uri",
+        "value": "https://simhost-01.agni.lindenlab.com:12043/cap/00000000-0000-0000-0000-000000000001"
+      }
+    },
+    {
+      "id": "binary_empty",
+      "category": "binary",
+      "description": "Empty <binary/> tag, b64\"\", and 0-byte binary frame.",
+      "xml": "<llsd><binary/></llsd>",
+      "notation": "b64\"\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a6200000000",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "binary",
+        "hex": ""
+      }
+    },
+    {
+      "id": "binary_base64_and_raw_bytes",
+      "category": "binary",
+      "description": "Arbitrary non-UTF8 octets (0x00, 0xff, 0x10, 0x80, 0x7f) in base64 XML/notation and binary.",
+      "xml": "<llsd><binary encoding=\"base64\">AP8QgH8=</binary></llsd>",
+      "notation": "b64\"AP8QgH8=\"",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a620000000500ff10807f",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "binary",
+        "hex": "00ff10807f"
+      }
+    },
+    {
+      "id": "binary_base16_encoding",
+      "category": "binary",
+      "description": "Hexadecimal <binary encoding=\"base16\"> and b16\"...\" notation literal.",
+      "xml": "<llsd><binary encoding=\"base16\">deadbeefcafe</binary></llsd>",
+      "notation": "b16\"DEADBEEFCAFE\"",
+      "binary_hex": "6200000006deadbeefcafe",
+      "binary_has_header": false,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "binary",
+        "hex": "deadbeefcafe"
+      }
+    },
+    {
+      "id": "array_empty",
+      "category": "array",
+      "description": "Empty LLSD array across XML, notation [], and binary '[' + U32(0) + ']'.",
+      "xml": "<llsd><array/></llsd>",
+      "notation": "[]",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a5b000000005d",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "array",
+        "items": []
+      }
+    },
+    {
+      "id": "array_heterogeneous_scalars",
+      "category": "array",
+      "description": "Heterogeneous LLSD array mixing undef, boolean, integer, real, string, uuid, and binary.",
+      "xml": "<llsd><array><undef/><boolean>1</boolean><integer>-7</integer><real>2.5</real><string>alpha</string><uuid>89556747-24cb-43ed-920b-47caed15465f</uuid><binary>AQID</binary></array></llsd>",
+      "notation": "[!,true,i-7,r2.5,'alpha',u89556747-24cb-43ed-920b-47caed15465f,b64\"AQID\"]",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a5b00000007213169fffffff97240040000000000007300000005616c706861758955674724cb43ed920b47caed15465f62000000030102035d",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "array",
+        "items": [
+          {
+            "llsd_type": "undef"
+          },
+          {
+            "llsd_type": "boolean",
+            "value": true
+          },
+          {
+            "llsd_type": "integer",
+            "value": -7
+          },
+          {
+            "llsd_type": "real",
+            "value": 2.5
+          },
+          {
+            "llsd_type": "string",
+            "value": "alpha"
+          },
+          {
+            "llsd_type": "uuid",
+            "value": "89556747-24cb-43ed-920b-47caed15465f"
+          },
+          {
+            "llsd_type": "binary",
+            "hex": "010203"
+          }
+        ]
+      }
+    },
+    {
+      "id": "map_empty",
+      "category": "map",
+      "description": "Empty LLSD map across XML, notation {}, and binary '{' + U32(0) + '}'.",
+      "xml": "<llsd><map/></llsd>",
+      "notation": "{}",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a7b000000007d",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "map",
+        "entries": {}
+      }
+    },
+    {
+      "id": "map_xml_escaped_keys",
+      "category": "map",
+      "description": "Map keys containing XML entities, spaces, and punctuation preserve exact characters.",
+      "xml": "<llsd><map><key>key &amp; &lt;1&gt;</key><integer>10</integer><key>  spaced key  </key><string>ok</string></map></llsd>",
+      "notation": "{'key & <1>':i10,'  spaced key  ':'ok'}",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a7b000000026b000000096b65792026203c313e690000000a6b0000000e2020737061636564206b6579202073000000026f6b7d",
+      "binary_has_header": true,
+      "roundtrip_xml": true,
+      "expected": {
+        "llsd_type": "map",
+        "entries": {
+          "key & <1>": {
+            "llsd_type": "integer",
+            "value": 10
+          },
+          "  spaced key  ": {
+            "llsd_type": "string",
+            "value": "ok"
+          }
+        }
+      }
+    },
+    {
+      "id": "map_nested_event_queue_envelope",
+      "category": "map",
+      "description": "Nested EventQueueGet-style LLSD map containing ack integer and events array of maps.",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><llsd><map><key>id</key><integer>108</integer><key>events</key><array><map><key>message</key><string>ChatterBoxInvitation</string><key>body</key><map><key>session_id</key><uuid>3c115e51-04f4-523c-9fa6-98aff1034730</uuid><key>from_group</key><boolean>true</boolean><key>timestamp</key><date>2025-02-01T00:00:00Z</date></map></map></array></map></llsd>",
+      "notation": "<?llsd/notation?>\n{'id':i108,'events':[{'message':'ChatterBoxInvitation','body':{'session_id':u3c115e51-04f4-523c-9fa6-98aff1034730,'from_group':true,'timestamp':d\"2025-02-01T00:00:00Z\"}}]}",
+      "binary_hex": "3c3f6c6c73642f62696e6172793f3e0a7b000000026b000000026964690000006c6b000000066576656e74735b000000017b000000026b000000076d657373616765730000001443686174746572426f78496e7669746174696f6e6b00000004626f64797b000000036b0000000a73657373696f6e5f6964753c115e5104f4523c9fa698aff10347306b0000000a66726f6d5f67726f7570316b0000000974696d657374616d706441d9e759000000007d7d5d7d",
+      "binary_has_header": true,
+      "roundtrip_xml": false,
+      "expected": {
+        "llsd_type": "map",
+        "entries": {
+          "id": {
+            "llsd_type": "integer",
+            "value": 108
+          },
+          "events": {
+            "llsd_type": "array",
+            "items": [
+              {
+                "llsd_type": "map",
+                "entries": {
+                  "message": {
+                    "llsd_type": "string",
+                    "value": "ChatterBoxInvitation"
+                  },
+                  "body": {
+                    "llsd_type": "map",
+                    "entries": {
+                      "session_id": {
+                        "llsd_type": "uuid",
+                        "value": "3c115e51-04f4-523c-9fa6-98aff1034730"
+                      },
+                      "from_group": {
+                        "llsd_type": "boolean",
+                        "value": true
+                      },
+                      "timestamp": {
+                        "llsd_type": "date",
+                        "epoch_ms": 1738368000000
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "malformed_vectors": [
+    {
+      "id": "xml_missing_llsd_root",
+      "format": "xml",
+      "description": "Root element other than <llsd> must be rejected.",
+      "input": "<plist><integer>1</integer></plist>"
+    },
+    {
+      "id": "xml_unknown_element_tag",
+      "format": "xml",
+      "description": "Unrecognized LLSD element tag inside <llsd> must raise a parse error.",
+      "input": "<llsd><quaternion>0 0 0 1</quaternion></llsd>"
+    },
+    {
+      "id": "xml_invalid_integer_text",
+      "format": "xml",
+      "description": "Non-numeric text inside <integer> must be rejected.",
+      "input": "<llsd><integer>twelve</integer></llsd>"
+    },
+    {
+      "id": "xml_invalid_uuid_text",
+      "format": "xml",
+      "description": "Malformed UUID string inside <uuid> must be rejected.",
+      "input": "<llsd><uuid>not-a-valid-uuid</uuid></llsd>"
+    },
+    {
+      "id": "xml_dangling_map_key",
+      "format": "xml",
+      "description": "<map> containing a <key> with no corresponding value element must be rejected.",
+      "input": "<llsd><map><key>orphan</key></map></llsd>"
+    },
+    {
+      "id": "notation_unterminated_map",
+      "format": "notation",
+      "description": "Notation map missing closing '}' brace must be rejected.",
+      "input": "{'alpha':i1,'beta':i2"
+    },
+    {
+      "id": "notation_sized_string_length_mismatch",
+      "format": "notation",
+      "description": "Sized string s(10)\"abc\" with fewer bytes than declared must be rejected.",
+      "input": "s(10)\"abc\""
+    },
+    {
+      "id": "binary_truncated_string",
+      "format": "binary",
+      "description": "Binary string declaring 16 bytes with only 3 bytes remaining must be rejected.",
+      "input": "3c3f6c6c73642f62696e6172793f3e0a7300000010616263"
+    }
+  ]
+}

@@ -1,0 +1,203 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Second Life Master Message Template Conformance Vectors Schema",
+  "type": "object",
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "source_repository": { "type": "string" },
+    "source_file": { "type": "string" },
+    "frequency_prefixes": {
+      "type": "object",
+      "properties": {
+        "High": {
+          "type": "object",
+          "properties": {
+            "header_bytes": { "type": "integer", "const": 1 },
+            "prefix_hex": { "type": "string" }
+          },
+          "required": ["header_bytes", "prefix_hex"]
+        },
+        "Medium": {
+          "type": "object",
+          "properties": {
+            "header_bytes": { "type": "integer", "const": 2 },
+            "prefix_hex": { "type": "string" }
+          },
+          "required": ["header_bytes", "prefix_hex"]
+        },
+        "Low": {
+          "type": "object",
+          "properties": {
+            "header_bytes": { "type": "integer", "const": 4 },
+            "prefix_hex": { "type": "string" }
+          },
+          "required": ["header_bytes", "prefix_hex"]
+        },
+        "Fixed": {
+          "type": "object",
+          "properties": {
+            "header_bytes": { "type": "integer", "const": 4 },
+            "prefix_hex": { "type": "string" }
+          },
+          "required": ["header_bytes", "prefix_hex"]
+        }
+      },
+      "required": ["High", "Medium", "Low", "Fixed"]
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 50,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "ts_constant": { "type": "string", "minLength": 1 },
+          "kotlin_constant": { "type": "string", "minLength": 1 },
+          "frequency": {
+            "type": "string",
+            "enum": ["High", "Medium", "Low", "Fixed"]
+          },
+          "message_number": { "type": "integer", "minimum": 1 },
+          "wire_id": { "type": "integer", "minimum": 1 },
+          "wire_id_hex": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{2,8}$"
+          },
+          "wire_id_bytes_hex": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{2,8}$"
+          },
+          "trust": {
+            "type": "string",
+            "enum": ["Trusted", "NotTrusted"]
+          },
+          "encoding": {
+            "type": "string",
+            "enum": ["Unencoded", "Zerocoded"]
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["Deprecated", "UDPDeprecated", "UDPBlackListed"]
+            }
+          },
+          "viewer_outbound_eligible": { "type": "boolean" },
+          "used_in": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "quantity": {
+                  "type": "string",
+                  "enum": ["Single", "Variable", "Multiple"]
+                },
+                "count": { "type": ["integer", "null"] },
+                "fields": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "minLength": 1 },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "U8",
+                          "U16",
+                          "U32",
+                          "U64",
+                          "S8",
+                          "S16",
+                          "S32",
+                          "F32",
+                          "F64",
+                          "BOOL",
+                          "LLUUID",
+                          "LLVector3",
+                          "LLVector3d",
+                          "LLVector4",
+                          "LLQuaternion",
+                          "IPADDR",
+                          "IPPORT",
+                          "Variable 1",
+                          "Variable 2",
+                          "Fixed"
+                        ]
+                      },
+                      "size_bytes": { "type": ["integer", "null"] }
+                    },
+                    "required": ["name", "type", "size_bytes"]
+                  }
+                }
+              },
+              "required": ["name", "quantity", "count", "fields"]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "ts_constant",
+          "kotlin_constant",
+          "frequency",
+          "message_number",
+          "wire_id",
+          "wire_id_hex",
+          "wire_id_bytes_hex",
+          "trust",
+          "encoding",
+          "flags",
+          "viewer_outbound_eligible",
+          "used_in",
+          "blocks"
+        ]
+      }
+    },
+    "packet_framing_vectors": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "message_name": { "type": "string" },
+          "sequence": { "type": "integer" },
+          "flags": { "type": "integer" },
+          "wire_id": { "type": "integer" },
+          "body_hex": { "type": "string" },
+          "appended_acks": {
+            "type": "array",
+            "items": { "type": "integer" }
+          },
+          "expected_packet_hex": { "type": "string" }
+        },
+        "required": [
+          "name",
+          "message_name",
+          "sequence",
+          "flags",
+          "wire_id",
+          "body_hex",
+          "appended_acks",
+          "expected_packet_hex"
+        ]
+      }
+    }
+  },
+  "required": [
+    "version",
+    "description",
+    "source_repository",
+    "source_file",
+    "frequency_prefixes",
+    "messages",
+    "packet_framing_vectors"
+  ]
+}
