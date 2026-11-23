@@ -5,23 +5,26 @@ import { FMENU, FLOATERS } from '../theme/constants.js';
 import { app } from '../linkpoint/app.ts';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { deskKind } from '../theme/deskStyle.js';
-import Icon from './Icon.jsx';
+import { ensureMinContrast } from '../theme/contrast.ts';
+import FocusRing from './FocusRing.tsx';
 import ViewModeSwitcher from './ViewModeSwitcher.jsx';
 import { formatLatency, liveRegionName, formatSlt } from './menuStatus.js';
 
 /**
  * MenuBar component provides an accessible desktop menu bar with dropdowns.
  *
- * Complies with WCAG 2.2 Level A standards:
+ * Complies with WCAG 2.2 Level A & AA standards:
  * - WCAG 2.2 SC 2.1.1 Keyboard (https://www.w3.org/TR/WCAG22/#keyboard)
+ * - WCAG 2.2 SC 2.4.3 Focus Order (https://www.w3.org/TR/WCAG22/#focus-order)
+ * - WCAG 2.2 SC 2.4.7 Focus Visible (https://www.w3.org/TR/WCAG22/#focus-visible)
  * - WCAG 2.2 SC 4.1.2 Name, Role, Value (https://www.w3.org/TR/WCAG22/#name-role-value)
  * - WCAG 2.2 SC 1.3.1 Info and Relationships (https://www.w3.org/TR/WCAG22/#info-and-relationships)
- * - WCAG 2.2 SC 2.4.7 Focus Visible (https://www.w3.org/TR/WCAG22/#focus-visible)
  *
  * Applicable W3C Techniques:
  * - ARIA6: Using aria-label to provide labels for objects (https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA6)
  * - ARIA11: Using ARIA landmarks to identify regions of a page (https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA11)
  * - ARIA17: Using grouping roles to identify related controls (https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA17)
+ * - C15: Using CSS to change the presentation of a user interface component when it receives focus (https://www.w3.org/WAI/WCAG22/Techniques/css/C15)
  * - G202: Ensuring keyboard control for all functionality (https://www.w3.org/WAI/WCAG22/Techniques/general/G202)
  */
 export default function MenuBar() {
@@ -29,18 +32,41 @@ export default function MenuBar() {
   const { V, t, ink, isFloat } = useTheme();
   const topMenuRefs = useRef([]);
   const dropdownRefs = useRef({});
+  const pendingDropdownFocusRef = useRef(null);
+  const [activeTopIndex, setActiveTopIndex] = useState(0);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const [focusedItemKey, setFocusedItemKey] = useState(null);
+
+  useEffect(() => {
+    if (state.menu) {
+      const idx = FMENU.findIndex((m) => m.label === state.menu);
+      if (idx !== -1) {
+        setActiveTopIndex(idx);
+      }
+      setActiveItemIndex(0);
+      if (pendingDropdownFocusRef.current) {
+        const key = pendingDropdownFocusRef.current;
+        pendingDropdownFocusRef.current = null;
+        dropdownRefs.current[key]?.focus();
+      } else {
+        setFocusedItemKey(null);
+      }
+    } else {
+      pendingDropdownFocusRef.current = null;
+      setActiveItemIndex(0);
+      setFocusedItemKey(null);
+    }
+  }, [state.menu]);
 
   if (!isFloat) return null;
   const kind = deskKind(t);
+  const navBg = kind === 'metro' ? V.bg : V.surf;
 
   const handleMenuClick = async (menuLabel, itemLabel) => {
     actions.setMenu(null);
     if (itemLabel === 'World Map') {
       actions.flFocus('Map');
       actions.setScreen('Map');
-    } else if (itemLabel === 'Animation Overrider…' || itemLabel === 'Animation Overrider') {
-      actions.flFocus('AO');
-      actions.setScreen('AO');
     } else if (itemLabel === 'Cache Storage…') {
       actions.flFocus('Cache');
       actions.setScreen('Cache');
@@ -84,7 +110,7 @@ export default function MenuBar() {
         alignItems: 'stretch',
         height: '28px',
         padding: '0 8px',
-        background: kind === 'metro' ? V.bg : V.surf,
+        background: navBg,
         borderBottom:
           kind === 'sweep'
             ? '2px solid ' + V.pri
@@ -103,27 +129,54 @@ export default function MenuBar() {
           const items = win
             ? FLOATERS.map((f) => [f.title, state.flOpen[f.id] && !state.flMin[f.id] ? '✓' : ''])
             : mm.items;
+          const triggerBorderRadius = kind === 'sweep' ? '999px' : kind === 'metro' ? 0 : V.rs;
+          const triggerRingColor = open
+            ? ink(V.pri, [V.bg, V.onpri, V.ink])
+            : ensureMinContrast(V.pri, navBg, 3);
+          const itemRingColor = ensureMinContrast(V.pri, V.priC, 3);
 
           const handleTopKeyDown = (e) => {
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
               e.preventDefault();
-              if (!open) actions.setMenu(mm.label);
-              setTimeout(() => {
+              setActiveTopIndex(menuIdx);
+              setActiveItemIndex(0);
+              if (open) {
                 dropdownRefs.current[`${menuIdx}-0`]?.focus();
-              }, 0);
+              } else {
+                pendingDropdownFocusRef.current = `${menuIdx}-0`;
+                actions.setMenu(mm.label);
+              }
             } else if (e.key === 'ArrowRight') {
               e.preventDefault();
               const nextIdx = (menuIdx + 1) % FMENU.length;
+              setActiveTopIndex(nextIdx);
+              setActiveItemIndex(0);
               if (open) actions.setMenu(FMENU[nextIdx].label);
               topMenuRefs.current[nextIdx]?.focus();
             } else if (e.key === 'ArrowLeft') {
               e.preventDefault();
               const prevIdx = (menuIdx - 1 + FMENU.length) % FMENU.length;
+              setActiveTopIndex(prevIdx);
+              setActiveItemIndex(0);
               if (open) actions.setMenu(FMENU[prevIdx].label);
               topMenuRefs.current[prevIdx]?.focus();
+            } else if (e.key === 'Home') {
+              e.preventDefault();
+              setActiveTopIndex(0);
+              setActiveItemIndex(0);
+              if (open) actions.setMenu(FMENU[0].label);
+              topMenuRefs.current[0]?.focus();
+            } else if (e.key === 'End') {
+              e.preventDefault();
+              const lastIdx = FMENU.length - 1;
+              setActiveTopIndex(lastIdx);
+              setActiveItemIndex(0);
+              if (open) actions.setMenu(FMENU[lastIdx].label);
+              topMenuRefs.current[lastIdx]?.focus();
             } else if (e.key === 'Escape') {
               if (open) {
                 e.preventDefault();
+                setActiveItemIndex(0);
                 actions.setMenu(null);
               }
             }
@@ -131,40 +184,49 @@ export default function MenuBar() {
 
           return (
             <div key={mm.label} style={{ position: 'relative' }}>
-              <div
-                ref={(el) => (topMenuRefs.current[menuIdx] = el)}
-                role="menuitem"
-                tabIndex={0}
-                aria-haspopup="true"
-                aria-expanded={open}
-                aria-label={mm.label}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  actions.setMenu(state.menu === mm.label ? null : mm.label);
-                }}
-                onKeyDown={handleTopKeyDown}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  height: '100%',
-                  padding: '0 10px',
-                  cursor: 'pointer',
-                  background: open ? V.pri : 'transparent',
-                  color: open ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink,
-                  font:
-                    kind === 'sweep'
-                      ? '700 11px/1 ' + t.dfont
-                      : kind === 'metro'
-                        ? '300 13px/1 ' + t.dfont
-                        : '500 11px/1 ' + t.font,
-                  letterSpacing: kind === 'sweep' ? '.12em' : kind === 'metro' ? '0' : '.04em',
-                  borderRadius: kind === 'sweep' ? '999px' : kind === 'metro' ? 0 : V.rs,
-                  textTransform:
-                    kind === 'sweep' ? 'uppercase' : kind === 'metro' ? 'lowercase' : 'none',
-                }}
+              <FocusRing
+                ringColor={triggerRingColor}
+                ringOffset={-2}
+                borderRadius={triggerBorderRadius}
               >
-                {mm.label}
-              </div>
+                <div
+                  ref={(el) => (topMenuRefs.current[menuIdx] = el)}
+                  role="menuitem"
+                  tabIndex={activeTopIndex === menuIdx ? 0 : -1}
+                  aria-haspopup="true"
+                  aria-expanded={open}
+                  aria-label={mm.label}
+                  onFocus={() => setActiveTopIndex(menuIdx)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveTopIndex(menuIdx);
+                    setActiveItemIndex(0);
+                    actions.setMenu(state.menu === mm.label ? null : mm.label);
+                  }}
+                  onKeyDown={handleTopKeyDown}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    height: '100%',
+                    padding: '0 10px',
+                    cursor: 'pointer',
+                    background: open ? V.pri : 'transparent',
+                    color: open ? ink(V.pri, [V.bg, V.onpri, V.ink]) : V.ink,
+                    font:
+                      kind === 'sweep'
+                        ? '700 11px/1 ' + t.dfont
+                        : kind === 'metro'
+                          ? '300 13px/1 ' + t.dfont
+                          : '500 11px/1 ' + t.font,
+                    letterSpacing: kind === 'sweep' ? '.12em' : kind === 'metro' ? '0' : '.04em',
+                    borderRadius: triggerBorderRadius,
+                    textTransform:
+                      kind === 'sweep' ? 'uppercase' : kind === 'metro' ? 'lowercase' : 'none',
+                  }}
+                >
+                  {mm.label}
+                </div>
+              </FocusRing>
               {open ? (
                 <div
                   role="menu"
@@ -184,6 +246,10 @@ export default function MenuBar() {
                   }}
                 >
                   {items.map((it, i) => {
+                    const itemKey = `${menuIdx}-${i}`;
+                    const isItemFocused = focusedItemKey === itemKey;
+                    const focusedItemInk = ink(V.priC, [V.onpriC, V.ink, V.bg]);
+
                     const handleDropdownItemClick = (e) => {
                       e.stopPropagation();
                       if (win) {
@@ -200,65 +266,94 @@ export default function MenuBar() {
                         handleDropdownItemClick(e);
                       } else if (e.key === 'Escape') {
                         e.preventDefault();
+                        setActiveTopIndex(menuIdx);
+                        setActiveItemIndex(0);
+                        setFocusedItemKey(null);
                         actions.setMenu(null);
                         topMenuRefs.current[menuIdx]?.focus();
                       } else if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         const nextItemIdx = (i + 1) % items.length;
+                        setActiveItemIndex(nextItemIdx);
                         dropdownRefs.current[`${menuIdx}-${nextItemIdx}`]?.focus();
                       } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
                         const prevItemIdx = (i - 1 + items.length) % items.length;
+                        setActiveItemIndex(prevItemIdx);
                         dropdownRefs.current[`${menuIdx}-${prevItemIdx}`]?.focus();
+                      } else if (e.key === 'Home') {
+                        e.preventDefault();
+                        setActiveItemIndex(0);
+                        dropdownRefs.current[`${menuIdx}-0`]?.focus();
+                      } else if (e.key === 'End') {
+                        e.preventDefault();
+                        const lastItemIdx = items.length - 1;
+                        setActiveItemIndex(lastItemIdx);
+                        dropdownRefs.current[`${menuIdx}-${lastItemIdx}`]?.focus();
                       } else if (e.key === 'ArrowRight') {
                         e.preventDefault();
                         const nextMenuIdx = (menuIdx + 1) % FMENU.length;
+                        setActiveTopIndex(nextMenuIdx);
+                        setActiveItemIndex(0);
+                        pendingDropdownFocusRef.current = `${nextMenuIdx}-0`;
                         actions.setMenu(FMENU[nextMenuIdx].label);
-                        setTimeout(() => {
-                          dropdownRefs.current[`${nextMenuIdx}-0`]?.focus();
-                        }, 0);
                       } else if (e.key === 'ArrowLeft') {
                         e.preventDefault();
                         const prevMenuIdx = (menuIdx - 1 + FMENU.length) % FMENU.length;
+                        setActiveTopIndex(prevMenuIdx);
+                        setActiveItemIndex(0);
+                        pendingDropdownFocusRef.current = `${prevMenuIdx}-0`;
                         actions.setMenu(FMENU[prevMenuIdx].label);
-                        setTimeout(() => {
-                          dropdownRefs.current[`${prevMenuIdx}-0`]?.focus();
-                        }, 0);
                       }
                     };
 
                     return (
-                      <div
-                        key={i}
-                        ref={(el) => (dropdownRefs.current[`${menuIdx}-${i}`] = el)}
-                        role="menuitem"
-                        tabIndex={0}
-                        aria-label={it[0]}
-                        onClick={handleDropdownItemClick}
-                        onKeyDown={handleDropdownKeyDown}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          minHeight: '26px',
-                          padding: '0 12px',
-                          cursor: 'pointer',
-                          font: '400 11.5px/1 ' + t.font,
-                          color: V.ink,
-                        }}
-                      >
-                        <span style={{ flex: 1, font: 'inherit' }}>{it[0]}</span>
-                        <span
+                      <FocusRing key={i} ringColor={itemRingColor} ringOffset={-2}>
+                        <div
+                          ref={(el) => {
+                            if (el) {
+                              dropdownRefs.current[itemKey] = el;
+                            } else {
+                              delete dropdownRefs.current[itemKey];
+                            }
+                          }}
+                          role="menuitem"
+                          tabIndex={activeItemIndex === i ? 0 : -1}
+                          aria-label={it[0]}
+                          onFocus={() => {
+                            setActiveItemIndex(i);
+                            setFocusedItemKey(itemKey);
+                          }}
+                          onBlur={() => {
+                            setFocusedItemKey((prev) => (prev === itemKey ? null : prev));
+                          }}
+                          onClick={handleDropdownItemClick}
+                          onKeyDown={handleDropdownKeyDown}
                           style={{
-                            flex: 'none',
-                            font: '400 10px/1 ' + t.font,
-                            color: V.ink2,
-                            letterSpacing: '.06em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            minHeight: '26px',
+                            padding: '0 12px',
+                            cursor: 'pointer',
+                            font: '400 11.5px/1 ' + t.font,
+                            background: isItemFocused ? V.priC : 'transparent',
+                            color: isItemFocused ? focusedItemInk : V.ink,
                           }}
                         >
-                          {it[1]}
-                        </span>
-                      </div>
+                          <span style={{ flex: 1, font: 'inherit' }}>{it[0]}</span>
+                          <span
+                            style={{
+                              flex: 'none',
+                              font: '400 10px/1 ' + t.font,
+                              color: isItemFocused ? focusedItemInk : V.ink2,
+                              letterSpacing: '.06em',
+                            }}
+                          >
+                            {it[1]}
+                          </span>
+                        </div>
+                      </FocusRing>
                     );
                   })}
                 </div>
