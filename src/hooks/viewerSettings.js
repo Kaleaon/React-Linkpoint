@@ -1,7 +1,7 @@
 import { LAYOUTS, PALETTES } from '@linkpoint/design-system/tokens';
 
 export const VIEWER_SETTINGS_KEY = 'linkpoint_viewer_settings';
-const TOGGLES = [
+export const VIEWER_TOGGLES = Object.freeze([
   'largeType',
   'push',
   'voice',
@@ -23,8 +23,8 @@ const TOGGLES = [
   'notifyIM',
   'notifyGroup',
   'devMode',
-];
-const OPTIONS = {
+]);
+export const VIEWER_OPTIONS = Object.freeze({
   draw: ['20 m', '32 m', '64 m', '96 m', '128 m', '192 m', '256 m'],
   quality: ['Low', 'Balanced', 'High', 'Ultra'],
   fps: ['30 fps', '45 fps', '60 fps', 'Uncapped'],
@@ -40,7 +40,9 @@ const OPTIONS = {
   cacheLimit: [256, 512, 1024, 2048],
   cacheLoc: ['Internal storage', 'Removable storage'],
   fov: [40, 60, 80, 100],
-};
+});
+const TOGGLES = VIEWER_TOGGLES;
+const OPTIONS = VIEWER_OPTIONS;
 
 export function sanitizeViewerSettings(saved) {
   if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};

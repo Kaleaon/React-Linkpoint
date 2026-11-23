@@ -22,6 +22,19 @@ import {
   getFeatureCapability,
   isFeatureVisible,
 } from '../config/featureCapabilities.js';
+import { MAX_SETTINGS_BACKUP_BYTES } from '../services/settingsBackup';
+
+function readFileAsText(file) {
+  if (typeof file.text === 'function') {
+    return file.text();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
 
 /**
  * @param {{
@@ -260,6 +273,8 @@ export default function Settings() {
   const {
     singleCharShortcutsEnabled,
     setSingleCharShortcutsEnabled,
+    customBindings,
+    keyOverrides,
     getKeybinding,
     setCustomBinding,
     resetKeybindings,
@@ -267,6 +282,8 @@ export default function Settings() {
   const { V, t, LK } = useTheme();
   const contentRef = useRef(null);
   const browserRef = useRef(null);
+  const backupFileRef = useRef(null);
+  const [backupFeedback, setBackupFeedback] = useState(null);
   const [compact, setCompact] = useState(false);
   useEffect(() => {
     const element = browserRef.current;
@@ -322,6 +339,46 @@ export default function Settings() {
   const setVolume = (value) => {
     actions.setPref('volume', value);
     app.audio.setVolume(Number.parseInt(value, 10) / 100 || 0);
+  };
+
+  const handleExportBackup = () => {
+    const { filename } = actions.exportSettingsBackup({
+      singleCharShortcutsEnabled,
+      customBindings,
+      overrides: keyOverrides,
+    });
+    setBackupFeedback({
+      type: 'success',
+      message: `Backup exported (${filename}). Credentials and session tokens are excluded.`,
+    });
+  };
+
+  const handleRestoreBackupFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (typeof file.size === 'number' && file.size > MAX_SETTINGS_BACKUP_BYTES) {
+      const msg = 'Backup file exceeds the 1 MB maximum size limit.';
+      setBackupFeedback({ type: 'error', message: msg });
+      actions.notify(msg);
+      return;
+    }
+    try {
+      const rawText = await readFileAsText(file);
+      const result = actions.restoreSettingsBackup(rawText);
+      if (!result.ok) {
+        setBackupFeedback({ type: 'error', message: result.error });
+        return;
+      }
+      setBackupFeedback({
+        type: 'success',
+        message: 'Settings, theme, and keybindings restored from backup.',
+      });
+    } catch {
+      const msg = 'Could not read the selected backup file.';
+      setBackupFeedback({ type: 'error', message: msg });
+      actions.notify(msg);
+    }
   };
 
   const disconnect = async () => {
@@ -1073,6 +1130,59 @@ export default function Settings() {
             <button type="button" onClick={() => actions.setScreen('Diagnostics')}>
               Run Connection Diagnostics
             </button>
+          </div>
+          <div
+            style={{
+              marginTop: '12px',
+              paddingTop: '12px',
+              borderTop: `1px solid ${V.outv}`,
+            }}
+          >
+            <strong>Settings backup &amp; restore</strong>
+            <p style={{ margin: '4px 0 10px', opacity: 0.8, fontSize: '12px' }}>
+              Export your viewer preferences, custom theme, and keyboard shortcuts to a portable
+              JSON file, or restore them on another device. Passwords, multi-factor tokens, and
+              session identifiers are never exported or accepted.
+            </p>
+            <div className="inline-tool" style={{ gap: '8px', padding: 0, flexWrap: 'wrap' }}>
+              <button id="settings-export-backup-btn" type="button" onClick={handleExportBackup}>
+                Export Backup
+              </button>
+              <button
+                id="settings-restore-backup-btn"
+                type="button"
+                onClick={() => backupFileRef.current?.click()}
+              >
+                Restore Backup
+              </button>
+            </div>
+            <input
+              ref={backupFileRef}
+              id="settings-restore-backup-input"
+              className="sr-only"
+              tabIndex={-1}
+              type="file"
+              accept="application/json,.json"
+              aria-label="Restore settings backup JSON file"
+              onChange={(event) => void handleRestoreBackupFile(event)}
+            />
+            {backupFeedback ? (
+              <p
+                role={backupFeedback.type === 'error' ? 'alert' : 'status'}
+                style={{
+                  margin: '10px 0 0',
+                  padding: '8px 10px',
+                  borderRadius: V.rs,
+                  fontSize: '12px',
+                  color: V.ink,
+                  background: V.surf2,
+                  border: `1px solid ${backupFeedback.type === 'error' ? V.err : V.ok}`,
+                  borderLeft: `4px solid ${backupFeedback.type === 'error' ? V.err : V.ok}`,
+                }}
+              >
+                {backupFeedback.message}
+              </p>
+            ) : null}
           </div>
         </section>
 

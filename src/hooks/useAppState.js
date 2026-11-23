@@ -10,6 +10,8 @@ import {
   THEME_STORAGE_KEY,
 } from '../theme/customTheme.js';
 import { readViewerSettings, saveViewerSettings } from './viewerSettings.js';
+import { persistAndSyncKeybindings } from '../context/KeybindingsContext';
+import { downloadSettingsBackupFile, validateSettingsBackup } from '../services/settingsBackup';
 import { Utils } from '../linkpoint/utils';
 import { localCache } from '../linkpoint/local-cache';
 import { app } from '../linkpoint/app';
@@ -497,6 +499,150 @@ export function useAppState() {
       window.prompt('Copy this theme link', url.toString());
     }
   }, [customTheme, notify]);
+
+  const exportSettingsBackup = useCallback(
+    (keybindingsSnapshot) => {
+      const result = downloadSettingsBackupFile({
+        viewerSettings: {
+          layout,
+          palette,
+          dense,
+          density: customTheme?.density,
+          toggles,
+          prefs,
+        },
+        customTheme,
+        keybindings: keybindingsSnapshot,
+        viewMode,
+      });
+      notify('Settings backup exported.');
+      return result;
+    },
+    [layout, palette, dense, customTheme, toggles, prefs, viewMode, notify],
+  );
+
+  const restoreSettingsBackup = useCallback(
+    (rawInput) => {
+      const validation = validateSettingsBackup(rawInput);
+      if (!validation.ok) {
+        notify(validation.error);
+        return validation;
+      }
+      const { data } = validation;
+      const nextLayout =
+        data.hasViewerSettings && data.viewerSettings.layout ? data.viewerSettings.layout : layout;
+      const nextPalette =
+        data.hasViewerSettings && data.viewerSettings.palette
+          ? data.viewerSettings.palette
+          : palette;
+
+      const nextDensity =
+        (data.hasViewerSettings ? data.viewerSettings.density : undefined) ||
+        (data.hasCustomTheme && data.customTheme ? data.customTheme.density : undefined) ||
+        (data.hasViewerSettings && typeof data.viewerSettings.dense === 'boolean'
+          ? data.viewerSettings.dense
+            ? 'compact'
+            : 'standard'
+          : customTheme?.density || 'standard');
+
+      const nextDense =
+        data.hasViewerSettings && typeof data.viewerSettings.dense === 'boolean'
+          ? data.viewerSettings.dense
+          : nextDensity === 'compact';
+
+      let nextCustomTheme = customTheme;
+      if (data.hasCustomTheme) {
+        if (data.customTheme && data.customTheme.active) {
+          nextCustomTheme = {
+            ...data.customTheme,
+            active: true,
+            density: nextDensity,
+          };
+          try {
+            localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(nextCustomTheme));
+          } catch {
+            /* storage disabled */
+          }
+        } else {
+          const baseTheme =
+            data.customTheme || themeFromPalette(PALETTES[nextPalette] || PALETTES.ink);
+          nextCustomTheme = {
+            ...baseTheme,
+            active: false,
+            density: nextDensity,
+          };
+          try {
+            localStorage.removeItem(THEME_STORAGE_KEY);
+          } catch {
+            /* storage disabled */
+          }
+        }
+      } else if (data.hasViewerSettings) {
+        const paletteChanged = nextPalette !== palette;
+        if (paletteChanged || !customTheme?.active) {
+          nextCustomTheme = {
+            ...themeFromPalette(PALETTES[nextPalette] || PALETTES.ink),
+            density: nextDensity,
+          };
+          if (paletteChanged) {
+            try {
+              localStorage.removeItem(THEME_STORAGE_KEY);
+            } catch {
+              /* storage disabled */
+            }
+          }
+        } else {
+          nextCustomTheme = {
+            ...customTheme,
+            density: nextDensity,
+          };
+        }
+      }
+
+      const nextToggles = data.hasViewerSettings
+        ? { ...toggles, ...data.viewerSettings.toggles }
+        : toggles;
+      const nextPrefs = data.hasViewerSettings ? { ...prefs, ...data.viewerSettings.prefs } : prefs;
+
+      setLayout(nextLayout);
+      setPalette(nextPalette);
+      setCustomTheme(nextCustomTheme);
+      setDense(nextDense);
+      setToggles(nextToggles);
+      setPrefs(nextPrefs);
+
+      saveViewerSettings({
+        layout: nextLayout,
+        palette: nextPalette,
+        dense: nextDense,
+        density: nextCustomTheme.density,
+        toggles: nextToggles,
+        prefs: nextPrefs,
+      });
+
+      if (data.viewMode) {
+        setViewModeState(data.viewMode);
+        setDevice(resolveDevice(data.viewMode));
+        try {
+          localStorage.setItem('linkpoint_view_mode', data.viewMode);
+        } catch {
+          /* storage disabled */
+        }
+      }
+
+      if (data.hasKeybindings) {
+        persistAndSyncKeybindings({
+          singleCharShortcutsEnabled: data.keybindings.singleCharShortcutsEnabled,
+          customBindings: data.keybindings.customBindings,
+          overrides: data.keybindings.overrides,
+        });
+      }
+
+      notify('Settings and keybindings restored from backup.');
+      return validation;
+    },
+    [layout, palette, customTheme, toggles, prefs, resolveDevice, notify],
+  );
 
   // ---- derived lookups (T()/D()/navMode()) -------------------------------
   const T = useCallback(() => {
@@ -1290,6 +1436,8 @@ export function useAppState() {
       importTheme,
       downloadTheme,
       shareTheme,
+      exportSettingsBackup,
+      restoreSettingsBackup,
       setDevice,
       setViewMode,
       toggleViewMode,

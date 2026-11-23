@@ -20,6 +20,7 @@ import { AudioManager } from './audio';
 import { VoiceManager } from './voice';
 import { RlvController } from './rlv';
 import { VoiceInput } from './voice-input';
+import { getStoredKeyOverrides } from './key-bindings';
 import { MuteFlag, MuteList, MuteType } from './mute-list';
 import { ParcelSoundMap } from './parcel-sound';
 import { chooseSpatialChannel, regionHandleFor } from './voice-protocol';
@@ -309,6 +310,7 @@ export class LinkpointApp {
     if (typeof window !== 'undefined') {
       this.voiceInput ??= new VoiceInput(this.voice, {
         mode: () => this.world.keyMode(),
+        overrides: () => getStoredKeyOverrides(),
         enabled: () => this.voice.state === 'connected',
       });
     }
