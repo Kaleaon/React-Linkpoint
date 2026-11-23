@@ -8,6 +8,7 @@ import { CSUB, subView, setSub } from '../../theme/constants.js';
 import Profile, { ResidentInspector } from '../Profile.jsx';
 import { app } from '../../linkpoint/app.ts';
 import { MuteType } from '../../linkpoint/mute-list';
+import { slBridge } from '../../linkpoint/sl-bridge.ts';
 
 (globalThis as unknown as Record<string, boolean>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -192,6 +193,112 @@ describe('ResidentInspector & Profile Tabs Integration', () => {
     });
 
     expect(friendSpy).toHaveBeenCalledWith('grace-uuid-42');
+  });
+
+  it('Teleport button invokes slBridge.offerTeleport with target ID and notifies on success', async () => {
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    const offerSpy = vi
+      .spyOn(slBridge, 'offerTeleport')
+      .mockResolvedValue({ offered: 'grace-uuid-42' });
+
+    let latestToast = '';
+    function TeleportHarness() {
+      const { state } = useApp();
+      latestToast = state.toast;
+      return (
+        <ResidentInspector
+          target={{ name: 'Grace Hopper', id: 'grace-uuid-42' }}
+          onReturn={() => {}}
+        />
+      );
+    }
+
+    const host = await mount(<TeleportHarness />);
+    const tpBtn = host.querySelector('[data-testid="resident-teleport-btn"]') as HTMLButtonElement;
+    expect(tpBtn).not.toBeNull();
+    expect(tpBtn.disabled).toBe(false);
+
+    await act(async () => {
+      tpBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(offerSpy).toHaveBeenCalledWith({ id: 'grace-uuid-42' });
+    expect(latestToast).toBe('Teleport offered to Grace Hopper');
+  });
+
+  it('Teleport button displays error notification when slBridge.offerTeleport rejects', async () => {
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    const offerSpy = vi
+      .spyOn(slBridge, 'offerTeleport')
+      .mockRejectedValue(new Error('Resident refused teleport offers'));
+
+    let latestToast = '';
+    function TeleportErrorHarness() {
+      const { state } = useApp();
+      latestToast = state.toast;
+      return (
+        <ResidentInspector
+          target={{ name: 'Grace Hopper', id: 'grace-uuid-42' }}
+          onReturn={() => {}}
+        />
+      );
+    }
+
+    const host = await mount(<TeleportErrorHarness />);
+    const tpBtn = host.querySelector('[data-testid="resident-teleport-btn"]') as HTMLButtonElement;
+    expect(tpBtn).not.toBeNull();
+
+    await act(async () => {
+      tpBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(offerSpy).toHaveBeenCalledWith({ id: 'grace-uuid-42' });
+    expect(latestToast).toBe('Resident refused teleport offers');
+  });
+
+  it('Teleport button is disabled when avatar ID is missing or when user is logged out', async () => {
+    const offerSpy = vi.spyOn(slBridge, 'offerTeleport');
+    const isLoggedInSpy = vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+
+    // Case 1: missing avatar ID
+    const missingIdHost = await mount(
+      <ResidentInspector target={{ name: 'Unknown UUID Resident' }} onReturn={() => {}} />,
+    );
+    const missingIdBtn = missingIdHost.querySelector(
+      '[data-testid="resident-teleport-btn"]',
+    ) as HTMLButtonElement;
+    expect(missingIdBtn).not.toBeNull();
+    expect(missingIdBtn.disabled).toBe(true);
+    await act(async () => {
+      missingIdBtn.click();
+    });
+    expect(offerSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      mounted!.root.unmount();
+    });
+    mounted!.host.remove();
+    mounted = null;
+
+    // Case 2: logged out
+    isLoggedInSpy.mockReturnValue(false);
+    const loggedOutHost = await mount(
+      <ResidentInspector
+        target={{ name: 'Grace Hopper', id: 'grace-uuid-42' }}
+        onReturn={() => {}}
+      />,
+    );
+    const loggedOutBtn = loggedOutHost.querySelector(
+      '[data-testid="resident-teleport-btn"]',
+    ) as HTMLButtonElement;
+    expect(loggedOutBtn).not.toBeNull();
+    expect(loggedOutBtn.disabled).toBe(true);
+    await act(async () => {
+      loggedOutBtn.click();
+    });
+    expect(offerSpy).not.toHaveBeenCalled();
   });
 
   it('Requirement 5 & Criterion 4: Return action clears target and returns to self profile', async () => {
