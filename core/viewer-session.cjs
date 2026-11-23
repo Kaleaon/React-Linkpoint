@@ -355,6 +355,10 @@ const {
   PayPriceReplyMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/PayPriceReply');
 const {
+  CreateInventoryFolderMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/CreateInventoryFolder');
+const { InventoryFolder } = require('@caspertech/node-metaverse/dist/lib/classes/InventoryFolder');
+const {
   PurgeInventoryDescendentsMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/PurgeInventoryDescendents');
 const {
@@ -2556,6 +2560,164 @@ class ViewerSession {
       folder: false,
     }));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
+  }
+
+  async createInventoryFolder({ parentId, name, folderType, folderId } = {}) {
+    const cleanName = String(name ?? '')
+      .replace(/[\x00-\x1F\x7F|]/g, '')
+      .trim();
+    if (!cleanName) throw new Error('Folder name is required');
+    if (cleanName.length > 63) throw new Error('Folder name must not exceed 63 characters');
+
+    const bot = this.requireBot();
+    const region = this.currentRegion();
+    const circuit = region?.circuit;
+    const agentId = this.identity?.agent_id || bot.agent?.agentID;
+    if (!circuit?.sendMessage || !agentId) throw new Error('Not connected to simulator');
+
+    const skeleton = bot.agent?.inventory?.main?.skeleton;
+    let targetParentId = parentId ? String(parentId).trim() : '';
+    if (!targetParentId) {
+      const rootFolder = bot.clientCommands?.inventory?.getInventoryRoot?.();
+      if (rootFolder?.folderID) {
+        targetParentId = rootFolder.folderID.toString();
+      } else if (skeleton) {
+        const rootEntry = Array.from(skeleton.values()).find(
+          (f) =>
+            f &&
+            (f.typeDefault === FolderType.Root ||
+              !f.parentID ||
+              f.parentID.toString() === '00000000-0000-0000-0000-000000000000'),
+        );
+        if (rootEntry?.folderID) {
+          targetParentId = rootEntry.folderID.toString();
+        }
+      }
+    }
+    if (!targetParentId) throw new Error('Parent folder is required');
+
+    let parentFolder = skeleton?.get?.(targetParentId);
+    if (!parentFolder && skeleton) {
+      parentFolder = Array.from(skeleton.values()).find(
+        (f) => f?.folderID?.toString?.() === targetParentId,
+      );
+    }
+
+    if (parentFolder) {
+      let cursor = parentFolder;
+      const seen = new Set();
+      while (cursor && !seen.has(cursor)) {
+        seen.add(cursor);
+        const cursorName = String(cursor.name || '')
+          .trim()
+          .toLowerCase();
+        const cursorType = Number(cursor.typeDefault ?? -1);
+        if (
+          cursorType === FolderType.Trash ||
+          cursorName === 'trash' ||
+          cursorType === FolderType.CurrentOutfit ||
+          cursorName === 'current outfit' ||
+          cursor.library === 1 ||
+          cursorName === 'library'
+        ) {
+          throw new Error('Cannot create folders inside protected system folders');
+        }
+        const nextParentId = cursor.parentID?.toString?.();
+        cursor = nextParentId && skeleton ? skeleton.get(nextParentId) : null;
+      }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const newFolderUuid =
+      typeof folderId === 'string' && uuidRegex.test(folderId) ? new UUID(folderId) : UUID.random();
+    const newFolderIdStr = newFolderUuid.toString();
+    const parentUuid =
+      parentFolder?.folderID && typeof parentFolder.folderID === 'object'
+        ? parentFolder.folderID
+        : new UUID(targetParentId);
+    const resolvedType =
+      typeof folderType === 'number' &&
+      Number.isInteger(folderType) &&
+      folderType >= -128 &&
+      folderType <= 127
+        ? folderType
+        : FolderType.None;
+
+    const createMsg = new CreateInventoryFolderMessage();
+    createMsg.AgentData = {
+      AgentID: typeof agentId === 'string' ? new UUID(agentId) : agentId,
+      SessionID: circuit.sessionID
+        ? typeof circuit.sessionID === 'string'
+          ? new UUID(circuit.sessionID)
+          : circuit.sessionID
+        : UUID.zero(),
+    };
+    createMsg.FolderData = {
+      FolderID: newFolderUuid,
+      ParentID: parentUuid,
+      Type: resolvedType,
+      Name: Utils.StringToBuffer(cleanName),
+    };
+
+    const ack = circuit.sendMessage(createMsg, PacketFlags.Reliable);
+    if (typeof circuit.waitForAck === 'function') {
+      await circuit.waitForAck(ack, 5000);
+    }
+
+    try {
+      let newFolder;
+      if (bot.agent?.agentID && bot.agent?.inventory?.main) {
+        newFolder = new InventoryFolder(
+          parentFolder?.library ?? 0,
+          bot.agent.inventory.main,
+          bot.agent,
+        );
+      } else {
+        newFolder = {
+          items: [],
+          folders: [],
+          getChildFolders() {
+            if (!skeleton) return this.folders;
+            return Array.from(skeleton.values()).filter(
+              (f) => f && f.parentID?.toString?.() === newFolderIdStr,
+            );
+          },
+        };
+      }
+      newFolder.typeDefault = resolvedType;
+      newFolder.version = 1;
+      newFolder.name = cleanName;
+      newFolder.folderID = newFolderUuid;
+      newFolder.parentID = parentFolder?.folderID ?? parentUuid;
+      newFolder.items = [];
+      newFolder.folders = [];
+
+      if (parentFolder && Array.isArray(parentFolder.folders)) {
+        parentFolder.folders.push(newFolder);
+      }
+      if (skeleton && typeof skeleton.set === 'function') {
+        skeleton.set(newFolderIdStr, newFolder);
+      }
+    } catch {
+      /* ignore local skeleton cache update error */
+    }
+
+    return {
+      success: true,
+      folderId: newFolderIdStr,
+      parentId: targetParentId,
+      name: cleanName,
+      folderType: resolvedType,
+      folder: {
+        id: newFolderIdStr,
+        name: cleanName,
+        parent: targetParentId,
+        typeDefault: resolvedType,
+        folderType: resolvedType,
+        version: 1,
+        folder: true,
+      },
+    };
   }
 
   async purgeInventoryTrash({ folderId } = {}) {
