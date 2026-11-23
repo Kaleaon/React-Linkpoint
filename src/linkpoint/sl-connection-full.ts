@@ -464,6 +464,36 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return slBridge.grantUserRights(request);
   }
 
+  /** Terminate Second Life friendship with a resident via reliable UDP packet. */
+  async terminateFriendship(
+    request:
+      | string
+      | {
+          targetId: string;
+          otherId?: string;
+          agentId?: string;
+          sessionId?: string;
+          packet?: unknown;
+        },
+  ) {
+    this.requireConnected();
+    const params =
+      typeof request === 'string'
+        ? {
+            targetId: request,
+            otherId: request,
+            ...(this.agentId ? { agentId: this.agentId } : {}),
+            ...(this.sessionId ? { sessionId: this.sessionId } : {}),
+          }
+        : {
+            ...request,
+            targetId: request.targetId || request.otherId || '',
+            ...(request.agentId || !this.agentId ? {} : { agentId: this.agentId }),
+            ...(request.sessionId || !this.sessionId ? {} : { sessionId: this.sessionId }),
+          };
+    return slBridge.terminateFriendship(params);
+  }
+
   /** Accept an inventory offer. */
   async acceptInventoryOffer(request: { id: string }) {
     this.requireConnected();

@@ -7,6 +7,8 @@ import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import { CSUB, subView, setSub } from '../../theme/constants.js';
 import Profile, { ResidentInspector } from '../Profile.jsx';
 import { app } from '../../linkpoint/app.ts';
+import { MuteType } from '../../linkpoint/mute-list';
+import { slBridge } from '../../linkpoint/sl-bridge.ts';
 
 (globalThis as unknown as Record<string, boolean>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -36,8 +38,13 @@ afterEach(async () => {
 
 describe('ResidentInspector & Profile Tabs Integration', () => {
   beforeEach(() => {
+    localStorage.clear();
+    for (const id of app.chatExtended.getMutedUsers()) {
+      app.chatExtended.unmuteUser(id);
+    }
+    app.muteList.clear();
     // Reset auth user to authenticated state
-    (app.auth as any).user = {
+    (app.auth as unknown as { user: Record<string, string> }).user = {
       id: 'usr-local-1234',
       fullName: 'Local User',
       grid: 'Second Life Main Grid',
@@ -188,6 +195,112 @@ describe('ResidentInspector & Profile Tabs Integration', () => {
     expect(friendSpy).toHaveBeenCalledWith('grace-uuid-42');
   });
 
+  it('Teleport button invokes slBridge.offerTeleport with target ID and notifies on success', async () => {
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    const offerSpy = vi
+      .spyOn(slBridge, 'offerTeleport')
+      .mockResolvedValue({ offered: 'grace-uuid-42' });
+
+    let latestToast = '';
+    function TeleportHarness() {
+      const { state } = useApp();
+      latestToast = state.toast;
+      return (
+        <ResidentInspector
+          target={{ name: 'Grace Hopper', id: 'grace-uuid-42' }}
+          onReturn={() => {}}
+        />
+      );
+    }
+
+    const host = await mount(<TeleportHarness />);
+    const tpBtn = host.querySelector('[data-testid="resident-teleport-btn"]') as HTMLButtonElement;
+    expect(tpBtn).not.toBeNull();
+    expect(tpBtn.disabled).toBe(false);
+
+    await act(async () => {
+      tpBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(offerSpy).toHaveBeenCalledWith({ id: 'grace-uuid-42' });
+    expect(latestToast).toBe('Teleport offered to Grace Hopper');
+  });
+
+  it('Teleport button displays error notification when slBridge.offerTeleport rejects', async () => {
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+    const offerSpy = vi
+      .spyOn(slBridge, 'offerTeleport')
+      .mockRejectedValue(new Error('Resident refused teleport offers'));
+
+    let latestToast = '';
+    function TeleportErrorHarness() {
+      const { state } = useApp();
+      latestToast = state.toast;
+      return (
+        <ResidentInspector
+          target={{ name: 'Grace Hopper', id: 'grace-uuid-42' }}
+          onReturn={() => {}}
+        />
+      );
+    }
+
+    const host = await mount(<TeleportErrorHarness />);
+    const tpBtn = host.querySelector('[data-testid="resident-teleport-btn"]') as HTMLButtonElement;
+    expect(tpBtn).not.toBeNull();
+
+    await act(async () => {
+      tpBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(offerSpy).toHaveBeenCalledWith({ id: 'grace-uuid-42' });
+    expect(latestToast).toBe('Resident refused teleport offers');
+  });
+
+  it('Teleport button is disabled when avatar ID is missing or when user is logged out', async () => {
+    const offerSpy = vi.spyOn(slBridge, 'offerTeleport');
+    const isLoggedInSpy = vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+
+    // Case 1: missing avatar ID
+    const missingIdHost = await mount(
+      <ResidentInspector target={{ name: 'Unknown UUID Resident' }} onReturn={() => {}} />,
+    );
+    const missingIdBtn = missingIdHost.querySelector(
+      '[data-testid="resident-teleport-btn"]',
+    ) as HTMLButtonElement;
+    expect(missingIdBtn).not.toBeNull();
+    expect(missingIdBtn.disabled).toBe(true);
+    await act(async () => {
+      missingIdBtn.click();
+    });
+    expect(offerSpy).not.toHaveBeenCalled();
+
+    await act(async () => {
+      mounted!.root.unmount();
+    });
+    mounted!.host.remove();
+    mounted = null;
+
+    // Case 2: logged out
+    isLoggedInSpy.mockReturnValue(false);
+    const loggedOutHost = await mount(
+      <ResidentInspector
+        target={{ name: 'Grace Hopper', id: 'grace-uuid-42' }}
+        onReturn={() => {}}
+      />,
+    );
+    const loggedOutBtn = loggedOutHost.querySelector(
+      '[data-testid="resident-teleport-btn"]',
+    ) as HTMLButtonElement;
+    expect(loggedOutBtn).not.toBeNull();
+    expect(loggedOutBtn.disabled).toBe(true);
+    await act(async () => {
+      loggedOutBtn.click();
+    });
+    expect(offerSpy).not.toHaveBeenCalled();
+  });
+
   it('Requirement 5 & Criterion 4: Return action clears target and returns to self profile', async () => {
     function ToggleHarness() {
       const { actions } = useApp();
@@ -308,5 +421,134 @@ describe('ResidentInspector & Profile Tabs Integration', () => {
       expect(effectiveW).toBeGreaterThanOrEqual(24);
       expect(effectiveH).toBeGreaterThanOrEqual(24);
     }
+  });
+
+  it('Mute Toggle: clicking Mute calls chatExtended.muteUser, notifies user, updates label to Unmute, and clicking again unmutes', async () => {
+    const muteSpy = vi.spyOn(app.chatExtended, 'muteUser');
+    const unmuteSpy = vi.spyOn(app.chatExtended, 'unmuteUser');
+    let latestToast = '';
+
+    function ToastProbe() {
+      const { state } = useApp();
+      latestToast = state.toast;
+      return (
+        <ResidentInspector
+          target={{ name: 'Babbage Resident', id: '00000000-0000-4000-8000-000000000042' }}
+          onReturn={() => {}}
+        />
+      );
+    }
+
+    const host = await mount(<ToastProbe />);
+
+    const muteBtn = host.querySelector('[data-testid="resident-mute-btn"]') as HTMLButtonElement;
+    expect(muteBtn).not.toBeNull();
+    expect(muteBtn.querySelector('svg')).not.toBeNull();
+    expect(muteBtn.textContent).toBe('Mute');
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('false');
+    expect(muteBtn.getAttribute('aria-label')).toBe('Mute Babbage Resident');
+
+    await act(async () => {
+      muteBtn.click();
+    });
+
+    expect(muteSpy).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000042');
+    expect(latestToast).toBe('Muted Babbage Resident');
+    expect(muteBtn.querySelector('svg')).not.toBeNull();
+    expect(muteBtn.textContent).toBe('Unmute');
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(muteBtn.getAttribute('aria-label')).toBe('Unmute Babbage Resident');
+
+    await act(async () => {
+      muteBtn.click();
+    });
+
+    expect(unmuteSpy).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000042');
+    expect(latestToast).toBe('Unmuted Babbage Resident');
+    expect(muteBtn.textContent).toBe('Mute');
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('Mute Toggle: falls back to targetName when avatar identifier is missing and reflects initial mute status', async () => {
+    app.chatExtended.muteUser('Legacy Named Avatar');
+    const unmuteSpy = vi.spyOn(app.chatExtended, 'unmuteUser');
+    const muteSpy = vi.spyOn(app.chatExtended, 'muteUser');
+
+    const host = await mount(
+      <ResidentInspector target={{ name: 'Legacy Named Avatar' }} onReturn={() => {}} />,
+    );
+
+    const muteBtn = host.querySelector('[data-testid="resident-mute-btn"]') as HTMLButtonElement;
+    expect(muteBtn).not.toBeNull();
+    expect(muteBtn.textContent).toBe('Unmute');
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('true');
+
+    await act(async () => {
+      muteBtn.click();
+    });
+
+    expect(unmuteSpy).toHaveBeenCalledWith('Legacy Named Avatar');
+    expect(muteBtn.textContent).toBe('Mute');
+
+    await act(async () => {
+      muteBtn.click();
+    });
+
+    expect(muteSpy).toHaveBeenCalledWith('Legacy Named Avatar');
+    expect(muteBtn.textContent).toBe('Unmute');
+  });
+
+  it('Mute Toggle: synchronizes automatically with app.muteList change events and cleans up listener on unmount', async () => {
+    const onSpy = vi.spyOn(app.muteList, 'on');
+    const offSpy = vi.spyOn(app.muteList, 'off');
+    const avatarId = '00000000-0000-4000-8000-000000000077';
+
+    const host = await mount(
+      <ResidentInspector target={{ name: 'Synced Explorer', id: avatarId }} onReturn={() => {}} />,
+    );
+
+    expect(onSpy).toHaveBeenCalledWith('changed', expect.any(Function));
+    const muteBtn = host.querySelector('[data-testid="resident-mute-btn"]') as HTMLButtonElement;
+    expect(muteBtn.textContent).toBe('Mute');
+
+    await act(async () => {
+      app.muteList.add({ id: avatarId, name: 'Synced Explorer', type: MuteType.AGENT });
+    });
+
+    expect(muteBtn.textContent).toBe('Unmute');
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('true');
+
+    await act(async () => {
+      app.muteList.remove({ id: avatarId });
+    });
+
+    expect(muteBtn.textContent).toBe('Mute');
+    expect(muteBtn.getAttribute('aria-pressed')).toBe('false');
+
+    await act(async () => {
+      mounted!.root.unmount();
+    });
+    mounted!.host.remove();
+    mounted = null;
+
+    expect(offSpy).toHaveBeenCalledWith('changed', expect.any(Function));
+  });
+
+  it('Mute Toggle: handles protected Linden accounts and self without throwing errors', async () => {
+    const selfUuid = '00000000-0000-4000-8000-000000000099';
+    app.muteList.selfId = selfUuid;
+
+    const host = await mount(
+      <ResidentInspector target={{ name: 'Philip Linden', id: selfUuid }} onReturn={() => {}} />,
+    );
+
+    const muteBtn = host.querySelector('[data-testid="resident-mute-btn"]') as HTMLButtonElement;
+    expect(muteBtn).not.toBeNull();
+
+    await expect(
+      act(async () => {
+        muteBtn.click();
+      }),
+    ).resolves.not.toThrow();
   });
 });

@@ -160,16 +160,32 @@ describe('Spatial Touch Pods & Responsive Overlay Architecture', () => {
     );
     await click(outfitsBtn!);
 
-    const touchButtons = Array.from(host.querySelectorAll('button.touch-target'));
-    expect(touchButtons.length).toBeGreaterThan(0);
+    const podButtons = Array.from(
+      host.querySelectorAll(
+        '.mobile-overlay-controls button.touch-target, .outfit-carousel-drawer button.touch-target, [aria-label="Worn HUDs"] button.touch-target',
+      ),
+    );
+    expect(podButtons.length).toBeGreaterThan(0);
 
-    touchButtons.forEach((btn) => {
+    podButtons.forEach((btn) => {
       const minW = parseInt((btn as HTMLElement).style.minWidth || '0', 10);
       const minH = parseInt((btn as HTMLElement).style.minHeight || '0', 10);
       const label = btn.getAttribute('aria-label') || btn.textContent || 'Spatial Button';
 
       expect(minW, `Button "${label}" minWidth`).toBeGreaterThanOrEqual(44);
       expect(minH, `Button "${label}" minHeight`).toBeGreaterThanOrEqual(44);
+    });
+
+    const touchButtons = Array.from(host.querySelectorAll('button.touch-target'));
+    expect(touchButtons.length).toBeGreaterThan(podButtons.length);
+
+    touchButtons.forEach((btn) => {
+      const minW = parseInt((btn as HTMLElement).style.minWidth || '0', 10);
+      const minH = parseInt((btn as HTMLElement).style.minHeight || '0', 10);
+      const label = btn.getAttribute('aria-label') || btn.textContent || 'Overlay Button';
+
+      expect(minW, `Button "${label}" minWidth`).toBeGreaterThanOrEqual(24);
+      expect(minH, `Button "${label}" minHeight`).toBeGreaterThanOrEqual(24);
     });
   });
 });

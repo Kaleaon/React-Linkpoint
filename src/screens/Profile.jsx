@@ -2,20 +2,72 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
+import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
 import SegmentedTabs from '../components/SegmentedTabs.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
 import { subView } from '../theme/constants.js';
+
+function isResidentMuted(id, name) {
+  return Boolean(
+    (id && app.chatExtended?.isUserMuted?.(id)) || (name && app.chatExtended?.isUserMuted?.(name)),
+  );
+}
 
 export function ResidentInspector({ target, onReturn }) {
   const { V, t } = useTheme();
   const { state, actions } = useApp();
   const [photo, setPhoto] = useState(null);
   const [, setLoadingPhoto] = useState(false);
+  const [, setAuthRevision] = useState(0);
 
   const targetName =
     target?.name || target?.attachedTo || (typeof target === 'string' ? target : '') || 'Resident';
   const targetId = target?.id || target?.avatarId || target?.uuid || '';
+  const [isMuted, setIsMuted] = useState(() => isResidentMuted(targetId, targetName));
+  const isLoggedIn =
+    typeof app.auth?.isLoggedIn === 'function' ? app.auth.isLoggedIn() : Boolean(app.auth?.user);
+  const canOfferTeleport = Boolean(targetId && isLoggedIn);
+
+  useEffect(() => {
+    const bumpAuth = () => setAuthRevision((n) => n + 1);
+    app.auth?.on?.('login_success', bumpAuth);
+    app.auth?.on?.('logout', bumpAuth);
+    return () => {
+      app.auth?.off?.('login_success', bumpAuth);
+      app.auth?.off?.('logout', bumpAuth);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsMuted(isResidentMuted(targetId, targetName));
+
+    const muteList = app.muteList;
+    if (!muteList || typeof muteList.on !== 'function') {
+      return undefined;
+    }
+
+    const handleMuteListChange = (snapshot) => {
+      if (snapshot && typeof muteList.isMuted === 'function') {
+        setIsMuted(
+          Boolean(
+            (targetId && muteList.isMuted(targetId, targetName)) ||
+            (targetName && muteList.isMutedByName?.(targetName)) ||
+            (targetId && muteList.isMutedByName?.(targetId)),
+          ),
+        );
+      } else {
+        setIsMuted(isResidentMuted(targetId, targetName));
+      }
+    };
+
+    muteList.on('changed', handleMuteListChange);
+    return () => {
+      if (typeof muteList.off === 'function') {
+        muteList.off('changed', handleMuteListChange);
+      }
+    };
+  }, [targetId, targetName]);
 
   useEffect(() => {
     let active = true;
@@ -88,6 +140,57 @@ export function ResidentInspector({ target, onReturn }) {
     } else {
       if (typeof actions?.notify === 'function') {
         actions.notify(`Friendship offered to ${targetName}`);
+      }
+    }
+  };
+
+  const handleOfferTeleport = () => {
+    if (!canOfferTeleport) return;
+    slBridge.offerTeleport({ id: targetId }).then(
+      () => {
+        if (typeof actions?.notify === 'function') {
+          actions.notify(`Teleport offered to ${targetName}`);
+        }
+      },
+      (err) => {
+        if (typeof actions?.notify === 'function') {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not offer a teleport to ${targetName}`,
+          );
+        }
+      },
+    );
+  };
+
+  const handleMuteToggle = () => {
+    const muteKey = targetId || targetName;
+    if (!muteKey) return;
+
+    if (isMuted) {
+      if (targetId && app.chatExtended?.isUserMuted?.(targetId)) {
+        app.chatExtended.unmuteUser(targetId);
+      } else if (targetName && app.chatExtended?.isUserMuted?.(targetName)) {
+        app.chatExtended.unmuteUser(targetName);
+      } else {
+        app.chatExtended?.unmuteUser?.(muteKey);
+      }
+      if (
+        targetId &&
+        targetName &&
+        app.chatExtended?.isUserMuted?.(targetName) &&
+        typeof app.chatExtended.unmuteUser === 'function'
+      ) {
+        app.chatExtended.unmuteUser(targetName);
+      }
+      setIsMuted(false);
+      if (typeof actions?.notify === 'function') {
+        actions.notify(`Unmuted ${targetName}`);
+      }
+    } else {
+      app.chatExtended?.muteUser?.(muteKey);
+      setIsMuted(true);
+      if (typeof actions?.notify === 'function') {
+        actions.notify(`Muted ${targetName}`);
       }
     }
   };
@@ -217,7 +320,7 @@ export function ResidentInspector({ target, onReturn }) {
               )}
             </dl>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
               <TouchTarget
                 onClick={handleIm}
                 aria-label={`Send instant message to ${targetName}`}
@@ -265,6 +368,57 @@ export function ResidentInspector({ target, onReturn }) {
               >
                 <Icon name="user-plus" size={16} />
                 <span>Friend</span>
+              </TouchTarget>
+              <TouchTarget
+                onClick={handleOfferTeleport}
+                disabled={!canOfferTeleport}
+                aria-label={`Offer teleport to ${targetName}`}
+                data-testid="resident-teleport-btn"
+                minSize={44}
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${V.outv}`,
+                  background: V.surf,
+                  color: V.pri,
+                  cursor: canOfferTeleport ? 'pointer' : 'not-allowed',
+                  opacity: canOfferTeleport ? 1 : 0.6,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                }}
+              >
+                <Icon name="map-pin" size={16} />
+                <span>Teleport</span>
+              </TouchTarget>
+              <TouchTarget
+                onClick={handleMuteToggle}
+                aria-label={isMuted ? `Unmute ${targetName}` : `Mute ${targetName}`}
+                aria-pressed={isMuted}
+                data-testid="resident-mute-btn"
+                minSize={44}
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${isMuted ? V.err : V.outv}`,
+                  background: V.surf,
+                  color: isMuted ? V.err : V.ink2,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                }}
+              >
+                <Icon name={isMuted ? 'volume-2' : 'volume-x'} size={16} />
+                <span>{isMuted ? 'Unmute' : 'Mute'}</span>
               </TouchTarget>
             </div>
           </article>
