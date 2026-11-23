@@ -279,6 +279,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       const capsToRequest = [
         'EventQueueGet',
         'FetchInventoryDescendents2',
+        'UpdateInventoryItem',
         'ChatSessionRequest',
         'GetDisplayNames',
       ];

@@ -65,6 +65,8 @@ const METHODS = new Set([
   'getGroupNoticeDetail',
   'sendGroupNotice',
   'getInventory',
+  'updateInventoryItems',
+  'resolveAvatarNames',
   'purgeInventoryTrash',
   'removeInventoryItem',
   'removeInventoryFolder',

@@ -363,6 +363,143 @@ const {
 const {
   RemoveInventoryFolderMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryFolder');
+const {
+  UpdateInventoryItemMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/UpdateInventoryItem');
+
+const MAX_INVENTORY_BATCH_UPDATES = 100;
+const MAX_UDP_UPDATE_PACKET_BYTES = 1100;
+const ZERO_UUID_STRING = '00000000-0000-0000-0000-000000000000';
+
+function toSafeUuid(value) {
+  if (!value) return UUID.zero();
+  if (value instanceof UUID) return value;
+  try {
+    return new UUID(String(value));
+  } catch {
+    return UUID.zero();
+  }
+}
+
+function toBoundedSlStringBuffer(value, maxContentBytes = 254) {
+  const clean = String(value ?? '').replace(/\0/g, '');
+  const truncated = Buffer.from(clean, 'utf8').subarray(0, maxContentBytes).toString('utf8');
+  return Utils.StringToBuffer(truncated);
+}
+
+function computeInventoryItemCRC(fields) {
+  let crc = 0;
+  crc = (crc + fields.ItemID.CRC()) >>> 0;
+  crc = (crc + fields.FolderID.CRC()) >>> 0;
+  crc = (crc + fields.CreatorID.CRC()) >>> 0;
+  crc = (crc + fields.OwnerID.CRC()) >>> 0;
+  crc = (crc + fields.GroupID.CRC()) >>> 0;
+  crc = (crc + (fields.BaseMask >>> 0)) >>> 0;
+  crc = (crc + (fields.OwnerMask >>> 0)) >>> 0;
+  crc = (crc + (fields.EveryoneMask >>> 0)) >>> 0;
+  crc = (crc + (fields.GroupMask >>> 0)) >>> 0;
+  crc = (crc + (fields.AssetID ? fields.AssetID.CRC() : UUID.zero().CRC())) >>> 0;
+  crc = (crc + (fields.Type >>> 0)) >>> 0;
+  crc = (crc + (fields.InvType >>> 0)) >>> 0;
+  crc = (crc + (fields.Flags >>> 0)) >>> 0;
+  crc = (crc + (fields.SalePrice >>> 0)) >>> 0;
+  crc = (crc + (((fields.SaleType >>> 0) * 0x07073096) >>> 0)) >>> 0;
+  crc = (crc + (Math.round(fields.CreationDate) >>> 0)) >>> 0;
+  return crc >>> 0;
+}
+
+function chunkInventoryDataForUdp(blocks, maxPacketBytes = MAX_UDP_UPDATE_PACKET_BYTES) {
+  const chunks = [];
+  let current = [];
+  let currentBytes = 49;
+
+  for (const block of blocks) {
+    const blockBytes = 140 + 1 + block.Name.length + 1 + block.Description.length;
+    if (
+      current.length > 0 &&
+      (currentBytes + blockBytes > maxPacketBytes || current.length >= 255)
+    ) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 49;
+    }
+    current.push(block);
+    currentBytes += blockBytes;
+  }
+
+  if (current.length > 0) {
+    chunks.push(current);
+  }
+  return chunks;
+}
+
+function serializeSkeletonInventoryItem(item) {
+  const perms = item.permissions || {};
+  const creatorId =
+    perms.creator?.toString?.() ||
+    perms.creatorId ||
+    item.creatorID?.toString?.() ||
+    item.creatorId ||
+    undefined;
+  const ownerId =
+    perms.owner?.toString?.() ||
+    perms.ownerId ||
+    item.ownerID?.toString?.() ||
+    item.ownerId ||
+    undefined;
+  const lastOwnerId =
+    perms.lastOwner?.toString?.() ||
+    perms.lastOwnerId ||
+    item.lastOwnerID?.toString?.() ||
+    item.lastOwnerId ||
+    undefined;
+  const groupId =
+    perms.group?.toString?.() ||
+    perms.groupId ||
+    item.groupID?.toString?.() ||
+    item.groupId ||
+    undefined;
+  const creationDate =
+    item.created instanceof Date && !Number.isNaN(item.created.getTime())
+      ? Math.floor(item.created.getTime() / 1000)
+      : typeof item.creationDate === 'number'
+        ? Math.floor(item.creationDate)
+        : 0;
+  const baseMask = typeof perms.baseMask === 'number' ? perms.baseMask >>> 0 : 0x0008e000;
+  const ownerMask = typeof perms.ownerMask === 'number' ? perms.ownerMask >>> 0 : baseMask;
+  const groupMask = typeof perms.groupMask === 'number' ? perms.groupMask >>> 0 : 0;
+  const everyoneMask = typeof perms.everyoneMask === 'number' ? perms.everyoneMask >>> 0 : 0;
+  const nextOwnerMask =
+    typeof perms.nextOwnerMask === 'number' ? perms.nextOwnerMask >>> 0 : 0x00082000;
+
+  return {
+    id: item.itemID?.toString?.() || item.id,
+    name: item.name || 'Unnamed Item',
+    parent: item.parentID?.toString?.() || item.parent,
+    assetId: item.assetID?.toString?.() || item.assetId,
+    assetType: item.assetType ?? item.type ?? 0,
+    inventoryType: item.inventoryType ?? 0,
+    description: item.description || '',
+    creatorId,
+    ownerId,
+    lastOwnerId,
+    groupId,
+    groupOwned: Boolean(perms.groupOwned ?? item.groupOwned),
+    creationDate,
+    flags: typeof item.flags === 'number' ? item.flags >>> 0 : 0,
+    saleType: typeof item.saleType === 'number' ? item.saleType : 0,
+    salePrice: typeof item.salePrice === 'number' ? item.salePrice : 0,
+    permissions: {
+      baseMask,
+      ownerMask,
+      groupMask,
+      everyoneMask,
+      nextOwnerMask,
+      groupOwned: Boolean(perms.groupOwned ?? item.groupOwned),
+    },
+    folder: false,
+  };
+}
 
 class AgentSetGroupTitleMessage {
   constructor() {
@@ -2546,16 +2683,593 @@ class ViewerSession {
       skeleton && (!folderId || folderId === rootId)
         ? Array.from(skeleton.values()).map(toFolder)
         : (folder.getChildFolders() || []).map(toFolder);
-    const items = (folder.items || []).map((item) => ({
-      id: item.itemID?.toString(),
-      name: item.name || 'Unnamed Item',
-      parent: item.parentID?.toString(),
-      assetType: item.assetType,
-      inventoryType: item.inventoryType,
-      description: item.description || '',
-      folder: false,
-    }));
+    const items = (folder.items || []).map((item) => serializeSkeletonInventoryItem(item));
     return { folderId: folder.folderID?.toString(), folderName: folder.name, folders, items };
+  }
+
+  async resolveAvatarNames({ ids, timeout = 2500 } = {}) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { names: {} };
+    }
+    if (!this._avatarNameCache) {
+      this._avatarNameCache = new Map();
+    }
+
+    const cleanIds = Array.from(
+      new Set(
+        ids
+          .map((id) => String(id || '').trim())
+          .filter((id) => id.length > 0 && id !== ZERO_UUID_STRING),
+      ),
+    ).slice(0, MAX_INVENTORY_BATCH_UPDATES);
+
+    const names = {};
+    const isValidResolvedName = (val) => {
+      if (typeof val !== 'string') return false;
+      const trimmed = val.trim();
+      if (!trimmed) return false;
+      const lower = trimmed.toLowerCase();
+      return (
+        lower !== 'unknown' &&
+        lower !== 'unknown avatar' &&
+        lower !== 'loading...' &&
+        lower !== '(loading)' &&
+        lower !== 'n/a' &&
+        trimmed !== ZERO_UUID_STRING
+      );
+    };
+
+    const selfId = this.identity?.agent_id || this.bot?.agent?.agentID?.toString?.();
+    const selfName =
+      this.identity?.display_name ||
+      this.identity?.full_name ||
+      (this.identity?.first_name
+        ? `${this.identity.first_name} ${this.identity.last_name || ''}`.trim()
+        : '');
+    if (selfId && isValidResolvedName(selfName)) {
+      this._avatarNameCache.set(selfId, selfName);
+    }
+
+    const unresolved = [];
+    for (const id of cleanIds) {
+      const cached = this._avatarNameCache.get(id);
+      if (isValidResolvedName(cached)) {
+        names[id] = cached;
+      } else {
+        unresolved.push(id);
+      }
+    }
+
+    if (unresolved.length === 0 || !this.bot) {
+      return { names };
+    }
+
+    const bot = this.bot;
+    const region = this.currentRegion ? this.currentRegion() : bot.currentRegion;
+
+    // Check nearby region agents if present
+    if (region?.agents && typeof region.agents.get === 'function') {
+      for (let i = unresolved.length - 1; i >= 0; i--) {
+        const id = unresolved[i];
+        const agent = region.agents.get(id);
+        const candidate =
+          agent?.getName?.() ||
+          (agent?.firstName ? `${agent.firstName} ${agent.lastName || ''}`.trim() : '');
+        if (isValidResolvedName(candidate)) {
+          this._avatarNameCache.set(id, candidate);
+          names[id] = candidate;
+          unresolved.splice(i, 1);
+        }
+      }
+    }
+
+    // Try GetDisplayNames capability if available
+    const caps = region?.caps || bot.caps;
+    if (unresolved.length > 0 && caps) {
+      try {
+        let displayNamesUrl = null;
+        if (typeof caps.isCapAvailable === 'function') {
+          const avail = await caps.isCapAvailable('GetDisplayNames');
+          if (avail && typeof caps.getCapability === 'function') {
+            displayNamesUrl = await caps.getCapability('GetDisplayNames');
+          }
+        } else if (typeof caps.getCapability === 'function') {
+          displayNamesUrl = await caps.getCapability('GetDisplayNames');
+        } else if (caps.GetDisplayNames) {
+          displayNamesUrl = caps.GetDisplayNames;
+        }
+
+        if (displayNamesUrl && typeof fetch === 'function') {
+          const sep = String(displayNamesUrl).includes('?') ? '&' : '?';
+          const query = unresolved.map((id) => `ids=${encodeURIComponent(id)}`).join('&');
+          const resp = await Promise.race([
+            fetch(`${displayNamesUrl}${sep}${query}`, {
+              method: 'GET',
+              headers: { Accept: 'application/llsd+xml, application/json' },
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('GetDisplayNames timeout')), timeout),
+            ),
+          ]);
+          if (resp && resp.ok) {
+            const text = await resp.text();
+            let parsed = null;
+            try {
+              parsed = LLSD.LLSD.parseXML(text);
+            } catch {
+              try {
+                parsed = JSON.parse(text);
+              } catch {
+                parsed = null;
+              }
+            }
+            const agents = Array.isArray(parsed?.agents) ? parsed.agents : [];
+            for (const entry of agents) {
+              const id = String(entry?.id || '');
+              const fullLegacy =
+                entry?.legacy_first_name && entry?.legacy_last_name
+                  ? `${entry.legacy_first_name} ${entry.legacy_last_name}`.trim()
+                  : '';
+              const label = entry?.display_name || fullLegacy || entry?.username || '';
+              if (id && isValidResolvedName(label)) {
+                this._avatarNameCache.set(id, label);
+                names[id] = label;
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore capability errors and proceed to UUIDNameRequest fallback
+      }
+    }
+
+    const remaining = unresolved.filter((id) => !names[id]);
+    if (remaining.length > 0 && typeof bot.clientCommands?.grid?.avatarKey2Name === 'function') {
+      try {
+        const uuidObjs = remaining.map((id) => toSafeUuid(id));
+        const result = await Promise.race([
+          bot.clientCommands.grid.avatarKey2Name(uuidObjs.length === 1 ? uuidObjs[0] : uuidObjs),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('avatarKey2Name timeout')), timeout),
+          ),
+        ]);
+        const list = Array.isArray(result) ? result : result ? [result] : [];
+        for (const avatar of list) {
+          const id = avatar?.getKey?.()?.toString?.() || avatar?.key?.toString?.() || '';
+          const label =
+            avatar?.getName?.() ||
+            (avatar?.firstName ? `${avatar.firstName} ${avatar.lastName || ''}`.trim() : '');
+          if (id && isValidResolvedName(label)) {
+            this._avatarNameCache.set(id, label);
+            names[id] = label;
+          }
+        }
+      } catch {
+        // Unresolvable identities intentionally omitted so UI displays "―"
+      }
+    }
+
+    return { names };
+  }
+
+  async updateInventoryItems({ updates, timeout = 8000 } = {}) {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      throw new Error('At least one inventory item update is required');
+    }
+    if (updates.length > MAX_INVENTORY_BATCH_UPDATES) {
+      throw new Error(
+        `Batch operations are limited to ${MAX_INVENTORY_BATCH_UPDATES} items per request`,
+      );
+    }
+
+    const bot = this.requireBot();
+    const region = this.currentRegion ? this.currentRegion() : bot.currentRegion;
+    const caps = region?.caps || bot.caps;
+    const circuit = region?.circuit;
+    const agentId = this.identity?.agent_id || bot.agent?.agentID;
+    if (!agentId) {
+      throw new Error('Not connected to simulator');
+    }
+
+    // Index skeleton items by ID for fast lookup & post-commit cache sync
+    const skeletonById = new Map();
+    const skeleton = bot.agent?.inventory?.main?.skeleton;
+    if (skeleton && typeof skeleton.values === 'function') {
+      for (const folder of skeleton.values()) {
+        if (Array.isArray(folder?.items)) {
+          for (const skelItem of folder.items) {
+            const key = skelItem?.itemID?.toString?.() || skelItem?.id;
+            if (key) skeletonById.set(String(key), skelItem);
+          }
+        }
+      }
+    }
+
+    // Normalize each item update against its existing skeleton state if present
+    const normalizedUpdates = updates.map((entry) => {
+      const itemId = String(entry?.itemId || entry?.id || '').trim();
+      if (!itemId) {
+        throw new Error('Each inventory update requires an itemId');
+      }
+      const existing = skeletonById.get(itemId);
+      const existingPerms = existing?.permissions || {};
+      const entryPerms = entry?.permissions || {};
+
+      const parentId =
+        entry?.parentId ||
+        entry?.parent ||
+        existing?.parentID?.toString?.() ||
+        existing?.parent ||
+        ZERO_UUID_STRING;
+      const creatorId =
+        entry?.creatorId ||
+        entryPerms.creatorId ||
+        existingPerms.creator?.toString?.() ||
+        existing?.creatorId ||
+        String(agentId);
+      const ownerId =
+        entry?.ownerId ||
+        entryPerms.ownerId ||
+        existingPerms.owner?.toString?.() ||
+        existing?.ownerId ||
+        String(agentId);
+      const groupId =
+        entry?.groupId ||
+        entryPerms.groupId ||
+        existingPerms.group?.toString?.() ||
+        existing?.groupId ||
+        ZERO_UUID_STRING;
+      const assetId =
+        entry?.assetId || existing?.assetID?.toString?.() || existing?.assetId || ZERO_UUID_STRING;
+
+      const baseMask =
+        typeof entryPerms.baseMask === 'number'
+          ? entryPerms.baseMask >>> 0
+          : typeof existingPerms.baseMask === 'number'
+            ? existingPerms.baseMask >>> 0
+            : 0x0008e000;
+      const ownerMask =
+        typeof entryPerms.ownerMask === 'number'
+          ? entryPerms.ownerMask >>> 0
+          : typeof existingPerms.ownerMask === 'number'
+            ? existingPerms.ownerMask >>> 0
+            : baseMask;
+      const groupMask =
+        typeof entryPerms.groupMask === 'number'
+          ? entryPerms.groupMask >>> 0
+          : typeof existingPerms.groupMask === 'number'
+            ? existingPerms.groupMask >>> 0
+            : 0;
+      const everyoneMask =
+        typeof entryPerms.everyoneMask === 'number'
+          ? entryPerms.everyoneMask >>> 0
+          : typeof existingPerms.everyoneMask === 'number'
+            ? existingPerms.everyoneMask >>> 0
+            : 0;
+      const nextOwnerMask =
+        typeof entryPerms.nextOwnerMask === 'number'
+          ? entryPerms.nextOwnerMask >>> 0
+          : typeof existingPerms.nextOwnerMask === 'number'
+            ? existingPerms.nextOwnerMask >>> 0
+            : 0x00082000;
+      const groupOwned = Boolean(
+        entryPerms.groupOwned ?? entry?.groupOwned ?? existingPerms.groupOwned ?? false,
+      );
+
+      const name = typeof entry?.name === 'string' ? entry.name : existing?.name || 'Unnamed Item';
+      const description =
+        typeof entry?.description === 'string' ? entry.description : existing?.description || '';
+      const assetType = Number(entry?.assetType ?? existing?.assetType ?? existing?.type ?? 0);
+      const inventoryType = Number(entry?.inventoryType ?? existing?.inventoryType ?? 0);
+      const flags = Number(entry?.flags ?? existing?.flags ?? 0) >>> 0;
+      const saleType = Number(entry?.saleType ?? existing?.saleType ?? 0);
+      const salePrice = Number(entry?.salePrice ?? existing?.salePrice ?? 0);
+      const creationDate =
+        typeof entry?.creationDate === 'number' && entry.creationDate > 0
+          ? Math.floor(entry.creationDate)
+          : existing?.created instanceof Date && !Number.isNaN(existing.created.getTime())
+            ? Math.floor(existing.created.getTime() / 1000)
+            : 0;
+
+      return {
+        itemId,
+        parentId: String(parentId),
+        creatorId: String(creatorId),
+        ownerId: String(ownerId),
+        groupId: String(groupId),
+        assetId: String(assetId),
+        baseMask,
+        ownerMask,
+        groupMask,
+        everyoneMask,
+        nextOwnerMask,
+        groupOwned,
+        name,
+        description,
+        assetType,
+        inventoryType,
+        flags,
+        saleType,
+        salePrice,
+        creationDate,
+      };
+    });
+
+    // 1. Probe UpdateInventoryItem capability on the current region
+    let capUrl = null;
+    if (caps) {
+      try {
+        const probe = (async () => {
+          if (typeof caps.isCapAvailable === 'function') {
+            const avail = await caps.isCapAvailable('UpdateInventoryItem');
+            if (avail && typeof caps.getCapability === 'function') {
+              return await caps.getCapability('UpdateInventoryItem');
+            }
+          } else if (typeof caps.getCapability === 'function') {
+            return await caps.getCapability('UpdateInventoryItem');
+          } else if (typeof caps.resolveCapability === 'function') {
+            return caps.resolveCapability('UpdateInventoryItem');
+          } else if (caps.UpdateInventoryItem) {
+            return caps.UpdateInventoryItem;
+          }
+          return null;
+        })();
+        const resolved = await Promise.race([
+          probe,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Cap lookup timeout')), Math.min(timeout, 1500)),
+          ),
+        ]);
+        if (resolved) {
+          capUrl = String(resolved);
+        }
+      } catch {
+        capUrl = null;
+      }
+    }
+
+    let transport = 'udp';
+    let chunkCount = 0;
+
+    if (capUrl) {
+      const toLlsdUuid = (val) => {
+        const clean = String(val || ZERO_UUID_STRING).trim() || ZERO_UUID_STRING;
+        if (typeof LLSD?.UUID === 'function') {
+          try {
+            return new LLSD.UUID(clean);
+          } catch {
+            return toSafeUuid(clean);
+          }
+        }
+        return toSafeUuid(clean);
+      };
+
+      const llsdPayload = {
+        updates: normalizedUpdates.map((u) => ({
+          item_id: toLlsdUuid(u.itemId),
+          parent_id: toLlsdUuid(u.parentId),
+          name: u.name,
+          desc: u.description,
+          description: u.description,
+          group_id: toLlsdUuid(u.groupId),
+          group_owned: u.groupOwned,
+          base_mask: u.baseMask,
+          owner_mask: u.ownerMask,
+          group_mask: u.groupMask,
+          everyone_mask: u.everyoneMask,
+          next_owner_mask: u.nextOwnerMask,
+          sale_type: u.saleType,
+          sale_price: u.salePrice,
+          flags: u.flags,
+          permissions: {
+            base_mask: u.baseMask,
+            owner_mask: u.ownerMask,
+            group_mask: u.groupMask,
+            everyone_mask: u.everyoneMask,
+            next_owner_mask: u.nextOwnerMask,
+            group_id: toLlsdUuid(u.groupId),
+            group_owned: u.groupOwned,
+          },
+        })),
+      };
+
+      try {
+        const postPromise = (async () => {
+          if (typeof caps.capsPostXML === 'function') {
+            return await caps.capsPostXML('UpdateInventoryItem', llsdPayload);
+          }
+          if (typeof caps.capsPerformXMLPost === 'function') {
+            return await caps.capsPerformXMLPost(capUrl, llsdPayload);
+          }
+          if (typeof caps.requestPost === 'function') {
+            const xml = LLSD.LLSD.formatXML(llsdPayload);
+            const resp = await caps.requestPost(capUrl, xml, 'application/llsd+xml');
+            if (resp && resp.status >= 200 && resp.status < 300) {
+              return resp.body
+                ? typeof resp.body === 'string'
+                  ? LLSD.LLSD.parseXML(resp.body)
+                  : resp.body
+                : {};
+            }
+            const err = new Error(`UpdateInventoryItem capability HTTP ${resp?.status || 500}`);
+            err.status = resp?.status || 500;
+            throw err;
+          }
+          if (typeof fetch === 'function') {
+            const xml = LLSD.LLSD.formatXML(llsdPayload);
+            const resp = await fetch(capUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/llsd+xml',
+                Accept: 'application/llsd+xml, application/json',
+              },
+              body: xml,
+            });
+            if (!resp.ok) {
+              const err = new Error(`UpdateInventoryItem capability HTTP ${resp.status}`);
+              err.status = resp.status;
+              throw err;
+            }
+            const text = await resp.text();
+            try {
+              return text ? LLSD.LLSD.parseXML(text) : {};
+            } catch {
+              return { raw: text };
+            }
+          }
+          throw new Error('No HTTP POST transport available for UpdateInventoryItem capability');
+        })();
+
+        await Promise.race([
+          postPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('UpdateInventoryItem capability timeout')), timeout),
+          ),
+        ]);
+        transport = 'capability';
+        chunkCount = 1;
+      } catch (capErr) {
+        const status = capErr && typeof capErr === 'object' ? capErr.status : undefined;
+        const canFallbackOnUnsupported =
+          (status === 404 || status === 405 || status === 501) && Boolean(circuit?.sendMessage);
+        if (!canFallbackOnUnsupported) {
+          throw capErr;
+        }
+        capUrl = null;
+      }
+    }
+
+    // 2. Fallback to chunked reliable UDP UpdateInventoryItemMessage batches
+    if (!capUrl) {
+      if (!circuit?.sendMessage) {
+        throw new Error('Not connected to simulator');
+      }
+      const agentUuid = toSafeUuid(agentId);
+      const sessionUuid = circuit.sessionID ? toSafeUuid(circuit.sessionID) : UUID.zero();
+
+      const inventoryDataBlocks = normalizedUpdates.map((u, idx) => {
+        const ItemID = toSafeUuid(u.itemId);
+        const FolderID = toSafeUuid(u.parentId);
+        const CreatorID = toSafeUuid(u.creatorId);
+        const OwnerID = toSafeUuid(u.ownerId);
+        const GroupID = toSafeUuid(u.groupId);
+        const AssetID = toSafeUuid(u.assetId);
+        const Name = toBoundedSlStringBuffer(u.name);
+        const Description = toBoundedSlStringBuffer(u.description);
+
+        const crc = computeInventoryItemCRC({
+          ItemID,
+          FolderID,
+          CreatorID,
+          OwnerID,
+          GroupID,
+          BaseMask: u.baseMask,
+          OwnerMask: u.ownerMask,
+          EveryoneMask: u.everyoneMask,
+          GroupMask: u.groupMask,
+          AssetID,
+          Type: u.assetType,
+          InvType: u.inventoryType,
+          Flags: u.flags,
+          SalePrice: u.salePrice,
+          SaleType: u.saleType,
+          CreationDate: u.creationDate,
+        });
+
+        return {
+          ItemID,
+          FolderID,
+          CallbackID: idx + 1,
+          CreatorID,
+          OwnerID,
+          GroupID,
+          BaseMask: u.baseMask,
+          OwnerMask: u.ownerMask,
+          GroupMask: u.groupMask,
+          EveryoneMask: u.everyoneMask,
+          NextOwnerMask: u.nextOwnerMask,
+          GroupOwned: u.groupOwned,
+          TransactionID: UUID.zero(),
+          Type: u.assetType,
+          InvType: u.inventoryType,
+          Flags: u.flags,
+          SaleType: u.saleType,
+          SalePrice: u.salePrice,
+          Name,
+          Description,
+          CreationDate: u.creationDate,
+          CRC: crc,
+        };
+      });
+
+      const chunks = chunkInventoryDataForUdp(inventoryDataBlocks, MAX_UDP_UPDATE_PACKET_BYTES);
+      chunkCount = chunks.length;
+
+      for (const chunk of chunks) {
+        const msg = new UpdateInventoryItemMessage();
+        msg.AgentData = {
+          AgentID: agentUuid,
+          SessionID: sessionUuid,
+          TransactionID: UUID.random(),
+        };
+        msg.InventoryData = chunk;
+        const seq = circuit.sendMessage(msg, PacketFlags.Reliable);
+        if (typeof circuit.waitForAck === 'function' && typeof seq === 'number') {
+          await circuit.waitForAck(seq, timeout);
+        }
+      }
+      transport = 'udp';
+    }
+
+    // 3. Synchronize skeleton cache after transport confirmation
+    const updatedItems = [];
+    for (const u of normalizedUpdates) {
+      const skelItem = skeletonById.get(u.itemId);
+      if (skelItem) {
+        skelItem.name = u.name;
+        skelItem.description = u.description;
+        skelItem.flags = u.flags;
+        skelItem.saleType = u.saleType;
+        skelItem.salePrice = u.salePrice;
+        if (!skelItem.permissions) skelItem.permissions = {};
+        skelItem.permissions.baseMask = u.baseMask;
+        skelItem.permissions.ownerMask = u.ownerMask;
+        skelItem.permissions.groupMask = u.groupMask;
+        skelItem.permissions.everyoneMask = u.everyoneMask;
+        skelItem.permissions.nextOwnerMask = u.nextOwnerMask;
+        skelItem.permissions.groupOwned = u.groupOwned;
+      }
+      updatedItems.push({
+        id: u.itemId,
+        name: u.name,
+        parent: u.parentId,
+        description: u.description,
+        creatorId: u.creatorId,
+        ownerId: u.ownerId,
+        groupId: u.groupId,
+        groupOwned: u.groupOwned,
+        creationDate: u.creationDate,
+        flags: u.flags,
+        saleType: u.saleType,
+        salePrice: u.salePrice,
+        permissions: {
+          baseMask: u.baseMask,
+          ownerMask: u.ownerMask,
+          groupMask: u.groupMask,
+          everyoneMask: u.everyoneMask,
+          nextOwnerMask: u.nextOwnerMask,
+          groupOwned: u.groupOwned,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      transport,
+      chunkCount,
+      updatedCount: updatedItems.length,
+      items: updatedItems,
+    };
   }
 
   async purgeInventoryTrash({ folderId } = {}) {

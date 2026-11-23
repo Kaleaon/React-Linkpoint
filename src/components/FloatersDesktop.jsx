@@ -13,6 +13,7 @@ import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskSt
 import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 import NotecardFloater from './NotecardFloater.jsx';
+import ItemPropertiesFloater from './ItemPropertiesFloater.tsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -106,8 +107,13 @@ export default function FloatersDesktop() {
   const regionRead = `${currentRegion}${avatarPos ? ` · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])}` : ''}${heading ? ` · ${heading}` : ''}`;
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
+  const extraPropertyWindows = Object.values(state.itemPropertiesWindows || {}).filter(
+    (win) => win && win.windowId !== 'ItemPropertiesFloater' && state.flOpen[win.windowId],
+  );
+  const isCustomFloater =
+    state.screen === 'Notecard' || String(state.screen || '').startsWith('ItemPropertiesFloater');
   const flFocused =
-    state.screen !== 'Notecard' && state.flOpen[state.screen] && !state.flMin[state.screen]
+    !isCustomFloater && state.flOpen[state.screen] && !state.flMin[state.screen]
       ? actions.flR(state.screen)
       : null;
 
@@ -351,6 +357,15 @@ export default function FloatersDesktop() {
       {openFloaters.map((f) => {
         if (f.id === 'Notecard') {
           return <NotecardFloater key={f.id} />;
+        }
+        if (f.id === 'ItemPropertiesFloater') {
+          return (
+            <ItemPropertiesFloater
+              key={f.id}
+              windowId={f.id}
+              onOpenLayoutDialog={openLayoutDialog}
+            />
+          );
         }
         const r = actions.flR(f.id);
         const act = f.id === state.screen;
@@ -808,6 +823,16 @@ export default function FloatersDesktop() {
         );
       })}
 
+      {extraPropertyWindows
+        .filter((win) => !state.flMin[win.windowId])
+        .map((win) => (
+          <ItemPropertiesFloater
+            key={win.windowId}
+            windowId={win.windowId}
+            onOpenLayoutDialog={openLayoutDialog}
+          />
+        ))}
+
       {flFocused ? (
         <div
           style={{
@@ -914,9 +939,15 @@ export default function FloatersDesktop() {
         {FLOATERS.filter((f) => state.flOpen[f.id]).map((f) => {
           const min = !!state.flMin[f.id];
           const act = f.id === state.screen && !min;
+          const chipLabel =
+            f.id === 'ItemPropertiesFloater' &&
+            state.itemPropertiesWindows?.ItemPropertiesFloater?.title
+              ? state.itemPropertiesWindows.ItemPropertiesFloater.title
+              : f.title;
           return (
             <div
               key={f.id}
+              data-floater-chip={f.id}
               onClick={() => actions.flToggle(f.id)}
               style={{
                 flex: 'none',
@@ -924,7 +955,26 @@ export default function FloatersDesktop() {
                 ...chipStyle(kind, { V, t, on: act, ink, dim: min }),
               }}
             >
-              {f.title}
+              {chipLabel}
+            </div>
+          );
+        })}
+
+        {extraPropertyWindows.map((win) => {
+          const min = !!state.flMin[win.windowId];
+          const act = win.windowId === state.screen && !min;
+          return (
+            <div
+              key={win.windowId}
+              data-floater-chip={win.windowId}
+              onClick={() => actions.flToggle(win.windowId)}
+              style={{
+                flex: 'none',
+                whiteSpace: 'nowrap',
+                ...chipStyle(kind, { V, t, on: act, ink, dim: min }),
+              }}
+            >
+              {win.title || 'Item Properties'}
             </div>
           );
         })}

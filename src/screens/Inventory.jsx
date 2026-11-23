@@ -8,6 +8,10 @@ import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
 import { InventoryTree } from '../components/InventoryTree.tsx';
+import {
+  formatPermissionMaskSummary,
+  normalizeItemPermissions,
+} from '../linkpoint/services/inventory-properties-service.ts';
 
 export const INVENTORY_VIEW_MODE_KEY = 'linkpoint_inventory_view_mode';
 const FLAT_ROW_HEIGHT = 40;
@@ -33,6 +37,8 @@ export default function Inventory() {
   const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const lastSelectedFlatIdRef = useRef(null);
   const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -71,6 +77,7 @@ export default function Inventory() {
   const handleSelect = (entry) => {
     if (!entry) {
       setSelected(null);
+      setSelectedIds([]);
       return;
     }
     const isFolder = Boolean(
@@ -84,9 +91,28 @@ export default function Inventory() {
       folder: isFolder,
     });
     if (isFolder) {
+      setSelectedIds([]);
       void app.inventory.fetchFolderContents(entry.id);
+    } else {
+      setSelectedIds((prev) => (prev.length > 1 && prev.includes(entry.id) ? prev : [entry.id]));
     }
   };
+
+  const selectedItemsList = useMemo(() => {
+    void revision;
+    const list = [];
+    for (const id of selectedIds) {
+      const item = app.inventory.items.get(id);
+      if (item && !item.folder && item.type !== 'folder') {
+        list.push(item);
+      }
+    }
+    if (list.length === 0 && selected && !selected.folder) {
+      const live = app.inventory.items.get(selected.id) || selected;
+      list.push(live);
+    }
+    return list;
+  }, [selectedIds, selected, revision]);
 
   const rows = useMemo(() => {
     void revision;
@@ -112,6 +138,34 @@ export default function Inventory() {
           Number(b.folder) - Number(a.folder) || String(a.name).localeCompare(String(b.name)),
       );
   }, [filter, revision]);
+
+  const handleFlatRowClick = (entry, event) => {
+    const isFolder = Boolean(entry.folder || entry.type === 'folder');
+    if (!isFolder && (event?.ctrlKey || event?.metaKey)) {
+      setSelectedIds((prev) => {
+        const exists = prev.includes(entry.id);
+        const next = exists ? prev.filter((id) => id !== entry.id) : [...prev, entry.id];
+        return next;
+      });
+      setSelected({ ...entry, folder: false });
+      lastSelectedFlatIdRef.current = entry.id;
+      return;
+    }
+    if (!isFolder && event?.shiftKey && lastSelectedFlatIdRef.current) {
+      const itemRows = rows.filter((r) => !r.folder);
+      const aIdx = itemRows.findIndex((r) => r.id === lastSelectedFlatIdRef.current);
+      const bIdx = itemRows.findIndex((r) => r.id === entry.id);
+      if (aIdx !== -1 && bIdx !== -1) {
+        const [lo, hi] = aIdx <= bIdx ? [aIdx, bIdx] : [bIdx, aIdx];
+        const rangeIds = itemRows.slice(lo, hi + 1).map((r) => r.id);
+        setSelectedIds(rangeIds);
+        setSelected({ ...entry, folder: false });
+        return;
+      }
+    }
+    lastSelectedFlatIdRef.current = entry.id;
+    handleSelect(entry);
+  };
 
   // Measure flat list viewport height for virtualization
   useEffect(() => {
@@ -254,6 +308,42 @@ export default function Inventory() {
             <span>Flat Table</span>
           </TouchTarget>
         </div>
+        {selectedItemsList.length > 0 && (
+          <TouchTarget
+            type="button"
+            minSize={24}
+            aria-label={
+              selectedItemsList.length > 1
+                ? `Open properties for ${selectedItemsList.length} selected items`
+                : `Open properties for ${selectedItemsList[0].name || 'selected item'}`
+            }
+            onClick={() => actions.openItemProperties?.(selectedItemsList)}
+            title="Inspect or batch-edit item permissions"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              height: '40px',
+              padding: '0 12px',
+              background: V.surf,
+              border: `1px solid ${V.pri}`,
+              borderRadius: V.rs,
+              color: V.pri,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              flex: 'none',
+            }}
+          >
+            <Icon name="sliders-horizontal" size={14} />
+            <span>
+              {selectedItemsList.length > 1
+                ? `PROPERTIES (${selectedItemsList.length})`
+                : 'PROPERTIES'}
+            </span>
+          </TouchTarget>
+        )}
         <SyncActionButton
           type="button"
           onClick={handleRefresh}
@@ -287,7 +377,10 @@ export default function Inventory() {
           <InventoryTree
             filter={filter}
             selectedId={selected?.id}
+            selectedIds={selectedIds}
             onSelect={handleSelect}
+            onSelectionChange={(items) => setSelectedIds(items.map((i) => i.id))}
+            onOpenProperties={(items, opts) => actions.openItemProperties?.(items, opts)}
             onItemActivate={(entry) => {
               if (Number(entry.assetType) === 7) {
                 actions.openNotecard?.(entry);
@@ -329,11 +422,11 @@ export default function Inventory() {
                       height: `${FLAT_ROW_HEIGHT}px`,
                       boxSizing: 'border-box',
                       backgroundColor:
-                        selected?.id === entry.id
+                        selectedIds.includes(entry.id) || selected?.id === entry.id
                           ? V.priC || 'rgba(52, 118, 255, 0.15)'
                           : 'transparent',
                     }}
-                    onClick={() => handleSelect(entry)}
+                    onClick={(e) => handleFlatRowClick(entry, e)}
                     onDoubleClick={() => {
                       if (Number(entry.assetType) === 7) {
                         actions.openNotecard?.(entry);
@@ -391,22 +484,42 @@ export default function Inventory() {
               {selected.description ? (
                 <>
                   <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Description</dt>
-                  <dd style={{ margin: '0', fontSize: '12px' }}>{selected.description}</dd>
+                  <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>{selected.description}</dd>
+                </>
+              ) : null}
+              {!selected.folder ? (
+                <>
+                  <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>
+                    Owner Permissions
+                  </dt>
+                  <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>
+                    {formatPermissionMaskSummary(normalizeItemPermissions(selected).ownerMask)}
+                  </dd>
+                  <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Next Owner</dt>
+                  <dd style={{ margin: '0', fontSize: '12px' }}>
+                    {formatPermissionMaskSummary(normalizeItemPermissions(selected).nextOwnerMask)}
+                  </dd>
                 </>
               ) : null}
             </dl>
-            {Number(selected.assetType) === 7 && (
-              <div style={{ marginTop: '12px' }}>
+            {!selected.folder && (
+              <div
+                style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}
+              >
                 <button
                   type="button"
                   className="sync-action-btn"
-                  onClick={() => actions.openNotecard?.(selected)}
+                  onClick={() =>
+                    actions.openItemProperties?.(
+                      selectedItemsList.length > 1 ? selectedItemsList : [selected],
+                    )
+                  }
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: V.pri,
-                    color: V.onpri || V.bg,
-                    border: 'none',
+                    background: V.surf2 || V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
                     borderRadius: V.rs,
                     fontSize: '12px',
                     fontWeight: 700,
@@ -417,9 +530,38 @@ export default function Inventory() {
                     gap: '6px',
                   }}
                 >
-                  <Icon name="file-text" size={14} />
-                  <span>Open Notecard</span>
+                  <Icon name="sliders-horizontal" size={14} />
+                  <span>
+                    {selectedItemsList.length > 1
+                      ? `Properties (${selectedItemsList.length} items)`
+                      : 'Properties'}
+                  </span>
                 </button>
+                {Number(selected.assetType) === 7 && (
+                  <button
+                    type="button"
+                    className="sync-action-btn"
+                    onClick={() => actions.openNotecard?.(selected)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: V.pri,
+                      color: V.onpri || V.bg,
+                      border: 'none',
+                      borderRadius: V.rs,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Icon name="file-text" size={14} />
+                    <span>Open Notecard</span>
+                  </button>
+                )}
               </div>
             )}
           </AssetContainer>

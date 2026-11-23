@@ -1,20 +1,18 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from 'react';
 import {
-  ChevronRight,
-  ChevronDown,
-  Folder,
-  File,
-  MoreVertical,
   ArrowUp,
   ArrowDown,
   FolderInput,
   Trash2,
   X,
   FileText,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { app } from '../linkpoint/app';
+import { AppContext } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import FocusTrap from './FocusTrap';
+import type { InspectableInventoryItem } from '../linkpoint/services/inventory-properties-service';
 
 function useSafeTheme() {
   const context = useTheme();
@@ -27,7 +25,10 @@ function useSafeTheme() {
 export interface InventoryTreeProps {
   rootFolderId?: string;
   selectedId?: string;
+  selectedIds?: string[];
   onSelect?: (item: any) => void;
+  onSelectionChange?: (items: InspectableInventoryItem[]) => void;
+  onOpenProperties?: (items: InspectableInventoryItem[], options?: { newWindow?: boolean }) => void;
   className?: string;
   filter?: string;
   onItemActivate?: (item: any) => void;
@@ -45,11 +46,99 @@ export interface FlatTreeNode {
 const ROW_HEIGHT = 36; // Fixed row height in pixels for efficient index calculations
 const OVERSCAN = 5; // Buffer rows rendered above and below the viewport
 
+const TREE_ROW_STYLES = `
+.inventory-node-row {
+  display: flex;
+  align-items: center;
+  padding-right: 0.5rem;
+  height: ${ROW_HEIGHT}px;
+  box-sizing: border-box;
+  cursor: pointer;
+  border-radius: 4px;
+  position: relative;
+  outline-offset: -2px;
+}
+.inv-tree-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  margin-right: 4px;
+}
+.inv-tree-leaf-spacer {
+  width: 20px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.inv-tree-node-icon {
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+.inv-tree-node-label {
+  flex-grow: 1;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inv-tree-menu-wrap {
+  position: relative;
+}
+.inv-tree-action-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+`;
+
+const CHEVRON_DOWN_SVG = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    aria-hidden="true"
+  >
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+const CHEVRON_RIGHT_SVG = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    aria-hidden="true"
+  >
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+);
+
+const MORE_VERTICAL_SVG = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 7a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm0 6.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm0 6.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" />
+  </svg>
+);
+
 interface TreeNodeRowProps {
   flatNode: FlatTreeNode;
+  themeVars: ReturnType<typeof useSafeTheme>['V'];
   isSelected?: boolean;
   isFocused: boolean;
   onSelect?: (item: any) => void;
+  onRowClick?: (flatNode: FlatTreeNode, e: React.MouseEvent | React.KeyboardEvent) => void;
+  onInspectProperties?: (flatNode: FlatTreeNode, newWindow?: boolean) => void;
   toggleExpand: (id: string) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
@@ -61,6 +150,9 @@ interface TreeNodeRowProps {
   onNodeKeyDown: (e: React.KeyboardEvent, flatNode: FlatTreeNode) => void;
   onItemActivate?: (item: any) => void;
 }
+
+const EMPTY_IDS: string[] = [];
+const EMPTY_ITEMS: InspectableInventoryItem[] = [];
 
 const srOnlyStyle: React.CSSProperties = {
   position: 'absolute',
@@ -74,12 +166,219 @@ const srOnlyStyle: React.CSSProperties = {
   border: 0,
 };
 
+interface TreeNodeActionMenuProps {
+  flatNode: FlatTreeNode;
+  V: ReturnType<typeof useSafeTheme>['V'];
+  setOpenMenuId: (id: string | null) => void;
+  openMoveModal: (item: any) => void;
+  openEmptyTrashModal?: () => void;
+  onDeleteNode?: (flatNode: FlatTreeNode) => void;
+  onInspectProperties?: (flatNode: FlatTreeNode, newWindow?: boolean) => void;
+  onItemActivate?: (item: any) => void;
+  announce: (message: string) => void;
+}
+
+const TreeNodeActionMenu: React.FC<TreeNodeActionMenuProps> = ({
+  flatNode,
+  V,
+  setOpenMenuId,
+  openMoveModal,
+  openEmptyTrashModal,
+  onDeleteNode,
+  onInspectProperties,
+  onItemActivate,
+  announce,
+}) => {
+  const { id, isFolder, node } = flatNode;
+  const firstMenuItemRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    firstMenuItemRef.current?.focus();
+  }, []);
+
+  const isProtected = isFolder ? app.inventory.isProtectedFolder(node) : false;
+  const isTrashFolder = isFolder
+    ? node.folderType === 13 ||
+      node.folderType === 14 ||
+      String(node.name || '')
+        .trim()
+        .toLowerCase() === 'trash' ||
+      app.inventory.getTrashFolder()?.id === id
+    : false;
+  const hasTrashChildren =
+    isTrashFolder &&
+    ((Array.isArray(node.children) && node.children.length > 0) ||
+      (Array.isArray(app.inventory.folders.get(id)?.children) &&
+        (app.inventory.folders.get(id)?.children?.length ?? 0) > 0));
+
+  const menuItemStyle: React.CSSProperties = {
+    background: 'none',
+    border: 'none',
+    color: V.ink || '#f8fafc',
+    padding: '8px 12px',
+    textAlign: 'left',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '0.8125rem',
+  };
+
+  return (
+    <div
+      role="menu"
+      aria-label={`Actions menu for ${node.name}`}
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: '100%',
+        zIndex: 50,
+        backgroundColor: V.surf || '#1e293b',
+        border: `1px solid ${V.bdg || '#334155'}`,
+        borderRadius: '6px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        minWidth: '150px',
+        padding: '4px 0',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {!isFolder && Number(node.assetType) === 7 && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuId(null);
+            onItemActivate?.(node);
+          }}
+          style={menuItemStyle}
+        >
+          <FileText size={14} style={{ color: V.pri || '#38bdf8' }} />
+          Open Notecard
+        </button>
+      )}
+      <button
+        type="button"
+        role="menuitem"
+        ref={firstMenuItemRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenMenuId(null);
+          const success = app.inventory.moveItemUp(id);
+          if (success) {
+            announce(`Moved ${node.name} up`);
+          }
+          document.getElementById(`inventory-node-${id}`)?.focus();
+        }}
+        style={menuItemStyle}
+      >
+        <ArrowUp size={14} />
+        Move Up
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenMenuId(null);
+          const success = app.inventory.moveItemDown(id);
+          if (success) {
+            announce(`Moved ${node.name} down`);
+          }
+          document.getElementById(`inventory-node-${id}`)?.focus();
+        }}
+        style={menuItemStyle}
+      >
+        <ArrowDown size={14} />
+        Move Down
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenMenuId(null);
+          openMoveModal(node);
+        }}
+        style={menuItemStyle}
+      >
+        <FolderInput size={14} />
+        Move to Folder
+      </button>
+      {!isFolder && onInspectProperties && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenMenuId(null);
+              onInspectProperties(flatNode, e.shiftKey);
+            }}
+            style={menuItemStyle}
+          >
+            <SlidersHorizontal size={14} style={{ color: V.pri || '#38bdf8' }} />
+            Properties
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenMenuId(null);
+              onInspectProperties(flatNode, true);
+            }}
+            style={menuItemStyle}
+          >
+            <SlidersHorizontal size={14} style={{ color: V.sec || V.pri || '#38bdf8' }} />
+            Compare in New Window
+          </button>
+        </>
+      )}
+      {!isProtected && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuId(null);
+            onDeleteNode?.(flatNode);
+          }}
+          style={menuItemStyle}
+        >
+          <Trash2 size={14} aria-hidden="true" />
+          Delete
+        </button>
+      )}
+      {isTrashFolder && hasTrashChildren && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuId(null);
+            openEmptyTrashModal?.();
+          }}
+          style={menuItemStyle}
+        >
+          <Trash2 size={14} aria-hidden="true" />
+          Empty Trash
+        </button>
+      )}
+    </div>
+  );
+};
+
 const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
   ({
     flatNode,
+    themeVars: V,
     isSelected: isSelectedProp,
     isFocused,
     onSelect,
+    onRowClick,
+    onInspectProperties,
     toggleExpand,
     openMenuId,
     setOpenMenuId,
@@ -91,39 +390,18 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     onNodeKeyDown,
     onItemActivate,
   }) => {
-    const { V } = useSafeTheme();
     const { id, depth, isFolder, isOpen, node } = flatNode;
     const isSelected = isSelectedProp !== undefined ? isSelectedProp : !!flatNode.isSelected;
     const isMenuOpen = openMenuId === id;
     const labelId = `inventory-label-${id}`;
-    const firstMenuItemRef = useRef<HTMLButtonElement | null>(null);
-
-    const isProtected = isMenuOpen && isFolder ? app.inventory.isProtectedFolder(node) : false;
-    const isTrashFolder =
-      isMenuOpen && isFolder
-        ? node.folderType === 13 ||
-          node.folderType === 14 ||
-          String(node.name || '')
-            .trim()
-            .toLowerCase() === 'trash' ||
-          app.inventory.getTrashFolder()?.id === id
-        : false;
-    const hasTrashChildren =
-      isTrashFolder &&
-      ((Array.isArray(node.children) && node.children.length > 0) ||
-        (Array.isArray(app.inventory.folders.get(id)?.children) &&
-          (app.inventory.folders.get(id)?.children?.length ?? 0) > 0));
-
-    // Auto-focus first menuitem when action menu popup opens
-    useEffect(() => {
-      if (isMenuOpen && firstMenuItemRef.current) {
-        firstMenuItemRef.current.focus();
-      }
-    }, [isMenuOpen]);
 
     const handleSelect = (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation();
       onFocusNode(id);
+      if (onRowClick) {
+        onRowClick(flatNode, e);
+        return;
+      }
       if (onSelect) {
         onSelect(node);
       }
@@ -134,48 +412,6 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
       e.stopPropagation();
       toggleExpand(id);
       announce(isOpen ? `Collapsed ${node.name}` : `Expanded ${node.name}`);
-    };
-
-    const handleMoveUp = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setOpenMenuId(null);
-      const success = app.inventory.moveItemUp(id);
-      if (success) {
-        announce(`Moved ${node.name} up`);
-      }
-      document.getElementById(`inventory-node-${id}`)?.focus();
-    };
-
-    const handleMoveDown = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setOpenMenuId(null);
-      const success = app.inventory.moveItemDown(id);
-      if (success) {
-        announce(`Moved ${node.name} down`);
-      }
-      document.getElementById(`inventory-node-${id}`)?.focus();
-    };
-
-    const handleOpenMoveModal = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setOpenMenuId(null);
-      openMoveModal(node);
-    };
-
-    const handleDelete = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setOpenMenuId(null);
-      if (onDeleteNode) {
-        onDeleteNode(flatNode);
-      }
-    };
-
-    const handleOpenEmptyTrash = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setOpenMenuId(null);
-      if (openEmptyTrashModal) {
-        openEmptyTrashModal();
-      }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -262,17 +498,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         onKeyDown={handleKeyDown}
         className={`inventory-node-row inventory-row ${isSelected ? 'selected' : ''} ${isFocused ? 'focused' : ''}`}
         style={{
-          display: 'flex',
-          alignItems: 'center',
           paddingLeft: `${depth * 1.25 + 0.5}rem`,
-          paddingRight: '0.5rem',
-          height: `${ROW_HEIGHT}px`,
-          boxSizing: 'border-box',
-          cursor: 'pointer',
-          borderRadius: '4px',
-          position: 'relative',
           outline: isFocused ? `2px solid ${V.pri || '#2563eb'}` : 'none',
-          outlineOffset: '-2px',
           backgroundColor: isSelected ? V.priC || 'rgba(52, 118, 255, 0.15)' : 'transparent',
           color: isSelected ? V.onpriC || '#ffffff' : V.ink || '#e2e8f0',
         }}
@@ -280,228 +507,82 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         {isFolder ? (
           <button
             type="button"
+            className="inv-tree-expand-btn"
             aria-label={isOpen ? `Collapse ${node.name}` : `Expand ${node.name}`}
             onClick={handleToggleExpand}
             tabIndex={-1}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: V.ink2 || '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '2px',
-              marginRight: '4px',
-            }}
+            style={{ color: V.ink2 || '#94a3b8' }}
           >
-            {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {isOpen ? CHEVRON_DOWN_SVG : CHEVRON_RIGHT_SVG}
           </button>
         ) : (
-          <span style={{ width: '20px', display: 'inline-block' }} />
+          <span className="inv-tree-leaf-spacer" />
         )}
 
         {isFolder ? (
-          <Folder
-            size={18}
-            style={{ color: V.sec || '#38bdf8', marginRight: '8px', flexShrink: 0 }}
-          />
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={V.sec || '#38bdf8'}
+            strokeWidth="2"
+            aria-hidden="true"
+            className="inv-tree-node-icon"
+          >
+            <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+          </svg>
         ) : (
-          <File
-            size={16}
-            style={{ color: V.ok || V.sec2 || '#4ade80', marginRight: '8px', flexShrink: 0 }}
-          />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={V.ok || V.sec2 || '#4ade80'}
+            strokeWidth="2"
+            aria-hidden="true"
+            className="inv-tree-node-icon"
+          >
+            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+          </svg>
         )}
 
         <span
           id={labelId}
-          style={{
-            flexGrow: 1,
-            fontSize: '0.875rem',
-            fontWeight: isFolder ? 600 : 400,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
+          className="inv-tree-node-label"
+          style={isFolder ? { fontWeight: 600 } : undefined}
         >
           {node.name || 'Unnamed item'}
         </span>
 
         {/* Action Menu Trigger (Single-Pointer Alternative) */}
-        <div style={{ position: 'relative' }}>
+        <div className="inv-tree-menu-wrap">
           <button
             type="button"
+            className="inv-tree-action-trigger"
             aria-label={`Actions for ${node.name}`}
             tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation();
               setOpenMenuId(isMenuOpen ? null : id);
             }}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: V.ink2 || '#94a3b8',
-              padding: '2px 4px',
-              display: 'flex',
-              alignItems: 'center',
-              borderRadius: '4px',
-            }}
+            style={{ color: V.ink2 || '#94a3b8' }}
           >
-            <MoreVertical size={16} />
+            {MORE_VERTICAL_SVG}
           </button>
 
-          {/* Context Menu Popup */}
           {isMenuOpen && (
-            <div
-              role="menu"
-              aria-label={`Actions menu for ${node.name}`}
-              style={{
-                position: 'absolute',
-                right: 0,
-                top: '100%',
-                zIndex: 50,
-                backgroundColor: V.surf || '#1e293b',
-                border: `1px solid ${V.bdg || '#334155'}`,
-                borderRadius: '6px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                minWidth: '150px',
-                padding: '4px 0',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              {!isFolder && Number(node.assetType) === 7 && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpenMenuId(null);
-                    onItemActivate?.(node);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: V.ink || '#f8fafc',
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.8125rem',
-                  }}
-                >
-                  <FileText size={14} style={{ color: V.pri || '#38bdf8' }} />
-                  Open Notecard
-                </button>
-              )}
-              <button
-                type="button"
-                role="menuitem"
-                ref={firstMenuItemRef}
-                onClick={handleMoveUp}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: V.ink || '#f8fafc',
-                  padding: '8px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <ArrowUp size={14} />
-                Move Up
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleMoveDown}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: V.ink || '#f8fafc',
-                  padding: '8px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <ArrowDown size={14} />
-                Move Down
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={handleOpenMoveModal}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: V.ink || '#f8fafc',
-                  padding: '8px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <FolderInput size={14} />
-                Move to Folder
-              </button>
-              {!isProtected && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleDelete}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: V.ink || '#f8fafc',
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.8125rem',
-                  }}
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                  Delete
-                </button>
-              )}
-              {isTrashFolder && hasTrashChildren && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleOpenEmptyTrash}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: V.ink || '#f8fafc',
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.8125rem',
-                  }}
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                  Empty Trash
-                </button>
-              )}
-            </div>
+            <TreeNodeActionMenu
+              flatNode={flatNode}
+              V={V}
+              setOpenMenuId={setOpenMenuId}
+              openMoveModal={openMoveModal}
+              openEmptyTrashModal={openEmptyTrashModal}
+              onDeleteNode={onDeleteNode}
+              onInspectProperties={onInspectProperties}
+              onItemActivate={onItemActivate}
+              announce={announce}
+            />
           )}
         </div>
       </div>
@@ -512,13 +593,19 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
 export const InventoryTree: React.FC<InventoryTreeProps> = ({
   rootFolderId,
   selectedId,
+  selectedIds: controlledSelectedIds,
   onSelect,
+  onSelectionChange,
+  onOpenProperties,
   className,
   filter,
   onItemActivate,
 }) => {
   const { V } = useSafeTheme();
+  const appCtx = useContext(AppContext);
   const [revision, setRevision] = useState(0);
+  const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
+  const anchorNodeIdRef = useRef<string | null>(null);
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [moveTargetItem, setMoveTargetItem] = useState<any | null>(null);
@@ -957,6 +1044,140 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
     [announce, onSelect, scrollAndFocus, toggleExpand],
   );
 
+  const effectiveSelectedIds = useMemo(() => {
+    if (Array.isArray(controlledSelectedIds)) {
+      return controlledSelectedIds;
+    }
+    if (internalSelectedIds.length > 0) {
+      return internalSelectedIds;
+    }
+    return selectedId ? [selectedId] : EMPTY_IDS;
+  }, [controlledSelectedIds, internalSelectedIds, selectedId]);
+
+  const effectiveSelectedSet = useMemo(() => new Set(effectiveSelectedIds), [effectiveSelectedIds]);
+
+  const selectedItemNodes = useMemo(() => {
+    void revision;
+    if (effectiveSelectedIds.length <= 1) {
+      return EMPTY_ITEMS;
+    }
+    const items: InspectableInventoryItem[] = [];
+    for (const id of effectiveSelectedIds) {
+      const item = app.inventory.items.get(id) as InspectableInventoryItem | undefined;
+      if (item && !item.folder && item.type !== 'folder') {
+        items.push(item);
+      }
+    }
+    return items;
+  }, [effectiveSelectedIds, revision]);
+
+  const selectionStateRef = useRef({
+    effectiveSelectedIds,
+    effectiveSelectedSet,
+    selectedItemNodes,
+  });
+  selectionStateRef.current = {
+    effectiveSelectedIds,
+    effectiveSelectedSet,
+    selectedItemNodes,
+  };
+
+  const applySelectedIds = useCallback(
+    (nextIds: string[]) => {
+      if (!Array.isArray(controlledSelectedIds)) {
+        setInternalSelectedIds((prev) =>
+          prev.length === 0 && nextIds.length === 0 ? prev : nextIds,
+        );
+      }
+      if (onSelectionChange) {
+        const items: InspectableInventoryItem[] = [];
+        for (const id of nextIds) {
+          const item = app.inventory.items.get(id) as InspectableInventoryItem | undefined;
+          if (item && !item.folder && item.type !== 'folder') {
+            items.push(item);
+          }
+        }
+        onSelectionChange(items);
+      }
+    },
+    [controlledSelectedIds, onSelectionChange],
+  );
+
+  const triggerOpenProperties = useCallback(
+    (items: InspectableInventoryItem[], newWindow = false) => {
+      if (items.length === 0) return;
+      const opts = newWindow ? { newWindow: true } : undefined;
+      if (onOpenProperties) {
+        onOpenProperties(items, opts);
+        return;
+      }
+      appCtx?.actions?.openItemProperties?.(items, opts);
+    },
+    [onOpenProperties, appCtx],
+  );
+
+  const handleRowClick = useCallback(
+    (flatNode: FlatTreeNode, e: React.MouseEvent | React.KeyboardEvent) => {
+      const { effectiveSelectedSet: curSet, effectiveSelectedIds: curIds } =
+        selectionStateRef.current;
+      const isModifier = 'ctrlKey' in e && (e.ctrlKey || e.metaKey);
+      const isShift = 'shiftKey' in e && e.shiftKey;
+
+      if (!flatNode.isFolder && isModifier) {
+        const exists = curSet.has(flatNode.id);
+        const nextIds = exists
+          ? curIds.filter((id) => id !== flatNode.id)
+          : [...curIds, flatNode.id];
+        applySelectedIds(nextIds);
+        anchorNodeIdRef.current = flatNode.id;
+        onSelect?.(flatNode.node);
+        announce(
+          `${exists ? 'Deselected' : 'Selected'} ${flatNode.node.name || 'Unnamed item'} (${nextIds.length} selected)`,
+        );
+        return;
+      }
+
+      if (!flatNode.isFolder && isShift && anchorNodeIdRef.current) {
+        const nodes = flatNodesRef.current;
+        const aIdx = nodes.findIndex((n) => n.id === anchorNodeIdRef.current);
+        const bIdx = nodes.findIndex((n) => n.id === flatNode.id);
+        if (aIdx !== -1 && bIdx !== -1) {
+          const [lo, hi] = aIdx <= bIdx ? [aIdx, bIdx] : [bIdx, aIdx];
+          const rangeItemIds = nodes
+            .slice(lo, hi + 1)
+            .filter((n) => !n.isFolder)
+            .map((n) => n.id);
+          if (rangeItemIds.length > 0) {
+            applySelectedIds(rangeItemIds);
+            onSelect?.(flatNode.node);
+            announce(`Selected ${rangeItemIds.length} items`);
+            return;
+          }
+        }
+      }
+
+      anchorNodeIdRef.current = flatNode.id;
+      applySelectedIds(flatNode.isFolder ? EMPTY_IDS : [flatNode.id]);
+      onSelect?.(flatNode.node);
+      announce(`Selected ${flatNode.node.name || 'Unnamed item'}`);
+    },
+    [applySelectedIds, onSelect, announce],
+  );
+
+  const handleInspectProperties = useCallback(
+    (flatNode: FlatTreeNode, newWindow = false) => {
+      if (flatNode.isFolder) return;
+      const { selectedItemNodes: curItems, effectiveSelectedSet: curSet } =
+        selectionStateRef.current;
+      if (curItems.length > 1 && curSet.has(flatNode.id)) {
+        triggerOpenProperties(curItems, newWindow);
+      } else {
+        triggerOpenProperties([flatNode.node as InspectableInventoryItem], newWindow);
+      }
+    },
+    [triggerOpenProperties],
+  );
+
   return (
     <div
       ref={containerRef}
@@ -972,6 +1193,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
         position: 'relative',
       }}
     >
+      <style>{TREE_ROW_STYLES}</style>
       {/* Screen Reader Live Region for Dynamic Notifications */}
       <div
         className="sr-only"
@@ -983,10 +1205,73 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
         {announcement}
       </div>
 
+      {/* Multi-Selection Action Bar */}
+      {selectedItemNodes.length > 1 && (
+        <div
+          data-testid="inventory-multi-select-bar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            padding: '6px 10px',
+            marginBottom: '6px',
+            borderRadius: '6px',
+            backgroundColor: V.surf || '#1e293b',
+            border: `1px solid ${V.pri || '#38bdf8'}`,
+            color: V.ink || '#f8fafc',
+            fontSize: '0.8125rem',
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>{selectedItemNodes.length} items selected</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => triggerOpenProperties(selectedItemNodes)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: V.pri || '#38bdf8',
+                color: V.onpri || '#0f172a',
+                fontWeight: 700,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+              }}
+            >
+              <SlidersHorizontal size={13} />
+              Properties
+            </button>
+            <button
+              type="button"
+              aria-label="Clear multi-selection"
+              onClick={() => applySelectedIds([])}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '4px 6px',
+                borderRadius: '4px',
+                border: `1px solid ${V.bdg || '#334155'}`,
+                backgroundColor: 'transparent',
+                color: V.ink2 || '#94a3b8',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ARIA Tree */}
       <div
         role="tree"
         aria-label="Inventory Tree"
+        aria-multiselectable="true"
         style={{
           position: 'relative',
           minHeight: effectiveRootId || flatNodes.length > 0 ? `${totalHeight}px` : 'auto',
@@ -1007,9 +1292,12 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
               <TreeNodeRow
                 key={flatNode.id}
                 flatNode={flatNode}
-                isSelected={flatNode.id === selectedId}
+                themeVars={V}
+                isSelected={flatNode.id === selectedId || effectiveSelectedSet.has(flatNode.id)}
                 isFocused={flatNode.id === rovingTabNodeId}
                 onSelect={onSelect}
+                onRowClick={handleRowClick}
+                onInspectProperties={handleInspectProperties}
                 toggleExpand={toggleExpand}
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}

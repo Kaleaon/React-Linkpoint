@@ -14,6 +14,7 @@ const READ_ONLY_CALLS = new Set([
   'getGroups',
   'getGroupDetails',
   'getInventory',
+  'resolveAvatarNames',
   'getOutfit',
   'getShape',
   'getMapBlocks',
@@ -731,6 +732,58 @@ export class SLBridge extends Utils.EventEmitter {
     return this.call<{ success: boolean; folderId: string }>('removeInventoryFolder', {
       folderId,
     });
+  }
+  async updateInventoryItems(
+    updates: Array<{
+      itemId: string;
+      parentId?: string;
+      name?: string;
+      description?: string;
+      assetId?: string;
+      assetType?: number;
+      inventoryType?: number;
+      creatorId?: string;
+      ownerId?: string;
+      groupId?: string;
+      groupOwned?: boolean;
+      creationDate?: number;
+      flags?: number;
+      saleType?: number;
+      salePrice?: number;
+      permissions: {
+        baseMask: number;
+        ownerMask: number;
+        groupMask: number;
+        everyoneMask: number;
+        nextOwnerMask: number;
+        groupOwned?: boolean;
+      };
+    }>,
+    timeout?: number,
+  ) {
+    if (!this.connected) {
+      throw new Error('Not connected to Second Life');
+    }
+    return this.call<{
+      success: boolean;
+      transport: 'capability' | 'udp';
+      chunkCount: number;
+      updatedCount: number;
+      items: Array<Record<string, unknown>>;
+    }>('updateInventoryItems', timeout ? { updates, timeout } : { updates });
+  }
+  async resolveAvatarNames(ids: string[], timeout?: number) {
+    if (!this.connected || !Array.isArray(ids) || ids.length === 0) {
+      return { names: {} as Record<string, string> };
+    }
+    try {
+      return await this.call<{ names: Record<string, string> }>(
+        'resolveAvatarNames',
+        timeout ? { ids, timeout } : { ids },
+      );
+    } catch {
+      return { names: {} as Record<string, string> };
+    }
   }
   async fetchScene() {
     if (!this.connected) return [];

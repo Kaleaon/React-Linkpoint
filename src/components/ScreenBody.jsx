@@ -42,6 +42,7 @@ import {
   TeleportScreen,
   TransactionsScreen,
 } from '../screens/LumiyaTools.jsx';
+import ItemPropertiesFloater from './ItemPropertiesFloater.tsx';
 
 // Ported from the big content column inside `shellStyle` (headers -> segTabs
 // -> chips -> the 13 screens' bodies), plus the split-view detail pane that
@@ -126,6 +127,9 @@ export default function ScreenBody() {
           {norm && scr === 'Transactions' && <TransactionsScreen />}
           {norm && scr === 'Diagnostics' && <DiagnosticsContainer />}
           {norm && scr === 'AO' && <AOScreen />}
+          {norm && String(scr).startsWith('ItemPropertiesFloater') && (
+            <ItemPropertiesFloater windowId={scr} inline />
+          )}
           {scr === 'Login' && <Login />}
           {scr === 'Search' && <Search />}
           {!norm && <StateBlock />}
