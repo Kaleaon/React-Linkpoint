@@ -226,6 +226,167 @@ describe('Calendar screen: group notices', () => {
         'Google refused: quota',
       );
     });
+
+    it('mounts 14px inline CrystalLoader during active export and dismisses it on completion or auth rejection', async () => {
+      let resolveAdd: (value: any) => void = () => {};
+      google.token.mockReturnValue('tok');
+      google.add.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAdd = resolve;
+          }),
+      );
+
+      mounted = await mountScreen(CalendarScreen);
+      await receive();
+      await act(async () => {
+        app.preferences.set('integrations', 'google', true);
+      });
+      await open(mounted.host);
+
+      const exportBtn = buttonByText(mounted.host, 'ADD TO GOOGLE CALENDAR')!;
+      expect(exportBtn).toBeDefined();
+      expect(exportBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+
+      await click(exportBtn);
+
+      const loader = exportBtn.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+      expect(loader).not.toBeNull();
+      expect(loader.getAttribute('data-variant')).toBe('inline');
+      expect(loader.style.width).toBe('14px');
+      expect(loader.style.height).toBe('14px');
+      expect(exportBtn.textContent).toContain('ADDING…');
+      expect(exportBtn.disabled).toBe(true);
+
+      await act(async () => {
+        resolveAdd({
+          existing: false,
+          event: { id: 'evt1', summary: 'Dance night', htmlLink: null, start: 'S', end: 'E' },
+        });
+      });
+      await flush();
+
+      expect(exportBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(exportBtn.textContent).toBe('ADD TO GOOGLE CALENDAR');
+      expect(exportBtn.disabled).toBe(false);
+
+      // Verify auth rejection also resets busy state and dismisses CrystalLoader
+      let rejectSignIn: (reason?: any) => void = () => {};
+      google.token.mockReturnValue(null);
+      google.signIn.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectSignIn = reject;
+          }),
+      );
+
+      await click(exportBtn);
+      expect(exportBtn.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+      expect(exportBtn.disabled).toBe(true);
+
+      await act(async () => {
+        rejectSignIn(new Error('Sign-in cancelled'));
+      });
+      await flush();
+
+      expect(exportBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(exportBtn.disabled).toBe(false);
+      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain(
+        'Sign-in cancelled',
+      );
+    });
+
+    it('supports accessible keyboard interaction and status announcements during pending network requests', async () => {
+      let resolveFirst: (value: any) => void = () => {};
+      google.token.mockReturnValue('tok');
+      google.add
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirst = resolve;
+            }),
+        )
+        .mockResolvedValueOnce({
+          existing: true,
+          event: { id: 'evt1', summary: 'Dance night', htmlLink: null, start: 'S', end: 'E' },
+        });
+
+      mounted = await mountScreen(CalendarScreen);
+      await receive();
+      await act(async () => {
+        app.preferences.set('integrations', 'google', true);
+      });
+      await open(mounted.host);
+
+      const exportBtn = buttonByText(mounted.host, 'ADD TO GOOGLE CALENDAR')!;
+      expect(exportBtn.getAttribute('role')).toBe('button');
+      expect(exportBtn.getAttribute('tabindex')).toBe('0');
+      expect(exportBtn.getAttribute('aria-live')).toBe('polite');
+      expect(exportBtn.getAttribute('aria-busy')).toBeNull();
+
+      // Trigger export via Enter keydown
+      const enterKey = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => {
+        exportBtn.dispatchEvent(enterKey);
+      });
+      expect(enterKey.defaultPrevented).toBe(true);
+      await flush();
+
+      // Pending request announces busy status and blocks duplicate keyboard/pointer triggers
+      expect(exportBtn.getAttribute('aria-busy')).toBe('true');
+      expect(exportBtn.getAttribute('aria-disabled')).toBe('true');
+      expect(exportBtn.getAttribute('tabindex')).toBe('-1');
+      expect(exportBtn.textContent).toContain('ADDING…');
+      expect(google.add).toHaveBeenCalledTimes(1);
+
+      const duplicateSpace = new KeyboardEvent('keydown', {
+        key: ' ',
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => {
+        exportBtn.dispatchEvent(duplicateSpace);
+        exportBtn.click();
+      });
+      expect(duplicateSpace.defaultPrevented).toBe(true);
+      expect(google.add).toHaveBeenCalledTimes(1);
+
+      // Resolve pending request and verify completion status announcement + restored keyboard focusability
+      await act(async () => {
+        resolveFirst({
+          existing: false,
+          event: { id: 'evt1', summary: 'Dance night', htmlLink: null, start: 'S', end: 'E' },
+        });
+      });
+      await flush();
+
+      expect(exportBtn.getAttribute('aria-busy')).toBeNull();
+      expect(exportBtn.getAttribute('aria-disabled')).toBeNull();
+      expect(exportBtn.getAttribute('tabindex')).toBe('0');
+      const statusRegions = [...mounted.host.querySelectorAll('[role="status"]')].map(
+        (el) => el.textContent || '',
+      );
+      expect(statusRegions.some((text) => text.includes('Added to your Google Calendar.'))).toBe(
+        true,
+      );
+
+      // Verify Space keydown also activates AccessibleButton once idle again
+      const spaceKey = new KeyboardEvent('keydown', {
+        key: ' ',
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => {
+        exportBtn.dispatchEvent(spaceKey);
+      });
+      expect(spaceKey.defaultPrevented).toBe(true);
+      await flush();
+      expect(google.add).toHaveBeenCalledTimes(2);
+    });
   });
 });
 

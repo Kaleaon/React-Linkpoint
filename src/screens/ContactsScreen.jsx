@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { app } from '../linkpoint/app.ts';
+import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { fileToPhotoDataUrl, base64ToBlob } from '../linkpoint/contact-photo.ts';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -58,6 +59,8 @@ export default function ContactsScreen() {
     app.friends.on('friend_removed', bump);
     app.friends.on('friend_rights_updated', bump);
     app.protocol.on('friends_loaded', bump);
+    app.auth.on('login_success', bump);
+    app.auth.on('logout', bump);
     setContacts(app.contacts.list());
     return () => {
       app.contacts.off('contacts_changed', onContacts);
@@ -66,6 +69,8 @@ export default function ContactsScreen() {
       app.friends.off('friend_removed', bump);
       app.friends.off('friend_rights_updated', bump);
       app.protocol.off('friends_loaded', bump);
+      app.auth.off('login_success', bump);
+      app.auth.off('logout', bump);
     };
   }, []);
 
@@ -75,7 +80,7 @@ export default function ContactsScreen() {
     [friends],
   );
   const unsaved = friends.filter((friend) => !app.contacts.has(friend.id));
-  const selected = selectedId ? contacts.find((c) => c.id === selectedId) || null : null;
+  const selected = selectedId !== null ? contacts.find((c) => c.id === selectedId) || null : null;
   const shown = contacts.filter(
     (c) =>
       !query.trim() ||
@@ -469,6 +474,26 @@ function ContactDetail({
       say('info', 'Profile picture saved as the contact photo.');
     });
 
+  const canOfferTeleport = Boolean(contact.id && app.auth.isLoggedIn());
+
+  const offerTeleport = () => {
+    if (!canOfferTeleport) return;
+    slBridge.offerTeleport({ id: contact.id }).then(
+      () => {
+        if (typeof actions?.notify === 'function') {
+          actions.notify(`Teleport offered to ${contact.name}`);
+        }
+      },
+      (err) => {
+        if (typeof actions?.notify === 'function') {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not offer a teleport to ${contact.name}`,
+          );
+        }
+      },
+    );
+  };
+
   const saveLink = (service) => {
     const result = app.contacts.setLink(contact.id, service, linkInputs[service] || '');
     setLinkErrors((previous) => ({ ...previous, [service]: result.ok ? '' : result.error }));
@@ -526,6 +551,19 @@ function ContactDetail({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         <button type="button" style={button(true)} onClick={() => actions.startIm(contact.name)}>
           INSTANT MESSAGE
+        </button>
+        <button
+          type="button"
+          data-testid="contact-offer-teleport-btn"
+          disabled={busy || !canOfferTeleport}
+          style={{
+            ...button(false),
+            cursor: busy || !canOfferTeleport ? 'default' : 'pointer',
+            opacity: busy || !canOfferTeleport ? 0.6 : 1,
+          }}
+          onClick={offerTeleport}
+        >
+          OFFER TELEPORT
         </button>
         <button
           type="button"

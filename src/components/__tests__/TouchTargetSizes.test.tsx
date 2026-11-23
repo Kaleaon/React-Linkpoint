@@ -8,6 +8,7 @@ import ChipRow from '../ChipRow.jsx';
 import Header from '../Header.jsx';
 import BottomTabs from '../BottomTabs.jsx';
 import MobileOverlayControls from '../MobileOverlayControls';
+import SystemDialog from '../SystemDialog.jsx';
 import TouchTarget from '../TouchTarget';
 import { app } from '../../linkpoint/app';
 
@@ -175,5 +176,76 @@ describe('Minimum Touch Target Dimensions', () => {
     expect(btn.style.display).toBe('inline-flex');
     expect(btn.style.alignItems).toBe('center');
     expect(btn.style.justifyContent).toBe('center');
+  });
+
+  it('renders teleport header cancel control as a TouchTarget button with accessible role, name, 24x24 size, and keyboard activation', async () => {
+    try {
+      const host = await mount(createElement(SystemDialog));
+
+      await act(async () => {
+        app.interactions.startTeleportSession('Ahern Welcome Area');
+      });
+
+      const cancelBtn = host.querySelector(
+        'button[aria-label="Cancel teleport"]',
+      ) as HTMLButtonElement;
+      expect(cancelBtn).not.toBeNull();
+      expect(cancelBtn.tagName).toBe('BUTTON');
+      expect(cancelBtn.type).toBe('button');
+      expect(cancelBtn.getAttribute('aria-label')).toBe('Cancel teleport');
+      expect(cancelBtn.textContent).toBe('CANCEL');
+      expect(cancelBtn.classList.contains('touch-target')).toBe(true);
+      expect(cancelBtn.style.minWidth).toBe('24px');
+      expect(cancelBtn.style.minHeight).toBe('24px');
+      expect(cancelBtn.style.display).toBe('inline-flex');
+      expect(cancelBtn.style.alignItems).toBe('center');
+      expect(cancelBtn.style.justifyContent).toBe('center');
+      expect(cancelBtn.style.background).toBe('transparent');
+
+      // Verify keyboard focusability
+      await act(async () => {
+        cancelBtn.focus();
+      });
+      expect(document.activeElement).toBe(cancelBtn);
+
+      // Verify keyboard activation with Enter cancels teleport session
+      await act(async () => {
+        cancelBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(app.interactions.teleportSession).toBeNull();
+      expect(host.querySelector('button[aria-label="Cancel teleport"]')).toBeNull();
+
+      // Re-open teleport session and verify keyboard activation with Space
+      await act(async () => {
+        app.interactions.startTeleportSession('Da Boom');
+      });
+      const cancelBtnSpace = host.querySelector(
+        'button[aria-label="Cancel teleport"]',
+      ) as HTMLButtonElement;
+      expect(cancelBtnSpace).not.toBeNull();
+
+      await act(async () => {
+        cancelBtnSpace.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+      });
+      expect(app.interactions.teleportSession).toBeNull();
+
+      // Re-open teleport session and verify pointer click activation
+      await act(async () => {
+        app.interactions.startTeleportSession('Kama City');
+      });
+      const cancelBtnClick = host.querySelector(
+        'button[aria-label="Cancel teleport"]',
+      ) as HTMLButtonElement;
+      expect(cancelBtnClick).not.toBeNull();
+
+      await act(async () => {
+        cancelBtnClick.click();
+      });
+      expect(app.interactions.teleportSession).toBeNull();
+    } finally {
+      await act(async () => {
+        app.interactions.clearTeleportSession();
+      });
+    }
   });
 });

@@ -388,4 +388,232 @@ describe('GroupAdminFloater Component', () => {
     // Floater is closed
     expect(host.querySelector('[aria-label="Group Administration Floater"]')).toBeNull();
   });
+
+  it('renders inline CrystalLoader in role save button while busy and unmounts cleanly', async () => {
+    let resolveUpdate!: (val: { success: boolean }) => void;
+    mockAdminService.updateRole.mockImplementationOnce(
+      () =>
+        new Promise<{ success: boolean }>((resolve) => {
+          resolveUpdate = resolve;
+        }),
+    );
+
+    const host = await mount(
+      createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      }),
+    );
+
+    const submitBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    expect(submitBtn).toBeTruthy();
+    expect(submitBtn?.textContent).toContain('Apply Changes');
+    expect(submitBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(submitBtn?.querySelector('svg.lucide')).toBeTruthy();
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    const loader = submitBtn?.querySelector('[data-testid="crystal-loader"]') as HTMLElement | null;
+    expect(loader).toBeTruthy();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.style.width).toBe('16px');
+    expect(submitBtn?.querySelector('svg.lucide')).toBeNull();
+    expect(submitBtn?.textContent).toContain('Applying…');
+    expect(submitBtn?.disabled).toBe(true);
+
+    await act(async () => {
+      resolveUpdate({ success: true });
+    });
+
+    expect(submitBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(submitBtn?.querySelector('svg.lucide')).toBeTruthy();
+    expect(submitBtn?.textContent).toContain('Apply Changes');
+    expect(submitBtn?.disabled).toBe(false);
+  });
+
+  it('renders inline CrystalLoader in role assignment button while busy and unmounts cleanly', async () => {
+    let resolveAssign!: (val: { success: boolean }) => void;
+    mockAdminService.assignMemberRoles.mockImplementationOnce(
+      () =>
+        new Promise<{ success: boolean }>((resolve) => {
+          resolveAssign = resolve;
+        }),
+    );
+
+    const host = await mount(
+      createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      }),
+    );
+
+    const membersTabBtn = Array.from(host.querySelectorAll('button[role="tab"]')).find(
+      (b) => b.textContent?.trim() === 'MEMBERS',
+    ) as HTMLElement | undefined;
+    await act(async () => {
+      membersTabBtn?.click();
+    });
+
+    const saveRolesBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Save Role Assignments'),
+    ) as HTMLButtonElement | undefined;
+    expect(saveRolesBtn).toBeTruthy();
+    expect(saveRolesBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(saveRolesBtn?.querySelector('svg.lucide')).toBeTruthy();
+
+    await act(async () => {
+      saveRolesBtn?.click();
+    });
+
+    const loader = saveRolesBtn?.querySelector(
+      '[data-testid="crystal-loader"]',
+    ) as HTMLElement | null;
+    expect(loader).toBeTruthy();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.style.width).toBe('16px');
+    expect(saveRolesBtn?.querySelector('svg.lucide')).toBeNull();
+    expect(saveRolesBtn?.textContent).toContain('Saving…');
+    expect(saveRolesBtn?.disabled).toBe(true);
+
+    await act(async () => {
+      resolveAssign({ success: true });
+    });
+
+    expect(saveRolesBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(saveRolesBtn?.querySelector('svg.lucide')).toBeTruthy();
+    expect(saveRolesBtn?.textContent).toContain('Save Role Assignments');
+    expect(saveRolesBtn?.disabled).toBe(false);
+  });
+
+  it('renders inline CrystalLoader in send invitation button while busy and unmounts cleanly', async () => {
+    let resolveInvite!: (val: { success: boolean }) => void;
+    mockAdminService.inviteMember.mockImplementationOnce(
+      () =>
+        new Promise<{ success: boolean }>((resolve) => {
+          resolveInvite = resolve;
+        }),
+    );
+
+    const host = await mount(
+      createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      }),
+    );
+
+    const invitesTabBtn = Array.from(host.querySelectorAll('button[role="tab"]')).find(
+      (b) => b.textContent?.trim() === 'INVITATIONS',
+    ) as HTMLElement | undefined;
+    await act(async () => {
+      invitesTabBtn?.click();
+    });
+
+    const agentInput = host.querySelector(
+      'input[placeholder="e.g. Firstname Lastname or UUID"]',
+    ) as HTMLElement | null;
+    await act(async () => {
+      setInputValue(agentInput, 'Charlie Resident');
+    });
+
+    const sendBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    expect(sendBtn).toBeTruthy();
+    expect(sendBtn?.textContent).toContain('Send Invitation');
+    expect(sendBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(sendBtn?.querySelector('svg.lucide')).toBeTruthy();
+
+    await act(async () => {
+      sendBtn?.click();
+    });
+
+    const loader = sendBtn?.querySelector('[data-testid="crystal-loader"]') as HTMLElement | null;
+    expect(loader).toBeTruthy();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.style.width).toBe('16px');
+    expect(sendBtn?.querySelector('svg.lucide')).toBeNull();
+    expect(sendBtn?.textContent).toContain('Sending…');
+    expect(sendBtn?.disabled).toBe(true);
+
+    await act(async () => {
+      resolveInvite({ success: true });
+    });
+
+    expect(sendBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(sendBtn?.querySelector('svg.lucide')).toBeTruthy();
+    expect(sendBtn?.textContent).toContain('Send Invitation');
+    expect(sendBtn?.disabled).toBe(false);
+  });
+
+  it('renders inline CrystalLoader in eject confirmation button while busy and restores icon on error', async () => {
+    let rejectEject!: (reason?: unknown) => void;
+    mockAdminService.ejectMember.mockImplementationOnce(
+      () =>
+        new Promise<{ success: boolean }>((_, reject) => {
+          rejectEject = reject;
+        }),
+    );
+
+    const host = await mount(
+      createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      }),
+    );
+
+    const membersTabBtn = Array.from(host.querySelectorAll('button[role="tab"]')).find(
+      (b) => b.textContent?.trim() === 'MEMBERS',
+    ) as HTMLElement | undefined;
+    await act(async () => {
+      membersTabBtn?.click();
+    });
+
+    const ejectBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Eject Member'),
+    ) as HTMLElement | undefined;
+    await act(async () => {
+      ejectBtn?.click();
+    });
+
+    const confirmEjectBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm Eject'),
+    ) as HTMLButtonElement | undefined;
+    expect(confirmEjectBtn).toBeTruthy();
+    expect(confirmEjectBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(confirmEjectBtn?.querySelector('svg.lucide')).toBeTruthy();
+
+    await act(async () => {
+      confirmEjectBtn?.click();
+    });
+
+    const loader = confirmEjectBtn?.querySelector(
+      '[data-testid="crystal-loader"]',
+    ) as HTMLElement | null;
+    expect(loader).toBeTruthy();
+    expect(loader?.getAttribute('data-variant')).toBe('inline');
+    expect(loader?.style.width).toBe('16px');
+    expect(confirmEjectBtn?.querySelector('svg.lucide')).toBeNull();
+    expect(confirmEjectBtn?.textContent).toContain('Ejecting…');
+    expect(confirmEjectBtn?.disabled).toBe(true);
+
+    await act(async () => {
+      rejectEject(new Error('Permission denied to eject member'));
+    });
+
+    expect(confirmEjectBtn?.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+    expect(confirmEjectBtn?.querySelector('svg.lucide')).toBeTruthy();
+    expect(confirmEjectBtn?.textContent).toContain('Confirm Eject');
+    expect(confirmEjectBtn?.disabled).toBe(false);
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'Permission denied to eject member',
+    );
+  });
 });
