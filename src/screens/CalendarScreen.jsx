@@ -9,6 +9,8 @@ import {
 import { buildIcs, icsFileName } from '../linkpoint/ics.ts';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import Icon from '../components/Icon.jsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
@@ -407,14 +409,30 @@ function NoticeEditor({ notice, groupName }) {
           SAVE CALENDAR FILE (.ICS)
         </button>
         {googleEnabled ? (
-          <button
+          <AccessibleButton
+            as="button"
             type="button"
             disabled={busy || Boolean(problem)}
-            style={button(true)}
+            aria-busy={busy ? 'true' : undefined}
+            aria-live="polite"
+            style={{
+              ...button(true),
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
             onClick={addToGoogle}
           >
-            {busy ? 'ADDING…' : 'ADD TO GOOGLE CALENDAR'}
-          </button>
+            {busy ? (
+              <>
+                <CrystalLoader size={14} variant="inline" />
+                <span>ADDING…</span>
+              </>
+            ) : (
+              'ADD TO GOOGLE CALENDAR'
+            )}
+          </AccessibleButton>
         ) : null}
       </div>
       {!googleEnabled ? (
