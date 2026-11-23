@@ -732,6 +732,7 @@ export default function Chat() {
               </button>
               {friends.map((f) => {
                 const isSelected = selectedContact === f.name || selectedContact === f.id;
+                const isOnline = f.onlineStatus === 'online';
                 return (
                   <button
                     key={f.id}
@@ -742,6 +743,7 @@ export default function Chat() {
                       actions?.setChip(f.name);
                     }}
                     style={{
+                      position: 'relative',
                       minHeight: 24,
                       minWidth: 24,
                       padding: '4px 8px',
@@ -759,14 +761,19 @@ export default function Chat() {
                     }}
                   >
                     <span
+                      aria-hidden="true"
                       style={{
                         width: 6,
                         height: 6,
+                        boxSizing: 'border-box',
                         borderRadius: '50%',
-                        background: f.onlineStatus === 'online' ? '#22c55e' : '#6b7280',
+                        background: isOnline ? '#22c55e' : 'transparent',
+                        border: isOnline ? 'none' : '1.5px solid #6b7280',
+                        flexShrink: 0,
                       }}
                     />
                     {f.name}
+                    <span className="sr-only">{isOnline ? ' (online)' : ' (offline)'}</span>
                   </button>
                 );
               })}
