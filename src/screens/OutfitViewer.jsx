@@ -7,6 +7,7 @@ import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
 import TouchTarget from '../components/TouchTarget.tsx';
 import FocusTrap from '../components/FocusTrap.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 
 const CAMERA_PRESETS = [
   ['front', 'Front'],
@@ -1406,6 +1407,10 @@ export default function OutfitViewer() {
                   type="submit"
                   disabled={Boolean(validationError) || itemsToSave.length === 0 || busy}
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
                     padding: '5px 14px',
                     fontSize: 11,
                     fontWeight: 700,
@@ -1420,7 +1425,14 @@ export default function OutfitViewer() {
                     opacity: Boolean(validationError) || itemsToSave.length === 0 || busy ? 0.6 : 1,
                   }}
                 >
-                  {busy ? 'SAVING…' : 'SAVE'}
+                  {busy ? (
+                    <>
+                      <CrystalLoader size={14} variant="inline" />
+                      <span>SAVING…</span>
+                    </>
+                  ) : (
+                    'SAVE'
+                  )}
                 </button>
               </div>
             </form>
