@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
+import { slBridge } from '../linkpoint/sl-bridge.ts';
 import Icon from '../components/Icon.jsx';
 import PayDialog from '../components/PayDialog.jsx';
 import SegmentedTabs from '../components/SegmentedTabs.jsx';
@@ -14,6 +15,7 @@ export function ResidentInspector({ target, onReturn }) {
   const [photo, setPhoto] = useState(null);
   const [, setLoadingPhoto] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [, setAuthRevision] = useState(0);
 
   const targetName =
     target?.name || target?.attachedTo || (typeof target === 'string' ? target : '') || 'Resident';
@@ -25,10 +27,23 @@ export function ResidentInspector({ target, onReturn }) {
       (!selfUser.id && selfUser.fullName && targetName === selfUser.fullName)),
   );
   const canPay = Boolean(targetId) && !isSelf;
+  const isLoggedIn =
+    typeof app.auth?.isLoggedIn === 'function' ? app.auth.isLoggedIn() : Boolean(app.auth?.user);
+  const canOfferTeleport = Boolean(targetId && isLoggedIn);
 
   useEffect(() => {
     setPayDialogOpen(false);
   }, [targetId, targetName]);
+
+  useEffect(() => {
+    const bumpAuth = () => setAuthRevision((n) => n + 1);
+    app.auth?.on?.('login_success', bumpAuth);
+    app.auth?.on?.('logout', bumpAuth);
+    return () => {
+      app.auth?.off?.('login_success', bumpAuth);
+      app.auth?.off?.('logout', bumpAuth);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -103,6 +118,24 @@ export function ResidentInspector({ target, onReturn }) {
         actions.notify(`Friendship offered to ${targetName}`);
       }
     }
+  };
+
+  const handleOfferTeleport = () => {
+    if (!canOfferTeleport) return;
+    slBridge.offerTeleport({ id: targetId }).then(
+      () => {
+        if (typeof actions?.notify === 'function') {
+          actions.notify(`Teleport offered to ${targetName}`);
+        }
+      },
+      (err) => {
+        if (typeof actions?.notify === 'function') {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not offer a teleport to ${targetName}`,
+          );
+        }
+      },
+    );
   };
 
   const handlePay = () => {
@@ -246,7 +279,7 @@ export function ResidentInspector({ target, onReturn }) {
               )}
             </dl>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
               <TouchTarget
                 onClick={handleIm}
                 aria-label={`Send instant message to ${targetName}`}
@@ -294,6 +327,32 @@ export function ResidentInspector({ target, onReturn }) {
               >
                 <Icon name="user-plus" size={16} />
                 <span>Friend</span>
+              </TouchTarget>
+              <TouchTarget
+                onClick={handleOfferTeleport}
+                disabled={!canOfferTeleport}
+                aria-label={`Offer teleport to ${targetName}`}
+                data-testid="resident-teleport-btn"
+                minSize={44}
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${V.outv}`,
+                  background: V.surf,
+                  color: V.pri,
+                  cursor: canOfferTeleport ? 'pointer' : 'not-allowed',
+                  opacity: canOfferTeleport ? 1 : 0.6,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                }}
+              >
+                <Icon name="map-pin" size={16} />
+                <span>Teleport</span>
               </TouchTarget>
               <TouchTarget
                 onClick={handlePay}
