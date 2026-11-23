@@ -4,6 +4,7 @@ import { NAV_ALL } from '../data/content.js';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import Toggle from '../components/Toggle.jsx';
 import AccessibleButton from '../components/AccessibleButton.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import ThemeStudio from '../components/ThemeStudio.jsx';
 import FormField from '../components/FormField.jsx';
 import { loadGoogle } from '../services/google.ts';
@@ -414,9 +415,27 @@ export default function Settings() {
             <dd>{app.protocol.agentId || 'Not supplied'}</dd>
           </dl>
           <div className="inline-tool" style={{ gap: '8px', marginTop: '12px' }}>
-            <button type="button" onClick={() => actions.reconnect()} disabled={state.reconnecting}>
-              {state.reconnecting ? 'Reconnecting…' : 'Reconnect to Grid'}
-            </button>
+            <AccessibleButton
+              as="button"
+              type="button"
+              onClick={() => actions.reconnect()}
+              disabled={state.reconnecting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {state.reconnecting ? (
+                <>
+                  <CrystalLoader size={16} variant="inline" />
+                  <span>Reconnecting…</span>
+                </>
+              ) : (
+                'Reconnect to Grid'
+              )}
+            </AccessibleButton>
             {app.auth.isLoggedIn() ? (
               <button type="button" disabled={disconnecting} onClick={() => void disconnect()}>
                 {disconnecting ? 'Disconnecting…' : 'Disconnect'}
