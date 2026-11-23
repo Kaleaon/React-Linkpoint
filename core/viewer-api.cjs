@@ -14,6 +14,7 @@ const METHODS = new Set([
   'teleport',
   'teleportHome',
   'joinGroup',
+  'leaveGroup',
   'activateGroup',
   'inviteGroupMember',
   'ejectGroupMember',

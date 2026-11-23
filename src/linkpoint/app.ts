@@ -146,6 +146,12 @@ export class LinkpointApp {
         this.groups.setActiveGroupId(payload.groupId, payload.roleId);
       }
     });
+    slBridge.on('group_left', (payload: any) => {
+      if (payload?.groupId) {
+        this.groupNoticeSyncEngine?.dequeueGroup(payload.groupId);
+        this.groups.removeGroup(payload.groupId);
+      }
+    });
     this.groupNoticeSyncEngine = new GroupNoticeSyncEngine(this.groups, this.notices);
     this.syncEngine = this.groupNoticeSyncEngine;
     this.friends = new FriendsExtended(this.protocol);
@@ -577,6 +583,35 @@ export class LinkpointApp {
 
   async clearActiveGroup() {
     return this.activateGroup('00000000-0000-0000-0000-000000000000');
+  }
+
+  async leaveGroup(groupId: string) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId = groupId ? groupId.trim().toLowerCase() : '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId) || targetGroupId === ZERO_UUID) {
+      throw new Error(`Invalid group ID format: ${groupId}`);
+    }
+
+    const wasActive = this.groups.getActiveGroupId().toLowerCase() === targetGroupId;
+
+    if (slBridge.connected) {
+      await slBridge.leaveGroup({ groupId: targetGroupId });
+      if (wasActive && slBridge.sessionId) {
+        await slBridge.activateGroup({ groupId: ZERO_UUID, roleId: ZERO_UUID }).catch(() => {});
+      }
+    }
+
+    if (wasActive) {
+      this.groups.clearActiveGroup();
+    }
+
+    this.groupNoticeSyncEngine?.dequeueGroup(targetGroupId);
+    this.notices.purgeGroup(targetGroupId);
+    this.groups.removeGroup(targetGroupId);
+
+    return { success: true, left: true, groupId: targetGroupId };
   }
 
   async inviteGroupMember(groupId: string, avatarId: string, roleId?: string) {

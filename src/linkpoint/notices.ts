@@ -487,6 +487,44 @@ export class NoticeStore extends Utils.EventEmitter {
     return true;
   }
 
+  /** Purge cached notices and TTL cache entries belonging to a departed group. */
+  purgeGroup(groupId: string): void {
+    if (!groupId) return;
+    const target = groupId.trim().toLowerCase();
+    let changed = false;
+
+    for (const [id, notice] of this.notices.entries()) {
+      if (notice.groupId && notice.groupId.toLowerCase() === target) {
+        this.notices.delete(id);
+        if (this.focusId === id) {
+          this.focusId = null;
+        }
+        changed = true;
+      }
+    }
+
+    for (const gid of [...this.groupCaches.keys()]) {
+      if (gid.toLowerCase() === target) {
+        this.groupCaches.delete(gid);
+        changed = true;
+      }
+    }
+
+    for (const gid of [...this.historyUnavailableGroups.values()]) {
+      if (gid.toLowerCase() === target) {
+        this.historyUnavailableGroups.delete(gid);
+      }
+    }
+
+    if (changed) {
+      this.save();
+    } else {
+      this.saveGroupCaches();
+    }
+
+    void indexedDBStore.deleteGroupNotices(this.currentAgentId, groupId).catch(() => {});
+  }
+
   clear() {
     this.notices.clear();
     this.save();
