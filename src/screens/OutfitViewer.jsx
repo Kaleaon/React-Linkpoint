@@ -6,6 +6,7 @@ import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
 import TouchTarget from '../components/TouchTarget.tsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import FocusTrap from '../components/FocusTrap.jsx';
 
 const CAMERA_PRESETS = [
@@ -702,24 +703,27 @@ export default function OutfitViewer() {
                   >
                     SAVE OUTFIT AS
                   </button>
-                  <button
+                  <SyncActionButton
                     type="button"
-                    disabled={outfitState.loading || !loggedIn}
+                    loading={outfitState.loading}
+                    disabled={!loggedIn}
                     onClick={() => void loadOutfit()}
+                    iconName="rotate-cw"
+                    size={13}
+                    idleText="REFRESH"
+                    loadingText="LOADING…"
                     title="Read what you are wearing from Second Life again"
                     style={{
-                      padding: '4px 8px',
+                      padding: '4px 10px',
                       fontSize: 10,
                       fontWeight: 700,
-                      background: V.pri,
-                      color: V.onpri || '#fff',
-                      border: 'none',
+                      background: V.bg,
+                      color: V.pri,
+                      border: `1px solid ${V.outv}`,
                       borderRadius: V.rs,
-                      cursor: 'pointer',
+                      opacity: outfitState.loading || !loggedIn ? 0.6 : 1,
                     }}
-                  >
-                    {outfitState.loading ? 'LOADING…' : 'REFRESH'}
-                  </button>
+                  />
                 </div>
               </div>
 
