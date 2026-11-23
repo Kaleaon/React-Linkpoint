@@ -6,6 +6,8 @@ import { AppProvider, useApp } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import FloatersDesktop from '../FloatersDesktop.jsx';
 import { liveRegionAnnouncer } from '../../services/LiveRegionAnnouncer';
+import { app } from '../../linkpoint/app';
+import { CBTN } from '../../theme/constants.js';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -340,5 +342,167 @@ describe('FloatersDesktop Accessibility & Keyboard Navigation (WCAG 2.2 SC 2.1.1
       'polite',
       'status',
     );
+  });
+
+  it('renders floater window chips in the dock as focusable buttons with aria-pressed and Enter activation', async () => {
+    const { host, getCtx } = await mountDesktop();
+    const dock = host.querySelector<HTMLElement>('.quick-chat-dock');
+    expect(dock).not.toBeNull();
+
+    // Focus Chat so it becomes active (aria-pressed="true")
+    await act(async () => {
+      getCtx().actions.flFocus('Chat');
+    });
+
+    const getFloaterBtn = (title: string) =>
+      Array.from(dock!.querySelectorAll<HTMLButtonElement>('button[type="button"]')).find(
+        (btn) => btn.textContent?.trim() === title,
+      ) ?? null;
+
+    const chatChip = getFloaterBtn('Local Chat');
+    const radarChip = getFloaterBtn('Nearby');
+    expect(chatChip).not.toBeNull();
+    expect(radarChip).not.toBeNull();
+
+    // Verify keyboard focusability and initial ARIA pressed states
+    chatChip!.focus();
+    expect(document.activeElement).toBe(chatChip);
+    expect(chatChip!.getAttribute('aria-pressed')).toBe('true');
+    expect(radarChip!.getAttribute('aria-pressed')).toBe('false');
+
+    // Enter keypress minimizes the currently open Chat floater and updates aria-pressed to "false"
+    await act(async () => {
+      chatChip!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect((getCtx().state.flMin as Record<string, boolean>)['Chat']).toBe(true);
+    expect(chatChip!.getAttribute('aria-pressed')).toBe('false');
+
+    // Enter keypress again restores and focuses the Chat floater and updates aria-pressed to "true"
+    await act(async () => {
+      chatChip!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect((getCtx().state.flMin as Record<string, boolean>)['Chat']).toBe(false);
+    expect(getCtx().state.screen).toBe('Chat');
+    expect(chatChip!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('renders voice control as a focusable button that updates aria-label and aria-pressed across connection and mute states', async () => {
+    const originalState = app.voice.state;
+    const originalMuted = app.voice.muted;
+    const connectSpy = vi.spyOn(app.voice, 'connect').mockResolvedValue(undefined);
+    const setMutedSpy = vi.spyOn(app.voice, 'setMuted').mockImplementation((muted: boolean) => {
+      app.voice.muted = muted;
+      app.voice.emit('state', { state: app.voice.state, muted });
+    });
+
+    try {
+      app.voice.state = 'off';
+      app.voice.muted = true;
+
+      const { host } = await mountDesktop();
+      const dock = host.querySelector<HTMLElement>('.quick-chat-dock');
+      expect(dock).not.toBeNull();
+
+      const voiceBtn = dock!.querySelector<HTMLButtonElement>(
+        'button[aria-label="Connect Voice Microphone"]',
+      );
+      expect(voiceBtn).not.toBeNull();
+      expect(voiceBtn!.getAttribute('type')).toBe('button');
+      expect(voiceBtn!.getAttribute('aria-pressed')).toBe('false');
+
+      // Verify keyboard focus and Enter keypress to connect voice
+      voiceBtn!.focus();
+      expect(document.activeElement).toBe(voiceBtn);
+      await act(async () => {
+        voiceBtn!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      // Simulate voice connecting while muted -> label updates to "Unmute Microphone", aria-pressed="false"
+      await act(async () => {
+        app.voice.state = 'connected';
+        app.voice.muted = true;
+        app.voice.emit('state', { state: 'connected', muted: true });
+      });
+      expect(voiceBtn!.getAttribute('aria-label')).toBe('Unmute Microphone');
+      expect(voiceBtn!.getAttribute('aria-pressed')).toBe('false');
+
+      // Enter keypress unmutes microphone -> label updates to "Mute Microphone", aria-pressed="true"
+      await act(async () => {
+        voiceBtn!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(setMutedSpy).toHaveBeenCalledWith(false);
+      expect(voiceBtn!.getAttribute('aria-label')).toBe('Mute Microphone');
+      expect(voiceBtn!.getAttribute('aria-pressed')).toBe('true');
+
+      // Enter keypress again mutes microphone -> label updates back to "Unmute Microphone", aria-pressed="false"
+      await act(async () => {
+        voiceBtn!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(setMutedSpy).toHaveBeenCalledWith(true);
+      expect(voiceBtn!.getAttribute('aria-label')).toBe('Unmute Microphone');
+      expect(voiceBtn!.getAttribute('aria-pressed')).toBe('false');
+    } finally {
+      app.voice.state = originalState;
+      app.voice.muted = originalMuted;
+      connectSpy.mockRestore();
+      setMutedSpy.mockRestore();
+    }
+  });
+
+  it('renders console dock items as semantic buttons with aria-pressed, Enter activation, and disabled state handling', async () => {
+    const flyEntry = CBTN.fly as { label: string; icon: string; off?: boolean };
+    const sitEntry = CBTN.sit as { label: string; icon: string; off?: boolean };
+    flyEntry.off = true;
+
+    try {
+      const { host, getCtx } = await mountDesktop();
+      const dock = host.querySelector<HTMLElement>('.quick-chat-dock');
+      expect(dock).not.toBeNull();
+
+      const getDockBtn = (label: string) =>
+        Array.from(dock!.querySelectorAll<HTMLButtonElement>('button[type="button"]')).find(
+          (btn) => btn.textContent?.trim() === label,
+        ) ?? null;
+
+      const flyBtn = getDockBtn('FLY');
+      const sitBtn = getDockBtn('SIT');
+      const mapBtn = getDockBtn('MAP');
+
+      expect(flyBtn).not.toBeNull();
+      expect(sitBtn).not.toBeNull();
+      expect(mapBtn).not.toBeNull();
+
+      // Disabled console dock button reports disabled attribute and blocks click / Enter dispatch
+      expect(flyBtn!.disabled).toBe(true);
+      expect(flyBtn!.getAttribute('aria-pressed')).toBe('false');
+
+      await act(async () => {
+        flyBtn!.click();
+        flyBtn!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(getCtx().state.cReason).toBe('');
+
+      // Active console dock buttons receive focus, expose aria-pressed, and activate via Enter keypress
+      expect(sitBtn!.disabled).toBe(false);
+      expect(sitBtn!.getAttribute('aria-pressed')).toBe('false');
+      sitBtn!.focus();
+      expect(document.activeElement).toBe(sitBtn);
+
+      await act(async () => {
+        sitBtn!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(getCtx().state.cReason).toContain('SIT');
+
+      mapBtn!.focus();
+      expect(document.activeElement).toBe(mapBtn);
+      await act(async () => {
+        mapBtn!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(getCtx().state.screen).toBe('Map');
+    } finally {
+      delete flyEntry.off;
+      delete sitEntry.off;
+    }
   });
 });

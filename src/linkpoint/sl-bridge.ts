@@ -434,6 +434,24 @@ export class SLBridge extends Utils.EventEmitter {
       packet?: any;
     }>('grantUserRights', params);
   }
+  terminateFriendship(params: {
+    targetId: string;
+    otherId?: string;
+    agentId?: string;
+    sessionId?: string;
+    packet?: unknown;
+  }) {
+    return this.call<{
+      success: boolean;
+      terminated: boolean;
+      targetId: string;
+      otherId?: string;
+      agentId?: string;
+      sessionId?: string;
+      messageId?: string;
+      packet?: unknown;
+    }>('terminateFriendship', params);
+  }
   acceptInventoryOffer(params: { id: string }) {
     return this.call<{ accepted: boolean }>('acceptInventoryOffer', params);
   }
