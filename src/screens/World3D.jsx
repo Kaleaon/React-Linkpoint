@@ -8,6 +8,7 @@ import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
+import SecondaryViewLoader from '../components/SecondaryViewLoader.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
@@ -636,10 +637,14 @@ export default function World3D({ desktopBackdrop = false }) {
                   </button>
                 </div>
                 {!ready && !error ? (
-                  <>
-                    <br />
-                    Starting renderer…
-                  </>
+                  <div style={{ marginTop: 4 }}>
+                    <SecondaryViewLoader
+                      layout="inline"
+                      size={14}
+                      label="Starting renderer…"
+                      style={{ padding: 0 }}
+                    />
+                  </div>
                 ) : null}
                 {error ? (
                   <>
@@ -680,6 +685,14 @@ export default function World3D({ desktopBackdrop = false }) {
                 >
                   <strong>{region}</strong> · {position.join(', ')}
                 </span>
+                {!ready && !error ? (
+                  <SecondaryViewLoader
+                    layout="inline"
+                    size={12}
+                    label="Starting renderer…"
+                    style={{ padding: 0, gap: 4, fontSize: 10 }}
+                  />
+                ) : null}
                 <button
                   type="button"
                   aria-label="Expand scene statistics"

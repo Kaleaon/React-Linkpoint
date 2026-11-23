@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import OutfitCarouselDrawer from '../OutfitCarouselDrawer';
 import SecondaryViewLoader from '../SecondaryViewLoader';
 import OutfitViewer from '../../screens/OutfitViewer.jsx';
+import World3D from '../../screens/World3D.jsx';
 import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import { app } from '../../linkpoint/app.ts';
@@ -104,6 +105,49 @@ describe('SecondaryViewLoader Adoption in Secondary Views', () => {
       expect(outfitLoader).toBeDefined();
       expect(outfitLoader?.getAttribute('data-layout')).toBe('block');
       expect(outfitLoader?.getAttribute('role')).toBe('status');
+    });
+  });
+
+  describe('World3D renderer startup integration', () => {
+    it('outputs SecondaryViewLoader with inline CrystalLoader during renderer startup and clears when ready', async () => {
+      vi.spyOn(app.world, 'init').mockImplementation(() => new Promise(() => {}));
+      vi.spyOn(app.world, 'destroyRenderer').mockImplementation(() => {});
+
+      const host = await mount(createElement(World3D));
+
+      // Collapsed status output displays inline SecondaryViewLoader during startup
+      let startupLoader = host.querySelector(
+        'output [data-testid="secondary-view-loader"]',
+      ) as HTMLElement | null;
+      expect(startupLoader).not.toBeNull();
+      expect(startupLoader?.getAttribute('data-layout')).toBe('inline');
+      expect(startupLoader?.textContent).toContain('Starting renderer…');
+      const crystal = startupLoader?.querySelector('[data-testid="crystal-loader"]');
+      expect(crystal).not.toBeNull();
+      expect(crystal?.getAttribute('data-variant')).toBe('inline');
+
+      // Expand diagnostics panel and verify expanded output also renders inline SecondaryViewLoader
+      const expandBtn = host.querySelector(
+        'button[aria-label="Expand scene statistics"]',
+      ) as HTMLButtonElement | null;
+      await act(async () => {
+        expandBtn?.click();
+      });
+
+      startupLoader = host.querySelector(
+        'output [data-testid="secondary-view-loader"]',
+      ) as HTMLElement | null;
+      expect(startupLoader).not.toBeNull();
+      expect(startupLoader?.getAttribute('data-layout')).toBe('inline');
+      expect(startupLoader?.textContent).toContain('Starting renderer…');
+      expect(startupLoader?.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+
+      // Emit renderer ready state and confirm loader disappears
+      await act(async () => {
+        app.world.emit('renderer_state', { ready: true, message: '' });
+      });
+
+      expect(host.querySelector('output [data-testid="secondary-view-loader"]')).toBeNull();
     });
   });
 });

@@ -10,6 +10,7 @@ import { buildIcs, icsFileName } from '../linkpoint/ics.ts';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from '../components/Icon.jsx';
+import SyncActionButton, { useBusyCoordinator } from '../components/SyncActionButton.tsx';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import { loadGoogle } from '../services/google.ts';
 
@@ -406,14 +407,18 @@ function NoticeEditor({ notice, groupName }) {
           SAVE CALENDAR FILE (.ICS)
         </button>
         {googleEnabled ? (
-          <button
+          <SyncActionButton
             type="button"
-            disabled={busy || Boolean(problem)}
+            variant="primary"
+            loading={busy}
+            disabled={Boolean(problem)}
+            iconName="calendar"
+            size={13}
+            idleText="ADD TO GOOGLE CALENDAR"
+            loadingText="ADDING…"
             style={button(true)}
             onClick={addToGoogle}
-          >
-            {busy ? 'ADDING…' : 'ADD TO GOOGLE CALENDAR'}
-          </button>
+          />
         ) : null}
       </div>
       {!googleEnabled ? (
@@ -468,37 +473,35 @@ function GoogleEvents() {
   const { actions } = useApp();
   const googleEnabled = useGoogleEnabled();
   const [events, setEvents] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const { isBusy: busy, isLoading, run } = useBusyCoordinator();
   const [error, setError] = useState('');
 
   const refresh = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      const google = await loadGoogle();
-      if (!google.auth.getGoogleToken('calendar')) await google.auth.signInWithGoogle('calendar');
-      setEvents(await google.calendar.fetchLinkpointEvents());
-    } catch (failure) {
-      setError(failure?.message || 'Could not load your Google Calendar.');
-    } finally {
-      setBusy(false);
-    }
+    await run('refresh', async () => {
+      setError('');
+      try {
+        const google = await loadGoogle();
+        if (!google.auth.getGoogleToken('calendar')) await google.auth.signInWithGoogle('calendar');
+        setEvents(await google.calendar.fetchLinkpointEvents());
+      } catch (failure) {
+        setError(failure?.message || 'Could not load your Google Calendar.');
+      }
+    });
   };
 
   const remove = async (event) => {
-    setBusy(true);
-    setError('');
-    try {
-      const google = await loadGoogle();
-      await google.calendar.deleteCalendarEvent(event.id);
-      for (const notice of app.notices.list())
-        if (notice.calendar?.eventId === event.id) app.notices.clearAdded(notice.id);
-      setEvents((list) => (list || []).filter((item) => item.id !== event.id));
-    } catch (failure) {
-      setError(failure?.message || 'Could not delete the event.');
-    } finally {
-      setBusy(false);
-    }
+    await run(`delete:${event.id}`, async () => {
+      setError('');
+      try {
+        const google = await loadGoogle();
+        await google.calendar.deleteCalendarEvent(event.id);
+        for (const notice of app.notices.list())
+          if (notice.calendar?.eventId === event.id) app.notices.clearAdded(notice.id);
+        setEvents((list) => (list || []).filter((item) => item.id !== event.id));
+      } catch (failure) {
+        setError(failure?.message || 'Could not delete the event.');
+      }
+    });
   };
 
   const button = {
@@ -547,14 +550,18 @@ function GoogleEvents() {
       <div style={{ font: `400 11.5px/1.5 ${t.font}`, color: V.ink2 }}>
         Upcoming events Linkpoint added to your Google Calendar.
       </div>
-      <button
+      <SyncActionButton
         type="button"
+        variant="default"
+        loading={isLoading('refresh')}
         disabled={busy}
+        iconName="rotate-cw"
+        size={13}
+        idleText={events ? 'REFRESH' : 'SIGN IN AND LOAD'}
+        loadingText="LOADING…"
         style={{ ...button, justifySelf: 'start' }}
         onClick={refresh}
-      >
-        {busy ? 'LOADING…' : events ? 'REFRESH' : 'SIGN IN AND LOAD'}
-      </button>
+      />
       {error ? (
         <div role="alert" style={{ color: V.err, font: `500 11.5px/1.4 ${t.font}` }}>
           {error}
@@ -599,15 +606,18 @@ function GoogleEvents() {
                   OPEN
                 </a>
               ) : null}
-              <button
+              <SyncActionButton
                 type="button"
+                variant="danger"
+                loading={isLoading(`delete:${event.id}`)}
                 disabled={busy}
+                size={12}
+                idleText="DELETE"
+                loadingText="DELETING…"
                 style={{ ...button, color: V.err }}
                 aria-label={`Delete ${event.summary}`}
                 onClick={() => remove(event)}
-              >
-                DELETE
-              </button>
+              />
             </li>
           ))}
         </ul>
