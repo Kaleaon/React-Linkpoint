@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import Icon from './Icon.jsx';
+import CrystalLoader from './CrystalLoader.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import AccessibleInput from './AccessibleInput.tsx';
 import AccessibleButton from './AccessibleButton.jsx';
@@ -392,7 +393,11 @@ export function CreateGroupNoticeModal({
                   gap: 6,
                 }}
               >
-                <Icon name="send" size={13} />
+                {submitting ? (
+                  <CrystalLoader size={13} variant="inline" />
+                ) : (
+                  <Icon name="send" size={13} />
+                )}
                 <span>{submitting ? 'Sending…' : 'Send Notice'}</span>
               </AccessibleButton>
             </div>
