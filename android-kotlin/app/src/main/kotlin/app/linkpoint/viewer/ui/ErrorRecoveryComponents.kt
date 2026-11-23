@@ -1,21 +1,23 @@
 package app.linkpoint.viewer.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import app.linkpoint.viewer.R
 import app.linkpoint.viewer.ViewerHost
+import app.linkpoint.viewer.ui.components.LinkpointLoadingLayout
+import app.linkpoint.viewer.ui.components.LinkpointLoadingState
 import kotlinx.coroutines.launch
 
 @Composable
@@ -26,45 +28,42 @@ fun ErrorRecoveryBanner(host: ViewerHost) {
 
     if (isOnline && !isRetrying) return
 
+    val statusText = if (!isOnline) {
+        stringResource(R.string.error_recovery_reconnecting)
+    } else {
+        stringResource(R.string.error_recovery_retrying)
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = if (!isOnline) Color(0xFF991B1B) else Color(0xFF9A3412),
         contentColor = Color.White,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(
-                            color = if (!isOnline) Color(0xFFEF4444) else Color(0xFFF97316),
-                            shape = RoundedCornerShape(50)
-                        )
-                )
-                Text(
-                    text = if (!isOnline) "Network disconnected. Reconnecting automatically…" else "Retrying failed requests…",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color.White, fontWeight = FontWeight.Medium),
-                )
-            }
-
-            if (isOnline) {
-                TextButton(
-                    onClick = { scope.launch { host.errorRecoveryManager.processRetryQueue() } },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
-                ) {
-                    Text("Retry", fontSize = 12.sp)
+        LinkpointLoadingState(
+            modifier = Modifier.fillMaxWidth(),
+            layout = LinkpointLoadingLayout.Inline,
+            size = 16.dp,
+            label = statusText,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            labelColor = Color.White,
+            labelStyle = MaterialTheme.typography.bodySmall.copy(
+                color = Color.White,
+                fontWeight = FontWeight.Medium,
+            ),
+            action = if (isOnline) {
+                {
+                    TextButton(
+                        onClick = { scope.launch { host.errorRecoveryManager.processRetryQueue() } },
+                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                    ) {
+                        Text(stringResource(R.string.action_retry), fontSize = 12.sp)
+                    }
                 }
-            }
-        }
+            } else {
+                null
+            },
+        )
     }
 }
 

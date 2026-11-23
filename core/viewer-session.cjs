@@ -367,6 +367,47 @@ const {
   RemoveInventoryFolderMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryFolder');
 
+class TerminateFriendshipMessage {
+  constructor() {
+    this.name = 'TerminateFriendship';
+    this.messageFlags = MessageFlags.FrequencyLow;
+    this.id = 0xffff0053 >>> 0; // 4294901843 (Low-frequency message ID 0xFFFF0053)
+    this.AgentData = {
+      AgentID: UUID.zero(),
+      SessionID: UUID.zero(),
+    };
+    this.ExBlock = {
+      OtherID: UUID.zero(),
+    };
+  }
+
+  getSize() {
+    return 48;
+  }
+
+  writeToBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData.AgentID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.SessionID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.ExBlock.OtherID.writeToBuffer(buf, pos);
+    pos += 16;
+    return pos - startPos;
+  }
+
+  readFromBuffer(buf, pos) {
+    this.AgentData = {
+      AgentID: new UUID(buf, pos),
+      SessionID: new UUID(buf, pos + 16),
+    };
+    this.ExBlock = {
+      OtherID: new UUID(buf, pos + 32),
+    };
+    return 48;
+  }
+}
+
 class AgentSetGroupTitleMessage {
   constructor() {
     this.name = 'AgentSetGroupTitle';
@@ -1051,9 +1092,19 @@ class ViewerSession {
       fromName: event.fromName || 'Resident',
       accepted: Boolean(event.accepted),
     }));
-    this.subscribe(events.onFriendRemoved, 'friend-remove', (event) => ({
-      id: event.friend?.getKey?.()?.toString() || event.friend?.id?.toString(),
-    }));
+    this.subscribe(events.onFriendRemoved, 'friend-remove', (event) => {
+      const id = event.friend?.getKey?.()?.toString() || event.friend?.id?.toString();
+      if (id) {
+        const lower = String(id).toLowerCase();
+        this.friendPresence.delete(lower);
+        if (Array.isArray(this.bot?.agent?.buddyList)) {
+          this.bot.agent.buddyList = this.bot.agent.buddyList.filter(
+            (buddy) => String(buddy?.buddyID || '').toLowerCase() !== lower,
+          );
+        }
+      }
+      return { id };
+    });
 
     // Script dialogs (llDialog, llTextBox), teleport lures and group notices
     this.subscriptions.push(
@@ -1398,6 +1449,102 @@ class ViewerSession {
     const friends = this.requireBot().clientCommands?.friends;
     if (!friends) throw new Error('Second Life friends interface unavailable');
     await friends.sendFriendRequest(recipientId, message);
+  }
+
+  async terminateFriendship(params = {}) {
+    const rawTarget =
+      params.targetId ??
+      params.otherId ??
+      params.friendId ??
+      params.id ??
+      params.userId ??
+      params.recipientId;
+    const normalizedTarget = String(rawTarget || '')
+      .trim()
+      .replace(/^\{(.+)\}$/, '$1');
+    const targetId = actions.requireUuid(normalizedTarget, 'Target friend ID');
+
+    const bot = this.requireBot();
+    const circuit = this.currentRegion()?.circuit || bot.circuit;
+    if (!circuit || circuit.connected === false) {
+      throw new Error('Simulator circuit is offline');
+    }
+
+    const rawAgentId =
+      params.agentId ||
+      this.identity?.agentId ||
+      this.identity?.agent_id ||
+      (bot.agent?.agentID ? String(bot.agent.agentID) : '');
+    const rawSessionId =
+      params.sessionId ||
+      (circuit.sessionID
+        ? String(circuit.sessionID)
+        : bot.circuit?.sessionID
+          ? String(bot.circuit.sessionID)
+          : '');
+
+    const agentId = actions.requireUuid(
+      String(rawAgentId || '')
+        .trim()
+        .replace(/^\{(.+)\}$/, '$1'),
+      'Agent ID',
+    );
+    const sessionId = actions.requireUuid(
+      String(rawSessionId || '')
+        .trim()
+        .replace(/^\{(.+)\}$/, '$1'),
+      'Session ID',
+    );
+
+    const hasSendMessage = typeof circuit.sendMessage === 'function';
+    const hasBotSendPacket = typeof bot.sendPacket === 'function';
+    const hasCircuitSendPacket = typeof circuit.sendPacket === 'function';
+    if (!hasSendMessage && !hasBotSendPacket && !hasCircuitSendPacket) {
+      throw new Error('Simulator circuit is offline');
+    }
+
+    const msg = new TerminateFriendshipMessage();
+    msg.AgentData = {
+      AgentID: new UUID(agentId),
+      SessionID: new UUID(sessionId),
+    };
+    msg.ExBlock = {
+      OtherID: new UUID(targetId),
+    };
+
+    if (hasSendMessage) {
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+    } else if (hasBotSendPacket) {
+      bot.sendPacket('TerminateFriendship', msg, PacketFlags.Reliable);
+    } else if (hasCircuitSendPacket) {
+      circuit.sendPacket('TerminateFriendship', msg, PacketFlags.Reliable);
+    }
+
+    const lowerTarget = targetId.toLowerCase();
+    this.friendPresence.delete(lowerTarget);
+    if (Array.isArray(bot.agent?.buddyList)) {
+      bot.agent.buddyList = bot.agent.buddyList.filter(
+        (buddy) => String(buddy?.buddyID || '').toLowerCase() !== lowerTarget,
+      );
+    }
+    const friendsList = bot.clientCommands?.friends?.friendsList;
+    if (friendsList && typeof friendsList.keys === 'function') {
+      for (const key of [...friendsList.keys()]) {
+        if (String(key).toLowerCase() === lowerTarget) {
+          friendsList.delete(key);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      terminated: true,
+      targetId,
+      otherId: targetId,
+      agentId,
+      sessionId,
+      messageId: '0xFFFF0053',
+    };
   }
 
   // ---- agent actions ----------------------------------------------------------------------------
@@ -3398,5 +3545,6 @@ module.exports = {
   serializeTerrainMaterials,
   PCode,
   ParcelPropertiesUpdateMessage,
+  TerminateFriendshipMessage,
   sanitizeParcelProperties,
 };

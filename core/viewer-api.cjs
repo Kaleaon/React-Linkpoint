@@ -11,6 +11,7 @@ const METHODS = new Set([
   'sendIMTypingState',
   'sendGroupMessage',
   'sendFriendRequest',
+  'terminateFriendship',
   'teleport',
   'teleportHome',
   'joinGroup',

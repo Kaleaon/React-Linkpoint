@@ -422,14 +422,21 @@ describe('Group Notice Composer & ImprovedInstantMessage Dispatch', () => {
       const submitBtn = buttonByText(mounted.host, /Send Notice/i) as HTMLButtonElement;
       expect(submitBtn).not.toBeNull();
       expect(submitBtn.disabled).toBe(false);
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
 
       const form = mounted.host.querySelector('form')!;
       await act(async () => {
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       });
 
-      // While dispatch is active, submit button is disabled
+      // While dispatch is active, submit button is disabled and mounts inline CrystalLoader
       expect(submitBtn.disabled).toBe(true);
+      const crystalLoader = submitBtn.querySelector(
+        '[data-testid="crystal-loader"]',
+      ) as HTMLElement;
+      expect(crystalLoader).not.toBeNull();
+      expect(crystalLoader.getAttribute('data-variant')).toBe('inline');
+      expect(submitBtn.textContent).toContain('Sending…');
 
       // Subsequent submit attempt is ignored (Constraint 4: duplicate submission blocked)
       await act(async () => {
@@ -457,6 +464,280 @@ describe('Group Notice Composer & ImprovedInstantMessage Dispatch', () => {
       expect(onClose).toHaveBeenCalled();
 
       await unmount(mounted);
+    });
+
+    it('restores idle send button state and unmounts CrystalLoader if notice dispatch fails', async () => {
+      let rejectSend: (reason?: any) => void = () => {};
+      vi.spyOn(app, 'sendGroupNotice').mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectSend = reject;
+          }),
+      );
+
+      const mounted = await mountScreen(() => (
+        <CreateGroupNoticeModal
+          isOpen={true}
+          onClose={vi.fn()}
+          groupId={testGroupId}
+          groupName="Nightclub VIPs"
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      const subjectInput = mounted.host.querySelector('#notice-subject') as HTMLInputElement;
+      const messageInput = mounted.host.querySelector('#notice-message') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setVal = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setVal.call(subjectInput, 'Maintenance Alert');
+        subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
+        subjectInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const setText = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        setText.call(messageInput, 'Region restart scheduled.');
+        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        messageInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await flush();
+
+      const submitBtn = buttonByText(mounted.host, /Send Notice/i) as HTMLButtonElement;
+      const form = mounted.host.querySelector('form')!;
+
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+
+      expect(submitBtn.disabled).toBe(true);
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+
+      await act(async () => {
+        rejectSend(new Error('Simulator circuit timed out'));
+      });
+      await flush();
+
+      expect(submitBtn.disabled).toBe(false);
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(submitBtn.textContent).toContain('Send Notice');
+      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain(
+        'Simulator circuit timed out',
+      );
+
+      await unmount(mounted);
+    });
+
+    it('dynamically populates attachments on inventory_loaded without resetting drafted subject and message', async () => {
+      app.inventory.items.clear();
+      app.inventory.isLoading = false;
+      const loadSpy = vi.spyOn(app.inventory, 'load').mockResolvedValue(undefined);
+
+      const sendSpy = vi.spyOn(app, 'sendGroupNotice').mockResolvedValue({
+        id: 'notice-async-1',
+        groupId: testGroupId,
+        subject: 'Late Night Set',
+        message: 'DJ goes live in 10 minutes!',
+        hasAttachment: true,
+        attachment: {
+          hasAttachment: true,
+          attachmentName: 'Stage Landmark',
+          attachmentItemId: 'async-lm-1',
+          attachmentType: 3,
+          attachmentOwnerId: null,
+          savedToInventoryAt: null,
+        },
+        from: 'Club Host',
+        timestamp: Date.now(),
+        calendar: null,
+      });
+
+      const mounted = await mountScreen(() => (
+        <CreateGroupNoticeModal
+          isOpen={true}
+          onClose={vi.fn()}
+          groupId={testGroupId}
+          groupName="Nightclub VIPs"
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      // Triggers background inventory load when opened with zero items and isLoading === false
+      expect(loadSpy).toHaveBeenCalledTimes(1);
+
+      const subjectInput = mounted.host.querySelector('#notice-subject') as HTMLInputElement;
+      const messageInput = mounted.host.querySelector('#notice-message') as HTMLTextAreaElement;
+      const select = mounted.host.querySelector('#notice-attachment') as HTMLSelectElement;
+
+      // Initially only "None (No attachment)" is present
+      expect(select.options.length).toBe(1);
+
+      // Author drafts subject and message while inventory is still loading
+      await act(async () => {
+        const setVal = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setVal.call(subjectInput, 'Late Night Set');
+        subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
+        subjectInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const setText = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        setText.call(messageInput, 'DJ goes live in 10 minutes!');
+        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        messageInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await flush();
+
+      expect(subjectInput.value).toBe('Late Night Set');
+      expect(messageInput.value).toBe('DJ goes live in 10 minutes!');
+
+      // Simulate asynchronous inventory load completion
+      await act(async () => {
+        app.inventory.items.set('async-lm-1', {
+          id: 'async-lm-1',
+          name: 'Stage Landmark',
+          assetType: 3,
+          ownerId: testAgentId,
+        });
+        app.inventory.items.set('async-nc-1', {
+          id: 'async-nc-1',
+          name: 'Event Schedule',
+          assetType: 7,
+          ownerId: testAgentId,
+        });
+        app.inventory.items.set('async-tex-1', {
+          id: 'async-tex-1',
+          name: 'Ineligible Texture',
+          assetType: 0,
+        });
+        app.inventory.emit('inventory_loaded');
+      });
+      await flush();
+
+      // Attachment options update dynamically while preserving drafted subject and message
+      const updatedOptions = Array.from(select.options).map((o) => o.textContent);
+      expect(updatedOptions.some((o) => o?.includes('Stage Landmark'))).toBe(true);
+      expect(updatedOptions.some((o) => o?.includes('Event Schedule'))).toBe(true);
+      expect(updatedOptions.some((o) => o?.includes('Ineligible Texture'))).toBe(false);
+      expect(subjectInput.value).toBe('Late Night Set');
+      expect(messageInput.value).toBe('DJ goes live in 10 minutes!');
+      expect(mounted.host.textContent).toContain('14/63');
+      expect(mounted.host.textContent).toContain('27/512');
+
+      // Select newly loaded item and dispatch notice
+      await act(async () => {
+        const setSelect = Object.getOwnPropertyDescriptor(
+          HTMLSelectElement.prototype,
+          'value',
+        )!.set!;
+        setSelect.call(select, 'async-lm-1');
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await flush();
+
+      const form = mounted.host.querySelector('form')!;
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+      await flush();
+
+      expect(sendSpy).toHaveBeenCalledWith(testGroupId, {
+        subject: 'Late Night Set',
+        message: 'DJ goes live in 10 minutes!',
+        attachment: {
+          itemId: 'async-lm-1',
+          itemName: 'Stage Landmark',
+          itemType: 3,
+          ownerId: testAgentId,
+        },
+      });
+
+      await unmount(mounted);
+    });
+
+    it('resets selectedAttachmentId when inventory_updated removes selected item, cleans up listeners, and handles missing app.inventory', async () => {
+      app.inventory.items.set('temp-item-1', {
+        id: 'temp-item-1',
+        name: 'Temporary Gift Box',
+        assetType: 6, // Object
+      });
+      const onSpy = vi.spyOn(app.inventory, 'on');
+      const offSpy = vi.spyOn(app.inventory, 'off');
+
+      const mounted = await mountScreen(() => (
+        <CreateGroupNoticeModal
+          isOpen={true}
+          onClose={vi.fn()}
+          groupId={testGroupId}
+          groupName="Nightclub VIPs"
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      expect(onSpy).toHaveBeenCalledWith('inventory_loaded', expect.any(Function));
+      expect(onSpy).toHaveBeenCalledWith('inventory_updated', expect.any(Function));
+
+      const select = mounted.host.querySelector('#notice-attachment') as HTMLSelectElement;
+      await act(async () => {
+        const setSelect = Object.getOwnPropertyDescriptor(
+          HTMLSelectElement.prototype,
+          'value',
+        )!.set!;
+        setSelect.call(select, 'temp-item-1');
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await flush();
+
+      expect(select.value).toBe('temp-item-1');
+      expect(mounted.host.textContent).toContain('Attached:');
+      expect(mounted.host.textContent).toContain('Temporary Gift Box');
+
+      // Simulate an inventory sync removing the selected item
+      await act(async () => {
+        app.inventory.items.delete('temp-item-1');
+        app.inventory.emit('inventory_updated');
+      });
+      await flush();
+
+      expect(select.value).toBe('');
+      expect(mounted.host.textContent).not.toContain('Attached:');
+
+      await unmount(mounted);
+
+      expect(offSpy).toHaveBeenCalledWith('inventory_loaded', expect.any(Function));
+      expect(offSpy).toHaveBeenCalledWith('inventory_updated', expect.any(Function));
+
+      // Safely renders when app.inventory is undefined in test environments
+      const originalInventory = app.inventory;
+      Reflect.set(app, 'inventory', undefined);
+      try {
+        const fallbackMounted = await mountScreen(() => (
+          <CreateGroupNoticeModal
+            isOpen={true}
+            onClose={vi.fn()}
+            groupId={testGroupId}
+            groupName="Nightclub VIPs"
+            V={testThemeV}
+            t={testThemeT}
+          />
+        ));
+        await flush();
+        const fallbackSelect = fallbackMounted.host.querySelector(
+          '#notice-attachment',
+        ) as HTMLSelectElement;
+        expect(fallbackSelect.options.length).toBe(1);
+        await unmount(fallbackMounted);
+      } finally {
+        Reflect.set(app, 'inventory', originalInventory);
+      }
     });
   });
 

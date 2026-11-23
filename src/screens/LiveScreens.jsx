@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { app } from '../linkpoint/app.ts';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
@@ -2212,7 +2214,7 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+export function NoticeAttachmentBanner({ notice, V: propV = undefined, t: propT = undefined }) {
   const theme = useTheme();
   const V = propV || theme.V;
   const t = propT || theme.t;
@@ -2342,9 +2344,11 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button
+        <AccessibleButton
+          as="button"
           type="button"
           disabled={saving || isSaved}
+          aria-busy={saving ? 'true' : undefined}
           onClick={handleSave}
           style={{
             ...btnStyle,
@@ -2355,9 +2359,13 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
             cursor: saving || isSaved ? 'default' : 'pointer',
           }}
         >
-          <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          {saving ? (
+            <CrystalLoader size={13} variant="inline" />
+          ) : (
+            <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          )}
           {saving ? 'SAVING...' : isSaved ? 'SAVED TO INVENTORY' : 'SAVE TO INVENTORY'}
-        </button>
+        </AccessibleButton>
 
         {isLandmark ? (
           <button
@@ -2897,11 +2905,13 @@ export function InviteMemberModal({
   const [roleId, setRoleId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const submittingRef = useRef(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting || submittingRef.current) return;
     const cleanId = avatarId.trim();
     if (!cleanId) {
       setError('Please provide an Avatar UUID.');
@@ -2913,6 +2923,7 @@ export function InviteMemberModal({
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
     try {
@@ -2925,6 +2936,7 @@ export function InviteMemberModal({
       setError(sanitized);
       Utils.showToast(sanitized, 'error');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -3097,7 +3109,14 @@ export function InviteMemberModal({
                   gap: 6,
                 }}
               >
-                {submitting ? 'Sending…' : 'Send Invite'}
+                {submitting ? (
+                  <>
+                    <CrystalLoader size={14} variant="inline" />
+                    <span>Sending…</span>
+                  </>
+                ) : (
+                  'Send Invite'
+                )}
               </button>
             </div>
           </form>
@@ -3130,10 +3149,13 @@ export function EjectConfirmModal({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const submittingRef = useRef(false);
 
   if (!isOpen || !member) return null;
 
   const handleConfirm = async () => {
+    if (submitting || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
     try {
@@ -3146,6 +3168,7 @@ export function EjectConfirmModal({
       setError(sanitized);
       Utils.showToast(sanitized, 'error');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -3283,8 +3306,17 @@ export function EjectConfirmModal({
                 gap: 6,
               }}
             >
-              <Icon name="user-x" size={14} />
-              {submitting ? 'Ejecting…' : 'Confirm Eject'}
+              {submitting ? (
+                <>
+                  <CrystalLoader size={14} variant="inline" />
+                  <span>Ejecting…</span>
+                </>
+              ) : (
+                <>
+                  <Icon name="user-x" size={14} />
+                  <span>Confirm Eject</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -3318,6 +3350,7 @@ export function EditMemberRolesModal({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const submittingRef = useRef(false);
 
   const initialAssignedIds = useMemo(() => {
     const set = new Set();
@@ -3376,10 +3409,12 @@ export function EditMemberRolesModal({
   }
 
   const handleSave = async () => {
+    if (submitting || submittingRef.current) return;
     if (changes.length === 0) {
       onClose();
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     setError('');
     try {
@@ -3392,6 +3427,7 @@ export function EditMemberRolesModal({
       setError(sanitized);
       Utils.showToast(sanitized, 'error');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -3618,7 +3654,14 @@ export function EditMemberRolesModal({
                   gap: 6,
                 }}
               >
-                {submitting ? 'Saving…' : 'Save Roles'}
+                {submitting ? (
+                  <>
+                    <CrystalLoader size={14} variant="inline" />
+                    <span>Saving…</span>
+                  </>
+                ) : (
+                  'Save Roles'
+                )}
               </button>
             </div>
           </div>
