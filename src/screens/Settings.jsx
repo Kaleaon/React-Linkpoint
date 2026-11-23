@@ -4,6 +4,7 @@ import { NAV_ALL } from '../data/content.js';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import Toggle from '../components/Toggle.jsx';
 import AccessibleButton from '../components/AccessibleButton.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import ThemeStudio from '../components/ThemeStudio.jsx';
 import FormField from '../components/FormField.jsx';
 import { loadGoogle } from '../services/google.ts';
@@ -22,7 +23,17 @@ import {
   isFeatureVisible,
 } from '../config/featureCapabilities.js';
 
-function ActionRemapRow({ action, label, description, currentBinding, onSave }) {
+/**
+ * @param {{
+ *   action: string,
+ *   label: string,
+ *   description: string,
+ *   currentBinding: string,
+ *   onSave: (binding: string) => boolean,
+ * }} props
+ */
+export function ActionRemapRow({ action, label, description, currentBinding, onSave }) {
+  const { V } = useTheme();
   const parsed = parseKeyString(currentBinding) || {
     alt: false,
     ctrl: false,
@@ -78,8 +89,9 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
         padding: '10px 12px',
         margin: '8px 0',
         borderRadius: '6px',
-        border: '1px solid rgba(255,255,255,0.1)',
-        background: 'rgba(0,0,0,0.2)',
+        border: `1px solid ${V.outv}`,
+        background: V.surf2,
+        color: V.ink,
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -91,8 +103,9 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
           aria-label={`Current keybinding for ${label}: ${formatKeyString(currentBinding) || currentBinding}`}
           style={{
             padding: '4px 8px',
-            borderRadius: '4px',
-            background: 'rgba(255,255,255,0.15)',
+            borderRadius: V.rs,
+            background: V.bdg,
+            color: V.onbdg,
             fontWeight: 'bold',
             fontSize: '12px',
             letterSpacing: '0.5px',
@@ -159,10 +172,10 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
               width: '60px',
               padding: '4px 6px',
               fontSize: '13px',
-              borderRadius: '4px',
-              border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(0,0,0,0.4)',
-              color: 'inherit',
+              borderRadius: V.rs,
+              border: `1px solid ${V.outv}`,
+              background: V.surf,
+              color: V.ink,
               textAlign: 'center',
               textTransform: 'uppercase',
             }}
@@ -183,12 +196,14 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
         </button>
       </div>
 
-      {error && <span style={{ color: '#f87171', fontSize: '12px' }}>{error}</span>}
+      {error && <span style={{ color: V.err, fontSize: '12px' }}>{error}</span>}
     </div>
   );
 }
 
-function CapabilityBadge({ capability, size = 'small' }) {
+/** @param {{ capability?: string | null, size?: 'small' | 'medium' }} props */
+export function CapabilityBadge({ capability, size = 'small' }) {
+  const { V } = useTheme();
   if (!capability || capability === CAPABILITY_STATES.SUPPORTED) return null;
   const isSmall = size === 'small';
   return (
@@ -199,8 +214,8 @@ function CapabilityBadge({ capability, size = 'small' }) {
         fontSize: isSmall ? '9px' : '11px',
         padding: isSmall ? '1px 5px' : '2px 6px',
         borderRadius: isSmall ? '3px' : '4px',
-        background: 'var(--settings-accent, #3b82f6)',
-        color: '#fff',
+        background: V.bdg,
+        color: V.onbdg,
         textTransform: 'uppercase',
         fontWeight: '600',
       }}
@@ -414,9 +429,27 @@ export default function Settings() {
             <dd>{app.protocol.agentId || 'Not supplied'}</dd>
           </dl>
           <div className="inline-tool" style={{ gap: '8px', marginTop: '12px' }}>
-            <button type="button" onClick={() => actions.reconnect()} disabled={state.reconnecting}>
-              {state.reconnecting ? 'Reconnecting…' : 'Reconnect to Grid'}
-            </button>
+            <AccessibleButton
+              as="button"
+              type="button"
+              onClick={() => actions.reconnect()}
+              disabled={state.reconnecting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {state.reconnecting ? (
+                <>
+                  <CrystalLoader size={16} variant="inline" />
+                  <span>Reconnecting…</span>
+                </>
+              ) : (
+                'Reconnect to Grid'
+              )}
+            </AccessibleButton>
             {app.auth.isLoggedIn() ? (
               <button type="button" disabled={disconnecting} onClick={() => void disconnect()}>
                 {disconnecting ? 'Disconnecting…' : 'Disconnect'}

@@ -31,7 +31,127 @@ afterEach(async () => {
   }
 });
 
-describe('Search and Radar TouchTarget Clear Controls (WCAG 2.1.1, 4.1.2, 2.5.8)', () => {
+describe('Search and Radar TouchTarget Controls (WCAG 2.1.1, 4.1.2, 2.5.8)', () => {
+  describe('Search Screen Back Navigation Control', () => {
+    it('renders TouchTarget button with accessible name, title tooltip, 36x36 dimensions, and decorative icon', async () => {
+      const host = await mount(<Search />);
+      const backBtn = host.querySelector('button[aria-label="Back"]') as HTMLButtonElement;
+
+      expect(backBtn).not.toBeNull();
+      expect(backBtn.tagName).toBe('BUTTON');
+      expect(backBtn.type).toBe('button');
+      expect(backBtn.classList.contains('touch-target')).toBe(true);
+      expect(backBtn.getAttribute('aria-label')).toBe('Back');
+      expect(backBtn.getAttribute('title')).toBe('Back');
+      expect(backBtn.style.minWidth).toBe('36px');
+      expect(backBtn.style.minHeight).toBe('36px');
+      expect(backBtn.style.width).toBe('36px');
+      expect(backBtn.style.height).toBe('36px');
+      expect(backBtn.style.background).toBe('none');
+      expect(backBtn.style.borderStyle).toBe('none');
+
+      await act(async () => {
+        backBtn.focus();
+      });
+      expect(document.activeElement).toBe(backBtn);
+
+      const icon = backBtn.querySelector('[aria-hidden="true"]');
+      expect(icon).not.toBeNull();
+    });
+
+    it('navigates back to state.searchFrom on click and falls back to Friends when searchFrom is undefined', async () => {
+      let currentScreen = '';
+
+      function SearchFromChat() {
+        const { state, actions } = useApp();
+        const { openSearch } = actions;
+        currentScreen = state.screen;
+        useEffect(() => {
+          openSearch('Chat', 'PEOPLE');
+        }, [openSearch]);
+        return <Search />;
+      }
+
+      const host = await mount(<SearchFromChat />);
+      expect(currentScreen).toBe('Search');
+
+      const backBtn = host.querySelector('button[aria-label="Back"]') as HTMLButtonElement;
+      expect(backBtn).not.toBeNull();
+
+      await act(async () => {
+        backBtn.click();
+      });
+      expect(currentScreen).toBe('Chat');
+
+      await act(async () => {
+        mounted!.root.unmount();
+      });
+      mounted!.host.remove();
+      mounted = null;
+
+      function SearchWithoutFrom() {
+        const { state, actions } = useApp();
+        const { openSearch } = actions;
+        currentScreen = state.screen;
+        useEffect(() => {
+          openSearch(undefined as unknown as string, 'PEOPLE');
+        }, [openSearch]);
+        return <Search />;
+      }
+
+      const fallbackHost = await mount(<SearchWithoutFrom />);
+      expect(currentScreen).toBe('Search');
+
+      const fallbackBackBtn = fallbackHost.querySelector(
+        'button[aria-label="Back"]',
+      ) as HTMLButtonElement;
+      await act(async () => {
+        fallbackBackBtn.click();
+      });
+      expect(currentScreen).toBe('Friends');
+    });
+
+    it('supports keyboard activation via Enter and Space keys', async () => {
+      let currentScreen = '';
+      let reopen: ((from: string, tab?: string) => void) | null = null;
+
+      function SearchKeyboardHarness() {
+        const { state, actions } = useApp();
+        const { openSearch } = actions;
+        currentScreen = state.screen;
+        reopen = openSearch;
+        useEffect(() => {
+          openSearch('Inventory', 'PEOPLE');
+        }, [openSearch]);
+        return <Search />;
+      }
+
+      const host = await mount(<SearchKeyboardHarness />);
+      const backBtn = host.querySelector('button[aria-label="Back"]') as HTMLButtonElement;
+      expect(backBtn).not.toBeNull();
+      expect(currentScreen).toBe('Search');
+
+      // Activate with Enter key
+      await act(async () => {
+        backBtn.focus();
+        backBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      expect(currentScreen).toBe('Inventory');
+
+      // Reopen Search from Radar and activate with Space key
+      await act(async () => {
+        reopen?.('Radar', 'PEOPLE');
+      });
+      expect(currentScreen).toBe('Search');
+
+      await act(async () => {
+        backBtn.focus();
+        backBtn.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+      });
+      expect(currentScreen).toBe('Radar');
+    });
+  });
+
   describe('Search Screen Clear Control', () => {
     it('does not render clear button when query is empty', async () => {
       const host = await mount(<Search />);

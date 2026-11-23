@@ -17,6 +17,8 @@ import app.linkpoint.core.model.InventoryItem
 import app.linkpoint.core.scene.PCode
 import app.linkpoint.core.scene.SculptKind
 import app.linkpoint.viewer.ViewerHost
+import app.linkpoint.viewer.ui.crystal.CrystalLoader
+import app.linkpoint.viewer.ui.crystal.CrystalLoaderVariant
 import java.util.UUID
 
 private fun assetTypeName(type: Int) = when (type) {
@@ -46,7 +48,7 @@ fun InventoryScreen(host: ViewerHost) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (path.isNotEmpty()) IconButton({ path = path.dropLast(1) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Up") }
             Text(inv.folders[current]?.name ?: "Inventory", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp))
-            if (loading) CircularProgressIndicator(Modifier.padding(start = 12.dp).size(16.dp), strokeWidth = 2.dp)
+            if (loading) CrystalLoader(modifier = Modifier.padding(start = 12.dp).size(16.dp), variant = CrystalLoaderVariant.Inline)
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
         val folders = inv.children(current)
@@ -145,7 +147,12 @@ fun ProfileDialog(host: ViewerHost, id: UUID, name: String, onDismiss: () -> Uni
                     if (p.profileUrl.isNotBlank()) Text(p.profileUrl, style = MaterialTheme.typography.labelSmall)
                 }
                 failed -> Text("The grid did not answer.")
-                else -> CircularProgressIndicator()
+                else -> Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CrystalLoader(size = 48.dp, variant = CrystalLoaderVariant.Block)
+                }
             }
         },
     )
