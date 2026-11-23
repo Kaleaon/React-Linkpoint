@@ -12,6 +12,7 @@ import {
   teleportTarget,
 } from '../linkpoint/map-tiles.ts';
 import Icon from '../components/Icon.jsx';
+import TouchTarget from '../components/TouchTarget.tsx';
 
 const MIN_RADIUS = 1,
   MAX_RADIUS = 6;
@@ -150,13 +151,28 @@ export default function Map() {
     }
   };
 
+  const zoomInDisabled = radius <= MIN_RADIUS;
+  const zoomOutDisabled = radius >= MAX_RADIUS;
+
   const button = {
     border: `1px solid ${V.outv}`,
     background: V.surf,
-    color: V.on,
+    color: V.ink,
     borderRadius: 6,
     padding: '4px 10px',
-    cursor: 'pointer',
+  };
+
+  const disabledButton = {
+    ...button,
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  };
+
+  const primaryButton = {
+    ...button,
+    border: `1px solid ${V.pri}`,
+    background: V.pri,
+    color: V.onpri,
   };
 
   return (
@@ -170,59 +186,59 @@ export default function Map() {
                 aria-label="Map controls"
                 style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}
               >
-                <button
+                <TouchTarget
                   type="button"
                   style={button}
                   onClick={() => move(0, 1)}
                   aria-label="Pan north"
                 >
                   N
-                </button>
-                <button
+                </TouchTarget>
+                <TouchTarget
                   type="button"
                   style={button}
                   onClick={() => move(0, -1)}
                   aria-label="Pan south"
                 >
                   S
-                </button>
-                <button
+                </TouchTarget>
+                <TouchTarget
                   type="button"
                   style={button}
                   onClick={() => move(-1, 0)}
                   aria-label="Pan west"
                 >
                   W
-                </button>
-                <button
+                </TouchTarget>
+                <TouchTarget
                   type="button"
                   style={button}
                   onClick={() => move(1, 0)}
                   aria-label="Pan east"
                 >
                   E
-                </button>
-                <button type="button" style={button} onClick={() => setPan({ x: 0, y: 0 })}>
+                </TouchTarget>
+                <TouchTarget type="button" style={button} onClick={() => setPan({ x: 0, y: 0 })}>
                   My region
-                </button>
-                <button
+                </TouchTarget>
+                <TouchTarget
                   type="button"
-                  style={button}
-                  disabled={radius <= MIN_RADIUS}
+                  style={zoomInDisabled ? disabledButton : button}
+                  disabled={zoomInDisabled}
                   onClick={() => setRadius((r) => Math.max(MIN_RADIUS, r - 1))}
                   aria-label="Zoom in"
                 >
                   +
-                </button>
-                <button
+                </TouchTarget>
+                <TouchTarget
                   type="button"
-                  style={button}
-                  disabled={radius >= MAX_RADIUS}
+                  style={zoomOutDisabled ? disabledButton : button}
+                  disabled={zoomOutDisabled}
                   onClick={() => setRadius((r) => Math.min(MAX_RADIUS, r + 1))}
                   aria-label="Zoom out"
                 >
                   −
-                </button>
+                </TouchTarget>
               </div>
               <div
                 aria-label={`Map around ${region.name || 'the current region'}`}
@@ -278,9 +294,9 @@ export default function Map() {
                   )}
                 </dl>
                 {chosen.block ? (
-                  <button type="button" style={button} onClick={teleport}>
+                  <TouchTarget type="button" style={primaryButton} onClick={teleport}>
                     Teleport
-                  </button>
+                  </TouchTarget>
                 ) : null}
                 {message ? <small role="status">{message}</small> : null}
               </>
