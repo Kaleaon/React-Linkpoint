@@ -297,10 +297,21 @@ export default function Radar() {
         Array.isArray(position) &&
         position.slice(0, 3).every(Number.isFinite)
       ) {
-        slBridge.teleport({ region, x: position[0], y: position[1], z: position[2] + 1 }).then(
-          () => actions.notify(`Teleport to ${target.name} requested`),
-          (err) => actions.notify(err instanceof Error ? err.message : 'Teleport failed'),
-        );
+        app.protocol
+          .teleportCoordinate({
+            region,
+            x: position[0],
+            y: position[1],
+            z: position[2] + 1,
+          })
+          .then(
+            () => actions.notify(`Teleport to ${target.name} requested`),
+            (err) => {
+              if (!app.interactions.teleportSession) {
+                actions.notify(err instanceof Error ? err.message : 'Teleport failed');
+              }
+            },
+          );
       } else {
         if (label === 'OFFER TP') {
           slBridge.offerTeleport({ id: target.id }).then(

@@ -264,9 +264,9 @@ export class LinkpointApp {
             ? rlv.canAcceptTpOffer(detail.senderId)
               ? null
               : RLV_STRINGS.blockedTeleport
-            : rlv.hasBehaviour('tplure')
-              ? RLV_STRINGS.blockedTeleport
-              : null;
+            : !rlv.hasBehaviour('tplure') && rlv.canStand()
+              ? null
+              : RLV_STRINGS.blockedTeleport;
         case 'sit':
           return rlv.canGroundSit() ? null : RLV_STRINGS.blockedGeneric;
         case 'stand':

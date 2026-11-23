@@ -178,8 +178,11 @@ export default function SystemDialog() {
     ];
 
     const retryDestination = () => {
-      if (teleport.destination) {
-        void app.protocol.teleportTo(teleport.destination);
+      if (!teleport.destination) return;
+      if (teleport.destination.toLowerCase() === 'home') {
+        app.interactions.retryHomeTeleport();
+      } else {
+        void app.protocol.teleportTo(teleport.destination).catch(() => {});
       }
     };
 

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
-import { slBridge } from '../linkpoint/sl-bridge';
 import { sideBorder } from '../theme/look.js';
 import Icon from './Icon.jsx';
 import LinkpointLogo from './LinkpointLogo.jsx';
@@ -55,10 +54,15 @@ export default function DesktopChrome() {
       actions.notify('Connect to a grid to teleport.');
       return;
     }
-    slBridge.teleport({ destination }).then(
+    app.protocol.teleportTo(destination).then(
       () => actions.notify(`Teleport to ${destination} requested`),
-      (err) =>
-        actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
+      (err) => {
+        if (!app.interactions.teleportSession) {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not teleport to ${destination}`,
+          );
+        }
+      },
     );
   };
 
@@ -182,10 +186,13 @@ export default function DesktopChrome() {
                 actions.notify('Connect to a grid to teleport home.');
                 return;
               }
-              slBridge.teleportHome().then(
+              app.protocol.teleportHome().then(
                 () => actions.notify('Teleport home requested'),
-                (err) =>
-                  actions.notify(err instanceof Error ? err.message : 'Could not teleport home'),
+                (err) => {
+                  if (!app.interactions.teleportSession) {
+                    actions.notify(err instanceof Error ? err.message : 'Could not teleport home');
+                  }
+                },
               );
             }}
           >

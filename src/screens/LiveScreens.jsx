@@ -2107,8 +2107,10 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
       await app.protocol.teleportTo(destination);
       Utils.showToast(`Teleporting to ${destination}...`, 'info');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err || 'Teleport failed');
-      Utils.showToast(`Teleport failed: ${msg}`, 'error');
+      if (!app.interactions.teleportSession) {
+        const msg = err instanceof Error ? err.message : String(err || 'Teleport failed');
+        Utils.showToast(`Teleport failed: ${msg}`, 'error');
+      }
     }
   };
 
