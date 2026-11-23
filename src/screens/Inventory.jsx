@@ -50,12 +50,18 @@ export default function Inventory() {
     app.inventory.on('inventory_updated', refresh);
     app.inventory.on('inventory_loading_start', startLoading);
     app.inventory.on('inventory_loading_end', stopLoading);
+    app.gestures.on('gesture_registered', refresh);
+    app.gestures.on('gesture_activated', refresh);
+    app.gestures.on('gesture_deactivated', refresh);
 
     return () => {
       app.inventory.off('inventory_loaded', refresh);
       app.inventory.off('inventory_updated', refresh);
       app.inventory.off('inventory_loading_start', startLoading);
       app.inventory.off('inventory_loading_end', stopLoading);
+      app.gestures.off('gesture_registered', refresh);
+      app.gestures.off('gesture_activated', refresh);
+      app.gestures.off('gesture_deactivated', refresh);
     };
   }, []);
 
@@ -395,6 +401,75 @@ export default function Inventory() {
                 </>
               ) : null}
             </dl>
+            {!selected.folder &&
+              Number(selected.assetType) === 21 &&
+              (() => {
+                void revision;
+                const gestureRecord = app.gestures.getGesture(selected.id);
+                const isActive = Boolean(gestureRecord?.active);
+                const triggerLabel = gestureRecord?.compiled?.trigger || '—';
+                const hotkeyLabel = gestureRecord?.compiled?.hotkey || '—';
+                return (
+                  <div style={{ marginTop: '12px' }}>
+                    <dl style={{ margin: '0 0 10px 0' }}>
+                      <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Status</dt>
+                      <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </dd>
+                      <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Trigger</dt>
+                      <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>{triggerLabel}</dd>
+                      <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Shortcut</dt>
+                      <dd style={{ margin: 0, fontSize: '12px' }}>{hotkeyLabel}</dd>
+                    </dl>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="sync-action-btn"
+                        onClick={() => {
+                          if (isActive) {
+                            void app.deactivateInventoryGesture(selected.id);
+                          } else {
+                            void app.activateInventoryGesture(selected.id);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: isActive ? V.surf : V.pri,
+                          color: isActive ? V.ink || V.pri : V.onpri || V.bg,
+                          border: isActive ? `1px solid ${V.outv}` : 'none',
+                          borderRadius: V.rs,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isActive ? 'Deactivate Gesture' : 'Activate Gesture'}
+                      </button>
+                      <button
+                        type="button"
+                        className="sync-action-btn"
+                        onClick={() => {
+                          void app.playInventoryGesture(selected.id);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: V.surf,
+                          color: V.pri,
+                          border: `1px solid ${V.outv}`,
+                          borderRadius: V.rs,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Play Gesture
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             {Number(selected.assetType) === 7 && (
               <div style={{ marginTop: '12px' }}>
                 <button

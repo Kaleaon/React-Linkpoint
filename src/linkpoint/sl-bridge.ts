@@ -6,6 +6,7 @@ const READ_ONLY_CALLS = new Set([
   'fetchAnimation',
   'fetchSound',
   'fetchNotecard',
+  'fetchGesture',
   'getBalance',
   'requestPayPrice',
   'getObjectPayQuote',
@@ -822,6 +823,72 @@ export class SLBridge extends Utils.EventEmitter {
     text?: string;
   }): Promise<{ success: boolean; itemId: string; newAssetId?: string }> {
     return this.call('saveNotecard', params);
+  }
+  fetchGesture(
+    id: string,
+    itemId?: string,
+  ): Promise<{ id: string; itemId?: string; data: string; size: number }> {
+    return this.call('fetchGesture', { id, itemId });
+  }
+  activateGestures(params: {
+    gestures?: Array<{ itemId: string; assetId?: string; gestureFlags?: number }>;
+    itemId?: string;
+    assetId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }): Promise<{
+    activated: boolean;
+    count: number;
+    gestures: Array<{ itemId: string; assetId: string; gestureFlags: number }>;
+  }> {
+    return this.call('activateGestures', params as Record<string, unknown>);
+  }
+  activateGesture(params: {
+    itemId: string;
+    assetId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }) {
+    return this.call<{
+      activated: boolean;
+      count: number;
+      gestures: Array<{ itemId: string; assetId: string; gestureFlags: number }>;
+    }>('activateGesture', params as Record<string, unknown>);
+  }
+  deactivateGestures(params: {
+    gestures?: Array<{ itemId: string; gestureFlags?: number }>;
+    itemIds?: string[];
+    itemId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }): Promise<{
+    deactivated: boolean;
+    count: number;
+    gestures: Array<{ itemId: string; gestureFlags: number }>;
+  }> {
+    return this.call('deactivateGestures', params as Record<string, unknown>);
+  }
+  deactivateGesture(params: { itemId: string; flags?: number; gestureFlags?: number }) {
+    return this.call<{
+      deactivated: boolean;
+      count: number;
+      gestures: Array<{ itemId: string; gestureFlags: number }>;
+    }>('deactivateGesture', params as Record<string, unknown>);
+  }
+  setAgentAnimation(params: {
+    animations?: Array<{ animId: string; start?: boolean; stop?: boolean }>;
+    animId?: string;
+    start?: boolean;
+    stop?: boolean;
+  }): Promise<{ sent: boolean; animations: Array<{ animId: string; start: boolean }> }> {
+    return this.call('setAgentAnimation', params as Record<string, unknown>);
+  }
+  triggerGestureSound(params: {
+    soundId: string;
+    gain?: number;
+    position?: number[];
+  }): Promise<{ triggered: boolean; soundId: string; gain: number }> {
+    return this.call('triggerGestureSound', params as Record<string, unknown>);
   }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   /** `regionHandle` provisions on a neighbouring region (cross-region voice) instead of the current one. */

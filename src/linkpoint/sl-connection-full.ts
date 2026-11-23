@@ -163,6 +163,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
         this.emit('avatar-presence', data);
       });
     }
+    forward('gestures-activated', 'gestures_activated');
+    forward('gestures-deactivated', 'gestures_deactivated');
     // Everything else the session announces is scene data: objects, assets, textures, terrain, environment...
     for (const type of [
       'object-add',
@@ -619,6 +621,48 @@ export class SLConnectionFull extends Utils.EventEmitter {
   async saveNotecard(params: { itemId: string; data?: string; text?: string }) {
     if (!this.connected) throw new Error('Not connected to a grid');
     return await slBridge.saveNotecard(params);
+  }
+
+  async fetchGesture(id: string, itemId?: string) {
+    this.requireConnected();
+    return await slBridge.fetchGesture(id, itemId);
+  }
+
+  async activateGestures(params: {
+    gestures?: Array<{ itemId: string; assetId?: string; gestureFlags?: number }>;
+    itemId?: string;
+    assetId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }) {
+    this.requireConnected();
+    return await slBridge.activateGestures(params);
+  }
+
+  async deactivateGestures(params: {
+    gestures?: Array<{ itemId: string; gestureFlags?: number }>;
+    itemIds?: string[];
+    itemId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }) {
+    this.requireConnected();
+    return await slBridge.deactivateGestures(params);
+  }
+
+  async setAgentAnimation(params: {
+    animations?: Array<{ animId: string; start?: boolean; stop?: boolean }>;
+    animId?: string;
+    start?: boolean;
+    stop?: boolean;
+  }) {
+    this.requireConnected();
+    return await slBridge.setAgentAnimation(params);
+  }
+
+  async triggerGestureSound(params: { soundId: string; gain?: number; position?: number[] }) {
+    this.requireConnected();
+    return await slBridge.triggerGestureSound(params);
   }
 
   // A group message is never spoken in the region: it goes to the group's chat session or fails.
