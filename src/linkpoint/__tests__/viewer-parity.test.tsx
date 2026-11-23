@@ -136,4 +136,35 @@ describe('group list and details', () => {
     expect(mounted.host.textContent).toContain('Notice history unavailable from grid server.');
     expect(buttonByText(mounted.host, /Retry/i)).toBeTruthy();
   });
+
+  it('does not re-trigger loadGroupDetails when replaceMembers or replaceRoles emit store events', async () => {
+    app.groups.setGroupInfo('g1', { name: 'Builders' });
+    vi.spyOn(app, 'loadGroups').mockResolvedValue(app.groups.getGroups());
+    const load = vi.spyOn(app, 'loadGroupDetails').mockImplementation(async (id, section) => {
+      if (section === 'members') {
+        app.groups.replaceMembers(id, [{ id: 'resident-1', name: 'Ada Builder', title: 'Owner' }]);
+      }
+      if (section === 'roles') {
+        app.groups.replaceRoles(id, [{ id: 'role-1', name: 'Architects', title: 'Architect' }]);
+      }
+      return {};
+    });
+
+    mounted = await mountScreen(GroupsScreen);
+    await flush();
+
+    load.mockClear();
+    await click(buttonByText(mounted.host, /Members/i));
+    await flush();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledWith('g1', 'members');
+    expect(mounted.host.textContent).toContain('Ada Builder');
+
+    load.mockClear();
+    await click(buttonByText(mounted.host, /Roles/i));
+    await flush();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledWith('g1', 'roles');
+    expect(mounted.host.textContent).toContain('Architects');
+  });
 });

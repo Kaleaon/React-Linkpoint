@@ -663,6 +663,7 @@ export function GroupsScreen() {
   const [listError, setListError] = useState('');
   const [detailRefresh, setDetailRefresh] = useState(0);
   const [, refreshNotices] = useState(0);
+  const [, refreshGroupStore] = useState(0);
   const [groups, setGroups] = useState(() => app.groups.getGroups());
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(() => groups[0]?.id || '');
@@ -679,19 +680,23 @@ export function GroupsScreen() {
   const [showNoticeModal, setShowNoticeModal] = useState(false);
 
   useEffect(() => {
-    const handleUpdate = () => {
+    const handleStoreUpdate = () => {
       setGroups(app.groups.getGroups());
-      setDetailRefresh((v) => v + 1);
+      refreshGroupStore((value) => value + 1);
     };
-    app.groups.on('roles_updated', handleUpdate);
-    app.groups.on('role_updated', handleUpdate);
-    app.groups.on('members_updated', handleUpdate);
-    app.groups.on('member_ejected', handleUpdate);
+    const events = [
+      'roles_updated',
+      'role_updated',
+      'role_deleted',
+      'members_updated',
+      'member_roles_updated',
+      'member_ejected',
+      'member_removed',
+      'member_invited',
+    ];
+    events.forEach((event) => app.groups.on(event, handleStoreUpdate));
     return () => {
-      app.groups.off('roles_updated', handleUpdate);
-      app.groups.off('role_updated', handleUpdate);
-      app.groups.off('members_updated', handleUpdate);
-      app.groups.off('member_ejected', handleUpdate);
+      events.forEach((event) => app.groups.off(event, handleStoreUpdate));
     };
   }, []);
 
@@ -707,23 +712,6 @@ export function GroupsScreen() {
     return () => {
       app.groups.off('active_group_changed', handleActiveChanged);
       slBridge.off('active_group_changed', handleActiveChanged);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleModerationChange = () => {
-      setGroups(app.groups.getGroups());
-      setDetailRefresh((value) => value + 1);
-    };
-    app.groups.on('member_removed', handleModerationChange);
-    app.groups.on('member_invited', handleModerationChange);
-    app.groups.on('members_updated', handleModerationChange);
-    app.groups.on('roles_updated', handleModerationChange);
-    return () => {
-      app.groups.off('member_removed', handleModerationChange);
-      app.groups.off('member_invited', handleModerationChange);
-      app.groups.off('members_updated', handleModerationChange);
-      app.groups.off('roles_updated', handleModerationChange);
     };
   }, []);
 
