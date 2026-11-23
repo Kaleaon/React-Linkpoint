@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { app } from '../linkpoint/app';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon';
+import { FocusRing } from './FocusRing.tsx';
+import { TouchTarget } from './TouchTarget.tsx';
 
 export default function MediaControlsOverlay() {
   const { V } = useTheme();
@@ -54,7 +56,7 @@ export default function MediaControlsOverlay() {
     return null;
   }
 
-  const { objectId, faceIndex, media, state } = focusedMedia;
+  const { objectId, faceIndex, state } = focusedMedia;
   const isPlaying = state?.isPlaying ?? true;
   const isCorsBlocked = state?.isCorsBlocked ?? false;
 
@@ -107,8 +109,12 @@ export default function MediaControlsOverlay() {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div
+          aria-live="polite"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+        >
           <span
+            aria-hidden="true"
             style={{
               display: 'inline-block',
               width: 8,
@@ -119,6 +125,19 @@ export default function MediaControlsOverlay() {
           />
           <span style={{ fontWeight: 700, letterSpacing: '0.5px' }}>
             SHARED MEDIA — FACE {faceIndex}
+          </span>
+          <span
+            data-testid="media-playback-status"
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: isPlaying ? '#14532d' : '#78350f',
+              color: isPlaying ? '#86efac' : '#fde68a',
+              fontWeight: 600,
+            }}
+          >
+            {isPlaying ? 'PLAYING' : 'PAUSED'}
           </span>
           {isCorsBlocked && (
             <span
@@ -135,40 +154,39 @@ export default function MediaControlsOverlay() {
             </span>
           )}
         </div>
-        <button
-          type="button"
+        <TouchTarget
           onClick={handleClose}
           aria-label="Close media controls"
+          padding={4}
           style={{
             background: 'transparent',
             border: 'none',
             color: '#94a3b8',
-            cursor: 'pointer',
-            padding: 4,
           }}
         >
           <Icon name="x" size={16} />
-        </button>
+        </TouchTarget>
       </div>
 
       <form onSubmit={handleNavigate} style={{ display: 'flex', gap: 6 }}>
-        <input
-          type="text"
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          placeholder="Enter Media URL..."
-          aria-label="Media URL"
-          style={{
-            flex: 1,
-            background: '#1e293b',
-            border: '1px solid #334155',
-            borderRadius: 6,
-            padding: '6px 10px',
-            color: '#f8fafc',
-            fontSize: '12px',
-            outline: 'none',
-          }}
-        />
+        <FocusRing ringColor={V.pri} borderRadius={6}>
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="Enter Media URL..."
+            aria-label="Media URL"
+            style={{
+              flex: 1,
+              background: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: 6,
+              padding: '6px 10px',
+              color: '#f8fafc',
+              fontSize: '12px',
+            }}
+          />
+        </FocusRing>
         <button
           type="submit"
           aria-label="Go to URL"

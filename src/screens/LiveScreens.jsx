@@ -5,6 +5,7 @@ import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
@@ -664,7 +665,6 @@ export function GroupsScreen() {
   const [listError, setListError] = useState('');
   const [detailRefresh, setDetailRefresh] = useState(0);
   const [, refreshNotices] = useState(0);
-  const [, refreshGroupStore] = useState(0);
   const [groups, setGroups] = useState(() => app.groups.getGroups());
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(() => groups[0]?.id || '');
@@ -681,23 +681,23 @@ export function GroupsScreen() {
   const [showNoticeModal, setShowNoticeModal] = useState(false);
 
   useEffect(() => {
-    const handleStoreUpdate = () => {
+    const handleUpdate = () => {
       setGroups(app.groups.getGroups());
-      refreshGroupStore((value) => value + 1);
+      refreshNotices((v) => v + 1);
     };
-    app.groups.on('roles_updated', handleStoreUpdate);
-    app.groups.on('role_updated', handleStoreUpdate);
-    app.groups.on('members_updated', handleStoreUpdate);
-    app.groups.on('member_ejected', handleStoreUpdate);
-    app.groups.on('member_removed', handleStoreUpdate);
-    app.groups.on('member_invited', handleStoreUpdate);
+    app.groups.on('roles_updated', handleUpdate);
+    app.groups.on('role_updated', handleUpdate);
+    app.groups.on('members_updated', handleUpdate);
+    app.groups.on('member_ejected', handleUpdate);
+    app.groups.on('member_removed', handleUpdate);
+    app.groups.on('member_invited', handleUpdate);
     return () => {
-      app.groups.off('roles_updated', handleStoreUpdate);
-      app.groups.off('role_updated', handleStoreUpdate);
-      app.groups.off('members_updated', handleStoreUpdate);
-      app.groups.off('member_ejected', handleStoreUpdate);
-      app.groups.off('member_removed', handleStoreUpdate);
-      app.groups.off('member_invited', handleStoreUpdate);
+      app.groups.off('roles_updated', handleUpdate);
+      app.groups.off('role_updated', handleUpdate);
+      app.groups.off('members_updated', handleUpdate);
+      app.groups.off('member_ejected', handleUpdate);
+      app.groups.off('member_removed', handleUpdate);
+      app.groups.off('member_invited', handleUpdate);
     };
   }, []);
 
@@ -2020,7 +2020,7 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+export function NoticeAttachmentBanner({ notice, V: propV = undefined, t: propT = undefined }) {
   const theme = useTheme();
   const V = propV || theme.V;
   const t = propT || theme.t;
@@ -2150,9 +2150,11 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button
+        <AccessibleButton
+          as="button"
           type="button"
           disabled={saving || isSaved}
+          aria-busy={saving ? 'true' : undefined}
           onClick={handleSave}
           style={{
             ...btnStyle,
@@ -2163,9 +2165,13 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
             cursor: saving || isSaved ? 'default' : 'pointer',
           }}
         >
-          <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          {saving ? (
+            <CrystalLoader size={13} variant="inline" />
+          ) : (
+            <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          )}
           {saving ? 'SAVING...' : isSaved ? 'SAVED TO INVENTORY' : 'SAVE TO INVENTORY'}
-        </button>
+        </AccessibleButton>
 
         {isLandmark ? (
           <button

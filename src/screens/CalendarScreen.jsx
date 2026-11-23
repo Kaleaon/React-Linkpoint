@@ -9,7 +9,10 @@ import {
 import { buildIcs, icsFileName } from '../linkpoint/ics.ts';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import Icon from '../components/Icon.jsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import { loadGoogle } from '../services/google.ts';
 
@@ -406,14 +409,30 @@ function NoticeEditor({ notice, groupName }) {
           SAVE CALENDAR FILE (.ICS)
         </button>
         {googleEnabled ? (
-          <button
+          <AccessibleButton
+            as="button"
             type="button"
             disabled={busy || Boolean(problem)}
-            style={button(true)}
+            aria-busy={busy ? 'true' : undefined}
+            aria-live="polite"
+            style={{
+              ...button(true),
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
             onClick={addToGoogle}
           >
-            {busy ? 'ADDING…' : 'ADD TO GOOGLE CALENDAR'}
-          </button>
+            {busy ? (
+              <>
+                <CrystalLoader size={14} variant="inline" />
+                <span>ADDING…</span>
+              </>
+            ) : (
+              'ADD TO GOOGLE CALENDAR'
+            )}
+          </AccessibleButton>
         ) : null}
       </div>
       {!googleEnabled ? (
@@ -469,10 +488,12 @@ function GoogleEvents() {
   const googleEnabled = useGoogleEnabled();
   const [events, setEvents] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
 
   const refresh = async () => {
     setBusy(true);
+    setSyncing(true);
     setError('');
     try {
       const google = await loadGoogle();
@@ -481,6 +502,7 @@ function GoogleEvents() {
     } catch (failure) {
       setError(failure?.message || 'Could not load your Google Calendar.');
     } finally {
+      setSyncing(false);
       setBusy(false);
     }
   };
@@ -547,14 +569,22 @@ function GoogleEvents() {
       <div style={{ font: `400 11.5px/1.5 ${t.font}`, color: V.ink2 }}>
         Upcoming events Linkpoint added to your Google Calendar.
       </div>
-      <button
+      <SyncActionButton
         type="button"
+        loading={syncing}
         disabled={busy}
-        style={{ ...button, justifySelf: 'start' }}
         onClick={refresh}
-      >
-        {busy ? 'LOADING…' : events ? 'REFRESH' : 'SIGN IN AND LOAD'}
-      </button>
+        iconName="rotate-cw"
+        size={14}
+        idleText={events ? 'REFRESH' : 'SIGN IN AND LOAD'}
+        loadingText="LOADING…"
+        title="Synchronize Google Calendar events"
+        style={{
+          ...button,
+          justifySelf: 'start',
+          cursor: busy || syncing ? 'not-allowed' : 'pointer',
+        }}
+      />
       {error ? (
         <div role="alert" style={{ color: V.err, font: `500 11.5px/1.4 ${t.font}` }}>
           {error}
