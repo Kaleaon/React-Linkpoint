@@ -12,6 +12,7 @@ import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import TouchTarget from './TouchTarget';
 import FocusRing from './FocusRing';
+import CrystalLoader from './CrystalLoader.jsx';
 
 export default function GroupAdminFloater({
   groupId,
@@ -898,8 +899,17 @@ export default function GroupAdminFloater({
                       Cancel
                     </button>
                     <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                      <Icon name="check" size={14} />
-                      {busy ? 'Applying…' : isCreatingRole ? 'Create Role' : 'Apply Changes'}
+                      {busy ? (
+                        <>
+                          <CrystalLoader size={16} variant="inline" />
+                          <span>Applying…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="check" size={14} />
+                          <span>{isCreatingRole ? 'Create Role' : 'Apply Changes'}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -1094,8 +1104,17 @@ export default function GroupAdminFloater({
                           onClick={handleSaveMemberRoles}
                           style={primaryButtonStyle}
                         >
-                          <Icon name="check" size={14} />
-                          {busy ? 'Saving…' : 'Save Role Assignments'}
+                          {busy ? (
+                            <>
+                              <CrystalLoader size={16} variant="inline" />
+                              <span>Saving…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Icon name="check" size={14} />
+                              <span>Save Role Assignments</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1210,8 +1229,17 @@ export default function GroupAdminFloater({
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                   <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                    <Icon name="send" size={14} />
-                    {busy ? 'Sending…' : 'Send Invitation'}
+                    {busy ? (
+                      <>
+                        <CrystalLoader size={16} variant="inline" />
+                        <span>Sending…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="send" size={14} />
+                        <span>Send Invitation</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -1292,8 +1320,17 @@ export default function GroupAdminFloater({
                   onClick={handleConfirmEject}
                   style={dangerButtonStyle}
                 >
-                  <Icon name="user-x" size={14} />
-                  {busy ? 'Ejecting…' : 'Confirm Eject'}
+                  {busy ? (
+                    <>
+                      <CrystalLoader size={16} variant="inline" />
+                      <span>Ejecting…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="user-x" size={14} />
+                      <span>Confirm Eject</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
