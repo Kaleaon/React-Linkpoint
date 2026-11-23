@@ -63,9 +63,46 @@ export function GridsScreen() {
   );
 }
 
+/**
+ * @param {MediaError | { code?: number } | null | undefined} mediaError
+ * @returns {string}
+ */
+function getMediaErrorMessage(mediaError) {
+  switch (mediaError?.code) {
+    case 1:
+      return 'Stream playback was aborted.';
+    case 2:
+      return 'A network error interrupted stream playback.';
+    case 3:
+      return 'The audio stream could not be decoded.';
+    case 4:
+      return 'The stream format is unsupported or the source could not be reached.';
+    default:
+      return 'Unable to play audio stream. Check the stream URL and try again.';
+  }
+}
+
 export function MediaScreen() {
+  const { V } = useTheme();
   const [url, setUrl] = useState('');
   const [active, setActive] = useState('');
+  const [error, setError] = useState('');
+  const [lastUrl, setLastUrl] = useState('');
+  const [attempt, setAttempt] = useState(0);
+
+  const trimmedUrl = url.trim();
+  const isValidHttpsUrl = /^https:\/\//i.test(trimmedUrl);
+
+  /** @param {string} targetUrl */
+  const startPlayback = (targetUrl) => {
+    const nextUrl = targetUrl.trim();
+    if (!/^https:\/\//i.test(nextUrl)) return;
+    setError('');
+    setLastUrl(nextUrl);
+    setAttempt((c) => c + 1);
+    setActive(nextUrl);
+  };
+
   return (
     <div className="tool-page">
       <h2>Streaming media</h2>
@@ -74,26 +111,74 @@ export function MediaScreen() {
           type="url"
           aria-label="HTTPS audio stream URL"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (error) {
+              setError('');
+            }
+          }}
           placeholder="HTTPS audio stream URL"
         />
-        <button onClick={() => setActive(url.trim())} disabled={!/^https:\/\//i.test(url.trim())}>
+        <button type="button" onClick={() => startPlayback(url)} disabled={!isValidHttpsUrl}>
           Play
         </button>
       </div>
+      {error ? (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            margin: '0 12px 12px',
+            padding: '12px 14px',
+            border: `1px solid ${V.err}`,
+            borderRadius: V.rs,
+            background: V.surf,
+            color: V.err,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            fontSize: 13,
+          }}
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => startPlayback(isValidHttpsUrl ? trimmedUrl : lastUrl)}
+            style={{
+              minHeight: 28,
+              padding: '0 12px',
+              border: `1px solid ${V.err}`,
+              borderRadius: V.rs,
+              background: 'transparent',
+              color: V.err,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       {active ? (
         <audio
+          key={`${active}-${attempt}`}
           className="media-player"
           src={active}
           controls
           autoPlay
-          onError={() => setActive('')}
+          onError={(e) => {
+            setError(getMediaErrorMessage(e.currentTarget?.error));
+            setActive('');
+          }}
         />
-      ) : (
+      ) : !error ? (
         <Empty icon="radio">
           Enter an HTTPS stream supplied by the current parcel or broadcaster.
         </Empty>
-      )}
+      ) : null}
     </div>
   );
 }
