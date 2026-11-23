@@ -109,6 +109,7 @@
     "@typescript-eslint/parser": "^8.71.1",
     "electron": "^38.8.6",
     "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
     "eslint": "^9.20.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
