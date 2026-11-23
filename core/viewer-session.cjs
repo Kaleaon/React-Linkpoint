@@ -41,7 +41,7 @@ const {
 const actions = require('./sl-actions.cjs');
 const outfit = require('./sl-outfit.cjs');
 const interactions = require('./sl-interactions.cjs');
-const { watchAnimations, downloadAnimation } = require('./sl-animations.cjs');
+const { watchAnimations, downloadAnimation, sendAgentAnimations } = require('./sl-animations.cjs');
 const { watchAvatarAppearance } = require('./sl-appearance.cjs');
 const { watchSounds, downloadSound } = require('./sl-sounds.cjs');
 const { watchWind } = require('./sl-wind.cjs');
@@ -2008,6 +2008,11 @@ class ViewerSession {
   async fetchAnimation({ id }) {
     const bot = this.requireBot();
     return { id, data: await this.queueAssetDownload(() => downloadAnimation(bot, id)) };
+  }
+
+  sendAgentAnimations({ animations } = {}) {
+    const bot = this.requireBot();
+    return sendAgentAnimations(bot, this.currentRegion(), animations);
   }
 
   // The client builds these bodies (src/linkpoint/voice-protocol.ts, from the official viewer); the host only

@@ -30,6 +30,7 @@ import { economyManager, EconomyManager } from './economy-manager';
 import { economyService } from '../services/EconomyService';
 import { localCache } from './local-cache';
 import { ObjectPayManager } from './object-pay-manager';
+import { AOEngine } from './ao-engine';
 
 import { ChatProtocolAdapter } from './chat-protocol-adapter';
 
@@ -66,6 +67,7 @@ export class LinkpointApp {
   public voice: VoiceManager;
   public economy: EconomyManager;
   public objectPay: ObjectPayManager;
+  public ao: AOEngine;
   public economySyncEngine: EconomySyncEngine;
   public chatAdapter: ChatProtocolAdapter;
 
@@ -103,6 +105,12 @@ export class LinkpointApp {
     this.chat = new ChatManager(this.chatAdapter, this.auth);
     this.inventory = new InventoryManager(this.protocol, this.auth);
     localCache.bindInventory(this.inventory);
+    this.ao = new AOEngine({
+      world: this.world,
+      protocol: this.protocol,
+      inventory: this.inventory,
+    });
+    this.world.setAnimationInterceptor(this.ao.interceptAnimations);
     this.notifications = new NotificationsManager(this.protocol);
     this.interactions = new InteractionsManager(this.protocol);
     this.contacts = new ContactsStore();

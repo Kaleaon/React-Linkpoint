@@ -55,6 +55,7 @@ const METHODS = new Set([
   'acceptGroupNoticeAttachment',
   'dismissInteraction',
   'fetchAnimation',
+  'sendAgentAnimations',
   'fetchSound',
   'fetchNotecard',
   'saveNotecard',
