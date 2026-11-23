@@ -4,6 +4,8 @@ import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { Utils } from '../linkpoint/utils.ts';
 import { MuteFlag, MuteType } from '../linkpoint/mute-list.ts';
 import Icon from '../components/Icon.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
+import AccessibleButton from '../components/AccessibleButton.jsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import SyncActionButton from '../components/SyncActionButton.tsx';
 import SecondaryViewLoader from '../components/SecondaryViewLoader';
@@ -2031,7 +2033,7 @@ export function NoticesScreen() {
   return sub === 'CALENDAR' ? <CalendarScreen /> : <NoticesList />;
 }
 
-function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
+export function NoticeAttachmentBanner({ notice, V: propV = undefined, t: propT = undefined }) {
   const theme = useTheme();
   const V = propV || theme.V;
   const t = propT || theme.t;
@@ -2161,9 +2163,11 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button
+        <AccessibleButton
+          as="button"
           type="button"
           disabled={saving || isSaved}
+          aria-busy={saving ? 'true' : undefined}
           onClick={handleSave}
           style={{
             ...btnStyle,
@@ -2174,9 +2178,13 @@ function NoticeAttachmentBanner({ notice, V: propV, t: propT }) {
             cursor: saving || isSaved ? 'default' : 'pointer',
           }}
         >
-          <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          {saving ? (
+            <CrystalLoader size={13} variant="inline" />
+          ) : (
+            <Icon name={isSaved ? 'check' : 'download'} size={13} />
+          )}
           {saving ? 'SAVING...' : isSaved ? 'SAVED TO INVENTORY' : 'SAVE TO INVENTORY'}
-        </button>
+        </AccessibleButton>
 
         {isLandmark ? (
           <button
