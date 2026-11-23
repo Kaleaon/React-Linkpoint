@@ -433,6 +433,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  minWidth: '24px',
+                  minHeight: '24px',
                   padding: '6px 8px',
                   background: V.bg,
                   border: `1px solid ${V.outv}`,
@@ -544,8 +546,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             <span
               data-testid="unsaved-status-pill"
               style={{
-                background: '#f59e0b',
-                color: '#111827',
+                background: V.warn,
+                color: V.bg,
                 fontSize: '9px',
                 fontWeight: 700,
                 padding: '2px 6px',
@@ -564,6 +566,11 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
             aria-label="Deselect object"
             title="Deselect object"
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '24px',
+              minHeight: '24px',
               background: 'transparent',
               border: 0,
               color: V.ink2,
@@ -586,8 +593,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           aria-label="Apply Changes"
           style={{
             ...btnStyle,
-            background: isDirty ? '#10b981' : V.surf2 || V.surf,
-            color: isDirty ? '#ffffff' : V.ink2,
+            background: isDirty ? V.ok : V.surf2 || V.surf,
+            color: isDirty ? V.onpri : V.ink2,
             opacity: isDirty ? 1 : 0.5,
             minHeight: '28px',
           }}
@@ -601,8 +608,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           aria-label="Discard Changes"
           style={{
             ...btnStyle,
-            background: isDirty ? '#ef4444' : V.surf2 || V.surf,
-            color: isDirty ? '#ffffff' : V.ink2,
+            background: isDirty ? V.err : V.surf2 || V.surf,
+            color: isDirty ? V.onpri : V.ink2,
             opacity: isDirty ? 1 : 0.5,
             minHeight: '28px',
           }}
@@ -769,7 +776,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           <span style={{ color: V.ink }}>{selection.owner || 'Region / Public'}</span>
 
           <span>Perms:</span>
-          <span style={{ color: canModify ? V.ok : '#ef4444', fontWeight: 600 }}>
+          <span style={{ color: canModify ? V.ok : V.err, fontWeight: 600 }}>
             {canModify ? 'Modify Allowed' : 'Locked (No Modify)'}
           </span>
         </div>
@@ -795,7 +802,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
               Gizmo Mode
             </span>
             {!canModify && (
-              <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 600 }}>
+              <span style={{ fontSize: '9px', color: V.err, fontWeight: 600 }}>
                 Controls Locked
               </span>
             )}
@@ -832,6 +839,7 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '4px',
+                    minWidth: '24px',
                     minHeight: '28px',
                     padding: '4px 6px',
                     fontSize: '10px',
@@ -878,9 +886,9 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
           onClick={() => setPayDialogOpen(true)}
           style={{
             ...btnStyle,
-            background: '#0284c7',
-            color: '#ffffff',
-            border: '1px solid #0284c7',
+            background: V.pri,
+            color: V.onpri,
+            border: `1px solid ${V.pri}`,
           }}
         >
           <Icon name="banknote" size={12} />
@@ -890,7 +898,11 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
 
       <BuildingToolbar selectedObject={selection} style={{ marginBottom: '10px' }} />
 
-      <CollapsibleSystemDetails summary="Developer Details" ariaLabel="Developer Details">
+      <CollapsibleSystemDetails
+        summary="Developer Details"
+        ariaLabel="Developer Details"
+        buttonStyle={{ minWidth: '24px', minHeight: '24px' }}
+      >
         <div
           style={{
             display: 'grid',
@@ -986,10 +998,12 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
                 type="button"
                 onClick={handleConfirmSave}
                 style={{
-                  background: '#10b981',
-                  color: '#ffffff',
+                  background: V.ok,
+                  color: V.onpri,
                   border: 0,
                   borderRadius: V.rs,
+                  minWidth: '24px',
+                  minHeight: '24px',
                   padding: '4px 10px',
                   fontSize: '10px',
                   fontWeight: 700,
@@ -1002,10 +1016,12 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
                 type="button"
                 onClick={handleConfirmDiscard}
                 style={{
-                  background: '#ef4444',
-                  color: '#ffffff',
+                  background: V.err,
+                  color: V.onpri,
                   border: 0,
                   borderRadius: V.rs,
+                  minWidth: '24px',
+                  minHeight: '24px',
                   padding: '4px 10px',
                   fontSize: '10px',
                   fontWeight: 700,
@@ -1022,6 +1038,8 @@ export const ObjectInspector: React.FC<ObjectInspectorProps> = ({ style, classNa
                   color: V.ink2,
                   border: `1px solid ${V.outv}`,
                   borderRadius: V.rs,
+                  minWidth: '24px',
+                  minHeight: '24px',
                   padding: '4px 8px',
                   fontSize: '10px',
                   cursor: 'pointer',
