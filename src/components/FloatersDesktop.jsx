@@ -13,6 +13,7 @@ import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskSt
 import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 import NotecardFloater from './NotecardFloater.jsx';
+import LandmarkFloater from './LandmarkFloater.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -72,11 +73,13 @@ export default function FloatersDesktop() {
     worldEvents.forEach((event) => app.world.on(event, refresh));
     protocolEvents.forEach((event) => app.protocol.on(event, refresh));
     app.inventory.on('inventory_loaded', refresh);
+    app.inventory.on('inventory_updated', refresh);
     app.notifications.on('notification_received', refresh);
     return () => {
       worldEvents.forEach((event) => app.world.off(event, refresh));
       protocolEvents.forEach((event) => app.protocol.off(event, refresh));
       app.inventory.off('inventory_loaded', refresh);
+      app.inventory.off('inventory_updated', refresh);
       app.notifications.off('notification_received', refresh);
     };
   }, []);
@@ -107,7 +110,10 @@ export default function FloatersDesktop() {
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
   const flFocused =
-    state.screen !== 'Notecard' && state.flOpen[state.screen] && !state.flMin[state.screen]
+    state.screen !== 'Notecard' &&
+    state.screen !== 'CreateLandmark' &&
+    state.flOpen[state.screen] &&
+    !state.flMin[state.screen]
       ? actions.flR(state.screen)
       : null;
 
@@ -351,6 +357,9 @@ export default function FloatersDesktop() {
       {openFloaters.map((f) => {
         if (f.id === 'Notecard') {
           return <NotecardFloater key={f.id} />;
+        }
+        if (f.id === 'CreateLandmark') {
+          return <LandmarkFloater key={f.id} />;
         }
         const r = actions.flR(f.id);
         const act = f.id === state.screen;

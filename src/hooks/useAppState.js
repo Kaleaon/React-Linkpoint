@@ -15,6 +15,59 @@ import { localCache } from '../linkpoint/local-cache';
 import { app } from '../linkpoint/app';
 import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 import { deskKind, deskGeometry } from '../theme/deskStyle.js';
+import { matchesKeyBinding } from '../linkpoint/key-bindings';
+
+export const FLOATER_STATE_STORAGE_KEY = 'linkpoint_floater_state';
+
+function sanitizeRectMap(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [id, r] of Object.entries(raw)) {
+    if (!r || typeof r !== 'object') continue;
+    const x = Number(r.x);
+    const y = Number(r.y);
+    const w = Number(r.w);
+    const h = Number(r.h);
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h)) {
+      out[id] = {
+        x: Math.max(0, Math.round(x)),
+        y: Math.max(0, Math.round(y)),
+        w: Math.max(216, Math.round(w)),
+        h: Math.max(96, Math.round(h)),
+      };
+    }
+  }
+  return out;
+}
+
+function sanitizeBoolMap(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [id, val] of Object.entries(raw)) {
+    if (typeof val === 'boolean') out[id] = val;
+  }
+  return out;
+}
+
+export function readSavedFloaterState() {
+  try {
+    const raw = localStorage.getItem(FLOATER_STATE_STORAGE_KEY);
+    if (!raw) return { rect: {}, min: {}, max: {}, prevRect: {}, open: {} };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return { rect: {}, min: {}, max: {}, prevRect: {}, open: {} };
+    }
+    return {
+      rect: sanitizeRectMap(parsed.rect),
+      min: sanitizeBoolMap(parsed.min),
+      max: sanitizeBoolMap(parsed.max),
+      prevRect: sanitizeRectMap(parsed.prevRect),
+      open: sanitizeBoolMap(parsed.open),
+    };
+  } catch {
+    return { rect: {}, min: {}, max: {}, prevRect: {}, open: {} };
+  }
+}
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -157,6 +210,7 @@ export function useAppState() {
   const [rOpen, setROpen] = useState(null);
   const [rMenu, setRMenu] = useState(null);
   const [cDock, setCDock] = useState(['fly', 'sit', 'snap', 'mini', 'inv', 'home', 'ao', 'sun']);
+  const [savedFloaterState] = useState(readSavedFloaterState);
   const [flOpen, setFlOpen] = useState({
     Chat: true,
     Radar: true,
@@ -166,14 +220,17 @@ export function useAppState() {
     Settings: false,
     AO: false,
     Notecard: false,
+    CreateLandmark: Boolean(
+      savedFloaterState.open?.CreateLandmark && savedFloaterState.min?.CreateLandmark,
+    ),
   });
   const [notecardItem, setNotecardItem] = useState(null);
   const [notecardReadOnly, setNotecardReadOnly] = useState(false);
   const [notecardDrafts, setNotecardDrafts] = useState({});
-  const [flMin, setFlMin] = useState({});
-  const [flRect, setFlRect] = useState({});
-  const [flMax, setFlMax] = useState({});
-  const [flPrevRect, setFlPrevRect] = useState({});
+  const [flMin, setFlMin] = useState(() => savedFloaterState.min);
+  const [flRect, setFlRect] = useState(() => savedFloaterState.rect);
+  const [flMax, setFlMax] = useState(() => savedFloaterState.max);
+  const [flPrevRect, setFlPrevRect] = useState(() => savedFloaterState.prevRect);
   const [flZ, setFlZ] = useState(['Map', 'Inventory', 'Friends', 'Radar', 'Chat']);
   const [menu, setMenu] = useState(null);
   const [loginMode, setLoginModeState] = useState('grid');
@@ -931,6 +988,7 @@ export function useAppState() {
 
   const flClose = useCallback((id) => {
     setFlOpen((o) => ({ ...o, [id]: false }));
+    setFlMin((m) => (m[id] ? { ...m, [id]: false } : m));
     setScreen((cur) => (cur === id ? (app.auth.isLoggedIn() ? 'Chat' : 'Login') : cur));
     setMenu(null);
   }, []);
@@ -1047,6 +1105,77 @@ export function useAppState() {
   const notecardFocus = useCallback(() => flFocus('Notecard'), [flFocus]);
 
   const notecardReset = useCallback(() => flReset('Notecard'), [flReset]);
+
+  // ---- create landmark floater actions & persistence ----------------------
+  const openLandmarkFloater = useCallback(() => {
+    flFocus('CreateLandmark');
+  }, [flFocus]);
+
+  const closeLandmarkFloater = useCallback(() => {
+    flClose('CreateLandmark');
+  }, [flClose]);
+
+  useEffect(() => {
+    try {
+      const persistedRect = flRect.CreateLandmark ? { CreateLandmark: flRect.CreateLandmark } : {};
+      const persistedMin =
+        typeof flMin.CreateLandmark === 'boolean' ? { CreateLandmark: flMin.CreateLandmark } : {};
+      const persistedMax =
+        typeof flMax.CreateLandmark === 'boolean' ? { CreateLandmark: flMax.CreateLandmark } : {};
+      const persistedPrevRect = flPrevRect.CreateLandmark
+        ? { CreateLandmark: flPrevRect.CreateLandmark }
+        : {};
+      localStorage.setItem(
+        FLOATER_STATE_STORAGE_KEY,
+        JSON.stringify({
+          rect: persistedRect,
+          min: persistedMin,
+          max: persistedMax,
+          prevRect: persistedPrevRect,
+          open: { CreateLandmark: Boolean(flOpen.CreateLandmark) },
+        }),
+      );
+    } catch {
+      /* ignore storage write error */
+    }
+  }, [
+    flRect.CreateLandmark,
+    flMin.CreateLandmark,
+    flMax.CreateLandmark,
+    flPrevRect.CreateLandmark,
+    flOpen.CreateLandmark,
+  ]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented) return;
+      let binding = 'Ctrl+Shift+KeyD';
+      try {
+        const rawKb = localStorage.getItem('linkpoint_keybindings');
+        if (rawKb) {
+          const parsed = JSON.parse(rawKb);
+          if (parsed?.customBindings?.createLandmark) {
+            binding = parsed.customBindings.createLandmark;
+          }
+        }
+      } catch {
+        /* ignore storage read error */
+      }
+
+      const isDefaultCtrlShiftD =
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        !event.altKey &&
+        (event.code === 'KeyD' || String(event.key || '').toLowerCase() === 'd');
+
+      if (isDefaultCtrlShiftD || matchesKeyBinding(event, binding, true)) {
+        event.preventDefault();
+        openLandmarkFloater();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openLandmarkFloater]);
 
   // ---- worn HUDs (hudDrag/toggleHud) -------------------------------------
   const hudDrag = useCallback(
@@ -1276,6 +1405,8 @@ export function useAppState() {
       notecardClose,
       notecardFocus,
       notecardReset,
+      openLandmarkFloater,
+      closeLandmarkFloater,
       setAsyncDataDomainState,
       setAsyncDataState: setAsyncDataDomainState,
       setLayout,

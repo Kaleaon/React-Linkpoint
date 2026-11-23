@@ -57,6 +57,7 @@ const METHODS = new Set([
   'fetchSound',
   'fetchNotecard',
   'saveNotecard',
+  'createLandmark',
   'getMapBlocks',
   'getFriends',
   'getGroups',

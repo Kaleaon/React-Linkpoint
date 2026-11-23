@@ -47,6 +47,15 @@ const INITIAL_FLOATERS = [
   { id: 'Contacts', title: 'Contacts', icon: 'contact', x: 360, y: 90, w: 500, h: 460 },
   { id: 'Calendar', title: 'Calendar', icon: 'calendar', x: 420, y: 90, w: 500, h: 470 },
   { id: 'Notecard', title: 'Notecard', icon: 'file-text', x: 280, y: 70, w: 540, h: 480 },
+  {
+    id: 'CreateLandmark',
+    title: 'Create Landmark',
+    icon: 'map-pin',
+    x: 340,
+    y: 96,
+    w: 420,
+    h: 420,
+  },
 ];
 export const FLOATERS = INITIAL_FLOATERS.concat(
   NAV_ALL.filter(({ id }) => id !== '3D View' && !INITIAL_FLOATERS.some((f) => f.id === id)).map(
@@ -84,6 +93,7 @@ export const FMENU = [
   {
     label: 'World',
     items: [
+      ['Landmark Here', 'Ctrl+Shift+D'],
       ['Teleport Home', '⇧⌘H'],
       ['Set Home to Here', ''],
       ['About Land…', ''],

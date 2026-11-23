@@ -149,6 +149,11 @@ export class SLConnectionFull extends Utils.EventEmitter {
         this.emit('inventory-offer', data);
       });
     }
+    for (const name of ['inventory_update', 'inventory-update']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('inventory_update', data);
+      });
+    }
     for (const name of ['group_invite', 'group-invite']) {
       slBridge.on(name, (data: any) => {
         this.emit('group_invite', data);
@@ -619,6 +624,21 @@ export class SLConnectionFull extends Utils.EventEmitter {
   async saveNotecard(params: { itemId: string; data?: string; text?: string }) {
     if (!this.connected) throw new Error('Not connected to a grid');
     return await slBridge.saveNotecard(params);
+  }
+
+  async createLandmark(params: {
+    name?: string;
+    description?: string;
+    folderId?: string;
+    position?: [number, number, number];
+    regionId?: string;
+    regionName?: string;
+    parcelName?: string;
+    parcelLocalId?: number;
+    timeout?: number;
+  }) {
+    if (!this.connected && !slBridge.connected) throw new Error('Not connected to a grid');
+    return await slBridge.createLandmark(params);
   }
 
   // A group message is never spoken in the region: it goes to the group's chat session or fails.

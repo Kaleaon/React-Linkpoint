@@ -163,6 +163,30 @@ export interface DeleteObjectResult {
   objectLocalIds: number[];
 }
 
+export interface CreateLandmarkParams {
+  name?: string;
+  description?: string;
+  folderId?: string;
+  position?: [number, number, number];
+  regionId?: string;
+  regionName?: string;
+  parcelName?: string;
+  parcelLocalId?: number;
+  timeout?: number;
+  [key: string]: unknown;
+}
+
+export interface CreateLandmarkResult {
+  success: boolean;
+  transport: 'capability' | 'udp';
+  capability?: string;
+  endpoint?: string;
+  itemId: string;
+  assetId?: string;
+  folderId: string;
+  item?: Record<string, any>;
+}
+
 /** The desktop app's preload API, when running inside it. */
 const desktop = () => (typeof window !== 'undefined' ? window.linkpointDesktop : undefined);
 
@@ -822,6 +846,9 @@ export class SLBridge extends Utils.EventEmitter {
     text?: string;
   }): Promise<{ success: boolean; itemId: string; newAssetId?: string }> {
     return this.call('saveNotecard', params);
+  }
+  createLandmark(params: CreateLandmarkParams): Promise<CreateLandmarkResult> {
+    return this.call<CreateLandmarkResult>('createLandmark', params);
   }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   /** `regionHandle` provisions on a neighbouring region (cross-region voice) instead of the current one. */

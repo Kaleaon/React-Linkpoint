@@ -210,6 +210,21 @@ export default function DesktopChrome() {
             style={{ color: V.ink, fontFamily: t.font }}
           />
           <button
+            type="button"
+            aria-label="Create landmark"
+            title="Landmark this location (Ctrl+Shift+D)"
+            onClick={() => {
+              if (actions.openLandmarkFloater) {
+                actions.openLandmarkFloater();
+              } else {
+                actions.flFocus('CreateLandmark');
+              }
+            }}
+            style={{ ...iconButton, width: 25, height: 24, border: 0, background: 'transparent' }}
+          >
+            <Icon name="map-pin" size={13} />
+          </button>
+          <button
             type="submit"
             aria-label="Go to location"
             title="Go to location"
