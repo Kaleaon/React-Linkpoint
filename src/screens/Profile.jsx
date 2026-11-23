@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
+import PayDialog from '../components/PayDialog.jsx';
 import SegmentedTabs from '../components/SegmentedTabs.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
 import { subView } from '../theme/constants.js';
@@ -12,10 +13,22 @@ export function ResidentInspector({ target, onReturn }) {
   const { state, actions } = useApp();
   const [photo, setPhoto] = useState(null);
   const [, setLoadingPhoto] = useState(false);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
 
   const targetName =
     target?.name || target?.attachedTo || (typeof target === 'string' ? target : '') || 'Resident';
-  const targetId = target?.id || target?.avatarId || target?.uuid || '';
+  const targetId = String(target?.id || target?.avatarId || target?.uuid || '').trim();
+  const selfUser = app.auth?.user;
+  const isSelf = Boolean(
+    selfUser &&
+    ((targetId && selfUser.id && targetId === selfUser.id) ||
+      (!selfUser.id && selfUser.fullName && targetName === selfUser.fullName)),
+  );
+  const canPay = Boolean(targetId) && !isSelf;
+
+  useEffect(() => {
+    setPayDialogOpen(false);
+  }, [targetId, targetName]);
 
   useEffect(() => {
     let active = true;
@@ -90,6 +103,22 @@ export function ResidentInspector({ target, onReturn }) {
         actions.notify(`Friendship offered to ${targetName}`);
       }
     }
+  };
+
+  const handlePay = () => {
+    if (!targetId) {
+      if (typeof actions?.notify === 'function') {
+        actions.notify('Unable to pay: Resident ID is unavailable');
+      }
+      return;
+    }
+    if (isSelf) {
+      if (typeof actions?.notify === 'function') {
+        actions.notify('Cannot send payment to yourself');
+      }
+      return;
+    }
+    setPayDialogOpen(true);
   };
 
   return (
@@ -266,6 +295,39 @@ export function ResidentInspector({ target, onReturn }) {
                 <Icon name="user-plus" size={16} />
                 <span>Friend</span>
               </TouchTarget>
+              <TouchTarget
+                onClick={handlePay}
+                disabled={!canPay}
+                title={
+                  !targetId
+                    ? 'Resident ID unavailable for payment'
+                    : isSelf
+                      ? 'Cannot send payment to yourself'
+                      : `Pay ${targetName}`
+                }
+                aria-label={`Pay ${targetName}`}
+                data-testid="resident-pay-btn"
+                minSize={44}
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${V.outv}`,
+                  background: V.surf,
+                  color: canPay ? V.pri : V.ink2,
+                  cursor: canPay ? 'pointer' : 'not-allowed',
+                  opacity: canPay ? 1 : 0.5,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                }}
+              >
+                <Icon name="banknote" size={16} />
+                <span>Pay</span>
+              </TouchTarget>
             </div>
           </article>
         )}
@@ -337,6 +399,19 @@ export function ResidentInspector({ target, onReturn }) {
           </div>
         )}
       </div>
+
+      <PayDialog
+        isOpen={payDialogOpen}
+        onClose={() => setPayDialogOpen(false)}
+        target={{ id: targetId, name: targetName, type: 'avatar' }}
+        onSuccess={(tx) => {
+          if (typeof actions?.notify === 'function') {
+            const symbol = app.economy?.currencySymbol || 'L$';
+            const amountText = typeof tx?.amount === 'number' ? ` ${symbol} ${tx.amount}` : '';
+            actions.notify(`Paid${amountText} to ${targetName}`);
+          }
+        }}
+      />
     </div>
   );
 }
