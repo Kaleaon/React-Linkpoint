@@ -8,6 +8,12 @@ import SegmentedTabs from '../components/SegmentedTabs.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
 import { subView } from '../theme/constants.js';
 
+function isResidentMuted(id, name) {
+  return Boolean(
+    (id && app.chatExtended?.isUserMuted?.(id)) || (name && app.chatExtended?.isUserMuted?.(name)),
+  );
+}
+
 export function ResidentInspector({ target, onReturn }) {
   const { V, t } = useTheme();
   const { state, actions } = useApp();
@@ -18,6 +24,7 @@ export function ResidentInspector({ target, onReturn }) {
   const targetName =
     target?.name || target?.attachedTo || (typeof target === 'string' ? target : '') || 'Resident';
   const targetId = target?.id || target?.avatarId || target?.uuid || '';
+  const [isMuted, setIsMuted] = useState(() => isResidentMuted(targetId, targetName));
   const isLoggedIn =
     typeof app.auth?.isLoggedIn === 'function' ? app.auth.isLoggedIn() : Boolean(app.auth?.user);
   const canOfferTeleport = Boolean(targetId && isLoggedIn);
@@ -31,6 +38,36 @@ export function ResidentInspector({ target, onReturn }) {
       app.auth?.off?.('logout', bumpAuth);
     };
   }, []);
+
+  useEffect(() => {
+    setIsMuted(isResidentMuted(targetId, targetName));
+
+    const muteList = app.muteList;
+    if (!muteList || typeof muteList.on !== 'function') {
+      return undefined;
+    }
+
+    const handleMuteListChange = (snapshot) => {
+      if (snapshot && typeof muteList.isMuted === 'function') {
+        setIsMuted(
+          Boolean(
+            (targetId && muteList.isMuted(targetId, targetName)) ||
+            (targetName && muteList.isMutedByName?.(targetName)) ||
+            (targetId && muteList.isMutedByName?.(targetId)),
+          ),
+        );
+      } else {
+        setIsMuted(isResidentMuted(targetId, targetName));
+      }
+    };
+
+    muteList.on('changed', handleMuteListChange);
+    return () => {
+      if (typeof muteList.off === 'function') {
+        muteList.off('changed', handleMuteListChange);
+      }
+    };
+  }, [targetId, targetName]);
 
   useEffect(() => {
     let active = true;
@@ -123,6 +160,39 @@ export function ResidentInspector({ target, onReturn }) {
         }
       },
     );
+  };
+
+  const handleMuteToggle = () => {
+    const muteKey = targetId || targetName;
+    if (!muteKey) return;
+
+    if (isMuted) {
+      if (targetId && app.chatExtended?.isUserMuted?.(targetId)) {
+        app.chatExtended.unmuteUser(targetId);
+      } else if (targetName && app.chatExtended?.isUserMuted?.(targetName)) {
+        app.chatExtended.unmuteUser(targetName);
+      } else {
+        app.chatExtended?.unmuteUser?.(muteKey);
+      }
+      if (
+        targetId &&
+        targetName &&
+        app.chatExtended?.isUserMuted?.(targetName) &&
+        typeof app.chatExtended.unmuteUser === 'function'
+      ) {
+        app.chatExtended.unmuteUser(targetName);
+      }
+      setIsMuted(false);
+      if (typeof actions?.notify === 'function') {
+        actions.notify(`Unmuted ${targetName}`);
+      }
+    } else {
+      app.chatExtended?.muteUser?.(muteKey);
+      setIsMuted(true);
+      if (typeof actions?.notify === 'function') {
+        actions.notify(`Muted ${targetName}`);
+      }
+    }
   };
 
   return (
@@ -324,6 +394,31 @@ export function ResidentInspector({ target, onReturn }) {
               >
                 <Icon name="map-pin" size={16} />
                 <span>Teleport</span>
+              </TouchTarget>
+              <TouchTarget
+                onClick={handleMuteToggle}
+                aria-label={isMuted ? `Unmute ${targetName}` : `Mute ${targetName}`}
+                aria-pressed={isMuted}
+                data-testid="resident-mute-btn"
+                minSize={44}
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '8px 14px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${isMuted ? V.err : V.outv}`,
+                  background: V.surf,
+                  color: isMuted ? V.err : V.ink2,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                }}
+              >
+                <Icon name={isMuted ? 'volume-2' : 'volume-x'} size={16} />
+                <span>{isMuted ? 'Unmute' : 'Mute'}</span>
               </TouchTarget>
             </div>
           </article>
