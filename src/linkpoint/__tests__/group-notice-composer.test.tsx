@@ -422,14 +422,21 @@ describe('Group Notice Composer & ImprovedInstantMessage Dispatch', () => {
       const submitBtn = buttonByText(mounted.host, /Send Notice/i) as HTMLButtonElement;
       expect(submitBtn).not.toBeNull();
       expect(submitBtn.disabled).toBe(false);
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
 
       const form = mounted.host.querySelector('form')!;
       await act(async () => {
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       });
 
-      // While dispatch is active, submit button is disabled
+      // While dispatch is active, submit button is disabled and mounts inline CrystalLoader
       expect(submitBtn.disabled).toBe(true);
+      const crystalLoader = submitBtn.querySelector(
+        '[data-testid="crystal-loader"]',
+      ) as HTMLElement;
+      expect(crystalLoader).not.toBeNull();
+      expect(crystalLoader.getAttribute('data-variant')).toBe('inline');
+      expect(submitBtn.textContent).toContain('Sending…');
 
       // Subsequent submit attempt is ignored (Constraint 4: duplicate submission blocked)
       await act(async () => {
@@ -455,6 +462,71 @@ describe('Group Notice Composer & ImprovedInstantMessage Dispatch', () => {
       });
       expect(onNoticeSuccess).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
+
+      await unmount(mounted);
+    });
+
+    it('restores idle send button state and unmounts CrystalLoader if notice dispatch fails', async () => {
+      let rejectSend: (reason?: any) => void = () => {};
+      vi.spyOn(app, 'sendGroupNotice').mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            rejectSend = reject;
+          }),
+      );
+
+      const mounted = await mountScreen(() => (
+        <CreateGroupNoticeModal
+          isOpen={true}
+          onClose={vi.fn()}
+          groupId={testGroupId}
+          groupName="Nightclub VIPs"
+          V={testThemeV}
+          t={testThemeT}
+        />
+      ));
+      await flush();
+
+      const subjectInput = mounted.host.querySelector('#notice-subject') as HTMLInputElement;
+      const messageInput = mounted.host.querySelector('#notice-message') as HTMLTextAreaElement;
+
+      await act(async () => {
+        const setVal = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setVal.call(subjectInput, 'Maintenance Alert');
+        subjectInput.dispatchEvent(new Event('input', { bubbles: true }));
+        subjectInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const setText = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value',
+        )!.set!;
+        setText.call(messageInput, 'Region restart scheduled.');
+        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        messageInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await flush();
+
+      const submitBtn = buttonByText(mounted.host, /Send Notice/i) as HTMLButtonElement;
+      const form = mounted.host.querySelector('form')!;
+
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+
+      expect(submitBtn.disabled).toBe(true);
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+
+      await act(async () => {
+        rejectSend(new Error('Simulator circuit timed out'));
+      });
+      await flush();
+
+      expect(submitBtn.disabled).toBe(false);
+      expect(submitBtn.querySelector('[data-testid="crystal-loader"]')).toBeNull();
+      expect(submitBtn.textContent).toContain('Send Notice');
+      expect(mounted.host.querySelector('[role="alert"]')?.textContent).toContain(
+        'Simulator circuit timed out',
+      );
 
       await unmount(mounted);
     });
