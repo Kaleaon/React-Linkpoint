@@ -29,7 +29,6 @@ export const NAV_ALL = [
     ['Environment', 'sun'],
     ['Snapshot', 'camera'],
     ['Search', 'search'],
-    ['AO', 'activity'],
     ['Cache', 'hard-drive'],
     ['Diagnostics', 'activity'],
   ].map(([id, icon]) => ({ id, label: id.toUpperCase(), tile: id.toLowerCase(), icon })),

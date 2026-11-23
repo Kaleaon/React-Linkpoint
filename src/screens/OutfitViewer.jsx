@@ -6,8 +6,10 @@ import SecondaryViewLoader from '../components/SecondaryViewLoader';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
 import TouchTarget from '../components/TouchTarget.tsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import FocusTrap from '../components/FocusTrap.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
+import { isTypingTarget } from '../linkpoint/keyboard-motion.ts';
 
 const CAMERA_PRESETS = [
   ['front', 'Front'],
@@ -261,6 +263,42 @@ export default function OutfitViewer() {
 
   const handleWheel = (e) => {
     app.world.camera3d?.zoom(-e.deltaY * 0.002);
+  };
+
+  const handleKeyDown = (e) => {
+    if (isTypingTarget(e.target)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const { key, code } = e;
+    let handled = false;
+
+    if (key === 'ArrowUp' || code === 'ArrowUp') {
+      app.world.rotateCamera(8, 0);
+      handled = true;
+    } else if (key === 'ArrowDown' || code === 'ArrowDown') {
+      app.world.rotateCamera(-8, 0);
+      handled = true;
+    } else if (key === 'ArrowLeft' || code === 'ArrowLeft') {
+      app.world.rotateCamera(0, -10);
+      handled = true;
+    } else if (key === 'ArrowRight' || code === 'ArrowRight') {
+      app.world.rotateCamera(0, 10);
+      handled = true;
+    } else if (key === '+' || key === '=' || code === 'NumpadAdd') {
+      app.world.camera3d?.zoom(0.2);
+      handled = true;
+    } else if (key === '-' || key === '_' || code === 'NumpadSubtract') {
+      app.world.camera3d?.zoom(-0.2);
+      handled = true;
+    } else if (key === 'Home' || code === 'Home') {
+      applyCameraPreset('front');
+      handled = true;
+    }
+
+    if (handled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
 
   const filteredItems = useMemo(() => {
@@ -532,14 +570,23 @@ export default function OutfitViewer() {
         >
           <canvas
             ref={canvasRef}
+            role="img"
+            tabIndex={0}
             aria-label="3D Avatar Viewport"
+            onKeyDown={handleKeyDown}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
             onWheel={handleWheel}
             style={{ width: '100%', height: '100%', cursor: 'grab', touchAction: 'none' }}
-          />
+          >
+            <p>
+              Interactive 3D avatar viewport displaying your currently worn outfit and attachments.
+              Use the camera preset buttons or keyboard shortcuts (Arrow keys to rotate, + and - to
+              zoom, Home to reset) to inspect your avatar.
+            </p>
+          </canvas>
 
           {(viewportError || !loggedIn || !hasAvatar) && (
             <div
@@ -630,10 +677,11 @@ export default function OutfitViewer() {
                 {autoRotate ? 'SPINNING' : 'AUTO-SPIN'}
               </button>
 
-              <button
-                type="button"
-                onClick={() => applyCameraPreset('front')}
+              <TouchTarget
+                minSize={24}
+                aria-label="Reset Camera View"
                 title="Reset Camera View"
+                onClick={() => applyCameraPreset('front')}
                 style={{
                   padding: '3px 6px',
                   fontSize: 10,
@@ -645,7 +693,7 @@ export default function OutfitViewer() {
                 }}
               >
                 RESET
-              </button>
+              </TouchTarget>
             </div>
           </div>
         </div>
@@ -703,24 +751,27 @@ export default function OutfitViewer() {
                   >
                     SAVE OUTFIT AS
                   </button>
-                  <button
+                  <SyncActionButton
                     type="button"
-                    disabled={outfitState.loading || !loggedIn}
+                    loading={outfitState.loading}
+                    disabled={!loggedIn}
                     onClick={() => void loadOutfit()}
+                    iconName="rotate-cw"
+                    size={13}
+                    idleText="REFRESH"
+                    loadingText="LOADING…"
                     title="Read what you are wearing from Second Life again"
                     style={{
-                      padding: '4px 8px',
+                      padding: '4px 10px',
                       fontSize: 10,
                       fontWeight: 700,
-                      background: V.pri,
-                      color: V.onpri || '#fff',
-                      border: 'none',
+                      background: V.bg,
+                      color: V.pri,
+                      border: `1px solid ${V.outv}`,
                       borderRadius: V.rs,
-                      cursor: 'pointer',
+                      opacity: outfitState.loading || !loggedIn ? 0.6 : 1,
                     }}
-                  >
-                    {outfitState.loading ? 'LOADING…' : 'REFRESH'}
-                  </button>
+                  />
                 </div>
               </div>
 
