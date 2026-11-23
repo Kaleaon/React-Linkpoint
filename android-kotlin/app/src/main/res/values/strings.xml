@@ -2,4 +2,17 @@
     <string name="app_name">Linkpoint</string>
     <string name="service_channel">Connection</string>
     <string name="service_title">Linkpoint is connected</string>
+    <string name="loading_state_default">Loading…</string>
+    <string name="loading_folder_contents">Loading folder contents</string>
+    <plurals name="inventory_folder_item_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <string name="inventory_folder_empty">This folder is empty.</string>
+    <string name="inventory_load_failed">Could not load this folder</string>
+    <string name="loading_profile">Loading profile…</string>
+    <string name="profile_load_failed">The grid did not answer.</string>
+    <string name="error_recovery_reconnecting">Network disconnected. Reconnecting automatically…</string>
+    <string name="error_recovery_retrying">Retrying failed requests…</string>
+    <string name="action_retry">Retry</string>
 </resources>

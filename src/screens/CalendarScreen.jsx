@@ -412,8 +412,9 @@ function NoticeEditor({ notice, groupName }) {
             variant="primary"
             loading={busy}
             disabled={Boolean(problem)}
+            aria-live="polite"
             iconName="calendar"
-            size={13}
+            size={14}
             idleText="ADD TO GOOGLE CALENDAR"
             loadingText="ADDING…"
             style={button(true)}
@@ -555,12 +556,17 @@ function GoogleEvents() {
         variant="default"
         loading={isLoading('refresh')}
         disabled={busy}
+        onClick={refresh}
         iconName="rotate-cw"
-        size={13}
+        size={14}
         idleText={events ? 'REFRESH' : 'SIGN IN AND LOAD'}
         loadingText="LOADING…"
-        style={{ ...button, justifySelf: 'start' }}
-        onClick={refresh}
+        title="Synchronize Google Calendar events"
+        style={{
+          ...button,
+          justifySelf: 'start',
+          cursor: busy ? 'not-allowed' : 'pointer',
+        }}
       />
       {error ? (
         <div role="alert" style={{ color: V.err, font: `500 11.5px/1.4 ${t.font}` }}>

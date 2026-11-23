@@ -91,7 +91,10 @@ export const SyncActionButton = React.forwardRef<HTMLButtonElement, SyncActionBu
       enhanced = true,
       className = '',
       style,
+      role = 'button',
+      tabIndex,
       onClick,
+      onKeyDown,
       children,
       ...restProps
     },
@@ -102,6 +105,8 @@ export const SyncActionButton = React.forwardRef<HTMLButtonElement, SyncActionBu
 
     const activeIconName = iconName || icon;
     const isDisabled = Boolean(disabled || loading);
+    const computedTabIndex =
+      role === 'none' || role === 'presentation' ? tabIndex : (tabIndex ?? (isDisabled ? -1 : 0));
 
     const effectiveIdle = idleText ?? children;
     const effectiveLoading = loadingText ?? effectiveIdle;
@@ -155,15 +160,33 @@ export const SyncActionButton = React.forwardRef<HTMLButtonElement, SyncActionBu
       onClick?.(e);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      onKeyDown?.(e);
+      if (!e.defaultPrevented && (e.key === 'Enter' || e.key === ' ')) {
+        if (isDisabled) {
+          e.preventDefault();
+          return;
+        }
+        if (onClick) {
+          e.preventDefault();
+          onClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
+        }
+      }
+    };
+
     return (
       <TouchTarget
         ref={ref}
         type={type}
+        role={role}
+        tabIndex={computedTabIndex}
         disabled={isDisabled}
+        aria-disabled={isDisabled ? 'true' : undefined}
         enhanced={enhanced}
         className={`sync-action-button sync-action-button--${variant} ${className}`.trim()}
         style={mergedStyle}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         aria-busy={loading ? 'true' : undefined}
         data-testid="sync-action-button"
         data-variant={variant}
