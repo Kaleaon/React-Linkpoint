@@ -13,20 +13,30 @@ on:
     paths:
       - 'server.ts'
       - 'src/server/**'
+      - 'core/**'
+      - 'src/linkpoint/**'
+      - 'scripts/patch-metaverse.cjs'
       - 'Dockerfile'
       - 'fly.toml'
       - 'package.json'
+      - 'bun.lock'
       - '.npmrc'
+      - '.github/workflows/fly-deploy.yml'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - 'server.ts'
       - 'src/server/**'
+      - 'core/**'
+      - 'src/linkpoint/**'
+      - 'scripts/patch-metaverse.cjs'
       - 'Dockerfile'
       - 'fly.toml'
       - 'package.json'
+      - 'bun.lock'
       - '.npmrc'
+      - '.github/workflows/fly-deploy.yml'
   workflow_dispatch:
 
 permissions:
