@@ -67,9 +67,6 @@ export default function MenuBar() {
     if (itemLabel === 'World Map') {
       actions.flFocus('Map');
       actions.setScreen('Map');
-    } else if (itemLabel === 'Animation Overrider…' || itemLabel === 'Animation Overrider') {
-      actions.flFocus('AO');
-      actions.setScreen('AO');
     } else if (itemLabel === 'Cache Storage…') {
       actions.flFocus('Cache');
       actions.setScreen('Cache');

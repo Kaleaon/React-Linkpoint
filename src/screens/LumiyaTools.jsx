@@ -1827,17 +1827,3 @@ export function DiagnosticsScreen() {
     </div>
   );
 }
-
-// The animation overrider is a worn attachment with its own scripts. The grid
-// does not tell the viewer which attachments, scripts or animations are running,
-// so there is nothing real to list here yet.
-export function AOScreen() {
-  return (
-    <div className="tool-page">
-      <Empty icon="person-standing">
-        Animation overrider status is not available. The viewer does not receive worn-attachment or
-        script information from the grid yet.
-      </Empty>
-    </div>
-  );
-}
