@@ -94,6 +94,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   private list: Interaction[] = [];
   private busyIds = new Set<string>();
   private activeTeleport: TeleportSession | null = null;
+  private lastCompletedTeleportSession: TeleportSession | null = null;
   private initialized = false;
 
   constructor(private protocol: SLConnectionFull) {
@@ -136,6 +137,11 @@ export class InteractionsManager extends Utils.EventEmitter {
   /** Current active teleport session moment, or null when idle. */
   get teleportSession(): TeleportSession | null {
     return this.activeTeleport;
+  }
+
+  /** Most recently completed teleport session metadata before activeTeleport was cleared. */
+  get lastCompletedTeleport(): TeleportSession | null {
+    return this.lastCompletedTeleportSession;
   }
 
   /** Pending requests, oldest first. */
@@ -231,7 +237,7 @@ export class InteractionsManager extends Utils.EventEmitter {
 
   completeTeleportSession(regionName?: string) {
     if (this.activeTeleport) {
-      this.activeTeleport = {
+      const completed: TeleportSession = {
         ...this.activeTeleport,
         phase: 'completed',
         stepPercent: 100,
@@ -239,6 +245,9 @@ export class InteractionsManager extends Utils.EventEmitter {
         regionName: regionName || this.activeTeleport.regionName,
         completedAt: Date.now(),
       };
+      this.activeTeleport = completed;
+      this.lastCompletedTeleportSession = { ...completed };
+      this.emit('teleport_session_completed', { ...completed });
       this.changed();
       this.clearTeleportSession();
     }
@@ -391,14 +400,27 @@ export class InteractionsManager extends Utils.EventEmitter {
     return Boolean(result);
   }
 
-  /** Accept a teleport lure. Emits `lure_accepted` with the grid's message once teleported. */
+  /** Accept a teleport lure. Emits `lure_accepted` with destination metadata once teleported. */
   async acceptLure(id: string) {
     const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as
       LureRequest | undefined;
     const result = await this.run(id, () =>
       this.protocol.acceptLure(id, lure?.fromId ?? undefined),
     );
-    if (result && lure) this.emit('lure_accepted', { lure, message: result.message });
+    if (result && lure) {
+      const resolvedRegion =
+        (result as any)?.requested?.region ||
+        (result as any)?.regionName ||
+        (result as any)?.region ||
+        (lure as any)?.regionName;
+      const acceptedLure = resolvedRegion
+        ? { ...lure, status: 'accepted' as const, regionName: String(resolvedRegion) }
+        : { ...lure, status: 'accepted' as const };
+      this.emit('lure_accepted', {
+        lure: acceptedLure,
+        message: result.message,
+      });
+    }
     return Boolean(result);
   }
 

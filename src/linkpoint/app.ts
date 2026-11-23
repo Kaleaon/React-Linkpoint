@@ -12,6 +12,7 @@ import { InventoryManager } from './inventory';
 import { PreferencesManager } from './preferences';
 import { NotificationsManager } from './notifications';
 import { InteractionsManager } from './interactions';
+import { TeleportHistoryManager } from './teleport-history';
 import { ContactsStore } from './contacts';
 import { NoticeStore } from './notices';
 import { Utils } from './utils';
@@ -60,6 +61,7 @@ export class LinkpointApp {
   public preferences: PreferencesManager;
   public notifications: NotificationsManager;
   public interactions: InteractionsManager;
+  public teleportHistory: TeleportHistoryManager;
   public contacts: ContactsStore;
   public notices: NoticeStore;
   public audio: AudioManager;
@@ -105,6 +107,13 @@ export class LinkpointApp {
     localCache.bindInventory(this.inventory);
     this.notifications = new NotificationsManager(this.protocol);
     this.interactions = new InteractionsManager(this.protocol);
+    this.teleportHistory = new TeleportHistoryManager({
+      protocol: this.protocol,
+      world: this.world,
+      auth: this.auth,
+      interactions: this.interactions,
+      inventory: this.inventory,
+    });
     this.contacts = new ContactsStore();
     this.notices = new NoticeStore(this.protocol);
     this.audio = new AudioManager(this.protocol);
@@ -189,6 +198,7 @@ export class LinkpointApp {
     );
     this.wireRlv();
     this.setupEventListeners();
+    this.teleportHistory.init();
   }
 
   /** `voiceConnectionStateMachine`: pick the spatial voice channel from the avatar's parcel and apply it. */
@@ -298,6 +308,10 @@ export class LinkpointApp {
     this.auth.init();
     // Wired before anything that can fail or wait: a script dialog must never be dropped for want of a listener.
     this.interactions.init();
+    this.teleportHistory.init();
+    if (this.teleportHistory.getActiveAgentId()) {
+      void this.teleportHistory.getHistory().catch(() => {});
+    }
     this.notices.init();
     await this.world.init();
     this.chat.init();

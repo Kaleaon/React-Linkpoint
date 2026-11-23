@@ -40,6 +40,15 @@ const INITIAL_FLOATERS = [
   { id: 'Groups', title: 'Groups', icon: 'users-round', x: 852, y: 24, w: 520, h: 460 },
   { id: 'Notices', title: 'Notifications', icon: 'bell', x: 852, y: 292, w: 196, h: 252 },
   { id: 'Teleport', title: 'Places', icon: 'zap', x: 330, y: 150, w: 370, h: 350 },
+  {
+    id: 'Teleport History',
+    title: 'Teleport History',
+    icon: 'history',
+    x: 350,
+    y: 110,
+    w: 520,
+    h: 440,
+  },
   { id: 'Settings', title: 'Preferences', icon: 'settings', x: 290, y: 80, w: 540, h: 470 },
   { id: 'Cache', title: 'Cache', icon: 'hard-drive', x: 360, y: 120, w: 460, h: 420 },
   { id: 'Diagnostics', title: 'Statistics', icon: 'activity', x: 1056, y: 462, w: 346, h: 196 },
@@ -85,6 +94,7 @@ export const FMENU = [
     label: 'World',
     items: [
       ['Teleport Home', '⇧⌘H'],
+      ['Teleport History…', '⇧⌘T'],
       ['Set Home to Here', ''],
       ['About Land…', ''],
       ['Region / Estate…', ''],

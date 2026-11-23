@@ -90,26 +90,53 @@ function Tile({ tile, block, known, selected, showImage, onSelect, V }) {
 export default function Map() {
   const { V, t } = useTheme();
   const [region, setRegion] = useState(app.world.region);
+  const [focusTarget, setFocusTarget] = useState(() => app.world.mapFocusTarget);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [radius, setRadius] = useState(3);
   const [blocks, setBlocks] = useState(null); // null until the grid has answered
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() =>
+    Number.isFinite(app.world.mapFocusTarget?.gridX) &&
+    Number.isFinite(app.world.mapFocusTarget?.gridY)
+      ? { x: app.world.mapFocusTarget.gridX, y: app.world.mapFocusTarget.gridY }
+      : null,
+  );
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     const changed = (next) => {
       setRegion(next);
+      setFocusTarget(null);
       setPan({ x: 0, y: 0 });
       setBlocks(null);
     };
+    const onFocusRequested = (target) => {
+      setFocusTarget(target);
+      setPan({ x: 0, y: 0 });
+      if (target && Number.isFinite(target.gridX) && Number.isFinite(target.gridY)) {
+        setSelected({ x: target.gridX, y: target.gridY });
+      } else {
+        setSelected(null);
+      }
+    };
     app.world.on('region_changed', changed);
-    return () => app.world.off('region_changed', changed);
+    app.world.on('map_focus_requested', onFocusRequested);
+    return () => {
+      app.world.off('region_changed', changed);
+      app.world.off('map_focus_requested', onFocusRequested);
+    };
   }, []);
 
+  const hasFocusCoordinates =
+    Number.isFinite(focusTarget?.gridX) && Number.isFinite(focusTarget?.gridY);
   const hasCoordinates = Number.isFinite(region?.x) && Number.isFinite(region?.y);
   const isSecondLife = ['agni', 'aditi'].includes(String(app.auth.user?.grid || '').toLowerCase());
-  const view = hasCoordinates
-    ? { x: Math.max(0, region.x + pan.x), y: Math.max(0, region.y + pan.y) }
+  const anchor = hasFocusCoordinates
+    ? { x: focusTarget.gridX, y: focusTarget.gridY }
+    : hasCoordinates
+      ? { x: region.x, y: region.y }
+      : null;
+  const view = anchor
+    ? { x: Math.max(0, anchor.x + pan.x), y: Math.max(0, anchor.y + pan.y) }
     : null;
   const tiles = useMemo(() => (view ? mapTiles(view, radius) : []), [view?.x, view?.y, radius]);
 
@@ -134,15 +161,41 @@ export default function Map() {
   }, [view?.x, view?.y, radius]);
 
   const move = useCallback((dx, dy) => setPan((p) => ({ x: p.x + dx, y: p.y + dy })), []);
-  const block = (tile) => blocks?.get(`${tile.x},${tile.y}`) || null;
+  const block = (tile) => {
+    const fromGrid = blocks?.get(`${tile.x},${tile.y}`);
+    if (fromGrid) return fromGrid;
+    if (
+      hasFocusCoordinates &&
+      focusTarget?.regionName &&
+      tile.x === focusTarget.gridX &&
+      tile.y === focusTarget.gridY
+    ) {
+      return { x: tile.x, y: tile.y, name: focusTarget.regionName, access: 0 };
+    }
+    return null;
+  };
   const chosen = selected ? { tile: selected, block: block(selected) } : null;
 
   const teleport = async () => {
-    if (!chosen?.block) return;
+    const targetDest =
+      chosen?.block &&
+      focusTarget?.regionName &&
+      chosen.block.name === focusTarget.regionName &&
+      Array.isArray(focusTarget.position)
+        ? `secondlife://${encodeURIComponent(focusTarget.regionName)}/${Math.round(focusTarget.position[0])}/${Math.round(focusTarget.position[1])}/${Math.round(focusTarget.position[2])}`
+        : chosen?.block
+          ? teleportTarget(chosen.block)
+          : focusTarget?.regionName
+            ? Array.isArray(focusTarget.position)
+              ? `secondlife://${encodeURIComponent(focusTarget.regionName)}/${Math.round(focusTarget.position[0])}/${Math.round(focusTarget.position[1])}/${Math.round(focusTarget.position[2])}`
+              : `secondlife://${encodeURIComponent(focusTarget.regionName)}`
+            : null;
+    if (!targetDest) return;
+    const label = chosen?.block?.name || focusTarget?.regionName || targetDest;
     setMessage('');
     try {
-      await app.protocol.teleportTo(teleportTarget(chosen.block));
-      setMessage(`Teleport to ${chosen.block.name} requested`);
+      await app.protocol.teleportTo(targetDest);
+      setMessage(`Teleport to ${label} requested`);
     } catch (error) {
       if (!app.interactions.teleportSession) {
         setMessage(error?.message || 'Teleport failed');
@@ -161,7 +214,7 @@ export default function Map() {
 
   return (
     <section className="live-screen">
-      {region ? (
+      {region || focusTarget ? (
         <div className="tool-page">
           {tiles.length ? (
             <>
@@ -202,7 +255,15 @@ export default function Map() {
                 >
                   E
                 </button>
-                <button type="button" style={button} onClick={() => setPan({ x: 0, y: 0 })}>
+                <button
+                  type="button"
+                  style={button}
+                  onClick={() => {
+                    app.world.focusMapLocation(null);
+                    setPan({ x: 0, y: 0 });
+                    setSelected(null);
+                  }}
+                >
                   My region
                 </button>
                 <button
@@ -225,7 +286,7 @@ export default function Map() {
                 </button>
               </div>
               <div
-                aria-label={`Map around ${region.name || 'the current region'}`}
+                aria-label={`Map around ${focusTarget?.regionName || region?.name || 'the current region'}`}
                 style={{
                   position: 'relative',
                   width: 'min(100%, 720px)',
@@ -265,6 +326,17 @@ export default function Map() {
                   <dd>
                     {chosen.tile.x}, {chosen.tile.y}
                   </dd>
+                  {focusTarget?.regionName &&
+                  chosen.block?.name === focusTarget.regionName &&
+                  Array.isArray(focusTarget.position) ? (
+                    <>
+                      <dt>Region position</dt>
+                      <dd>
+                        {Math.round(focusTarget.position[0])}, {Math.round(focusTarget.position[1])}
+                        , {Math.round(focusTarget.position[2])}
+                      </dd>
+                    </>
+                  ) : null}
                   {chosen.block ? (
                     <>
                       <dt>Maturity</dt>
@@ -282,6 +354,28 @@ export default function Map() {
                     Teleport
                   </button>
                 ) : null}
+                {message ? <small role="status">{message}</small> : null}
+              </>
+            ) : focusTarget ? (
+              <>
+                <h2 style={{ font: `600 18px/1.3 ${t.dfont}` }}>{focusTarget.regionName}</h2>
+                <dl>
+                  <dt>Grid coordinates</dt>
+                  <dd>
+                    {hasFocusCoordinates
+                      ? `${focusTarget.gridX}, ${focusTarget.gridY}`
+                      : 'Not supplied by grid'}
+                  </dd>
+                  <dt>Region position</dt>
+                  <dd>
+                    {Array.isArray(focusTarget.position)
+                      ? `${Math.round(focusTarget.position[0])}, ${Math.round(focusTarget.position[1])}, ${Math.round(focusTarget.position[2])}`
+                      : '—'}
+                  </dd>
+                </dl>
+                <button type="button" style={button} onClick={teleport}>
+                  Teleport
+                </button>
                 {message ? <small role="status">{message}</small> : null}
               </>
             ) : (

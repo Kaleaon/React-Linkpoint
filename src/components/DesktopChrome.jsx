@@ -55,7 +55,7 @@ export default function DesktopChrome() {
       actions.notify('Connect to a grid to teleport.');
       return;
     }
-    slBridge.teleport({ destination }).then(
+    app.protocol.teleportTo(destination).then(
       () => actions.notify(`Teleport to ${destination} requested`),
       (err) =>
         actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
@@ -159,7 +159,22 @@ export default function DesktopChrome() {
             aria-label="Back"
             title="Back"
             style={iconButton}
-            onClick={() => actions.notify('No previous location')}
+            onClick={() => {
+              if (!app.auth.isLoggedIn() || !app.teleportHistory?.canGoBack?.()) {
+                actions.notify('No previous location');
+                return;
+              }
+              app.teleportHistory.goBack().then(
+                (entry) =>
+                  actions.notify(
+                    entry ? `Teleporting back to ${entry.regionName}` : 'No previous location',
+                  ),
+                (err) =>
+                  actions.notify(
+                    err instanceof Error ? err.message : 'Could not teleport to previous location',
+                  ),
+              );
+            }}
           >
             <Icon name="chevron-left" size={15} />
           </button>
@@ -168,9 +183,33 @@ export default function DesktopChrome() {
             aria-label="Forward"
             title="Forward"
             style={iconButton}
-            onClick={() => actions.notify('No next location')}
+            onClick={() => {
+              if (!app.auth.isLoggedIn() || !app.teleportHistory?.canGoForward?.()) {
+                actions.notify('No next location');
+                return;
+              }
+              app.teleportHistory.goForward().then(
+                (entry) =>
+                  actions.notify(
+                    entry ? `Teleporting forward to ${entry.regionName}` : 'No next location',
+                  ),
+                (err) =>
+                  actions.notify(
+                    err instanceof Error ? err.message : 'Could not teleport to next location',
+                  ),
+              );
+            }}
           >
             <Icon name="chevron-right" size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label="Teleport history"
+            title="Teleport history"
+            style={iconButton}
+            onClick={() => actions.flToggle('Teleport History')}
+          >
+            <Icon name="history" size={14} />
           </button>
           <button
             type="button"

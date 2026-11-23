@@ -376,13 +376,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
   actionGuard:
     | ((
         action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
-        detail?: { senderId?: string; objectId?: string },
+        detail?: { senderId?: string; objectId?: string; destination?: string },
       ) => string | null)
     | null = null;
 
   private guardAction(
     action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
-    detail?: { senderId?: string; objectId?: string },
+    detail?: { senderId?: string; objectId?: string; destination?: string },
   ) {
     const reason = this.actionGuard?.(action, detail);
     if (reason) throw new Error(reason);
@@ -391,7 +391,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
   async teleportTo(destination: string) {
     this.requireConnected();
-    this.guardAction('teleport');
+    this.guardAction('teleport', { destination });
     this.emit('teleport_started', { destination });
     this.emit('teleport_progress', {
       phase: 'initiating',
@@ -417,8 +417,21 @@ export class SLConnectionFull extends Utils.EventEmitter {
         statusText: 'Arriving at destination...',
       });
       this.emit('teleport_requested', result);
-      const regionName = result?.requested?.region || destination;
-      this.emit('teleport_completed', { regionName, result });
+      const requested = result?.requested;
+      const regionName = requested?.region || destination;
+      const position: [number, number, number] | null =
+        requested &&
+        Number.isFinite(Number(requested.x)) &&
+        Number.isFinite(Number(requested.y)) &&
+        Number.isFinite(Number(requested.z))
+          ? [Number(requested.x), Number(requested.y), Number(requested.z)]
+          : null;
+      this.emit('teleport_completed', {
+        regionName,
+        destination,
+        position,
+        result,
+      });
       return result;
     } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error || 'Teleport failed');
