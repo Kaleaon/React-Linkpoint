@@ -833,5 +833,46 @@ describe('Group Moderation RPC Protocol Pipeline & In-Client UI Controls', () =>
 
       await unmount(mounted);
     });
+
+    it('GroupsScreen renders store updates from loadGroupDetails without triggering an infinite loadGroupDetails loop', async () => {
+      const groupId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+      app.groups.replaceGroups([{ id: groupId, name: 'Loop Guard Guild' }]);
+      vi.spyOn(app, 'loadGroups').mockResolvedValue(app.groups.getGroups());
+
+      const loadDetailsSpy = vi
+        .spyOn(app, 'loadGroupDetails')
+        .mockImplementation(async (id, section) => {
+          if (section === 'members') {
+            const nextMembers = [{ id: '33333333-3333-3333-3333-333333333333', name: 'Ada' }];
+            app.groups.replaceMembers(id, nextMembers);
+            return nextMembers;
+          }
+          if (section === 'roles') {
+            const nextRoles = [{ id: 'role-architect', name: 'Architect', title: 'Chief Builder' }];
+            app.groups.replaceRoles(id, nextRoles);
+            return nextRoles;
+          }
+          return {};
+        });
+
+      const mounted = await mountScreen(GroupsScreen);
+      await flush();
+
+      await click(buttonByText(mounted.host, /MEMBERS/i));
+      await flush();
+
+      const memberCalls = loadDetailsSpy.mock.calls.filter(([, sec]) => sec === 'members');
+      expect(memberCalls.length).toBe(1);
+      expect(mounted.host.textContent).toContain('Ada');
+
+      await click(buttonByText(mounted.host, /ROLES/i));
+      await flush();
+
+      const roleCalls = loadDetailsSpy.mock.calls.filter(([, sec]) => sec === 'roles');
+      expect(roleCalls.length).toBe(1);
+      expect(mounted.host.textContent).toContain('Architect');
+
+      await unmount(mounted);
+    });
   });
 });
