@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from '../components/Icon.jsx';
 import ContactAvatar from '../components/ContactAvatar.jsx';
+import FocusTrap from '../components/FocusTrap.jsx';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import { loadGoogle } from '../services/google.ts';
 
@@ -70,8 +71,17 @@ export default function ContactsScreen() {
   }, []);
 
   const friends = app.friends.getFriends();
+  const friendIds = useMemo(
+    () => new Set(friends.map((f) => String(f.id).trim().toLowerCase())),
+    [friends],
+  );
   const onlineIds = useMemo(
-    () => new Set(friends.filter((f) => f.onlineStatus === 'online').map((f) => f.id)),
+    () =>
+      new Set(
+        friends
+          .filter((f) => f.onlineStatus === 'online')
+          .map((f) => String(f.id).trim().toLowerCase()),
+      ),
     [friends],
   );
   const unsaved = friends.filter((friend) => !app.contacts.has(friend.id));
@@ -328,7 +338,7 @@ export default function ContactsScreen() {
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <strong style={{ display: 'block', fontSize: 13 }}>
                       {contact.name}
-                      {onlineIds.has(contact.id) ? (
+                      {onlineIds.has(String(contact.id).trim().toLowerCase()) ? (
                         <span style={{ color: V.pri, fontWeight: 600 }}> · online</span>
                       ) : null}
                     </strong>
@@ -368,7 +378,8 @@ export default function ContactsScreen() {
           <ContactDetail
             key={selected.id}
             contact={selected}
-            online={onlineIds.has(selected.id)}
+            isFriend={friendIds.has(String(selected.id).trim().toLowerCase())}
+            online={onlineIds.has(String(selected.id).trim().toLowerCase())}
             googleEnabled={googleEnabled}
             busy={busy}
             run={run}
@@ -385,6 +396,7 @@ export default function ContactsScreen() {
 
 function ContactDetail({
   contact,
+  isFriend,
   online,
   googleEnabled,
   busy,
@@ -400,6 +412,7 @@ function ContactDetail({
   const [linkInputs, setLinkInputs] = useState({});
   const [linkErrors, setLinkErrors] = useState({});
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removeError, setRemoveError] = useState('');
   const [permissions, setPermissions] = useState(
     () => app.friends?.getFriendPermissions?.(contact.id) || {},
   );
@@ -722,7 +735,225 @@ function ContactDetail({
       ) : null}
 
       <div style={{ borderTop: `1px solid ${V.outv}`, paddingTop: 10 }}>
-        {confirmRemove ? (
+        {isFriend ? (
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              style={{ ...button(false), borderColor: V.err, color: V.err }}
+              onClick={() => {
+                setRemoveError('');
+                setConfirmRemove(true);
+              }}
+            >
+              REMOVE FRIEND
+            </button>
+            {confirmRemove ? (
+              <FocusTrap
+                active={true}
+                onEscape={() => {
+                  if (!busy) {
+                    setRemoveError('');
+                    setConfirmRemove(false);
+                  }
+                }}
+                onClick={(event) => {
+                  if (event.target === event.currentTarget && !busy) {
+                    setRemoveError('');
+                    setConfirmRemove(false);
+                  }
+                }}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(0, 0, 0, 0.68)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 16,
+                  zIndex: 1500,
+                }}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby={`terminate-friend-title-${contact.id}`}
+                  aria-describedby={`terminate-friend-desc-${contact.id}`}
+                  style={{
+                    width: '100%',
+                    maxWidth: 440,
+                    background: V.surf,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    padding: 16,
+                    display: 'grid',
+                    gap: 12,
+                    boxShadow: '0 20px 44px rgba(0, 0, 0, 0.45)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                    }}
+                  >
+                    <h3
+                      id={`terminate-friend-title-${contact.id}`}
+                      style={{ margin: 0, font: `700 15px/1.3 ${t.font}`, color: V.ink }}
+                    >
+                      Remove {contact.name}?
+                    </h3>
+                    <button
+                      type="button"
+                      aria-label="Close confirmation dialog"
+                      disabled={busy}
+                      onClick={() => {
+                        setRemoveError('');
+                        setConfirmRemove(false);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 0,
+                        color: V.ink2,
+                        fontSize: 18,
+                        lineHeight: 1,
+                        cursor: busy ? 'default' : 'pointer',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <p
+                    id={`terminate-friend-desc-${contact.id}`}
+                    style={{ margin: 0, font: `400 12px/1.5 ${t.font}`, color: V.ink2 }}
+                  >
+                    Choose whether to end your Second Life friendship with {contact.name} and delete
+                    this contact, or remove them from your local address book only.
+                  </p>
+
+                  {removeError ? (
+                    <div
+                      aria-live="polite"
+                      style={{
+                        padding: '8px 10px',
+                        border: `1px solid ${V.err}`,
+                        borderRadius: V.rs,
+                        color: V.err,
+                        font: `500 11.5px/1.4 ${t.font}`,
+                      }}
+                    >
+                      {removeError}
+                    </div>
+                  ) : null}
+
+                  <div
+                    style={{
+                      padding: 10,
+                      border: `1px solid ${V.err}`,
+                      borderRadius: V.rs,
+                      background: V.bg,
+                      display: 'grid',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ font: `400 11.5px/1.45 ${t.font}`, color: V.ink2 }}>
+                      <strong style={{ color: V.ink, display: 'block', marginBottom: 2 }}>
+                        End Second Life friendship &amp; remove contact
+                      </strong>
+                      Notifies the simulator to terminate your in-world friendship and deletes this
+                      saved contact record.
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      style={{
+                        ...button(false),
+                        borderColor: V.err,
+                        background: V.err,
+                        color: '#ffffff',
+                        justifySelf: 'start',
+                      }}
+                      onClick={() => {
+                        setRemoveError('');
+                        void run(async () => {
+                          try {
+                            await app.friends.terminateFriendship(contact.id);
+                          } catch (error) {
+                            setRemoveError(
+                              error?.message ||
+                                'Cannot end Second Life friendship while disconnected.',
+                            );
+                            throw error;
+                          }
+                          app.contacts.remove(contact.id);
+                          setConfirmRemove(false);
+                          say('info', `Ended Second Life friendship and removed ${contact.name}.`);
+                          onClose();
+                        });
+                      }}
+                    >
+                      END FRIENDSHIP
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: 10,
+                      border: `1px solid ${V.outv}`,
+                      borderRadius: V.rs,
+                      background: V.bg,
+                      display: 'grid',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ font: `400 11.5px/1.45 ${t.font}`, color: V.ink2 }}>
+                      <strong style={{ color: V.ink, display: 'block', marginBottom: 2 }}>
+                        Remove from local address book only
+                      </strong>
+                      Deletes this device&apos;s saved contact record while keeping your Second Life
+                      friendship and online presence active.
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      style={{ ...button(false), justifySelf: 'start' }}
+                      onClick={() => {
+                        setRemoveError('');
+                        app.contacts.remove(contact.id);
+                        setConfirmRemove(false);
+                        say(
+                          'info',
+                          `${contact.name} removed from local address book. Second Life friendship kept.`,
+                        );
+                        onClose();
+                      }}
+                    >
+                      REMOVE FROM ADDRESS BOOK ONLY
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      style={button(false)}
+                      onClick={() => {
+                        setRemoveError('');
+                        setConfirmRemove(false);
+                      }}
+                    >
+                      KEEP
+                    </button>
+                  </div>
+                </div>
+              </FocusTrap>
+            ) : null}
+          </>
+        ) : confirmRemove ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ font: `500 11.5px/1.3 ${t.font}` }}>
               Remove {contact.name} from your saved contacts?
