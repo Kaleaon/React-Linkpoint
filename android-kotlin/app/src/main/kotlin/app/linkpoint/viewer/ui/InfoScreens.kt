@@ -11,14 +11,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.linkpoint.core.model.AvatarProfile
 import app.linkpoint.core.model.InventoryItem
 import app.linkpoint.core.scene.PCode
 import app.linkpoint.core.scene.SculptKind
+import app.linkpoint.viewer.R
 import app.linkpoint.viewer.ViewerHost
-import app.linkpoint.viewer.ui.crystal.CrystalLoader
-import app.linkpoint.viewer.ui.crystal.CrystalLoaderVariant
+import app.linkpoint.viewer.ui.components.LinkpointLoadingLayout
+import app.linkpoint.viewer.ui.components.LinkpointLoadingState
 import java.util.UUID
 
 private fun assetTypeName(type: Int) = when (type) {
@@ -35,25 +43,66 @@ fun InventoryScreen(host: ViewerHost) {
     val root = inv.rootId
     if (root == null) { Empty("The grid sent no inventory."); return }
     val current = path.lastOrNull() ?: root
+    val defaultLoadError = stringResource(R.string.inventory_load_failed)
 
     // Fetch a folder's contents the first time it is opened.
     LaunchedEffect(current) {
         if (current in inv.loaded) return@LaunchedEffect
         loading = true; error = null
-        try { host.session.fetchInventoryFolder(current) } catch (e: Exception) { error = e.message ?: "Could not load this folder" }
+        try { host.session.fetchInventoryFolder(current) } catch (e: Exception) { error = e.message ?: defaultLoadError }
         loading = false
     }
 
+    val folders = inv.children(current)
+    val items = inv.items[current].orEmpty()
+    val totalCount = folders.size + items.size
+    val isLoaded = current in inv.loaded && !loading && error == null
+
     Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (path.isNotEmpty()) IconButton({ path = path.dropLast(1) }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Up") }
-            Text(inv.folders[current]?.name ?: "Inventory", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp))
-            if (loading) CrystalLoader(modifier = Modifier.padding(start = 12.dp).size(16.dp), variant = CrystalLoaderVariant.Inline)
+            Text(
+                text = inv.folders[current]?.name ?: "Inventory",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 8.dp).weight(1f, fill = false),
+            )
+            if (loading) {
+                LinkpointLoadingState(
+                    modifier = Modifier.padding(start = 8.dp),
+                    layout = LinkpointLoadingLayout.Inline,
+                    size = 16.dp,
+                    label = stringResource(R.string.loading_folder_contents),
+                )
+            } else if (isLoaded) {
+                val countAnnouncement = pluralStringResource(R.plurals.inventory_folder_item_count, totalCount, totalCount)
+                Text(
+                    text = countAnnouncement,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .semantics {
+                            liveRegion = LiveRegionMode.Polite
+                            contentDescription = countAnnouncement
+                        },
+                )
+            }
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
-        val folders = inv.children(current)
-        val items = inv.items[current].orEmpty()
-        if (folders.isEmpty() && items.isEmpty() && !loading && error == null) { Empty("This folder is empty."); return@Column }
+        error?.let { errText ->
+            Text(
+                text = errText,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+        if (folders.isEmpty() && items.isEmpty() && !loading && error == null) { Empty(stringResource(R.string.inventory_folder_empty)); return@Column }
         LazyColumn(Modifier.fillMaxSize()) {
             items(folders, key = { it.id }) { f ->
                 ListItem(
@@ -133,7 +182,12 @@ fun ObjectsScreen(host: ViewerHost) {
 fun ProfileDialog(host: ViewerHost, id: UUID, name: String, onDismiss: () -> Unit) {
     var profile by remember { mutableStateOf<AvatarProfile?>(null) }
     var failed by remember { mutableStateOf(false) }
-    LaunchedEffect(id) { profile = try { host.session.requestProfile(id) } catch (_: Exception) { null }; failed = profile == null }
+    LaunchedEffect(id) {
+        profile = null
+        failed = false
+        profile = try { host.session.requestProfile(id) } catch (_: Exception) { null }
+        failed = profile == null
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onDismiss) { Text("Close") } },
@@ -141,18 +195,23 @@ fun ProfileDialog(host: ViewerHost, id: UUID, name: String, onDismiss: () -> Uni
         text = {
             val p = profile
             when {
-                p != null -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                p != null -> Column(
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     if (p.bornOn.isNotBlank()) Text("Born: ${p.bornOn}", style = MaterialTheme.typography.labelMedium)
                     Text(p.about.ifBlank { "No profile text." })
                     if (p.profileUrl.isNotBlank()) Text(p.profileUrl, style = MaterialTheme.typography.labelSmall)
                 }
-                failed -> Text("The grid did not answer.")
-                else -> Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CrystalLoader(size = 48.dp, variant = CrystalLoaderVariant.Block)
-                }
+                failed -> Text(
+                    text = stringResource(R.string.profile_load_failed),
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                else -> LinkpointLoadingState(
+                    modifier = Modifier.fillMaxWidth(),
+                    layout = LinkpointLoadingLayout.Block,
+                    label = stringResource(R.string.loading_profile),
+                )
             }
         },
     )

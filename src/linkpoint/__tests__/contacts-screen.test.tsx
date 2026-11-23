@@ -143,12 +143,13 @@ describe('Contacts screen', () => {
     await new Promise((r) => setTimeout(r, 350));
     expect(app.contacts.get(friends[0].id)!.note).toBe('met at the market');
 
-    await click(buttonByText(mounted.host, 'REMOVE CONTACT'));
+    await click(buttonByText(mounted.host, 'REMOVE FRIEND'));
     expect(app.contacts.has(friends[0].id)).toBe(true); // asked first, not removed yet
     await click(buttonByText(mounted.host, 'KEEP'));
-    await click(buttonByText(mounted.host, 'REMOVE CONTACT'));
-    await click(buttonByText(mounted.host, 'REMOVE'));
+    await click(buttonByText(mounted.host, 'REMOVE FRIEND'));
+    await click(buttonByText(mounted.host, 'REMOVE FROM ADDRESS BOOK ONLY'));
     expect(app.contacts.has(friends[0].id)).toBe(false);
+    expect(app.friends.hasFriend(friends[0].id)).toBe(true);
   });
 
   it('refuses an unsupported photo file with a message and changes nothing', async () => {

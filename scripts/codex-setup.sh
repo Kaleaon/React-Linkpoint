@@ -16,7 +16,7 @@ Usage: ./scripts/codex-setup.sh [--check]
 
 Installs the locked dependencies and creates a local environment file. Pass
 --check to additionally run type-check, lint, format check, fake data check,
-Electron config check, unit tests, and production build.
+Electron config check, unit tests, production build, and server build.
 No credentials are needed for setup or for these checks.
 EOF
     exit 0
@@ -96,6 +96,7 @@ if [[ "$RUN_CHECKS" == true ]]; then
   node scripts/build-materials.mjs --check
   node scripts/check-source-imports.mjs
   ./node_modules/.bin/vite build
+  ./node_modules/.bin/esbuild server.ts --bundle --platform=node --packages=external --format=esm --outfile=dist-server/server.mjs
 else
   echo "Setup complete. Re-run with --check to validate the app."
 fi

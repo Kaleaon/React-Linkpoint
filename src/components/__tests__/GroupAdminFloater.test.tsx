@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
-import React, { createElement, act } from 'react';
+import React, { createElement, act, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import GroupAdminFloater from '../GroupAdminFloater.jsx';
 import { GroupsScreen } from '../../screens/LiveScreens.jsx';
-import { AppProvider } from '../../context/AppContext.jsx';
+import { AppProvider, useApp } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import { app } from '../../linkpoint/app.ts';
 import { GROUP_POWERS } from '../../linkpoint/services/group-admin-capability-service';
@@ -615,5 +615,206 @@ describe('GroupAdminFloater Component', () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toContain(
       'Permission denied to eject member',
     );
+  });
+
+  it('renders error banner dismiss button as TouchTarget with accessible name and minimum 24x24 dimensions', async () => {
+    const longError = `Permission denied while updating role configuration: ${'X'.repeat(280)}`;
+    mockAdminService.updateRole.mockRejectedValueOnce(new Error(longError));
+
+    const host = await mount(
+      createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      }),
+    );
+
+    const submitBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    const alertBanner = host.querySelector('[role="alert"]') as HTMLElement;
+    expect(alertBanner).not.toBeNull();
+    expect(alertBanner.textContent).toContain(longError);
+
+    const dismissBtn = alertBanner.querySelector(
+      'button[aria-label="Dismiss error message"]',
+    ) as HTMLButtonElement;
+    expect(dismissBtn).not.toBeNull();
+    expect(dismissBtn.type).toBe('button');
+    expect(dismissBtn.classList.contains('touch-target')).toBe(true);
+    expect(dismissBtn.style.minWidth).toBe('24px');
+    expect(dismissBtn.style.minHeight).toBe('24px');
+    expect(dismissBtn.style.flexShrink).toBe('0');
+    expect(dismissBtn.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    await act(async () => {
+      dismissBtn.click();
+    });
+
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('renders status banner dismiss button as TouchTarget with accessible name and minimum 24x24 dimensions', async () => {
+    const host = await mount(
+      createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      }),
+    );
+
+    const submitBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    const statusBanner = host.querySelector('[role="status"]') as HTMLElement;
+    expect(statusBanner).not.toBeNull();
+    expect(statusBanner.textContent).toContain('updated successfully');
+
+    const dismissBtn = statusBanner.querySelector(
+      'button[aria-label="Dismiss status message"]',
+    ) as HTMLButtonElement;
+    expect(dismissBtn).not.toBeNull();
+    expect(dismissBtn.type).toBe('button');
+    expect(dismissBtn.classList.contains('touch-target')).toBe(true);
+    expect(dismissBtn.style.minWidth).toBe('24px');
+    expect(dismissBtn.style.minHeight).toBe('24px');
+    expect(dismissBtn.style.flexShrink).toBe('0');
+    expect(dismissBtn.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    await act(async () => {
+      dismissBtn.click();
+    });
+
+    expect(host.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('does not suppress focus outlines on modal text inputs and textareas across tabs and light/dark themes', async () => {
+    function PaletteFloater({ palette }: { palette: string }) {
+      const { actions } = useApp();
+      const appliedRef = React.useRef<string | null>(null);
+      useEffect(() => {
+        if (appliedRef.current !== palette) {
+          appliedRef.current = palette;
+          actions.setPalette(palette);
+        }
+      }, [actions, palette]);
+      return createElement(GroupAdminFloater, {
+        groupId: testGroupId,
+        group: testGroup,
+        onClose: vi.fn(),
+        adminService: mockAdminService,
+      });
+    }
+
+    for (const palette of ['ink', 'paper']) {
+      const host = await mount(createElement(PaletteFloater, { palette }));
+
+      // 1. ROLES tab text inputs and textarea
+      const roleControls = Array.from(
+        host.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          'input[type="text"], textarea',
+        ),
+      );
+      expect(roleControls.length).toBe(3);
+
+      for (const control of roleControls) {
+        expect(control.style.outline).not.toBe('none');
+        expect(control.style.outline).toBe('');
+
+        await act(async () => {
+          control.focus();
+        });
+        expect(control.style.outline).toContain('2px solid');
+        expect(control.style.outlineOffset).toBe('2px');
+        expect(control.getAttribute('data-focused')).toBe('true');
+
+        await act(async () => {
+          control.blur();
+        });
+        expect(control.style.outline).toBe('');
+      }
+
+      // 2. MEMBERS tab search input and Eject Member modal input
+      const membersTabBtn = Array.from(host.querySelectorAll('button[role="tab"]')).find(
+        (b) => b.textContent?.trim() === 'MEMBERS',
+      ) as HTMLButtonElement;
+      await act(async () => {
+        membersTabBtn.click();
+      });
+
+      const searchInput = host.querySelector('input[type="search"]') as HTMLInputElement;
+      expect(searchInput).not.toBeNull();
+      expect(searchInput.style.outline).not.toBe('none');
+      expect(searchInput.style.outline).toBe('');
+
+      await act(async () => {
+        searchInput.focus();
+      });
+      expect(searchInput.style.outline).toContain('2px solid');
+
+      const ejectBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Eject Member'),
+      ) as HTMLButtonElement;
+      await act(async () => {
+        ejectBtn.click();
+      });
+
+      const ejectReasonInput = host.querySelector(
+        'input[placeholder="Reason for ejection…"]',
+      ) as HTMLInputElement;
+      expect(ejectReasonInput).not.toBeNull();
+      expect(ejectReasonInput.style.outline).not.toBe('none');
+      expect(ejectReasonInput.style.outline).toBe('');
+
+      await act(async () => {
+        ejectReasonInput.focus();
+      });
+      expect(ejectReasonInput.style.outline).toContain('2px solid');
+
+      // Dismiss eject modal before switching tabs
+      const cancelEjectBtn = Array.from(
+        host.querySelectorAll('[aria-label="Confirm Member Ejection"] button'),
+      ).find((b) => b.textContent?.trim() === 'Cancel') as HTMLButtonElement;
+      await act(async () => {
+        cancelEjectBtn.click();
+      });
+
+      // 3. INVITATIONS tab text input and textarea
+      const invitesTabBtn = Array.from(host.querySelectorAll('button[role="tab"]')).find(
+        (b) => b.textContent?.trim() === 'INVITATIONS',
+      ) as HTMLButtonElement;
+      await act(async () => {
+        invitesTabBtn.click();
+      });
+
+      const inviteControls = Array.from(
+        host.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          'input[type="text"], textarea',
+        ),
+      );
+      expect(inviteControls.length).toBe(2);
+
+      for (const control of inviteControls) {
+        expect(control.style.outline).not.toBe('none');
+        expect(control.style.outline).toBe('');
+
+        await act(async () => {
+          control.focus();
+        });
+        expect(control.style.outline).toContain('2px solid');
+      }
+
+      await act(async () => {
+        mounted!.root.unmount();
+      });
+      mounted!.host.remove();
+      mounted = null;
+    }
   });
 });
