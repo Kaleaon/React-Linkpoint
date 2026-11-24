@@ -9,6 +9,7 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { AgentKeyboard } from './agent-keyboard';
+import { getStoredKeyOverrides } from './key-bindings';
 import { GamepadInput } from './gamepad';
 import type { MovementRestrictions } from './agent-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
@@ -1553,6 +1554,7 @@ export class WorldViewer extends Utils.EventEmitter {
         (motion, run) => this.controlAvatar(motion, run),
         {
           keyMode: () => this.keyMode(),
+          overrides: () => getStoredKeyOverrides(),
           resetView: () => this.resetCamera(),
           toggleMouselook: () => this.toggleCameraMode(),
           focusAt: (x, y) => this.focusAt(x, y),
@@ -1565,6 +1567,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
       this.agentKeyboard = new AgentKeyboard({
         mode: () => this.keyMode(),
+        overrides: () => getStoredKeyOverrides(),
         enabled: () => this.agentControlsActive(),
         send: (controlFlags) => {
           void this.protocol.setMovement({ controlFlags }).catch((error: unknown) => {
