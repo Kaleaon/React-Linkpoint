@@ -340,6 +340,9 @@ const {
   ActivateGroupMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/ActivateGroup');
 const {
+  LeaveGroupRequestMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/LeaveGroupRequest');
+const {
   InviteGroupRequestMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/InviteGroupRequest');
 const {
@@ -1637,6 +1640,82 @@ class ViewerSession {
     if (!groups?.joinGroup) throw new Error('Group interface unavailable');
     const joined = await groups.joinGroup(groupId);
     return { joined: Boolean(joined) };
+  }
+
+  /** Leave a group via reliable LeaveGroupRequest UDP packet and clear active group state if needed. */
+  async leaveGroup({ groupId } = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId =
+      groupId && typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId) || targetGroupId === ZERO_UUID) {
+      throw new Error(`Invalid group ID format: ${String(groupId ?? '')}`);
+    }
+
+    const bot = this.requireBot();
+    const circuit = this.currentRegion()?.circuit || bot.circuit;
+    if (!circuit?.sendMessage) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    const rawAgentId = this.identity?.agentId || bot.agent?.agentID?.toString?.() || ZERO_UUID;
+    const rawSessionId =
+      circuit.sessionID?.toString?.() || bot.circuit?.sessionID?.toString?.() || ZERO_UUID;
+    const agentUUIDStr = uuidRegex.test(String(rawAgentId).trim())
+      ? String(rawAgentId).trim()
+      : ZERO_UUID;
+    const sessionUUIDStr = uuidRegex.test(String(rawSessionId).trim())
+      ? String(rawSessionId).trim()
+      : ZERO_UUID;
+
+    const msg = new LeaveGroupRequestMessage();
+    msg.AgentData = {
+      AgentID: new UUID(agentUUIDStr),
+      SessionID: new UUID(sessionUUIDStr),
+    };
+    msg.GroupData = {
+      GroupID: new UUID(targetGroupId),
+    };
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    if ((this.activeGroupId || '').toLowerCase() === targetGroupId) {
+      this.activeGroupId = ZERO_UUID;
+      this.activeRoleId = ZERO_UUID;
+
+      const titleMsg = new AgentSetGroupTitleMessage();
+      titleMsg.AgentData = {
+        AgentID: new UUID(agentUUIDStr),
+        SessionID: new UUID(sessionUUIDStr),
+        GroupID: new UUID(ZERO_UUID),
+        RoleID: new UUID(ZERO_UUID),
+      };
+      circuit.sendMessage(titleMsg, PacketFlags.Reliable);
+
+      const actMsg = new ActivateGroupMessage();
+      actMsg.AgentData = {
+        AgentID: new UUID(agentUUIDStr),
+        SessionID: new UUID(sessionUUIDStr),
+        GroupID: new UUID(ZERO_UUID),
+      };
+      circuit.sendMessage(actMsg, PacketFlags.Reliable);
+
+      this.send('active_group_changed', {
+        groupId: ZERO_UUID,
+        roleId: ZERO_UUID,
+        agentId: this.identity?.agentId || bot.agent?.agentID?.toString?.() || '',
+      });
+    }
+
+    this.send('group_left', {
+      groupId: targetGroupId,
+      agentId: this.identity?.agentId || bot.agent?.agentID?.toString?.() || '',
+    });
+
+    return {
+      success: true,
+      left: true,
+      groupId: targetGroupId,
+    };
   }
   setMovement(params = {}) {
     const agent = this.requireBot().agent;
