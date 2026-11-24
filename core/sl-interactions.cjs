@@ -247,7 +247,7 @@ async function declineLure(bot, pending, params) {
       ? params.packet
       : {
           messageName: 'DeclineTeleport',
-          messageId: 0xffff007a,
+          messageId: 0xffff0048,
           agentId: senderId,
           sessionId: sessionId,
         };

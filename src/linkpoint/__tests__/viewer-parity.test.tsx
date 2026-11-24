@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import Settings from '../../screens/Settings.jsx';
 import ScreenDirectory from '../../screens/ScreenDirectory.jsx';
+import MenuBar from '../../components/MenuBar.jsx';
 import { GroupsScreen } from '../../screens/LiveScreens.jsx';
 import { NAV_ALL } from '../../data/content.js';
 import { FLOATERS } from '../../theme/constants.js';
@@ -38,6 +39,33 @@ describe('viewer navigation and preferences', () => {
     }
     await click(buttonByText(mounted.host, 'Groups'));
     expect(mounted.ctx.current.state.screen).toBe('Groups');
+  });
+  it('exposes the backed AO entry across navigation, desktop windows, dock routing, and View menu', async () => {
+    for (const backedId of ['Chat', 'Friends', 'Map', 'Radar', 'Inventory', 'AO']) {
+      expect(NAV_ALL.some((item: { id: string }) => item.id === backedId)).toBe(true);
+      expect(FLOATERS.some((floater: { id: string }) => floater.id === backedId)).toBe(true);
+    }
+
+    mounted = await mountScreen(ScreenDirectory);
+    expect(buttonByText(mounted.host, 'AO')).toBeTruthy();
+    expect(Object.hasOwn(mounted.ctx.current.state.flOpen, 'AO')).toBe(true);
+
+    await act(async () => {
+      mounted!.ctx.current.actions.cPress('ao');
+    });
+    expect(mounted.ctx.current.state.screen).toBe('AO');
+
+    await unmount(mounted);
+    mounted = await mountScreen(MenuBar);
+    await act(async () => {
+      mounted!.ctx.current.actions.setViewMode('desktop');
+      mounted!.ctx.current.actions.setMenu('View');
+    });
+    const menuItems = Array.from(mounted.host.querySelectorAll('[role="menu"] [role="menuitem"]'));
+    expect(menuItems.length).toBeGreaterThan(0);
+    expect(menuItems.some((el) => (el.textContent || '').includes('Animation Overrider'))).toBe(
+      true,
+    );
   });
   it('filters settings and remembers preferences after remount, preserving explicit device mode on resize', async () => {
     mounted = await mountScreen(Settings);

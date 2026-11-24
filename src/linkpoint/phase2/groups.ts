@@ -861,6 +861,88 @@ export class GroupsManager extends Utils.EventEmitter {
     }));
   }
 
+  /**
+   * Evict a group from local state, clear active group if matching, purge cached
+   * member/role/notice records, and notify UI subscribers.
+   */
+  removeGroup(groupId: string): boolean {
+    if (!groupId || typeof groupId !== 'string' || !groupId.trim()) {
+      return false;
+    }
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetId = groupId.trim().toLowerCase();
+    if (targetId === ZERO_UUID) {
+      return false;
+    }
+
+    let existed = false;
+    let removedId = groupId.trim();
+
+    for (const key of [...this.groups.keys()]) {
+      if (key.toLowerCase() === targetId) {
+        removedId = key;
+        this.groups.delete(key);
+        existed = true;
+      }
+    }
+    for (const key of [...this.groupMembers.keys()]) {
+      if (key.toLowerCase() === targetId) {
+        this.groupMembers.delete(key);
+      }
+    }
+    for (const key of [...this.groupRoles.keys()]) {
+      if (key.toLowerCase() === targetId) {
+        this.groupRoles.delete(key);
+      }
+    }
+    for (const key of [...this.groupNotices.keys()]) {
+      if (key.toLowerCase() === targetId) {
+        this.groupNotices.delete(key);
+      }
+    }
+
+    if (this.activeGroupId.toLowerCase() === targetId) {
+      this.clearActiveGroup();
+    }
+
+    if (this.noticeStore && typeof this.noticeStore.purgeGroup === 'function') {
+      this.noticeStore.purgeGroup(removedId);
+    } else {
+      void indexedDBStore.deleteGroupNotices('local_user', removedId).catch(() => {});
+    }
+
+    const remaining = this.getGroups();
+    this.emit('group_left', { groupId: removedId });
+    this.emit('group_removed', { groupId: removedId });
+    this.emit('groups_updated', remaining);
+    this.emit('groups_loaded', remaining);
+    return existed;
+  }
+
+  /**
+   * Leave a group via protocol/bridge and purge local cached state.
+   */
+  async leaveGroup(groupId: string) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId =
+      groupId && typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId) || targetGroupId === ZERO_UUID) {
+      throw new Error(`Invalid group ID format: ${String(groupId ?? '')}`);
+    }
+
+    if (this.protocol && typeof this.protocol.leaveGroup === 'function') {
+      await this.protocol.leaveGroup({ groupId: targetGroupId });
+    } else if (this.adapter && typeof (this.adapter as any).leaveGroup === 'function') {
+      await (this.adapter as any).leaveGroup({ groupId: targetGroupId });
+    } else if (slBridge.connected) {
+      await slBridge.leaveGroup({ groupId: targetGroupId });
+    }
+
+    this.removeGroup(targetGroupId);
+    return { success: true, left: true, groupId: targetGroupId };
+  }
+
   replaceGroups(groups: any[]) {
     const ids = new Set(groups.map((group) => group.id));
     for (const id of this.groups.keys())

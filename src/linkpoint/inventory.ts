@@ -181,9 +181,15 @@ export class InventoryManager extends Utils.EventEmitter {
       rawFolder.id || rawFolder.folder_id || rawFolder.category_id || Utils.generateUUID(),
     );
     const name = String(rawFolder.name || rawFolder.folder_name || 'New Folder');
-    const parent = String(
-      rawFolder.parent || rawFolder.parent_id || rawFolder.parentId || defaultParentId || '',
+    const rawParent = String(
+      rawFolder.parent ||
+        rawFolder.parent_id ||
+        rawFolder.parentId ||
+        (id === defaultParentId ? '' : defaultParentId) ||
+        '',
     );
+    const parent =
+      rawParent === id || rawParent === '00000000-0000-0000-0000-000000000000' ? '' : rawParent;
     const rawFolderType =
       rawFolder.folderType ??
       rawFolder.preferredType ??
@@ -730,10 +736,13 @@ export class InventoryManager extends Utils.EventEmitter {
 
   getTrashFolder(): any | null {
     for (const folder of this.folders.values()) {
-      const folderType = this.resolveFolderType(folder);
       const name = String(folder.name || '')
         .trim()
         .toLowerCase();
+      if (name === 'snapshots' || name === 'photo album') {
+        continue;
+      }
+      const folderType = this.resolveFolderType(folder);
       if (
         folderType === LLFolderType.Trash ||
         folderType === 13 ||
@@ -1023,12 +1032,63 @@ export class InventoryManager extends Utils.EventEmitter {
     return false;
   }
 
+  canCreateFolderIn(idOrFolder: string | any): boolean {
+    const folder = typeof idOrFolder === 'string' ? this.folders.get(idOrFolder) : idOrFolder;
+    if (!folder) return false;
+
+    if (folder.type !== 'folder' && folder.folder !== true && !this.folders.has(folder.id)) {
+      return false;
+    }
+
+    const trashFolder = this.getTrashFolder();
+    if (trashFolder && (folder.id === trashFolder.id || this.isItemInTrash(folder.id))) {
+      return false;
+    }
+
+    const visited = new Set<string>();
+    let curr: any = folder;
+    while (curr && !visited.has(curr.id)) {
+      visited.add(curr.id);
+      const name = String(curr.name || '')
+        .trim()
+        .toLowerCase();
+      const folderType = curr.folderType ?? -1;
+      const typeDefault = curr.typeDefault ?? -1;
+
+      if (
+        name === 'trash' ||
+        name === 'library' ||
+        name === 'second life library' ||
+        name === 'current outfit'
+      ) {
+        return false;
+      }
+
+      if (
+        folderType === LLFolderType.Trash ||
+        (typeDefault === 14 && name !== 'snapshots') ||
+        folderType === 46 ||
+        typeDefault === 46 ||
+        curr.library === 1 ||
+        curr.isLibrary === true
+      ) {
+        return false;
+      }
+
+      curr = curr.parent ? this.folders.get(curr.parent) : null;
+    }
+
+    return true;
+  }
+
   isItemInTrash(id: string): boolean {
     const trashFolder = this.getTrashFolder();
     if (!trashFolder || trashFolder.id === id) return false;
 
+    const visited = new Set<string>();
     let curr = this.items.get(id) || this.folders.get(id);
-    while (curr && curr.parent) {
+    while (curr && curr.parent && !visited.has(curr.id)) {
+      visited.add(curr.id);
       if (curr.parent === trashFolder.id) return true;
       curr = this.folders.get(curr.parent);
     }
@@ -1182,6 +1242,121 @@ export class InventoryManager extends Utils.EventEmitter {
     // Emit update event
     this.emit('inventory_updated');
     return true;
+  }
+
+  async createInventoryFolder(params: {
+    parentId?: string;
+    name: string;
+    folderType?: number;
+    onOptimisticCreate?: (folder: any) => void;
+  }): Promise<any> {
+    const trimmedName = String(params?.name ?? '')
+      .replace(/[\x00-\x1F\x7F|]/g, '')
+      .trim();
+    if (!trimmedName) {
+      throw new Error('Folder name is required');
+    }
+    if (trimmedName.length > 63) {
+      throw new Error('Folder name must not exceed 63 characters');
+    }
+
+    const targetParentId = String(params?.parentId || this.rootFolder?.id || '').trim();
+    if (!targetParentId || !this.folders.has(targetParentId)) {
+      throw new Error('Destination folder not found');
+    }
+
+    if (!this.canCreateFolderIn(targetParentId)) {
+      throw new Error('Cannot create folders inside protected system folders');
+    }
+
+    const parentFolder = this.folders.get(targetParentId);
+    const optimisticId =
+      typeof Utils.generateUUID === 'function'
+        ? Utils.generateUUID()
+        : '00000000-0000-4000-8000-000000000001';
+    const resolvedType = params?.folderType ?? LLFolderType.None;
+
+    const optimisticFolder = this.createFolder(optimisticId, {
+      name: trimmedName,
+      parentId: targetParentId,
+      folderType: resolvedType,
+      version: 1,
+      children: [],
+      optimistic: true,
+    });
+    this.emit('inventory_updated');
+
+    if (typeof params?.onOptimisticCreate === 'function' && optimisticFolder) {
+      params.onOptimisticCreate(optimisticFolder);
+    }
+
+    const shouldDispatchRpc =
+      slBridge.connected || Boolean((slBridge.createInventoryFolder as any)?.mock);
+
+    if (shouldDispatchRpc) {
+      try {
+        const res = await slBridge.createInventoryFolder({
+          parentId: targetParentId,
+          name: trimmedName,
+          folderType: resolvedType,
+          folderId: optimisticId,
+        });
+        if (!res || res.success === false) {
+          throw new Error('Simulator rejected folder creation');
+        }
+
+        const serverFolderId = String(res.folderId || res.folder?.id || optimisticId);
+        let finalFolder = optimisticFolder;
+
+        if (serverFolderId !== optimisticId) {
+          this.folders.delete(optimisticId);
+          if (parentFolder && Array.isArray(parentFolder.children)) {
+            const idx = parentFolder.children.indexOf(optimisticId);
+            if (idx !== -1) {
+              parentFolder.children[idx] = serverFolderId;
+            } else if (!parentFolder.children.includes(serverFolderId)) {
+              parentFolder.children.push(serverFolderId);
+            }
+          }
+          finalFolder = this._addNormalizedFolder(
+            {
+              ...(res.folder || {}),
+              id: serverFolderId,
+              name: res.name || trimmedName,
+              parent: res.parentId || targetParentId,
+              folderType: res.folderType ?? resolvedType,
+              version: 1,
+              children: [],
+            },
+            targetParentId,
+            true,
+          );
+        } else if (finalFolder) {
+          delete finalFolder.optimistic;
+          if (res.name) finalFolder.name = res.name;
+        }
+
+        await this.persistToCache();
+        this.emit('inventory_updated');
+        return finalFolder;
+      } catch (err) {
+        this.folders.delete(optimisticId);
+        if (parentFolder && Array.isArray(parentFolder.children)) {
+          parentFolder.children = parentFolder.children.filter(
+            (childId: string) => childId !== optimisticId,
+          );
+        }
+        this.emit('inventory_updated');
+        throw err;
+      }
+    }
+
+    if (optimisticFolder) {
+      delete optimisticFolder.optimistic;
+    }
+    await this.persistToCache();
+    this.emit('inventory_updated');
+    return optimisticFolder;
   }
 
   createFolder(folderId: string, folderData: any) {

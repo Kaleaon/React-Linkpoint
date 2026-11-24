@@ -10,6 +10,8 @@ import {
   THEME_STORAGE_KEY,
 } from '../theme/customTheme.js';
 import { readViewerSettings, saveViewerSettings } from './viewerSettings.js';
+import { persistAndSyncKeybindings } from '../context/KeybindingsContext';
+import { downloadSettingsBackupFile, validateSettingsBackup } from '../services/settingsBackup';
 import { Utils } from '../linkpoint/utils';
 import { localCache } from '../linkpoint/local-cache';
 import { app } from '../linkpoint/app';
@@ -443,6 +445,9 @@ export function useAppState() {
   useEffect(() => {
     app.chat.setHistoryLoggingEnabled(toggles.imLogs);
   }, [toggles.imLogs]);
+  useEffect(() => {
+    app.chat.setChatCommandsEnabled(Boolean(toggles.chatCmds));
+  }, [toggles.chatCmds]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout
@@ -555,6 +560,150 @@ export function useAppState() {
       window.prompt('Copy this theme link', url.toString());
     }
   }, [customTheme, notify]);
+
+  const exportSettingsBackup = useCallback(
+    (keybindingsSnapshot) => {
+      const result = downloadSettingsBackupFile({
+        viewerSettings: {
+          layout,
+          palette,
+          dense,
+          density: customTheme?.density,
+          toggles,
+          prefs,
+        },
+        customTheme,
+        keybindings: keybindingsSnapshot,
+        viewMode,
+      });
+      notify('Settings backup exported.');
+      return result;
+    },
+    [layout, palette, dense, customTheme, toggles, prefs, viewMode, notify],
+  );
+
+  const restoreSettingsBackup = useCallback(
+    (rawInput) => {
+      const validation = validateSettingsBackup(rawInput);
+      if (!validation.ok) {
+        notify(validation.error);
+        return validation;
+      }
+      const { data } = validation;
+      const nextLayout =
+        data.hasViewerSettings && data.viewerSettings.layout ? data.viewerSettings.layout : layout;
+      const nextPalette =
+        data.hasViewerSettings && data.viewerSettings.palette
+          ? data.viewerSettings.palette
+          : palette;
+
+      const nextDensity =
+        (data.hasViewerSettings ? data.viewerSettings.density : undefined) ||
+        (data.hasCustomTheme && data.customTheme ? data.customTheme.density : undefined) ||
+        (data.hasViewerSettings && typeof data.viewerSettings.dense === 'boolean'
+          ? data.viewerSettings.dense
+            ? 'compact'
+            : 'standard'
+          : customTheme?.density || 'standard');
+
+      const nextDense =
+        data.hasViewerSettings && typeof data.viewerSettings.dense === 'boolean'
+          ? data.viewerSettings.dense
+          : nextDensity === 'compact';
+
+      let nextCustomTheme = customTheme;
+      if (data.hasCustomTheme) {
+        if (data.customTheme && data.customTheme.active) {
+          nextCustomTheme = {
+            ...data.customTheme,
+            active: true,
+            density: nextDensity,
+          };
+          try {
+            localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(nextCustomTheme));
+          } catch {
+            /* storage disabled */
+          }
+        } else {
+          const baseTheme =
+            data.customTheme || themeFromPalette(PALETTES[nextPalette] || PALETTES.ink);
+          nextCustomTheme = {
+            ...baseTheme,
+            active: false,
+            density: nextDensity,
+          };
+          try {
+            localStorage.removeItem(THEME_STORAGE_KEY);
+          } catch {
+            /* storage disabled */
+          }
+        }
+      } else if (data.hasViewerSettings) {
+        const paletteChanged = nextPalette !== palette;
+        if (paletteChanged || !customTheme?.active) {
+          nextCustomTheme = {
+            ...themeFromPalette(PALETTES[nextPalette] || PALETTES.ink),
+            density: nextDensity,
+          };
+          if (paletteChanged) {
+            try {
+              localStorage.removeItem(THEME_STORAGE_KEY);
+            } catch {
+              /* storage disabled */
+            }
+          }
+        } else {
+          nextCustomTheme = {
+            ...customTheme,
+            density: nextDensity,
+          };
+        }
+      }
+
+      const nextToggles = data.hasViewerSettings
+        ? { ...toggles, ...data.viewerSettings.toggles }
+        : toggles;
+      const nextPrefs = data.hasViewerSettings ? { ...prefs, ...data.viewerSettings.prefs } : prefs;
+
+      setLayout(nextLayout);
+      setPalette(nextPalette);
+      setCustomTheme(nextCustomTheme);
+      setDense(nextDense);
+      setToggles(nextToggles);
+      setPrefs(nextPrefs);
+
+      saveViewerSettings({
+        layout: nextLayout,
+        palette: nextPalette,
+        dense: nextDense,
+        density: nextCustomTheme.density,
+        toggles: nextToggles,
+        prefs: nextPrefs,
+      });
+
+      if (data.viewMode) {
+        setViewModeState(data.viewMode);
+        setDevice(resolveDevice(data.viewMode));
+        try {
+          localStorage.setItem('linkpoint_view_mode', data.viewMode);
+        } catch {
+          /* storage disabled */
+        }
+      }
+
+      if (data.hasKeybindings) {
+        persistAndSyncKeybindings({
+          singleCharShortcutsEnabled: data.keybindings.singleCharShortcutsEnabled,
+          customBindings: data.keybindings.customBindings,
+          overrides: data.keybindings.overrides,
+        });
+      }
+
+      notify('Settings and keybindings restored from backup.');
+      return validation;
+    },
+    [layout, palette, customTheme, toggles, prefs, resolveDevice, notify],
+  );
 
   // ---- derived lookups (T()/D()/navMode()) -------------------------------
   const T = useCallback(() => {
@@ -847,15 +996,17 @@ export function useAppState() {
           : dhOpt || 0;
       const { availW, availH } = getDesktopBounds();
       const r = flR(id);
-      const maxW = Math.max(216, availW - r.x);
-      const maxH = Math.max(96, availH - r.y);
-      const newW = Math.max(216, Math.min(maxW, r.w + dw));
-      const newH = Math.max(96, Math.min(maxH, r.h + dh));
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
+      const maxW = Math.max(minW, availW - r.x);
+      const maxH = Math.max(minH, availH - r.y);
+      const newW = Math.max(minW, Math.min(maxW, r.w + dw));
+      const newH = Math.max(minH, Math.min(maxH, r.h + dh));
       const next = { ...r, w: newW, h: newH };
       setFlRect((st) => ({ ...st, [id]: next }));
       setFlMax((m) => ({ ...m, [id]: false }));
       flFocus(id);
-      const f = FLOATERS.find((x) => x.id === id);
       const title = f?.title || id;
       announceGeometry(`${title} resized to ${newW} by ${newH}`);
       return next;
@@ -933,6 +1084,9 @@ export function useAppState() {
       e.preventDefault();
       e.stopPropagation();
       const { availW, availH } = getDesktopBounds();
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
       const r = flR(id),
         sx = e.clientX,
         sy = e.clientY;
@@ -944,8 +1098,8 @@ export function useAppState() {
             ? {
                 x: r.x,
                 y: r.y,
-                w: Math.max(216, Math.min(availW - r.x, r.w + dx)),
-                h: Math.max(96, Math.min(availH - r.y, r.h + dy)),
+                w: Math.max(minW, Math.min(availW - r.x, r.w + dx)),
+                h: Math.max(minH, Math.min(availH - r.y, r.h + dy)),
               }
             : {
                 x: Math.max(0, Math.min(Math.max(0, availW - r.w), r.x + dx)),
@@ -1003,10 +1157,17 @@ export function useAppState() {
       const availW = Math.max(300, vpW - G.rail);
       const availH = Math.max(200, vpH - G.top - G.dock);
 
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
       const rawW = rect.w !== undefined ? Number(rect.w) : r.w;
       const rawH = rect.h !== undefined ? Number(rect.h) : r.h;
-      const nextW = Number.isFinite(rawW) ? Math.max(216, Math.min(availW, Math.round(rawW))) : r.w;
-      const nextH = Number.isFinite(rawH) ? Math.max(96, Math.min(availH, Math.round(rawH))) : r.h;
+      const nextW = Number.isFinite(rawW)
+        ? Math.max(minW, Math.min(availW, Math.round(rawW)))
+        : r.w;
+      const nextH = Number.isFinite(rawH)
+        ? Math.max(minH, Math.min(availH, Math.round(rawH)))
+        : r.h;
 
       const rawX = rect.x !== undefined ? Number(rect.x) : r.x;
       const rawY = rect.y !== undefined ? Number(rect.y) : r.y;
@@ -1229,9 +1390,11 @@ export function useAppState() {
   const cPress = useCallback(
     (k) => {
       const b = CBTN[k];
+      if (!b) return;
       if (k === 'ao') {
         if (navMode() === 'floaters') flToggle('AO');
         else setScreen('AO');
+        setCReason('');
         return;
       }
       if (b.nav) {
@@ -1421,6 +1584,8 @@ export function useAppState() {
       importTheme,
       downloadTheme,
       shareTheme,
+      exportSettingsBackup,
+      restoreSettingsBackup,
       setDevice,
       setViewMode,
       toggleViewMode,

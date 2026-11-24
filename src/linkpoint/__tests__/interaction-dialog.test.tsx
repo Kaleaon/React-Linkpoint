@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import InteractionDialog from '../../components/InteractionDialog.jsx';
+import SystemDialog from '../../components/SystemDialog.jsx';
+import { slBridge } from '../sl-bridge';
 import { app } from '../app';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -152,8 +154,87 @@ describe('InteractionDialog', () => {
     expect(host.textContent).toContain('grid 1000, 1001');
     expect(host.textContent).toContain('Declining notifies the sender');
     await click(button(host, 'ACCEPT'));
-    expect(accept).toHaveBeenCalledWith('l1', 'f'); // the offer's sender, so RLV can check @tplure exceptions
+    expect(accept).toHaveBeenCalledWith('l1', 'f', 'Sam Resident'); // sender id for RLV @tplure exceptions and sender name as teleport destination
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('opens SystemDialog with crystal progress on lure ACCEPT and enforces RLV @tplure guards', async () => {
+    (app.protocol as any).connected = true;
+    (slBridge as any).connected = true;
+
+    let resolveLureRpc: (val: any) => void = () => {};
+    const acceptRpc = vi.spyOn(slBridge, 'acceptLure').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLureRpc = resolve;
+        }) as any,
+    );
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const r = createRoot(host);
+    await act(async () => {
+      r.render(
+        createElement(
+          AppProvider as any,
+          null,
+          createElement(
+            ThemeProvider as any,
+            null,
+            createElement(
+              'div',
+              null,
+              createElement(SystemDialog as any),
+              createElement(InteractionDialog as any),
+            ),
+          ),
+        ),
+      );
+    });
+    mounted = { host, root: r };
+
+    try {
+      // 1. Enable RLV and restrict @tplure=n -> ACCEPT must be blocked BEFORE opening SystemDialog
+      const senderUuid = '22222222-2222-2222-2222-222222222222';
+      app.rlv.setEnabled(true);
+      app.rlv.processMessage('collar-1', '@tplure=n');
+
+      await emit('lure', lure('l-blocked', { fromId: senderUuid }));
+      await click(button(host, 'ACCEPT'));
+
+      expect(acceptRpc).not.toHaveBeenCalled();
+      expect(app.interactions.teleportSession).toBeNull();
+      expect(host.querySelector('[data-testid="teleport-crystal-hero"]')).toBeNull();
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain('RLV restrictions');
+      expect(app.interactions.items).toHaveLength(1);
+
+      // 2. Grant sender exception @tplure:<uuid>=n -> ACCEPT opens SystemDialog for Sam Resident
+      app.rlv.processMessage('collar-1', `@tplure:${senderUuid}=n`);
+
+      await click(button(host, 'ACCEPT'));
+
+      expect(acceptRpc).toHaveBeenCalledWith({ id: 'l-blocked' });
+      expect(app.interactions.teleportSession).not.toBeNull();
+      expect(app.interactions.teleportSession?.destination).toBe('Sam Resident');
+      expect(host.querySelector('#teleport-sheet-title')?.textContent).toBe('Sam Resident');
+      expect(host.querySelector('[data-testid="teleport-crystal-hero"]')).not.toBeNull();
+      expect(host.querySelector('[data-testid="crystal-progress-bar-container"]')).not.toBeNull();
+
+      await act(async () => {
+        resolveLureRpc({ accepted: true, message: 'Teleport finished' });
+        await new Promise((res) => requestAnimationFrame(res));
+        await new Promise((res) => requestAnimationFrame(res));
+      });
+      expect(app.interactions.items).toHaveLength(0);
+    } finally {
+      app.rlv.handler.reset();
+      app.rlv.setEnabled(false);
+      (app.protocol as any).connected = false;
+      (slBridge as any).connected = false;
+      await act(async () => {
+        app.interactions.clearTeleportSession();
+      });
+    }
   });
 
   it('declines a teleport offer with the DECLINE button, notifying the sender', async () => {

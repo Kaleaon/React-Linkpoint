@@ -90,8 +90,13 @@ export class SecondLifeLLSDUtils {
    */
   static parseCapResponse(llsd: LLSD): LLSDValue {
     const content = llsd.getContent();
-    if (content && typeof content === 'object' && 'response' in content) {
-      return (content as any).response;
+    if (
+      content &&
+      typeof content === 'object' &&
+      !Array.isArray(content) &&
+      'response' in content
+    ) {
+      return (content as LLSDMap).response;
     }
     return content;
   }
@@ -200,36 +205,47 @@ export class SecondLifeLLSDUtils {
   }
 
   /**
-   * Convert asset type to inventory type
+   * Convert Second Life asset type mnemonic to canonical `LLInventoryType::EType` code
    */
-  private static assetTypeToInventoryType(assetType: string): number {
-    const mapping: { [key: string]: number } = {
+  static assetTypeToInventoryType(assetType: string): number {
+    const mapping: Record<string, number> = {
       texture: 0,
+      img_tga: 0,
+      jpeg: 0,
+      txtr_tga: 0,
       sound: 1,
+      snd_wav: 1,
+      callcard: 2,
       callingcard: 2,
       landmark: 3,
       script: 10,
-      clothing: 5,
+      clothing: 18,
       object: 6,
       notecard: 7,
       category: 8,
       folder: 8,
       rootcategory: 9,
       lsltext: 10,
-      lslbyte: 11,
-      txtr_tga: 12,
-      bodypart: 13,
+      lslbyte: 10,
+      bodypart: 18,
       trash: 14,
       snapshot: 15,
       lostandfound: 16,
       attachment: 17,
       wearable: 18,
+      animatn: 19,
       animation: 19,
       gesture: 20,
       mesh: 22,
+      widget: 23,
+      person: 24,
+      settings: 25,
+      material: 26,
+      gltf: 27,
+      gltfbin: 28,
     };
 
-    const result = mapping[assetType.toLowerCase()];
+    const result = mapping[assetType.trim().toLowerCase()];
     return result !== undefined ? result : -1;
   }
 
@@ -315,12 +331,12 @@ export class SecondLifeLLSDUtils {
         }
       }
 
-      // Check field types
+      // Check field types (supporting both JS typeof names and canonical LLSD type names)
       for (const [field, expectedType] of rules.fieldTypes.entries()) {
         if (field in map) {
           const value = map[field];
-          const actualType = typeof value;
-          if (actualType !== expectedType) {
+          if (!SecondLifeLLSDUtils.matchesExpectedFieldType(value, expectedType)) {
+            const actualType = SecondLifeLLSDUtils.describeFieldType(value);
             result.addWarning(`Field ${field} expected ${expectedType} but got ${actualType}`);
           }
         }
@@ -328,5 +344,58 @@ export class SecondLifeLLSDUtils {
     }
 
     return result;
+  }
+
+  private static describeFieldType(value: LLSDValue): string {
+    if (value === null || value === undefined) return 'undef';
+    if (value instanceof Date) return 'date';
+    if (value instanceof URL) return 'uri';
+    if (value instanceof Uint8Array) return 'binary';
+    if (Array.isArray(value)) return 'array';
+    if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'real';
+    if (typeof value === 'string') return LLSDUtils.isUUIDString(value) ? 'uuid' : 'string';
+    if (typeof value === 'boolean') return 'boolean';
+    if (typeof value === 'object') return 'map';
+    return typeof value;
+  }
+
+  private static matchesExpectedFieldType(value: LLSDValue, expectedType: string): boolean {
+    const norm = expectedType.toLowerCase();
+    switch (norm) {
+      case 'undef':
+      case 'null':
+        return value === null || value === undefined;
+      case 'boolean':
+        return typeof value === 'boolean';
+      case 'integer':
+        return typeof value === 'number' && Number.isInteger(value);
+      case 'real':
+        return typeof value === 'number';
+      case 'number':
+        return typeof value === 'number';
+      case 'uuid':
+        return typeof value === 'string' && LLSDUtils.isUUIDString(value);
+      case 'string':
+        return typeof value === 'string';
+      case 'date':
+        return value instanceof Date && !Number.isNaN(value.getTime());
+      case 'uri':
+        return value instanceof URL || typeof value === 'string';
+      case 'binary':
+        return value instanceof Uint8Array;
+      case 'array':
+        return Array.isArray(value);
+      case 'map':
+        return (
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value) &&
+          !(value instanceof Date) &&
+          !(value instanceof URL) &&
+          !(value instanceof Uint8Array)
+        );
+      default:
+        return typeof value === expectedType;
+    }
   }
 }

@@ -52,6 +52,30 @@ export interface SerializedGrantUserRightsPacket {
   payload: Uint8Array;
 }
 
+export interface TerminateFriendshipPacketPayload {
+  agentId: string;
+  sessionId: string;
+  otherId: string;
+}
+
+export interface SerializedTerminateFriendshipPacket {
+  messageName: string;
+  messageId: number;
+  agentId: string;
+  sessionId: string;
+  otherId: string;
+  targetId: string;
+  payload: Uint8Array;
+}
+
+const ZERO_UUID_HEX = '00000000000000000000000000000000';
+
+const isNonZeroValidUuid = (uuidStr: string): boolean => {
+  if (!isValidUuid(uuidStr)) return false;
+  const hex = uuidStr.replace(/[{}]/g, '').replace(/-/g, '').toLowerCase();
+  return hex !== ZERO_UUID_HEX;
+};
+
 const isValidUuid = (uuidStr: string): boolean => {
   if (typeof uuidStr !== 'string') return false;
   const hex = uuidStr.replace(/[{}]/g, '').replace(/-/g, '');
@@ -96,7 +120,7 @@ export function serializeDeclineTeleportPacket(
 
   return {
     messageName: 'DeclineTeleport',
-    messageId: MessageIDs.DECLINE_TELEPORT ?? 0xffff007a,
+    messageId: MessageIDs.DECLINE_TELEPORT ?? 0xffff0048,
     agentId: normAgentId,
     sessionId: normSessionId,
     payload,
@@ -107,7 +131,7 @@ export function serializeDeclineTeleportPacket(
 export const serializeDeclineTeleport = serializeDeclineTeleportPacket;
 
 /**
- * Serializes a GrantUserRights UDP packet according to SL protocol standards (0xFFFF0054).
+ * Serializes a GrantUserRights UDP packet according to SL protocol standards (0xFFFF0140).
  * Returns a 52-byte payload containing 16-byte AgentID, 16-byte SessionID, 16-byte TargetID,
  * and 4-byte little-endian rights bitmask.
  */
@@ -151,7 +175,7 @@ export function serializeGrantUserRightsPacket(
 
   return {
     messageName: 'GrantUserRights',
-    messageId: MessageIDs.GRANT_USER_RIGHTS ?? 0xffff0054,
+    messageId: MessageIDs.GRANT_USER_RIGHTS ?? 0xffff0140,
     agentId: normAgentId,
     sessionId: normSessionId,
     targetId: normTargetId,
@@ -162,6 +186,58 @@ export function serializeGrantUserRightsPacket(
 
 /** Alias serializer function for flexible caller usage */
 export const serializeGrantUserRights = serializeGrantUserRightsPacket;
+
+/**
+ * Serializes a TerminateFriendship UDP packet according to SL protocol standards (0xFFFF012C).
+ * Validates AgentID, SessionID, and OtherID before allocating the 48-byte payload buffer.
+ */
+export function serializeTerminateFriendshipPacket(
+  agentId: string,
+  sessionId: string,
+  otherId: string,
+): SerializedTerminateFriendshipPacket {
+  const normAgentId = String(agentId || '')
+    .trim()
+    .replace(/^\{(.+)\}$/, '$1');
+  const normSessionId = String(sessionId || '')
+    .trim()
+    .replace(/^\{(.+)\}$/, '$1');
+  const normOtherId = String(otherId || '')
+    .trim()
+    .replace(/^\{(.+)\}$/, '$1');
+
+  if (!normAgentId || !isNonZeroValidUuid(normAgentId)) {
+    throw new Error('Valid agent ID required for TerminateFriendship packet');
+  }
+  if (!normSessionId || !isNonZeroValidUuid(normSessionId)) {
+    throw new Error('Valid session ID required for TerminateFriendship packet');
+  }
+  if (!normOtherId || !isNonZeroValidUuid(normOtherId)) {
+    throw new Error('Valid target friend ID required for TerminateFriendship packet');
+  }
+
+  const agentIdBytes = uuidToBytes(normAgentId);
+  const sessionIdBytes = uuidToBytes(normSessionId);
+  const otherIdBytes = uuidToBytes(normOtherId);
+
+  const payload = new Uint8Array(48);
+  payload.set(agentIdBytes, 0);
+  payload.set(sessionIdBytes, 16);
+  payload.set(otherIdBytes, 32);
+
+  return {
+    messageName: 'TerminateFriendship',
+    messageId: MessageIDs.TERMINATE_FRIENDSHIP ?? 0xffff012c,
+    agentId: normAgentId,
+    sessionId: normSessionId,
+    otherId: normOtherId,
+    targetId: normOtherId,
+    payload,
+  };
+}
+
+/** Alias serializer function for flexible caller usage */
+export const serializeTerminateFriendship = serializeTerminateFriendshipPacket;
 
 /** The session says 'Resident' (and the manager 'Friend') when it has no name; those are not names. */
 const isRealName = (name: unknown): name is string =>
@@ -350,18 +426,79 @@ export class FriendsExtended extends Utils.EventEmitter {
     }
   }
 
+  hasFriend(friendId: string): boolean {
+    if (!friendId || typeof friendId !== 'string') return false;
+    return this.friends.has(this.normalizeId(friendId));
+  }
+
   removeFriend(friendId: string) {
     const normalizedId = this.normalizeId(friendId);
     const friend = this.friends.get(normalizedId);
     if (!friend) return false;
+    const oldStatus = friend.onlineStatus || 'offline';
     this.friends.delete(normalizedId);
     this.onlineFriendIds.delete(normalizedId);
     this.authoritativePresence.delete(normalizedId);
     for (const group of this.friendGroups.values()) {
       group.members = group.members.filter((id: string) => this.normalizeId(id) !== normalizedId);
     }
+    deltaSelectorStore.emitDelta('contact', normalizedId, 'delete', { id: normalizedId }, friend);
+    this.notifyStatusChange(normalizedId, 'offline', oldStatus);
     this.emit('friend_removed', { ...friend });
     return true;
+  }
+
+  /**
+   * Terminate Second Life grid friendship via reliable UDP packet and remove from internal maps.
+   */
+  async terminateFriendship(friendId: string, agentId?: string, sessionId?: string) {
+    const normalizedId = this.normalizeId(String(friendId || ''));
+    if (!normalizedId || !isNonZeroValidUuid(normalizedId)) {
+      throw new Error('Valid target friend UUID required');
+    }
+
+    const resolvedAgentId = String(
+      agentId || this.protocol?.agentId || this.protocol?.circuitContext?.agentId || '',
+    ).trim();
+    const resolvedSessionId = String(
+      sessionId || this.protocol?.sessionId || this.protocol?.circuitContext?.sessionId || '',
+    ).trim();
+
+    let packet: SerializedTerminateFriendshipPacket | null = null;
+    if (isNonZeroValidUuid(resolvedAgentId) && isNonZeroValidUuid(resolvedSessionId)) {
+      packet = serializeTerminateFriendshipPacket(resolvedAgentId, resolvedSessionId, normalizedId);
+    }
+
+    if (typeof this.protocol?.terminateFriendship === 'function') {
+      await this.protocol.terminateFriendship({
+        targetId: normalizedId,
+        otherId: normalizedId,
+        ...(isNonZeroValidUuid(resolvedAgentId) ? { agentId: resolvedAgentId } : {}),
+        ...(isNonZeroValidUuid(resolvedSessionId) ? { sessionId: resolvedSessionId } : {}),
+        ...(packet ? { packet } : {}),
+      });
+    } else if (typeof this.protocol?.sendTerminateFriendship === 'function') {
+      await this.protocol.sendTerminateFriendship(
+        resolvedAgentId,
+        resolvedSessionId,
+        normalizedId,
+        packet,
+      );
+    } else if (typeof this.protocol?.sendPacket === 'function' && packet) {
+      await this.protocol.sendPacket(packet);
+    } else {
+      throw new Error('Not connected to Second Life');
+    }
+
+    this.removeFriend(normalizedId);
+    this.emit('friendship_terminated', {
+      friendId: normalizedId,
+      targetId: normalizedId,
+      otherId: normalizedId,
+      packet,
+    });
+
+    return packet;
   }
 
   clear() {

@@ -14,6 +14,7 @@ export default function InteractionDialog() {
   const { actions } = useApp();
   const { V, t } = useTheme();
   const [items, setItems] = useState(() => [...app.interactions.items]);
+  const [hasTeleport, setHasTeleport] = useState(() => Boolean(app.interactions.teleportSession));
   const [, setBusyTick] = useState(0);
   const [errors, setErrors] = useState({});
   const [text, setText] = useState('');
@@ -24,16 +25,23 @@ export default function InteractionDialog() {
     const manager = app.interactions;
     const onChanged = (list) => {
       setItems([...list]);
+      setHasTeleport(Boolean(manager.teleportSession));
       setBusyTick((n) => n + 1);
+    };
+    const onInteractionChanged = ({ teleportSession }) => {
+      setHasTeleport(Boolean(teleportSession));
     };
     const onFailed = ({ id, message }) => setErrors((previous) => ({ ...previous, [id]: message }));
     const onAccepted = () => actions.notify('Teleport accepted');
     manager.on('interactions_changed', onChanged);
+    manager.on('interaction_changed', onInteractionChanged);
     manager.on('interaction_failed', onFailed);
     manager.on('lure_accepted', onAccepted);
     setItems([...manager.items]);
+    setHasTeleport(Boolean(manager.teleportSession));
     return () => {
       manager.off('interactions_changed', onChanged);
+      manager.off('interaction_changed', onInteractionChanged);
       manager.off('interaction_failed', onFailed);
       manager.off('lure_accepted', onAccepted);
     };
@@ -119,7 +127,7 @@ export default function InteractionDialog() {
 
   return (
     <FocusTrap
-      active={!!current}
+      active={!!current && !hasTeleport}
       onEscape={() => {
         if (currentId) void app.interactions.dismiss(currentId);
       }}

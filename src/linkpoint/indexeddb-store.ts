@@ -911,6 +911,50 @@ export class IndexedDBStore {
     return { purged };
   }
 
+  public async deleteGroupNotices(agentId: string, groupId: string): Promise<void> {
+    if (!groupId) return;
+    const safeAgentId = agentId || 'local_user';
+    const targetGroupId = groupId.trim().toLowerCase();
+
+    for (const [key, record] of this.memNotices.entries()) {
+      if (
+        (!agentId || record.agentId === safeAgentId) &&
+        String(record.groupId || '').toLowerCase() === targetGroupId
+      ) {
+        this.memNotices.delete(key);
+      }
+    }
+
+    const db = await this.getDB();
+    if (!db) return;
+
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction([STORE_GROUP_NOTICES], 'readwrite');
+        const store = tx.objectStore(STORE_GROUP_NOTICES);
+        const req = store.openCursor();
+        req.onsuccess = (e: any) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            const val = cursor.value;
+            if (
+              (!agentId || val.agentId === safeAgentId) &&
+              String(val.groupId || '').toLowerCase() === targetGroupId
+            ) {
+              cursor.delete();
+            }
+            cursor.continue();
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
   // --- Migration Tracking ---
 
   public async isMigrated(agentId: string): Promise<boolean> {
