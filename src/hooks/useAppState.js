@@ -385,6 +385,9 @@ export function useAppState() {
   useEffect(() => {
     app.chat.setHistoryLoggingEnabled(toggles.imLogs);
   }, [toggles.imLogs]);
+  useEffect(() => {
+    app.chat.setChatCommandsEnabled(Boolean(toggles.chatCmds));
+  }, [toggles.chatCmds]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout

@@ -247,6 +247,149 @@ class ParcelPropertiesUpdateMessage {
   }
 }
 
+class ActivateGesturesMessage {
+  constructor() {
+    this.name = 'ActivateGestures';
+    this.zeroEncoded = false;
+    this.messageFlags = 4; // MessageFlags.FrequencyLow (NotTrusted, Unencoded)
+    this.id = 0xffff013c >>> 0; // 4294902076 (Low 316: ActivateGestures)
+    this.AgentData = {
+      AgentID: UUID.zero(),
+      SessionID: UUID.zero(),
+      Flags: 0,
+    };
+    this.Data = [];
+  }
+
+  getSize() {
+    const count = Math.min(255, Array.isArray(this.Data) ? this.Data.length : 0);
+    return (
+      32 + // AgentID (16) + SessionID (16)
+      4 + // Flags (U32)
+      1 + // Variable block count (U8)
+      count * 36 // ItemID (16) + AssetID (16) + GestureFlags (4)
+    );
+  }
+
+  writeToBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData.AgentID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.SessionID.writeToBuffer(buf, pos);
+    pos += 16;
+    buf.writeUInt32LE((Number(this.AgentData.Flags) || 0) >>> 0, pos);
+    pos += 4;
+
+    const entries = Array.isArray(this.Data) ? this.Data.slice(0, 255) : [];
+    buf.writeUInt8(entries.length, pos++);
+    for (const item of entries) {
+      (item.ItemID || UUID.zero()).writeToBuffer(buf, pos);
+      pos += 16;
+      (item.AssetID || UUID.zero()).writeToBuffer(buf, pos);
+      pos += 16;
+      buf.writeUInt32LE((Number(item.GestureFlags) || 0) >>> 0, pos);
+      pos += 4;
+    }
+
+    return pos - startPos;
+  }
+
+  readFromBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData = {
+      AgentID: new UUID(buf, pos),
+      SessionID: new UUID(buf, pos + 16),
+      Flags: buf.readUInt32LE(pos + 32),
+    };
+    pos += 36;
+    const count = buf.readUInt8(pos++);
+    this.Data = [];
+    for (let i = 0; i < count; i++) {
+      const itemID = new UUID(buf, pos);
+      pos += 16;
+      const assetID = new UUID(buf, pos);
+      pos += 16;
+      const gestureFlags = buf.readUInt32LE(pos);
+      pos += 4;
+      this.Data.push({
+        ItemID: itemID,
+        AssetID: assetID,
+        GestureFlags: gestureFlags,
+      });
+    }
+    return pos - startPos;
+  }
+}
+
+class DeactivateGesturesMessage {
+  constructor() {
+    this.name = 'DeactivateGestures';
+    this.zeroEncoded = false;
+    this.messageFlags = 4; // MessageFlags.FrequencyLow (NotTrusted, Unencoded)
+    this.id = 0xffff013d >>> 0; // 4294902077 (Low 317: DeactivateGestures)
+    this.AgentData = {
+      AgentID: UUID.zero(),
+      SessionID: UUID.zero(),
+      Flags: 0,
+    };
+    this.Data = [];
+  }
+
+  getSize() {
+    const count = Math.min(255, Array.isArray(this.Data) ? this.Data.length : 0);
+    return (
+      32 + // AgentID (16) + SessionID (16)
+      4 + // Flags (U32)
+      1 + // Variable block count (U8)
+      count * 20 // ItemID (16) + GestureFlags (4)
+    );
+  }
+
+  writeToBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData.AgentID.writeToBuffer(buf, pos);
+    pos += 16;
+    this.AgentData.SessionID.writeToBuffer(buf, pos);
+    pos += 16;
+    buf.writeUInt32LE((Number(this.AgentData.Flags) || 0) >>> 0, pos);
+    pos += 4;
+
+    const entries = Array.isArray(this.Data) ? this.Data.slice(0, 255) : [];
+    buf.writeUInt8(entries.length, pos++);
+    for (const item of entries) {
+      (item.ItemID || UUID.zero()).writeToBuffer(buf, pos);
+      pos += 16;
+      buf.writeUInt32LE((Number(item.GestureFlags) || 0) >>> 0, pos);
+      pos += 4;
+    }
+
+    return pos - startPos;
+  }
+
+  readFromBuffer(buf, pos) {
+    const startPos = pos;
+    this.AgentData = {
+      AgentID: new UUID(buf, pos),
+      SessionID: new UUID(buf, pos + 16),
+      Flags: buf.readUInt32LE(pos + 32),
+    };
+    pos += 36;
+    const count = buf.readUInt8(pos++);
+    this.Data = [];
+    for (let i = 0; i < count; i++) {
+      const itemID = new UUID(buf, pos);
+      pos += 16;
+      const gestureFlags = buf.readUInt32LE(pos);
+      pos += 4;
+      this.Data.push({
+        ItemID: itemID,
+        GestureFlags: gestureFlags,
+      });
+    }
+    return pos - startPos;
+  }
+}
+
 function sanitizeParcelProperties(params = {}) {
   const localId = Number(params.localId ?? params.LocalID ?? 0) | 0;
   const flags =
@@ -366,6 +509,13 @@ const {
 const {
   RemoveInventoryFolderMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/RemoveInventoryFolder');
+const {
+  AgentAnimationMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentAnimation');
+const {
+  SoundTriggerMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/SoundTrigger');
+const { Long } = require('@caspertech/node-metaverse/dist/lib/classes/LongUtil');
 
 class TerminateFriendshipMessage {
   constructor() {
@@ -499,6 +649,7 @@ class ViewerSession {
     this.transactions = [];
     this.pending = new interactions.PendingInteractions();
     this.pendingParcelTransactions = new Map();
+    this.activeGestures = new Map();
     this.activeGroupId = '00000000-0000-0000-0000-000000000000';
     this.activeRoleId = '00000000-0000-0000-0000-000000000000';
     /** Filled in by connect(): who is logged in and where. */
@@ -761,6 +912,375 @@ class ViewerSession {
       data: buffer.toString('utf-8'),
       base64: buffer.toString('base64'),
       size: buffer.length,
+    };
+  }
+
+  async downloadGesture(assetId) {
+    const cleanId = String(assetId || '').trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)) {
+      throw new Error('A valid gesture asset UUID is required');
+    }
+    const bot = this.requireBot();
+    const caps = this.currentRegion()?.caps;
+    if (caps?.getCapability) {
+      try {
+        const capUrl = await caps.getCapability('ViewerAsset');
+        if (capUrl && typeof caps.requestGet === 'function') {
+          const url = `${String(capUrl).replace(/\/?$/, '/')}?gesture_id=${encodeURIComponent(cleanId)}`;
+          const response = await caps.requestGet(url, { responseType: 'buffer' });
+          if (response?.body) {
+            const buf = Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body);
+            if (buf.length > 0) return buf;
+          }
+        }
+      } catch (capErr) {
+        console.warn(
+          `[SL Session] ViewerAsset gesture download failed for ${cleanId}:`,
+          capErr.message || capErr,
+        );
+      }
+    }
+    if (bot.clientCommands?.asset?.downloadAsset) {
+      try {
+        const buf = await bot.clientCommands.asset.downloadAsset(AssetType.Gesture, cleanId);
+        if (buf && buf.length > 0) return Buffer.from(buf);
+      } catch {
+        // Retry over simulator transfer channel below
+      }
+    }
+    if (bot.clientCommands?.asset?.transfer) {
+      const {
+        TransferChannelType,
+      } = require('@caspertech/node-metaverse/dist/lib/enums/TransferChannelType');
+      const {
+        TransferSourceType,
+      } = require('@caspertech/node-metaverse/dist/lib/enums/TransferSourceTypes');
+      const params = Buffer.alloc(20);
+      new UUID(cleanId).writeToBuffer(params, 0);
+      params.writeInt32LE(AssetType.Gesture, 16);
+      const buffer = await bot.clientCommands.asset.transfer(
+        TransferChannelType.Asset,
+        TransferSourceType.Asset,
+        false,
+        params,
+      );
+      if (buffer && buffer.length > 0) return Buffer.from(buffer);
+    }
+    throw new Error(`Gesture ${cleanId} unavailable`);
+  }
+
+  async fetchGesture({ id, itemId } = {}) {
+    const bot = this.requireBot();
+    let assetId = id ? String(id).trim() : '';
+    if (!assetId && itemId) {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      if (skeleton) {
+        for (const folder of skeleton.values()) {
+          const match = (folder.items || []).find(
+            (i) => i.itemID?.toString?.().toLowerCase() === String(itemId).trim().toLowerCase(),
+          );
+          if (match?.assetID) {
+            assetId = match.assetID.toString();
+            break;
+          }
+        }
+      }
+      if (!assetId) assetId = String(itemId).trim();
+    }
+    if (!assetId) throw new Error('A gesture asset ID or item ID is required');
+    const buffer = await this.queueAssetDownload(() => this.downloadGesture(assetId));
+    return {
+      id: assetId,
+      itemId: itemId || assetId,
+      data: buffer.toString('utf-8'),
+      size: buffer.length,
+    };
+  }
+
+  async activateGestures(params = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const bot = this.requireBot();
+    const circuit =
+      this.currentRegion()?.circuit || bot.circuit || bot.clientCommands?.region?.circuit;
+    const agentIdRaw =
+      this.identity?.agentId || this.identity?.agent_id || bot.agent?.agentID?.toString?.() || '';
+    if (!circuit?.sendMessage || !agentIdRaw) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    const rawList = Array.isArray(params.gestures)
+      ? params.gestures
+      : params.itemId || params.id
+        ? [params]
+        : [];
+    if (rawList.length === 0) {
+      throw new Error('At least one gesture item is required for activation');
+    }
+
+    const resolveAssetIdFromInventory = (itemUuidLower) => {
+      const skeleton = bot.agent?.inventory?.main?.skeleton;
+      if (!skeleton) return '';
+      for (const folder of skeleton.values()) {
+        const found = (folder.items || []).find(
+          (i) => i.itemID?.toString?.().toLowerCase() === itemUuidLower,
+        );
+        if (found?.assetID) return found.assetID.toString();
+      }
+      return '';
+    };
+
+    const normalized = rawList.map((entry) => {
+      const itemObj = typeof entry === 'string' ? { itemId: entry } : entry || {};
+      const itemId = String(itemObj.itemId || itemObj.id || '').trim();
+      if (!uuidRegex.test(itemId)) {
+        throw new Error(`Invalid gesture item ID format: ${itemId}`);
+      }
+      let assetId = String(itemObj.assetId || '').trim();
+      if (!assetId) {
+        assetId = resolveAssetIdFromInventory(itemId.toLowerCase()) || ZERO_UUID;
+      }
+      if (!uuidRegex.test(assetId)) {
+        throw new Error(`Invalid gesture asset ID format: ${assetId}`);
+      }
+      const gestureFlags = (Number(itemObj.gestureFlags ?? params.gestureFlags ?? 0) || 0) >>> 0;
+      return {
+        itemId: itemId.toLowerCase(),
+        assetId: assetId.toLowerCase(),
+        gestureFlags,
+      };
+    });
+
+    const agentUuid = new UUID(uuidRegex.test(String(agentIdRaw)) ? String(agentIdRaw) : ZERO_UUID);
+    const sessionStr = circuit.sessionID?.toString?.() || ZERO_UUID;
+    const sessionUuid = new UUID(uuidRegex.test(sessionStr) ? sessionStr : ZERO_UUID);
+    const flags = (Number(params.flags ?? 0) || 0) >>> 0;
+
+    const BATCH_SIZE = 255;
+    for (let offset = 0; offset < normalized.length; offset += BATCH_SIZE) {
+      const batch = normalized.slice(offset, offset + BATCH_SIZE);
+      const msg = new ActivateGesturesMessage();
+      msg.AgentData = {
+        AgentID: agentUuid,
+        SessionID: sessionUuid,
+        Flags: flags,
+      };
+      msg.Data = batch.map((g) => ({
+        ItemID: new UUID(g.itemId),
+        AssetID: new UUID(g.assetId),
+        GestureFlags: g.gestureFlags,
+      }));
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+    }
+
+    for (const g of normalized) {
+      this.activeGestures.set(g.itemId, g);
+    }
+
+    this.send('gestures-activated', {
+      gestures: normalized,
+      flags,
+    });
+
+    return {
+      activated: true,
+      count: normalized.length,
+      gestures: normalized,
+    };
+  }
+
+  async activateGesture(params = {}) {
+    return this.activateGestures(params);
+  }
+
+  async deactivateGestures(params = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const bot = this.requireBot();
+    const circuit =
+      this.currentRegion()?.circuit || bot.circuit || bot.clientCommands?.region?.circuit;
+    const agentIdRaw =
+      this.identity?.agentId || this.identity?.agent_id || bot.agent?.agentID?.toString?.() || '';
+    if (!circuit?.sendMessage || !agentIdRaw) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    const rawList = Array.isArray(params.gestures)
+      ? params.gestures
+      : Array.isArray(params.itemIds)
+        ? params.itemIds
+        : params.itemId || params.id
+          ? [params]
+          : [];
+    if (rawList.length === 0) {
+      throw new Error('At least one gesture item is required for deactivation');
+    }
+
+    const normalized = rawList.map((entry) => {
+      const itemObj = typeof entry === 'string' ? { itemId: entry } : entry || {};
+      const itemId = String(itemObj.itemId || itemObj.id || '').trim();
+      if (!uuidRegex.test(itemId)) {
+        throw new Error(`Invalid gesture item ID format: ${itemId}`);
+      }
+      const gestureFlags = (Number(itemObj.gestureFlags ?? params.gestureFlags ?? 0) || 0) >>> 0;
+      return {
+        itemId: itemId.toLowerCase(),
+        gestureFlags,
+      };
+    });
+
+    const agentUuid = new UUID(uuidRegex.test(String(agentIdRaw)) ? String(agentIdRaw) : ZERO_UUID);
+    const sessionStr = circuit.sessionID?.toString?.() || ZERO_UUID;
+    const sessionUuid = new UUID(uuidRegex.test(sessionStr) ? sessionStr : ZERO_UUID);
+    const flags = (Number(params.flags ?? 0) || 0) >>> 0;
+
+    const BATCH_SIZE = 255;
+    for (let offset = 0; offset < normalized.length; offset += BATCH_SIZE) {
+      const batch = normalized.slice(offset, offset + BATCH_SIZE);
+      const msg = new DeactivateGesturesMessage();
+      msg.AgentData = {
+        AgentID: agentUuid,
+        SessionID: sessionUuid,
+        Flags: flags,
+      };
+      msg.Data = batch.map((g) => ({
+        ItemID: new UUID(g.itemId),
+        GestureFlags: g.gestureFlags,
+      }));
+      circuit.sendMessage(msg, PacketFlags.Reliable);
+    }
+
+    for (const g of normalized) {
+      this.activeGestures.delete(g.itemId);
+    }
+
+    this.send('gestures-deactivated', {
+      gestures: normalized,
+      flags,
+    });
+
+    return {
+      deactivated: true,
+      count: normalized.length,
+      gestures: normalized,
+    };
+  }
+
+  async deactivateGesture(params = {}) {
+    return this.deactivateGestures(params);
+  }
+
+  async setAgentAnimation(params = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const bot = this.requireBot();
+    const circuit =
+      this.currentRegion()?.circuit || bot.circuit || bot.clientCommands?.region?.circuit;
+    const agentIdRaw =
+      this.identity?.agentId || this.identity?.agent_id || bot.agent?.agentID?.toString?.() || '';
+    if (!circuit?.sendMessage || !agentIdRaw) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    const rawAnims = Array.isArray(params.animations)
+      ? params.animations
+      : params.animId || params.id || params.assetId
+        ? [params]
+        : [];
+    if (rawAnims.length === 0) {
+      throw new Error('At least one animation ID is required');
+    }
+
+    const normalized = rawAnims.map((entry) => {
+      const animObj = typeof entry === 'string' ? { animId: entry, start: true } : entry || {};
+      const animId = String(animObj.animId || animObj.assetId || animObj.id || '').trim();
+      if (!uuidRegex.test(animId)) {
+        throw new Error(`Invalid animation UUID format: ${animId}`);
+      }
+      const start = animObj.stop === true ? false : animObj.start !== false;
+      return {
+        animId: animId.toLowerCase(),
+        start,
+      };
+    });
+
+    const sessionStr = circuit.sessionID?.toString?.() || ZERO_UUID;
+    const msg = new AgentAnimationMessage();
+    msg.AgentData = {
+      AgentID: new UUID(uuidRegex.test(String(agentIdRaw)) ? String(agentIdRaw) : ZERO_UUID),
+      SessionID: new UUID(uuidRegex.test(sessionStr) ? sessionStr : ZERO_UUID),
+    };
+    msg.AnimationList = normalized.map((item) => ({
+      AnimID: new UUID(item.animId),
+      StartAnim: item.start,
+    }));
+    msg.PhysicalAvatarEventList = [];
+
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+    return {
+      sent: true,
+      animations: normalized,
+    };
+  }
+
+  async triggerGestureSound(params = {}) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const bot = this.requireBot();
+    const region = this.currentRegion();
+    const circuit = region?.circuit || bot.circuit || bot.clientCommands?.region?.circuit;
+    const agentIdRaw =
+      this.identity?.agentId || this.identity?.agent_id || bot.agent?.agentID?.toString?.() || '';
+    if (!circuit?.sendMessage || !agentIdRaw) {
+      throw new Error(NOT_CONNECTED);
+    }
+
+    const soundId = String(params.soundId || params.assetId || params.id || '').trim();
+    if (!uuidRegex.test(soundId)) {
+      throw new Error(`Invalid sound UUID format: ${soundId}`);
+    }
+    const rawGain = Number(params.gain ?? params.volume ?? 1.0);
+    const gain = Number.isFinite(rawGain) ? Math.max(0, Math.min(1, rawGain)) : 1.0;
+
+    const agentUuid = new UUID(uuidRegex.test(String(agentIdRaw)) ? String(agentIdRaw) : ZERO_UUID);
+    let handle = Long.ZERO;
+    if (region?.regionHandle !== undefined && region?.regionHandle !== null) {
+      try {
+        if (
+          typeof region.regionHandle.low === 'number' &&
+          typeof region.regionHandle.high === 'number'
+        ) {
+          handle = region.regionHandle;
+        } else {
+          const big = BigInt.asUintN(64, BigInt(region.regionHandle.toString()));
+          handle = new Long(Number(big & 0xffffffffn) | 0, Number((big >> 32n) & 0xffffffffn) | 0);
+        }
+      } catch {
+        handle = Long.ZERO;
+      }
+    }
+
+    const posInput = params.position || bot.agent?.position || [128, 128, 25];
+    const posVec = Array.isArray(posInput)
+      ? new Vector3([Number(posInput[0]) || 0, Number(posInput[1]) || 0, Number(posInput[2]) || 0])
+      : new Vector3([Number(posInput?.x) || 0, Number(posInput?.y) || 0, Number(posInput?.z) || 0]);
+
+    const msg = new SoundTriggerMessage();
+    msg.SoundData = {
+      SoundID: new UUID(soundId.toLowerCase()),
+      OwnerID: agentUuid,
+      ObjectID: agentUuid,
+      ParentID: UUID.zero(),
+      Handle: handle,
+      Position: posVec,
+      Gain: gain,
+    };
+
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+    return {
+      triggered: true,
+      soundId: soundId.toLowerCase(),
+      gain,
     };
   }
 
@@ -2774,10 +3294,12 @@ class ViewerSession {
         : (folder.getChildFolders() || []).map(toFolder);
     const items = (folder.items || []).map((item) => ({
       id: item.itemID?.toString(),
+      assetId: item.assetID?.toString() || '',
       name: item.name || 'Unnamed Item',
       parent: item.parentID?.toString(),
       assetType: item.assetType,
       inventoryType: item.inventoryType,
+      flags: Number(item.flags ?? 0),
       description: item.description || '',
       folder: false,
     }));
@@ -3253,6 +3775,7 @@ class ViewerSession {
     this.decodedAssets.clear();
     this.pending.clear();
     this.pendingParcelTransactions.clear();
+    this.activeGestures.clear();
     if (!this.bot) return;
     const bot = this.bot;
     this.bot = null;
@@ -3545,6 +4068,8 @@ module.exports = {
   serializeTerrainMaterials,
   PCode,
   ParcelPropertiesUpdateMessage,
+  ActivateGesturesMessage,
+  DeactivateGesturesMessage,
   TerminateFriendshipMessage,
   sanitizeParcelProperties,
 };
