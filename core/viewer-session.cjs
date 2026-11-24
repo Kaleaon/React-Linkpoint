@@ -525,7 +525,7 @@ class TerminateFriendshipMessage {
   constructor() {
     this.name = 'TerminateFriendship';
     this.messageFlags = MessageFlags.FrequencyLow;
-    this.id = 0xffff0053 >>> 0; // 4294901843 (Low-frequency message ID 0xFFFF0053)
+    this.id = 0xffff012c >>> 0; // Low-frequency message ID 300 (0xFFFF012C)
     this.AgentData = {
       AgentID: UUID.zero(),
       SessionID: UUID.zero(),
@@ -2067,7 +2067,7 @@ class ViewerSession {
       otherId: targetId,
       agentId,
       sessionId,
-      messageId: '0xFFFF0053',
+      messageId: '0xFFFF012C',
     };
   }
 
@@ -2335,7 +2335,7 @@ class ViewerSession {
         ? params.packet
         : {
             messageName: 'GrantUserRights',
-            messageId: 0xffff0054,
+            messageId: 0xffff0140,
             agentId,
             sessionId,
             targetId,

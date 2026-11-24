@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Second Life LLSD Conformance Test Vectors Schema",
+  "description": "Schema for canonical LLSD XML, Notation, and Binary conformance vectors modeled on secondlife/python-llsd.",
+  "type": "object",
+  "required": [
+    "version",
+    "upstream_source",
+    "upstream_license",
+    "description",
+    "conformance_vectors",
+    "malformed_vectors"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "upstream_source": {
+      "type": "string",
+      "const": "https://github.com/secondlife/python-llsd"
+    },
+    "upstream_license": {
+      "type": "string",
+      "const": "MIT"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10
+    },
+    "conformance_vectors": {
+      "type": "array",
+      "minItems": 25,
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "description", "xml", "expected"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "undef",
+              "boolean",
+              "integer",
+              "real",
+              "string",
+              "uuid",
+              "date",
+              "uri",
+              "binary",
+              "array",
+              "map"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 5
+          },
+          "xml": {
+            "type": "string",
+            "minLength": 6
+          },
+          "notation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "binary_hex": {
+            "type": "string",
+            "pattern": "^([0-9a-f]{2})+$"
+          },
+          "binary_has_header": {
+            "type": "boolean"
+          },
+          "roundtrip_xml": {
+            "type": "boolean"
+          },
+          "expected": {
+            "type": "object",
+            "required": ["llsd_type"],
+            "properties": {
+              "llsd_type": {
+                "type": "string",
+                "enum": [
+                  "undef",
+                  "boolean",
+                  "integer",
+                  "real",
+                  "string",
+                  "uuid",
+                  "date",
+                  "uri",
+                  "binary",
+                  "array",
+                  "map"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "malformed_vectors": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["id", "format", "description", "input"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["xml", "notation", "binary"]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 5
+          },
+          "input": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
