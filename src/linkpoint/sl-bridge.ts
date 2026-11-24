@@ -737,6 +737,22 @@ export class SLBridge extends Utils.EventEmitter {
       ? this.call('getInventory', folderId ? { folderId } : {})
       : { folders: [], items: [] };
   }
+  async createInventoryFolder(params: {
+    parentId?: string;
+    name: string;
+    folderType?: number;
+    folderId?: string;
+  }) {
+    if (!this.connected) throw new Error('Not connected to simulator');
+    return this.call<{
+      success: boolean;
+      folderId: string;
+      parentId: string;
+      name: string;
+      folderType?: number;
+      folder?: any;
+    }>('createInventoryFolder', params);
+  }
   async purgeInventoryTrash(folderId?: string) {
     if (!this.connected) return { success: false };
     return this.call<{ success: boolean; folderId?: string }>(
