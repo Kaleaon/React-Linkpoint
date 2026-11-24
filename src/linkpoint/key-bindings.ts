@@ -199,6 +199,311 @@ export function maskFromModifiers(mod: {
 
 export type KeyOverrides = Partial<Record<KeyMode, readonly KeyBinding[]>>;
 
+export const KEY_MODES: readonly KeyMode[] = [
+  'first_person',
+  'third_person',
+  'sitting',
+  'edit_avatar',
+];
+
+export const KEY_MASKS: readonly KeyMask[] = ['NONE', 'SHIFT', 'ALT', 'CTL_ALT', 'CTL_ALT_SHIFT'];
+
+export const VALID_KEY_NAMES: ReadonlySet<string> = new Set([
+  ...Array.from({ length: 26 }, (_, idx) => String.fromCharCode(65 + idx)),
+  ...Object.values(CODE_TO_KEY),
+  ...Object.values(DEFAULT_KEY_BINDINGS).flatMap((rows) => rows.map(([key]) => key)),
+  'END',
+  'RMB',
+]);
+
+export const VALID_KEY_COMMANDS: ReadonlySet<string> = new Set([
+  ...Object.values(DEFAULT_KEY_BINDINGS).flatMap((rows) => rows.map(([, , command]) => command)),
+  'toggle_run',
+  'voice_follow_key',
+]);
+
+export interface SerializedKeyBindings {
+  singleCharShortcutsEnabled: boolean;
+  customBindings: Record<string, string>;
+  modeBindings: Record<KeyMode, [string, KeyMask, string][]>;
+}
+
+const ACTION_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
+const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const STORAGE_KEY = 'linkpoint_keybindings';
+
+let cachedStorageRaw: string | null | undefined = undefined;
+let cachedOverrides: KeyOverrides = {};
+
+export function setCachedKeyOverrides(overrides: KeyOverrides): void {
+  cachedOverrides = overrides;
+  try {
+    cachedStorageRaw =
+      typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+  } catch {
+    cachedStorageRaw = null;
+  }
+}
+
+export function getStoredKeyOverrides(): KeyOverrides {
+  try {
+    if (typeof localStorage === 'undefined') return cachedOverrides;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === cachedStorageRaw) return cachedOverrides;
+    cachedStorageRaw = raw;
+    if (!raw) {
+      cachedOverrides = {};
+      return cachedOverrides;
+    }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      cachedOverrides = sanitizeKeyOverrides(parsed.overrides ?? parsed.modeBindings);
+      return cachedOverrides;
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  cachedOverrides = {};
+  return cachedOverrides;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Sanitize action -> shortcut string bindings, keeping only valid entries. */
+export function sanitizeCustomBindings(
+  input: unknown,
+  defaults: Record<string, string> = {},
+): Record<string, string> {
+  const result: Record<string, string> = { ...defaults };
+  if (!isPlainRecord(input)) return result;
+  for (const key of Object.keys(input)) {
+    if (PROTOTYPE_KEYS.has(key) || !ACTION_NAME_PATTERN.test(key)) continue;
+    const rawVal = input[key];
+    if (typeof rawVal === 'string' && isValidKeyBinding(rawVal)) {
+      result[key] = rawVal.trim();
+    }
+  }
+  return result;
+}
+
+function areModeRowsEqual(rows: readonly KeyBinding[], defaults: readonly KeyBinding[]): boolean {
+  if (rows.length !== defaults.length) return false;
+  for (let i = 0; i < rows.length; i++) {
+    if (
+      rows[i][0] !== defaults[i][0] ||
+      rows[i][1] !== defaults[i][1] ||
+      rows[i][2] !== defaults[i][2]
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Serialize camera-mode key mappings into plain JSON-ready tuples for all four modes. */
+export function serializeModeBindings(
+  overrides: KeyOverrides = {},
+): Record<KeyMode, [string, KeyMask, string][]> {
+  const result = {} as Record<KeyMode, [string, KeyMask, string][]>;
+  for (const mode of KEY_MODES) {
+    const source = overrides[mode] ?? DEFAULT_KEY_BINDINGS[mode];
+    result[mode] = source.map(([key, mask, command]) => [key, mask, command]);
+  }
+  return result;
+}
+
+/** Sanitize camera-mode key overrides from unknown storage input, dropping invalid entries. */
+export function sanitizeKeyOverrides(input: unknown): KeyOverrides {
+  if (!isPlainRecord(input)) return {};
+  const overrides: Partial<Record<KeyMode, KeyBinding[]>> = {};
+  for (const mode of KEY_MODES) {
+    if (!Object.prototype.hasOwnProperty.call(input, mode)) continue;
+    const rawRows = input[mode];
+    if (!Array.isArray(rawRows)) continue;
+    const seen = new Set<string>();
+    const cleanRows: KeyBinding[] = [];
+    let validMode = true;
+    for (const entry of rawRows) {
+      let key: unknown;
+      let mask: unknown;
+      let command: unknown;
+      if (Array.isArray(entry) && entry.length === 3) {
+        [key, mask, command] = entry;
+      } else if (isPlainRecord(entry)) {
+        key = entry.key;
+        mask = entry.mask;
+        command = entry.command;
+      } else {
+        validMode = false;
+        break;
+      }
+      if (
+        typeof key !== 'string' ||
+        typeof mask !== 'string' ||
+        typeof command !== 'string' ||
+        !VALID_KEY_NAMES.has(key) ||
+        !(KEY_MASKS as readonly string[]).includes(mask) ||
+        !VALID_KEY_COMMANDS.has(command)
+      ) {
+        validMode = false;
+        break;
+      }
+      const slot = `${key}/${mask}`;
+      if (seen.has(slot)) {
+        validMode = false;
+        break;
+      }
+      seen.add(slot);
+      cleanRows.push([key, mask as KeyMask, command]);
+    }
+    if (validMode && !areModeRowsEqual(cleanRows, DEFAULT_KEY_BINDINGS[mode])) {
+      overrides[mode] = cleanRows;
+    }
+  }
+  return overrides;
+}
+
+/** Serialize custom action keybindings and camera-mode key tables for portable JSON export. */
+export function serializeKeyBindings(config?: {
+  singleCharShortcutsEnabled?: boolean;
+  customBindings?: Record<string, string>;
+  overrides?: KeyOverrides;
+}): SerializedKeyBindings {
+  return {
+    singleCharShortcutsEnabled:
+      typeof config?.singleCharShortcutsEnabled === 'boolean'
+        ? config.singleCharShortcutsEnabled
+        : true,
+    customBindings: sanitizeCustomBindings(config?.customBindings),
+    modeBindings: serializeModeBindings(config?.overrides),
+  };
+}
+
+/** Strictly validate and normalize an imported keybindings configuration block. */
+export function validateKeyBindingsPayload(
+  input: unknown,
+  defaultCustomBindings: Record<string, string> = {},
+):
+  | {
+      ok: true;
+      singleCharShortcutsEnabled: boolean;
+      customBindings: Record<string, string>;
+      overrides: KeyOverrides;
+      modeBindings: Record<KeyMode, [string, KeyMask, string][]>;
+    }
+  | { ok: false; error: string } {
+  if (!isPlainRecord(input)) {
+    return { ok: false, error: 'Invalid keybindings section: expected an object.' };
+  }
+
+  let singleCharShortcutsEnabled = true;
+  if (input.singleCharShortcutsEnabled !== undefined) {
+    if (typeof input.singleCharShortcutsEnabled !== 'boolean') {
+      return {
+        ok: false,
+        error: 'Invalid keybindings: singleCharShortcutsEnabled must be a boolean.',
+      };
+    }
+    singleCharShortcutsEnabled = input.singleCharShortcutsEnabled;
+  }
+
+  const customBindings: Record<string, string> = { ...defaultCustomBindings };
+  if (input.customBindings !== undefined) {
+    if (!isPlainRecord(input.customBindings)) {
+      return { ok: false, error: 'Invalid keybindings: customBindings must be an object.' };
+    }
+    for (const [action, rawVal] of Object.entries(input.customBindings)) {
+      if (PROTOTYPE_KEYS.has(action) || !ACTION_NAME_PATTERN.test(action)) {
+        return {
+          ok: false,
+          error: `Invalid keybinding action name '${action}'.`,
+        };
+      }
+      if (typeof rawVal !== 'string' || !isValidKeyBinding(rawVal)) {
+        return {
+          ok: false,
+          error: `Invalid key combination for action '${action}'.`,
+        };
+      }
+      customBindings[action] = rawVal.trim();
+    }
+  }
+
+  const rawModes = input.modeBindings !== undefined ? input.modeBindings : input.overrides;
+  const overrides: Partial<Record<KeyMode, KeyBinding[]>> = {};
+  if (rawModes !== undefined) {
+    if (!isPlainRecord(rawModes)) {
+      return { ok: false, error: 'Invalid keybindings: modeBindings must be an object.' };
+    }
+    for (const [modeKey, rawRows] of Object.entries(rawModes)) {
+      if (!(KEY_MODES as readonly string[]).includes(modeKey)) {
+        return { ok: false, error: `Unknown camera key mode '${modeKey}' in keybindings.` };
+      }
+      if (!Array.isArray(rawRows)) {
+        return {
+          ok: false,
+          error: `Invalid key mappings for mode '${modeKey}': expected an array.`,
+        };
+      }
+      const mode = modeKey as KeyMode;
+      const seen = new Set<string>();
+      const cleanRows: KeyBinding[] = [];
+      for (const entry of rawRows) {
+        let key: unknown;
+        let mask: unknown;
+        let command: unknown;
+        if (Array.isArray(entry) && entry.length === 3) {
+          [key, mask, command] = entry;
+        } else if (isPlainRecord(entry)) {
+          key = entry.key;
+          mask = entry.mask;
+          command = entry.command;
+        } else {
+          return {
+            ok: false,
+            error: `Invalid key mapping entry in mode '${mode}': expected [key, mask, command].`,
+          };
+        }
+        if (
+          typeof key !== 'string' ||
+          !VALID_KEY_NAMES.has(key) ||
+          typeof mask !== 'string' ||
+          !(KEY_MASKS as readonly string[]).includes(mask) ||
+          typeof command !== 'string' ||
+          !VALID_KEY_COMMANDS.has(command)
+        ) {
+          return {
+            ok: false,
+            error: `Invalid key mapping '${String(key)}/${String(mask)} -> ${String(command)}' in mode '${mode}'.`,
+          };
+        }
+        const slot = `${key}/${mask}`;
+        if (seen.has(slot)) {
+          return {
+            ok: false,
+            error: `Duplicate key mapping '${slot}' in mode '${mode}'.`,
+          };
+        }
+        seen.add(slot);
+        cleanRows.push([key, mask as KeyMask, command]);
+      }
+      if (!areModeRowsEqual(cleanRows, DEFAULT_KEY_BINDINGS[mode])) {
+        overrides[mode] = cleanRows;
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    singleCharShortcutsEnabled,
+    customBindings,
+    overrides,
+    modeBindings: serializeModeBindings(overrides),
+  };
+}
+
 /** Look up the command for a key press. Overrides replace a mode's table wholesale. */
 export function commandFor(
   mode: KeyMode,

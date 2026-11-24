@@ -8,6 +8,7 @@ import Icon from '../components/Icon.jsx';
 import FormField from '../components/FormField.jsx';
 import SegmentedTabs from '../components/SegmentedTabs.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
+import FocusRing from '../components/FocusRing.tsx';
 import { COMPASS } from '../data/content.js';
 
 export default function Radar() {
@@ -297,10 +298,21 @@ export default function Radar() {
         Array.isArray(position) &&
         position.slice(0, 3).every(Number.isFinite)
       ) {
-        slBridge.teleport({ region, x: position[0], y: position[1], z: position[2] + 1 }).then(
-          () => actions.notify(`Teleport to ${target.name} requested`),
-          (err) => actions.notify(err instanceof Error ? err.message : 'Teleport failed'),
-        );
+        app.protocol
+          .teleportCoordinate({
+            region,
+            x: position[0],
+            y: position[1],
+            z: position[2] + 1,
+          })
+          .then(
+            () => actions.notify(`Teleport to ${target.name} requested`),
+            (err) => {
+              if (!app.interactions.teleportSession) {
+                actions.notify(err instanceof Error ? err.message : 'Teleport failed');
+              }
+            },
+          );
       } else {
         if (label === 'OFFER TP') {
           slBridge.offerTeleport({ id: target.id }).then(
@@ -841,31 +853,58 @@ export default function Radar() {
             const isAvatar = blip.kind === 'person';
             const isInSim = blip.locationType === 'in_sim';
             const blipColor = isAvatar ? V.pri : isInSim ? V.ok : V.sec2;
+            const blipLabel = `${blip.name} (${Math.round(blip.distance)}m, ${blip.compass})`;
 
             return (
-              <div
-                key={blip.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedId(blip.id);
-                }}
-                title={`${blip.name} (${Math.round(blip.distance)}m, ${blip.compass})`}
-                style={{
-                  position: 'absolute',
-                  left: `calc(50% + ${blip.x}px)`,
-                  top: `calc(50% + ${blip.y}px)`,
-                  transform: 'translate(-50%, -50%)',
-                  width: blip.isSelected ? '11px' : '7px',
-                  height: blip.isSelected ? '11px' : '7px',
-                  borderRadius: isInSim ? '1px' : '50%',
-                  background: blipColor,
-                  border: blip.isSelected ? '2px solid #fff' : '1px solid rgba(0,0,0,0.5)',
-                  boxShadow: blip.isSelected ? `0 0 8px ${blipColor}` : 'none',
-                  cursor: 'pointer',
-                  zIndex: blip.isSelected ? 8 : 4,
-                  transition: 'all .15s ease',
-                }}
-              />
+              <FocusRing key={blip.id} ringColor={V.pri} ringOffset={0} borderRadius="50%">
+                <TouchTarget
+                  type="button"
+                  minSize={24}
+                  padding={0}
+                  aria-label={blipLabel}
+                  aria-pressed={blip.isSelected}
+                  title={blipLabel}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleItemTap(blip.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleItemTap(blip.id);
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: `calc(50% + ${blip.x}px)`,
+                    top: `calc(50% + ${blip.y}px)`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '24px',
+                    height: '24px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '50%',
+                    padding: 0,
+                    zIndex: blip.isSelected ? 8 : 4,
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: blip.isSelected ? '11px' : '7px',
+                      height: blip.isSelected ? '11px' : '7px',
+                      borderRadius: isInSim ? '1px' : '50%',
+                      background: blipColor,
+                      border: blip.isSelected ? '2px solid #fff' : '1px solid rgba(0,0,0,0.5)',
+                      boxShadow: blip.isSelected ? `0 0 8px ${blipColor}` : 'none',
+                      transition: 'all .15s ease',
+                      display: 'block',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </TouchTarget>
+              </FocusRing>
             );
           })}
 
@@ -974,6 +1013,10 @@ export default function Radar() {
             const isAvatar = entry.kind === 'person';
             const isInSim = entry.locationType === 'in_sim';
             const isOnAvatar = entry.locationType === 'on_avatar';
+            const rowLabel =
+              entry.distance != null
+                ? `${entry.name} (${Math.round(entry.distance)}m, ${entry.compass})`
+                : `${entry.name} (Nearby, ${entry.compass})`;
 
             return (
               <div
@@ -991,195 +1034,210 @@ export default function Radar() {
                 }}
               >
                 {/* Main Row Content */}
-                <div
-                  onClick={() => handleItemTap(entry.id)}
-                  onTouchStart={() => handleTouchStart(entry.id)}
-                  onTouchEnd={handleTouchEnd}
-                  onMouseDown={() => handleTouchStart(entry.id)}
-                  onMouseUp={handleTouchEnd}
-                  onMouseLeave={handleTouchEnd}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px',
-                    padding: '9px 12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {/* Left Icon with Band Tone */}
+                <FocusRing ringColor={V.pri} ringOffset={-2} borderRadius={V.rs}>
                   <div
+                    className="radar-list-row"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={rowLabel}
+                    aria-pressed={isSelected}
+                    onClick={() => handleItemTap(entry.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleItemTap(entry.id);
+                      }
+                    }}
+                    onTouchStart={() => handleTouchStart(entry.id)}
+                    onTouchEnd={handleTouchEnd}
+                    onMouseDown={() => handleTouchStart(entry.id)}
+                    onMouseUp={handleTouchEnd}
+                    onMouseLeave={handleTouchEnd}
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: V.rs,
-                      background: isAvatar
-                        ? V.priC
-                        : isInSim
-                          ? 'rgba(34, 197, 94, 0.14)'
-                          : 'rgba(168, 85, 247, 0.14)',
-                      color: isAvatar ? V.pri : isInSim ? V.ok : V.sec2,
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flex: 'none',
-                      marginTop: '2px',
+                      alignItems: 'flex-start',
+                      gap: '10px',
+                      padding: '9px 12px',
+                      minWidth: '24px',
+                      minHeight: '24px',
+                      cursor: 'pointer',
                     }}
                   >
-                    <Icon name={entry.icon} size={16} />
-                  </div>
-
-                  {/* Center Details */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Left Icon with Band Tone */}
                     <div
                       style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: V.rs,
+                        background: isAvatar
+                          ? V.priC
+                          : isInSim
+                            ? 'rgba(34, 197, 94, 0.14)'
+                            : 'rgba(168, 85, 247, 0.14)',
+                        color: isAvatar ? V.pri : isInSim ? V.ok : V.sec2,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        flexWrap: 'wrap',
+                        justifyContent: 'center',
+                        flex: 'none',
+                        marginTop: '2px',
                       }}
                     >
-                      <strong
+                      <Icon name={entry.icon} size={16} />
+                    </div>
+
+                    {/* Center Details */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
                         style={{
-                          font: '700 14px/1.3 ' + t.font,
-                          color: V.ink,
-                          overflowWrap: 'anywhere',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          flexWrap: 'wrap',
                         }}
                       >
-                        {entry.name}
-                      </strong>
-
-                      {/* ITEM LOCATION DISTINCTION BADGE */}
-                      {!isAvatar && isInSim && (
-                        <span
+                        <strong
                           style={{
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            background: 'rgba(34, 197, 94, 0.18)',
-                            color: V.ok,
-                            fontSize: '9px',
-                            fontWeight: 800,
-                            fontFamily: t.dfont,
-                            letterSpacing: '.06em',
-                            border: '1px solid rgba(34, 197, 94, 0.35)',
+                            font: '700 14px/1.3 ' + t.font,
+                            color: V.ink,
+                            overflowWrap: 'anywhere',
                           }}
                         >
-                          IN SIM
-                        </span>
-                      )}
+                          {entry.name}
+                        </strong>
 
-                      {!isAvatar && isOnAvatar && (
-                        <span
-                          style={{
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            background: 'rgba(168, 85, 247, 0.18)',
-                            color: V.sec2,
-                            fontSize: '9px',
-                            fontWeight: 800,
-                            fontFamily: t.dfont,
-                            letterSpacing: '.06em',
-                            border: '1px solid rgba(168, 85, 247, 0.35)',
-                          }}
-                        >
-                          ON AVATAR
-                        </span>
-                      )}
+                        {/* ITEM LOCATION DISTINCTION BADGE */}
+                        {!isAvatar && isInSim && (
+                          <span
+                            style={{
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(34, 197, 94, 0.18)',
+                              color: V.ok,
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              fontFamily: t.dfont,
+                              letterSpacing: '.06em',
+                              border: '1px solid rgba(34, 197, 94, 0.35)',
+                            }}
+                          >
+                            IN SIM
+                          </span>
+                        )}
 
-                      {/* Person Badges */}
-                      {isAvatar && entry.isFriend && (
-                        <span
-                          style={{
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            background: V.priC,
-                            color: V.pri,
-                            fontSize: '8.5px',
-                            fontWeight: 700,
-                          }}
-                        >
-                          FRIEND
-                        </span>
-                      )}
+                        {!isAvatar && isOnAvatar && (
+                          <span
+                            style={{
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(168, 85, 247, 0.18)',
+                              color: V.sec2,
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              fontFamily: t.dfont,
+                              letterSpacing: '.06em',
+                              border: '1px solid rgba(168, 85, 247, 0.35)',
+                            }}
+                          >
+                            ON AVATAR
+                          </span>
+                        )}
 
-                      {isAvatar && entry.typing && (
-                        <span
-                          style={{
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            background: 'rgba(59, 130, 246, 0.15)',
-                            color: V.info,
-                            fontSize: '8.5px',
-                            fontWeight: 700,
-                          }}
-                        >
-                          TYPING
-                        </span>
-                      )}
+                        {/* Person Badges */}
+                        {isAvatar && entry.isFriend && (
+                          <span
+                            style={{
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: V.priC,
+                              color: V.pri,
+                              fontSize: '8.5px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            FRIEND
+                          </span>
+                        )}
+
+                        {isAvatar && entry.typing && (
+                          <span
+                            style={{
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: 'rgba(59, 130, 246, 0.15)',
+                              color: V.info,
+                              fontSize: '8.5px',
+                              fontWeight: 700,
+                            }}
+                          >
+                            TYPING
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Secondary Information Line */}
+                      <div
+                        style={{ font: '400 11px/1.3 ' + t.font, color: V.ink2, marginTop: '2px' }}
+                      >
+                        {!isAvatar && isInSim && (
+                          <span>
+                            {entry.parcel ? `Parcel: ${entry.parcel} · ` : ''}
+                            {entry.prims ? `${entry.prims} prims · ` : ''}
+                            {entry.scriptTime ? `${entry.scriptTime} script` : ''}
+                            {entry.owner ? ` · Owner: ${entry.owner}` : ''}
+                          </span>
+                        )}
+
+                        {!isAvatar && isOnAvatar && (
+                          <span>
+                            <strong style={{ color: V.sec2 }}>
+                              {entry.attachedTo === 'you'
+                                ? 'Worn by you'
+                                : `Worn by ${entry.attachedTo}`}
+                            </strong>
+                            {entry.attachPoint ? ` · ${entry.attachPoint}` : ''}
+                            {entry.scripts
+                              ? ` · ${entry.scripts} scripts${entry.memory ? ` (${entry.memory})` : ''}`
+                              : ''}
+                          </span>
+                        )}
+
+                        {isAvatar && (
+                          <span>
+                            {entry.coords ? `${entry.coords} · ` : ''}
+                            {entry.meta}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Secondary Information Line */}
-                    <div
-                      style={{ font: '400 11px/1.3 ' + t.font, color: V.ink2, marginTop: '2px' }}
-                    >
-                      {!isAvatar && isInSim && (
-                        <span>
-                          {entry.parcel ? `Parcel: ${entry.parcel} · ` : ''}
-                          {entry.prims ? `${entry.prims} prims · ` : ''}
-                          {entry.scriptTime ? `${entry.scriptTime} script` : ''}
-                          {entry.owner ? ` · Owner: ${entry.owner}` : ''}
-                        </span>
-                      )}
-
-                      {!isAvatar && isOnAvatar && (
-                        <span>
-                          <strong style={{ color: V.sec2 }}>
-                            {entry.attachedTo === 'you'
-                              ? 'Worn by you'
-                              : `Worn by ${entry.attachedTo}`}
-                          </strong>
-                          {entry.attachPoint ? ` · ${entry.attachPoint}` : ''}
-                          {entry.scripts
-                            ? ` · ${entry.scripts} scripts${entry.memory ? ` (${entry.memory})` : ''}`
-                            : ''}
-                        </span>
-                      )}
-
-                      {isAvatar && (
-                        <span>
-                          {entry.coords ? `${entry.coords} · ` : ''}
-                          {entry.meta}
-                        </span>
-                      )}
+                    {/* Right Distance & Bearing Pill */}
+                    <div style={{ flex: 'none', textAlign: 'right' }}>
+                      <div
+                        style={{
+                          padding: '3px 7px',
+                          borderRadius: V.rs,
+                          border: `1px solid ${band.tone}`,
+                          color: band.tone,
+                          font: '700 11px/1 ' + t.dfont,
+                          background: 'transparent',
+                          display: 'inline-block',
+                        }}
+                      >
+                        {entry.distance != null ? `${Math.round(entry.distance)}m` : 'Nearby'}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '9px',
+                          fontFamily: t.dfont,
+                          color: V.ink2,
+                          marginTop: '3px',
+                        }}
+                      >
+                        {entry.compass} · {Math.round(entry.bearing || 0)}°
+                      </div>
                     </div>
                   </div>
-
-                  {/* Right Distance & Bearing Pill */}
-                  <div style={{ flex: 'none', textAlign: 'right' }}>
-                    <div
-                      style={{
-                        padding: '3px 7px',
-                        borderRadius: V.rs,
-                        border: `1px solid ${band.tone}`,
-                        color: band.tone,
-                        font: '700 11px/1 ' + t.dfont,
-                        background: 'transparent',
-                        display: 'inline-block',
-                      }}
-                    >
-                      {entry.distance != null ? `${Math.round(entry.distance)}m` : 'Nearby'}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '9px',
-                        fontFamily: t.dfont,
-                        color: V.ink2,
-                        marginTop: '3px',
-                      }}
-                    >
-                      {entry.compass} · {Math.round(entry.bearing || 0)}°
-                    </div>
-                  </div>
-                </div>
+                </FocusRing>
 
                 {/* 6. EXPANDED ACTIONS ON TAP */}
                 {isSelected && (

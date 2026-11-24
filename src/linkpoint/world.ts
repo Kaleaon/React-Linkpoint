@@ -9,6 +9,7 @@ import { Scene3D } from './scene-3d';
 import { slBridge } from './sl-bridge';
 import { CameraControls } from './camera-controls';
 import { AgentKeyboard } from './agent-keyboard';
+import { getStoredKeyOverrides } from './key-bindings';
 import { GamepadInput } from './gamepad';
 import type { MovementRestrictions } from './agent-controls';
 import { estimatedSunHour, windlightEnvironment } from './windlight';
@@ -22,7 +23,7 @@ import {
 import { parseAnimation, type JointPose } from './avatar-animation';
 import { packJointRows } from './skinning';
 import { generateVolume, volumeKey, volumeParamsFrom, type VolumeFace } from './sl-volume';
-import { AvatarAnimator, bundledAnimationLoader } from './avatar-animator';
+import { AvatarAnimator, bundledAnimationLoader, type AnimationRequest } from './avatar-animator';
 import {
   BODY_PARTS,
   bodyPartRows,
@@ -892,8 +893,13 @@ export class WorldViewer extends Utils.EventEmitter {
     this.protocol.on('scene:asset-ready', (asset: any) => this.applyAsset(asset));
     this.protocol.on('scene:asset-error', (error: any) => this.recordAssetError(error));
     this.protocol.on('scene:animations', (data: any) => {
-      if (data?.id && Array.isArray(data.animations))
-        this.animator.setAnimations(String(data.id), data.animations);
+      if (data?.id && Array.isArray(data.animations)) {
+        const subjectId = String(data.id);
+        const resolved = this.animationInterceptor
+          ? this.animationInterceptor(subjectId, data.animations)
+          : data.animations;
+        this.animator.setAnimations(subjectId, resolved);
+      }
     });
     this.protocol.on('scene:texture-ready', (asset: any) => this.applyTexture(asset));
     this.protocol.on('scene:material-ready', (asset: any) => this.applyMaterial(asset));
@@ -1030,18 +1036,99 @@ export class WorldViewer extends Utils.EventEmitter {
   }
 
   private skeleton: AvatarSkeleton | null = null;
+  private animationInterceptor:
+    ((subjectId: string, animations: AnimationRequest[]) => AnimationRequest[]) | null = null;
+  private animationLoadErrors = new Map<string, { kind: 'download' | 'parse'; message: string }>();
   private animator = new AvatarAnimator(this.animationLoader());
+
+  public setAnimationInterceptor(
+    interceptor: ((subjectId: string, animations: AnimationRequest[]) => AnimationRequest[]) | null,
+  ) {
+    this.animationInterceptor = interceptor;
+  }
+
+  public getLocalAgentId(): string {
+    return String(this.protocol?.agentId || '');
+  }
+
+  public isUnderwater(): boolean {
+    const waterHeight = Number(this.region?.waterHeight);
+    if (!Number.isFinite(waterHeight) || !Array.isArray(this.avatarPosition)) return false;
+    return Number(this.avatarPosition[2]) < waterHeight;
+  }
+
+  public applyLocalAnimations(animations: AnimationRequest[]) {
+    const agentId = this.getLocalAgentId();
+    if (!agentId) return;
+    this.animator.setAnimations(agentId, animations);
+  }
+
+  public invalidateAnimation(id: string) {
+    this.animationLoadErrors.delete(String(id || '').toLowerCase());
+    this.animator.invalidate(id);
+  }
+
+  public async validateAnimationAsset(
+    id: string,
+  ): Promise<{ ok: boolean; kind?: 'download' | 'parse'; error?: string }> {
+    const normalized = String(id || '').toLowerCase();
+    const anim = await this.animator.preload(normalized);
+    if (anim) return { ok: true };
+    const recorded = this.animationLoadErrors.get(normalized);
+    return {
+      ok: false,
+      kind: recorded?.kind ?? 'download',
+      error: recorded?.message ?? 'Failed to download or parse animation asset',
+    };
+  }
+
   /** Bundled animations first, then (for custom/uploaded ones) the simulator's asset service. */
   private animationLoader() {
     const bundled = bundledAnimationLoader();
     return async (id: string) => {
-      const local = await bundled(id);
-      if (local) return local;
-      if (typeof this.protocol?.fetchAnimation !== 'function') return null;
+      const key = String(id || '').toLowerCase();
       try {
-        return parseAnimation(await this.protocol.fetchAnimation(id));
+        const local = await bundled(id);
+        if (local) {
+          this.animationLoadErrors.delete(key);
+          return local;
+        }
+      } catch {
+        // Fall through to simulator fetch
+      }
+      if (typeof this.protocol?.fetchAnimation !== 'function') {
+        const message = 'Animation asset unavailable without an active simulator connection';
+        this.animationLoadErrors.set(key, { kind: 'download', message });
+        this.emit('animation_error', { id, kind: 'download', message });
+        return null;
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = await this.protocol.fetchAnimation(id);
       } catch (error) {
         console.warn(`[WorldViewer] animation ${id} unavailable:`, error);
+        const message = error instanceof Error ? error.message : String(error || 'Download failed');
+        this.animationLoadErrors.set(key, { kind: 'download', message });
+        this.emit('animation_error', { id, kind: 'download', message });
+        return null;
+      }
+      try {
+        const parsed = parseAnimation(bytes);
+        if (!parsed) {
+          const message = 'Invalid or corrupt Second Life .anim asset format';
+          this.animationLoadErrors.set(key, { kind: 'parse', message });
+          this.emit('animation_error', { id, kind: 'parse', message });
+          return null;
+        }
+        this.animationLoadErrors.delete(key);
+        return parsed;
+      } catch (parseErr) {
+        const message =
+          parseErr instanceof Error && parseErr.message
+            ? `Invalid Second Life .anim format (${parseErr.message})`
+            : 'Invalid or corrupt Second Life .anim asset format';
+        this.animationLoadErrors.set(key, { kind: 'parse', message });
+        this.emit('animation_error', { id, kind: 'parse', message });
         return null;
       }
     };
@@ -1588,6 +1675,7 @@ export class WorldViewer extends Utils.EventEmitter {
         (motion, run) => this.controlAvatar(motion, run),
         {
           keyMode: () => this.keyMode(),
+          overrides: () => getStoredKeyOverrides(),
           resetView: () => this.resetCamera(),
           toggleMouselook: () => this.toggleCameraMode(),
           focusAt: (x, y) => this.focusAt(x, y),
@@ -1600,6 +1688,7 @@ export class WorldViewer extends Utils.EventEmitter {
       this.cameraControls.setDisplacementThreshold(this.dragDisplacementThreshold);
       this.agentKeyboard = new AgentKeyboard({
         mode: () => this.keyMode(),
+        overrides: () => getStoredKeyOverrides(),
         enabled: () => this.agentControlsActive(),
         send: (controlFlags) => {
           void this.protocol.setMovement({ controlFlags }).catch((error: unknown) => {
@@ -2974,8 +3063,13 @@ export class WorldViewer extends Utils.EventEmitter {
 
   private applyAvatarBody(id: string, config: any, object?: any) {
     if (!this.scene3d) return;
-    if (!this.animator.subjects().includes(id))
-      this.animator.setAnimations(id, [{ id: WorldViewer.STAND_ANIMATION, seq: 0 }]);
+    if (!this.animator.subjects().includes(id)) {
+      const defaultIdle: AnimationRequest[] = [{ id: WorldViewer.STAND_ANIMATION, seq: 0 }];
+      const resolved = this.animationInterceptor
+        ? this.animationInterceptor(id, defaultIdle)
+        : defaultIdle;
+      this.animator.setAnimations(id, resolved);
+    }
     const [x, y, z] = config.position;
     // The simulator reports the avatar's bounding box centre and its height in scale.z.
     const height = Array.isArray(config.scale) && config.scale[2] > 0.5 ? config.scale[2] : 1.9;

@@ -65,6 +65,218 @@ describe('BuildingToolbar Component', () => {
     expect(onRez).toHaveBeenCalledWith('sphere', expect.any(Array));
   });
 
+  it('manages roving tabIndex and horizontal arrow navigation with wrap-around across mode buttons', async () => {
+    const host = await mount(<BuildingToolbar />);
+
+    const getModeBtn = (label: string) =>
+      Array.from(host.querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === label,
+      ) as HTMLButtonElement;
+
+    const createBtn = getModeBtn('REZ PRIM');
+    const editBtn = getModeBtn('SHAPE PARAMS');
+    const linksetBtn = getModeBtn('LINKSET & DEREZ');
+
+    expect(createBtn.tabIndex).toBe(0);
+    expect(editBtn.tabIndex).toBe(-1);
+    expect(linksetBtn.tabIndex).toBe(-1);
+
+    await act(async () => {
+      createBtn.focus();
+    });
+    expect(document.activeElement).toBe(createBtn);
+
+    // ArrowRight moves focus and active mode to SHAPE PARAMS
+    await act(async () => {
+      createBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(editBtn);
+    expect(editBtn.tabIndex).toBe(0);
+    expect(createBtn.tabIndex).toBe(-1);
+    expect(editBtn.getAttribute('aria-pressed')).toBe('true');
+
+    // ArrowRight moves to LINKSET & DEREZ
+    await act(async () => {
+      editBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(linksetBtn);
+    expect(linksetBtn.tabIndex).toBe(0);
+    expect(editBtn.tabIndex).toBe(-1);
+
+    // ArrowRight at last mode button wraps around to REZ PRIM
+    await act(async () => {
+      linksetBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(createBtn);
+    expect(createBtn.tabIndex).toBe(0);
+    expect(linksetBtn.tabIndex).toBe(-1);
+
+    // ArrowLeft at first mode button wraps around to LINKSET & DEREZ
+    await act(async () => {
+      createBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(linksetBtn);
+    expect(linksetBtn.tabIndex).toBe(0);
+    expect(createBtn.tabIndex).toBe(-1);
+
+    // Home returns to REZ PRIM and End jumps to LINKSET & DEREZ
+    await act(async () => {
+      linksetBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(createBtn);
+    expect(createBtn.tabIndex).toBe(0);
+
+    await act(async () => {
+      createBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(linksetBtn);
+    expect(linksetBtn.tabIndex).toBe(0);
+  });
+
+  it('manages roving tabIndex across primitive shape buttons with 2D arrow navigation and restores selectedShape focus target on remount', async () => {
+    const host = await mount(<BuildingToolbar />);
+
+    const getShapeButtons = () =>
+      Array.from(host.querySelectorAll('button')).filter((b) =>
+        b.getAttribute('aria-label')?.startsWith('Select '),
+      ) as HTMLButtonElement[];
+
+    let shapeButtons = getShapeButtons();
+    expect(shapeButtons).toHaveLength(7);
+    expect(shapeButtons[0].getAttribute('aria-label')).toBe('Select Box shape');
+    expect(shapeButtons[0].tabIndex).toBe(0);
+    for (const btn of shapeButtons.slice(1)) {
+      expect(btn.tabIndex).toBe(-1);
+    }
+
+    await act(async () => {
+      shapeButtons[0].focus();
+    });
+
+    // ArrowLeft on first shape (Box) wraps to last shape (Ring)
+    await act(async () => {
+      shapeButtons[0].dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }),
+      );
+    });
+    shapeButtons = getShapeButtons();
+    const ringBtn = shapeButtons[6];
+    expect(ringBtn.getAttribute('aria-label')).toBe('Select Ring shape');
+    expect(document.activeElement).toBe(ringBtn);
+    expect(ringBtn.tabIndex).toBe(0);
+    expect(shapeButtons[0].tabIndex).toBe(-1);
+
+    // ArrowDown on last shape (Ring) wraps to first shape (Box) via orientation="both"
+    await act(async () => {
+      ringBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    shapeButtons = getShapeButtons();
+    expect(document.activeElement).toBe(shapeButtons[0]);
+    expect(shapeButtons[0].tabIndex).toBe(0);
+
+    // ArrowDown advances to Cylinder, ArrowUp returns to Box, ArrowRight advances to Cylinder -> Prism -> Sphere
+    await act(async () => {
+      shapeButtons[0].dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+      );
+    });
+    expect(document.activeElement).toBe(shapeButtons[1]);
+    expect(shapeButtons[1].getAttribute('aria-label')).toBe('Select Cylinder shape');
+
+    await act(async () => {
+      shapeButtons[1].dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }),
+      );
+    });
+    expect(document.activeElement).toBe(shapeButtons[0]);
+
+    for (let i = 0; i < 3; i++) {
+      const current = document.activeElement as HTMLButtonElement;
+      await act(async () => {
+        current.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+    }
+    expect(document.activeElement).toBe(shapeButtons[3]);
+    expect(shapeButtons[3].getAttribute('aria-label')).toBe('Select Sphere shape');
+    expect(shapeButtons[3].tabIndex).toBe(0);
+
+    // Switch mode to SHAPE PARAMS (unmounts primitive shape buttons) and back to REZ PRIM
+    const editBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'SHAPE PARAMS',
+    ) as HTMLButtonElement;
+    const createBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'REZ PRIM',
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      editBtn.click();
+    });
+    expect(getShapeButtons()).toHaveLength(0);
+
+    await act(async () => {
+      createBtn.click();
+    });
+
+    // Remounted primitive buttons restore roving tabIndex={0} only on Sphere (selectedShape)
+    const remountedShapes = getShapeButtons();
+    expect(remountedShapes).toHaveLength(7);
+    const remountedSphere = remountedShapes[3];
+    expect(remountedSphere.getAttribute('aria-label')).toBe('Select Sphere shape');
+    expect(remountedSphere.tabIndex).toBe(0);
+    for (const btn of remountedShapes) {
+      if (btn !== remountedSphere) {
+        expect(btn.tabIndex).toBe(-1);
+      }
+    }
+
+    // Arrow navigation continues cleanly from remounted Sphere -> Torus
+    await act(async () => {
+      remountedSphere.focus();
+      remountedSphere.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
+      );
+    });
+    expect(document.activeElement).toBe(remountedShapes[4]);
+    expect(remountedShapes[4].getAttribute('aria-label')).toBe('Select Torus shape');
+    expect(remountedShapes[4].tabIndex).toBe(0);
+  });
+
+  it('displays visible FocusRing outlines on focused mode and primitive shape buttons', async () => {
+    const host = await mount(<BuildingToolbar />);
+
+    const createBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'REZ PRIM',
+    ) as HTMLButtonElement;
+    const boxBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.getAttribute('aria-label') === 'Select Box shape',
+    ) as HTMLButtonElement;
+
+    expect(createBtn.style.outline).toBe('');
+    expect(boxBtn.style.outline).toBe('');
+
+    await act(async () => {
+      createBtn.focus();
+    });
+    expect(createBtn.style.outline).toContain('2px solid');
+    expect(createBtn.style.outlineOffset).toBe('2px');
+    expect(createBtn.getAttribute('data-focused')).toBe('true');
+
+    await act(async () => {
+      boxBtn.focus();
+    });
+    expect(createBtn.style.outline).toBe('');
+    expect(createBtn.getAttribute('data-focused')).toBeNull();
+    expect(boxBtn.style.outline).toContain('2px solid');
+    expect(boxBtn.style.outlineOffset).toBe('2px');
+    expect(boxBtn.getAttribute('data-focused')).toBe('true');
+
+    await act(async () => {
+      boxBtn.blur();
+    });
+    expect(boxBtn.style.outline).toBe('');
+    expect(boxBtn.getAttribute('data-focused')).toBeNull();
+  });
+
   it('switches to SHAPE PARAMS tab and updates shape params', async () => {
     const onUpdateShape = vi.fn();
     const dummyObj = { id: 'obj-1', localId: 101, name: 'Sample Prim' };
@@ -163,10 +375,12 @@ describe('BuildingToolbar Component', () => {
     expect(onLink).toHaveBeenCalledWith([101, 102]);
   });
 
-  it('calls onDelink and onDerez when action buttons are clicked', async () => {
+  it('opens confirmation modal before derezzing and dispatches onDerez only after confirmation', async () => {
     const onDelink = vi.fn();
     const onDerez = vi.fn();
     const dummyObj = { id: 'obj-1', localId: 101, name: 'Selected Prim' };
+    app.world.region = { name: 'Ahern' };
+
     const host = await mount(
       <BuildingToolbar
         selectedObject={dummyObj}
@@ -200,6 +414,183 @@ describe('BuildingToolbar Component', () => {
     await act(async () => {
       derezBtn?.click();
     });
+
+    // Initial click opens modal without invoking deletion
+    expect(onDerez).not.toHaveBeenCalled();
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.textContent).toContain('Confirm Object Derez');
+    expect(dialog?.textContent).toContain('Selected Prim');
+    expect(dialog?.textContent).toContain('101');
+    expect(dialog?.textContent).toContain('Ahern');
+
+    // Confirm Derez invokes deletion and closes modal
+    const confirmBtn = Array.from(dialog!.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm Derez'),
+    );
+    expect(confirmBtn).toBeDefined();
+    await act(async () => {
+      confirmBtn?.click();
+    });
+
+    expect(onDerez).toHaveBeenCalledTimes(1);
     expect(onDerez).toHaveBeenCalledWith([101]);
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+
+    app.world.region = null;
+  });
+
+  it('cancels derez modal via Cancel button and Escape key while trapping keyboard focus', async () => {
+    const onDerez = vi.fn();
+    const dummyObj = { id: 'obj-2', localId: 202, name: 'Sculpted Fountain' };
+
+    const host = await mount(
+      <BuildingToolbar selectedObject={dummyObj} simulatorName="Morris" onDerez={onDerez} />,
+    );
+
+    const linksetTabBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'LINKSET & DEREZ',
+    );
+    await act(async () => {
+      linksetTabBtn?.click();
+    });
+
+    const derezBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('DEREZ SELECTED OBJECT'),
+    ) as HTMLButtonElement;
+    await act(async () => {
+      derezBtn.focus();
+      derezBtn.click();
+    });
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain('Morris');
+
+    const cancelBtn = Array.from(dialog!.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Cancel',
+    ) as HTMLButtonElement;
+    const confirmBtn = Array.from(dialog!.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm Derez'),
+    ) as HTMLButtonElement;
+
+    // FocusTrap focuses first interactive control (Cancel) on mount
+    expect(document.activeElement).toBe(cancelBtn);
+
+    // Tab wraps focus inside modal
+    await act(async () => {
+      confirmBtn.focus();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(cancelBtn);
+
+    // Cancel button closes modal without deleting
+    await act(async () => {
+      cancelBtn.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(derezBtn);
+
+    // Re-open and dismiss via Escape key
+    await act(async () => {
+      derezBtn.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
+  });
+
+  it('falls back to primitive shape and local ID when custom name and simulator metadata are missing', async () => {
+    app.world.region = null;
+    const onDerez = vi.fn();
+    const unnamedObj = { id: 'obj-3', localId: 303, shape: 'cylinder' };
+
+    const host = await mount(<BuildingToolbar selectedObject={unnamedObj} onDerez={onDerez} />);
+
+    const linksetTabBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'LINKSET & DEREZ',
+    );
+    await act(async () => {
+      linksetTabBtn?.click();
+    });
+
+    const derezBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('DEREZ SELECTED OBJECT'),
+    );
+    await act(async () => {
+      derezBtn?.click();
+    });
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.querySelector('[data-testid="derez-target-name"]')?.textContent).toBe(
+      'Cylinder #303',
+    );
+    expect(dialog?.querySelector('[data-testid="derez-target-local-id"]')?.textContent).toBe('303');
+    expect(dialog?.querySelector('[data-testid="derez-target-simulator"]')?.textContent).toBe('—');
+  });
+
+  it('dismisses the confirmation modal without deleting when object selection changes', async () => {
+    const onDerez = vi.fn();
+    const firstObj = { id: 'obj-10', localId: 410, name: 'First Crate' };
+    const secondObj = { id: 'obj-20', localId: 420, name: 'Second Crate' };
+
+    const host = await mount(<BuildingToolbar selectedObject={firstObj} onDerez={onDerez} />);
+
+    const linksetTabBtn = Array.from(host.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'LINKSET & DEREZ',
+    );
+    await act(async () => {
+      linksetTabBtn?.click();
+    });
+
+    const derezBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('DEREZ SELECTED OBJECT'),
+    );
+    await act(async () => {
+      derezBtn?.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="derez-target-name"]')?.textContent).toBe(
+      'First Crate',
+    );
+
+    // Re-render with a different selectedObject prop while modal is open
+    await act(async () => {
+      mounted!.root.render(
+        createElement(
+          AppProvider,
+          null,
+          createElement(
+            ThemeProvider,
+            null,
+            <BuildingToolbar selectedObject={secondObj} onDerez={onDerez} />,
+          ),
+        ),
+      );
+    });
+
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
+
+    // Also verify dismissal when world selection_changed fires
+    await act(async () => {
+      derezBtn?.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+
+    await act(async () => {
+      app.world.emit('selection_changed', null);
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(onDerez).not.toHaveBeenCalled();
   });
 });

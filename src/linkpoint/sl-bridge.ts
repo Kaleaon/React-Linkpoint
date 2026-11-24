@@ -6,6 +6,7 @@ const READ_ONLY_CALLS = new Set([
   'fetchAnimation',
   'fetchSound',
   'fetchNotecard',
+  'fetchGesture',
   'getBalance',
   'requestPayPrice',
   'getObjectPayQuote',
@@ -371,6 +372,9 @@ export class SLBridge extends Utils.EventEmitter {
   joinGroup(params: { groupId: string }) {
     return this.call<{ joined: boolean }>('joinGroup', params);
   }
+  leaveGroup(params: { groupId: string }) {
+    return this.call<{ success: boolean; left?: boolean; groupId: string }>('leaveGroup', params);
+  }
   activateGroup(params: { groupId: string; roleId?: string }) {
     return this.call<{ success: boolean; groupId: string; roleId?: string }>(
       'activateGroup',
@@ -433,6 +437,24 @@ export class SLBridge extends Utils.EventEmitter {
       rightsMask: number;
       packet?: any;
     }>('grantUserRights', params);
+  }
+  terminateFriendship(params: {
+    targetId: string;
+    otherId?: string;
+    agentId?: string;
+    sessionId?: string;
+    packet?: unknown;
+  }) {
+    return this.call<{
+      success: boolean;
+      terminated: boolean;
+      targetId: string;
+      otherId?: string;
+      agentId?: string;
+      sessionId?: string;
+      messageId?: string;
+      packet?: unknown;
+    }>('terminateFriendship', params);
   }
   acceptInventoryOffer(params: { id: string }) {
     return this.call<{ accepted: boolean }>('acceptInventoryOffer', params);
@@ -715,6 +737,22 @@ export class SLBridge extends Utils.EventEmitter {
       ? this.call('getInventory', folderId ? { folderId } : {})
       : { folders: [], items: [] };
   }
+  async createInventoryFolder(params: {
+    parentId?: string;
+    name: string;
+    folderType?: number;
+    folderId?: string;
+  }) {
+    if (!this.connected) throw new Error('Not connected to simulator');
+    return this.call<{
+      success: boolean;
+      folderId: string;
+      parentId: string;
+      name: string;
+      folderType?: number;
+      folder?: any;
+    }>('createInventoryFolder', params);
+  }
   async purgeInventoryTrash(folderId?: string) {
     if (!this.connected) return { success: false };
     return this.call<{ success: boolean; folderId?: string }>(
@@ -807,6 +845,11 @@ export class SLBridge extends Utils.EventEmitter {
   fetchAnimation(id: string): Promise<{ id: string; data: string }> {
     return this.call('fetchAnimation', { id });
   }
+  sendAgentAnimations(
+    animations: Array<{ id: string; start: boolean }>,
+  ): Promise<{ sent: boolean; count: number }> {
+    return this.call('sendAgentAnimations', { animations });
+  }
   fetchSound(id: string): Promise<{ requested: boolean }> {
     return this.call('fetchSound', { id });
   }
@@ -822,6 +865,72 @@ export class SLBridge extends Utils.EventEmitter {
     text?: string;
   }): Promise<{ success: boolean; itemId: string; newAssetId?: string }> {
     return this.call('saveNotecard', params);
+  }
+  fetchGesture(
+    id: string,
+    itemId?: string,
+  ): Promise<{ id: string; itemId?: string; data: string; size: number }> {
+    return this.call('fetchGesture', { id, itemId });
+  }
+  activateGestures(params: {
+    gestures?: Array<{ itemId: string; assetId?: string; gestureFlags?: number }>;
+    itemId?: string;
+    assetId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }): Promise<{
+    activated: boolean;
+    count: number;
+    gestures: Array<{ itemId: string; assetId: string; gestureFlags: number }>;
+  }> {
+    return this.call('activateGestures', params as Record<string, unknown>);
+  }
+  activateGesture(params: {
+    itemId: string;
+    assetId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }) {
+    return this.call<{
+      activated: boolean;
+      count: number;
+      gestures: Array<{ itemId: string; assetId: string; gestureFlags: number }>;
+    }>('activateGesture', params as Record<string, unknown>);
+  }
+  deactivateGestures(params: {
+    gestures?: Array<{ itemId: string; gestureFlags?: number }>;
+    itemIds?: string[];
+    itemId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }): Promise<{
+    deactivated: boolean;
+    count: number;
+    gestures: Array<{ itemId: string; gestureFlags: number }>;
+  }> {
+    return this.call('deactivateGestures', params as Record<string, unknown>);
+  }
+  deactivateGesture(params: { itemId: string; flags?: number; gestureFlags?: number }) {
+    return this.call<{
+      deactivated: boolean;
+      count: number;
+      gestures: Array<{ itemId: string; gestureFlags: number }>;
+    }>('deactivateGesture', params as Record<string, unknown>);
+  }
+  setAgentAnimation(params: {
+    animations?: Array<{ animId: string; start?: boolean; stop?: boolean }>;
+    animId?: string;
+    start?: boolean;
+    stop?: boolean;
+  }): Promise<{ sent: boolean; animations: Array<{ animId: string; start: boolean }> }> {
+    return this.call('setAgentAnimation', params as Record<string, unknown>);
+  }
+  triggerGestureSound(params: {
+    soundId: string;
+    gain?: number;
+    position?: number[];
+  }): Promise<{ triggered: boolean; soundId: string; gain: number }> {
+    return this.call('triggerGestureSound', params as Record<string, unknown>);
   }
   /** `body` is built by `provisionBody` / `signalingBody` in voice-protocol.ts. */
   /** `regionHandle` provisions on a neighbouring region (cross-region voice) instead of the current one. */

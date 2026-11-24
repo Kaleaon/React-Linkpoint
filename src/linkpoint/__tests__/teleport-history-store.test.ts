@@ -354,5 +354,82 @@ describe('Teleport History Store & Capture Pipeline', () => {
       expect(forwardTarget?.regionName).toBe('Second Stop');
       expect(teleportSpy).toHaveBeenLastCalledWith('secondlife://Second%20Stop/140/160/40');
     });
+
+    it('records teleportCoordinate with exact region/position and ignores sender label during acceptLure session', async () => {
+      const testApp = new LinkpointApp();
+      testApp.protocol.connected = true;
+      (slBridge as any).connected = true;
+      testApp.protocol.agentId = avatarA;
+      testApp.auth.user = { id: avatarA, fullName: 'Coord Tester', grid: 'agni' };
+      testApp.interactions.init();
+
+      try {
+        vi.spyOn(slBridge, 'teleport').mockResolvedValueOnce({ message: 'Teleported' } as any);
+        await testApp.protocol.teleportCoordinate({
+          region: 'Morris',
+          x: 32,
+          y: 96,
+          z: 28,
+          destination: 'Featured Place Label',
+        });
+        await testApp.teleportHistory.flush();
+
+        let history = await testApp.teleportHistory.getHistory();
+        expect(history).toHaveLength(1);
+        expect(history[0]).toMatchObject({
+          regionName: 'Morris',
+          position: [32, 96, 28],
+          slurl: 'secondlife://Morris/32/96/28',
+          source: 'teleport',
+        });
+
+        vi.spyOn(slBridge, 'acceptLure').mockResolvedValueOnce({
+          accepted: true,
+          message: 'Arrived',
+        } as any);
+        testApp.protocol.emit('lure', {
+          id: 'lure-real-1',
+          fromId: 'sender-uuid',
+          fromName: 'Grace Hopper',
+          message: 'Come visit!',
+          regionId: 'reg-grace',
+          position: [144, 88, 42],
+          gridX: 1004,
+          gridY: 1009,
+          receivedAt: Date.now(),
+        });
+
+        await testApp.interactions.acceptLure('lure-real-1');
+        await testApp.teleportHistory.flush();
+
+        // Sender name ('Grace Hopper') must not be recorded as a region entry before RegionHandshake
+        history = await testApp.teleportHistory.getHistory();
+        expect(history).toHaveLength(1);
+        expect(history.some((r) => r.regionName === 'Grace Hopper')).toBe(false);
+
+        testApp.world.emit('region_changed', {
+          id: 'reg-grace',
+          name: 'Grace Atoll',
+          x: 1004,
+          y: 1009,
+          parcel: { Name: 'Harbor Pier' },
+        });
+        await testApp.teleportHistory.flush();
+
+        history = await testApp.teleportHistory.getHistory();
+        expect(history).toHaveLength(2);
+        expect(history[0]).toMatchObject({
+          regionName: 'Grace Atoll',
+          parcelName: 'Harbor Pier',
+          position: [144, 88, 42],
+          gridX: 1004,
+          gridY: 1009,
+          source: 'lure',
+          slurl: 'secondlife://Grace%20Atoll/144/88/42',
+        });
+      } finally {
+        (slBridge as any).connected = false;
+      }
+    });
   });
 });

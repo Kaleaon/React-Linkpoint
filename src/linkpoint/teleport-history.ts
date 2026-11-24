@@ -302,6 +302,10 @@ export class TeleportHistoryManager extends Utils.EventEmitter {
   }
 
   private async handleTeleportCompleted(data: any): Promise<void> {
+    if (data?.guard === 'acceptLure') {
+      return;
+    }
+
     const agentId = this.getActiveAgentId();
     if (!agentId) return;
 
@@ -310,7 +314,7 @@ export class TeleportHistoryManager extends Utils.EventEmitter {
     const parsed = parseTeleportDestination(rawDest);
 
     let regionName = String(
-      requested?.region || parsed?.regionName || data?.regionName || '',
+      requested?.region || data?.regionName || parsed?.regionName || '',
     ).trim();
 
     if (!regionName || RESERVED_TARGETS.has(regionName.toLowerCase())) {

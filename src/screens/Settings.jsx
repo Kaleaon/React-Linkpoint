@@ -4,6 +4,7 @@ import { NAV_ALL } from '../data/content.js';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import Toggle from '../components/Toggle.jsx';
 import AccessibleButton from '../components/AccessibleButton.jsx';
+import CrystalLoader from '../components/CrystalLoader.jsx';
 import ThemeStudio from '../components/ThemeStudio.jsx';
 import FormField from '../components/FormField.jsx';
 import { loadGoogle } from '../services/google.ts';
@@ -21,8 +22,31 @@ import {
   getFeatureCapability,
   isFeatureVisible,
 } from '../config/featureCapabilities.js';
+import { MAX_SETTINGS_BACKUP_BYTES } from '../services/settingsBackup';
 
-function ActionRemapRow({ action, label, description, currentBinding, onSave }) {
+function readFileAsText(file) {
+  if (typeof file.text === 'function') {
+    return file.text();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+/**
+ * @param {{
+ *   action: string,
+ *   label: string,
+ *   description: string,
+ *   currentBinding: string,
+ *   onSave: (binding: string) => boolean,
+ * }} props
+ */
+export function ActionRemapRow({ action, label, description, currentBinding, onSave }) {
+  const { V } = useTheme();
   const parsed = parseKeyString(currentBinding) || {
     alt: false,
     ctrl: false,
@@ -78,8 +102,9 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
         padding: '10px 12px',
         margin: '8px 0',
         borderRadius: '6px',
-        border: '1px solid rgba(255,255,255,0.1)',
-        background: 'rgba(0,0,0,0.2)',
+        border: `1px solid ${V.outv}`,
+        background: V.surf2,
+        color: V.ink,
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -91,8 +116,9 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
           aria-label={`Current keybinding for ${label}: ${formatKeyString(currentBinding) || currentBinding}`}
           style={{
             padding: '4px 8px',
-            borderRadius: '4px',
-            background: 'rgba(255,255,255,0.15)',
+            borderRadius: V.rs,
+            background: V.bdg,
+            color: V.onbdg,
             fontWeight: 'bold',
             fontSize: '12px',
             letterSpacing: '0.5px',
@@ -159,10 +185,10 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
               width: '60px',
               padding: '4px 6px',
               fontSize: '13px',
-              borderRadius: '4px',
-              border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(0,0,0,0.4)',
-              color: 'inherit',
+              borderRadius: V.rs,
+              border: `1px solid ${V.outv}`,
+              background: V.surf,
+              color: V.ink,
               textAlign: 'center',
               textTransform: 'uppercase',
             }}
@@ -183,12 +209,14 @@ function ActionRemapRow({ action, label, description, currentBinding, onSave }) 
         </button>
       </div>
 
-      {error && <span style={{ color: '#f87171', fontSize: '12px' }}>{error}</span>}
+      {error && <span style={{ color: V.err, fontSize: '12px' }}>{error}</span>}
     </div>
   );
 }
 
-function CapabilityBadge({ capability, size = 'small' }) {
+/** @param {{ capability?: string | null, size?: 'small' | 'medium' }} props */
+export function CapabilityBadge({ capability, size = 'small' }) {
+  const { V } = useTheme();
   if (!capability || capability === CAPABILITY_STATES.SUPPORTED) return null;
   const isSmall = size === 'small';
   return (
@@ -199,8 +227,8 @@ function CapabilityBadge({ capability, size = 'small' }) {
         fontSize: isSmall ? '9px' : '11px',
         padding: isSmall ? '1px 5px' : '2px 6px',
         borderRadius: isSmall ? '3px' : '4px',
-        background: 'var(--settings-accent, #3b82f6)',
-        color: '#fff',
+        background: V.bdg,
+        color: V.onbdg,
         textTransform: 'uppercase',
         fontWeight: '600',
       }}
@@ -245,6 +273,8 @@ export default function Settings() {
   const {
     singleCharShortcutsEnabled,
     setSingleCharShortcutsEnabled,
+    customBindings,
+    keyOverrides,
     getKeybinding,
     setCustomBinding,
     resetKeybindings,
@@ -252,6 +282,8 @@ export default function Settings() {
   const { V, t, LK } = useTheme();
   const contentRef = useRef(null);
   const browserRef = useRef(null);
+  const backupFileRef = useRef(null);
+  const [backupFeedback, setBackupFeedback] = useState(null);
   const [compact, setCompact] = useState(false);
   useEffect(() => {
     const element = browserRef.current;
@@ -307,6 +339,46 @@ export default function Settings() {
   const setVolume = (value) => {
     actions.setPref('volume', value);
     app.audio.setVolume(Number.parseInt(value, 10) / 100 || 0);
+  };
+
+  const handleExportBackup = () => {
+    const { filename } = actions.exportSettingsBackup({
+      singleCharShortcutsEnabled,
+      customBindings,
+      overrides: keyOverrides,
+    });
+    setBackupFeedback({
+      type: 'success',
+      message: `Backup exported (${filename}). Credentials and session tokens are excluded.`,
+    });
+  };
+
+  const handleRestoreBackupFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (typeof file.size === 'number' && file.size > MAX_SETTINGS_BACKUP_BYTES) {
+      const msg = 'Backup file exceeds the 1 MB maximum size limit.';
+      setBackupFeedback({ type: 'error', message: msg });
+      actions.notify(msg);
+      return;
+    }
+    try {
+      const rawText = await readFileAsText(file);
+      const result = actions.restoreSettingsBackup(rawText);
+      if (!result.ok) {
+        setBackupFeedback({ type: 'error', message: result.error });
+        return;
+      }
+      setBackupFeedback({
+        type: 'success',
+        message: 'Settings, theme, and keybindings restored from backup.',
+      });
+    } catch {
+      const msg = 'Could not read the selected backup file.';
+      setBackupFeedback({ type: 'error', message: msg });
+      actions.notify(msg);
+    }
   };
 
   const disconnect = async () => {
@@ -414,9 +486,27 @@ export default function Settings() {
             <dd>{app.protocol.agentId || 'Not supplied'}</dd>
           </dl>
           <div className="inline-tool" style={{ gap: '8px', marginTop: '12px' }}>
-            <button type="button" onClick={() => actions.reconnect()} disabled={state.reconnecting}>
-              {state.reconnecting ? 'Reconnecting…' : 'Reconnect to Grid'}
-            </button>
+            <AccessibleButton
+              as="button"
+              type="button"
+              onClick={() => actions.reconnect()}
+              disabled={state.reconnecting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              {state.reconnecting ? (
+                <>
+                  <CrystalLoader size={16} variant="inline" />
+                  <span>Reconnecting…</span>
+                </>
+              ) : (
+                'Reconnect to Grid'
+              )}
+            </AccessibleButton>
             {app.auth.isLoggedIn() ? (
               <button type="button" disabled={disconnecting} onClick={() => void disconnect()}>
                 {disconnecting ? 'Disconnecting…' : 'Disconnect'}
@@ -1040,6 +1130,59 @@ export default function Settings() {
             <button type="button" onClick={() => actions.setScreen('Diagnostics')}>
               Run Connection Diagnostics
             </button>
+          </div>
+          <div
+            style={{
+              marginTop: '12px',
+              paddingTop: '12px',
+              borderTop: `1px solid ${V.outv}`,
+            }}
+          >
+            <strong>Settings backup &amp; restore</strong>
+            <p style={{ margin: '4px 0 10px', opacity: 0.8, fontSize: '12px' }}>
+              Export your viewer preferences, custom theme, and keyboard shortcuts to a portable
+              JSON file, or restore them on another device. Passwords, multi-factor tokens, and
+              session identifiers are never exported or accepted.
+            </p>
+            <div className="inline-tool" style={{ gap: '8px', padding: 0, flexWrap: 'wrap' }}>
+              <button id="settings-export-backup-btn" type="button" onClick={handleExportBackup}>
+                Export Backup
+              </button>
+              <button
+                id="settings-restore-backup-btn"
+                type="button"
+                onClick={() => backupFileRef.current?.click()}
+              >
+                Restore Backup
+              </button>
+            </div>
+            <input
+              ref={backupFileRef}
+              id="settings-restore-backup-input"
+              className="sr-only"
+              tabIndex={-1}
+              type="file"
+              accept="application/json,.json"
+              aria-label="Restore settings backup JSON file"
+              onChange={(event) => void handleRestoreBackupFile(event)}
+            />
+            {backupFeedback ? (
+              <p
+                role={backupFeedback.type === 'error' ? 'alert' : 'status'}
+                style={{
+                  margin: '10px 0 0',
+                  padding: '8px 10px',
+                  borderRadius: V.rs,
+                  fontSize: '12px',
+                  color: V.ink,
+                  background: V.surf2,
+                  border: `1px solid ${backupFeedback.type === 'error' ? V.err : V.ok}`,
+                  borderLeft: `4px solid ${backupFeedback.type === 'error' ? V.err : V.ok}`,
+                }}
+              >
+                {backupFeedback.message}
+              </p>
+            ) : null}
           </div>
         </section>
 

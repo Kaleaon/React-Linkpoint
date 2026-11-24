@@ -112,4 +112,26 @@ describe('desktop packaging', () => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('includes Electron configuration validation in combined check scripts before build steps', () => {
+    const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    const checkScript = pkg.scripts?.check ?? '';
+    const electronCheckIdx = checkScript.indexOf('npm run check:electron');
+    const buildIdx = checkScript.indexOf('npm run build');
+    expect(electronCheckIdx).toBeGreaterThanOrEqual(0);
+    expect(buildIdx).toBeGreaterThan(electronCheckIdx);
+
+    const codexSetup = readFileSync(path.join(root, 'scripts', 'codex-setup.sh'), 'utf8');
+    const runChecksMatch = codexSetup.match(
+      /if \[\[ "\$RUN_CHECKS" == true \]\]; then([\s\S]*?)else/,
+    );
+    expect(runChecksMatch).not.toBeNull();
+    const runChecksBlock = runChecksMatch?.[1] ?? '';
+    const validateIdx = runChecksBlock.indexOf('node scripts/validate-electron-config.mjs');
+    const viteBuildIdx = runChecksBlock.indexOf('./node_modules/.bin/vite build');
+    expect(validateIdx).toBeGreaterThanOrEqual(0);
+    expect(viteBuildIdx).toBeGreaterThan(validateIdx);
+  });
 });

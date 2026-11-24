@@ -10,6 +10,9 @@ import {
 } from '../linkpoint/services/group-admin-capability-service';
 import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
+import TouchTarget from './TouchTarget';
+import FocusRing from './FocusRing';
+import CrystalLoader from './CrystalLoader.jsx';
 
 export default function GroupAdminFloater({
   groupId,
@@ -413,7 +416,6 @@ export default function GroupAdminFloater({
     color: V.ink,
     fontSize: 13,
     boxSizing: 'border-box',
-    outline: 'none',
   };
 
   return (
@@ -559,15 +561,23 @@ export default function GroupAdminFloater({
               gap: 8,
             }}
           >
-            <Icon name="alert-triangle" size={16} />
-            <span style={{ flex: 1 }}>{errorMessage}</span>
-            <button
+            <Icon name="alert-triangle" size={16} aria-hidden="true" />
+            <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{errorMessage}</span>
+            <TouchTarget
               type="button"
+              aria-label="Dismiss error message"
+              minSize={24}
+              padding={5}
               onClick={() => setErrorMessage('')}
-              style={{ all: 'unset', cursor: 'pointer' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                borderRadius: V.rs,
+              }}
             >
-              <Icon name="x" size={14} />
-            </button>
+              <Icon name="x" size={14} aria-hidden="true" />
+            </TouchTarget>
           </div>
         ) : null}
 
@@ -585,15 +595,23 @@ export default function GroupAdminFloater({
               gap: 8,
             }}
           >
-            <Icon name="check-circle" size={16} />
-            <span style={{ flex: 1 }}>{successMessage}</span>
-            <button
+            <Icon name="check-circle" size={16} aria-hidden="true" />
+            <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{successMessage}</span>
+            <TouchTarget
               type="button"
+              aria-label="Dismiss status message"
+              minSize={24}
+              padding={5}
               onClick={() => setSuccessMessage('')}
-              style={{ all: 'unset', cursor: 'pointer' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                borderRadius: V.rs,
+              }}
             >
-              <Icon name="x" size={14} />
-            </button>
+              <Icon name="x" size={14} aria-hidden="true" />
+            </TouchTarget>
           </div>
         ) : null}
 
@@ -724,14 +742,16 @@ export default function GroupAdminFloater({
                       >
                         ROLE NAME *
                       </label>
-                      <input
-                        type="text"
-                        required
-                        value={roleForm.name}
-                        onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                        placeholder="e.g. Officers"
-                        style={inputStyle}
-                      />
+                      <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                        <input
+                          type="text"
+                          required
+                          value={roleForm.name}
+                          onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                          placeholder="e.g. Officers"
+                          style={inputStyle}
+                        />
+                      </FocusRing>
                     </div>
                     <div>
                       <label
@@ -745,13 +765,15 @@ export default function GroupAdminFloater({
                       >
                         ROLE TITLE
                       </label>
-                      <input
-                        type="text"
-                        value={roleForm.title}
-                        onChange={(e) => setRoleForm({ ...roleForm, title: e.target.value })}
-                        placeholder="e.g. Officer"
-                        style={inputStyle}
-                      />
+                      <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                        <input
+                          type="text"
+                          value={roleForm.title}
+                          onChange={(e) => setRoleForm({ ...roleForm, title: e.target.value })}
+                          placeholder="e.g. Officer"
+                          style={inputStyle}
+                        />
+                      </FocusRing>
                     </div>
                     <div>
                       <label
@@ -765,13 +787,17 @@ export default function GroupAdminFloater({
                       >
                         DESCRIPTION
                       </label>
-                      <textarea
-                        rows={2}
-                        value={roleForm.description}
-                        onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                        placeholder="Role responsibilities and power descriptions"
-                        style={{ ...inputStyle, resize: 'vertical' }}
-                      />
+                      <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                        <textarea
+                          rows={2}
+                          value={roleForm.description}
+                          onChange={(e) =>
+                            setRoleForm({ ...roleForm, description: e.target.value })
+                          }
+                          placeholder="Role responsibilities and power descriptions"
+                          style={{ ...inputStyle, resize: 'vertical' }}
+                        />
+                      </FocusRing>
                     </div>
                   </div>
 
@@ -873,8 +899,17 @@ export default function GroupAdminFloater({
                       Cancel
                     </button>
                     <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                      <Icon name="check" size={14} />
-                      {busy ? 'Applying…' : isCreatingRole ? 'Create Role' : 'Apply Changes'}
+                      {busy ? (
+                        <>
+                          <CrystalLoader size={16} variant="inline" />
+                          <span>Applying…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="check" size={14} />
+                          <span>{isCreatingRole ? 'Create Role' : 'Apply Changes'}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -897,13 +932,15 @@ export default function GroupAdminFloater({
                 }}
               >
                 <div style={{ padding: 10, borderBottom: `1px solid ${V.outv}` }}>
-                  <input
-                    type="search"
-                    placeholder="Search members…"
-                    value={memberFilter}
-                    onChange={(e) => setMemberFilter(e.target.value)}
-                    style={{ ...inputStyle, fontSize: 12 }}
-                  />
+                  <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                    <input
+                      type="search"
+                      placeholder="Search members…"
+                      value={memberFilter}
+                      onChange={(e) => setMemberFilter(e.target.value)}
+                      style={{ ...inputStyle, fontSize: 12 }}
+                    />
+                  </FocusRing>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
                   {filteredMembers.map((m) => {
@@ -1067,8 +1104,17 @@ export default function GroupAdminFloater({
                           onClick={handleSaveMemberRoles}
                           style={primaryButtonStyle}
                         >
-                          <Icon name="check" size={14} />
-                          {busy ? 'Saving…' : 'Save Role Assignments'}
+                          {busy ? (
+                            <>
+                              <CrystalLoader size={16} variant="inline" />
+                              <span>Saving…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Icon name="check" size={14} />
+                              <span>Save Role Assignments</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1097,14 +1143,16 @@ export default function GroupAdminFloater({
                     >
                       RESIDENT NAME OR UUID *
                     </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Firstname Lastname or UUID"
-                      value={inviteAgentId}
-                      onChange={(e) => setInviteAgentId(e.target.value)}
-                      style={inputStyle}
-                    />
+                    <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Firstname Lastname or UUID"
+                        value={inviteAgentId}
+                        onChange={(e) => setInviteAgentId(e.target.value)}
+                        style={inputStyle}
+                      />
+                    </FocusRing>
                   </div>
 
                   <div>
@@ -1167,20 +1215,31 @@ export default function GroupAdminFloater({
                     >
                       INVITATION MESSAGE
                     </label>
-                    <textarea
-                      rows={3}
-                      placeholder="Welcome to our group!"
-                      value={inviteMessage}
-                      onChange={(e) => setInviteMessage(e.target.value)}
-                      style={{ ...inputStyle, resize: 'vertical' }}
-                    />
+                    <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                      <textarea
+                        rows={3}
+                        placeholder="Welcome to our group!"
+                        value={inviteMessage}
+                        onChange={(e) => setInviteMessage(e.target.value)}
+                        style={{ ...inputStyle, resize: 'vertical' }}
+                      />
+                    </FocusRing>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                   <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                    <Icon name="send" size={14} />
-                    {busy ? 'Sending…' : 'Send Invitation'}
+                    {busy ? (
+                      <>
+                        <CrystalLoader size={16} variant="inline" />
+                        <span>Sending…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="send" size={14} />
+                        <span>Send Invitation</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -1236,13 +1295,15 @@ export default function GroupAdminFloater({
                 >
                   REASON (OPTIONAL)
                 </label>
-                <input
-                  type="text"
-                  placeholder="Reason for ejection…"
-                  value={ejectReason}
-                  onChange={(e) => setEjectReason(e.target.value)}
-                  style={inputStyle}
-                />
+                <FocusRing ringColor={V.priText || V.pri} borderRadius={V.rs}>
+                  <input
+                    type="text"
+                    placeholder="Reason for ejection…"
+                    value={ejectReason}
+                    onChange={(e) => setEjectReason(e.target.value)}
+                    style={inputStyle}
+                  />
+                </FocusRing>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button
@@ -1259,8 +1320,17 @@ export default function GroupAdminFloater({
                   onClick={handleConfirmEject}
                   style={dangerButtonStyle}
                 >
-                  <Icon name="user-x" size={14} />
-                  {busy ? 'Ejecting…' : 'Confirm Eject'}
+                  {busy ? (
+                    <>
+                      <CrystalLoader size={16} variant="inline" />
+                      <span>Ejecting…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="user-x" size={14} />
+                      <span>Confirm Eject</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
