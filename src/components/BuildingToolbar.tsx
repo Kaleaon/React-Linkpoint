@@ -3,6 +3,7 @@ import { FocusRing } from '@linkpoint/design-system';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useRovingTabindex } from '../hooks/useRovingTabindex';
 import { app } from '../linkpoint/app';
+import FocusTrap from './FocusTrap.jsx';
 import Icon from './Icon.jsx';
 import TouchTarget from './TouchTarget';
 
@@ -33,6 +34,7 @@ const TOOLBAR_MODE_IDS: readonly ToolbarMode[] = TOOLBAR_MODES.map((mode) => mod
 export interface BuildingToolbarProps {
   selectedObject?: any;
   selectedObjects?: any[];
+  simulatorName?: string | null;
   onRez?: (shape: PrimShapeType, pos?: number[]) => void | Promise<any>;
   onLink?: (objectLocalIds: number[]) => void | Promise<any>;
   onDelink?: (objectLocalIds: number[]) => void | Promise<any>;
@@ -43,9 +45,56 @@ export interface BuildingToolbarProps {
   className?: string;
 }
 
+function getObjectIdentityKey(obj: any): string | null {
+  if (!obj) return null;
+  const rawLocalId = obj.localId ?? Number(obj.id);
+  const localIdPart =
+    typeof rawLocalId === 'number' && Number.isInteger(rawLocalId) && rawLocalId > 0
+      ? String(rawLocalId)
+      : '';
+  const idPart = obj.id ?? obj.uuid ?? '';
+  if (!idPart && !localIdPart) return null;
+  return `${String(idPart)}::${localIdPart}`;
+}
+
+function resolvePrimShapeLabel(obj: any, fallbackShape: PrimShapeType): string {
+  const rawShape = obj?.shape ?? obj?.shapeParams?.shape ?? obj?.primParams?.shape ?? fallbackShape;
+  const normalized = typeof rawShape === 'string' ? rawShape.trim() : String(rawShape || '').trim();
+  const matched = PRIM_SHAPES.find((s) => s.id === normalized.toLowerCase());
+  if (matched) return matched.label;
+  if (normalized) {
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+  return 'Primitive';
+}
+
+function resolveSimulatorName(propSimName?: string | null, obj?: any): string | null {
+  const candidates = [
+    propSimName,
+    obj?.simulatorName,
+    obj?.regionName,
+    obj?.simName,
+    obj?.simulator,
+    (app.world as any)?.regionName,
+    app.world?.region?.name,
+    (app.protocol as any)?.authReply?.sim_name,
+    app.protocol?.getDiagnostics?.()?.simName,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed && trimmed.toLowerCase() !== 'unknown region') {
+        return trimmed;
+      }
+    }
+  }
+  return null;
+}
+
 export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
   selectedObject: propSelectedObject,
   selectedObjects: propSelectedObjects,
+  simulatorName,
   onRez,
   onLink,
   onDelink,
@@ -57,11 +106,15 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
 }) => {
   const { V, t } = useTheme();
   const shapeSelectId = useId();
+  const derezTitleId = `${shapeSelectId}-derez-confirm-title`;
+  const derezDescId = `${shapeSelectId}-derez-confirm-desc`;
   const [selectedShape, setSelectedShape] = useState<PrimShapeType>('box');
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(
     null,
   );
   const [activeTab, setActiveTab] = useState<ToolbarMode>('create');
+  const [showDerezConfirm, setShowDerezConfirm] = useState<boolean>(false);
+  const [confirmTargetKey, setConfirmTargetKey] = useState<string | null>(null);
 
   const modeRoving = useRovingTabindex<ToolbarMode>({
     tabs: TOOLBAR_MODE_IDS,
@@ -104,6 +157,8 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
   const [profileHollow, setProfileHollow] = useState<number>(0);
   const [pathTwist, setPathTwist] = useState<number>(0);
 
+  const activeObject = propSelectedObject !== undefined ? propSelectedObject : currentObject;
+
   useEffect(() => {
     if (propSelectedObject !== undefined) {
       setCurrentObject(propSelectedObject);
@@ -121,12 +176,29 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
       if (propSelectedObject === undefined) {
         setCurrentObject(obj);
       }
+      setShowDerezConfirm((prevOpen) => {
+        if (!prevOpen) return false;
+        if (getObjectIdentityKey(obj) !== confirmTargetKey) {
+          setConfirmTargetKey(null);
+          return false;
+        }
+        return prevOpen;
+      });
     };
     app.world.on('selection_changed', handleSelectionChange);
     return () => {
       app.world.off('selection_changed', handleSelectionChange);
     };
-  }, [propSelectedObject]);
+  }, [propSelectedObject, confirmTargetKey]);
+
+  useEffect(() => {
+    if (!showDerezConfirm) return;
+    const currentKey = getObjectIdentityKey(activeObject);
+    if (!currentKey || currentKey !== confirmTargetKey) {
+      setShowDerezConfirm(false);
+      setConfirmTargetKey(null);
+    }
+  }, [activeObject, showDerezConfirm, confirmTargetKey]);
 
   // Synchronize shape editor state with selected object parameters
   useEffect(() => {
@@ -268,7 +340,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
   const handleDerez = async () => {
     try {
       setStatusMessage(null);
-      const localId = currentObject?.localId || Number(currentObject?.id);
+      const localId = activeObject?.localId || Number(activeObject?.id);
       if (!localId || !Number.isInteger(localId)) {
         showStatus('Select an object to derez / delete.', true);
         return;
@@ -283,6 +355,33 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
     } catch (error) {
       showStatus(error instanceof Error ? error.message : 'Derez failed', true);
     }
+  };
+
+  const handleRequestDerez = () => {
+    setStatusMessage(null);
+    const localId = activeObject?.localId || Number(activeObject?.id);
+    const targetKey = getObjectIdentityKey(activeObject);
+    if (!localId || !Number.isInteger(localId) || !targetKey) {
+      showStatus('Select an object to derez / delete.', true);
+      return;
+    }
+    setConfirmTargetKey(targetKey);
+    setShowDerezConfirm(true);
+  };
+
+  const handleCancelDerez = () => {
+    setShowDerezConfirm(false);
+    setConfirmTargetKey(null);
+  };
+
+  const handleConfirmDerez = async () => {
+    const currentKey = getObjectIdentityKey(activeObject);
+    if (!confirmTargetKey || currentKey !== confirmTargetKey) {
+      handleCancelDerez();
+      return;
+    }
+    handleCancelDerez();
+    await handleDerez();
   };
 
   const handleApplyShape = async () => {
@@ -332,6 +431,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
+    minWidth: '24px',
     minHeight: '26px',
     padding: '3px 8px',
     background: active ? V.pri : V.surf2 || V.surf,
@@ -415,9 +515,9 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
             padding: '6px 8px',
             borderRadius: V.rs,
             fontSize: '10px',
-            background: statusMessage.isError ? '#ef444420' : '#22c55e20',
-            border: `1px solid ${statusMessage.isError ? '#ef4444' : '#22c55e'}`,
-            color: statusMessage.isError ? '#f87171' : '#4ade80',
+            background: `${statusMessage.isError ? V.err : V.ok}14`,
+            border: `1px solid ${statusMessage.isError ? V.err : V.ok}`,
+            color: statusMessage.isError ? V.err : V.ok,
             fontWeight: 600,
           }}
         >
@@ -486,6 +586,8 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        minWidth: '24px',
+                        minHeight: '24px',
                         padding: '6px 4px',
                         background: isSelected ? V.pri : V.surf,
                         color: isSelected ? V.onpri : V.ink,
@@ -662,7 +764,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
               onClick={handleLink}
               aria-label="Link selected primitives into linkset"
               style={{
-                ...actionBtnStyle(V.onpri, '#0284c7'),
+                ...actionBtnStyle(V.onpri, V.pri),
               }}
             >
               <Icon name="link" size={12} />
@@ -683,10 +785,10 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
 
           <div style={{ borderTop: `1px solid ${V.outv}`, paddingTop: '6px', marginTop: '2px' }}>
             <TouchTarget
-              onClick={handleDerez}
+              onClick={handleRequestDerez}
               aria-label="Derez selected object"
               style={{
-                ...actionBtnStyle('#ffffff', '#dc2626'),
+                ...actionBtnStyle(V.onpri, V.err),
                 width: '100%',
                 minHeight: '32px',
               }}
@@ -697,6 +799,183 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
           </div>
         </div>
       )}
+
+      {showDerezConfirm &&
+        confirmTargetKey !== null &&
+        getObjectIdentityKey(activeObject) === confirmTargetKey &&
+        (() => {
+          const derezLocalIdRaw = activeObject?.localId || Number(activeObject?.id);
+          const derezLocalId =
+            typeof derezLocalIdRaw === 'number' &&
+            Number.isInteger(derezLocalIdRaw) &&
+            derezLocalIdRaw > 0
+              ? derezLocalIdRaw
+              : null;
+          const derezShapeLabel = resolvePrimShapeLabel(activeObject, selectedShape);
+          const customObjectName =
+            typeof activeObject?.name === 'string' ? activeObject.name.trim() : '';
+          const derezObjectName =
+            customObjectName ||
+            (derezLocalId !== null ? `${derezShapeLabel} #${derezLocalId}` : derezShapeLabel);
+          const derezSimulatorName = resolveSimulatorName(simulatorName, activeObject) || '—';
+
+          return (
+            <FocusTrap
+              active={true}
+              onEscape={handleCancelDerez}
+              onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+                if (e.target === e.currentTarget) {
+                  handleCancelDerez();
+                }
+              }}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1100,
+                padding: '16px',
+                boxSizing: 'border-box',
+                backdropFilter: 'blur(2px)',
+              }}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={derezTitleId}
+                aria-describedby={derezDescId}
+                style={{
+                  background: V.bg,
+                  color: V.ink,
+                  fontFamily: t.font,
+                  border: '1px solid #dc2626',
+                  borderRadius: V.rs,
+                  padding: '14px',
+                  width: '100%',
+                  maxWidth: '300px',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.65)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: '6px',
+                  }}
+                >
+                  <Icon name="trash-2" size={14} color="#ef4444" />
+                  <h3
+                    id={derezTitleId}
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: V.ink,
+                      margin: 0,
+                    }}
+                  >
+                    Confirm Object Derez
+                  </h3>
+                </div>
+
+                <p
+                  id={derezDescId}
+                  style={{
+                    fontSize: '10px',
+                    color: V.ink2,
+                    margin: '0 0 10px 0',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  This action removes the selected object from the simulator and cannot be undone.
+                </p>
+
+                <div
+                  style={{
+                    background: V.surf,
+                    border: `1px solid ${V.outv}`,
+                    borderRadius: V.rs,
+                    padding: '8px 10px',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '5px',
+                    fontSize: '10px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ color: V.ink2 }}>Object:</span>
+                    <span
+                      data-testid="derez-target-name"
+                      style={{
+                        color: V.ink,
+                        fontWeight: 700,
+                        textAlign: 'right',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {derezObjectName}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ color: V.ink2 }}>Primitive:</span>
+                    <span style={{ color: V.ink, fontWeight: 600 }}>{derezShapeLabel}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ color: V.ink2 }}>Local ID:</span>
+                    <span
+                      data-testid="derez-target-local-id"
+                      style={{ color: V.ink, fontFamily: 'monospace', fontWeight: 600 }}
+                    >
+                      {derezLocalId !== null ? derezLocalId : '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ color: V.ink2 }}>Simulator:</span>
+                    <span
+                      data-testid="derez-target-simulator"
+                      style={{
+                        color: V.ink,
+                        fontWeight: 600,
+                        textAlign: 'right',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {derezSimulatorName}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <TouchTarget
+                    onClick={handleCancelDerez}
+                    aria-label="Cancel object derez"
+                    style={{
+                      ...actionBtnStyle(V.ink, V.surf2 || V.surf),
+                      minHeight: '32px',
+                    }}
+                  >
+                    <span>Cancel</span>
+                  </TouchTarget>
+                  <TouchTarget
+                    onClick={handleConfirmDerez}
+                    aria-label="Confirm object derez"
+                    style={{
+                      ...actionBtnStyle('#ffffff', '#dc2626'),
+                      minHeight: '32px',
+                    }}
+                  >
+                    <Icon name="trash-2" size={12} />
+                    <span>Confirm Derez</span>
+                  </TouchTarget>
+                </div>
+              </div>
+            </FocusTrap>
+          );
+        })()}
     </div>
   );
 };

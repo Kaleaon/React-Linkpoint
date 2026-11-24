@@ -5,6 +5,7 @@
 import { purgeFabricatedStorage } from './fabricated-data';
 import { migrationUtility } from './migration';
 import { SLConnectionFull } from './sl-connection-full';
+import { ChatType } from './sl-message-types';
 import { AuthManager } from './auth';
 import { WorldViewer } from './world';
 import { ChatManager } from './chat';
@@ -48,6 +49,7 @@ import { FriendsExtended } from './phase2/friends-extended';
 import { GroupNoticeSyncEngine } from './group-notice-sync-engine';
 import { EconomySyncEngine } from './phase2/economy-sync-engine';
 import { GroupAdminCapabilityService } from './services/group-admin-capability-service';
+import { GestureRuntimeEngine } from './gesture-runtime-engine';
 
 export class LinkpointApp {
   private balanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -79,6 +81,8 @@ export class LinkpointApp {
   public inventoryCore: InventoryCore;
   public inventoryOps: InventoryOperations;
   public inventoryTypes: InventorySpecialTypes;
+  public gestures: GestureRuntimeEngine;
+  public gestureRuntime: GestureRuntimeEngine;
   public chatExtended: ChatExtended;
   public groups: GroupsManager;
   public groupAdmin: GroupAdminCapabilityService;
@@ -136,7 +140,34 @@ export class LinkpointApp {
     this.inventoryCore = this.inventory as any;
     this.inventoryOps = new InventoryOperations(this.inventory as any);
     this.inventoryTypes = new InventorySpecialTypes();
+    this.gestures = new GestureRuntimeEngine({
+      bridge: slBridge,
+      handlers: {
+        onSound: (step) => {
+          if (step.assetId) {
+            this.inventoryTypes.playSound(step.assetId);
+          }
+        },
+        onChat: (step) => {
+          if (step.text.trim() && this.auth.isLoggedIn()) {
+            return this.chat.sendMessage(step.text, step.channel, step.chatType as ChatType, {
+              skipGestureTriggers: true,
+            });
+          }
+        },
+        resolveAnimationDurationMs: (animId) => {
+          const anim = this.inventoryTypes.getAnimation(animId);
+          return typeof anim?.duration === 'number' && anim.duration > 0
+            ? Math.round(anim.duration * 1000)
+            : undefined;
+        },
+      },
+    });
+    this.gestureRuntime = this.gestures;
+    this.inventoryTypes.setGestureRuntime(this.gestures);
     this.chatExtended = new ChatExtended(this.chatAdapter);
+    this.chat.setGestureEngine(this.gestures);
+    this.chatExtended.setGestureEngine(this.gestures);
     this.chat.setMessageFilter((message) => this.chatExtended.shouldDisplayMessage(message));
     this.groups = new GroupsManager(this.chatAdapter, this.capabilities, this.notices);
     this.groupAdmin = new GroupAdminCapabilityService(this.capabilities, this.groups);
@@ -144,6 +175,12 @@ export class LinkpointApp {
     slBridge.on('active_group_changed', (payload: any) => {
       if (payload?.groupId) {
         this.groups.setActiveGroupId(payload.groupId, payload.roleId);
+      }
+    });
+    slBridge.on('group_left', (payload: any) => {
+      if (payload?.groupId) {
+        this.groupNoticeSyncEngine?.dequeueGroup(payload.groupId);
+        this.groups.removeGroup(payload.groupId);
       }
     });
     this.groupNoticeSyncEngine = new GroupNoticeSyncEngine(this.groups, this.notices);
@@ -311,6 +348,7 @@ export class LinkpointApp {
         mode: () => this.world.keyMode(),
         enabled: () => this.voice.state === 'connected',
       });
+      this.gestures.attachKeyListener(window);
     }
 
     this.setupEventListeners();
@@ -473,9 +511,13 @@ export class LinkpointApp {
       }
     });
 
+    this.inventory.on('inventory_loaded', () => this.syncInventoryGestures());
+    this.inventory.on('inventory_updated', () => this.syncInventoryGestures());
+
     this.auth.on('logout', () => {
       void this.voice.disconnect();
       console.log('User logged out');
+      this.gestures.stopAll();
       this.eventQueue.stopPolling();
       this.groupNoticeSyncEngine.stop();
       this.chat.clearHistory();
@@ -556,6 +598,79 @@ export class LinkpointApp {
     return slBridge.saveOutfitAs(params);
   }
 
+  private syncInventoryGestures() {
+    for (const item of this.inventory.items.values()) {
+      if (Number(item?.assetType) !== 21 || !item?.id) continue;
+      if (this.gestures.getGesture(item.id)) continue;
+      try {
+        this.inventoryTypes.registerGesture(item.id, {
+          itemId: item.id,
+          assetId: item.assetId || '',
+          name: item.name || 'Gesture',
+          active: false,
+        });
+      } catch (err) {
+        console.warn('[LinkpointApp] Skipping gesture registration:', err);
+      }
+    }
+  }
+
+  private async ensureInventoryGestureCompiled(itemId: string): Promise<void> {
+    const cleanId = String(itemId || '').trim();
+    if (!cleanId) return;
+    const invItem: any = this.inventory.items.get(cleanId);
+    const existing = this.gestures.getGesture(cleanId);
+    const needsAssetHydration =
+      !existing ||
+      (existing.compiled.steps.length === 0 &&
+        !existing.compiled.trigger &&
+        !existing.compiled.hotkey);
+
+    if (needsAssetHydration && slBridge.connected) {
+      try {
+        const assetId = invItem?.assetId || existing?.compiled.assetId || '';
+        const fetched = await slBridge.fetchGesture(assetId, cleanId);
+        if (fetched?.data) {
+          this.inventoryTypes.registerGesture(cleanId, {
+            itemId: cleanId,
+            assetId: fetched.id || assetId,
+            name: invItem?.name || existing?.compiled.name || 'Gesture',
+            assetData: fetched.data,
+            active: existing?.active ?? false,
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn(`[LinkpointApp] Could not download gesture asset for ${cleanId}:`, err);
+      }
+    }
+
+    if (!existing && invItem) {
+      this.inventoryTypes.registerGesture(cleanId, {
+        itemId: cleanId,
+        assetId: invItem.assetId || '',
+        name: invItem.name || 'Gesture',
+        active: false,
+      });
+    }
+  }
+
+  async activateInventoryGesture(itemId: string) {
+    await this.ensureInventoryGestureCompiled(itemId);
+    this.inventoryTypes.setGestureActive(itemId, true);
+    return this.gestures.getGesture(itemId);
+  }
+
+  async deactivateInventoryGesture(itemId: string) {
+    this.inventoryTypes.setGestureActive(itemId, false);
+    return this.gestures.getGesture(itemId);
+  }
+
+  async playInventoryGesture(itemId: string) {
+    await this.ensureInventoryGestureCompiled(itemId);
+    return this.gestures.executeGesture(itemId);
+  }
+
   async activateGroup(groupId: string, roleId?: string) {
     const targetGroupId = groupId ? groupId.trim() : '00000000-0000-0000-0000-000000000000';
     const targetRoleId = roleId ? roleId.trim() : '00000000-0000-0000-0000-000000000000';
@@ -577,6 +692,35 @@ export class LinkpointApp {
 
   async clearActiveGroup() {
     return this.activateGroup('00000000-0000-0000-0000-000000000000');
+  }
+
+  async leaveGroup(groupId: string) {
+    const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+    const targetGroupId = groupId ? groupId.trim().toLowerCase() : '';
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetGroupId) || targetGroupId === ZERO_UUID) {
+      throw new Error(`Invalid group ID format: ${groupId}`);
+    }
+
+    const wasActive = this.groups.getActiveGroupId().toLowerCase() === targetGroupId;
+
+    if (slBridge.connected) {
+      await slBridge.leaveGroup({ groupId: targetGroupId });
+      if (wasActive && slBridge.sessionId) {
+        await slBridge.activateGroup({ groupId: ZERO_UUID, roleId: ZERO_UUID }).catch(() => {});
+      }
+    }
+
+    if (wasActive) {
+      this.groups.clearActiveGroup();
+    }
+
+    this.groupNoticeSyncEngine?.dequeueGroup(targetGroupId);
+    this.notices.purgeGroup(targetGroupId);
+    this.groups.removeGroup(targetGroupId);
+
+    return { success: true, left: true, groupId: targetGroupId };
   }
 
   async inviteGroupMember(groupId: string, avatarId: string, roleId?: string) {

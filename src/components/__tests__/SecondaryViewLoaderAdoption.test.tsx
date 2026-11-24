@@ -108,41 +108,46 @@ describe('SecondaryViewLoader Adoption in Secondary Views', () => {
     });
   });
 
-  describe('World3D renderer startup integration', () => {
-    it('outputs SecondaryViewLoader with inline CrystalLoader during renderer startup and clears when ready', async () => {
+  describe('World3D screen integration', () => {
+    it('renders inline SecondaryViewLoader while renderer is initializing and hides it when ready', async () => {
       vi.spyOn(app.world, 'init').mockImplementation(() => new Promise(() => {}));
       vi.spyOn(app.world, 'destroyRenderer').mockImplementation(() => {});
 
       const host = await mount(createElement(World3D));
 
       // Collapsed status output displays inline SecondaryViewLoader during startup
-      let startupLoader = host.querySelector(
+      const collapsedLoader = host.querySelector(
         'output [data-testid="secondary-view-loader"]',
       ) as HTMLElement | null;
-      expect(startupLoader).not.toBeNull();
-      expect(startupLoader?.getAttribute('data-layout')).toBe('inline');
-      expect(startupLoader?.textContent).toContain('Starting renderer…');
-      const crystal = startupLoader?.querySelector('[data-testid="crystal-loader"]');
-      expect(crystal).not.toBeNull();
-      expect(crystal?.getAttribute('data-variant')).toBe('inline');
+      expect(collapsedLoader).not.toBeNull();
+      expect(collapsedLoader?.getAttribute('data-layout')).toBe('inline');
+      expect(collapsedLoader?.getAttribute('role')).toBe('status');
+      expect(collapsedLoader?.textContent).toContain('Starting renderer…');
+      const collapsedCrystal = collapsedLoader?.querySelector('[data-testid="crystal-loader"]');
+      expect(collapsedCrystal).not.toBeNull();
+      expect(collapsedCrystal?.getAttribute('data-variant')).toBe('inline');
 
-      // Expand diagnostics panel and verify expanded output also renders inline SecondaryViewLoader
-      const expandBtn = host.querySelector(
-        'button[aria-label="Expand scene statistics"]',
-      ) as HTMLButtonElement | null;
+      const expandBtn = host.querySelector('[aria-label="Expand scene statistics"]') as HTMLElement;
+      expect(expandBtn).not.toBeNull();
+
       await act(async () => {
-        expandBtn?.click();
+        expandBtn.click();
       });
 
-      startupLoader = host.querySelector(
+      const loader = host.querySelector(
         'output [data-testid="secondary-view-loader"]',
-      ) as HTMLElement | null;
-      expect(startupLoader).not.toBeNull();
-      expect(startupLoader?.getAttribute('data-layout')).toBe('inline');
-      expect(startupLoader?.textContent).toContain('Starting renderer…');
-      expect(startupLoader?.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+      ) as HTMLElement;
+      expect(loader).not.toBeNull();
+      expect(loader.getAttribute('data-layout')).toBe('inline');
+      expect(loader.getAttribute('role')).toBe('status');
+      expect(loader.textContent).toContain('Starting renderer…');
 
-      // Emit renderer ready state and confirm loader disappears
+      const crystal = loader.querySelector('[data-testid="crystal-loader"]') as HTMLElement;
+      expect(crystal).not.toBeNull();
+      expect(crystal.getAttribute('data-variant')).toBe('inline');
+      expect(crystal.style.width).toBe('14px');
+      expect(crystal.style.height).toBe('14px');
+
       await act(async () => {
         app.world.emit('renderer_state', { ready: true, message: '' });
       });

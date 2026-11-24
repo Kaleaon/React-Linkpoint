@@ -7,6 +7,7 @@ import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import Inventory from '../../screens/Inventory.jsx';
 import { FriendsScreen, GroupsScreen } from '../../screens/LiveScreens.jsx';
 import CacheScreen from '../../screens/CacheScreen.jsx';
+import World3D from '../../screens/World3D.jsx';
 import CalendarScreen from '../../screens/CalendarScreen.jsx';
 import OutfitViewer from '../../screens/OutfitViewer.jsx';
 import GroupAdminFloater from '../GroupAdminFloater.jsx';
@@ -748,6 +749,80 @@ describe('SyncActionButton Adoption Across Screens', () => {
     await act(async () => {
       resolveNotice?.({ id: 'n-1' });
     });
+  });
+
+  it('World3D screen uses SyncActionButton for scene synchronization and respects logged-out state', async () => {
+    vi.spyOn(app.world, 'init').mockResolvedValue(undefined);
+    vi.spyOn(app.world, 'destroyRenderer').mockImplementation(() => {});
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(false);
+
+    const host = await mount(createElement(World3D));
+    const expandBtn = host.querySelector('[aria-label="Expand scene statistics"]') as HTMLElement;
+    expect(expandBtn).not.toBeNull();
+    await act(async () => {
+      expandBtn.click();
+    });
+
+    const syncBtn = Array.from(host.querySelectorAll('button')).find((btn) =>
+      btn.textContent?.includes('SYNC SCENE'),
+    ) as HTMLButtonElement | undefined;
+
+    expect(syncBtn).toBeDefined();
+    expect(syncBtn!.classList.contains('sync-action-button')).toBe(true);
+    expect(syncBtn!.classList.contains('touch-target')).toBe(true);
+    expect(parseInt(syncBtn!.style.minWidth || '0', 10)).toBeGreaterThanOrEqual(24);
+    expect(parseInt(syncBtn!.style.minHeight || '0', 10)).toBeGreaterThanOrEqual(24);
+    expect(syncBtn!.disabled).toBe(true);
+    expect(syncBtn!.getAttribute('data-loading')).toBe('false');
+  });
+
+  it('World3D screen toggles CrystalLoader during active sync and resets on error', async () => {
+    vi.spyOn(app.world, 'init').mockResolvedValue(undefined);
+    vi.spyOn(app.world, 'destroyRenderer').mockImplementation(() => {});
+    vi.spyOn(app.auth, 'isLoggedIn').mockReturnValue(true);
+
+    let rejectRetry!: (reason?: unknown) => void;
+    const retrySpy = vi.spyOn(app.world, 'retryFailedAssets').mockImplementation(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectRetry = reject;
+        }),
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const host = await mount(createElement(World3D));
+    const expandBtn = host.querySelector('[aria-label="Expand scene statistics"]') as HTMLElement;
+    await act(async () => {
+      expandBtn.click();
+    });
+
+    const syncBtn = host.querySelector(
+      'output button[data-testid="sync-action-button"]',
+    ) as HTMLButtonElement;
+    expect(syncBtn).not.toBeNull();
+    expect(syncBtn.disabled).toBe(false);
+    expect(syncBtn.textContent).toContain('SYNC SCENE');
+
+    await act(async () => {
+      syncBtn.click();
+    });
+
+    expect(retrySpy).toHaveBeenCalledTimes(1);
+    expect(syncBtn.disabled).toBe(true);
+    expect(syncBtn.getAttribute('aria-busy')).toBe('true');
+    expect(syncBtn.getAttribute('data-loading')).toBe('true');
+    expect(syncBtn.textContent).toContain('SYNCING…');
+    expect(syncBtn.querySelector('[data-testid="crystal-loader"]')).not.toBeNull();
+
+    await act(async () => {
+      rejectRetry(new Error('network timeout'));
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith('Refresh scene error:', expect.any(Error));
+    expect(syncBtn.disabled).toBe(false);
+    expect(syncBtn.getAttribute('aria-busy')).toBeNull();
+    expect(syncBtn.getAttribute('data-loading')).toBe('false');
+    expect(syncBtn.textContent).toContain('SYNC SCENE');
   });
 
   it('OutfitViewer screen uses SyncActionButton for worn outfit refresh, enforces touch targets, shows CrystalLoader when loading, and stays disabled when logged out', async () => {

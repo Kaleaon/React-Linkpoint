@@ -423,6 +423,188 @@ describe('ResidentInspector & Profile Tabs Integration', () => {
     }
   });
 
+  it('renders Pay button with minSize 44 and opens PayDialog with avatar target', async () => {
+    app.economy.currencySymbol = 'L$';
+    app.economy.isZeroCurrency = false;
+
+    const host = await mount(
+      <ResidentInspector
+        target={{ name: 'Philip Linden', id: 'avatar-uuid-001' }}
+        onReturn={() => {}}
+      />,
+    );
+
+    const payBtn = host.querySelector('[data-testid="resident-pay-btn"]') as HTMLButtonElement;
+    expect(payBtn).not.toBeNull();
+    expect(payBtn.disabled).toBe(false);
+    expect(payBtn.style.minWidth).toBe('44px');
+    expect(payBtn.style.minHeight).toBe('44px');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+
+    await act(async () => {
+      payBtn.click();
+    });
+
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(host.querySelector('#pay-dialog-title')?.textContent).toContain('Pay Resident');
+    expect(dialog?.textContent).toContain('Philip Linden');
+    expect(dialog?.textContent).toContain('Quick-tip Presets');
+
+    const cancelBtn = Array.from(dialog?.querySelectorAll('button') || []).find(
+      (btn) => btn.textContent?.trim() === 'Cancel',
+    );
+    expect(cancelBtn).toBeDefined();
+
+    await act(async () => {
+      cancelBtn?.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('submits avatar payment via PayDialog and triggers confirmation toast notification', async () => {
+    app.economy.currencySymbol = 'L$';
+    app.economy.isZeroCurrency = false;
+
+    const payAvatarSpy = vi.spyOn(app.economy, 'payAvatar').mockResolvedValueOnce({
+      id: 'tx-avatar-001',
+      agentId: 'usr-local-1234',
+      targetId: 'avatar-uuid-001',
+      targetName: 'Philip Linden',
+      targetType: 'avatar',
+      amount: 10,
+      type: 'tip',
+      description: 'Tip for Philip Linden',
+      timestamp: Date.now(),
+      status: 'success',
+    });
+
+    function PaymentHarness() {
+      const { state } = useApp();
+      return (
+        <>
+          <ResidentInspector
+            target={{ name: 'Philip Linden', id: 'avatar-uuid-001' }}
+            onReturn={() => {}}
+          />
+          <div data-testid="toast-probe">{state.toast}</div>
+        </>
+      );
+    }
+
+    const host = await mount(<PaymentHarness />);
+    const payBtn = host.querySelector('[data-testid="resident-pay-btn"]') as HTMLButtonElement;
+
+    await act(async () => {
+      payBtn.click();
+    });
+
+    const submitBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submitBtn).not.toBeNull();
+
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(payAvatarSpy).toHaveBeenCalledWith({
+      targetId: 'avatar-uuid-001',
+      targetName: 'Philip Linden',
+      amount: 10,
+      description: 'Tip for Philip Linden',
+    });
+    expect(host.querySelector('[data-testid="toast-probe"]')?.textContent).toContain(
+      'Paid L$ 10 to Philip Linden',
+    );
+
+    const doneBtn = Array.from(host.querySelectorAll('button')).find(
+      (btn) => btn.textContent?.trim() === 'Done',
+    );
+    expect(doneBtn).toBeDefined();
+
+    await act(async () => {
+      doneBtn?.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('disables Pay button with tooltip when targetId is absent', async () => {
+    const host = await mount(
+      <ResidentInspector target={{ name: 'Unresolved Resident' }} onReturn={() => {}} />,
+    );
+
+    const payBtn = host.querySelector('[data-testid="resident-pay-btn"]') as HTMLButtonElement;
+    expect(payBtn).not.toBeNull();
+    expect(payBtn.disabled).toBe(true);
+    expect(payBtn.getAttribute('title')).toContain('Resident ID unavailable');
+
+    await act(async () => {
+      payBtn.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('disables Pay button when inspected avatar is the logged-in user', async () => {
+    const host = await mount(
+      <ResidentInspector
+        target={{ name: 'Local User', id: 'usr-local-1234' }}
+        onReturn={() => {}}
+      />,
+    );
+
+    const payBtn = host.querySelector('[data-testid="resident-pay-btn"]') as HTMLButtonElement;
+    expect(payBtn).not.toBeNull();
+    expect(payBtn.disabled).toBe(true);
+    expect(payBtn.getAttribute('title')).toContain('Cannot send payment to yourself');
+
+    await act(async () => {
+      payBtn.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('handles payment failure gracefully and resets error state when closed and reopened', async () => {
+    app.economy.currencySymbol = 'L$';
+    app.economy.isZeroCurrency = false;
+
+    vi.spyOn(app.economy, 'payAvatar').mockRejectedValueOnce(new Error('Transfer declined'));
+
+    const host = await mount(
+      <ResidentInspector
+        target={{ name: 'Philip Linden', id: 'avatar-uuid-001' }}
+        onReturn={() => {}}
+      />,
+    );
+
+    const payBtn = host.querySelector('[data-testid="resident-pay-btn"]') as HTMLButtonElement;
+    await act(async () => {
+      payBtn.click();
+    });
+
+    const submitBtn = host.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Transfer declined');
+
+    const cancelBtn = Array.from(host.querySelectorAll('button')).find(
+      (btn) => btn.textContent?.trim() === 'Cancel',
+    );
+    await act(async () => {
+      cancelBtn?.click();
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+
+    await act(async () => {
+      payBtn.click();
+    });
+    expect(host.querySelector('[role="dialog"]')?.textContent).not.toContain('Transfer declined');
+  });
+
   it('Mute Toggle: clicking Mute calls chatExtended.muteUser, notifies user, updates label to Unmute, and clicking again unmutes', async () => {
     const muteSpy = vi.spyOn(app.chatExtended, 'muteUser');
     const unmuteSpy = vi.spyOn(app.chatExtended, 'unmuteUser');

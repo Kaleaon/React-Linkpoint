@@ -8,8 +8,9 @@ import { useKeybindings } from '../context/KeybindingsContext.tsx';
 import ViewportCanvas from '../components/ViewportCanvas';
 import HudControls from './HudControls.jsx';
 import TouchTarget from '../components/TouchTarget.tsx';
-import SecondaryViewLoader from '../components/SecondaryViewLoader.tsx';
 import FocusRing from '../components/FocusRing.tsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
+import SecondaryViewLoader from '../components/SecondaryViewLoader.tsx';
 import MobileOverlayControls from '../components/MobileOverlayControls.tsx';
 import OutfitCarouselDrawer from '../components/OutfitCarouselDrawer.tsx';
 import AccessibleChatLog from '../components/AccessibleChatLog.jsx';
@@ -26,6 +27,7 @@ export default function World3D({ desktopBackdrop = false }) {
   const sectionRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
   const [position, setPosition] = useState([0, 0, 0]);
   const [objectCount, setObjectCount] = useState(app.world.objects.length);
   const [cameraPreset, setCameraPreset] = useState('rear');
@@ -297,12 +299,15 @@ export default function World3D({ desktopBackdrop = false }) {
   };
 
   const handleRefreshScene = async () => {
+    setIsSyncing(true);
     try {
       await app.world.retryFailedAssets();
       setObjectCount(app.world.objects.length);
       refresh();
     } catch (err) {
       console.warn('Refresh scene error:', err);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -634,27 +639,35 @@ export default function World3D({ desktopBackdrop = false }) {
                 </div>
                 <div style={{ marginTop: 4 }}>
                   <FocusRing ringColor={V.pri} borderRadius={V.rs}>
-                    <TouchTarget
+                    <SyncActionButton
+                      type="button"
+                      enhanced={false}
                       minSize={24}
                       padding="2px 8px"
                       onClick={handleRefreshScene}
+                      loading={isSyncing}
                       disabled={!app.auth.isLoggedIn()}
+                      iconName="rotate-cw"
+                      size={14}
+                      idleText="SYNC SCENE"
+                      loadingText="SYNCING…"
+                      title="Synchronize scene assets"
                       style={{
                         fontSize: '10px',
+                        fontWeight: 700,
                         background: V.pri,
                         color: V.onpri,
                         border: 0,
                         borderRadius: V.rs,
                       }}
-                    >
-                      SYNC SCENE
-                    </TouchTarget>
+                    />
                   </FocusRing>
                 </div>
                 {!ready && !error ? (
                   <div style={{ marginTop: 4 }}>
                     <SecondaryViewLoader
                       as="span"
+                      role="status"
                       layout="inline"
                       size={14}
                       label="Starting renderer…"
@@ -704,6 +717,7 @@ export default function World3D({ desktopBackdrop = false }) {
                 {!ready && !error ? (
                   <SecondaryViewLoader
                     as="span"
+                    role="status"
                     layout="inline"
                     size={12}
                     label="Starting renderer…"
