@@ -517,6 +517,10 @@ const {
   UpdateInventoryItemMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/UpdateInventoryItem');
 const {
+  CreateInventoryItemMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/CreateInventoryItem');
+const { InventoryType } = require('@caspertech/node-metaverse/dist/lib/enums/InventoryType');
+const {
   AgentAnimationMessage,
 } = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentAnimation');
 const {
@@ -656,6 +660,28 @@ function serializeSkeletonInventoryItem(item) {
     },
     folder: false,
   };
+}
+
+const MAX_LANDMARK_DESC_BYTES = 127;
+const MAX_LANDMARK_NAME_BYTES = 63;
+
+function truncateUtf8Bytes(input, maxBytes = MAX_LANDMARK_DESC_BYTES) {
+  if (!input || maxBytes <= 0) return '';
+  const cleaned = String(input).replace(/\0/g, '');
+  if (Buffer.byteLength(cleaned, 'utf8') <= maxBytes) {
+    return cleaned;
+  }
+  let usedBytes = 0;
+  let endIndex = 0;
+  for (const codePointChar of cleaned) {
+    const charBytes = Buffer.byteLength(codePointChar, 'utf8');
+    if (usedBytes + charBytes > maxBytes) {
+      break;
+    }
+    usedBytes += charBytes;
+    endIndex += codePointChar.length;
+  }
+  return cleaned.slice(0, endIndex);
 }
 
 class TerminateFriendshipMessage {
@@ -1708,6 +1734,7 @@ class ViewerSession {
           }
         }
       }
+      const activeRegion = this.currentRegion();
       return {
         id: parcel.LocalID,
         name: parcel.Name || '',
@@ -1719,6 +1746,8 @@ class ViewerSession {
         totalPrims: parcel.TotalPrims,
         musicUrl: parcel.MusicURL || '',
         mediaUrl: parcel.MediaURL || '',
+        parcelFlags: typeof parcel.ParcelFlags === 'number' ? parcel.ParcelFlags : undefined,
+        simAccess: typeof activeRegion?.simAccess === 'number' ? activeRegion.simAccess : undefined,
       };
     });
 
@@ -1953,7 +1982,12 @@ class ViewerSession {
     };
 
     const worldData = {
-      region: { name: region?.regionName || null, x: region?.xCoordinate, y: region?.yCoordinate },
+      region: {
+        name: region?.regionName || null,
+        x: region?.xCoordinate,
+        y: region?.yCoordinate,
+        simAccess: typeof region?.simAccess === 'number' ? region.simAccess : undefined,
+      },
       environment: serializeEnvironment(region?.environment),
       terrainMaterials: serializeTerrainMaterials(region),
     };
@@ -4321,6 +4355,467 @@ class ViewerSession {
     return { success: true, folderId };
   }
 
+  async createLandmark(params = {}) {
+    const bot = this.requireBot ? this.requireBot() : this.bot;
+    if (!bot) throw new Error('Not connected');
+
+    const region = this.currentRegion ? this.currentRegion() : bot.currentRegion;
+    const caps = region?.caps || bot.caps;
+    const isUuid = (v) =>
+      typeof v === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+    // Resolve target folder ID: explicit param -> Landmarks system folder -> root folder
+    let targetFolderId = params.folderId ? String(params.folderId).trim() : '';
+    const skeleton = bot.agent?.inventory?.main?.skeleton;
+    if (!targetFolderId && skeleton && typeof skeleton.values === 'function') {
+      const folders = Array.from(skeleton.values());
+      const lmFolder =
+        folders.find((f) => f && f.typeDefault === FolderType.Landmark) ||
+        folders.find((f) => f && f.typeDefault === 3) ||
+        folders.find(
+          (f) =>
+            f &&
+            String(f.name || '')
+              .trim()
+              .toLowerCase() === 'landmarks',
+        );
+      if (lmFolder?.folderID) {
+        targetFolderId = lmFolder.folderID.toString();
+      }
+    }
+    if (!targetFolderId) {
+      try {
+        targetFolderId =
+          bot.clientCommands?.inventory?.getInventoryRoot?.()?.folderID?.toString() ||
+          this.identity?.inventoryRootId ||
+          '00000000-0000-0000-0000-000000000000';
+      } catch {
+        targetFolderId = this.identity?.inventoryRootId || '00000000-0000-0000-0000-000000000000';
+      }
+    }
+
+    const fallbackTitle =
+      (params.parcelName && String(params.parcelName).trim()) ||
+      (region?.regionName && String(region.regionName).trim()) ||
+      'Landmark';
+    const rawName =
+      params.name !== undefined && String(params.name).trim()
+        ? String(params.name).trim()
+        : fallbackTitle;
+    const cleanName = truncateUtf8Bytes(rawName, MAX_LANDMARK_NAME_BYTES) || 'Landmark';
+    const cleanDescription = truncateUtf8Bytes(
+      params.description !== undefined ? String(params.description) : '',
+      MAX_LANDMARK_DESC_BYTES,
+    );
+
+    // Resolve local simulator position when available
+    let posVec = null;
+    if (
+      Array.isArray(params.position) &&
+      params.position.length >= 3 &&
+      params.position.slice(0, 3).every((n) => typeof n === 'number' && Number.isFinite(n))
+    ) {
+      posVec = [Number(params.position[0]), Number(params.position[1]), Number(params.position[2])];
+    } else if (
+      bot.agent?.position &&
+      typeof bot.agent.position.x === 'number' &&
+      Number.isFinite(bot.agent.position.x)
+    ) {
+      posVec = [
+        Number(bot.agent.position.x),
+        Number(bot.agent.position.y || 0),
+        Number(bot.agent.position.z || 0),
+      ];
+    }
+
+    const regionIdStr =
+      (params.regionId && String(params.regionId)) ||
+      region?.regionID?.toString?.() ||
+      region?.regionId?.toString?.() ||
+      '';
+    const regionHandleStr =
+      params.regionHandle !== undefined && params.regionHandle !== null
+        ? String(params.regionHandle)
+        : region?.regionHandle?.toString?.() || '';
+    const nextOwnerMask =
+      typeof params.nextOwnerMask === 'number' ? params.nextOwnerMask >>> 0 : 0x0008e000;
+
+    const recordCreatedItem = ({
+      itemId,
+      assetId,
+      folderId,
+      creationDate,
+      transport,
+      capability,
+      endpoint,
+    }) => {
+      const finalItemId =
+        itemId && String(itemId) !== '00000000-0000-0000-0000-000000000000'
+          ? String(itemId)
+          : crypto.randomUUID();
+      const finalAssetId =
+        assetId && String(assetId) !== '00000000-0000-0000-0000-000000000000'
+          ? String(assetId)
+          : '';
+      const finalFolderId = folderId ? String(folderId) : targetFolderId;
+      const agentIdStr =
+        this.identity?.agentId || this.identity?.agent_id || bot.agent?.agentID?.toString?.() || '';
+      const createdAt =
+        typeof creationDate === 'number' && creationDate > 0
+          ? creationDate
+          : Math.floor(Date.now() / 1000);
+
+      const createdItem = {
+        id: finalItemId,
+        item_id: finalItemId,
+        name: cleanName,
+        description: cleanDescription,
+        parent: finalFolderId,
+        parent_id: finalFolderId,
+        folderId: finalFolderId,
+        assetType: AssetType.Landmark ?? 3,
+        asset_type: AssetType.Landmark ?? 3,
+        inventoryType: InventoryType?.Landmark ?? 3,
+        invType: InventoryType?.Landmark ?? 3,
+        assetId: finalAssetId,
+        asset_id: finalAssetId,
+        ownerId: agentIdStr,
+        creationDate: createdAt,
+        position: posVec,
+        regionName: region?.regionName || params.regionName || null,
+        folder: false,
+      };
+
+      try {
+        const skelFolder = skeleton?.get?.(finalFolderId);
+        if (skelFolder) {
+          if (!Array.isArray(skelFolder.items)) skelFolder.items = [];
+          const exists = skelFolder.items.some(
+            (i) => (i.itemID?.toString?.() || i.id) === finalItemId,
+          );
+          if (!exists) {
+            skelFolder.items.push({
+              itemID: isUuid(finalItemId) ? new UUID(finalItemId) : finalItemId,
+              parentID: isUuid(finalFolderId) ? new UUID(finalFolderId) : finalFolderId,
+              assetID: isUuid(finalAssetId) ? new UUID(finalAssetId) : UUID.zero(),
+              name: cleanName,
+              description: cleanDescription,
+              assetType: AssetType.Landmark ?? 3,
+              inventoryType: InventoryType?.Landmark ?? 3,
+              created: createdAt,
+            });
+          }
+        }
+      } catch {
+        /* ignore skeleton cache update error */
+      }
+
+      if (typeof this.send === 'function') {
+        this.send('inventory_update', { items: [createdItem] });
+      }
+
+      return {
+        success: true,
+        transport,
+        ...(capability ? { capability } : {}),
+        ...(endpoint ? { endpoint } : {}),
+        itemId: finalItemId,
+        assetId: finalAssetId,
+        folderId: finalFolderId,
+        item: createdItem,
+      };
+    };
+
+    // 1. Capability negotiation (CreateLandmark -> NewAgentInventory) bounded strictly < 2000ms
+    const capBudgetMs = Math.min(
+      1900,
+      Math.max(50, typeof params.timeout === 'number' ? params.timeout : 1500),
+    );
+    const capDeadline = Date.now() + capBudgetMs;
+    const withDeadline = (promise, label) => {
+      const remaining = capDeadline - Date.now();
+      if (remaining <= 0) {
+        return Promise.reject(new Error(`${label} timeout`));
+      }
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`${label} timeout`)), remaining);
+        Promise.resolve(promise).then(
+          (val) => {
+            clearTimeout(timer);
+            resolve(val);
+          },
+          (err) => {
+            clearTimeout(timer);
+            reject(err);
+          },
+        );
+      });
+    };
+
+    if (caps) {
+      const capNames = ['CreateLandmark', 'NewAgentInventory'];
+      let matchedCapName = null;
+      let capUrl = null;
+
+      for (const capName of capNames) {
+        if (Date.now() >= capDeadline) break;
+        try {
+          const lookupPromise = (async () => {
+            if (typeof caps.isCapAvailable === 'function') {
+              const avail = await caps.isCapAvailable(capName);
+              if (!avail) return null;
+              if (typeof caps.getCapability === 'function') {
+                return await caps.getCapability(capName);
+              }
+              if (typeof caps.capsPostXML === 'function') {
+                return `caps://${capName}`;
+              }
+            } else if (typeof caps.getCapability === 'function') {
+              return await caps.getCapability(capName);
+            } else if (typeof caps.resolveCapability === 'function') {
+              return await caps.resolveCapability(capName);
+            } else if (typeof caps[capName] === 'string' && caps[capName]) {
+              return caps[capName];
+            }
+            return null;
+          })();
+
+          const resolved = await withDeadline(lookupPromise, 'Capability lookup');
+          if (resolved) {
+            matchedCapName = capName;
+            capUrl = String(resolved);
+            break;
+          }
+        } catch {
+          // Capability probe failed or timed out; continue or fall back to UDP
+        }
+      }
+
+      if (capUrl && matchedCapName && Date.now() < capDeadline) {
+        try {
+          const llsdPayload = {
+            folder_id: isUuid(targetFolderId) ? new LLSD.UUID(targetFolderId) : targetFolderId,
+            asset_type: 'landmark',
+            inventory_type: 'landmark',
+            name: cleanName,
+            description: cleanDescription,
+            everyone_mask: typeof params.everyoneMask === 'number' ? params.everyoneMask : 0,
+            group_mask: typeof params.groupMask === 'number' ? params.groupMask : 0,
+            next_owner_mask: nextOwnerMask,
+          };
+          if (posVec) {
+            llsdPayload.pos = posVec;
+            llsdPayload.position = posVec;
+          }
+          if (regionIdStr && isUuid(regionIdStr)) {
+            llsdPayload.region_id = new LLSD.UUID(regionIdStr);
+          }
+          if (typeof params.parcelLocalId === 'number' && Number.isFinite(params.parcelLocalId)) {
+            llsdPayload.parcel_id = params.parcelLocalId;
+          }
+
+          const postPromise = (async () => {
+            if (capUrl.startsWith('caps://') && typeof caps.capsPostXML === 'function') {
+              return await caps.capsPostXML(matchedCapName, llsdPayload);
+            }
+            if (typeof caps.capsPerformXMLPost === 'function') {
+              return await caps.capsPerformXMLPost(capUrl, llsdPayload);
+            }
+            if (typeof caps.capsPostXML === 'function' && !/^https?:\/\//i.test(capUrl)) {
+              return await caps.capsPostXML(matchedCapName, llsdPayload);
+            }
+            if (typeof caps.requestPost === 'function') {
+              const xml = LLSD.LLSD.formatXML(llsdPayload);
+              const resp = await caps.requestPost(capUrl, xml, 'application/llsd+xml');
+              if (resp && resp.status >= 200 && resp.status < 300) {
+                return resp.body
+                  ? typeof resp.body === 'string'
+                    ? LLSD.LLSD.parseXML(resp.body)
+                    : resp.body
+                  : {};
+              }
+              throw new Error(`HTTP ${resp?.status || 500}`);
+            }
+            if (typeof fetch === 'function') {
+              const xml = LLSD.LLSD.formatXML(llsdPayload);
+              const resp = await fetch(capUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/llsd+xml',
+                  Accept: 'application/llsd+xml, application/json',
+                },
+                body: xml,
+              });
+              if (!resp.ok) {
+                throw new Error(`HTTP ${resp.status}`);
+              }
+              const text = await resp.text();
+              if (!text) return {};
+              try {
+                return LLSD.LLSD.parseXML(text);
+              } catch {
+                try {
+                  return JSON.parse(text);
+                } catch {
+                  return { raw: text };
+                }
+              }
+            }
+            throw new Error('No HTTP POST transport available on caps');
+          })();
+
+          let finalResp = await withDeadline(postPromise, 'Capability POST');
+
+          // Handle two-stage uploader URL returned by NewAgentInventory when applicable
+          if (finalResp && typeof finalResp === 'object' && finalResp.uploader) {
+            const uploaderUrl = String(finalResp.uploader);
+            const lmLines = [
+              'Landmark version 2',
+              `region_id ${isUuid(regionIdStr) ? regionIdStr : '00000000-0000-0000-0000-000000000000'}`,
+              `local_pos ${posVec ? `${posVec[0]} ${posVec[1]} ${posVec[2]}` : '0 0 0'}`,
+            ];
+            if (regionHandleStr) {
+              lmLines.push(`region_handle ${regionHandleStr}`);
+            }
+            const lmBuffer = Buffer.from(lmLines.join('\n') + '\n', 'utf8');
+
+            const uploadPromise = (async () => {
+              if (typeof caps.capsRequestUpload === 'function') {
+                return await caps.capsRequestUpload(uploaderUrl, lmBuffer);
+              }
+              if (typeof fetch === 'function') {
+                const upResp = await fetch(uploaderUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/octet-stream' },
+                  body: lmBuffer,
+                });
+                if (!upResp.ok) throw new Error(`Upload HTTP ${upResp.status}`);
+                const upText = await upResp.text();
+                if (!upText) return {};
+                try {
+                  return LLSD.LLSD.parseXML(upText);
+                } catch {
+                  return { raw: upText };
+                }
+              }
+              throw new Error('No upload transport available on caps');
+            })();
+
+            const uploadResp = await withDeadline(uploadPromise, 'Capability asset upload');
+            finalResp = { ...finalResp, ...(uploadResp || {}) };
+          }
+
+          if (finalResp && finalResp.error) {
+            throw new Error(String(finalResp.error));
+          }
+
+          const rawItemId =
+            finalResp?.new_inventory_item ??
+            finalResp?.item_id ??
+            finalResp?.itemId ??
+            finalResp?.id ??
+            null;
+          const rawAssetId =
+            finalResp?.new_asset ??
+            finalResp?.new_asset_id ??
+            finalResp?.asset_id ??
+            finalResp?.assetId ??
+            null;
+
+          return recordCreatedItem({
+            itemId: rawItemId ? String(rawItemId) : null,
+            assetId: rawAssetId ? String(rawAssetId) : null,
+            folderId: targetFolderId,
+            transport: 'capability',
+            capability: matchedCapName,
+            endpoint: capUrl,
+          });
+        } catch {
+          // Capability POST/upload failed or timed out -> fall back to reliable UDP
+        }
+      }
+    }
+
+    // 2. Reliable UDP CreateInventoryItem fallback
+    const circuit = region?.circuit || bot.circuit;
+    const rawAgentId = this.identity?.agentId || this.identity?.agent_id || bot.agent?.agentID;
+    if (!circuit?.sendMessage || !rawAgentId) {
+      throw new Error('Circuit connection unavailable for landmark creation');
+    }
+
+    this._nextInventoryCallbackId = ((this._nextInventoryCallbackId || 1) % 0x7fffffff) + 1;
+    const callbackId = this._nextInventoryCallbackId;
+
+    const msg = new CreateInventoryItemMessage();
+    msg.AgentData = {
+      AgentID: rawAgentId instanceof UUID ? rawAgentId : new UUID(String(rawAgentId)),
+      SessionID:
+        circuit.sessionID instanceof UUID
+          ? circuit.sessionID
+          : circuit.sessionID
+            ? new UUID(String(circuit.sessionID))
+            : UUID.zero(),
+    };
+    msg.InventoryBlock = {
+      CallbackID: callbackId,
+      FolderID: isUuid(targetFolderId) ? new UUID(targetFolderId) : UUID.zero(),
+      TransactionID: UUID.zero(),
+      NextOwnerMask: nextOwnerMask,
+      Type: AssetType.Landmark ?? 3,
+      InvType: InventoryType?.Landmark ?? 3,
+      WearableType: 0,
+      Name: Buffer.from(cleanName, 'utf8'),
+      Description: Buffer.from(cleanDescription, 'utf8'),
+    };
+
+    const udpTimeoutMs = typeof params.udpTimeout === 'number' ? params.udpTimeout : 3000;
+    const waitPromise =
+      typeof circuit.waitForMessage === 'function'
+        ? circuit.waitForMessage(Message.UpdateCreateInventoryItem, udpTimeoutMs, (ucim) => {
+            const entries = Array.isArray(ucim?.InventoryData) ? ucim.InventoryData : [];
+            if (entries.some((entry) => entry?.CallbackID === callbackId)) {
+              return FilterResponse.Finish;
+            }
+            return FilterResponse.NoMatch;
+          })
+        : null;
+
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+
+    let confirmedItemId = null;
+    let confirmedAssetId = null;
+    let confirmedFolderId = targetFolderId;
+    let confirmedCreationDate = null;
+
+    if (waitPromise) {
+      const reply = await waitPromise;
+      if (reply?.AgentData?.SimApproved === false) {
+        throw new Error('Simulator declined landmark creation');
+      }
+      const entries = Array.isArray(reply?.InventoryData) ? reply.InventoryData : [];
+      const matched = entries.find((e) => e?.CallbackID === callbackId) || entries[0];
+      if (matched) {
+        if (matched.ItemID) confirmedItemId = matched.ItemID.toString();
+        if (matched.AssetID) confirmedAssetId = matched.AssetID.toString();
+        if (matched.FolderID && !matched.FolderID.isZero?.()) {
+          confirmedFolderId = matched.FolderID.toString();
+        }
+        if (typeof matched.CreationDate === 'number') {
+          confirmedCreationDate = matched.CreationDate;
+        }
+      }
+    }
+
+    return recordCreatedItem({
+      itemId: confirmedItemId,
+      assetId: confirmedAssetId,
+      folderId: confirmedFolderId,
+      creationDate: confirmedCreationDate,
+      transport: 'udp',
+    });
+  }
+
   /**
    * What the avatar is wearing now (the Current Outfit folder) and the outfits saved in My Outfits.
    * Current Outfit holds links; a link carries the name of what it points at, the inventory type, and
@@ -4947,8 +5442,10 @@ module.exports = {
   serializeTerrainMaterials,
   PCode,
   ParcelPropertiesUpdateMessage,
+  CreateInventoryItemMessage,
   ActivateGesturesMessage,
   DeactivateGesturesMessage,
   TerminateFriendshipMessage,
   sanitizeParcelProperties,
+  truncateUtf8Bytes,
 };

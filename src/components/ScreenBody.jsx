@@ -32,6 +32,7 @@ import {
   SearchScreen,
 } from '../screens/LiveScreens.jsx';
 import DiagnosticsContainer from '../screens/DiagnosticsContainer.jsx';
+import LandmarkFloater from './LandmarkFloater.jsx';
 import {
   AOScreen,
   AccountsScreen,
@@ -132,6 +133,7 @@ export default function ScreenBody() {
           {norm && String(scr).startsWith('ItemPropertiesFloater') && (
             <ItemPropertiesFloater windowId={scr} inline />
           )}
+          {scr === 'CreateLandmark' && <LandmarkFloater embedded />}
           {scr === 'Login' && <Login />}
           {scr === 'Search' && <Search />}
           {!norm && <StateBlock />}
