@@ -11,6 +11,7 @@
 import { ChatProtocolAdapter } from '../chat-protocol-adapter';
 import { MuteEntry, MuteFlag, MuteList, MuteType, isLinden } from '../mute-list';
 import { slBridge } from '../sl-bridge';
+import type { GestureRuntimeEngine } from '../gesture-runtime-engine';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const USERS_STORAGE_KEY = 'linkpoint_muted_users';
@@ -53,6 +54,16 @@ export class ChatExtended {
   private resolveName: (id: string) => string | undefined = () => undefined;
   private typingUsers: Map<string, number> = new Map();
   private typingTimeout: number = 5000; // milliseconds
+  private gestureEngine: GestureRuntimeEngine | null = null;
+
+  /** Attach the gesture runtime engine to evaluate outbound chat triggers. */
+  setGestureEngine(engine: GestureRuntimeEngine | null) {
+    this.gestureEngine = engine;
+  }
+
+  getGestureEngine(): GestureRuntimeEngine | null {
+    return this.gestureEngine;
+  }
 
   constructor(protocolManager?: any) {
     this.adapter =
@@ -434,17 +445,43 @@ export class ChatExtended {
     }
 
     const chatType = range === 'whisper' ? 0 : range === 'shout' ? 2 : 1;
+    let outboundText = text;
+    let gestureMeta: { gestureTriggered?: boolean; matchedGestureIds?: string[] } = {};
+
+    if (this.gestureEngine) {
+      const triggerResult = this.gestureEngine.processOutboundChat(text, { channel: 0, range });
+      if (triggerResult.triggered) {
+        gestureMeta = {
+          gestureTriggered: true,
+          matchedGestureIds: triggerResult.matchedGestureIds,
+        };
+      }
+      if (triggerResult.consumed) {
+        return Promise.resolve({
+          text: '',
+          range: range,
+          channel: 0,
+          chatType: chatType,
+          timestamp: Date.now(),
+          consumed: true,
+          ...gestureMeta,
+        });
+      }
+      outboundText = triggerResult.text;
+    }
+
     const message = {
-      text: text,
+      text: outboundText,
       range: range,
       channel: 0,
       chatType: chatType,
       timestamp: Date.now(),
+      ...gestureMeta,
     };
 
-    console.log(`[ChatExtended] Sending ${range} message: ${text}`);
+    console.log(`[ChatExtended] Sending ${range} message: ${outboundText}`);
     try {
-      await this.adapter.sendSpatialChat(text, range);
+      await this.adapter.sendSpatialChat(outboundText, range);
     } catch (error) {
       console.error('[ChatExtended] Failed to send message:', error);
       throw error;

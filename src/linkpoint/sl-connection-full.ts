@@ -149,6 +149,11 @@ export class SLConnectionFull extends Utils.EventEmitter {
         this.emit('inventory-offer', data);
       });
     }
+    for (const name of ['inventory_update', 'inventory-update']) {
+      slBridge.on(name, (data: any) => {
+        this.emit('inventory_update', data);
+      });
+    }
     for (const name of ['group_invite', 'group-invite']) {
       slBridge.on(name, (data: any) => {
         this.emit('group_invite', data);
@@ -163,6 +168,8 @@ export class SLConnectionFull extends Utils.EventEmitter {
         this.emit('avatar-presence', data);
       });
     }
+    forward('gestures-activated', 'gestures_activated');
+    forward('gestures-deactivated', 'gestures_deactivated');
     // Everything else the session announces is scene data: objects, assets, textures, terrain, environment...
     for (const type of [
       'object-add',
@@ -279,6 +286,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
       const capsToRequest = [
         'EventQueueGet',
         'FetchInventoryDescendents2',
+        'UpdateInventoryItem',
         'ChatSessionRequest',
         'GetDisplayNames',
       ];
@@ -376,55 +384,184 @@ export class SLConnectionFull extends Utils.EventEmitter {
   actionGuard:
     | ((
         action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
-        detail?: { senderId?: string; objectId?: string },
+        detail?: { senderId?: string; objectId?: string; destination?: string },
       ) => string | null)
     | null = null;
 
   private guardAction(
     action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
-    detail?: { senderId?: string; objectId?: string },
+    detail?: { senderId?: string; objectId?: string; destination?: string },
   ) {
     const reason = this.actionGuard?.(action, detail);
     if (reason) throw new Error(reason);
   }
 
-  /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
-  async teleportTo(destination: string) {
+  private teleportSeq = 0;
+
+  cancelActiveTeleport() {
+    this.teleportSeq += 1;
+  }
+
+  private async runTeleportSession<T>(options: {
+    destination: string;
+    regionName?: string;
+    position?: [number, number, number] | null;
+    guard: 'teleport' | 'acceptLure';
+    guardDetail?: { senderId?: string; objectId?: string; destination?: string };
+    execute: () => Promise<T>;
+    resolveRegionName?: (result: T) => string | undefined;
+  }): Promise<T> {
     this.requireConnected();
-    this.guardAction('teleport');
+    const { destination } = options;
+    this.guardAction(
+      options.guard,
+      options.guard === 'teleport' ? (options.guardDetail ?? { destination }) : options.guardDetail,
+    );
+    const seq = ++this.teleportSeq;
+    const initialRegionName = options.regionName ?? destination;
+
     this.emit('teleport_started', { destination });
     this.emit('teleport_progress', {
       phase: 'initiating',
       percent: 15,
       statusText: `Resolving ${destination}...`,
-      regionName: destination,
+      regionName: initialRegionName,
     });
     this.emit('teleport_progress', {
       phase: 'contacting',
       percent: 40,
       statusText: 'Contacting destination region...',
     });
+
     try {
       this.emit('teleport_progress', {
         phase: 'preparing',
         percent: 65,
         statusText: 'Preparing avatar transfer...',
       });
-      const result = await slBridge.teleport({ destination });
+      const result = await options.execute();
+      if (seq !== this.teleportSeq) {
+        return result;
+      }
+      const regionName = options.resolveRegionName?.(result) || initialRegionName;
       this.emit('teleport_progress', {
         phase: 'arriving',
         percent: 90,
         statusText: 'Arriving at destination...',
+        regionName,
       });
       this.emit('teleport_requested', result);
-      const regionName = result?.requested?.region || destination;
-      this.emit('teleport_completed', { regionName, result });
+      await new Promise<void>((resolve) => {
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => resolve());
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
+      if (seq !== this.teleportSeq) {
+        return result;
+      }
+      const requested = (result as any)?.requested;
+      const position: [number, number, number] | null =
+        requested &&
+        typeof requested === 'object' &&
+        Number.isFinite(Number(requested.x)) &&
+        Number.isFinite(Number(requested.y)) &&
+        Number.isFinite(Number(requested.z))
+          ? [Number(requested.x), Number(requested.y), Number(requested.z)]
+          : (options.position ?? null);
+      this.emit('teleport_completed', {
+        regionName,
+        destination,
+        position,
+        guard: options.guard,
+        result,
+      });
       return result;
     } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error || 'Teleport failed');
-      this.emit('teleport_failed', { message, error });
+      if (seq === this.teleportSeq) {
+        const message = error instanceof Error ? error.message : String(error || 'Teleport failed');
+        this.emit('teleport_failed', { message, error });
+      }
       throw error;
     }
+  }
+
+  /** Teleport to "secondlife://Region/x/y/z", a map URL, or "Region/x/y/z". */
+  async teleportTo(destination: string) {
+    return this.runTeleportSession({
+      destination,
+      guard: 'teleport',
+      execute: () => slBridge.teleport({ destination }),
+      resolveRegionName: (result) => result?.requested?.region || destination,
+    });
+  }
+
+  /** Teleport to explicit region coordinates. */
+  async teleportCoordinate(params: {
+    region: string;
+    x: number;
+    y: number;
+    z: number;
+    destination?: string;
+  }): Promise<{
+    requested: { region: string; x: number; y: number; z: number };
+    message: string;
+  }>;
+  async teleportCoordinate(
+    region: string,
+    x: number,
+    y: number,
+    z: number,
+    destination?: string,
+  ): Promise<{
+    requested: { region: string; x: number; y: number; z: number };
+    message: string;
+  }>;
+  async teleportCoordinate(
+    regionOrParams:
+      string | { region: string; x: number; y: number; z: number; destination?: string },
+    x?: number,
+    y?: number,
+    z?: number,
+    destinationLabel?: string,
+  ) {
+    const params =
+      typeof regionOrParams === 'string'
+        ? {
+            region: regionOrParams,
+            x: x ?? 128,
+            y: y ?? 128,
+            z: z ?? 30,
+            destination: destinationLabel,
+          }
+        : regionOrParams;
+    const { region } = params;
+    const rx = params.x;
+    const ry = params.y;
+    const rz = params.z;
+    const destination =
+      params.destination?.trim() ||
+      `${region}/${Math.round(rx)}/${Math.round(ry)}/${Math.round(rz)}`;
+    return this.runTeleportSession({
+      destination,
+      regionName: params.destination?.trim() || region,
+      position: [rx, ry, rz],
+      guard: 'teleport',
+      execute: () => slBridge.teleport({ region, x: rx, y: ry, z: rz }),
+      resolveRegionName: (result) => result?.requested?.region || region,
+    });
+  }
+
+  /** Teleport to the resident's home parcel. */
+  async teleportHome() {
+    return this.runTeleportSession({
+      destination: 'Home',
+      regionName: 'Home',
+      guard: 'teleport',
+      execute: () => slBridge.teleportHome(),
+      resolveRegionName: () => 'Home',
+    });
   }
 
   /** A resident's public profile picture (base64), or null when they have none. */
@@ -440,10 +577,16 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   /** Accept a teleport lure. Resolves when the grid reports the teleport result. */
-  async acceptLure(id: string, senderId?: string) {
-    this.requireConnected();
-    this.guardAction('acceptLure', { senderId });
-    return slBridge.acceptLure({ id });
+  async acceptLure(id: string, senderId?: string, senderName?: string) {
+    const destination = senderName?.trim() || 'Destination';
+    return this.runTeleportSession({
+      destination,
+      regionName: destination,
+      guard: 'acceptLure',
+      guardDetail: { senderId },
+      execute: () => slBridge.acceptLure({ id }),
+      resolveRegionName: (result: any) => result?.requested?.region || destination,
+    });
   }
 
   /** Decline a teleport lure and notify the sender. */
@@ -462,6 +605,36 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }) {
     this.requireConnected();
     return slBridge.grantUserRights(request);
+  }
+
+  /** Terminate Second Life friendship with a resident via reliable UDP packet. */
+  async terminateFriendship(
+    request:
+      | string
+      | {
+          targetId: string;
+          otherId?: string;
+          agentId?: string;
+          sessionId?: string;
+          packet?: unknown;
+        },
+  ) {
+    this.requireConnected();
+    const params =
+      typeof request === 'string'
+        ? {
+            targetId: request,
+            otherId: request,
+            ...(this.agentId ? { agentId: this.agentId } : {}),
+            ...(this.sessionId ? { sessionId: this.sessionId } : {}),
+          }
+        : {
+            ...request,
+            targetId: request.targetId || request.otherId || '',
+            ...(request.agentId || !this.agentId ? {} : { agentId: this.agentId }),
+            ...(request.sessionId || !this.sessionId ? {} : { sessionId: this.sessionId }),
+          };
+    return slBridge.terminateFriendship(params);
   }
 
   /** Accept an inventory offer. */
@@ -611,6 +784,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
+  async sendAgentAnimations(
+    animations: Array<{ id: string; start: boolean }>,
+  ): Promise<{ sent: boolean; count: number }> {
+    if (!this.connected) throw new Error('Not connected to a grid');
+    return await slBridge.sendAgentAnimations(animations);
+  }
+
   async fetchNotecard(id: string, itemId?: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
     return await slBridge.fetchNotecard(id, itemId);
@@ -619,6 +799,63 @@ export class SLConnectionFull extends Utils.EventEmitter {
   async saveNotecard(params: { itemId: string; data?: string; text?: string }) {
     if (!this.connected) throw new Error('Not connected to a grid');
     return await slBridge.saveNotecard(params);
+  }
+
+  async createLandmark(params: {
+    name?: string;
+    description?: string;
+    folderId?: string;
+    position?: [number, number, number];
+    regionId?: string;
+    regionName?: string;
+    parcelName?: string;
+    parcelLocalId?: number;
+    timeout?: number;
+  }) {
+    if (!this.connected && !slBridge.connected) throw new Error('Not connected to a grid');
+    return await slBridge.createLandmark(params);
+  }
+
+  async fetchGesture(id: string, itemId?: string) {
+    this.requireConnected();
+    return await slBridge.fetchGesture(id, itemId);
+  }
+
+  async activateGestures(params: {
+    gestures?: Array<{ itemId: string; assetId?: string; gestureFlags?: number }>;
+    itemId?: string;
+    assetId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }) {
+    this.requireConnected();
+    return await slBridge.activateGestures(params);
+  }
+
+  async deactivateGestures(params: {
+    gestures?: Array<{ itemId: string; gestureFlags?: number }>;
+    itemIds?: string[];
+    itemId?: string;
+    flags?: number;
+    gestureFlags?: number;
+  }) {
+    this.requireConnected();
+    return await slBridge.deactivateGestures(params);
+  }
+
+  async setAgentAnimation(params: {
+    animations?: Array<{ animId: string; start?: boolean; stop?: boolean }>;
+    animId?: string;
+    start?: boolean;
+    stop?: boolean;
+  }) {
+    this.requireConnected();
+    return await slBridge.setAgentAnimation(params);
+  }
+
+  async triggerGestureSound(params: { soundId: string; gain?: number; position?: number[] }) {
+    this.requireConnected();
+    return await slBridge.triggerGestureSound(params);
   }
 
   // A group message is never spoken in the region: it goes to the group's chat session or fails.
@@ -646,6 +883,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
   }
 
   async logout() {
+    this.teleportSeq += 1;
     this.eventQueueRunning = false;
     if (this.eventQueueTimer) clearTimeout(this.eventQueueTimer);
     this.eventQueueTimer = null;

@@ -1,0 +1,5576 @@
+{
+  "version": "1.0",
+  "description": "Canonical Second Life UDP message template conformance vectors mined from secondlife/master-message-template (message_template.msg), covering frequency-prefixed wire IDs, trust eligibility, zero-coding flags, and ordered block/field schemas across Linkpoint TypeScript, Node/Electron, and Android Kotlin.",
+  "source_repository": "https://github.com/secondlife/master-message-template",
+  "source_file": "message_template.msg",
+  "frequency_prefixes": {
+    "High": {
+      "header_bytes": 1,
+      "prefix_hex": "0x00"
+    },
+    "Medium": {
+      "header_bytes": 2,
+      "prefix_hex": "0xff"
+    },
+    "Low": {
+      "header_bytes": 4,
+      "prefix_hex": "0xffff"
+    },
+    "Fixed": {
+      "header_bytes": 4,
+      "prefix_hex": "0xffffff"
+    }
+  },
+  "messages": [
+    {
+      "name": "PacketAck",
+      "ts_constant": "PACKET_ACK",
+      "kotlin_constant": "PacketAck",
+      "frequency": "Fixed",
+      "message_number": 251,
+      "wire_id": 4294967291,
+      "wire_id_hex": "0xfffffffb",
+      "wire_id_bytes_hex": "fffffffb",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Packets",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OpenCircuit",
+      "ts_constant": "OPEN_CIRCUIT",
+      "kotlin_constant": "OpenCircuit",
+      "frequency": "Fixed",
+      "message_number": 252,
+      "wire_id": 4294967292,
+      "wire_id_hex": "0xfffffffc",
+      "wire_id_bytes_hex": "fffffffc",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": ["UDPBlackListed"],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "CircuitInfo",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "IP",
+              "type": "IPADDR",
+              "size_bytes": 4
+            },
+            {
+              "name": "Port",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "StartPingCheck",
+      "ts_constant": "START_PING_CHECK",
+      "kotlin_constant": "StartPingCheck",
+      "frequency": "High",
+      "message_number": 1,
+      "wire_id": 1,
+      "wire_id_hex": "0x01",
+      "wire_id_bytes_hex": "01",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "PingID",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "PingID",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "OldestUnacked",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CompletePingCheck",
+      "ts_constant": "COMPLETE_PING_CHECK",
+      "kotlin_constant": "CompletePingCheck",
+      "frequency": "High",
+      "message_number": 2,
+      "wire_id": 2,
+      "wire_id_hex": "0x02",
+      "wire_id_bytes_hex": "02",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "PingID",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "PingID",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AgentUpdate",
+      "ts_constant": "AGENT_UPDATE",
+      "kotlin_constant": "AgentUpdate",
+      "frequency": "High",
+      "message_number": 4,
+      "wire_id": 4,
+      "wire_id_hex": "0x04",
+      "wire_id_bytes_hex": "04",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "BodyRotation",
+              "type": "LLQuaternion",
+              "size_bytes": 12
+            },
+            {
+              "name": "HeadRotation",
+              "type": "LLQuaternion",
+              "size_bytes": 12
+            },
+            {
+              "name": "State",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "CameraCenter",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "CameraAtAxis",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "CameraLeftAxis",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "CameraUpAxis",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Far",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ControlFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Flags",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AgentAnimation",
+      "ts_constant": "AGENT_ANIMATION",
+      "kotlin_constant": "AgentAnimation",
+      "frequency": "High",
+      "message_number": 5,
+      "wire_id": 5,
+      "wire_id_hex": "0x05",
+      "wire_id_bytes_hex": "05",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "AnimationList",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "AnimID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "StartAnim",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "PhysicalAvatarEventList",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "TypeData",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AgentRequestSit",
+      "ts_constant": "AGENT_REQUEST_SIT",
+      "kotlin_constant": "AgentRequestSit",
+      "frequency": "High",
+      "message_number": 6,
+      "wire_id": 6,
+      "wire_id_hex": "0x06",
+      "wire_id_bytes_hex": "06",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "TargetObject",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TargetID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Offset",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AgentSit",
+      "ts_constant": "AGENT_SIT",
+      "kotlin_constant": "AgentSit",
+      "frequency": "High",
+      "message_number": 7,
+      "wire_id": 7,
+      "wire_id_hex": "0x07",
+      "wire_id_bytes_hex": "07",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "LayerData",
+      "ts_constant": "LAYER_DATA",
+      "kotlin_constant": "LayerData",
+      "frequency": "High",
+      "message_number": 11,
+      "wire_id": 11,
+      "wire_id_hex": "0x0b",
+      "wire_id_bytes_hex": "0b",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "LayerID",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Type",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "LayerData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Data",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectUpdate",
+      "ts_constant": "OBJECT_UPDATE",
+      "kotlin_constant": "ObjectUpdate",
+      "frequency": "High",
+      "message_number": 12,
+      "wire_id": 12,
+      "wire_id_hex": "0x0c",
+      "wire_id_bytes_hex": "0c",
+      "trust": "Trusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "RegionData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "TimeDilation",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "State",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "FullID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "CRC",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PCode",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Material",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ClickAction",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Scale",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "ObjectData",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "ParentID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "UpdateFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PathCurve",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ProfileCurve",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathBegin",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "PathEnd",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "PathScaleX",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathScaleY",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathShearX",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathShearY",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTwist",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTwistBegin",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathRadiusOffset",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTaperX",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTaperY",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathRevolutions",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathSkew",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ProfileBegin",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "ProfileEnd",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "ProfileHollow",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "TextureEntry",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "TextureAnim",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "NameValue",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "Data",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "Text",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "TextColor",
+              "type": "Fixed",
+              "size_bytes": 4
+            },
+            {
+              "name": "MediaURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "PSBlock",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "ExtraParams",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "Sound",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "OwnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Gain",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Flags",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Radius",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "JointType",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "JointPivot",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "JointAxisOrAnchor",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectUpdateCompressed",
+      "ts_constant": "OBJECT_UPDATE_COMPRESSED",
+      "kotlin_constant": "ObjectUpdateCompressed",
+      "frequency": "High",
+      "message_number": 13,
+      "wire_id": 13,
+      "wire_id_hex": "0x0d",
+      "wire_id_bytes_hex": "0d",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "RegionData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "TimeDilation",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "UpdateFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Data",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectUpdateCached",
+      "ts_constant": "OBJECT_UPDATE_CACHED",
+      "kotlin_constant": "ObjectUpdateCached",
+      "frequency": "High",
+      "message_number": 14,
+      "wire_id": 14,
+      "wire_id_hex": "0x0e",
+      "wire_id_bytes_hex": "0e",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "RegionData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "TimeDilation",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "CRC",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "UpdateFlags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ImprovedTerseObjectUpdate",
+      "ts_constant": "IMPROVED_TERSE_OBJECT_UPDATE",
+      "kotlin_constant": "ImprovedTerseObjectUpdate",
+      "frequency": "High",
+      "message_number": 15,
+      "wire_id": 15,
+      "wire_id_hex": "0x0f",
+      "wire_id_bytes_hex": "0f",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "RegionData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "TimeDilation",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "Data",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "TextureEntry",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KillObject",
+      "ts_constant": "KILL_OBJECT",
+      "kotlin_constant": "KillObject",
+      "frequency": "High",
+      "message_number": 16,
+      "wire_id": 16,
+      "wire_id_hex": "0x10",
+      "wire_id_bytes_hex": "10",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelProperties",
+      "ts_constant": "PARCEL_PROPERTIES",
+      "kotlin_constant": "ParcelProperties",
+      "frequency": "High",
+      "message_number": 23,
+      "wire_id": 23,
+      "wire_id_hex": "0x17",
+      "wire_id_bytes_hex": "17",
+      "trust": "Trusted",
+      "encoding": "Zerocoded",
+      "flags": ["UDPDeprecated"],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "ParcelData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RequestResult",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SequenceID",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SnapSelection",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "SelfCount",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "OtherCount",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PublicCount",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "LocalID",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "OwnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "IsGroupOwned",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "AuctionID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ClaimDate",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ClaimPrice",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "RentPrice",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "AABBMin",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "AABBMax",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Bitmap",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "Area",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Status",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "SimWideMaxPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SimWideTotalPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "MaxPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TotalPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "OwnerPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "GroupPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "OtherPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SelectedPrims",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ParcelPrimBonus",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "OtherCleanTime",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ParcelFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SalePrice",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Name",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "Desc",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MusicURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "MediaAutoScale",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "GroupID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "PassPrice",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PassHours",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Category",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "AuthBuyerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SnapshotID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "UserLocation",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "UserLookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LandingType",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "RegionPushOverride",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "RegionDenyAnonymous",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "RegionDenyIdentified",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "RegionDenyTransacted",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "AgeVerificationBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionDenyAgeUnverified",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "RegionAllowAccessBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionAllowAccessOverride",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "ParcelEnvironmentBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ParcelEnvironmentVersion",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "RegionAllowEnvironmentOverride",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SoundTrigger",
+      "ts_constant": "SOUND_TRIGGER",
+      "kotlin_constant": "SoundTrigger",
+      "frequency": "High",
+      "message_number": 29,
+      "wire_id": 29,
+      "wire_id_hex": "0x1d",
+      "wire_id_bytes_hex": "1d",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "SoundData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "SoundID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "OwnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "ParentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Handle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Gain",
+              "type": "F32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectAdd",
+      "ts_constant": "OBJECT_ADD",
+      "kotlin_constant": "ObjectAdd",
+      "frequency": "Medium",
+      "message_number": 1,
+      "wire_id": 65281,
+      "wire_id_hex": "0xff01",
+      "wire_id_bytes_hex": "ff01",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "GroupID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "PCode",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Material",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "AddFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PathCurve",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ProfileCurve",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathBegin",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "PathEnd",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "PathScaleX",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathScaleY",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathShearX",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathShearY",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTwist",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTwistBegin",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathRadiusOffset",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTaperX",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTaperY",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathRevolutions",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathSkew",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ProfileBegin",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "ProfileEnd",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "ProfileHollow",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "BypassRaycast",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "RayStart",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "RayEnd",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "RayTargetID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "RayEndIsIntersection",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Scale",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Rotation",
+              "type": "LLQuaternion",
+              "size_bytes": 12
+            },
+            {
+              "name": "State",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MultipleObjectUpdate",
+      "ts_constant": "MULTIPLE_OBJECT_UPDATE",
+      "kotlin_constant": "MultipleObjectUpdate",
+      "frequency": "Medium",
+      "message_number": 2,
+      "wire_id": 65282,
+      "wire_id_hex": "0xff02",
+      "wire_id_bytes_hex": "ff02",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Type",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Data",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RequestMultipleObjects",
+      "ts_constant": "REQUEST_MULTIPLE_OBJECTS",
+      "kotlin_constant": "RequestMultipleObjects",
+      "frequency": "Medium",
+      "message_number": 3,
+      "wire_id": 65283,
+      "wire_id_hex": "0xff03",
+      "wire_id_bytes_hex": "ff03",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "CacheMissType",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CoarseLocationUpdate",
+      "ts_constant": "COARSE_LOCATION_UPDATE",
+      "kotlin_constant": "CoarseLocationUpdate",
+      "frequency": "Medium",
+      "message_number": 6,
+      "wire_id": 65286,
+      "wire_id_hex": "0xff06",
+      "wire_id_bytes_hex": "ff06",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Location",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "X",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Y",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Z",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "Index",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "You",
+              "type": "S16",
+              "size_bytes": 2
+            },
+            {
+              "name": "Prey",
+              "type": "S16",
+              "size_bytes": 2
+            }
+          ]
+        },
+        {
+          "name": "AgentData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CrossedRegion",
+      "ts_constant": "CROSSED_REGION",
+      "kotlin_constant": "CrossedRegion",
+      "frequency": "Medium",
+      "message_number": 7,
+      "wire_id": 65287,
+      "wire_id_hex": "0xff07",
+      "wire_id_bytes_hex": "ff07",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": ["UDPBlackListed"],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "RegionData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "SimIP",
+              "type": "IPADDR",
+              "size_bytes": 4
+            },
+            {
+              "name": "SimPort",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "SeedCapability",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        },
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AttachedSound",
+      "ts_constant": "ATTACHED_SOUND",
+      "kotlin_constant": "AttachedSound",
+      "frequency": "Medium",
+      "message_number": 13,
+      "wire_id": 65293,
+      "wire_id_hex": "0xff0d",
+      "wire_id_bytes_hex": "ff0d",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "DataBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "SoundID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "OwnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Gain",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Flags",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AttachedSoundGainChange",
+      "ts_constant": "ATTACHED_SOUND_GAIN_CHANGE",
+      "kotlin_constant": "AttachedSoundGainChange",
+      "frequency": "Medium",
+      "message_number": 14,
+      "wire_id": 65294,
+      "wire_id_hex": "0xff0e",
+      "wire_id_bytes_hex": "ff0e",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "DataBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Gain",
+              "type": "F32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PreloadSound",
+      "ts_constant": "PRELOAD_SOUND",
+      "kotlin_constant": "PreloadSound",
+      "frequency": "Medium",
+      "message_number": 15,
+      "wire_id": 65295,
+      "wire_id_hex": "0xff0f",
+      "wire_id_bytes_hex": "ff0f",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "DataBlock",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "OwnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SoundID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "UseCircuitCode",
+      "ts_constant": "USE_CIRCUIT_CODE",
+      "kotlin_constant": "UseCircuitCode",
+      "frequency": "Low",
+      "message_number": 3,
+      "wire_id": 4294901763,
+      "wire_id_hex": "0xffff0003",
+      "wire_id_bytes_hex": "ffff0003",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "CircuitCode",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Code",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "ID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportRequest",
+      "ts_constant": "TELEPORT_REQUEST",
+      "kotlin_constant": "TeleportRequest",
+      "frequency": "Low",
+      "message_number": 62,
+      "wire_id": 4294901822,
+      "wire_id_hex": "0xffff003e",
+      "wire_id_bytes_hex": "ffff003e",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportLocationRequest",
+      "ts_constant": "TELEPORT_LOCATION_REQUEST",
+      "kotlin_constant": "TeleportLocationRequest",
+      "frequency": "Low",
+      "message_number": 63,
+      "wire_id": 4294901823,
+      "wire_id_hex": "0xffff003f",
+      "wire_id_bytes_hex": "ffff003f",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportLocal",
+      "ts_constant": "TELEPORT_LOCAL",
+      "kotlin_constant": "TeleportLocal",
+      "frequency": "Low",
+      "message_number": 64,
+      "wire_id": 4294901824,
+      "wire_id_hex": "0xffff0040",
+      "wire_id_bytes_hex": "ffff0040",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "LocationID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "TeleportFlags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportLandmarkRequest",
+      "ts_constant": "TELEPORT_LANDMARK_REQUEST",
+      "kotlin_constant": "TeleportLandmarkRequest",
+      "frequency": "Low",
+      "message_number": 65,
+      "wire_id": 4294901825,
+      "wire_id_hex": "0xffff0041",
+      "wire_id_bytes_hex": "ffff0041",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "LandmarkID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportProgress",
+      "ts_constant": "TELEPORT_PROGRESS",
+      "kotlin_constant": "TeleportProgress",
+      "frequency": "Low",
+      "message_number": 66,
+      "wire_id": 4294901826,
+      "wire_id_hex": "0xffff0042",
+      "wire_id_bytes_hex": "ffff0042",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TeleportFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Message",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportFinish",
+      "ts_constant": "TELEPORT_FINISH",
+      "kotlin_constant": "TeleportFinish",
+      "frequency": "Low",
+      "message_number": 69,
+      "wire_id": 4294901829,
+      "wire_id_hex": "0xffff0045",
+      "wire_id_bytes_hex": "ffff0045",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": ["UDPBlackListed"],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "LocationID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SimIP",
+              "type": "IPADDR",
+              "size_bytes": 4
+            },
+            {
+              "name": "SimPort",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "SeedCapability",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "SimAccess",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "TeleportFlags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "StartLure",
+      "ts_constant": "START_LURE",
+      "kotlin_constant": "StartLure",
+      "frequency": "Low",
+      "message_number": 70,
+      "wire_id": 4294901830,
+      "wire_id_hex": "0xffff0046",
+      "wire_id_bytes_hex": "ffff0046",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "LureType",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Message",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        },
+        {
+          "name": "TargetData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "TargetID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportLureRequest",
+      "ts_constant": "TELEPORT_LURE_REQUEST",
+      "kotlin_constant": "TeleportLureRequest",
+      "frequency": "Low",
+      "message_number": 71,
+      "wire_id": 4294901831,
+      "wire_id_hex": "0xffff0047",
+      "wire_id_bytes_hex": "ffff0047",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "LureID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TeleportFlags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportCancel",
+      "ts_constant": "TELEPORT_CANCEL",
+      "kotlin_constant": "TeleportCancel",
+      "frequency": "Low",
+      "message_number": 72,
+      "wire_id": 4294901832,
+      "wire_id_hex": "0xffff0048",
+      "wire_id_bytes_hex": "ffff0048",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-interactions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportStart",
+      "ts_constant": "TELEPORT_START",
+      "kotlin_constant": "TeleportStart",
+      "frequency": "Low",
+      "message_number": 73,
+      "wire_id": 4294901833,
+      "wire_id_hex": "0xffff0049",
+      "wire_id_bytes_hex": "ffff0049",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TeleportFlags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TeleportFailed",
+      "ts_constant": "TELEPORT_FAILED",
+      "kotlin_constant": "TeleportFailed",
+      "frequency": "Low",
+      "message_number": 74,
+      "wire_id": 4294901834,
+      "wire_id_hex": "0xffff004a",
+      "wire_id_bytes_hex": "ffff004a",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "Info",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Reason",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        },
+        {
+          "name": "AlertInfo",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "Message",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "ExtraParams",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ChatFromViewer",
+      "ts_constant": "CHAT_FROM_VIEWER",
+      "kotlin_constant": "ChatFromViewer",
+      "frequency": "Low",
+      "message_number": 80,
+      "wire_id": 4294901840,
+      "wire_id_hex": "0xffff0050",
+      "wire_id_bytes_hex": "ffff0050",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ChatData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Message",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "Type",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Channel",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AgentThrottle",
+      "ts_constant": "AGENT_THROTTLE",
+      "kotlin_constant": "AgentThrottle",
+      "frequency": "Low",
+      "message_number": 81,
+      "wire_id": 4294901841,
+      "wire_id_hex": "0xffff0051",
+      "wire_id_bytes_hex": "ffff0051",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "CircuitCode",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "Throttle",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "GenCounter",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Throttles",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectShape",
+      "ts_constant": "OBJECT_SHAPE",
+      "kotlin_constant": "ObjectShape",
+      "frequency": "Low",
+      "message_number": 98,
+      "wire_id": 4294901858,
+      "wire_id_hex": "0xffff0062",
+      "wire_id_bytes_hex": "ffff0062",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PathCurve",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ProfileCurve",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathBegin",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "PathEnd",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "PathScaleX",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathScaleY",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathShearX",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathShearY",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTwist",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTwistBegin",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathRadiusOffset",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTaperX",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathTaperY",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathRevolutions",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PathSkew",
+              "type": "S8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ProfileBegin",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "ProfileEnd",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "ProfileHollow",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectSelect",
+      "ts_constant": "OBJECT_SELECT",
+      "kotlin_constant": "ObjectSelect",
+      "frequency": "Low",
+      "message_number": 110,
+      "wire_id": 4294901870,
+      "wire_id_hex": "0xffff006e",
+      "wire_id_bytes_hex": "ffff006e",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectDeselect",
+      "ts_constant": "OBJECT_DESELECT",
+      "kotlin_constant": "ObjectDeselect",
+      "frequency": "Low",
+      "message_number": 111,
+      "wire_id": 4294901871,
+      "wire_id_hex": "0xffff006f",
+      "wire_id_bytes_hex": "ffff006f",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectLink",
+      "ts_constant": "OBJECT_LINK",
+      "kotlin_constant": "ObjectLink",
+      "frequency": "Low",
+      "message_number": 115,
+      "wire_id": 4294901875,
+      "wire_id_hex": "0xffff0073",
+      "wire_id_bytes_hex": "ffff0073",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectDelink",
+      "ts_constant": "OBJECT_DELINK",
+      "kotlin_constant": "ObjectDelink",
+      "frequency": "Low",
+      "message_number": 116,
+      "wire_id": 4294901876,
+      "wire_id_hex": "0xffff0074",
+      "wire_id_bytes_hex": "ffff0074",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectGrab",
+      "ts_constant": "OBJECT_GRAB",
+      "kotlin_constant": "ObjectGrab",
+      "frequency": "Low",
+      "message_number": 117,
+      "wire_id": 4294901877,
+      "wire_id_hex": "0xffff0075",
+      "wire_id_bytes_hex": "ffff0075",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "LocalID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "GrabOffset",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        },
+        {
+          "name": "SurfaceInfo",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "UVCoord",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "STCoord",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "FaceIndex",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Normal",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Binormal",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectGrabUpdate",
+      "ts_constant": "OBJECT_GRAB_UPDATE",
+      "kotlin_constant": "ObjectGrabUpdate",
+      "frequency": "Low",
+      "message_number": 118,
+      "wire_id": 4294901878,
+      "wire_id_hex": "0xffff0076",
+      "wire_id_bytes_hex": "ffff0076",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "GrabOffsetInitial",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "GrabPosition",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "TimeSinceLast",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "SurfaceInfo",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "UVCoord",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "STCoord",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "FaceIndex",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Normal",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Binormal",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ObjectDeGrab",
+      "ts_constant": "OBJECT_DE_GRAB",
+      "kotlin_constant": "ObjectDeGrab",
+      "frequency": "Low",
+      "message_number": 119,
+      "wire_id": 4294901879,
+      "wire_id_hex": "0xffff0077",
+      "wire_id_bytes_hex": "ffff0077",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "LocalID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "SurfaceInfo",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "UVCoord",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "STCoord",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "FaceIndex",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Normal",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Binormal",
+              "type": "LLVector3",
+              "size_bytes": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ChatFromSimulator",
+      "ts_constant": "CHAT_FROM_SIMULATOR",
+      "kotlin_constant": "ChatFromSimulator",
+      "frequency": "Low",
+      "message_number": 139,
+      "wire_id": 4294901899,
+      "wire_id_hex": "0xffff008b",
+      "wire_id_bytes_hex": "ffff008b",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "ChatData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "FromName",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "SourceID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "OwnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SourceType",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ChatType",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Audible",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Message",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RegionHandshake",
+      "ts_constant": "REGION_HANDSHAKE",
+      "kotlin_constant": "RegionHandshake",
+      "frequency": "Low",
+      "message_number": 148,
+      "wire_id": 4294901908,
+      "wire_id_hex": "0xffff0094",
+      "wire_id_bytes_hex": "ffff0094",
+      "trust": "Trusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "RegionInfo",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SimAccess",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "SimName",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "SimOwner",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "IsEstateManager",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "WaterHeight",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "BillableFactor",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "CacheID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainBase0",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainBase1",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainBase2",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainBase3",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainDetail0",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainDetail1",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainDetail2",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainDetail3",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TerrainStartHeight00",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainStartHeight01",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainStartHeight10",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainStartHeight11",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainHeightRange00",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainHeightRange01",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainHeightRange10",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "TerrainHeightRange11",
+              "type": "F32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "RegionInfo2",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "RegionInfo3",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "CPUClassID",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "CPURatio",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ColoName",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "ProductSKU",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "ProductName",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        },
+        {
+          "name": "RegionInfo4",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "RegionFlagsExtended",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "RegionProtocols",
+              "type": "U64",
+              "size_bytes": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RegionHandshakeReply",
+      "ts_constant": "REGION_HANDSHAKE_REPLY",
+      "kotlin_constant": "RegionHandshakeReply",
+      "frequency": "Low",
+      "message_number": 149,
+      "wire_id": 4294901909,
+      "wire_id_hex": "0xffff0095",
+      "wire_id_bytes_hex": "ffff0095",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "RegionInfo",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Flags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RequestPayPrice",
+      "ts_constant": "REQUEST_PAY_PRICE",
+      "kotlin_constant": "RequestPayPrice",
+      "frequency": "Low",
+      "message_number": 161,
+      "wire_id": 4294901921,
+      "wire_id_hex": "0xffff00a1",
+      "wire_id_bytes_hex": "ffff00a1",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs",
+        "core/viewer-session.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "ObjectData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PayPriceReply",
+      "ts_constant": "PAY_PRICE_REPLY",
+      "kotlin_constant": "PayPriceReply",
+      "frequency": "Low",
+      "message_number": 162,
+      "wire_id": 4294901922,
+      "wire_id_hex": "0xffff00a2",
+      "wire_id_bytes_hex": "ffff00a2",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs",
+        "core/viewer-session.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "ObjectData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ObjectID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "DefaultPayPrice",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "ButtonData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "PayButton",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "KickUser",
+      "ts_constant": "KICK_USER",
+      "kotlin_constant": "KickUser",
+      "frequency": "Low",
+      "message_number": 163,
+      "wire_id": 4294901923,
+      "wire_id_hex": "0xffff00a3",
+      "wire_id_bytes_hex": "ffff00a3",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "TargetBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TargetIP",
+              "type": "IPADDR",
+              "size_bytes": 4
+            },
+            {
+              "name": "TargetPort",
+              "type": "U16",
+              "size_bytes": 2
+            }
+          ]
+        },
+        {
+          "name": "UserInfo",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Reason",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AvatarPropertiesRequest",
+      "ts_constant": "AVATAR_PROPERTIES_REQUEST",
+      "kotlin_constant": "AvatarPropertiesRequest",
+      "frequency": "Low",
+      "message_number": 169,
+      "wire_id": 4294901929,
+      "wire_id_hex": "0xffff00a9",
+      "wire_id_bytes_hex": "ffff00a9",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "AvatarID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AvatarPropertiesReply",
+      "ts_constant": "AVATAR_PROPERTIES_REPLY",
+      "kotlin_constant": "AvatarPropertiesReply",
+      "frequency": "Low",
+      "message_number": 171,
+      "wire_id": 4294901931,
+      "wire_id_hex": "0xffff00ab",
+      "wire_id_bytes_hex": "ffff00ab",
+      "trust": "Trusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "AvatarID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "PropertiesData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ImageID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "FLImageID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "PartnerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "AboutText",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "FLAboutText",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "BornOn",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "ProfileURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "CharterMember",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "Flags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelPropertiesUpdate",
+      "ts_constant": "PARCEL_PROPERTIES_UPDATE",
+      "kotlin_constant": "ParcelPropertiesUpdate",
+      "frequency": "Low",
+      "message_number": 198,
+      "wire_id": 4294901958,
+      "wire_id_hex": "0xffff00c6",
+      "wire_id_bytes_hex": "ffff00c6",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ParcelData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "LocalID",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Flags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ParcelFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SalePrice",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Name",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "Desc",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MusicURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "MediaAutoScale",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "GroupID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "PassPrice",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "PassHours",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Category",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "AuthBuyerID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SnapshotID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "UserLocation",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "UserLookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LandingType",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelBuyPass",
+      "ts_constant": "PARCEL_BUY_PASS",
+      "kotlin_constant": "ParcelBuyPass",
+      "frequency": "Low",
+      "message_number": 206,
+      "wire_id": 4294901966,
+      "wire_id_hex": "0xffff00ce",
+      "wire_id_bytes_hex": "ffff00ce",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ParcelData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "LocalID",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelReclaim",
+      "ts_constant": "PARCEL_RECLAIM",
+      "kotlin_constant": "ParcelReclaim",
+      "frequency": "Low",
+      "message_number": 208,
+      "wire_id": 4294901968,
+      "wire_id_hex": "0xffff00d0",
+      "wire_id_bytes_hex": "ffff00d0",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Data",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "LocalID",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelDivide",
+      "ts_constant": "PARCEL_DIVIDE",
+      "kotlin_constant": "ParcelDivide",
+      "frequency": "Low",
+      "message_number": 211,
+      "wire_id": 4294901971,
+      "wire_id_hex": "0xffff00d3",
+      "wire_id_bytes_hex": "ffff00d3",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ParcelData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "West",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "South",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "East",
+              "type": "F32",
+              "size_bytes": 4
+            },
+            {
+              "name": "North",
+              "type": "F32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelBuy",
+      "ts_constant": "PARCEL_BUY",
+      "kotlin_constant": "ParcelBuy",
+      "frequency": "Low",
+      "message_number": 213,
+      "wire_id": 4294901973,
+      "wire_id_hex": "0xffff00d5",
+      "wire_id_bytes_hex": "ffff00d5",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Data",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "GroupID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "IsGroupOwned",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "RemoveContribution",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "LocalID",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Final",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "ParcelData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Price",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Area",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "UUIDNameRequest",
+      "ts_constant": "UUID_NAME_REQUEST",
+      "kotlin_constant": "UUIDNameRequest",
+      "frequency": "Low",
+      "message_number": 235,
+      "wire_id": 4294901995,
+      "wire_id_hex": "0xffff00eb",
+      "wire_id_bytes_hex": "ffff00eb",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "UUIDNameBlock",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "UUIDNameReply",
+      "ts_constant": "UUID_NAME_REPLY",
+      "kotlin_constant": "UUIDNameReply",
+      "frequency": "Low",
+      "message_number": 236,
+      "wire_id": 4294901996,
+      "wire_id_hex": "0xffff00ec",
+      "wire_id_bytes_hex": "ffff00ec",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "UUIDNameBlock",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "FirstName",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "LastName",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CompleteAgentMovement",
+      "ts_constant": "COMPLETE_AGENT_MOVEMENT",
+      "kotlin_constant": "CompleteAgentMovement",
+      "frequency": "Low",
+      "message_number": 249,
+      "wire_id": 4294902009,
+      "wire_id_hex": "0xffff00f9",
+      "wire_id_bytes_hex": "ffff00f9",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "CircuitCode",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AgentMovementComplete",
+      "ts_constant": "AGENT_MOVEMENT_COMPLETE",
+      "kotlin_constant": "AgentMovementComplete",
+      "frequency": "Low",
+      "message_number": 250,
+      "wire_id": 4294902010,
+      "wire_id_hex": "0xffff00fa",
+      "wire_id_bytes_hex": "ffff00fa",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Data",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "LookAt",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "RegionHandle",
+              "type": "U64",
+              "size_bytes": 8
+            },
+            {
+              "name": "Timestamp",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "SimData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "ChannelVersion",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "LogoutRequest",
+      "ts_constant": "LOGOUT_REQUEST",
+      "kotlin_constant": "LogoutRequest",
+      "frequency": "Low",
+      "message_number": 252,
+      "wire_id": 4294902012,
+      "wire_id_hex": "0xffff00fc",
+      "wire_id_bytes_hex": "ffff00fc",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "LogoutReply",
+      "ts_constant": "LOGOUT_REPLY",
+      "kotlin_constant": "LogoutReply",
+      "frequency": "Low",
+      "message_number": 253,
+      "wire_id": 4294902013,
+      "wire_id_hex": "0xffff00fd",
+      "wire_id_bytes_hex": "ffff00fd",
+      "trust": "Trusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "InventoryData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ItemID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ImprovedInstantMessage",
+      "ts_constant": "IMPROVED_INSTANT_MESSAGE",
+      "kotlin_constant": "ImprovedInstantMessage",
+      "frequency": "Low",
+      "message_number": 254,
+      "wire_id": 4294902014,
+      "wire_id_hex": "0xffff00fe",
+      "wire_id_bytes_hex": "ffff00fe",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "MessageBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "FromGroup",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "ToAgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "ParentEstateID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "RegionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Position",
+              "type": "LLVector3",
+              "size_bytes": 12
+            },
+            {
+              "name": "Offline",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Dialog",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "ID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Timestamp",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "FromAgentName",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "Message",
+              "type": "Variable 2",
+              "size_bytes": null
+            },
+            {
+              "name": "BinaryBucket",
+              "type": "Variable 2",
+              "size_bytes": null
+            }
+          ]
+        },
+        {
+          "name": "EstateBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "EstateID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "DeRezObject",
+      "ts_constant": "DE_REZ_OBJECT",
+      "kotlin_constant": "DeRezObject",
+      "frequency": "Low",
+      "message_number": 291,
+      "wire_id": 4294902051,
+      "wire_id_hex": "0xffff0123",
+      "wire_id_bytes_hex": "ffff0123",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "AgentBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "GroupID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Destination",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "DestinationID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TransactionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "PacketCount",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "PacketNumber",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "ObjectData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "ObjectLocalID",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AcceptFriendship",
+      "ts_constant": "ACCEPT_FRIENDSHIP",
+      "kotlin_constant": "AcceptFriendship",
+      "frequency": "Low",
+      "message_number": 297,
+      "wire_id": 4294902057,
+      "wire_id_hex": "0xffff0129",
+      "wire_id_bytes_hex": "ffff0129",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "TransactionBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TransactionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "FolderData",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "FolderID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "DeclineFriendship",
+      "ts_constant": "DECLINE_FRIENDSHIP",
+      "kotlin_constant": "DeclineFriendship",
+      "frequency": "Low",
+      "message_number": 298,
+      "wire_id": 4294902058,
+      "wire_id_hex": "0xffff012a",
+      "wire_id_bytes_hex": "ffff012a",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "TransactionBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TransactionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TerminateFriendship",
+      "ts_constant": "TERMINATE_FRIENDSHIP",
+      "kotlin_constant": "TerminateFriendship",
+      "frequency": "Low",
+      "message_number": 300,
+      "wire_id": 4294902060,
+      "wire_id_hex": "0xffff012c",
+      "wire_id_bytes_hex": "ffff012c",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/viewer-session.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "ExBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "OtherID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MoneyTransferRequest",
+      "ts_constant": "MONEY_TRANSFER_REQUEST",
+      "kotlin_constant": "MoneyTransferRequest",
+      "frequency": "Low",
+      "message_number": 311,
+      "wire_id": 4294902071,
+      "wire_id_hex": "0xffff0137",
+      "wire_id_bytes_hex": "ffff0137",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "MoneyData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "SourceID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "DestID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Flags",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Amount",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "AggregatePermNextOwner",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "AggregatePermInventory",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "TransactionType",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Description",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MoneyBalanceRequest",
+      "ts_constant": "MONEY_BALANCE_REQUEST",
+      "kotlin_constant": "MoneyBalanceRequest",
+      "frequency": "Low",
+      "message_number": 313,
+      "wire_id": 4294902073,
+      "wire_id_hex": "0xffff0139",
+      "wire_id_bytes_hex": "ffff0139",
+      "trust": "NotTrusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "MoneyData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TransactionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MoneyBalanceReply",
+      "ts_constant": "MONEY_BALANCE_REPLY",
+      "kotlin_constant": "MoneyBalanceReply",
+      "frequency": "Low",
+      "message_number": 314,
+      "wire_id": 4294902074,
+      "wire_id_hex": "0xffff013a",
+      "wire_id_bytes_hex": "ffff013a",
+      "trust": "Trusted",
+      "encoding": "Zerocoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "MoneyData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TransactionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "TransactionSuccess",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "MoneyBalance",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SquareMetersCredit",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SquareMetersCommitted",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Description",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        },
+        {
+          "name": "TransactionInfo",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "TransactionType",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "SourceID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "IsSourceGroup",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "DestID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "IsDestGroup",
+              "type": "BOOL",
+              "size_bytes": 1
+            },
+            {
+              "name": "Amount",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "ItemDescription",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "GrantUserRights",
+      "ts_constant": "GRANT_USER_RIGHTS",
+      "kotlin_constant": "GrantUserRights",
+      "frequency": "Low",
+      "message_number": 320,
+      "wire_id": 4294902080,
+      "wire_id_hex": "0xffff0140",
+      "wire_id_bytes_hex": "ffff0140",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/viewer-session.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        },
+        {
+          "name": "Rights",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "AgentRelated",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "RelatedRights",
+              "type": "S32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OnlineNotification",
+      "ts_constant": "ONLINE_NOTIFICATION",
+      "kotlin_constant": "OnlineNotification",
+      "frequency": "Low",
+      "message_number": 322,
+      "wire_id": 4294902082,
+      "wire_id_hex": "0xffff0142",
+      "wire_id_bytes_hex": "ffff0142",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentBlock",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OfflineNotification",
+      "ts_constant": "OFFLINE_NOTIFICATION",
+      "kotlin_constant": "OfflineNotification",
+      "frequency": "Low",
+      "message_number": 323,
+      "wire_id": 4294902083,
+      "wire_id_hex": "0xffff0143",
+      "wire_id_bytes_hex": "ffff0143",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentBlock",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RegionHandleRequest",
+      "ts_constant": "REGION_HANDLE_REQUEST",
+      "kotlin_constant": "RegionHandleRequest",
+      "frequency": "Low",
+      "message_number": 309,
+      "wire_id": 4294902069,
+      "wire_id_hex": "0xffff0135",
+      "wire_id_bytes_hex": "ffff0135",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt",
+        "core/sl-actions.cjs"
+      ],
+      "blocks": [
+        {
+          "name": "RequestBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "RegionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MapNameRequest",
+      "ts_constant": "MAP_NAME_REQUEST",
+      "kotlin_constant": "MapNameRequest",
+      "frequency": "Low",
+      "message_number": 408,
+      "wire_id": 4294902168,
+      "wire_id_hex": "0xffff0198",
+      "wire_id_bytes_hex": "ffff0198",
+      "trust": "NotTrusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": true,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "SessionID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Flags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "EstateID",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Godlike",
+              "type": "BOOL",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "NameData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Name",
+              "type": "Variable 1",
+              "size_bytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MapBlockReply",
+      "ts_constant": "MAP_BLOCK_REPLY",
+      "kotlin_constant": "MapBlockReply",
+      "frequency": "Low",
+      "message_number": 409,
+      "wire_id": 4294902169,
+      "wire_id_hex": "0xffff0199",
+      "wire_id_bytes_hex": "ffff0199",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "AgentData",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "AgentID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "Flags",
+              "type": "U32",
+              "size_bytes": 4
+            }
+          ]
+        },
+        {
+          "name": "Data",
+          "quantity": "Variable",
+          "count": null,
+          "fields": [
+            {
+              "name": "X",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "Y",
+              "type": "U16",
+              "size_bytes": 2
+            },
+            {
+              "name": "Name",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "Access",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "RegionFlags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "WaterHeight",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "Agents",
+              "type": "U8",
+              "size_bytes": 1
+            },
+            {
+              "name": "MapImageID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelMediaCommandMessage",
+      "ts_constant": "PARCEL_MEDIA_COMMAND_MESSAGE",
+      "kotlin_constant": "ParcelMediaCommandMessage",
+      "frequency": "Low",
+      "message_number": 419,
+      "wire_id": 4294902179,
+      "wire_id_hex": "0xffff01a3",
+      "wire_id_bytes_hex": "ffff01a3",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "CommandBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "Flags",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Command",
+              "type": "U32",
+              "size_bytes": 4
+            },
+            {
+              "name": "Time",
+              "type": "F32",
+              "size_bytes": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ParcelMediaUpdate",
+      "ts_constant": "PARCEL_MEDIA_UPDATE",
+      "kotlin_constant": "ParcelMediaUpdate",
+      "frequency": "Low",
+      "message_number": 420,
+      "wire_id": 4294902180,
+      "wire_id_hex": "0xffff01a4",
+      "wire_id_bytes_hex": "ffff01a4",
+      "trust": "Trusted",
+      "encoding": "Unencoded",
+      "flags": [],
+      "viewer_outbound_eligible": false,
+      "used_in": [
+        "src/linkpoint/sl-message-types.ts",
+        "android-kotlin/core/src/main/kotlin/app/linkpoint/core/net/Wire.kt"
+      ],
+      "blocks": [
+        {
+          "name": "DataBlock",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "MediaURL",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaID",
+              "type": "LLUUID",
+              "size_bytes": 16
+            },
+            {
+              "name": "MediaAutoScale",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        },
+        {
+          "name": "DataBlockExtended",
+          "quantity": "Single",
+          "count": 1,
+          "fields": [
+            {
+              "name": "MediaType",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaDesc",
+              "type": "Variable 1",
+              "size_bytes": null
+            },
+            {
+              "name": "MediaWidth",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "MediaHeight",
+              "type": "S32",
+              "size_bytes": 4
+            },
+            {
+              "name": "MediaLoop",
+              "type": "U8",
+              "size_bytes": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "packet_framing_vectors": [
+    {
+      "name": "high_freq_reliable_start_ping_check",
+      "message_name": "StartPingCheck",
+      "sequence": 1,
+      "flags": 64,
+      "wire_id": 1,
+      "body_hex": "0700000000",
+      "appended_acks": [],
+      "expected_packet_hex": "400000000100010700000000"
+    },
+    {
+      "name": "medium_freq_request_multiple_objects_with_ack",
+      "message_name": "RequestMultipleObjects",
+      "sequence": 42,
+      "flags": 80,
+      "wire_id": 65283,
+      "body_hex": "11111111222233334444555555555555aaaaaaaabbbbccccddddeeeeeeeeeeee010064000000",
+      "appended_acks": [9],
+      "expected_packet_hex": "500000002a00ff0311111111222233334444555555555555aaaaaaaabbbbccccddddeeeeeeeeeeee0100640000000000000901"
+    },
+    {
+      "name": "low_freq_reliable_use_circuit_code",
+      "message_name": "UseCircuitCode",
+      "sequence": 7,
+      "flags": 64,
+      "wire_id": 4294901763,
+      "body_hex": "785634120000000000000000000000000000000100000000000000000000000000000002",
+      "appended_acks": [],
+      "expected_packet_hex": "400000000700ffff0003785634120000000000000000000000000000000100000000000000000000000000000002"
+    },
+    {
+      "name": "fixed_freq_packet_ack",
+      "message_name": "PacketAck",
+      "sequence": 12,
+      "flags": 0,
+      "wire_id": 4294967291,
+      "body_hex": "020a0000000b000000",
+      "appended_acks": [],
+      "expected_packet_hex": "000000000c00fffffffb020a0000000b000000"
+    },
+    {
+      "name": "zerocoded_low_freq_region_handshake_reply",
+      "message_name": "RegionHandshakeReply",
+      "sequence": 15,
+      "flags": 192,
+      "wire_id": 4294901909,
+      "body_hex": "000000000000000000000000000000010000000000000000000000000000000201000000",
+      "appended_acks": [],
+      "expected_packet_hex": "c00000000f00ffff000195000f01000f02010003"
+    }
+  ]
+}

@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import AccessibleInput from './AccessibleInput.tsx';
 import AccessibleButton from './AccessibleButton.jsx';
+import SyncActionButton, { useBusyCoordinator } from './SyncActionButton.tsx';
 import { AccessibleSelect } from '@linkpoint/design-system/react';
 import { app } from '../linkpoint/app.ts';
 import { Utils } from '../linkpoint/utils.ts';
@@ -47,11 +48,36 @@ export function CreateGroupNoticeModal({
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [selectedAttachmentId, setSelectedAttachmentId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [inventoryRevision, setInventoryRevision] = useState(0);
+  const { isBusy: submitting, run } = useBusyCoordinator();
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const inventory = app.inventory;
+    if (!isOpen || !inventory) return undefined;
+
+    const handleInventoryUpdate = () => setInventoryRevision((rev) => rev + 1);
+    if (typeof inventory.on === 'function') {
+      inventory.on('inventory_loaded', handleInventoryUpdate);
+      inventory.on('inventory_updated', handleInventoryUpdate);
+    }
+
+    const itemCount = inventory.items ? inventory.items.size : 0;
+    if (itemCount === 0 && !inventory.isLoading && typeof inventory.load === 'function') {
+      void Promise.resolve(inventory.load()).catch(() => undefined);
+    }
+
+    return () => {
+      if (typeof inventory.off === 'function') {
+        inventory.off('inventory_loaded', handleInventoryUpdate);
+        inventory.off('inventory_updated', handleInventoryUpdate);
+      }
+    };
+  }, [isOpen]);
+
   const eligibleItems = useMemo(() => {
-    if (!app.inventory || !app.inventory.items) return [];
+    void inventoryRevision;
+    if (!isOpen || !app.inventory || !app.inventory.items) return [];
     const items = [];
     for (const item of app.inventory.items.values()) {
       const type = Number(item.assetType ?? item.type);
@@ -65,7 +91,14 @@ export function CreateGroupNoticeModal({
       }
     }
     return items.sort((a, b) => a.name.localeCompare(b.name));
-  }, [isOpen]);
+  }, [isOpen, inventoryRevision]);
+
+  useEffect(() => {
+    if (!isOpen || !selectedAttachmentId) return;
+    if (!eligibleItems.some((item) => item.id === selectedAttachmentId)) {
+      setSelectedAttachmentId('');
+    }
+  }, [isOpen, eligibleItems, selectedAttachmentId]);
 
   const selectedAttachment = useMemo(() => {
     if (!selectedAttachmentId) return null;
@@ -102,35 +135,35 @@ export function CreateGroupNoticeModal({
       return;
     }
 
-    setSubmitting(true);
-    setError('');
+    await run('send-notice', async () => {
+      setError('');
 
-    try {
-      const attachment = selectedAttachment
-        ? {
-            itemId: selectedAttachment.id,
-            itemName: selectedAttachment.name,
-            itemType: selectedAttachment.type,
-            ownerId: selectedAttachment.ownerId,
-          }
-        : null;
+      try {
+        const attachment = selectedAttachment
+          ? {
+              itemId: selectedAttachment.id,
+              itemName: selectedAttachment.name,
+              itemType: selectedAttachment.type,
+              ownerId: selectedAttachment.ownerId,
+            }
+          : null;
 
-      const result = await app.sendGroupNotice(groupId, {
-        subject: cleanSubject,
-        message: cleanMessage,
-        attachment,
-      });
+        const result = await app.sendGroupNotice(groupId, {
+          subject: cleanSubject,
+          message: cleanMessage,
+          attachment,
+        });
 
-      Utils.showToast('Group notice dispatched successfully.', 'success');
-      onNoticeSuccess?.(result);
-      onClose();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err || 'Failed to dispatch notice.');
-      setError(msg);
-      Utils.showToast(msg, 'error');
-    } finally {
-      setSubmitting(false);
-    }
+        Utils.showToast('Group notice dispatched successfully.', 'success');
+        onNoticeSuccess?.(result);
+        onClose();
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : String(err || 'Failed to dispatch notice.');
+        setError(msg);
+        Utils.showToast(msg, 'error');
+      }
+    });
   };
 
   const subjectCharCount = subject.length;
@@ -371,30 +404,25 @@ export function CreateGroupNoticeModal({
               >
                 Cancel
               </AccessibleButton>
-              <AccessibleButton
-                as="button"
+              <SyncActionButton
                 type="submit"
-                disabled={submitting}
+                variant="primary"
+                loading={submitting}
                 aria-label="Send Notice"
+                iconName="send"
+                size={13}
+                idleText="Send Notice"
+                loadingText="Sending…"
                 style={{
-                  minHeight: 34,
                   padding: '0 16px',
                   border: `1px solid ${V?.pri || '#2563eb'}`,
                   borderRadius: V?.rs || 4,
                   background: V?.pri || '#2563eb',
                   color: V?.onpri || '#ffffff',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.6 : 1,
                   fontSize: 12,
                   fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
                 }}
-              >
-                <Icon name="send" size={13} />
-                <span>{submitting ? 'Sending…' : 'Send Notice'}</span>
-              </AccessibleButton>
+              />
             </div>
           </form>
         </div>

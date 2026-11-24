@@ -8,6 +8,11 @@ import SyncActionButton from '../components/SyncActionButton.tsx';
 import SkeletonLoader from '../components/SkeletonLoader.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
 import { InventoryTree } from '../components/InventoryTree.tsx';
+import CreateFolderModal from '../components/CreateFolderModal.tsx';
+import {
+  formatPermissionMaskSummary,
+  normalizeItemPermissions,
+} from '../linkpoint/services/inventory-properties-service.ts';
 
 export const INVENTORY_VIEW_MODE_KEY = 'linkpoint_inventory_view_mode';
 const FLAT_ROW_HEIGHT = 40;
@@ -33,8 +38,14 @@ export default function Inventory() {
   const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const lastSelectedFlatIdRef = useRef(null);
   const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
   const [refreshing, setRefreshing] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createInitialParentId, setCreateInitialParentId] = useState('');
+  const [expandRequest, setExpandRequest] = useState(null);
+  const [folderErrorAlert, setFolderErrorAlert] = useState('');
 
   // Virtualized flat table container measurements
   const flatContainerRef = useRef(null);
@@ -50,12 +61,18 @@ export default function Inventory() {
     app.inventory.on('inventory_updated', refresh);
     app.inventory.on('inventory_loading_start', startLoading);
     app.inventory.on('inventory_loading_end', stopLoading);
+    app.gestures.on('gesture_registered', refresh);
+    app.gestures.on('gesture_activated', refresh);
+    app.gestures.on('gesture_deactivated', refresh);
 
     return () => {
       app.inventory.off('inventory_loaded', refresh);
       app.inventory.off('inventory_updated', refresh);
       app.inventory.off('inventory_loading_start', startLoading);
       app.inventory.off('inventory_loading_end', stopLoading);
+      app.gestures.off('gesture_registered', refresh);
+      app.gestures.off('gesture_activated', refresh);
+      app.gestures.off('gesture_deactivated', refresh);
     };
   }, []);
 
@@ -71,6 +88,7 @@ export default function Inventory() {
   const handleSelect = (entry) => {
     if (!entry) {
       setSelected(null);
+      setSelectedIds([]);
       return;
     }
     const isFolder = Boolean(
@@ -84,9 +102,28 @@ export default function Inventory() {
       folder: isFolder,
     });
     if (isFolder) {
+      setSelectedIds([]);
       void app.inventory.fetchFolderContents(entry.id);
+    } else {
+      setSelectedIds((prev) => (prev.length > 1 && prev.includes(entry.id) ? prev : [entry.id]));
     }
   };
+
+  const selectedItemsList = useMemo(() => {
+    void revision;
+    const list = [];
+    for (const id of selectedIds) {
+      const item = app.inventory.items.get(id);
+      if (item && !item.folder && item.type !== 'folder') {
+        list.push(item);
+      }
+    }
+    if (list.length === 0 && selected && !selected.folder) {
+      const live = app.inventory.items.get(selected.id) || selected;
+      list.push(live);
+    }
+    return list;
+  }, [selectedIds, selected, revision]);
 
   const rows = useMemo(() => {
     void revision;
@@ -112,6 +149,34 @@ export default function Inventory() {
           Number(b.folder) - Number(a.folder) || String(a.name).localeCompare(String(b.name)),
       );
   }, [filter, revision]);
+
+  const handleFlatRowClick = (entry, event) => {
+    const isFolder = Boolean(entry.folder || entry.type === 'folder');
+    if (!isFolder && (event?.ctrlKey || event?.metaKey)) {
+      setSelectedIds((prev) => {
+        const exists = prev.includes(entry.id);
+        const next = exists ? prev.filter((id) => id !== entry.id) : [...prev, entry.id];
+        return next;
+      });
+      setSelected({ ...entry, folder: false });
+      lastSelectedFlatIdRef.current = entry.id;
+      return;
+    }
+    if (!isFolder && event?.shiftKey && lastSelectedFlatIdRef.current) {
+      const itemRows = rows.filter((r) => !r.folder);
+      const aIdx = itemRows.findIndex((r) => r.id === lastSelectedFlatIdRef.current);
+      const bIdx = itemRows.findIndex((r) => r.id === entry.id);
+      if (aIdx !== -1 && bIdx !== -1) {
+        const [lo, hi] = aIdx <= bIdx ? [aIdx, bIdx] : [bIdx, aIdx];
+        const rangeIds = itemRows.slice(lo, hi + 1).map((r) => r.id);
+        setSelectedIds(rangeIds);
+        setSelected({ ...entry, folder: false });
+        return;
+      }
+    }
+    lastSelectedFlatIdRef.current = entry.id;
+    handleSelect(entry);
+  };
 
   // Measure flat list viewport height for virtualization
   useEffect(() => {
@@ -167,6 +232,73 @@ export default function Inventory() {
       setIsLoading(false);
     }
   };
+
+  const handleOpenCreateFolder = (explicitParentId) => {
+    let destId = '';
+    if (explicitParentId && app.inventory.canCreateFolderIn(explicitParentId)) {
+      destId = explicitParentId;
+    } else if (selected?.folder && app.inventory.canCreateFolderIn(selected.id)) {
+      destId = selected.id;
+    } else if (
+      selected &&
+      !selected.folder &&
+      selected.parent &&
+      app.inventory.canCreateFolderIn(selected.parent)
+    ) {
+      destId = selected.parent;
+    } else if (
+      app.inventory.rootFolder?.id &&
+      app.inventory.canCreateFolderIn(app.inventory.rootFolder.id)
+    ) {
+      destId = app.inventory.rootFolder.id;
+    } else {
+      for (const folder of app.inventory.folders.values()) {
+        if (app.inventory.canCreateFolderIn(folder)) {
+          destId = folder.id;
+          break;
+        }
+      }
+    }
+    setFolderErrorAlert('');
+    setCreateInitialParentId(destId);
+    setCreateModalOpen(true);
+  };
+
+  const handleCreateFolderSubmit = async ({ parentId, name }) => {
+    const previousSelection = selected;
+    setCreateModalOpen(false);
+    setFolderErrorAlert('');
+    setExpandRequest((prev) => ({ folderId: parentId, seq: (prev?.seq ?? 0) + 1 }));
+
+    try {
+      const created = await app.inventory.createInventoryFolder({
+        parentId,
+        name,
+        onOptimisticCreate: (optFolder) => {
+          setSelected({ ...optFolder, folder: true });
+        },
+      });
+      if (created) {
+        setSelected({ ...created, folder: true });
+      }
+    } catch (err) {
+      setSelected(previousSelection);
+      const reason = err instanceof Error ? err.message : 'Simulator network error';
+      const alertMsg = `Failed to create folder: ${reason}`;
+      setFolderErrorAlert(alertMsg);
+      actions?.notify?.(alertMsg);
+    }
+  };
+
+  const hasWritableFolder = useMemo(() => {
+    void revision;
+    for (const folder of app.inventory.folders.values()) {
+      if (app.inventory.canCreateFolderIn(folder)) {
+        return true;
+      }
+    }
+    return false;
+  }, [revision]);
 
   const showSkeletons = (isLoading || refreshing) && rows.length === 0;
 
@@ -254,6 +386,66 @@ export default function Inventory() {
             <span>Flat Table</span>
           </TouchTarget>
         </div>
+        {selectedItemsList.length > 0 && (
+          <TouchTarget
+            type="button"
+            minSize={24}
+            aria-label={
+              selectedItemsList.length > 1
+                ? `Open properties for ${selectedItemsList.length} selected items`
+                : `Open properties for ${selectedItemsList[0].name || 'selected item'}`
+            }
+            onClick={() => actions.openItemProperties?.(selectedItemsList)}
+            title="Inspect or batch-edit item permissions"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              height: '40px',
+              padding: '0 12px',
+              background: V.surf,
+              border: `1px solid ${V.pri}`,
+              borderRadius: V.rs,
+              color: V.pri,
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              flex: 'none',
+            }}
+          >
+            <Icon name="sliders-horizontal" size={14} />
+            <span>
+              {selectedItemsList.length > 1
+                ? `PROPERTIES (${selectedItemsList.length})`
+                : 'PROPERTIES'}
+            </span>
+          </TouchTarget>
+        )}
+        <TouchTarget
+          type="button"
+          minSize={44}
+          enhanced
+          aria-label="New Folder"
+          title="Create new inventory folder"
+          disabled={!hasWritableFolder}
+          onClick={() => handleOpenCreateFolder()}
+          style={{
+            height: '44px',
+            padding: '0 12px',
+            background: V.surf,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            color: V.pri,
+            fontSize: '11px',
+            fontWeight: 700,
+            gap: 6,
+            flex: 'none',
+          }}
+        >
+          <Icon name="folder-plus" size={15} />
+          <span>New Folder</span>
+        </TouchTarget>
         <SyncActionButton
           type="button"
           onClick={handleRefresh}
@@ -278,6 +470,44 @@ export default function Inventory() {
           }}
         />
       </div>
+      {folderErrorAlert ? (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '8px 12px',
+            marginTop: 8,
+            borderRadius: V.rs,
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: `1px solid ${V.err || '#ef4444'}`,
+            color: V.ink || '#fecaca',
+            fontSize: '12px',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="alert-circle" size={16} style={{ color: V.err || '#ef4444' }} />
+            <span>{folderErrorAlert}</span>
+          </span>
+          <TouchTarget
+            type="button"
+            minSize={44}
+            enhanced
+            aria-label="Dismiss error alert"
+            onClick={() => setFolderErrorAlert('')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: V.ink || '#fecaca',
+              borderRadius: V.rs,
+            }}
+          >
+            <Icon name="x" size={15} />
+          </TouchTarget>
+        </div>
+      ) : null}
       {showSkeletons ? (
         <div className="live-list">
           <SkeletonLoader type="row" count={6} />
@@ -287,7 +517,12 @@ export default function Inventory() {
           <InventoryTree
             filter={filter}
             selectedId={selected?.id}
+            selectedIds={selectedIds}
             onSelect={handleSelect}
+            onSelectionChange={(items) => setSelectedIds(items.map((i) => i.id))}
+            onOpenProperties={(items, opts) => actions.openItemProperties?.(items, opts)}
+            expandRequest={expandRequest}
+            onRequestCreateFolder={handleOpenCreateFolder}
             onItemActivate={(entry) => {
               if (Number(entry.assetType) === 7) {
                 actions.openNotecard?.(entry);
@@ -329,11 +564,11 @@ export default function Inventory() {
                       height: `${FLAT_ROW_HEIGHT}px`,
                       boxSizing: 'border-box',
                       backgroundColor:
-                        selected?.id === entry.id
+                        selectedIds.includes(entry.id) || selected?.id === entry.id
                           ? V.priC || 'rgba(52, 118, 255, 0.15)'
                           : 'transparent',
                     }}
-                    onClick={() => handleSelect(entry)}
+                    onClick={(e) => handleFlatRowClick(entry, e)}
                     onDoubleClick={() => {
                       if (Number(entry.assetType) === 7) {
                         actions.openNotecard?.(entry);
@@ -391,22 +626,111 @@ export default function Inventory() {
               {selected.description ? (
                 <>
                   <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Description</dt>
-                  <dd style={{ margin: '0', fontSize: '12px' }}>{selected.description}</dd>
+                  <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>{selected.description}</dd>
+                </>
+              ) : null}
+              {!selected.folder ? (
+                <>
+                  <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>
+                    Owner Permissions
+                  </dt>
+                  <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>
+                    {formatPermissionMaskSummary(normalizeItemPermissions(selected).ownerMask)}
+                  </dd>
+                  <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Next Owner</dt>
+                  <dd style={{ margin: '0', fontSize: '12px' }}>
+                    {formatPermissionMaskSummary(normalizeItemPermissions(selected).nextOwnerMask)}
+                  </dd>
                 </>
               ) : null}
             </dl>
-            {Number(selected.assetType) === 7 && (
-              <div style={{ marginTop: '12px' }}>
+            {!selected.folder &&
+              Number(selected.assetType) === 21 &&
+              (() => {
+                void revision;
+                const gestureRecord = app.gestures.getGesture(selected.id);
+                const isActive = Boolean(gestureRecord?.active);
+                const triggerLabel = gestureRecord?.compiled?.trigger || '—';
+                const hotkeyLabel = gestureRecord?.compiled?.hotkey || '—';
+                return (
+                  <div style={{ marginTop: '12px' }}>
+                    <dl style={{ margin: '0 0 10px 0' }}>
+                      <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Status</dt>
+                      <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>
+                        {isActive ? 'Active' : 'Inactive'}
+                      </dd>
+                      <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Trigger</dt>
+                      <dd style={{ margin: '0 0 6px 0', fontSize: '12px' }}>{triggerLabel}</dd>
+                      <dt style={{ fontWeight: 700, fontSize: '11px', opacity: 0.7 }}>Shortcut</dt>
+                      <dd style={{ margin: 0, fontSize: '12px' }}>{hotkeyLabel}</dd>
+                    </dl>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="sync-action-btn"
+                        onClick={() => {
+                          if (isActive) {
+                            void app.deactivateInventoryGesture(selected.id);
+                          } else {
+                            void app.activateInventoryGesture(selected.id);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: isActive ? V.surf : V.pri,
+                          color: isActive ? V.ink || V.pri : V.onpri || V.bg,
+                          border: isActive ? `1px solid ${V.outv}` : 'none',
+                          borderRadius: V.rs,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isActive ? 'Deactivate Gesture' : 'Activate Gesture'}
+                      </button>
+                      <button
+                        type="button"
+                        className="sync-action-btn"
+                        onClick={() => {
+                          void app.playInventoryGesture(selected.id);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: V.surf,
+                          color: V.pri,
+                          border: `1px solid ${V.outv}`,
+                          borderRadius: V.rs,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Play Gesture
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            {!selected.folder && (
+              <div
+                style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}
+              >
                 <button
                   type="button"
                   className="sync-action-btn"
-                  onClick={() => actions.openNotecard?.(selected)}
+                  onClick={() =>
+                    actions.openItemProperties?.(
+                      selectedItemsList.length > 1 ? selectedItemsList : [selected],
+                    )
+                  }
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: V.pri,
-                    color: V.onpri || V.bg,
-                    border: 'none',
+                    background: V.surf2 || V.bg,
+                    color: V.ink,
+                    border: `1px solid ${V.outv}`,
                     borderRadius: V.rs,
                     fontSize: '12px',
                     fontWeight: 700,
@@ -417,13 +741,50 @@ export default function Inventory() {
                     gap: '6px',
                   }}
                 >
-                  <Icon name="file-text" size={14} />
-                  <span>Open Notecard</span>
+                  <Icon name="sliders-horizontal" size={14} />
+                  <span>
+                    {selectedItemsList.length > 1
+                      ? `Properties (${selectedItemsList.length} items)`
+                      : 'Properties'}
+                  </span>
                 </button>
+                {Number(selected.assetType) === 7 && (
+                  <button
+                    type="button"
+                    className="sync-action-btn"
+                    onClick={() => actions.openNotecard?.(selected)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: V.pri,
+                      color: V.onpri || V.bg,
+                      border: 'none',
+                      borderRadius: V.rs,
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Icon name="file-text" size={14} />
+                    <span>Open Notecard</span>
+                  </button>
+                )}
               </div>
             )}
           </AssetContainer>
         </aside>
+      ) : null}
+      {createModalOpen ? (
+        <CreateFolderModal
+          isOpen={createModalOpen}
+          initialParentId={createInitialParentId}
+          onClose={() => setCreateModalOpen(false)}
+          onSubmit={handleCreateFolderSubmit}
+        />
       ) : null}
     </section>
   );

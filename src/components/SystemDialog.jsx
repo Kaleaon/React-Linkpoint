@@ -6,6 +6,7 @@ import { app } from '../linkpoint/app';
 import Icon from './Icon.jsx';
 import TeleportCrystalHero from './TeleportCrystalHero.jsx';
 import CrystalProgressBar from './CrystalProgressBar.jsx';
+import TouchTarget from './TouchTarget';
 
 // Ported from the `dialog` computation + its <sc-if> block — the 6 SL
 // "system moment" sheets (llDialog, Permissions, Inventory offer, Teleport
@@ -178,8 +179,11 @@ export default function SystemDialog() {
     ];
 
     const retryDestination = () => {
-      if (teleport.destination) {
-        void app.protocol.teleportTo(teleport.destination);
+      if (!teleport.destination) return;
+      if (teleport.destination.toLowerCase() === 'home') {
+        app.interactions.retryHomeTeleport();
+      } else {
+        void app.protocol.teleportTo(teleport.destination).catch(() => {});
       }
     };
 
@@ -236,12 +240,26 @@ export default function SystemDialog() {
             >
               {isFailed ? 'TELEPORT FAILED' : 'TELEPORTING'}
             </span>
-            <span
+            <TouchTarget
+              type="button"
+              aria-label="Cancel teleport"
               onClick={() => app.interactions.cancelTeleportSession()}
-              style={{ font: '400 11px/1 ' + t.font, color: V.ink2, cursor: 'pointer' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  app.interactions.cancelTeleportSession();
+                }
+              }}
+              style={{
+                font: '400 11px/1 ' + t.font,
+                color: V.ink2,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               CANCEL
-            </span>
+            </TouchTarget>
           </div>
 
           <div id="teleport-sheet-title" style={{ font: '600 15px/1.35 ' + t.font, color: V.ink }}>

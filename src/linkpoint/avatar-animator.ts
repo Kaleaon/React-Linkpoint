@@ -87,6 +87,7 @@ export class AvatarAnimator {
   private retries = new Map<string, number>();
   /** A download that fails is tried again this many times before waiting for the simulator to announce it again. */
   static readonly MAX_RETRIES = 3;
+  private failureListener: ((id: string, error?: unknown) => void) | null = null;
 
   constructor(
     private loader: AnimationLoader,
@@ -95,6 +96,21 @@ export class AvatarAnimator {
       setTimeout(run, ms);
     },
   ) {}
+
+  setFailureListener(listener: ((id: string, error?: unknown) => void) | null) {
+    this.failureListener = listener;
+  }
+
+  /** Preload and cache an animation asset without immediately playing it on an avatar. */
+  preload(id: string): Promise<KeyframeAnimation | null> {
+    return this.load(id);
+  }
+
+  /** Drop cached load state for an animation ID so an explicit retry fetches fresh bytes immediately. */
+  invalidate(id: string) {
+    this.cache.delete(id);
+    this.cache.delete(id.toLowerCase());
+  }
 
   private load(id: string) {
     const cached = this.cache.get(id);
@@ -107,10 +123,17 @@ export class AvatarAnimator {
       promise: Promise.resolve(null),
       failedAt: null,
     };
+    let caughtError: unknown;
     entry.promise = this.loader(id)
-      .catch(() => null)
+      .catch((err) => {
+        caughtError = err;
+        return null;
+      })
       .then((anim) => {
-        if (!anim) entry.failedAt = this.clock();
+        if (!anim) {
+          entry.failedAt = this.clock();
+          this.failureListener?.(id, caughtError);
+        }
         return anim;
       });
     this.cache.set(id, entry);

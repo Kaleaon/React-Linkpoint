@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app';
-import { slBridge } from '../linkpoint/sl-bridge';
 import { sideBorder } from '../theme/look.js';
 import Icon from './Icon.jsx';
 import LinkpointLogo from './LinkpointLogo.jsx';
@@ -17,6 +16,7 @@ const TOOLBAR = [
   ['radar', 'Nearby', 'Radar'],
   ['map', 'Map', 'Map'],
   ['folder', 'Inventory', 'Inventory'],
+  ['person-standing', 'Animation Overrider', 'AO'],
   ['settings', 'Preferences', 'Settings'],
   ['menu', 'All screens', 'Screens'],
 ];
@@ -55,10 +55,15 @@ export default function DesktopChrome() {
       actions.notify('Connect to a grid to teleport.');
       return;
     }
-    slBridge.teleport({ destination }).then(
+    app.protocol.teleportTo(destination).then(
       () => actions.notify(`Teleport to ${destination} requested`),
-      (err) =>
-        actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
+      (err) => {
+        if (!app.interactions.teleportSession) {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not teleport to ${destination}`,
+          );
+        }
+      },
     );
   };
 
@@ -159,7 +164,22 @@ export default function DesktopChrome() {
             aria-label="Back"
             title="Back"
             style={iconButton}
-            onClick={() => actions.notify('No previous location')}
+            onClick={() => {
+              if (!app.auth.isLoggedIn() || !app.teleportHistory?.canGoBack?.()) {
+                actions.notify('No previous location');
+                return;
+              }
+              app.teleportHistory.goBack().then(
+                (entry) =>
+                  actions.notify(
+                    entry ? `Teleporting back to ${entry.regionName}` : 'No previous location',
+                  ),
+                (err) =>
+                  actions.notify(
+                    err instanceof Error ? err.message : 'Could not teleport to previous location',
+                  ),
+              );
+            }}
           >
             <Icon name="chevron-left" size={15} />
           </button>
@@ -168,9 +188,33 @@ export default function DesktopChrome() {
             aria-label="Forward"
             title="Forward"
             style={iconButton}
-            onClick={() => actions.notify('No next location')}
+            onClick={() => {
+              if (!app.auth.isLoggedIn() || !app.teleportHistory?.canGoForward?.()) {
+                actions.notify('No next location');
+                return;
+              }
+              app.teleportHistory.goForward().then(
+                (entry) =>
+                  actions.notify(
+                    entry ? `Teleporting forward to ${entry.regionName}` : 'No next location',
+                  ),
+                (err) =>
+                  actions.notify(
+                    err instanceof Error ? err.message : 'Could not teleport to next location',
+                  ),
+              );
+            }}
           >
             <Icon name="chevron-right" size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label="Teleport history"
+            title="Teleport history"
+            style={iconButton}
+            onClick={() => actions.flToggle('Teleport History')}
+          >
+            <Icon name="history" size={14} />
           </button>
           <button
             type="button"
@@ -182,10 +226,13 @@ export default function DesktopChrome() {
                 actions.notify('Connect to a grid to teleport home.');
                 return;
               }
-              slBridge.teleportHome().then(
+              app.protocol.teleportHome().then(
                 () => actions.notify('Teleport home requested'),
-                (err) =>
-                  actions.notify(err instanceof Error ? err.message : 'Could not teleport home'),
+                (err) => {
+                  if (!app.interactions.teleportSession) {
+                    actions.notify(err instanceof Error ? err.message : 'Could not teleport home');
+                  }
+                },
               );
             }}
           >
@@ -209,6 +256,21 @@ export default function DesktopChrome() {
             onFocus={(event) => event.currentTarget.select()}
             style={{ color: V.ink, fontFamily: t.font }}
           />
+          <button
+            type="button"
+            aria-label="Create landmark"
+            title="Landmark this location (Ctrl+Shift+D)"
+            onClick={() => {
+              if (actions.openLandmarkFloater) {
+                actions.openLandmarkFloater();
+              } else {
+                actions.flFocus('CreateLandmark');
+              }
+            }}
+            style={{ ...iconButton, width: 25, height: 24, border: 0, background: 'transparent' }}
+          >
+            <Icon name="map-pin" size={13} />
+          </button>
           <button
             type="submit"
             aria-label="Go to location"

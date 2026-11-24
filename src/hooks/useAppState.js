@@ -10,11 +10,66 @@ import {
   THEME_STORAGE_KEY,
 } from '../theme/customTheme.js';
 import { readViewerSettings, saveViewerSettings } from './viewerSettings.js';
+import { persistAndSyncKeybindings } from '../context/KeybindingsContext';
+import { downloadSettingsBackupFile, validateSettingsBackup } from '../services/settingsBackup';
 import { Utils } from '../linkpoint/utils';
 import { localCache } from '../linkpoint/local-cache';
 import { app } from '../linkpoint/app';
 import { liveRegionAnnouncer } from '../services/LiveRegionAnnouncer';
 import { deskKind, deskGeometry } from '../theme/deskStyle.js';
+import { matchesKeyBinding } from '../linkpoint/key-bindings';
+
+export const FLOATER_STATE_STORAGE_KEY = 'linkpoint_floater_state';
+
+function sanitizeRectMap(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [id, r] of Object.entries(raw)) {
+    if (!r || typeof r !== 'object') continue;
+    const x = Number(r.x);
+    const y = Number(r.y);
+    const w = Number(r.w);
+    const h = Number(r.h);
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h)) {
+      out[id] = {
+        x: Math.max(0, Math.round(x)),
+        y: Math.max(0, Math.round(y)),
+        w: Math.max(216, Math.round(w)),
+        h: Math.max(96, Math.round(h)),
+      };
+    }
+  }
+  return out;
+}
+
+function sanitizeBoolMap(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [id, val] of Object.entries(raw)) {
+    if (typeof val === 'boolean') out[id] = val;
+  }
+  return out;
+}
+
+export function readSavedFloaterState() {
+  try {
+    const raw = localStorage.getItem(FLOATER_STATE_STORAGE_KEY);
+    if (!raw) return { rect: {}, min: {}, max: {}, prevRect: {}, open: {} };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return { rect: {}, min: {}, max: {}, prevRect: {}, open: {} };
+    }
+    return {
+      rect: sanitizeRectMap(parsed.rect),
+      min: sanitizeBoolMap(parsed.min),
+      max: sanitizeBoolMap(parsed.max),
+      prevRect: sanitizeRectMap(parsed.prevRect),
+      open: sanitizeBoolMap(parsed.open),
+    };
+  } catch {
+    return { rect: {}, min: {}, max: {}, prevRect: {}, open: {} };
+  }
+}
 
 // Ported from the mockup's `state = {...}` initializer and its instance
 // methods (flR/flDrag/flFocus/flToggle/flClose, hudDrag/toggleHud, T/D/navMode,
@@ -157,6 +212,7 @@ export function useAppState() {
   const [rOpen, setROpen] = useState(null);
   const [rMenu, setRMenu] = useState(null);
   const [cDock, setCDock] = useState(['fly', 'sit', 'snap', 'mini', 'inv', 'home', 'ao', 'sun']);
+  const [savedFloaterState] = useState(readSavedFloaterState);
   const [flOpen, setFlOpen] = useState({
     Chat: true,
     Radar: true,
@@ -166,14 +222,30 @@ export function useAppState() {
     Settings: false,
     AO: false,
     Notecard: false,
+    ItemPropertiesFloater: false,
+    CreateLandmark: Boolean(
+      savedFloaterState.open?.CreateLandmark && savedFloaterState.min?.CreateLandmark,
+    ),
   });
   const [notecardItem, setNotecardItem] = useState(null);
   const [notecardReadOnly, setNotecardReadOnly] = useState(false);
   const [notecardDrafts, setNotecardDrafts] = useState({});
-  const [flMin, setFlMin] = useState({});
-  const [flRect, setFlRect] = useState({});
-  const [flMax, setFlMax] = useState({});
-  const [flPrevRect, setFlPrevRect] = useState({});
+  const [itemPropertiesWindows, setItemPropertiesWindows] = useState(
+    /** @type {Record<string, { windowId: string; itemIds: string[]; fallbackItems?: Record<string, any>; title?: string }>} */ ({}),
+  );
+  const itemPropsSeqRef = useRef(1);
+  const [flMin, setFlMin] = useState(
+    () => /** @type {Record<string, boolean>} */ (savedFloaterState.min),
+  );
+  const [flRect, setFlRect] = useState(
+    () => /** @type {Record<string, any>} */ (savedFloaterState.rect),
+  );
+  const [flMax, setFlMax] = useState(
+    () => /** @type {Record<string, boolean>} */ (savedFloaterState.max),
+  );
+  const [flPrevRect, setFlPrevRect] = useState(
+    () => /** @type {Record<string, any>} */ (savedFloaterState.prevRect),
+  );
   const [flZ, setFlZ] = useState(['Map', 'Inventory', 'Friends', 'Radar', 'Chat']);
   const [menu, setMenu] = useState(null);
   const [loginMode, setLoginModeState] = useState('grid');
@@ -386,6 +458,9 @@ export function useAppState() {
   useEffect(() => {
     app.chat.setHistoryLoggingEnabled(toggles.imLogs);
   }, [toggles.imLogs]);
+  useEffect(() => {
+    app.chat.setChatCommandsEnabled(Boolean(toggles.chatCmds));
+  }, [toggles.chatCmds]);
 
   // ---- timers / drag refs (were plain `this.x` fields on the class) -----
   const cflRef = useRef(null); // console-nav tap flash timeout
@@ -498,6 +573,150 @@ export function useAppState() {
       window.prompt('Copy this theme link', url.toString());
     }
   }, [customTheme, notify]);
+
+  const exportSettingsBackup = useCallback(
+    (keybindingsSnapshot) => {
+      const result = downloadSettingsBackupFile({
+        viewerSettings: {
+          layout,
+          palette,
+          dense,
+          density: customTheme?.density,
+          toggles,
+          prefs,
+        },
+        customTheme,
+        keybindings: keybindingsSnapshot,
+        viewMode,
+      });
+      notify('Settings backup exported.');
+      return result;
+    },
+    [layout, palette, dense, customTheme, toggles, prefs, viewMode, notify],
+  );
+
+  const restoreSettingsBackup = useCallback(
+    (rawInput) => {
+      const validation = validateSettingsBackup(rawInput);
+      if (!validation.ok) {
+        notify(validation.error);
+        return validation;
+      }
+      const { data } = validation;
+      const nextLayout =
+        data.hasViewerSettings && data.viewerSettings.layout ? data.viewerSettings.layout : layout;
+      const nextPalette =
+        data.hasViewerSettings && data.viewerSettings.palette
+          ? data.viewerSettings.palette
+          : palette;
+
+      const nextDensity =
+        (data.hasViewerSettings ? data.viewerSettings.density : undefined) ||
+        (data.hasCustomTheme && data.customTheme ? data.customTheme.density : undefined) ||
+        (data.hasViewerSettings && typeof data.viewerSettings.dense === 'boolean'
+          ? data.viewerSettings.dense
+            ? 'compact'
+            : 'standard'
+          : customTheme?.density || 'standard');
+
+      const nextDense =
+        data.hasViewerSettings && typeof data.viewerSettings.dense === 'boolean'
+          ? data.viewerSettings.dense
+          : nextDensity === 'compact';
+
+      let nextCustomTheme = customTheme;
+      if (data.hasCustomTheme) {
+        if (data.customTheme && data.customTheme.active) {
+          nextCustomTheme = {
+            ...data.customTheme,
+            active: true,
+            density: nextDensity,
+          };
+          try {
+            localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(nextCustomTheme));
+          } catch {
+            /* storage disabled */
+          }
+        } else {
+          const baseTheme =
+            data.customTheme || themeFromPalette(PALETTES[nextPalette] || PALETTES.ink);
+          nextCustomTheme = {
+            ...baseTheme,
+            active: false,
+            density: nextDensity,
+          };
+          try {
+            localStorage.removeItem(THEME_STORAGE_KEY);
+          } catch {
+            /* storage disabled */
+          }
+        }
+      } else if (data.hasViewerSettings) {
+        const paletteChanged = nextPalette !== palette;
+        if (paletteChanged || !customTheme?.active) {
+          nextCustomTheme = {
+            ...themeFromPalette(PALETTES[nextPalette] || PALETTES.ink),
+            density: nextDensity,
+          };
+          if (paletteChanged) {
+            try {
+              localStorage.removeItem(THEME_STORAGE_KEY);
+            } catch {
+              /* storage disabled */
+            }
+          }
+        } else {
+          nextCustomTheme = {
+            ...customTheme,
+            density: nextDensity,
+          };
+        }
+      }
+
+      const nextToggles = data.hasViewerSettings
+        ? { ...toggles, ...data.viewerSettings.toggles }
+        : toggles;
+      const nextPrefs = data.hasViewerSettings ? { ...prefs, ...data.viewerSettings.prefs } : prefs;
+
+      setLayout(nextLayout);
+      setPalette(nextPalette);
+      setCustomTheme(nextCustomTheme);
+      setDense(nextDense);
+      setToggles(nextToggles);
+      setPrefs(nextPrefs);
+
+      saveViewerSettings({
+        layout: nextLayout,
+        palette: nextPalette,
+        dense: nextDense,
+        density: nextCustomTheme.density,
+        toggles: nextToggles,
+        prefs: nextPrefs,
+      });
+
+      if (data.viewMode) {
+        setViewModeState(data.viewMode);
+        setDevice(resolveDevice(data.viewMode));
+        try {
+          localStorage.setItem('linkpoint_view_mode', data.viewMode);
+        } catch {
+          /* storage disabled */
+        }
+      }
+
+      if (data.hasKeybindings) {
+        persistAndSyncKeybindings({
+          singleCharShortcutsEnabled: data.keybindings.singleCharShortcutsEnabled,
+          customBindings: data.keybindings.customBindings,
+          overrides: data.keybindings.overrides,
+        });
+      }
+
+      notify('Settings and keybindings restored from backup.');
+      return validation;
+    },
+    [layout, palette, customTheme, toggles, prefs, resolveDevice, notify],
+  );
 
   // ---- derived lookups (T()/D()/navMode()) -------------------------------
   const T = useCallback(() => {
@@ -660,13 +879,64 @@ export function useAppState() {
     notify('Sign in again to reconnect to your grid.');
   }, [notify]);
 
+  const resolveFloaterDef = useCallback((id) => {
+    const exact = FLOATERS.find((x) => x.id === id);
+    if (exact) return exact;
+    if (typeof id === 'string' && id.startsWith('ItemPropertiesFloater')) {
+      return (
+        FLOATERS.find((x) => x.id === 'ItemPropertiesFloater') || {
+          id,
+          title: 'Item Properties',
+          icon: 'sliders-horizontal',
+          x: 640,
+          y: 72,
+          w: 392,
+          h: 500,
+        }
+      );
+    }
+    return { x: 24, y: 24, w: 320, h: 240 };
+  }, []);
+
+  const getDesktopBounds = useCallback(
+    (customBounds) => {
+      if (
+        customBounds &&
+        typeof customBounds.availW === 'number' &&
+        typeof customBounds.availH === 'number'
+      ) {
+        return customBounds;
+      }
+      const t = T();
+      const kind = deskKind(t);
+      const G = deskGeometry(kind);
+      const d = D() || DEVICES.desk;
+      const totalW =
+        typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : d?.w || 1440;
+      const totalH =
+        typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : d?.h || 900;
+      const availW = Math.max(216, totalW - G.rail);
+      const availH = Math.max(96, totalH - G.top - G.dock);
+      return { kind, G, totalW, totalH, availW, availH };
+    },
+    [T, D],
+  );
+
   // ---- desktop floater window model (flR/flDrag/flFocus/flToggle/flClose) --
   const flR = useCallback(
     (id) => {
-      const f = FLOATERS.find((x) => x.id === id) || { x: 24, y: 24, w: 320, h: 240 };
-      return { ...f, ...(flRect[id] || {}) };
+      const f = resolveFloaterDef(id);
+      const { availW, availH } = getDesktopBounds();
+      const raw = { ...f, ...(flRect[id] || {}) };
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
+      const w = Math.max(minW, Math.min(availW, raw.w));
+      const h = Math.max(minH, Math.min(availH, raw.h));
+      const x = Math.max(0, Math.min(Math.max(0, availW - w), raw.x));
+      const y = Math.max(0, Math.min(Math.max(0, availH - h), raw.y));
+      return { ...raw, x, y, w, h };
     },
-    [flRect],
+    [flRect, resolveFloaterDef, getDesktopBounds],
   );
 
   // Focusing a window has to open it as well: only five floaters start open, so
@@ -699,28 +969,15 @@ export function useAppState() {
     };
   }, []);
 
-  const getDesktopBounds = useCallback(
-    (customBounds) => {
-      if (
-        customBounds &&
-        typeof customBounds.availW === 'number' &&
-        typeof customBounds.availH === 'number'
-      ) {
-        return customBounds;
+  const resolveFloaterTitle = useCallback(
+    (id) => {
+      if (itemPropertiesWindows[id]?.title) {
+        return itemPropertiesWindows[id].title;
       }
-      const t = T();
-      const kind = deskKind(t);
-      const G = deskGeometry(kind);
-      const d = D() || DEVICES.desk;
-      const totalW =
-        typeof window !== 'undefined' && window.innerWidth > 0 ? window.innerWidth : d?.w || 1440;
-      const totalH =
-        typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerHeight : d?.h || 900;
-      const availW = Math.max(216, totalW - G.rail);
-      const availH = Math.max(96, totalH - G.top - G.dock);
-      return { kind, G, totalW, totalH, availW, availH };
+      const f = resolveFloaterDef(id);
+      return f?.title || id;
     },
-    [T, D],
+    [itemPropertiesWindows, resolveFloaterDef],
   );
 
   const flReset = useCallback(
@@ -737,8 +994,7 @@ export function useAppState() {
           delete next[id];
           return next;
         });
-        const f = FLOATERS.find((x) => x.id === id);
-        const title = f?.title || id;
+        const title = resolveFloaterTitle(id);
         announceGeometry(`${title} reset to default position`, true);
       } else {
         setFlRect({});
@@ -747,7 +1003,7 @@ export function useAppState() {
         announceGeometry('All windows reset to default positions', true);
       }
     },
-    [announceGeometry],
+    [announceGeometry, resolveFloaterTitle],
   );
 
   const flMove = useCallback(
@@ -770,12 +1026,11 @@ export function useAppState() {
       setFlRect((st) => ({ ...st, [id]: next }));
       setFlMax((m) => ({ ...m, [id]: false }));
       flFocus(id);
-      const f = FLOATERS.find((x) => x.id === id);
-      const title = f?.title || id;
+      const title = resolveFloaterTitle(id);
       announceGeometry(`${title} moved to ${newX}, ${newY}`);
       return next;
     },
-    [flR, getDesktopBounds, flFocus, announceGeometry],
+    [flR, getDesktopBounds, flFocus, announceGeometry, resolveFloaterTitle],
   );
 
   const flResize = useCallback(
@@ -790,20 +1045,22 @@ export function useAppState() {
           : dhOpt || 0;
       const { availW, availH } = getDesktopBounds();
       const r = flR(id);
-      const maxW = Math.max(216, availW - r.x);
-      const maxH = Math.max(96, availH - r.y);
-      const newW = Math.max(216, Math.min(maxW, r.w + dw));
-      const newH = Math.max(96, Math.min(maxH, r.h + dh));
+      const f = resolveFloaterDef(id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
+      const maxW = Math.max(minW, availW - r.x);
+      const maxH = Math.max(minH, availH - r.y);
+      const newW = Math.max(minW, Math.min(maxW, r.w + dw));
+      const newH = Math.max(minH, Math.min(maxH, r.h + dh));
       const next = { ...r, w: newW, h: newH };
       setFlRect((st) => ({ ...st, [id]: next }));
       setFlMax((m) => ({ ...m, [id]: false }));
       flFocus(id);
-      const f = FLOATERS.find((x) => x.id === id);
-      const title = f?.title || id;
+      const title = resolveFloaterTitle(id);
       announceGeometry(`${title} resized to ${newW} by ${newH}`);
       return next;
     },
-    [flR, getDesktopBounds, flFocus, announceGeometry],
+    [flR, getDesktopBounds, flFocus, announceGeometry, resolveFloaterDef, resolveFloaterTitle],
   );
 
   const flSnap = useCallback(
@@ -811,8 +1068,7 @@ export function useAppState() {
       const mode = String(preset).toLowerCase().replace(/[-_]/g, '');
       const { availW, availH } = getDesktopBounds();
       const r = flR(id);
-      const f = FLOATERS.find((x) => x.id === id);
-      const title = f?.title || id;
+      const title = resolveFloaterTitle(id);
 
       if (mode === 'restore') {
         const prev = flPrevRect[id] || { x: 24, y: 24, w: 320, h: 240 };
@@ -868,7 +1124,16 @@ export function useAppState() {
 
       return r;
     },
-    [flR, getDesktopBounds, flMax, flPrevRect, flFocus, announceGeometry, flReset],
+    [
+      flR,
+      getDesktopBounds,
+      flMax,
+      flPrevRect,
+      flFocus,
+      announceGeometry,
+      flReset,
+      resolveFloaterTitle,
+    ],
   );
 
   const flDrag = useCallback(
@@ -876,6 +1141,9 @@ export function useAppState() {
       e.preventDefault();
       e.stopPropagation();
       const { availW, availH } = getDesktopBounds();
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
       const r = flR(id),
         sx = e.clientX,
         sy = e.clientY;
@@ -887,8 +1155,8 @@ export function useAppState() {
             ? {
                 x: r.x,
                 y: r.y,
-                w: Math.max(216, Math.min(availW - r.x, r.w + dx)),
-                h: Math.max(96, Math.min(availH - r.y, r.h + dy)),
+                w: Math.max(minW, Math.min(availW - r.x, r.w + dx)),
+                h: Math.max(minH, Math.min(availH - r.y, r.h + dy)),
               }
             : {
                 x: Math.max(0, Math.min(Math.max(0, availW - r.w), r.x + dx)),
@@ -931,6 +1199,16 @@ export function useAppState() {
 
   const flClose = useCallback((id) => {
     setFlOpen((o) => ({ ...o, [id]: false }));
+    setFlMin((m) => (m[id] ? { ...m, [id]: false } : m));
+    if (typeof id === 'string' && id.startsWith('ItemPropertiesFloater-')) {
+      setItemPropertiesWindows((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setFlZ((z) => z.filter((x) => x !== id));
+    }
     setScreen((cur) => (cur === id ? (app.auth.isLoggedIn() ? 'Chat' : 'Login') : cur));
     setMenu(null);
   }, []);
@@ -939,16 +1217,19 @@ export function useAppState() {
     (id, rect) => {
       if (!id || !rect) return;
       const r = flR(id);
-      const vpW = typeof window !== 'undefined' ? window.innerWidth : 1440;
-      const vpH = typeof window !== 'undefined' ? window.innerHeight : 900;
-      const G = deskGeometry(deskKind(T()));
-      const availW = Math.max(300, vpW - G.rail);
-      const availH = Math.max(200, vpH - G.top - G.dock);
+      const { availW, availH } = getDesktopBounds();
 
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
       const rawW = rect.w !== undefined ? Number(rect.w) : r.w;
       const rawH = rect.h !== undefined ? Number(rect.h) : r.h;
-      const nextW = Number.isFinite(rawW) ? Math.max(216, Math.min(availW, Math.round(rawW))) : r.w;
-      const nextH = Number.isFinite(rawH) ? Math.max(96, Math.min(availH, Math.round(rawH))) : r.h;
+      const nextW = Number.isFinite(rawW)
+        ? Math.max(minW, Math.min(availW, Math.round(rawW)))
+        : r.w;
+      const nextH = Number.isFinite(rawH)
+        ? Math.max(minH, Math.min(availH, Math.round(rawH)))
+        : r.h;
 
       const rawX = rect.x !== undefined ? Number(rect.x) : r.x;
       const rawY = rect.y !== undefined ? Number(rect.y) : r.y;
@@ -962,19 +1243,15 @@ export function useAppState() {
         [id]: { x: nextX, y: nextY, w: nextW, h: nextH },
       }));
     },
-    [flR, T],
+    [flR, getDesktopBounds],
   );
 
   const flApplyPreset = useCallback(
     (id, presetType) => {
       if (!id || !presetType) return;
       const r = flR(id);
-      const def = FLOATERS.find((x) => x.id === id) || { x: 24, y: 24, w: 400, h: 300 };
-      const G = deskGeometry(deskKind(T()));
-      const vpW = typeof window !== 'undefined' ? window.innerWidth : 1440;
-      const vpH = typeof window !== 'undefined' ? window.innerHeight : 900;
-      const availW = Math.max(300, vpW - G.rail);
-      const availH = Math.max(200, vpH - G.top - G.dock);
+      const def = resolveFloaterDef(id);
+      const { availW, availH } = getDesktopBounds();
 
       const norm = String(presetType)
         .toLowerCase()
@@ -991,8 +1268,8 @@ export function useAppState() {
         next.x = Math.max(0, Math.round((availW - next.w) / 2));
         next.y = Math.max(0, Math.round((availH - next.h) / 2));
       } else if (norm.includes('default')) {
-        next.w = def.w;
-        next.h = def.h;
+        next.w = Math.max(216, Math.min(availW, def.w));
+        next.h = Math.max(96, Math.min(availH, def.h));
         next.x = Math.min(next.x, Math.max(0, availW - next.w - 16));
         next.y = Math.min(next.y, Math.max(0, availH - next.h - 16));
       }
@@ -1002,7 +1279,7 @@ export function useAppState() {
         [id]: next,
       }));
     },
-    [flR, T],
+    [flR, resolveFloaterDef, getDesktopBounds],
   );
 
   // ---- notecard floater actions ------------------------------------------
@@ -1047,6 +1324,224 @@ export function useAppState() {
   const notecardFocus = useCallback(() => flFocus('Notecard'), [flFocus]);
 
   const notecardReset = useCallback(() => flReset('Notecard'), [flReset]);
+
+  // ---- item properties floater actions (single & multi-instance) ----------
+  const openItemProperties = useCallback(
+    (itemsInput, options = {}) => {
+      const rawList = Array.isArray(itemsInput) ? itemsInput : itemsInput ? [itemsInput] : [];
+      const fallbackItems = {};
+      const itemIds = [];
+
+      for (const entry of rawList) {
+        if (!entry) continue;
+        if (typeof entry === 'string') {
+          const cleanId = entry.trim();
+          if (cleanId && !itemIds.includes(cleanId)) {
+            itemIds.push(cleanId);
+          }
+        } else if (typeof entry === 'object') {
+          if (entry.folder === true || entry.type === 'folder') continue;
+          const cleanId = String(entry.id || entry.itemId || '').trim();
+          if (cleanId && !itemIds.includes(cleanId)) {
+            itemIds.push(cleanId);
+            fallbackItems[cleanId] = entry;
+          }
+        }
+      }
+
+      const firstItem =
+        itemIds.length > 0
+          ? app.inventory?.items?.get?.(itemIds[0]) || fallbackItems[itemIds[0]]
+          : null;
+      const title =
+        itemIds.length > 1
+          ? `Item Properties (${itemIds.length} items)`
+          : firstItem?.name
+            ? `Item Properties: ${firstItem.name}`
+            : 'Item Properties';
+
+      const selectionSignature = itemIds.slice().sort().join('|');
+      const forceNewWindow = Boolean(options.forceNewWindow || options.newWindow);
+
+      let targetWindowId = options.windowId || null;
+      if (!targetWindowId && !forceNewWindow && selectionSignature) {
+        const existingMatch = Object.values(itemPropertiesWindows).find(
+          (win) =>
+            flOpen[win.windowId] && win.itemIds.slice().sort().join('|') === selectionSignature,
+        );
+        if (existingMatch) {
+          targetWindowId = existingMatch.windowId;
+        }
+      }
+
+      if (!targetWindowId) {
+        const primaryOpen = Boolean(flOpen.ItemPropertiesFloater);
+        const primaryWin = itemPropertiesWindows.ItemPropertiesFloater;
+        const primaryHasDifferentSelection =
+          primaryOpen &&
+          !options.replaceActive &&
+          primaryWin &&
+          primaryWin.itemIds.length > 0 &&
+          primaryWin.itemIds.slice().sort().join('|') !== selectionSignature;
+
+        if (!primaryHasDifferentSelection && !forceNewWindow) {
+          targetWindowId = 'ItemPropertiesFloater';
+        } else {
+          itemPropsSeqRef.current += 1;
+          targetWindowId = `ItemPropertiesFloater-${itemPropsSeqRef.current}`;
+          const base = resolveFloaterDef('ItemPropertiesFloater');
+          const { availW, availH } = getDesktopBounds();
+          const openCount =
+            (flOpen.ItemPropertiesFloater ? 1 : 0) +
+            Object.keys(itemPropertiesWindows).filter(
+              (k) => k !== 'ItemPropertiesFloater' && flOpen[k],
+            ).length;
+          const offset = ((openCount % 6) + 1) * 28;
+          const w = Math.max(216, Math.min(availW, base.w));
+          const h = Math.max(96, Math.min(availH, base.h));
+          const x = Math.max(0, Math.min(Math.max(0, availW - w), base.x - offset));
+          const y = Math.max(0, Math.min(Math.max(0, availH - h), base.y + offset));
+          setFlRect((st) => ({ ...st, [targetWindowId]: { x, y, w, h } }));
+        }
+      }
+
+      setItemPropertiesWindows((prev) => ({
+        ...prev,
+        [targetWindowId]: {
+          windowId: targetWindowId,
+          itemIds,
+          fallbackItems: {
+            ...(prev[targetWindowId]?.fallbackItems || {}),
+            ...fallbackItems,
+          },
+          title,
+        },
+      }));
+
+      flFocus(targetWindowId);
+      return targetWindowId;
+    },
+    [flOpen, itemPropertiesWindows, resolveFloaterDef, getDesktopBounds, flFocus],
+  );
+
+  const closeItemProperties = useCallback(
+    (windowId = 'ItemPropertiesFloater') => {
+      flClose(windowId);
+    },
+    [flClose],
+  );
+
+  const setItemPropertiesSelection = useCallback((windowId, itemsInput) => {
+    const rawList = Array.isArray(itemsInput) ? itemsInput : itemsInput ? [itemsInput] : [];
+    const fallbackItems = {};
+    const itemIds = [];
+    for (const entry of rawList) {
+      if (!entry) continue;
+      if (typeof entry === 'string') {
+        if (!itemIds.includes(entry)) itemIds.push(entry);
+      } else if (typeof entry === 'object' && !entry.folder && entry.type !== 'folder') {
+        const cleanId = String(entry.id || entry.itemId || '').trim();
+        if (cleanId && !itemIds.includes(cleanId)) {
+          itemIds.push(cleanId);
+          fallbackItems[cleanId] = entry;
+        }
+      }
+    }
+    const targetId = windowId || 'ItemPropertiesFloater';
+    const firstItem =
+      itemIds.length > 0
+        ? app.inventory?.items?.get?.(itemIds[0]) || fallbackItems[itemIds[0]]
+        : null;
+    const title =
+      itemIds.length > 1
+        ? `Item Properties (${itemIds.length} items)`
+        : firstItem?.name
+          ? `Item Properties: ${firstItem.name}`
+          : 'Item Properties';
+    setItemPropertiesWindows((prev) => ({
+      ...prev,
+      [targetId]: {
+        windowId: targetId,
+        itemIds,
+        fallbackItems: {
+          ...(prev[targetId]?.fallbackItems || {}),
+          ...fallbackItems,
+        },
+        title,
+      },
+    }));
+  }, []);
+
+  // ---- create landmark floater actions & persistence ----------------------
+  const openLandmarkFloater = useCallback(() => {
+    flFocus('CreateLandmark');
+  }, [flFocus]);
+
+  const closeLandmarkFloater = useCallback(() => {
+    flClose('CreateLandmark');
+  }, [flClose]);
+
+  useEffect(() => {
+    try {
+      const persistedRect = flRect.CreateLandmark ? { CreateLandmark: flRect.CreateLandmark } : {};
+      const persistedMin =
+        typeof flMin.CreateLandmark === 'boolean' ? { CreateLandmark: flMin.CreateLandmark } : {};
+      const persistedMax =
+        typeof flMax.CreateLandmark === 'boolean' ? { CreateLandmark: flMax.CreateLandmark } : {};
+      const persistedPrevRect = flPrevRect.CreateLandmark
+        ? { CreateLandmark: flPrevRect.CreateLandmark }
+        : {};
+      localStorage.setItem(
+        FLOATER_STATE_STORAGE_KEY,
+        JSON.stringify({
+          rect: persistedRect,
+          min: persistedMin,
+          max: persistedMax,
+          prevRect: persistedPrevRect,
+          open: { CreateLandmark: Boolean(flOpen.CreateLandmark) },
+        }),
+      );
+    } catch {
+      /* ignore storage write error */
+    }
+  }, [
+    flRect.CreateLandmark,
+    flMin.CreateLandmark,
+    flMax.CreateLandmark,
+    flPrevRect.CreateLandmark,
+    flOpen.CreateLandmark,
+  ]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented) return;
+      let binding = 'Ctrl+Shift+KeyD';
+      try {
+        const rawKb = localStorage.getItem('linkpoint_keybindings');
+        if (rawKb) {
+          const parsed = JSON.parse(rawKb);
+          if (parsed?.customBindings?.createLandmark) {
+            binding = parsed.customBindings.createLandmark;
+          }
+        }
+      } catch {
+        /* ignore storage read error */
+      }
+
+      const isDefaultCtrlShiftD =
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        !event.altKey &&
+        (event.code === 'KeyD' || String(event.key || '').toLowerCase() === 'd');
+
+      if (isDefaultCtrlShiftD || matchesKeyBinding(event, binding, true)) {
+        event.preventDefault();
+        openLandmarkFloater();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openLandmarkFloater]);
 
   // ---- worn HUDs (hudDrag/toggleHud) -------------------------------------
   const hudDrag = useCallback(
@@ -1100,9 +1595,11 @@ export function useAppState() {
   const cPress = useCallback(
     (k) => {
       const b = CBTN[k];
+      if (!b) return;
       if (k === 'ao') {
         if (navMode() === 'floaters') flToggle('AO');
         else setScreen('AO');
+        setCReason('');
         return;
       }
       if (b.nav) {
@@ -1264,6 +1761,7 @@ export function useAppState() {
       notecardItem,
       notecardReadOnly,
       notecardDrafts,
+      itemPropertiesWindows,
     },
     actions: {
       openNotecard,
@@ -1276,6 +1774,11 @@ export function useAppState() {
       notecardClose,
       notecardFocus,
       notecardReset,
+      openItemProperties,
+      closeItemProperties,
+      setItemPropertiesSelection,
+      openLandmarkFloater,
+      closeLandmarkFloater,
       setAsyncDataDomainState,
       setAsyncDataState: setAsyncDataDomainState,
       setLayout,
@@ -1290,6 +1793,8 @@ export function useAppState() {
       importTheme,
       downloadTheme,
       shareTheme,
+      exportSettingsBackup,
+      restoreSettingsBackup,
       setDevice,
       setViewMode,
       toggleViewMode,

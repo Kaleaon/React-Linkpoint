@@ -40,6 +40,15 @@ const INITIAL_FLOATERS = [
   { id: 'Groups', title: 'Groups', icon: 'users-round', x: 852, y: 24, w: 520, h: 460 },
   { id: 'Notices', title: 'Notifications', icon: 'bell', x: 852, y: 292, w: 196, h: 252 },
   { id: 'Teleport', title: 'Places', icon: 'zap', x: 330, y: 150, w: 370, h: 350 },
+  {
+    id: 'Teleport History',
+    title: 'Teleport History',
+    icon: 'history',
+    x: 350,
+    y: 110,
+    w: 520,
+    h: 440,
+  },
   { id: 'Settings', title: 'Preferences', icon: 'settings', x: 290, y: 80, w: 540, h: 470 },
   { id: 'Cache', title: 'Cache', icon: 'hard-drive', x: 360, y: 120, w: 460, h: 420 },
   { id: 'Diagnostics', title: 'Statistics', icon: 'activity', x: 1056, y: 462, w: 346, h: 196 },
@@ -47,6 +56,35 @@ const INITIAL_FLOATERS = [
   { id: 'Contacts', title: 'Contacts', icon: 'contact', x: 360, y: 90, w: 500, h: 460 },
   { id: 'Calendar', title: 'Calendar', icon: 'calendar', x: 420, y: 90, w: 500, h: 470 },
   { id: 'Notecard', title: 'Notecard', icon: 'file-text', x: 280, y: 70, w: 540, h: 480 },
+  {
+    id: 'AO',
+    title: 'Animation Overrider',
+    icon: 'person-standing',
+    x: 290,
+    y: 74,
+    w: 600,
+    h: 490,
+    minW: 420,
+    minH: 340,
+  },
+  {
+    id: 'ItemPropertiesFloater',
+    title: 'Item Properties',
+    icon: 'sliders-horizontal',
+    x: 640,
+    y: 72,
+    w: 392,
+    h: 500,
+  },
+  {
+    id: 'CreateLandmark',
+    title: 'Create Landmark',
+    icon: 'map-pin',
+    x: 340,
+    y: 96,
+    w: 420,
+    h: 420,
+  },
 ];
 export const FLOATERS = INITIAL_FLOATERS.concat(
   NAV_ALL.filter(({ id }) => id !== '3D View' && !INITIAL_FLOATERS.some((f) => f.id === id)).map(
@@ -84,8 +122,11 @@ export const FMENU = [
   {
     label: 'World',
     items: [
+      ['Landmark Here', 'Ctrl+Shift+D'],
       ['Teleport Home', '⇧⌘H'],
+      ['Teleport History…', '⇧⌘T'],
       ['Set Home to Here', ''],
+      ['Animation Overrider…', ''],
       ['About Land…', ''],
       ['Region / Estate…', ''],
     ],

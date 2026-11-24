@@ -25,6 +25,47 @@ export {
   SLValidationRules,
   SLValidationResult,
 } from './secondlife/SecondLifeLLSDUtils';
+export {
+  LSL_DEFINITIONS_PROVENANCE,
+  LSL_CORE_CONSTANTS,
+  LSL_CONTROL_FLAGS,
+  LSL_AGENT_INFO_FLAGS,
+  LSL_AGENT_CONSTANTS,
+  LSL_PERMISSION_FLAGS,
+  LSL_ASSET_PERMISSION_FLAGS,
+  LSL_CHANGED_FLAGS,
+  LSL_PRIM_PARAMS,
+  LSL_INVENTORY_TYPES,
+  SL_ASSET_TYPES,
+  SL_INVENTORY_TYPES,
+  SL_ASSET_TYPE_NAMES,
+  LSL_TYPE_CONSTANTS,
+  LSL_LINK_CONSTANTS,
+  LSL_SENSOR_FLAGS,
+  LSL_ATTACH_POINTS,
+  LSL_HTTP_CONSTANTS,
+  LSL_CONSTANTS,
+  LSL_EVENT_SIGNATURES,
+  LSL_BUILTIN_FUNCTIONS,
+  SLUA_KEYWORDS,
+  SLUA_BUILTIN_TYPES,
+  SLUA_GLOBAL_MODULES,
+  SLUA_GLOBAL_FUNCTIONS,
+  getLSLEventSignature,
+  getLSLFunctionSignature,
+  getLSLConstantValue,
+  decodeLSLBitmask,
+} from './secondlife/lsl-definitions-data';
+export type {
+  LSLValueType,
+  LSLReturnType,
+  LSLParameterSignature,
+  LSLEventSignature,
+  LSLFunctionSignature,
+  SLuaKeywordDefinition,
+  SLuaBuiltinTypeDefinition,
+  SLuaGlobalModuleDefinition,
+} from './secondlife/lsl-definitions-data';
 
 // Firestorm extensions
 export {

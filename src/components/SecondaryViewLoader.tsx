@@ -3,6 +3,10 @@ import CrystalLoader from './CrystalLoader.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 
 export interface SecondaryViewLoaderProps {
+  /** HTML element tag to render (default: 'div'; use 'span' inside phrasing containers like <output>) */
+  as?: 'div' | 'span';
+  /** ARIA role (default: 'status' when as='div', omitted when as='span' unless explicitly set) */
+  role?: string;
   /** Custom size in pixels for the CrystalLoader indicator */
   size?: number;
   /** Layout orientation: "block" (centered vertical stack) or "inline" (compact horizontal bar) */
@@ -22,6 +26,8 @@ export interface SecondaryViewLoaderProps {
 }
 
 export const SecondaryViewLoader: React.FC<SecondaryViewLoaderProps> = ({
+  as: Component = 'div',
+  role,
   size,
   layout = 'block',
   label,
@@ -35,6 +41,8 @@ export const SecondaryViewLoader: React.FC<SecondaryViewLoaderProps> = ({
   const V = themeContext?.V || {};
 
   const isInline = layout === 'inline';
+  const effectiveRole = role ?? (Component === 'div' ? 'status' : undefined);
+  const effectiveAriaLive = Component === 'div' || role ? ariaLive : undefined;
 
   const containerStyle: React.CSSProperties = isInline
     ? {
@@ -61,9 +69,9 @@ export const SecondaryViewLoader: React.FC<SecondaryViewLoaderProps> = ({
       };
 
   return (
-    <div
-      role="status"
-      aria-live={ariaLive}
+    <Component
+      role={effectiveRole}
+      aria-live={effectiveAriaLive}
       aria-busy={ariaBusy}
       data-testid="secondary-view-loader"
       data-layout={layout}
@@ -84,7 +92,7 @@ export const SecondaryViewLoader: React.FC<SecondaryViewLoaderProps> = ({
         </span>
       ) : null}
       {action ? <div className="secondary-view-loader-action">{action}</div> : null}
-    </div>
+    </Component>
   );
 };
 

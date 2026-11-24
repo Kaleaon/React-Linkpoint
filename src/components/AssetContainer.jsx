@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import Icon from './Icon.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
@@ -28,9 +28,25 @@ export default function AssetContainer({
   const [bytesInfo, setBytesInfo] = useState({ loaded: 0, total: 0 });
   const [loadedData, setLoadedData] = useState(asset?.data || null);
   const [errorMsg, setErrorMsg] = useState(null);
+  const isMountedRef = useRef(true);
+  const fallbackTimerRef = useRef(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (fallbackTimerRef.current !== null) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const canUpdateState = () => isMountedRef.current && typeof window !== 'undefined';
 
   const handleProgress = useCallback(
     (loadedBytes, totalBytes) => {
+      if (!canUpdateState()) return;
       let percent = 0;
       if (totalBytes > 0) {
         percent = Math.min(100, Math.max(0, (loadedBytes / totalBytes) * 100));
@@ -49,6 +65,7 @@ export default function AssetContainer({
 
   const executeFetch = useCallback(async () => {
     if (!asset && !onFetch) return;
+    if (!canUpdateState()) return;
     setStatus('loading');
     setProgress(0);
     setErrorMsg(null);
@@ -56,18 +73,27 @@ export default function AssetContainer({
     try {
       if (onFetch) {
         const result = await onFetch(asset, handleProgress);
+        if (!canUpdateState()) return;
         setLoadedData(result || asset?.data || true);
       } else if (asset?.data) {
         setLoadedData(asset.data);
       } else {
         // Fallback progress simulation if no custom fetch provided
         handleProgress(50, 100);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => {
+          fallbackTimerRef.current = setTimeout(() => {
+            fallbackTimerRef.current = null;
+            resolve();
+          }, 100);
+        });
+        if (!canUpdateState()) return;
         handleProgress(100, 100);
         setLoadedData(asset || true);
       }
+      if (!canUpdateState()) return;
       setStatus('loaded');
     } catch (err) {
+      if (!canUpdateState()) return;
       const message = err?.message || 'Failed to download asset from network.';
       setErrorMsg(message);
       setStatus('error');

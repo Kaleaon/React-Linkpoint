@@ -13,6 +13,9 @@ import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskSt
 import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 import NotecardFloater from './NotecardFloater.jsx';
+import ItemPropertiesFloater from './ItemPropertiesFloater.tsx';
+import LandmarkFloater from './LandmarkFloater.jsx';
+import TeleportHistoryFloater from './TeleportHistoryFloater.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -72,12 +75,18 @@ export default function FloatersDesktop() {
     worldEvents.forEach((event) => app.world.on(event, refresh));
     protocolEvents.forEach((event) => app.protocol.on(event, refresh));
     app.inventory.on('inventory_loaded', refresh);
+    app.inventory.on('inventory_updated', refresh);
     app.notifications.on('notification_received', refresh);
+    app.teleportHistory?.on?.('history_updated', refresh);
+    app.ao?.on?.('change', refresh);
     return () => {
       worldEvents.forEach((event) => app.world.off(event, refresh));
       protocolEvents.forEach((event) => app.protocol.off(event, refresh));
       app.inventory.off('inventory_loaded', refresh);
+      app.inventory.off('inventory_updated', refresh);
       app.notifications.off('notification_received', refresh);
+      app.teleportHistory?.off?.('history_updated', refresh);
+      app.ao?.off?.('change', refresh);
     };
   }, []);
 
@@ -106,8 +115,16 @@ export default function FloatersDesktop() {
   const regionRead = `${currentRegion}${avatarPos ? ` · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])}` : ''}${heading ? ` · ${heading}` : ''}`;
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
+  const extraPropertyWindows = Object.values(state.itemPropertiesWindows || {}).filter(
+    (win) => win && win.windowId !== 'ItemPropertiesFloater' && state.flOpen[win.windowId],
+  );
+  const isCustomFloater =
+    state.screen === 'Notecard' ||
+    state.screen === 'CreateLandmark' ||
+    state.screen === 'Teleport History' ||
+    String(state.screen || '').startsWith('ItemPropertiesFloater');
   const flFocused =
-    state.screen !== 'Notecard' && state.flOpen[state.screen] && !state.flMin[state.screen]
+    !isCustomFloater && state.flOpen[state.screen] && !state.flMin[state.screen]
       ? actions.flR(state.screen)
       : null;
 
@@ -125,6 +142,21 @@ export default function FloatersDesktop() {
       actions.notify('Chat error: ' + (err.message || String(err)));
     }
     setQuickMsg('');
+  };
+
+  const voiceActionLabel =
+    voice.state === 'connected'
+      ? voice.muted
+        ? 'Unmute Microphone'
+        : 'Mute Microphone'
+      : 'Connect Voice Microphone';
+
+  const handleVoiceToggle = () => {
+    if (voice.state === 'connected') {
+      app.voice.setMuted(!voice.muted);
+    } else {
+      void app.voice.connect().catch(() => {});
+    }
   };
 
   return (
@@ -351,6 +383,21 @@ export default function FloatersDesktop() {
       {openFloaters.map((f) => {
         if (f.id === 'Notecard') {
           return <NotecardFloater key={f.id} />;
+        }
+        if (f.id === 'CreateLandmark') {
+          return <LandmarkFloater key={f.id} />;
+        }
+        if (f.id === 'Teleport History') {
+          return <TeleportHistoryFloater key={f.id} onOpenLayoutDialog={openLayoutDialog} />;
+        }
+        if (f.id === 'ItemPropertiesFloater') {
+          return (
+            <ItemPropertiesFloater
+              key={f.id}
+              windowId={f.id}
+              onOpenLayoutDialog={openLayoutDialog}
+            />
+          );
         }
         const r = actions.flR(f.id);
         const act = f.id === state.screen;
@@ -731,7 +778,7 @@ export default function FloatersDesktop() {
               aria-roledescription="window resize grip"
               aria-label={`${f.title} resize grip`}
               aria-valuenow={r.w}
-              aria-valuemin={216}
+              aria-valuemin={f.minW || 216}
               aria-valuemax={availW}
               aria-orientation="horizontal"
               onMouseDown={(e) => actions.flDrag(f.id, e, 'size')}
@@ -807,6 +854,16 @@ export default function FloatersDesktop() {
           </div>
         );
       })}
+
+      {extraPropertyWindows
+        .filter((win) => !state.flMin[win.windowId])
+        .map((win) => (
+          <ItemPropertiesFloater
+            key={win.windowId}
+            windowId={win.windowId}
+            onOpenLayoutDialog={openLayoutDialog}
+          />
+        ))}
 
       {flFocused ? (
         <div
@@ -914,30 +971,75 @@ export default function FloatersDesktop() {
         {FLOATERS.filter((f) => state.flOpen[f.id]).map((f) => {
           const min = !!state.flMin[f.id];
           const act = f.id === state.screen && !min;
+          const chipLabel =
+            f.id === 'ItemPropertiesFloater' &&
+            state.itemPropertiesWindows?.ItemPropertiesFloater?.title
+              ? state.itemPropertiesWindows.ItemPropertiesFloater.title
+              : f.title;
           return (
-            <div
+            <button
               key={f.id}
+              type="button"
+              data-floater-chip={f.id}
+              aria-pressed={act}
               onClick={() => actions.flToggle(f.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.flToggle(f.id);
+                }
+              }}
               style={{
                 flex: 'none',
                 whiteSpace: 'nowrap',
                 ...chipStyle(kind, { V, t, on: act, ink, dim: min }),
               }}
             >
-              {f.title}
-            </div>
+              {chipLabel}
+            </button>
+          );
+        })}
+
+        {extraPropertyWindows.map((win) => {
+          const min = !!state.flMin[win.windowId];
+          const act = win.windowId === state.screen && !min;
+          return (
+            <button
+              key={win.windowId}
+              type="button"
+              data-floater-chip={win.windowId}
+              aria-pressed={act}
+              onClick={() => actions.flToggle(win.windowId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.flToggle(win.windowId);
+                }
+              }}
+              style={{
+                flex: 'none',
+                whiteSpace: 'nowrap',
+                ...chipStyle(kind, { V, t, on: act, ink, dim: min }),
+              }}
+            >
+              {win.title || 'Item Properties'}
+            </button>
           );
         })}
 
         <div style={{ flex: 1, minWidth: '8px' }} />
 
         {/* Microphone / Voice Control */}
-        <div
-          onClick={() => {
-            if (voice.state === 'connected') {
-              app.voice.setMuted(!voice.muted);
-            } else {
-              void app.voice.connect().catch(() => {});
+        <button
+          type="button"
+          aria-label={voiceActionLabel}
+          aria-pressed={voice.state === 'connected' && !voice.muted}
+          title={voiceActionLabel}
+          onClick={handleVoiceToggle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleVoiceToggle();
             }
           }}
           style={{
@@ -946,22 +1048,26 @@ export default function FloatersDesktop() {
             cursor: 'pointer',
             ...chipStyle(kind, { V, t, on: voice.state === 'connected' && !voice.muted, ink }),
           }}
-          title={
-            voice.state === 'connected'
-              ? voice.muted
-                ? 'Unmute Microphone'
-                : 'Mute Microphone'
-              : 'Connect Voice Microphone'
-          }
         >
-          <Icon name={voice.state === 'connected' && voice.muted ? 'mic-off' : 'mic'} size={13} />
+          <Icon
+            name={voice.state === 'connected' && voice.muted ? 'mic-off' : 'mic'}
+            size={13}
+            aria-hidden="true"
+          />
           {voice.state === 'connected' ? (voice.muted ? 'MIC MUTED' : 'MIC LIVE') : 'JOIN VOICE'}
-        </div>
+        </button>
 
         {/* Toggle Camera HUD Button */}
         <button
           type="button"
+          aria-pressed={showCamHud}
           onClick={() => setShowCamHud((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setShowCamHud((v) => !v);
+            }
+          }}
           style={{
             flex: 'none',
             whiteSpace: 'nowrap',
@@ -969,29 +1075,43 @@ export default function FloatersDesktop() {
           }}
           title="Toggle Camera HUD"
         >
-          <Icon name="video" size={12} />
+          <Icon name="video" size={12} aria-hidden="true" />
           CAM HUD
         </button>
 
         {state.cDock.map((k) => {
           const b = CBTN[k],
-            lit = !!state.cTog[k],
+            lit =
+              k === 'ao'
+                ? Boolean(app.ao?.enabled || (state.flOpen.AO && !state.flMin.AO))
+                : !!state.cTog[k],
             dis = !!b.off;
-          const bg = lit ? V.pri : V.surf2;
           return (
-            <div
+            <button
               key={k}
-              onClick={() => actions.cPress(k)}
+              type="button"
+              disabled={dis}
+              aria-pressed={lit}
+              onClick={() => {
+                if (!dis) actions.cPress(k);
+              }}
+              onKeyDown={(e) => {
+                if (dis) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.cPress(k);
+                }
+              }}
               style={{
                 flex: 'none',
                 whiteSpace: 'nowrap',
-                cursor: dis ? 'not-allowed' : 'pointer',
                 ...chipStyle(kind, { V, t, on: lit, ink, dim: dis }),
+                cursor: dis ? 'not-allowed' : 'pointer',
               }}
             >
-              <Icon name={b.icon} size={13} />
+              <Icon name={b.icon} size={13} aria-hidden="true" />
               {b.label}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1057,7 +1177,12 @@ function buildFBody(state) {
       a: item.title || item.message,
       b: item.type || '',
     })),
-    Teleport: [],
+    Teleport: (app.teleportHistory?.entries || []).slice(0, 8).map((entry) => ({
+      a: entry.parcelName ? `${entry.regionName} · ${entry.parcelName}` : entry.regionName,
+      b: entry.position
+        ? `${Math.round(entry.position[0])},${Math.round(entry.position[1])},${Math.round(entry.position[2])}`
+        : '—',
+    })),
     Settings: [
       { a: 'Connection', b: app.protocol.connected ? 'connected' : 'disconnected' },
       { a: 'Resident', b: app.auth.user?.fullName || 'not connected' },
@@ -1066,6 +1191,12 @@ function buildFBody(state) {
     Diagnostics: [
       { a: 'Connection', b: app.protocol.connected ? 'connected' : 'disconnected' },
       { a: 'Capabilities', b: String(Object.keys(app.protocol.capabilities || {}).length) },
+    ],
+    AO: [
+      { a: 'Overrider', b: app.ao?.enabled ? 'enabled' : 'disabled' },
+      { a: 'Profile', b: app.ao?.getActiveProfile?.()?.name || '—' },
+      { a: 'Locomotion', b: app.ao?.getSnapshot?.()?.currentStateLabel || 'Standing' },
+      { a: 'Active Pose', b: app.ao?.getSnapshot?.()?.activeAnimationName || 'Default Linden' },
     ],
   };
 }

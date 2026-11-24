@@ -7,8 +7,27 @@ import { LLSD, LLSDUUID } from './llsd';
 import { SLConnectionFull } from './sl-connection-full';
 import { AuthManager } from './auth';
 import { corsHandler } from './cors-handler';
-import { slBridge } from './sl-bridge';
+import { slBridge, type CreateLandmarkParams, type CreateLandmarkResult } from './sl-bridge';
 import { localCache } from './local-cache';
+import {
+  assertValidBatchSize,
+  chunkUpdatesForUdp,
+  isPlaceholderAvatarName,
+  normalizeItemPermissions,
+  ZERO_UUID,
+  type BatchUpdateProgress,
+  type InventoryItemUpdatePayload,
+} from './services/inventory-properties-service';
+import { truncateUtf8Bytes, MAX_LANDMARK_DESC_BYTES, MAX_LANDMARK_NAME_BYTES } from './landmark';
+
+export interface InventoryFolderOption {
+  id: string;
+  name: string;
+  depth: number;
+  pathLabel: string;
+  folderType: number;
+  parent: string;
+}
 
 export enum LLAssetType {
   Texture = 0,
@@ -138,6 +157,7 @@ export class InventoryManager extends Utils.EventEmitter {
   public folders: Map<string, any> = new Map();
   public loadedFromCache: boolean = false;
   public isLoading: boolean = false;
+  public avatarNameCache: Map<string, string> = new Map();
   private folderBuffers: Map<
     string,
     { categories: any[]; items: any[]; expectedDescendents: number | null }
@@ -171,12 +191,22 @@ export class InventoryManager extends Utils.EventEmitter {
       rawFolder.id || rawFolder.folder_id || rawFolder.category_id || Utils.generateUUID(),
     );
     const name = String(rawFolder.name || rawFolder.folder_name || 'New Folder');
-    const parent = String(rawFolder.parent || rawFolder.parent_id || defaultParentId || '');
+    const rawParent = String(
+      rawFolder.parent ||
+        rawFolder.parent_id ||
+        rawFolder.parentId ||
+        (id === defaultParentId ? '' : defaultParentId) ||
+        '',
+    );
+    const parent =
+      rawParent === id || rawParent === '00000000-0000-0000-0000-000000000000' ? '' : rawParent;
     const rawFolderType =
       rawFolder.folderType ??
+      rawFolder.preferredType ??
       rawFolder.preferred_type ??
+      rawFolder.typeDefault ??
       rawFolder.type_default ??
-      rawFolder.type ??
+      (rawFolder.type !== 'folder' ? rawFolder.type : undefined) ??
       -1;
     const folderType = parseLLFolderType(rawFolderType);
     const version = Number(rawFolder.version ?? 0);
@@ -207,9 +237,50 @@ export class InventoryManager extends Utils.EventEmitter {
     const invType = Number(rawItem.invType ?? rawItem.inv_type ?? 0);
     const flags = Number(rawItem.flags ?? 0);
     const creationDate = rawItem.creationDate || rawItem.creation_date || 0;
-    const ownerId = String(rawItem.ownerId || rawItem.owner_id || '');
-    const groupId = String(rawItem.groupId || rawItem.group_id || '');
-    const permissions = rawItem.permissions || rawItem.permissions_base || {};
+    const rawPerms = rawItem.permissions || rawItem.permissions_base || {};
+    const creatorId = String(
+      rawItem.creatorId || rawItem.creator_id || rawPerms.creatorId || rawPerms.creator_id || '',
+    );
+    const ownerId = String(
+      rawItem.ownerId || rawItem.owner_id || rawPerms.ownerId || rawPerms.owner_id || '',
+    );
+    const lastOwnerId = String(
+      rawItem.lastOwnerId ||
+        rawItem.last_owner_id ||
+        rawPerms.lastOwnerId ||
+        rawPerms.last_owner_id ||
+        '',
+    );
+    const groupId = String(
+      rawItem.groupId || rawItem.group_id || rawPerms.groupId || rawPerms.group_id || '',
+    );
+    const groupOwned = Boolean(
+      rawItem.groupOwned ??
+      rawItem.group_owned ??
+      rawPerms.groupOwned ??
+      rawPerms.is_owner_group ??
+      false,
+    );
+    const saleType = Number(rawItem.saleType ?? rawItem.sale_type ?? 0);
+    const salePrice = Number(rawItem.salePrice ?? rawItem.sale_price ?? 0);
+    const normalizedPerms = normalizeItemPermissions({
+      groupOwned,
+      permissions: {
+        baseMask: rawPerms.baseMask ?? rawPerms.base_mask,
+        ownerMask: rawPerms.ownerMask ?? rawPerms.owner_mask,
+        groupMask: rawPerms.groupMask ?? rawPerms.group_mask,
+        everyoneMask: rawPerms.everyoneMask ?? rawPerms.everyone_mask,
+        nextOwnerMask: rawPerms.nextOwnerMask ?? rawPerms.next_owner_mask,
+        groupOwned,
+        copy: rawPerms.copy,
+        modify: rawPerms.modify,
+        transfer: rawPerms.transfer,
+      },
+    });
+    const permissions = {
+      ...rawPerms,
+      ...normalizedPerms,
+    };
     const data = rawItem.data || null;
 
     return {
@@ -224,8 +295,13 @@ export class InventoryManager extends Utils.EventEmitter {
       invType,
       flags,
       creationDate,
+      creatorId,
       ownerId,
+      lastOwnerId,
       groupId,
+      groupOwned,
+      saleType,
+      salePrice,
       permissions,
       data,
     };
@@ -693,12 +769,36 @@ export class InventoryManager extends Utils.EventEmitter {
     return true;
   }
 
+  private resolveFolderType(folder: any): number {
+    if (!folder || typeof folder !== 'object') return -1;
+    if (typeof folder.folderType === 'number' && folder.folderType !== -1) {
+      return folder.folderType;
+    }
+    return parseLLFolderType(
+      folder.preferredType ??
+        folder.preferred_type ??
+        folder.typeDefault ??
+        folder.type_default ??
+        (typeof folder.type === 'number' ? folder.type : (folder.folderType ?? -1)),
+    );
+  }
+
+  private resolveFolderParent(folder: any): string {
+    if (!folder || typeof folder !== 'object') return '';
+    const raw = folder.parent ?? folder.parentId ?? folder.parent_id ?? '';
+    const str = String(raw || '');
+    return str === '00000000-0000-0000-0000-000000000000' ? '' : str;
+  }
+
   getTrashFolder(): any | null {
     for (const folder of this.folders.values()) {
-      const folderType = folder.folderType ?? folder.typeDefault ?? -1;
       const name = String(folder.name || '')
         .trim()
         .toLowerCase();
+      if (name === 'snapshots' || name === 'photo album') {
+        continue;
+      }
+      const folderType = this.resolveFolderType(folder);
       if (
         folderType === LLFolderType.Trash ||
         folderType === 13 ||
@@ -709,6 +809,242 @@ export class InventoryManager extends Utils.EventEmitter {
       }
     }
     return null;
+  }
+
+  getLandmarksFolder(): any | null {
+    const trashId = this.getTrashFolder()?.id;
+    let nameFallback: any = null;
+    for (const folder of this.folders.values()) {
+      if (!folder || folder.id === trashId || this.isItemInTrash(folder.id)) continue;
+      const folderType = this.resolveFolderType(folder);
+      if (folderType === LLFolderType.Landmark || folderType === 3) {
+        return folder;
+      }
+      const name = String(folder.name || '')
+        .trim()
+        .toLowerCase();
+      if (!nameFallback && name === 'landmarks') {
+        nameFallback = folder;
+      }
+    }
+    return nameFallback || this.rootFolder || null;
+  }
+
+  isSelectableDestinationFolder(folder: any): boolean {
+    if (!folder || typeof folder !== 'object') return false;
+    if (folder.type === 'item' || folder.folder === false) return false;
+    const trashFolder = this.getTrashFolder();
+    if (trashFolder && (folder.id === trashFolder.id || this.isItemInTrash(folder.id))) {
+      return false;
+    }
+    const folderType = this.resolveFolderType(folder);
+    const lowerName = String(folder.name || '')
+      .trim()
+      .toLowerCase();
+    if (
+      folderType === LLFolderType.Trash ||
+      folderType === 13 ||
+      (lowerName === 'trash' && folderType !== LLFolderType.None) ||
+      lowerName === 'trash'
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Builds a flat, depth-indented list of all valid inventory folders from the skeleton
+   * without blocking the main UI thread when traversing large folder trees.
+   */
+  async getFolderHierarchyOptions(options?: { chunkSize?: number; signal?: AbortSignal }): Promise<{
+    options: InventoryFolderOption[];
+    defaultFolderId: string;
+  }> {
+    const chunkSize = Math.max(25, options?.chunkSize ?? 150);
+    const signal = options?.signal;
+    const allFolders = Array.from(this.folders.values()).filter((f) =>
+      this.isSelectableDestinationFolder(f),
+    );
+
+    if (allFolders.length === 0) {
+      return { options: [], defaultFolderId: '' };
+    }
+
+    const byId = new Map<string, any>();
+    const childrenByParent = new Map<string, any[]>();
+    for (let i = 0; i < allFolders.length; i++) {
+      if (signal?.aborted) return { options: [], defaultFolderId: '' };
+      if (i > 0 && i % chunkSize === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      const f = allFolders[i];
+      byId.set(f.id, f);
+    }
+
+    const roots: any[] = [];
+    for (let i = 0; i < allFolders.length; i++) {
+      if (signal?.aborted) return { options: [], defaultFolderId: '' };
+      if (i > 0 && i % chunkSize === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      const f = allFolders[i];
+      const rawParent = this.resolveFolderParent(f);
+      const parentId = rawParent && rawParent !== f.id && byId.has(rawParent) ? rawParent : '';
+      if (!parentId) {
+        roots.push(f);
+      } else {
+        const list = childrenByParent.get(parentId) || [];
+        list.push(f);
+        childrenByParent.set(parentId, list);
+      }
+    }
+
+    const sortFolders = (list: any[]) =>
+      list.sort((a, b) => {
+        if (this.rootFolder?.id) {
+          if (a.id === this.rootFolder.id) return -1;
+          if (b.id === this.rootFolder.id) return 1;
+        }
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+
+    sortFolders(roots);
+    for (const list of childrenByParent.values()) {
+      sortFolders(list);
+    }
+
+    const result: InventoryFolderOption[] = [];
+    const visited = new Set<string>();
+    const stack: Array<{ folder: any; depth: number; ancestors: string[] }> = [];
+    for (let i = roots.length - 1; i >= 0; i--) {
+      stack.push({ folder: roots[i], depth: 0, ancestors: [] });
+    }
+
+    let processed = 0;
+    while (stack.length > 0) {
+      if (signal?.aborted) return { options: [], defaultFolderId: '' };
+      if (processed > 0 && processed % chunkSize === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      processed += 1;
+
+      const { folder, depth, ancestors } = stack.pop()!;
+      if (visited.has(folder.id)) continue;
+      visited.add(folder.id);
+
+      const displayName = String(folder.name || 'Unnamed Folder');
+      const nextAncestors = [...ancestors, displayName];
+      const indent = depth > 0 ? `${'\u00A0\u00A0'.repeat(depth)}└ ` : '';
+      result.push({
+        id: folder.id,
+        name: displayName,
+        depth,
+        pathLabel: `${indent}${displayName}`,
+        folderType: this.resolveFolderType(folder),
+        parent: this.resolveFolderParent(folder),
+      });
+
+      const kids = childrenByParent.get(folder.id) || [];
+      for (let i = kids.length - 1; i >= 0; i--) {
+        if (!visited.has(kids[i].id)) {
+          stack.push({ folder: kids[i], depth: depth + 1, ancestors: nextAncestors });
+        }
+      }
+    }
+
+    // Include any orphaned folders (if cycle/missing root) so all valid folders remain selectable
+    for (const f of allFolders) {
+      if (!visited.has(f.id)) {
+        result.push({
+          id: f.id,
+          name: String(f.name || 'Unnamed Folder'),
+          depth: 0,
+          pathLabel: String(f.name || 'Unnamed Folder'),
+          folderType: f.folderType ?? f.typeDefault ?? -1,
+          parent: f.parent || '',
+        });
+      }
+    }
+
+    const landmarksFolder = this.getLandmarksFolder();
+    const defaultFolderId =
+      (landmarksFolder && byId.has(landmarksFolder.id) ? landmarksFolder.id : '') ||
+      (this.rootFolder && byId.has(this.rootFolder.id) ? this.rootFolder.id : '') ||
+      result[0]?.id ||
+      '';
+
+    return { options: result, defaultFolderId };
+  }
+
+  /**
+   * Creates a landmark via the viewer session (capability or UDP fallback) and immediately
+   * inserts the confirmed landmark item into the client inventory cache.
+   */
+  async createLandmark(
+    params: CreateLandmarkParams,
+  ): Promise<CreateLandmarkResult & { item: any }> {
+    const defaultFolder = this.getLandmarksFolder();
+    const requestedFolderId = params.folderId || defaultFolder?.id || this.rootFolder?.id || '';
+    const cleanName =
+      truncateUtf8Bytes(params.name || 'Landmark', MAX_LANDMARK_NAME_BYTES) || 'Landmark';
+    const cleanDescription = truncateUtf8Bytes(params.description || '', MAX_LANDMARK_DESC_BYTES);
+
+    const requestPayload: CreateLandmarkParams = {
+      ...params,
+      name: cleanName,
+      description: cleanDescription,
+      folderId: requestedFolderId,
+    };
+
+    let response: CreateLandmarkResult;
+    if (
+      this.protocol &&
+      typeof (this.protocol as any).createLandmark === 'function' &&
+      this.protocol.connected
+    ) {
+      response = await (this.protocol as any).createLandmark(requestPayload);
+    } else {
+      response = await slBridge.createLandmark(requestPayload);
+    }
+
+    const finalFolderId = response.folderId || requestedFolderId || this.rootFolder?.id || '';
+    const finalItemId = response.itemId || response.item?.id || Utils.generateUUID();
+    const rawConfirmedItem = {
+      ...(response.item || {}),
+      id: finalItemId,
+      name: response.item?.name || cleanName,
+      description: response.item?.description ?? cleanDescription,
+      parent: finalFolderId,
+      folderId: finalFolderId,
+      assetType: LLAssetType.Landmark,
+      invType: 3,
+      assetId: response.assetId || response.item?.assetId || '',
+      creationDate: response.item?.creationDate || Math.floor(Date.now() / 1000),
+    };
+
+    if (finalFolderId && !this.folders.has(finalFolderId)) {
+      this._addNormalizedFolder(
+        {
+          id: finalFolderId,
+          name: finalFolderId === defaultFolder?.id ? 'Landmarks' : 'Folder',
+          parent: this.rootFolder?.id || '',
+          folderType: LLFolderType.Landmark,
+        },
+        this.rootFolder?.id || '',
+      );
+    }
+
+    const insertedItem = this._addNormalizedItem(rawConfirmedItem, finalFolderId);
+    await this.persistToCache();
+    this.emit('inventory_updated', { items: [insertedItem] });
+    this.emit('inventory_loaded');
+
+    return {
+      ...response,
+      itemId: finalItemId,
+      folderId: finalFolderId,
+      item: insertedItem,
+    };
   }
 
   isProtectedFolder(idOrFolder: string | any): boolean {
@@ -752,12 +1088,63 @@ export class InventoryManager extends Utils.EventEmitter {
     return false;
   }
 
+  canCreateFolderIn(idOrFolder: string | any): boolean {
+    const folder = typeof idOrFolder === 'string' ? this.folders.get(idOrFolder) : idOrFolder;
+    if (!folder) return false;
+
+    if (folder.type !== 'folder' && folder.folder !== true && !this.folders.has(folder.id)) {
+      return false;
+    }
+
+    const trashFolder = this.getTrashFolder();
+    if (trashFolder && (folder.id === trashFolder.id || this.isItemInTrash(folder.id))) {
+      return false;
+    }
+
+    const visited = new Set<string>();
+    let curr: any = folder;
+    while (curr && !visited.has(curr.id)) {
+      visited.add(curr.id);
+      const name = String(curr.name || '')
+        .trim()
+        .toLowerCase();
+      const folderType = curr.folderType ?? -1;
+      const typeDefault = curr.typeDefault ?? -1;
+
+      if (
+        name === 'trash' ||
+        name === 'library' ||
+        name === 'second life library' ||
+        name === 'current outfit'
+      ) {
+        return false;
+      }
+
+      if (
+        folderType === LLFolderType.Trash ||
+        (typeDefault === 14 && name !== 'snapshots') ||
+        folderType === 46 ||
+        typeDefault === 46 ||
+        curr.library === 1 ||
+        curr.isLibrary === true
+      ) {
+        return false;
+      }
+
+      curr = curr.parent ? this.folders.get(curr.parent) : null;
+    }
+
+    return true;
+  }
+
   isItemInTrash(id: string): boolean {
     const trashFolder = this.getTrashFolder();
     if (!trashFolder || trashFolder.id === id) return false;
 
+    const visited = new Set<string>();
     let curr = this.items.get(id) || this.folders.get(id);
-    while (curr && curr.parent) {
+    while (curr && curr.parent && !visited.has(curr.id)) {
+      visited.add(curr.id);
       if (curr.parent === trashFolder.id) return true;
       curr = this.folders.get(curr.parent);
     }
@@ -882,7 +1269,7 @@ export class InventoryManager extends Utils.EventEmitter {
       this.items.delete(id);
     }
 
-    await this.persistToCache();
+    void this.persistToCache();
     this.emit('inventory_updated');
     return true;
   }
@@ -906,11 +1293,126 @@ export class InventoryManager extends Utils.EventEmitter {
     this.purgeFolderDescendants(trashFolder.id);
 
     // Persist updated inventory to cache
-    await this.persistToCache();
+    void this.persistToCache();
 
     // Emit update event
     this.emit('inventory_updated');
     return true;
+  }
+
+  async createInventoryFolder(params: {
+    parentId?: string;
+    name: string;
+    folderType?: number;
+    onOptimisticCreate?: (folder: any) => void;
+  }): Promise<any> {
+    const trimmedName = String(params?.name ?? '')
+      .replace(/[\x00-\x1F\x7F|]/g, '')
+      .trim();
+    if (!trimmedName) {
+      throw new Error('Folder name is required');
+    }
+    if (trimmedName.length > 63) {
+      throw new Error('Folder name must not exceed 63 characters');
+    }
+
+    const targetParentId = String(params?.parentId || this.rootFolder?.id || '').trim();
+    if (!targetParentId || !this.folders.has(targetParentId)) {
+      throw new Error('Destination folder not found');
+    }
+
+    if (!this.canCreateFolderIn(targetParentId)) {
+      throw new Error('Cannot create folders inside protected system folders');
+    }
+
+    const parentFolder = this.folders.get(targetParentId);
+    const optimisticId =
+      typeof Utils.generateUUID === 'function'
+        ? Utils.generateUUID()
+        : '00000000-0000-4000-8000-000000000001';
+    const resolvedType = params?.folderType ?? LLFolderType.None;
+
+    const optimisticFolder = this.createFolder(optimisticId, {
+      name: trimmedName,
+      parentId: targetParentId,
+      folderType: resolvedType,
+      version: 1,
+      children: [],
+      optimistic: true,
+    });
+    this.emit('inventory_updated');
+
+    if (typeof params?.onOptimisticCreate === 'function' && optimisticFolder) {
+      params.onOptimisticCreate(optimisticFolder);
+    }
+
+    const shouldDispatchRpc =
+      slBridge.connected || Boolean((slBridge.createInventoryFolder as any)?.mock);
+
+    if (shouldDispatchRpc) {
+      try {
+        const res = await slBridge.createInventoryFolder({
+          parentId: targetParentId,
+          name: trimmedName,
+          folderType: resolvedType,
+          folderId: optimisticId,
+        });
+        if (!res || res.success === false) {
+          throw new Error('Simulator rejected folder creation');
+        }
+
+        const serverFolderId = String(res.folderId || res.folder?.id || optimisticId);
+        let finalFolder = optimisticFolder;
+
+        if (serverFolderId !== optimisticId) {
+          this.folders.delete(optimisticId);
+          if (parentFolder && Array.isArray(parentFolder.children)) {
+            const idx = parentFolder.children.indexOf(optimisticId);
+            if (idx !== -1) {
+              parentFolder.children[idx] = serverFolderId;
+            } else if (!parentFolder.children.includes(serverFolderId)) {
+              parentFolder.children.push(serverFolderId);
+            }
+          }
+          finalFolder = this._addNormalizedFolder(
+            {
+              ...(res.folder || {}),
+              id: serverFolderId,
+              name: res.name || trimmedName,
+              parent: res.parentId || targetParentId,
+              folderType: res.folderType ?? resolvedType,
+              version: 1,
+              children: [],
+            },
+            targetParentId,
+            true,
+          );
+        } else if (finalFolder) {
+          delete finalFolder.optimistic;
+          if (res.name) finalFolder.name = res.name;
+        }
+
+        await this.persistToCache();
+        this.emit('inventory_updated');
+        return finalFolder;
+      } catch (err) {
+        this.folders.delete(optimisticId);
+        if (parentFolder && Array.isArray(parentFolder.children)) {
+          parentFolder.children = parentFolder.children.filter(
+            (childId: string) => childId !== optimisticId,
+          );
+        }
+        this.emit('inventory_updated');
+        throw err;
+      }
+    }
+
+    if (optimisticFolder) {
+      delete optimisticFolder.optimistic;
+    }
+    await this.persistToCache();
+    this.emit('inventory_updated');
+    return optimisticFolder;
   }
 
   createFolder(folderId: string, folderData: any) {
@@ -1069,5 +1571,320 @@ export class InventoryManager extends Utils.EventEmitter {
   async getFolderContentsPage(folderId: string, page = 1, pageSize = 50) {
     const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
     return localCache.getFolderContentsPage(agentId, folderId, page, pageSize);
+  }
+
+  private resolveDirectCapabilityUrl(name: string): string | null {
+    const proto = this.protocol as unknown as {
+      getCapability?: (cap: string) => string | undefined | null;
+      capabilities?: Record<string, string | undefined>;
+    };
+    if (typeof proto?.getCapability === 'function') {
+      const url = proto.getCapability(name);
+      if (url) return String(url);
+    }
+    const fromMap = proto?.capabilities?.[name];
+    return fromMap ? String(fromMap) : null;
+  }
+
+  /**
+   * Resolves creator/owner avatar UUIDs into human-readable names without fabricating placeholders.
+   */
+  async resolveAvatarNames(
+    ids: string[],
+    knownLookup?: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const resolved: Record<string, string> = {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return resolved;
+    }
+
+    const selfUser = this.auth?.user as
+      { id?: string; name?: string; displayName?: string; username?: string } | undefined;
+    const selfId = selfUser?.id || this.protocol?.agentId || '';
+    const selfLabel = selfUser?.displayName || selfUser?.name || selfUser?.username || '';
+    if (selfId && !isPlaceholderAvatarName(selfLabel)) {
+      this.avatarNameCache.set(selfId, selfLabel.trim());
+    }
+
+    if (knownLookup) {
+      for (const [k, v] of Object.entries(knownLookup)) {
+        if (k && k !== ZERO_UUID && !isPlaceholderAvatarName(v)) {
+          this.avatarNameCache.set(k, v.trim());
+        }
+      }
+    }
+
+    const unresolved: string[] = [];
+    const deduped = Array.from(
+      new Set(ids.map((id) => String(id || '').trim()).filter((id) => id && id !== ZERO_UUID)),
+    );
+
+    for (const id of deduped) {
+      const cached = this.avatarNameCache.get(id);
+      if (cached && !isPlaceholderAvatarName(cached)) {
+        resolved[id] = cached;
+      } else {
+        unresolved.push(id);
+      }
+    }
+
+    if (unresolved.length === 0) {
+      return resolved;
+    }
+
+    // 1. Direct GetDisplayNames capability when available in browser capability table
+    const displayNamesCap = this.resolveDirectCapabilityUrl('GetDisplayNames');
+    if (displayNamesCap) {
+      try {
+        const sep = displayNamesCap.includes('?') ? '&' : '?';
+        const query = unresolved.map((id) => `ids=${encodeURIComponent(id)}`).join('&');
+        const response = await corsHandler.makeRequest(`${displayNamesCap}${sep}${query}`, {
+          method: 'GET',
+          headers: { Accept: 'application/llsd+xml, application/json' },
+        });
+        if (response && response.ok) {
+          const text = await response.text();
+          const parsed = LLSD.parseXML(text) as {
+            agents?: Array<{
+              id?: string;
+              display_name?: string;
+              username?: string;
+              legacy_first_name?: string;
+              legacy_last_name?: string;
+            }>;
+          } | null;
+          const agents = Array.isArray(parsed?.agents) ? parsed.agents : [];
+          for (const agent of agents) {
+            const id = String(agent?.id || '');
+            const legacy =
+              agent?.legacy_first_name && agent?.legacy_last_name
+                ? `${agent.legacy_first_name} ${agent.legacy_last_name}`.trim()
+                : '';
+            const label = agent?.display_name || legacy || agent?.username || '';
+            if (id && !isPlaceholderAvatarName(label)) {
+              this.avatarNameCache.set(id, label.trim());
+              resolved[id] = label.trim();
+            }
+          }
+        }
+      } catch {
+        // Proceed to bridge fallback
+      }
+    }
+
+    // 2. SLBridge session resolution (GetDisplayNames + UUIDNameRequest)
+    const stillUnresolved = unresolved.filter((id) => !resolved[id]);
+    if (stillUnresolved.length > 0 && slBridge.connected) {
+      const bridgeResult = await slBridge.resolveAvatarNames(stillUnresolved);
+      if (bridgeResult?.names) {
+        for (const [id, name] of Object.entries(bridgeResult.names)) {
+          if (id && !isPlaceholderAvatarName(name)) {
+            this.avatarNameCache.set(id, name.trim());
+            resolved[id] = name.trim();
+          }
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Executes single or batch inventory item property & permission updates (max 100 items).
+   * Routes to region `UpdateInventoryItem` capability when supported, falling back to
+   * chunked reliable UDP `UpdateInventoryItemMessage` batches. Updates local caches
+   * immediately upon confirmation and rolls back modified items on error.
+   */
+  async batchUpdateItemProperties(
+    updates: InventoryItemUpdatePayload[],
+    options?: {
+      onProgress?: (progress: BatchUpdateProgress) => void;
+    },
+  ): Promise<{
+    success: boolean;
+    transport: 'capability' | 'udp';
+    chunkCount: number;
+    updatedIds: string[];
+  }> {
+    assertValidBatchSize(Array.isArray(updates) ? updates.length : 0);
+
+    const total = updates.length;
+    const report = (completed: number, phase: BatchUpdateProgress['phase'], statusText: string) => {
+      const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+      options?.onProgress?.({ completed, total, percent, phase, statusText });
+    };
+
+    // Snapshot pre-batch items for atomic rollback if transport fails
+    const snapshots = new Map<string, Record<string, unknown> | undefined>();
+    for (const u of updates) {
+      const existing = this.items.get(u.itemId);
+      snapshots.set(u.itemId, existing ? JSON.parse(JSON.stringify(existing)) : undefined);
+    }
+
+    report(0, 'preparing', `Preparing ${total} item${total === 1 ? '' : 's'}…`);
+
+    // Stage optimistic state in memory so rollback restores exact prior state on failure
+    for (const u of updates) {
+      const existing = this.items.get(u.itemId) || { id: u.itemId };
+      const normalizedPerms = normalizeItemPermissions({
+        groupOwned: u.groupOwned,
+        permissions: u.permissions,
+      });
+      this.items.set(u.itemId, {
+        ...existing,
+        id: u.itemId,
+        name: u.name,
+        description: u.description,
+        groupOwned: u.groupOwned,
+        permissions: {
+          ...(existing.permissions || {}),
+          ...normalizedPerms,
+        },
+      });
+    }
+
+    try {
+      let transport: 'capability' | 'udp' = 'capability';
+      let chunkCount = 1;
+
+      const directCapUrl = this.resolveDirectCapabilityUrl('UpdateInventoryItem');
+      const protoWithUdp = this.protocol as unknown as {
+        sendPacket?: (
+          name: string,
+          payload: Record<string, unknown>,
+          reliable?: boolean,
+        ) => Promise<unknown> | unknown;
+      };
+
+      if (directCapUrl) {
+        report(
+          Math.max(1, Math.floor(total * 0.25)),
+          'updating',
+          `Dispatching UpdateInventoryItem capability (${total} item${total === 1 ? '' : 's'})…`,
+        );
+
+        const llsdBody = LLSD.buildXML({
+          updates: updates.map((u) => ({
+            item_id: new LLSDUUID(u.itemId || ZERO_UUID),
+            parent_id: new LLSDUUID(u.parentId || ZERO_UUID),
+            name: u.name,
+            desc: u.description,
+            group_owned: u.groupOwned,
+            base_mask: u.permissions.baseMask,
+            owner_mask: u.permissions.ownerMask,
+            group_mask: u.permissions.groupMask,
+            everyone_mask: u.permissions.everyoneMask,
+            next_owner_mask: u.permissions.nextOwnerMask,
+          })),
+        });
+
+        const response = await corsHandler.makeRequest(directCapUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/llsd+xml' },
+          body: llsdBody,
+        });
+
+        if (!response || !response.ok) {
+          throw new Error(
+            `UpdateInventoryItem capability failed (HTTP ${response?.status ?? 'unavailable'})`,
+          );
+        }
+        transport = 'capability';
+        chunkCount = 1;
+        report(total, 'persisting', 'Capability confirmed. Updating inventory cache…');
+      } else if (slBridge.connected) {
+        report(
+          Math.max(1, Math.floor(total * 0.3)),
+          'updating',
+          `Applying permissions to ${total} item${total === 1 ? '' : 's'}…`,
+        );
+        const bridgeRes = await slBridge.updateInventoryItems(updates);
+        if (!bridgeRes?.success) {
+          throw new Error('Simulator rejected inventory item update');
+        }
+        transport = bridgeRes.transport || 'udp';
+        chunkCount = bridgeRes.chunkCount || 1;
+        report(total, 'persisting', 'Batch confirmed. Updating inventory cache…');
+      } else if (typeof protoWithUdp?.sendPacket === 'function') {
+        const chunks = chunkUpdatesForUdp(updates);
+        transport = 'udp';
+        chunkCount = chunks.length;
+        let sentCount = 0;
+
+        for (let idx = 0; idx < chunks.length; idx += 1) {
+          const chunk = chunks[idx];
+          report(
+            sentCount,
+            'updating',
+            `Sending reliable UDP batch ${idx + 1} of ${chunks.length}…`,
+          );
+          await protoWithUdp.sendPacket(
+            'UpdateInventoryItem',
+            {
+              AgentData: {
+                AgentID: this.protocol?.agentId || ZERO_UUID,
+                SessionID: this.protocol?.sessionId || ZERO_UUID,
+                TransactionID: Utils.generateUUID(),
+              },
+              InventoryData: chunk.map((u, blockIdx) => ({
+                ItemID: u.itemId,
+                FolderID: u.parentId || ZERO_UUID,
+                CallbackID: blockIdx + 1,
+                CreatorID: u.creatorId || ZERO_UUID,
+                OwnerID: u.ownerId || ZERO_UUID,
+                GroupID: u.groupId || ZERO_UUID,
+                BaseMask: u.permissions.baseMask,
+                OwnerMask: u.permissions.ownerMask,
+                GroupMask: u.permissions.groupMask,
+                EveryoneMask: u.permissions.everyoneMask,
+                NextOwnerMask: u.permissions.nextOwnerMask,
+                GroupOwned: u.groupOwned,
+                TransactionID: ZERO_UUID,
+                Type: u.assetType ?? 0,
+                InvType: u.inventoryType ?? 0,
+                Flags: u.flags ?? 0,
+                SaleType: u.saleType ?? 0,
+                SalePrice: u.salePrice ?? 0,
+                Name: u.name,
+                Description: u.description,
+                CreationDate: u.creationDate ?? 0,
+              })),
+            },
+            true,
+          );
+          sentCount += chunk.length;
+          report(sentCount, 'updating', `Confirmed UDP batch ${idx + 1} of ${chunks.length}`);
+        }
+        report(total, 'persisting', 'Updating inventory cache…');
+      } else {
+        throw new Error('Not connected to Second Life simulator');
+      }
+
+      const updatedIds = updates.map((u) => u.itemId);
+      await this.persistToCache();
+      report(total, 'completed', `Updated ${total} item${total === 1 ? '' : 's'}`);
+      this.emit('inventory_updated', { updatedIds, transport, chunkCount });
+
+      return {
+        success: true,
+        transport,
+        chunkCount,
+        updatedIds,
+      };
+    } catch (error) {
+      // Roll back modified items in memory and cache (Acceptance Criterion 4)
+      for (const [itemId, snapshot] of snapshots.entries()) {
+        if (snapshot === undefined) {
+          this.items.delete(itemId);
+        } else {
+          this.items.set(itemId, snapshot);
+        }
+      }
+      await this.persistToCache();
+      const rolledBackIds = Array.from(snapshots.keys());
+      report(0, 'rolled_back', 'Update failed — changes rolled back');
+      this.emit('inventory_updated', { rolledBackIds, error });
+      throw error;
+    }
   }
 }
