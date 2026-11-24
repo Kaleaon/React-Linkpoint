@@ -21,7 +21,7 @@ Local verification commands correspond directly to jobs defined in `.github/work
 
 ### 1. Web & TypeScript Validation (`web` job)
 
-The web suite validates TypeScript types, code style, formatting, fake data compliance, unit tests, and production build output.
+The web suite validates TypeScript types, code style, formatting, fake data compliance, design system integration, unit tests, and production build output.
 
 | Local Command             | Direct Tool Executable                                | Description                                     |
 | ------------------------- | ----------------------------------------------------- | ----------------------------------------------- |
@@ -30,6 +30,7 @@ The web suite validates TypeScript types, code style, formatting, fake data comp
 | `npm run format:check`    | `prettier --check .`                                  | Prettier code formatting check                  |
 | `npm run check:fake-data` | `node scripts/check-fake-data.mjs`                    | Verifies no fabricated mock data exists         |
 | `npm run check:materials` | `node scripts/build-materials.mjs --check`            | Verifies material shader binaries               |
+| `npm run sync-design`     | `tsx scripts/sync-design.ts`                          | Verifies design system tokens and primitives    |
 | `npm run check:electron`  | `node scripts/validate-electron-config.mjs`           | Validates Electron config and main entry syntax |
 | `npm run test`            | `vitest run`                                          | Unit and component tests                        |
 | `npm run build`           | `vite build` (+ WASM, materials & imports checks)     | Production build bundle                         |

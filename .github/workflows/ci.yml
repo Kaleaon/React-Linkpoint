@@ -83,6 +83,8 @@ jobs:
         run: npm run check:fake-data
       - name: Verify material shaders
         run: npm run check:materials
+      - name: Verify design system package integration
+        run: npm run sync-design
       - name: Unit tests (Vitest)
         run: npm run test
       - name: Validate Electron configuration

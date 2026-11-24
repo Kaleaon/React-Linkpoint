@@ -16,7 +16,8 @@ Usage: ./scripts/codex-setup.sh [--check]
 
 Installs the locked dependencies and creates a local environment file. Pass
 --check to additionally run type-check, lint, format check, fake data check,
-Electron config check, unit tests, production build, and server build.
+design system check, Electron config check, unit tests, production build,
+and server build.
 No credentials are needed for setup or for these checks.
 EOF
     exit 0
@@ -90,6 +91,7 @@ if [[ "$RUN_CHECKS" == true ]]; then
   ./node_modules/.bin/eslint .
   ./node_modules/.bin/prettier --check .
   node scripts/check-fake-data.mjs
+  ./node_modules/.bin/tsx scripts/sync-design.ts
   node scripts/validate-electron-config.mjs
   ./node_modules/.bin/vitest run
   node scripts/build-wasm.mjs --check
