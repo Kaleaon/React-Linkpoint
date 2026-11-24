@@ -87,6 +87,9 @@ export const TEXT_BOX_MARKER = '!!llTextBox!!';
 /** Pending requests kept in the UI; the oldest are dropped past this. */
 export const MAX_INTERACTIONS = 25;
 
+/** Duration to hold 100% crystal convergence before closing SystemDialog. */
+export const TELEPORT_COMPLETION_HOLD_MS = 500;
+
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error || 'Request failed');
 
@@ -94,6 +97,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   private list: Interaction[] = [];
   private busyIds = new Set<string>();
   private activeTeleport: TeleportSession | null = null;
+  private completionTimer: ReturnType<typeof setTimeout> | null = null;
   private initialized = false;
 
   constructor(private protocol: SLConnectionFull) {
@@ -148,7 +152,27 @@ export class InteractionsManager extends Utils.EventEmitter {
     return this.list[0] || null;
   }
 
+  private clearCompletionTimer() {
+    if (this.completionTimer !== null) {
+      clearTimeout(this.completionTimer);
+      this.completionTimer = null;
+    }
+  }
+
+  private prefersReducedMotion(): boolean {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    try {
+      return Boolean(window.matchMedia('(prefers-reduced-motion: reduce)')?.matches);
+    } catch {
+      return false;
+    }
+  }
+
   startTeleportSession(destination: string): TeleportSession {
+    const wasActive = this.activeTeleport !== null;
+    this.clearCompletionTimer();
     this.activeTeleport = {
       active: true,
       destination,
@@ -158,6 +182,17 @@ export class InteractionsManager extends Utils.EventEmitter {
       error: null,
       startedAt: Date.now(),
     };
+    if (wasActive) {
+      const payload = {
+        phase: this.activeTeleport.phase,
+        stepPercent: this.activeTeleport.stepPercent,
+        statusText: this.activeTeleport.statusText,
+        regionName: this.activeTeleport.regionName,
+        destination: this.activeTeleport.destination,
+      };
+      this.emit('teleport_tick', payload);
+      this.emit('teleport_progress_tick', payload);
+    }
     this.changed();
     return this.activeTeleport;
   }
@@ -168,6 +203,7 @@ export class InteractionsManager extends Utils.EventEmitter {
     statusText: string,
     regionName?: string,
   ) {
+    this.clearCompletionTimer();
     const percent = Math.min(100, Math.max(0, stepPercent ?? 0));
     const isPhaseChange = !this.activeTeleport || this.activeTeleport.phase !== phase;
 
@@ -208,6 +244,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   }
 
   failTeleportSession(error: string) {
+    this.clearCompletionTimer();
     if (!this.activeTeleport) {
       this.activeTeleport = {
         active: true,
@@ -230,21 +267,41 @@ export class InteractionsManager extends Utils.EventEmitter {
   }
 
   completeTeleportSession(regionName?: string) {
-    if (this.activeTeleport) {
-      this.activeTeleport = {
-        ...this.activeTeleport,
-        phase: 'completed',
-        stepPercent: 100,
-        statusText: 'Arrived at destination',
-        regionName: regionName || this.activeTeleport.regionName,
-        completedAt: Date.now(),
-      };
-      this.changed();
+    if (!this.activeTeleport) return;
+    this.clearCompletionTimer();
+    this.activeTeleport = {
+      ...this.activeTeleport,
+      phase: 'completed',
+      stepPercent: 100,
+      statusText: 'Arrived at destination',
+      regionName: regionName || this.activeTeleport.regionName,
+      completedAt: Date.now(),
+    };
+    const payload = {
+      phase: this.activeTeleport.phase,
+      stepPercent: 100,
+      statusText: this.activeTeleport.statusText,
+      regionName: this.activeTeleport.regionName,
+      destination: this.activeTeleport.destination,
+    };
+    this.emit('teleport_tick', payload);
+    this.emit('teleport_progress_tick', payload);
+    this.changed();
+
+    if (this.prefersReducedMotion()) {
       this.clearTeleportSession();
+      return;
     }
+
+    this.completionTimer = setTimeout(() => {
+      this.completionTimer = null;
+      this.clearTeleportSession();
+    }, TELEPORT_COMPLETION_HOLD_MS);
   }
 
   cancelTeleportSession() {
+    this.clearCompletionTimer();
+    (this.protocol as any).cancelActiveTeleport?.();
     if (this.activeTeleport) {
       this.activeTeleport.phase = 'cancelled';
       this.activeTeleport.active = false;
@@ -254,6 +311,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   }
 
   clearTeleportSession() {
+    this.clearCompletionTimer();
     if (this.activeTeleport) {
       this.activeTeleport = null;
       this.changed();
@@ -261,8 +319,7 @@ export class InteractionsManager extends Utils.EventEmitter {
   }
 
   retryHomeTeleport() {
-    this.startTeleportSession('home');
-    void this.protocol.teleportTo('home').catch((err) => {
+    void this.protocol.teleportHome().catch((err) => {
       this.failTeleportSession(
         err instanceof Error ? err.message : String(err || 'Failed to teleport home'),
       );
@@ -350,6 +407,8 @@ export class InteractionsManager extends Utils.EventEmitter {
   }
 
   clear() {
+    this.clearCompletionTimer();
+    (this.protocol as any).cancelActiveTeleport?.();
     this.busyIds.clear();
     const hadTeleport = this.activeTeleport !== null;
     this.activeTeleport = null;
@@ -395,8 +454,9 @@ export class InteractionsManager extends Utils.EventEmitter {
   async acceptLure(id: string) {
     const lure = this.list.find((item) => item.id === id && item.kind === 'lure') as
       LureRequest | undefined;
+    const senderName = lure?.fromName?.trim() || undefined;
     const result = await this.run(id, () =>
-      this.protocol.acceptLure(id, lure?.fromId ?? undefined),
+      this.protocol.acceptLure(id, lure?.fromId ?? undefined, senderName),
     );
     if (result && lure) this.emit('lure_accepted', { lure, message: result.message });
     return Boolean(result);

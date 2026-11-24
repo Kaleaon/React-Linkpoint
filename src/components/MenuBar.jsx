@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { FMENU, FLOATERS } from '../theme/constants.js';
 import { app } from '../linkpoint/app.ts';
-import { slBridge } from '../linkpoint/sl-bridge.ts';
 import { deskKind } from '../theme/deskStyle.js';
 import { ensureMinContrast } from '../theme/contrast.ts';
 import FocusRing from './FocusRing.tsx';
@@ -78,9 +77,13 @@ export default function MenuBar() {
         actions.notify('Connect to a grid to teleport home.');
         return;
       }
-      slBridge.teleportHome().then(
+      app.protocol.teleportHome().then(
         () => actions.notify('Teleport home requested'),
-        (err) => actions.notify(err instanceof Error ? err.message : 'Could not teleport home'),
+        (err) => {
+          if (!app.interactions.teleportSession) {
+            actions.notify(err instanceof Error ? err.message : 'Could not teleport home');
+          }
+        },
       );
     } else if (itemLabel === 'Preferences…') {
       actions.flFocus('Settings');

@@ -5,6 +5,15 @@ import { AppProvider } from '../../context/AppContext.jsx';
 import { ThemeProvider } from '../../context/ThemeContext.jsx';
 import SystemDialog from '../../components/SystemDialog.jsx';
 import InteractionDialog from '../../components/InteractionDialog.jsx';
+import DesktopChrome from '../../components/DesktopChrome.jsx';
+import MenuBar from '../../components/MenuBar.jsx';
+import Search from '../../screens/Search.jsx';
+import Radar from '../../screens/Radar.jsx';
+import MapScreen from '../../screens/Map.jsx';
+import { TeleportScreen } from '../../screens/LumiyaTools.jsx';
+import { NoticesScreen } from '../../screens/LiveScreens.jsx';
+import { useApp } from '../../context/AppContext.jsx';
+import { slBridge } from '../sl-bridge';
 import { app } from '../app';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -171,9 +180,9 @@ describe('SystemDialog Teleport Sheet', () => {
   });
 
   it('triggers retry home on RETRY HOME button click', async () => {
-    const teleportSpy = vi
-      .spyOn(app.protocol, 'teleportTo')
-      .mockResolvedValue({ requested: { region: 'home', x: 128, y: 128, z: 30 }, message: 'ok' });
+    const teleportHomeSpy = vi
+      .spyOn(app.protocol, 'teleportHome')
+      .mockResolvedValue({ requested: 'home' });
     vi.spyOn(app.protocol as any, 'requireConnected').mockImplementation(() => undefined);
 
     const host = await mount();
@@ -185,7 +194,7 @@ describe('SystemDialog Teleport Sheet', () => {
     expect(homeBtn).toBeDefined();
     await click(homeBtn);
 
-    expect(teleportSpy).toHaveBeenCalledWith('home');
+    expect(teleportHomeSpy).toHaveBeenCalledOnce();
   });
 
   it('renders failed state with error message and RETRY controls when teleport fails', async () => {
@@ -313,5 +322,468 @@ describe('SystemDialog Teleport Sheet', () => {
     const fill = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
     expect(fill.style.background).not.toContain('linear-gradient');
     expect(fill.style.background).toBeTruthy();
+  });
+
+  it('paints 65% preparing, 90% arriving, and 100% zero-gap convergence for 500ms before unmounting', async () => {
+    vi.useFakeTimers();
+    try {
+      (app.protocol as any).connected = true;
+      (slBridge as any).connected = true;
+
+      let resolveBridge: (val: any) => void = () => {};
+      vi.spyOn(slBridge, 'teleport').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveBridge = resolve;
+          }) as any,
+      );
+
+      const host = await mount();
+
+      let tpPromise!: Promise<any>;
+      await act(async () => {
+        tpPromise = app.protocol.teleportTo('Ahern');
+        await vi.advanceTimersToNextFrame();
+      });
+
+      // 1. In-flight RPC paints 65% preparing state
+      const hero65 = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+      const bar65 = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+      expect(hero65).not.toBeNull();
+      expect(hero65.getAttribute('data-step-percent')).toBe('65');
+      expect(bar65.style.width).toBe('65%');
+      expect(host.textContent).toContain('65%');
+      expect(host.textContent).toContain('Preparing avatar transfer...');
+
+      // 2. Resolve bridge RPC -> yields 1 animation frame at 90% arriving before completion
+      await act(async () => {
+        resolveBridge({ requested: { region: 'Ahern', x: 128, y: 128, z: 30 }, message: 'ok' });
+        await Promise.resolve();
+      });
+
+      // Advance exactly one animation frame: 90% frame paints first
+      expect(app.interactions.teleportSession?.phase).toBe('arriving');
+      expect(app.interactions.teleportSession?.stepPercent).toBe(90);
+      expect(host.textContent).toContain('90%');
+      expect(host.textContent).toContain('Arriving at destination...');
+      expect(hero65.getAttribute('data-step-percent')).toBe('90');
+
+      // Advance frame to resolve rAF yield -> transitions to 100% completed and holds for 500ms
+      await act(async () => {
+        await vi.advanceTimersToNextFrame();
+        await Promise.resolve();
+        await vi.advanceTimersToNextFrame();
+      });
+      await tpPromise;
+
+      const hero100 = host.querySelector('[data-testid="teleport-crystal-hero"]') as HTMLElement;
+      const top100 = host.querySelector('.tpch-top') as HTMLElement;
+      const bot100 = host.querySelector('.tpch-bot') as HTMLElement;
+      const bar100 = host.querySelector('[data-testid="asset-progress-bar"]') as HTMLElement;
+      expect(hero100).not.toBeNull();
+      expect(hero100.getAttribute('data-step-percent')).toBe('100');
+      expect(top100.style.transform).toBe('translateY(0.00px)');
+      expect(bot100.style.transform).toBe('translateY(0.00px)');
+      expect(bar100.style.width).toBe('100%');
+      expect(host.textContent).toContain('100%');
+      expect(host.textContent).toContain('Arrived at destination');
+
+      // Still mounted at 450ms into the 500ms hold
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(450);
+      });
+      expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
+
+      // Unmounts cleanly once 500ms hold completes
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(app.interactions.teleportSession).toBeNull();
+    } finally {
+      (app.protocol as any).connected = false;
+      (slBridge as any).connected = false;
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels pending 500ms completion hold on new teleport, cancel, fail, or disconnect', async () => {
+    vi.useFakeTimers();
+    try {
+      const host = await mount();
+
+      // 1. Starting a new teleport during 500ms hold cancels prior completion timer
+      await act(async () => {
+        app.interactions.startTeleportSession('First Region');
+        app.interactions.completeTeleportSession('First Region');
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+        app.interactions.startTeleportSession('Second Region');
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(app.interactions.teleportSession?.destination).toBe('Second Region');
+      expect(app.interactions.teleportSession?.phase).toBe('initiating');
+      expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
+
+      // 2. Failing during 500ms hold cancels prior completion timer
+      await act(async () => {
+        app.interactions.completeTeleportSession('Second Region');
+        await vi.advanceTimersByTimeAsync(250);
+        app.interactions.failTeleportSession('Late simulator error');
+        await vi.advanceTimersByTimeAsync(400);
+      });
+      expect(app.interactions.teleportSession?.phase).toBe('failed');
+      expect(host.textContent).toContain('Late simulator error');
+
+      // 3. Canceling during 500ms hold clears immediately and leaves no dangling timer
+      await act(async () => {
+        app.interactions.startTeleportSession('Third Region');
+        app.interactions.completeTeleportSession('Third Region');
+        await vi.advanceTimersByTimeAsync(100);
+        app.interactions.cancelTeleportSession();
+      });
+      expect(app.interactions.teleportSession).toBeNull();
+      await act(async () => {
+        app.interactions.startTeleportSession('Fourth Region');
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(app.interactions.teleportSession?.destination).toBe('Fourth Region');
+
+      // 4. Disconnecting during 500ms hold cancels prior completion timer cleanly
+      await act(async () => {
+        app.interactions.completeTeleportSession('Fourth Region');
+        await vi.advanceTimersByTimeAsync(100);
+        (app.protocol as any).emit('disconnected', {});
+      });
+      expect(app.interactions.teleportSession).toBeNull();
+      await act(async () => {
+        app.interactions.startTeleportSession('Fifth Region');
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(app.interactions.teleportSession?.destination).toBe('Fifth Region');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears teleportSession immediately on completion when prefers-reduced-motion: reduce matches', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('prefers-reduced-motion: reduce'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    try {
+      const host = await mount();
+      await act(async () => {
+        app.interactions.startTeleportSession('Quiet Region');
+      });
+      expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
+
+      await act(async () => {
+        app.interactions.completeTeleportSession('Quiet Region');
+      });
+      expect(app.interactions.teleportSession).toBeNull();
+      expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it('mounts SystemDialog with TeleportCrystalHero and CrystalProgressBar across all nine client teleport actions', async () => {
+    (app.protocol as any).connected = true;
+    (slBridge as any).connected = true;
+    app.auth.user = { id: 'agent-1', fullName: 'Test Resident', grid: 'opensim' };
+
+    const pending = () => new Promise<any>(() => {});
+    vi.spyOn(slBridge, 'teleport').mockImplementation(pending as any);
+    vi.spyOn(slBridge, 'teleportHome').mockImplementation(pending as any);
+    vi.spyOn(slBridge, 'acceptLure').mockImplementation(pending as any);
+    vi.spyOn(slBridge, 'call').mockImplementation(async (method: string) => {
+      if (method === 'getMapBlocks') {
+        return [{ name: 'Ahern', x: 1000, y: 1000, access: 13 }];
+      }
+      return {};
+    });
+    vi.spyOn(slBridge, 'searchDir').mockImplementation(async (params: any) => ({
+      results: [{ id: 'res-1', name: `Target ${params.category}`, type: params.category }],
+      hasMore: false,
+    }));
+
+    let appCtx: any = null;
+    function CaptureCtx() {
+      appCtx = useApp();
+      return null;
+    }
+
+    async function mountWithDialog(ScreenComp: any) {
+      if (mounted) {
+        await act(async () => mounted!.root.unmount());
+        mounted.host.remove();
+        mounted = null;
+      }
+      await act(async () => {
+        app.interactions.cancelTeleportSession();
+      });
+      const host = document.createElement('div');
+      document.body.appendChild(host);
+      const r = createRoot(host);
+      await act(async () => {
+        r.render(
+          createElement(
+            AppProvider as any,
+            null,
+            createElement(
+              ThemeProvider as any,
+              null,
+              createElement(
+                'div',
+                null,
+                createElement(CaptureCtx),
+                createElement(ScreenComp),
+                createElement(SystemDialog as any),
+              ),
+            ),
+          ),
+        );
+      });
+      mounted = { host, root: r };
+      return host;
+    }
+
+    const assertCrystalDialogMounted = (host: HTMLElement, expectedTitle?: string) => {
+      expect(app.interactions.teleportSession).not.toBeNull();
+      expect(host.querySelector('[data-testid="teleport-crystal-hero"]')).not.toBeNull();
+      expect(host.querySelector('[data-testid="crystal-progress-bar-container"]')).not.toBeNull();
+      if (expectedTitle) {
+        expect(host.querySelector('#teleport-sheet-title')?.textContent).toContain(expectedTitle);
+      }
+    };
+
+    try {
+      // 1. DesktopChrome location bar submit
+      let host = await mountWithDialog(DesktopChrome);
+      const locInput = host.querySelector('#desktop-location') as HTMLInputElement;
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setter.call(locInput, 'Da Boom/128/128/30');
+        locInput.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await act(async () => {
+        host
+          .querySelector('form.desktop-location-form')!
+          .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+      assertCrystalDialogMounted(host, 'Da Boom/128/128/30');
+
+      // 2. DesktopChrome toolbar Teleport home button
+      host = await mountWithDialog(DesktopChrome);
+      await click(host.querySelector('button[aria-label="Teleport home"]'));
+      assertCrystalDialogMounted(host, 'Home');
+
+      // 3. MenuBar World -> Teleport Home
+      host = await mountWithDialog(MenuBar);
+      await act(async () => {
+        appCtx.actions.setDevice('desk');
+        appCtx.actions.setMenu('World');
+      });
+      const tpHomeItem = [...host.querySelectorAll('[role="menuitem"]')].find((el) =>
+        (el.textContent || '').includes('Teleport Home'),
+      );
+      expect(tpHomeItem).toBeDefined();
+      await click(tpHomeItem);
+      assertCrystalDialogMounted(host, 'Home');
+
+      // 4. Search directory (Places, Events, Classifieds)
+      host = await mountWithDialog(Search);
+      await click(host.querySelector('button[data-tab="PLACES"]'));
+      const searchInput = host.querySelector('input') as HTMLInputElement;
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setter.call(searchInput, 'Ahern');
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      await click(button(host, 'Teleport'));
+      assertCrystalDialogMounted(host, 'Target places');
+
+      await act(async () => {
+        app.interactions.cancelTeleportSession();
+      });
+      await click(host.querySelector('button[data-tab="EVENTS"]'));
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      await click(button(host, 'Teleport'));
+      assertCrystalDialogMounted(host, 'Target events');
+
+      await act(async () => {
+        app.interactions.cancelTeleportSession();
+      });
+      await click(host.querySelector('button[data-tab="CLASSIFIEDS"]'));
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      await click(button(host, 'Teleport'));
+      assertCrystalDialogMounted(host, 'Target classifieds');
+
+      // 5. Radar nearby resident TELEPORT TO
+      const prevRegion = app.world.region;
+      const prevNearby = app.world.nearbyUsers;
+      app.world.region = { name: 'Morris', x: 1000, y: 1000 } as any;
+      app.world.nearbyUsers = [
+        { id: 'av-99', name: 'Nyx Resident', distance: 14, position: [64, 96, 24] },
+      ] as any;
+      host = await mountWithDialog(Radar);
+      const residentRow = [...host.querySelectorAll('div')].find(
+        (el) => el.textContent?.includes('Nyx Resident') && el.style.cursor === 'pointer',
+      );
+      await click(residentRow);
+      await click(button(host, 'TELEPORT TO'));
+      assertCrystalDialogMounted(host, 'Morris');
+      app.world.region = prevRegion;
+      app.world.nearbyUsers = prevNearby;
+
+      // 6. Map screen Teleport button
+      const origRegion = app.world.region;
+      app.world.region = { name: 'Ahern', x: 1000, y: 1000 } as any;
+      host = await mountWithDialog(MapScreen);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      const mapTileBtn =
+        host.querySelector('button[aria-label*="1000, 1000"]') ||
+        [...host.querySelectorAll('button')].find((b) =>
+          (b.getAttribute('title') || b.getAttribute('aria-label') || '').includes('Ahern'),
+        ) ||
+        host.querySelector('.map-grid button, [role="gridcell"] button, button[data-tile]');
+      if (mapTileBtn) {
+        await click(mapTileBtn);
+      } else {
+        // Fallback click on the center tile button inside the map grid
+        const allBtns = [...host.querySelectorAll('button')];
+        const centerTile = allBtns.find((b) => (b.textContent || '').includes('Ahern'));
+        await click(centerTile);
+      }
+      await click(button(host, 'Teleport'));
+      assertCrystalDialogMounted(host, 'Ahern');
+      app.world.region = origRegion;
+
+      // 7. LumiyaTools TeleportScreen Go button
+      host = await mountWithDialog(TeleportScreen);
+      const uriInput = host.querySelector(
+        'input[aria-label="Teleport destination URI"]',
+      ) as HTMLInputElement;
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setter.call(uriInput, 'secondlife://Lusk/100/100/25');
+        uriInput.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await click(button(host, 'Go'));
+      assertCrystalDialogMounted(host, 'secondlife://Lusk/100/100/25');
+
+      // 8. LiveScreens NoticesScreen TELEPORT TO LANDMARK button
+      host = await mountWithDialog(NoticesScreen);
+      await act(async () => {
+        app.notices.receive({
+          id: 'notice-tp-1',
+          groupId: 'grp-1',
+          groupName: 'Explorers',
+          senderName: 'Scout',
+          subject: 'Landmark Notice',
+          message: 'Visit now',
+          timestamp: Date.now(),
+          hasAttachment: true,
+          attachmentName: ' Bora Bora ',
+          attachmentItemId: 'att-1',
+          attachmentType: 3,
+        } as any);
+      });
+      await click(host.querySelector('article button'));
+      await click(button(host, 'TELEPORT TO LANDMARK'));
+      assertCrystalDialogMounted(host, 'Bora Bora');
+
+      // 9. InteractionDialog lure ACCEPT button
+      host = await mountWithDialog(InteractionDialog);
+      await emit('lure', {
+        id: 'lure-9',
+        receivedAt: Date.now(),
+        fromId: 'sender-9',
+        fromName: 'Kit Sandalwood',
+        message: 'Join us!',
+        regionId: 'reg-9',
+        position: [128, 128, 30],
+        gridX: 1000,
+        gridY: 1000,
+      });
+      await click(button(host, 'ACCEPT'));
+      assertCrystalDialogMounted(host, 'Kit Sandalwood');
+    } finally {
+      (app.protocol as any).connected = false;
+      (slBridge as any).connected = false;
+      app.auth.user = null;
+    }
+  }, 15_000);
+
+  it('suppresses duplicate UI error toasts when SystemDialog already displays the teleport failure alert', async () => {
+    (app.protocol as any).connected = true;
+    (slBridge as any).connected = true;
+    app.auth.user = { id: 'agent-1', fullName: 'Test Resident', grid: 'opensim' };
+
+    vi.spyOn(slBridge, 'teleportHome').mockRejectedValue(new Error('Home parcel unavailable'));
+
+    let appCtx: any = null;
+    function CaptureCtx() {
+      appCtx = useApp();
+      return null;
+    }
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const r = createRoot(host);
+    await act(async () => {
+      r.render(
+        createElement(
+          AppProvider as any,
+          null,
+          createElement(
+            ThemeProvider as any,
+            null,
+            createElement(
+              'div',
+              null,
+              createElement(CaptureCtx),
+              createElement(DesktopChrome as any),
+              createElement(SystemDialog as any),
+            ),
+          ),
+        ),
+      );
+    });
+    mounted = { host, root: r };
+
+    try {
+      const notifySpy = vi.spyOn(appCtx.actions, 'notify');
+      await click(host.querySelector('button[aria-label="Teleport home"]'));
+
+      expect(app.interactions.teleportSession?.phase).toBe('failed');
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+        'Home parcel unavailable',
+      );
+      expect(notifySpy).not.toHaveBeenCalled();
+    } finally {
+      (app.protocol as any).connected = false;
+      (slBridge as any).connected = false;
+      app.auth.user = null;
+    }
   });
 });
