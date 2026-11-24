@@ -80,8 +80,58 @@ export interface PagedFriends {
   totalPages: number;
 }
 
-const DB_NAME = 'linkpoint_sl_cache_db';
-const DB_VERSION = 5;
+export type TeleportHistorySource = 'teleport' | 'region_crossing' | 'lure';
+
+export interface TeleportHistoryRecord {
+  id: string;
+  agentId: string;
+  timestamp: number;
+  regionName: string;
+  parcelName: string | null;
+  position: [number, number, number] | null;
+  gridX: number | null;
+  gridY: number | null;
+  regionId?: string | null;
+  slurl: string;
+  source?: TeleportHistorySource;
+}
+
+export interface TeleportHistoryInput {
+  id?: string;
+  timestamp?: number;
+  regionName: string;
+  parcelName?: string | null;
+  position?: [number, number, number] | null;
+  gridX?: number | null;
+  gridY?: number | null;
+  regionId?: string | null;
+  slurl?: string;
+  source?: TeleportHistorySource;
+}
+
+export function buildSecondLifeSlurl(
+  regionName: string,
+  position?: [number, number, number] | null,
+): string {
+  const cleanRegion = String(regionName || '').trim();
+  if (!cleanRegion) return '';
+  const encodedRegion = encodeURIComponent(cleanRegion);
+  if (
+    Array.isArray(position) &&
+    position.length >= 3 &&
+    Number.isFinite(position[0]) &&
+    Number.isFinite(position[1]) &&
+    Number.isFinite(position[2])
+  ) {
+    return `secondlife://${encodedRegion}/${Math.round(position[0])}/${Math.round(position[1])}/${Math.round(position[2])}`;
+  }
+  return `secondlife://${encodedRegion}`;
+}
+
+export const LINKPOINT_DB_NAME = 'linkpoint_sl_cache_db';
+export const LINKPOINT_DB_VERSION = 6;
+const DB_NAME = LINKPOINT_DB_NAME;
+const DB_VERSION = LINKPOINT_DB_VERSION;
 
 export const STORE_INVENTORY_FOLDERS = 'inventory_folders';
 export const STORE_INVENTORY_ITEMS = 'inventory_items';
@@ -92,6 +142,101 @@ export const STORE_INVENTORY = 'inventory';
 export const STORE_TEXTURES = 'textures';
 export const STORE_TRANSACTIONS = 'transactions';
 export const STORE_META = 'metadata';
+export const STORE_TELEPORT_HISTORY = 'teleport_history';
+export const MAX_TELEPORT_HISTORY_ENTRIES = 500;
+
+export function upgradeLinkpointDatabase(
+  db: IDBDatabase,
+  upgradeTransaction?: IDBTransaction | null,
+): void {
+  if (!db.objectStoreNames.contains(STORE_INVENTORY_FOLDERS)) {
+    const folderStore = db.createObjectStore(STORE_INVENTORY_FOLDERS, {
+      keyPath: ['agentId', 'id'],
+    });
+    folderStore.createIndex('by_parent', ['agentId', 'parent'], { unique: false });
+  } else if (upgradeTransaction) {
+    const folderStore = upgradeTransaction.objectStore(STORE_INVENTORY_FOLDERS);
+    if (!folderStore.indexNames.contains('by_parent')) {
+      folderStore.createIndex('by_parent', ['agentId', 'parent'], { unique: false });
+    }
+  }
+
+  if (!db.objectStoreNames.contains(STORE_INVENTORY_ITEMS)) {
+    const itemStore = db.createObjectStore(STORE_INVENTORY_ITEMS, {
+      keyPath: ['agentId', 'id'],
+    });
+    itemStore.createIndex('by_folder', ['agentId', 'folderId'], { unique: false });
+  } else if (upgradeTransaction) {
+    const itemStore = upgradeTransaction.objectStore(STORE_INVENTORY_ITEMS);
+    if (!itemStore.indexNames.contains('by_folder')) {
+      itemStore.createIndex('by_folder', ['agentId', 'folderId'], { unique: false });
+    }
+  }
+
+  if (!db.objectStoreNames.contains(STORE_CONTACTS)) {
+    const contactStore = db.createObjectStore(STORE_CONTACTS, {
+      keyPath: ['agentId', 'id'],
+    });
+    contactStore.createIndex('by_agent', 'agentId', { unique: false });
+    contactStore.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
+  } else if (upgradeTransaction) {
+    const contactStore = upgradeTransaction.objectStore(STORE_CONTACTS);
+    if (!contactStore.indexNames.contains('by_agent')) {
+      contactStore.createIndex('by_agent', 'agentId', { unique: false });
+    }
+    if (!contactStore.indexNames.contains('by_agent_name')) {
+      contactStore.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
+    }
+  }
+
+  if (!db.objectStoreNames.contains(STORE_GROUP_NOTICES)) {
+    const noticeStore = db.createObjectStore(STORE_GROUP_NOTICES, {
+      keyPath: ['agentId', 'id'],
+    });
+    noticeStore.createIndex('by_group', ['agentId', 'groupId'], { unique: false });
+    noticeStore.createIndex('by_agent', 'agentId', { unique: false });
+    noticeStore.createIndex('timestamp', 'timestamp', { unique: false });
+  } else if (upgradeTransaction) {
+    const noticeStore = upgradeTransaction.objectStore(STORE_GROUP_NOTICES);
+    if (!noticeStore.indexNames.contains('by_group')) {
+      noticeStore.createIndex('by_group', ['agentId', 'groupId'], { unique: false });
+    }
+  }
+
+  if (!db.objectStoreNames.contains(STORE_LEGACY_MIGRATION)) {
+    db.createObjectStore(STORE_LEGACY_MIGRATION, { keyPath: 'agentId' });
+  }
+
+  if (!db.objectStoreNames.contains(STORE_INVENTORY)) {
+    db.createObjectStore(STORE_INVENTORY, { keyPath: 'id' });
+  }
+  if (!db.objectStoreNames.contains(STORE_TEXTURES)) {
+    db.createObjectStore(STORE_TEXTURES, { keyPath: 'uuid' });
+  }
+  if (!db.objectStoreNames.contains(STORE_META)) {
+    db.createObjectStore(STORE_META, { keyPath: 'key' });
+  }
+  if (!db.objectStoreNames.contains(STORE_TRANSACTIONS)) {
+    const txStore = db.createObjectStore(STORE_TRANSACTIONS, { keyPath: 'id' });
+    txStore.createIndex('agentId', 'agentId', { unique: false });
+    txStore.createIndex('timestamp', 'timestamp', { unique: false });
+  }
+  if (!db.objectStoreNames.contains(STORE_TELEPORT_HISTORY)) {
+    const tpStore = db.createObjectStore(STORE_TELEPORT_HISTORY, {
+      keyPath: ['agentId', 'timestamp'],
+    });
+    tpStore.createIndex('by_agent', 'agentId', { unique: false });
+    tpStore.createIndex('by_agent_id', ['agentId', 'id'], { unique: false });
+  } else if (upgradeTransaction) {
+    const tpStore = upgradeTransaction.objectStore(STORE_TELEPORT_HISTORY);
+    if (!tpStore.indexNames.contains('by_agent')) {
+      tpStore.createIndex('by_agent', 'agentId', { unique: false });
+    }
+    if (!tpStore.indexNames.contains('by_agent_id')) {
+      tpStore.createIndex('by_agent_id', ['agentId', 'id'], { unique: false });
+    }
+  }
+}
 
 export class IndexedDBStore {
   private db: IDBDatabase | null = null;
@@ -105,6 +250,11 @@ export class IndexedDBStore {
   private memMigration: Map<string, any> = new Map(); // key: agentId
   private memMuteLists: Map<string, any> = new Map(); // key: `mutelist_${agentId}`
   private memMeta: Map<string, any> = new Map(); // key: metadata key
+  private memTeleportHistory: Map<string, TeleportHistoryRecord> = new Map(); // key: `${agentId}:${timestamp}`
+  private lastTeleportTimestampByAgent: Map<string, number> = new Map();
+  private knownTeleportCountByAgent: Map<string, number> = new Map();
+  private hydratedTeleportAgents: Set<string> = new Set();
+  private teleportSeq: number = 0;
 
   constructor() {}
 
@@ -130,82 +280,19 @@ export class IndexedDBStore {
       try {
         const req = factory.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = (e: any) => {
-          const db: IDBDatabase = e.target.result;
-
-          if (!db.objectStoreNames.contains(STORE_INVENTORY_FOLDERS)) {
-            const folderStore = db.createObjectStore(STORE_INVENTORY_FOLDERS, {
-              keyPath: ['agentId', 'id'],
-            });
-            folderStore.createIndex('by_parent', ['agentId', 'parent'], { unique: false });
-          } else {
-            const folderStore = e.target.transaction.objectStore(STORE_INVENTORY_FOLDERS);
-            if (!folderStore.indexNames.contains('by_parent')) {
-              folderStore.createIndex('by_parent', ['agentId', 'parent'], { unique: false });
-            }
-          }
-
-          if (!db.objectStoreNames.contains(STORE_INVENTORY_ITEMS)) {
-            const itemStore = db.createObjectStore(STORE_INVENTORY_ITEMS, {
-              keyPath: ['agentId', 'id'],
-            });
-            itemStore.createIndex('by_folder', ['agentId', 'folderId'], { unique: false });
-          } else {
-            const itemStore = e.target.transaction.objectStore(STORE_INVENTORY_ITEMS);
-            if (!itemStore.indexNames.contains('by_folder')) {
-              itemStore.createIndex('by_folder', ['agentId', 'folderId'], { unique: false });
-            }
-          }
-
-          if (!db.objectStoreNames.contains(STORE_CONTACTS)) {
-            const contactStore = db.createObjectStore(STORE_CONTACTS, {
-              keyPath: ['agentId', 'id'],
-            });
-            contactStore.createIndex('by_agent', 'agentId', { unique: false });
-            contactStore.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
-          } else {
-            const contactStore = e.target.transaction.objectStore(STORE_CONTACTS);
-            if (!contactStore.indexNames.contains('by_agent')) {
-              contactStore.createIndex('by_agent', 'agentId', { unique: false });
-            }
-            if (!contactStore.indexNames.contains('by_agent_name')) {
-              contactStore.createIndex('by_agent_name', ['agentId', 'name'], { unique: false });
-            }
-          }
-
-          if (!db.objectStoreNames.contains(STORE_GROUP_NOTICES)) {
-            const noticeStore = db.createObjectStore(STORE_GROUP_NOTICES, {
-              keyPath: ['agentId', 'id'],
-            });
-            noticeStore.createIndex('by_group', ['agentId', 'groupId'], { unique: false });
-            noticeStore.createIndex('by_agent', 'agentId', { unique: false });
-            noticeStore.createIndex('timestamp', 'timestamp', { unique: false });
-          } else {
-            const noticeStore = e.target.transaction.objectStore(STORE_GROUP_NOTICES);
-            if (!noticeStore.indexNames.contains('by_group')) {
-              noticeStore.createIndex('by_group', ['agentId', 'groupId'], { unique: false });
-            }
-          }
-
-          if (!db.objectStoreNames.contains(STORE_LEGACY_MIGRATION)) {
-            db.createObjectStore(STORE_LEGACY_MIGRATION, { keyPath: 'agentId' });
-          }
-
-          // Ensure existing legacy stores exist
-          if (!db.objectStoreNames.contains(STORE_TEXTURES)) {
-            db.createObjectStore(STORE_TEXTURES, { keyPath: 'uuid' });
-          }
-          if (!db.objectStoreNames.contains(STORE_META)) {
-            db.createObjectStore(STORE_META, { keyPath: 'key' });
-          }
-          if (!db.objectStoreNames.contains(STORE_TRANSACTIONS)) {
-            const txStore = db.createObjectStore(STORE_TRANSACTIONS, { keyPath: 'id' });
-            txStore.createIndex('agentId', 'agentId', { unique: false });
-            txStore.createIndex('timestamp', 'timestamp', { unique: false });
-          }
+          upgradeLinkpointDatabase(e.target.result, e.target.transaction);
         };
 
         req.onsuccess = (e: any) => {
-          this.db = e.target.result;
+          const database: IDBDatabase = e.target.result;
+          database.onversionchange = () => {
+            database.close();
+            if (this.db === database) {
+              this.db = null;
+              this.initPromise = null;
+            }
+          };
+          this.db = database;
           resolve(this.db);
         };
 
@@ -1149,6 +1236,426 @@ export class IndexedDBStore {
     }
 
     return { evicted: evictedCount, remainingMb: 50 };
+  }
+
+  // --- Teleport History Operations ---
+
+  private normalizePosition(pos: unknown): [number, number, number] | null {
+    if (
+      Array.isArray(pos) &&
+      pos.length >= 3 &&
+      Number.isFinite(Number(pos[0])) &&
+      Number.isFinite(Number(pos[1])) &&
+      Number.isFinite(Number(pos[2]))
+    ) {
+      return [Number(pos[0]), Number(pos[1]), Number(pos[2])];
+    }
+    return null;
+  }
+
+  private allocateTeleportTimestamp(agentId: string, explicitTimestamp?: number): number {
+    const prev = this.lastTeleportTimestampByAgent.get(agentId) ?? 0;
+    if (typeof explicitTimestamp === 'number' && Number.isFinite(explicitTimestamp)) {
+      let candidate = Math.max(0, Math.trunc(explicitTimestamp));
+      while (this.memTeleportHistory.has(`${agentId}:${candidate}`)) {
+        candidate += 1;
+      }
+      if (candidate > prev) {
+        this.lastTeleportTimestampByAgent.set(agentId, candidate);
+      }
+      return candidate;
+    }
+    const now = Date.now();
+    const next = now > prev ? now : prev + 1;
+    this.lastTeleportTimestampByAgent.set(agentId, next);
+    return next;
+  }
+
+  private evictMemoryTeleportHistory(agentId: string): void {
+    const agentEntries: Array<[string, TeleportHistoryRecord]> = [];
+    for (const [key, record] of this.memTeleportHistory.entries()) {
+      if (record.agentId === agentId) {
+        agentEntries.push([key, record]);
+      }
+    }
+    if (agentEntries.length <= MAX_TELEPORT_HISTORY_ENTRIES) return;
+    agentEntries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const excess = agentEntries.length - MAX_TELEPORT_HISTORY_ENTRIES;
+    for (let i = 0; i < excess; i++) {
+      this.memTeleportHistory.delete(agentEntries[i][0]);
+    }
+  }
+
+  public async recordTeleportHistory(
+    agentId: string,
+    input: TeleportHistoryInput,
+  ): Promise<TeleportHistoryRecord | null> {
+    const cleanAgentId = String(agentId || '').trim();
+    const cleanRegion = String(input?.regionName || '').trim();
+    if (!cleanAgentId || !cleanRegion) {
+      return null;
+    }
+
+    const timestamp = this.allocateTeleportTimestamp(cleanAgentId, input.timestamp);
+    const position = this.normalizePosition(input.position);
+    const parcelRaw =
+      input.parcelName !== undefined && input.parcelName !== null
+        ? String(input.parcelName).trim()
+        : '';
+    const parcelName = parcelRaw ? parcelRaw : null;
+    const gridX =
+      typeof input.gridX === 'number' && Number.isFinite(input.gridX) ? input.gridX : null;
+    const gridY =
+      typeof input.gridY === 'number' && Number.isFinite(input.gridY) ? input.gridY : null;
+    const regionId = input.regionId ? String(input.regionId).trim() : null;
+    const slurl =
+      input.slurl && String(input.slurl).trim().toLowerCase().startsWith('secondlife://')
+        ? String(input.slurl).trim()
+        : buildSecondLifeSlurl(cleanRegion, position);
+    this.teleportSeq += 1;
+    const id = input.id ? String(input.id) : `tp-${timestamp}-${this.teleportSeq}`;
+
+    const record: TeleportHistoryRecord = {
+      id,
+      agentId: cleanAgentId,
+      timestamp,
+      regionName: cleanRegion,
+      parcelName,
+      position,
+      gridX,
+      gridY,
+      regionId,
+      slurl,
+      source: input.source || 'teleport',
+    };
+
+    this.memTeleportHistory.set(`${cleanAgentId}:${timestamp}`, record);
+    this.evictMemoryTeleportHistory(cleanAgentId);
+
+    const db = await this.getDB();
+    if (!db) return record;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_TELEPORT_HISTORY], 'readwrite');
+        const store = tx.objectStore(STORE_TELEPORT_HISTORY);
+        store.put(record);
+
+        const knownCount = this.knownTeleportCountByAgent.get(cleanAgentId);
+        let nextKnownCount = knownCount !== undefined ? knownCount + 1 : undefined;
+
+        if (knownCount === undefined || knownCount + 1 > MAX_TELEPORT_HISTORY_ENTRIES) {
+          const range = IDBKeyRange.bound(
+            [cleanAgentId, 0],
+            [cleanAgentId, Number.MAX_SAFE_INTEGER],
+          );
+          const countReq = store.count(range);
+          countReq.onsuccess = () => {
+            const total = countReq.result || 0;
+            const excess = total - MAX_TELEPORT_HISTORY_ENTRIES;
+            nextKnownCount = Math.min(total, MAX_TELEPORT_HISTORY_ENTRIES);
+            if (excess > 0) {
+              let remaining = excess;
+              const cursorReq = store.openCursor(range, 'next');
+              cursorReq.onsuccess = (e: any) => {
+                const cursor: IDBCursorWithValue | null = e.target.result;
+                if (cursor && remaining > 0) {
+                  const val = cursor.value as TeleportHistoryRecord;
+                  this.memTeleportHistory.delete(`${val.agentId}:${val.timestamp}`);
+                  cursor.delete();
+                  remaining -= 1;
+                  if (remaining > 0) {
+                    cursor.continue();
+                  }
+                }
+              };
+            }
+          };
+        }
+
+        tx.oncomplete = () => {
+          if (nextKnownCount !== undefined) {
+            this.knownTeleportCountByAgent.set(cleanAgentId, nextKnownCount);
+          }
+          resolve(record);
+        };
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async updateTeleportHistoryEntry(
+    agentId: string,
+    timestamp: number,
+    patch: Partial<Omit<TeleportHistoryRecord, 'agentId' | 'timestamp'>>,
+  ): Promise<TeleportHistoryRecord | null> {
+    const cleanAgentId = String(agentId || '').trim();
+    if (!cleanAgentId || !Number.isFinite(timestamp)) return null;
+
+    const db = await this.getDB();
+    const memKey = `${cleanAgentId}:${timestamp}`;
+    let existing: TeleportHistoryRecord | null = this.memTeleportHistory.get(memKey) || null;
+
+    if (!existing && db) {
+      existing = await new Promise<TeleportHistoryRecord | null>((resolve) => {
+        try {
+          const tx = db.transaction([STORE_TELEPORT_HISTORY], 'readonly');
+          const req = tx.objectStore(STORE_TELEPORT_HISTORY).get([cleanAgentId, timestamp]);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        } catch {
+          resolve(null);
+        }
+      });
+    }
+
+    if (!existing || existing.agentId !== cleanAgentId) return null;
+
+    const nextRegion = patch.regionName ? String(patch.regionName).trim() : existing.regionName;
+    const nextPosition =
+      patch.position !== undefined ? this.normalizePosition(patch.position) : existing.position;
+    const nextParcel =
+      patch.parcelName !== undefined
+        ? patch.parcelName && String(patch.parcelName).trim()
+          ? String(patch.parcelName).trim()
+          : null
+        : existing.parcelName;
+    const nextGridX =
+      patch.gridX !== undefined
+        ? typeof patch.gridX === 'number' && Number.isFinite(patch.gridX)
+          ? patch.gridX
+          : null
+        : existing.gridX;
+    const nextGridY =
+      patch.gridY !== undefined
+        ? typeof patch.gridY === 'number' && Number.isFinite(patch.gridY)
+          ? patch.gridY
+          : null
+        : existing.gridY;
+
+    const updated: TeleportHistoryRecord = {
+      ...existing,
+      ...patch,
+      agentId: cleanAgentId,
+      timestamp: existing.timestamp,
+      regionName: nextRegion,
+      parcelName: nextParcel,
+      position: nextPosition,
+      gridX: nextGridX,
+      gridY: nextGridY,
+      slurl:
+        patch.slurl && String(patch.slurl).trim().toLowerCase().startsWith('secondlife://')
+          ? String(patch.slurl).trim()
+          : buildSecondLifeSlurl(nextRegion, nextPosition),
+    };
+
+    this.memTeleportHistory.set(memKey, updated);
+
+    if (!db) return updated;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([STORE_TELEPORT_HISTORY], 'readwrite');
+        tx.objectStore(STORE_TELEPORT_HISTORY).put(updated);
+        tx.oncomplete = () => resolve(updated);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async getTeleportHistory(
+    agentId: string,
+    options?: { search?: string; limit?: number },
+  ): Promise<TeleportHistoryRecord[]> {
+    const cleanAgentId = String(agentId || '').trim();
+    if (!cleanAgentId) {
+      return [];
+    }
+
+    const needle = String(options?.search || '')
+      .trim()
+      .toLowerCase();
+    const limit =
+      typeof options?.limit === 'number' && options.limit > 0
+        ? Math.min(Math.trunc(options.limit), MAX_TELEPORT_HISTORY_ENTRIES)
+        : MAX_TELEPORT_HISTORY_ENTRIES;
+
+    const matchesFilter = (record: TeleportHistoryRecord): boolean => {
+      if (record.agentId !== cleanAgentId) return false;
+      if (!needle) return true;
+      const inRegion = record.regionName.toLowerCase().includes(needle);
+      const inParcel = Boolean(
+        record.parcelName && record.parcelName.toLowerCase().includes(needle),
+      );
+      return inRegion || inParcel;
+    };
+
+    const db = await this.getDB();
+    if (!db || this.hydratedTeleportAgents.has(cleanAgentId)) {
+      const memResults: TeleportHistoryRecord[] = [];
+      for (const record of this.memTeleportHistory.values()) {
+        if (matchesFilter(record)) {
+          memResults.push(record);
+        }
+      }
+      memResults.sort((a, b) => b.timestamp - a.timestamp);
+      return memResults.slice(0, limit);
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([STORE_TELEPORT_HISTORY], 'readonly');
+        const store = tx.objectStore(STORE_TELEPORT_HISTORY);
+        const range = IDBKeyRange.bound([cleanAgentId, 0], [cleanAgentId, Number.MAX_SAFE_INTEGER]);
+        const req = store.getAll(range);
+        req.onsuccess = () => {
+          const raw: TeleportHistoryRecord[] = Array.isArray(req.result) ? req.result : [];
+          this.knownTeleportCountByAgent.set(cleanAgentId, raw.length);
+          for (const item of raw) {
+            if (item && item.agentId === cleanAgentId) {
+              this.memTeleportHistory.set(`${cleanAgentId}:${item.timestamp}`, item);
+              const prevTs = this.lastTeleportTimestampByAgent.get(cleanAgentId) ?? 0;
+              if (item.timestamp > prevTs) {
+                this.lastTeleportTimestampByAgent.set(cleanAgentId, item.timestamp);
+              }
+            }
+          }
+          this.hydratedTeleportAgents.add(cleanAgentId);
+          // Compound primary key ['agentId', 'timestamp'] returns ascending timestamp order;
+          // reverse in O(n) to deliver descending visit order without UI blocking.
+          const output: TeleportHistoryRecord[] = [];
+          for (let i = raw.length - 1; i >= 0 && output.length < limit; i--) {
+            const item = raw[i];
+            if (matchesFilter(item)) {
+              output.push(item);
+            }
+          }
+          resolve(output);
+        };
+        req.onerror = () => resolve([]);
+      } catch {
+        resolve([]);
+      }
+    });
+  }
+
+  public async deleteTeleportHistoryEntry(
+    agentId: string,
+    timestampOrId: number | string,
+  ): Promise<boolean> {
+    const cleanAgentId = String(agentId || '').trim();
+    if (!cleanAgentId) return false;
+
+    let deleted = false;
+    if (typeof timestampOrId === 'number' && Number.isFinite(timestampOrId)) {
+      deleted = this.memTeleportHistory.delete(`${cleanAgentId}:${timestampOrId}`);
+    } else {
+      const targetId = String(timestampOrId || '');
+      for (const [key, record] of this.memTeleportHistory.entries()) {
+        if (record.agentId === cleanAgentId && record.id === targetId) {
+          this.memTeleportHistory.delete(key);
+          deleted = true;
+        }
+      }
+    }
+
+    const db = await this.getDB();
+    if (!db) return deleted;
+
+    return new Promise((resolve) => {
+      let idbDeletedCount = 0;
+      try {
+        const tx = db.transaction([STORE_TELEPORT_HISTORY], 'readwrite');
+        const store = tx.objectStore(STORE_TELEPORT_HISTORY);
+
+        if (typeof timestampOrId === 'number' && Number.isFinite(timestampOrId)) {
+          const cursorReq = store.openCursor(IDBKeyRange.only([cleanAgentId, timestampOrId]));
+          cursorReq.onsuccess = (e: any) => {
+            const cursor: IDBCursorWithValue | null = e.target.result;
+            if (cursor) {
+              const val = cursor.value as TeleportHistoryRecord;
+              if (val.agentId === cleanAgentId) {
+                deleted = true;
+                idbDeletedCount += 1;
+                cursor.delete();
+              }
+            }
+          };
+        } else {
+          const targetId = String(timestampOrId || '');
+          const idx = store.index('by_agent_id');
+          const cursorReq = idx.openCursor(IDBKeyRange.only([cleanAgentId, targetId]));
+          cursorReq.onsuccess = (e: any) => {
+            const cursor: IDBCursorWithValue | null = e.target.result;
+            if (cursor) {
+              const val = cursor.value as TeleportHistoryRecord;
+              if (val.agentId === cleanAgentId) {
+                deleted = true;
+                idbDeletedCount += 1;
+                cursor.delete();
+              }
+              cursor.continue();
+            }
+          };
+        }
+
+        tx.oncomplete = () => {
+          if (idbDeletedCount > 0 && this.knownTeleportCountByAgent.has(cleanAgentId)) {
+            const prev = this.knownTeleportCountByAgent.get(cleanAgentId) || 0;
+            this.knownTeleportCountByAgent.set(cleanAgentId, Math.max(0, prev - idbDeletedCount));
+          }
+          resolve(deleted);
+        };
+        tx.onerror = () => resolve(deleted);
+        tx.onabort = () => resolve(deleted);
+      } catch {
+        resolve(deleted);
+      }
+    });
+  }
+
+  public async clearTeleportHistory(agentId: string): Promise<number> {
+    const cleanAgentId = String(agentId || '').trim();
+    if (!cleanAgentId) return 0;
+
+    let purged = 0;
+    for (const [key, record] of this.memTeleportHistory.entries()) {
+      if (record.agentId === cleanAgentId) {
+        this.memTeleportHistory.delete(key);
+        purged += 1;
+      }
+    }
+    this.lastTeleportTimestampByAgent.delete(cleanAgentId);
+    this.knownTeleportCountByAgent.set(cleanAgentId, 0);
+    this.hydratedTeleportAgents.add(cleanAgentId);
+
+    const db = await this.getDB();
+    if (!db) return purged;
+
+    return new Promise((resolve) => {
+      let idbPurged = 0;
+      try {
+        const tx = db.transaction([STORE_TELEPORT_HISTORY], 'readwrite');
+        const store = tx.objectStore(STORE_TELEPORT_HISTORY);
+        const range = IDBKeyRange.bound([cleanAgentId, 0], [cleanAgentId, Number.MAX_SAFE_INTEGER]);
+        const countReq = store.count(range);
+        countReq.onsuccess = () => {
+          idbPurged = countReq.result || 0;
+          store.delete(range);
+        };
+        tx.oncomplete = () => resolve(Math.max(purged, idbPurged));
+        tx.onerror = () => resolve(purged);
+        tx.onabort = () => resolve(purged);
+      } catch {
+        resolve(purged);
+      }
+    });
   }
 }
 

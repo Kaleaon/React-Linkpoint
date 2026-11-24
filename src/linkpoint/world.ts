@@ -407,6 +407,13 @@ export class WorldViewer extends Utils.EventEmitter {
   private dragDisplacementThreshold = 3;
 
   public region: any = null;
+  public mapFocusTarget: {
+    regionName: string;
+    gridX: number | null;
+    gridY: number | null;
+    position: [number, number, number] | null;
+    timestamp: number;
+  } | null = null;
   public lastParcelTransport?: 'capability' | 'udp';
   public lastTransportReceipt?: {
     transport: 'capability' | 'udp';
@@ -444,6 +451,34 @@ export class WorldViewer extends Utils.EventEmitter {
 
   public getGizmoMode(): 'translate' | 'rotate' | 'scale' {
     return this.scene3d?.getGizmoMode?.() || this.gizmoMode;
+  }
+
+  public focusMapLocation(
+    target: {
+      regionName: string;
+      gridX?: number | null;
+      gridY?: number | null;
+      position?: [number, number, number] | null;
+    } | null,
+  ) {
+    if (!target || !target.regionName) {
+      this.mapFocusTarget = null;
+      this.emit('map_focus_requested', null);
+      return;
+    }
+    this.mapFocusTarget = {
+      regionName: String(target.regionName).trim(),
+      gridX:
+        typeof target.gridX === 'number' && Number.isFinite(target.gridX) ? target.gridX : null,
+      gridY:
+        typeof target.gridY === 'number' && Number.isFinite(target.gridY) ? target.gridY : null,
+      position:
+        Array.isArray(target.position) && target.position.length >= 3
+          ? [Number(target.position[0]), Number(target.position[1]), Number(target.position[2])]
+          : null,
+      timestamp: Date.now(),
+    };
+    this.emit('map_focus_requested', { ...this.mapFocusTarget });
   }
 
   public setGizmoMode(mode: 'translate' | 'rotate' | 'scale') {

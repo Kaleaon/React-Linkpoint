@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Icon from './Icon.jsx';
-import CrystalLoader from './CrystalLoader.jsx';
 import FocusTrap from './FocusTrap.jsx';
 import AccessibleInput from './AccessibleInput.tsx';
 import AccessibleButton from './AccessibleButton.jsx';
+import SyncActionButton, { useBusyCoordinator } from './SyncActionButton.tsx';
 import { AccessibleSelect } from '@linkpoint/design-system/react';
 import { app } from '../linkpoint/app.ts';
 import { Utils } from '../linkpoint/utils.ts';
@@ -49,7 +49,7 @@ export function CreateGroupNoticeModal({
   const [message, setMessage] = useState('');
   const [selectedAttachmentId, setSelectedAttachmentId] = useState('');
   const [inventoryRevision, setInventoryRevision] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
+  const { isBusy: submitting, run } = useBusyCoordinator();
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -135,35 +135,35 @@ export function CreateGroupNoticeModal({
       return;
     }
 
-    setSubmitting(true);
-    setError('');
+    await run('send-notice', async () => {
+      setError('');
 
-    try {
-      const attachment = selectedAttachment
-        ? {
-            itemId: selectedAttachment.id,
-            itemName: selectedAttachment.name,
-            itemType: selectedAttachment.type,
-            ownerId: selectedAttachment.ownerId,
-          }
-        : null;
+      try {
+        const attachment = selectedAttachment
+          ? {
+              itemId: selectedAttachment.id,
+              itemName: selectedAttachment.name,
+              itemType: selectedAttachment.type,
+              ownerId: selectedAttachment.ownerId,
+            }
+          : null;
 
-      const result = await app.sendGroupNotice(groupId, {
-        subject: cleanSubject,
-        message: cleanMessage,
-        attachment,
-      });
+        const result = await app.sendGroupNotice(groupId, {
+          subject: cleanSubject,
+          message: cleanMessage,
+          attachment,
+        });
 
-      Utils.showToast('Group notice dispatched successfully.', 'success');
-      onNoticeSuccess?.(result);
-      onClose();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err || 'Failed to dispatch notice.');
-      setError(msg);
-      Utils.showToast(msg, 'error');
-    } finally {
-      setSubmitting(false);
-    }
+        Utils.showToast('Group notice dispatched successfully.', 'success');
+        onNoticeSuccess?.(result);
+        onClose();
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : String(err || 'Failed to dispatch notice.');
+        setError(msg);
+        Utils.showToast(msg, 'error');
+      }
+    });
   };
 
   const subjectCharCount = subject.length;
@@ -404,34 +404,25 @@ export function CreateGroupNoticeModal({
               >
                 Cancel
               </AccessibleButton>
-              <AccessibleButton
-                as="button"
+              <SyncActionButton
                 type="submit"
-                disabled={submitting}
+                variant="primary"
+                loading={submitting}
                 aria-label="Send Notice"
+                iconName="send"
+                size={13}
+                idleText="Send Notice"
+                loadingText="Sending…"
                 style={{
-                  minHeight: 34,
                   padding: '0 16px',
                   border: `1px solid ${V?.pri || '#2563eb'}`,
                   borderRadius: V?.rs || 4,
                   background: V?.pri || '#2563eb',
                   color: V?.onpri || '#ffffff',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.6 : 1,
                   fontSize: 12,
                   fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
                 }}
-              >
-                {submitting ? (
-                  <CrystalLoader size={13} variant="inline" />
-                ) : (
-                  <Icon name="send" size={13} />
-                )}
-                <span>{submitting ? 'Sending…' : 'Send Notice'}</span>
-              </AccessibleButton>
+              />
             </div>
           </form>
         </div>

@@ -81,6 +81,9 @@ export default function MenuBar() {
       } else {
         actions.flFocus('CreateLandmark');
       }
+    } else if (itemLabel === 'Teleport History…' || itemLabel === 'Teleport History') {
+      actions.flFocus('Teleport History');
+      actions.setScreen('Teleport History');
     } else if (itemLabel === 'Teleport Home') {
       if (!app.auth.isLoggedIn()) {
         actions.notify('Connect to a grid to teleport home.');

@@ -10,9 +10,9 @@ import {
 } from '../linkpoint/services/group-admin-capability-service';
 import Icon from './Icon.jsx';
 import FocusTrap from './FocusTrap.jsx';
-import TouchTarget from './TouchTarget';
-import FocusRing from './FocusRing';
-import CrystalLoader from './CrystalLoader.jsx';
+import TouchTarget from './TouchTarget.tsx';
+import FocusRing from './FocusRing.tsx';
+import SyncActionButton, { useBusyCoordinator } from './SyncActionButton.tsx';
 
 export default function GroupAdminFloater({
   groupId,
@@ -51,7 +51,7 @@ export default function GroupAdminFloater({
   );
 
   // Status feedback
-  const [busy, setBusy] = useState(false);
+  const { isBusy: busy, isLoading, run } = useBusyCoordinator();
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -242,34 +242,33 @@ export default function GroupAdminFloater({
       return;
     }
 
-    setBusy(true);
-    setErrorMessage('');
-    setSuccessMessage('');
+    await run('save-role', async () => {
+      setErrorMessage('');
+      setSuccessMessage('');
 
-    try {
-      if (isCreatingRole) {
-        await adminService.createRole(groupId, {
-          name: roleForm.name.trim(),
-          title: roleForm.title.trim(),
-          description: roleForm.description.trim(),
-          powers: powersToString(roleForm.powers),
-        });
-        setSuccessMessage(`Role "${roleForm.name}" created successfully.`);
-        setIsCreatingRole(false);
-      } else {
-        await adminService.updateRole(groupId, selectedRoleId, {
-          name: roleForm.name.trim(),
-          title: roleForm.title.trim(),
-          description: roleForm.description.trim(),
-          powers: powersToString(roleForm.powers),
-        });
-        setSuccessMessage(`Role "${roleForm.name}" updated successfully.`);
+      try {
+        if (isCreatingRole) {
+          await adminService.createRole(groupId, {
+            name: roleForm.name.trim(),
+            title: roleForm.title.trim(),
+            description: roleForm.description.trim(),
+            powers: powersToString(roleForm.powers),
+          });
+          setSuccessMessage(`Role "${roleForm.name}" created successfully.`);
+          setIsCreatingRole(false);
+        } else {
+          await adminService.updateRole(groupId, selectedRoleId, {
+            name: roleForm.name.trim(),
+            title: roleForm.title.trim(),
+            description: roleForm.description.trim(),
+            powers: powersToString(roleForm.powers),
+          });
+          setSuccessMessage(`Role "${roleForm.name}" updated successfully.`);
+        }
+      } catch (err) {
+        setErrorMessage(err?.message || 'Failed to update role.');
       }
-    } catch (err) {
-      setErrorMessage(err?.message || 'Failed to update role.');
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   const handleDeleteRole = async () => {
@@ -286,20 +285,19 @@ export default function GroupAdminFloater({
       return;
     }
 
-    setBusy(true);
-    setErrorMessage('');
-    setSuccessMessage('');
+    await run('delete-role', async () => {
+      setErrorMessage('');
+      setSuccessMessage('');
 
-    try {
-      await adminService.deleteRole(groupId, selectedRoleId);
-      setSuccessMessage(`Role "${roleToDelete.name}" deleted successfully.`);
-      const remaining = roles.filter((r) => r.id !== selectedRoleId);
-      setSelectedRoleId(remaining[0]?.id || '');
-    } catch (err) {
-      setErrorMessage(err?.message || 'Failed to delete role.');
-    } finally {
-      setBusy(false);
-    }
+      try {
+        await adminService.deleteRole(groupId, selectedRoleId);
+        setSuccessMessage(`Role "${roleToDelete.name}" deleted successfully.`);
+        const remaining = roles.filter((r) => r.id !== selectedRoleId);
+        setSelectedRoleId(remaining[0]?.id || '');
+      } catch (err) {
+        setErrorMessage(err?.message || 'Failed to delete role.');
+      }
+    });
   };
 
   // Member Action Handlers
@@ -311,40 +309,38 @@ export default function GroupAdminFloater({
 
   const handleSaveMemberRoles = async () => {
     if (!selectedMemberId) return;
-    setBusy(true);
-    setErrorMessage('');
-    setSuccessMessage('');
+    await run('save-member-roles', async () => {
+      setErrorMessage('');
+      setSuccessMessage('');
 
-    try {
-      await adminService.assignMemberRoles(groupId, selectedMemberId, memberRoleIds);
-      setSuccessMessage('Member roles updated successfully.');
-    } catch (err) {
-      setErrorMessage(err?.message || 'Failed to assign member roles.');
-    } finally {
-      setBusy(false);
-    }
+      try {
+        await adminService.assignMemberRoles(groupId, selectedMemberId, memberRoleIds);
+        setSuccessMessage('Member roles updated successfully.');
+      } catch (err) {
+        setErrorMessage(err?.message || 'Failed to assign member roles.');
+      }
+    });
   };
 
   const handleConfirmEject = async () => {
     if (!ejectingMember) return;
-    setBusy(true);
-    setErrorMessage('');
-    setSuccessMessage('');
+    await run('eject-member', async () => {
+      setErrorMessage('');
+      setSuccessMessage('');
 
-    try {
-      await adminService.ejectMember(groupId, ejectingMember.id, { reason: ejectReason });
-      setSuccessMessage(
-        `Member ${ejectingMember.name || ejectingMember.id} has been ejected from the group.`,
-      );
-      setEjectingMember(null);
-      setEjectReason('');
-      const remaining = members.filter((m) => m.id !== ejectingMember.id);
-      setSelectedMemberId(remaining[0]?.id || '');
-    } catch (err) {
-      setErrorMessage(err?.message || 'Failed to eject member.');
-    } finally {
-      setBusy(false);
-    }
+      try {
+        await adminService.ejectMember(groupId, ejectingMember.id, { reason: ejectReason });
+        setSuccessMessage(
+          `Member ${ejectingMember.name || ejectingMember.id} has been ejected from the group.`,
+        );
+        setEjectingMember(null);
+        setEjectReason('');
+        const remaining = members.filter((m) => m.id !== ejectingMember.id);
+        setSelectedMemberId(remaining[0]?.id || '');
+      } catch (err) {
+        setErrorMessage(err?.message || 'Failed to eject member.');
+      }
+    });
   };
 
   // Invitation Action Handler
@@ -355,26 +351,25 @@ export default function GroupAdminFloater({
       return;
     }
 
-    setBusy(true);
-    setErrorMessage('');
-    setSuccessMessage('');
+    await run('invite-member', async () => {
+      setErrorMessage('');
+      setSuccessMessage('');
 
-    try {
-      await adminService.inviteMember(
-        groupId,
-        inviteAgentId.trim(),
-        inviteRoleIds,
-        inviteMessage.trim(),
-      );
-      setSuccessMessage(`Invitation dispatched to ${inviteAgentId}.`);
-      setInviteAgentId('');
-      setInviteRoleIds([]);
-      setInviteMessage('');
-    } catch (err) {
-      setErrorMessage(err?.message || 'Failed to send group invitation.');
-    } finally {
-      setBusy(false);
-    }
+      try {
+        await adminService.inviteMember(
+          groupId,
+          inviteAgentId.trim(),
+          inviteRoleIds,
+          inviteMessage.trim(),
+        );
+        setSuccessMessage(`Invitation dispatched to ${inviteAgentId}.`);
+        setInviteAgentId('');
+        setInviteRoleIds([]);
+        setInviteMessage('');
+      } catch (err) {
+        setErrorMessage(err?.message || 'Failed to send group invitation.');
+      }
+    });
   };
 
   // UI styles
@@ -718,14 +713,18 @@ export default function GroupAdminFloater({
                       {isCreatingRole ? 'New Role Configuration' : `Edit Role: ${roleForm.name}`}
                     </h3>
                     {!isCreatingRole && selectedRoleId && (
-                      <button
+                      <SyncActionButton
                         type="button"
+                        variant="danger"
+                        loading={isLoading('delete-role')}
                         disabled={busy}
                         onClick={handleDeleteRole}
+                        iconName="trash-2"
+                        size={16}
+                        idleText="Delete"
+                        loadingText="Deleting…"
                         style={dangerButtonStyle}
-                      >
-                        <Icon name="trash-2" size={14} /> Delete
-                      </button>
+                      />
                     )}
                   </div>
 
@@ -898,19 +897,17 @@ export default function GroupAdminFloater({
                     >
                       Cancel
                     </button>
-                    <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                      {busy ? (
-                        <>
-                          <CrystalLoader size={16} variant="inline" />
-                          <span>Applying…</span>
-                        </>
-                      ) : (
-                        <>
-                          <Icon name="check" size={14} />
-                          <span>{isCreatingRole ? 'Create Role' : 'Apply Changes'}</span>
-                        </>
-                      )}
-                    </button>
+                    <SyncActionButton
+                      type="submit"
+                      variant="primary"
+                      loading={isLoading('save-role')}
+                      disabled={busy}
+                      iconName="check"
+                      size={16}
+                      idleText={isCreatingRole ? 'Create Role' : 'Apply Changes'}
+                      loadingText="Applying…"
+                      style={primaryButtonStyle}
+                    />
                   </div>
                 </form>
               </div>
@@ -1034,14 +1031,16 @@ export default function GroupAdminFloater({
                             {currentMember.title || 'Member'}
                           </span>
                         </div>
-                        <button
+                        <SyncActionButton
                           type="button"
+                          variant="danger"
                           disabled={busy}
                           onClick={() => setEjectingMember(currentMember)}
+                          iconName="user-x"
+                          size={14}
+                          idleText="Eject Member"
                           style={dangerButtonStyle}
-                        >
-                          <Icon name="user-x" size={14} /> Eject Member
-                        </button>
+                        />
                       </div>
 
                       <div style={{ marginBottom: 16 }}>
@@ -1098,24 +1097,18 @@ export default function GroupAdminFloater({
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                        <button
+                        <SyncActionButton
                           type="button"
+                          variant="primary"
+                          loading={isLoading('save-member-roles')}
                           disabled={busy}
                           onClick={handleSaveMemberRoles}
+                          iconName="check"
+                          size={16}
+                          idleText="Save Role Assignments"
+                          loadingText="Saving…"
                           style={primaryButtonStyle}
-                        >
-                          {busy ? (
-                            <>
-                              <CrystalLoader size={16} variant="inline" />
-                              <span>Saving…</span>
-                            </>
-                          ) : (
-                            <>
-                              <Icon name="check" size={14} />
-                              <span>Save Role Assignments</span>
-                            </>
-                          )}
-                        </button>
+                        />
                       </div>
                     </div>
                   );
@@ -1228,19 +1221,17 @@ export default function GroupAdminFloater({
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                  <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                    {busy ? (
-                      <>
-                        <CrystalLoader size={16} variant="inline" />
-                        <span>Sending…</span>
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="send" size={14} />
-                        <span>Send Invitation</span>
-                      </>
-                    )}
-                  </button>
+                  <SyncActionButton
+                    type="submit"
+                    variant="primary"
+                    loading={isLoading('invite-member')}
+                    disabled={busy}
+                    iconName="send"
+                    size={16}
+                    idleText="Send Invitation"
+                    loadingText="Sending…"
+                    style={primaryButtonStyle}
+                  />
                 </div>
               </form>
             </div>
@@ -1314,24 +1305,18 @@ export default function GroupAdminFloater({
                 >
                   Cancel
                 </button>
-                <button
+                <SyncActionButton
                   type="button"
+                  variant="danger"
+                  loading={isLoading('eject-member')}
                   disabled={busy}
                   onClick={handleConfirmEject}
+                  iconName="user-x"
+                  size={16}
+                  idleText="Confirm Eject"
+                  loadingText="Ejecting…"
                   style={dangerButtonStyle}
-                >
-                  {busy ? (
-                    <>
-                      <CrystalLoader size={16} variant="inline" />
-                      <span>Ejecting…</span>
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="user-x" size={14} />
-                      <span>Confirm Eject</span>
-                    </>
-                  )}
-                </button>
+                />
               </div>
             </div>
           </div>

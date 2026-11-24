@@ -383,13 +383,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
   actionGuard:
     | ((
         action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
-        detail?: { senderId?: string; objectId?: string },
+        detail?: { senderId?: string; objectId?: string; destination?: string },
       ) => string | null)
     | null = null;
 
   private guardAction(
     action: 'teleport' | 'acceptLure' | 'sit' | 'stand',
-    detail?: { senderId?: string; objectId?: string },
+    detail?: { senderId?: string; objectId?: string; destination?: string },
   ) {
     const reason = this.actionGuard?.(action, detail);
     if (reason) throw new Error(reason);
@@ -404,15 +404,19 @@ export class SLConnectionFull extends Utils.EventEmitter {
   private async runTeleportSession<T>(options: {
     destination: string;
     regionName?: string;
+    position?: [number, number, number] | null;
     guard: 'teleport' | 'acceptLure';
-    guardDetail?: { senderId?: string; objectId?: string };
+    guardDetail?: { senderId?: string; objectId?: string; destination?: string };
     execute: () => Promise<T>;
     resolveRegionName?: (result: T) => string | undefined;
   }): Promise<T> {
     this.requireConnected();
-    this.guardAction(options.guard, options.guardDetail);
-    const seq = ++this.teleportSeq;
     const { destination } = options;
+    this.guardAction(
+      options.guard,
+      options.guard === 'teleport' ? (options.guardDetail ?? { destination }) : options.guardDetail,
+    );
+    const seq = ++this.teleportSeq;
     const initialRegionName = options.regionName ?? destination;
 
     this.emit('teleport_started', { destination });
@@ -456,7 +460,22 @@ export class SLConnectionFull extends Utils.EventEmitter {
       if (seq !== this.teleportSeq) {
         return result;
       }
-      this.emit('teleport_completed', { regionName, result });
+      const requested = (result as any)?.requested;
+      const position: [number, number, number] | null =
+        requested &&
+        typeof requested === 'object' &&
+        Number.isFinite(Number(requested.x)) &&
+        Number.isFinite(Number(requested.y)) &&
+        Number.isFinite(Number(requested.z))
+          ? [Number(requested.x), Number(requested.y), Number(requested.z)]
+          : (options.position ?? null);
+      this.emit('teleport_completed', {
+        regionName,
+        destination,
+        position,
+        guard: options.guard,
+        result,
+      });
       return result;
     } catch (error: any) {
       if (seq === this.teleportSeq) {
@@ -526,6 +545,7 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return this.runTeleportSession({
       destination,
       regionName: params.destination?.trim() || region,
+      position: [rx, ry, rz],
       guard: 'teleport',
       execute: () => slBridge.teleport({ region, x: rx, y: ry, z: rz }),
       resolveRegionName: (result) => result?.requested?.region || region,

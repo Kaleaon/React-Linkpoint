@@ -25,6 +25,7 @@ export const NAV_ALL = [
     ['Contacts', 'contact'],
     ['Calendar', 'calendar'],
     ['Teleport', 'zap'],
+    ['Teleport History', 'history'],
     ['Camera', 'video'],
     ['Environment', 'sun'],
     ['Snapshot', 'camera'],
@@ -95,6 +96,10 @@ export const HEAD = (layoutName, paletteName) => {
     Teleport: [
       'TELEPORT',
       region ? `> currently in ${region.name || 'unnamed region'}` : '> no current region',
+    ],
+    'Teleport History': [
+      'TELEPORT HISTORY',
+      `> ${app.teleportHistory?.entries?.length || 0} destinations recorded`,
     ],
     Settings: ['SETTINGS', `> ${layoutName} layout / ${paletteName} colour`],
     Cache: ['CACHE', '> local cache statistics'],

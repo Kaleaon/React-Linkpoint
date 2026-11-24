@@ -9,10 +9,8 @@ import {
 import { buildIcs, icsFileName } from '../linkpoint/ics.ts';
 import { useApp } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import AccessibleButton from '../components/AccessibleButton.jsx';
-import CrystalLoader from '../components/CrystalLoader.jsx';
 import Icon from '../components/Icon.jsx';
-import SyncActionButton from '../components/SyncActionButton.tsx';
+import SyncActionButton, { useBusyCoordinator } from '../components/SyncActionButton.tsx';
 import useGoogleEnabled from '../hooks/useGoogleEnabled.js';
 import { loadGoogle } from '../services/google.ts';
 
@@ -409,30 +407,19 @@ function NoticeEditor({ notice, groupName }) {
           SAVE CALENDAR FILE (.ICS)
         </button>
         {googleEnabled ? (
-          <AccessibleButton
-            as="button"
+          <SyncActionButton
             type="button"
-            disabled={busy || Boolean(problem)}
-            aria-busy={busy ? 'true' : undefined}
+            variant="primary"
+            loading={busy}
+            disabled={Boolean(problem)}
             aria-live="polite"
-            style={{
-              ...button(true),
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            }}
+            iconName="calendar"
+            size={14}
+            idleText="ADD TO GOOGLE CALENDAR"
+            loadingText="ADDING…"
+            style={button(true)}
             onClick={addToGoogle}
-          >
-            {busy ? (
-              <>
-                <CrystalLoader size={14} variant="inline" />
-                <span>ADDING…</span>
-              </>
-            ) : (
-              'ADD TO GOOGLE CALENDAR'
-            )}
-          </AccessibleButton>
+          />
         ) : null}
       </div>
       {!googleEnabled ? (
@@ -487,40 +474,35 @@ function GoogleEvents() {
   const { actions } = useApp();
   const googleEnabled = useGoogleEnabled();
   const [events, setEvents] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const { isBusy: busy, isLoading, run } = useBusyCoordinator();
   const [error, setError] = useState('');
 
   const refresh = async () => {
-    setBusy(true);
-    setSyncing(true);
-    setError('');
-    try {
-      const google = await loadGoogle();
-      if (!google.auth.getGoogleToken('calendar')) await google.auth.signInWithGoogle('calendar');
-      setEvents(await google.calendar.fetchLinkpointEvents());
-    } catch (failure) {
-      setError(failure?.message || 'Could not load your Google Calendar.');
-    } finally {
-      setSyncing(false);
-      setBusy(false);
-    }
+    await run('refresh', async () => {
+      setError('');
+      try {
+        const google = await loadGoogle();
+        if (!google.auth.getGoogleToken('calendar')) await google.auth.signInWithGoogle('calendar');
+        setEvents(await google.calendar.fetchLinkpointEvents());
+      } catch (failure) {
+        setError(failure?.message || 'Could not load your Google Calendar.');
+      }
+    });
   };
 
   const remove = async (event) => {
-    setBusy(true);
-    setError('');
-    try {
-      const google = await loadGoogle();
-      await google.calendar.deleteCalendarEvent(event.id);
-      for (const notice of app.notices.list())
-        if (notice.calendar?.eventId === event.id) app.notices.clearAdded(notice.id);
-      setEvents((list) => (list || []).filter((item) => item.id !== event.id));
-    } catch (failure) {
-      setError(failure?.message || 'Could not delete the event.');
-    } finally {
-      setBusy(false);
-    }
+    await run(`delete:${event.id}`, async () => {
+      setError('');
+      try {
+        const google = await loadGoogle();
+        await google.calendar.deleteCalendarEvent(event.id);
+        for (const notice of app.notices.list())
+          if (notice.calendar?.eventId === event.id) app.notices.clearAdded(notice.id);
+        setEvents((list) => (list || []).filter((item) => item.id !== event.id));
+      } catch (failure) {
+        setError(failure?.message || 'Could not delete the event.');
+      }
+    });
   };
 
   const button = {
@@ -571,7 +553,8 @@ function GoogleEvents() {
       </div>
       <SyncActionButton
         type="button"
-        loading={syncing}
+        variant="default"
+        loading={isLoading('refresh')}
         disabled={busy}
         onClick={refresh}
         iconName="rotate-cw"
@@ -582,7 +565,7 @@ function GoogleEvents() {
         style={{
           ...button,
           justifySelf: 'start',
-          cursor: busy || syncing ? 'not-allowed' : 'pointer',
+          cursor: busy ? 'not-allowed' : 'pointer',
         }}
       />
       {error ? (
@@ -629,15 +612,18 @@ function GoogleEvents() {
                   OPEN
                 </a>
               ) : null}
-              <button
+              <SyncActionButton
                 type="button"
+                variant="danger"
+                loading={isLoading(`delete:${event.id}`)}
                 disabled={busy}
+                size={12}
+                idleText="DELETE"
+                loadingText="DELETING…"
                 style={{ ...button, color: V.err }}
                 aria-label={`Delete ${event.summary}`}
                 onClick={() => remove(event)}
-              >
-                DELETE
-              </button>
+              />
             </li>
           ))}
         </ul>
