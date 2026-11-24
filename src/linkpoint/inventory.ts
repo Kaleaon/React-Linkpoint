@@ -9,6 +9,15 @@ import { AuthManager } from './auth';
 import { corsHandler } from './cors-handler';
 import { slBridge, type CreateLandmarkParams, type CreateLandmarkResult } from './sl-bridge';
 import { localCache } from './local-cache';
+import {
+  assertValidBatchSize,
+  chunkUpdatesForUdp,
+  isPlaceholderAvatarName,
+  normalizeItemPermissions,
+  ZERO_UUID,
+  type BatchUpdateProgress,
+  type InventoryItemUpdatePayload,
+} from './services/inventory-properties-service';
 import { truncateUtf8Bytes, MAX_LANDMARK_DESC_BYTES, MAX_LANDMARK_NAME_BYTES } from './landmark';
 
 export interface InventoryFolderOption {
@@ -148,6 +157,7 @@ export class InventoryManager extends Utils.EventEmitter {
   public folders: Map<string, any> = new Map();
   public loadedFromCache: boolean = false;
   public isLoading: boolean = false;
+  public avatarNameCache: Map<string, string> = new Map();
   private folderBuffers: Map<
     string,
     { categories: any[]; items: any[]; expectedDescendents: number | null }
@@ -227,9 +237,50 @@ export class InventoryManager extends Utils.EventEmitter {
     const invType = Number(rawItem.invType ?? rawItem.inv_type ?? 0);
     const flags = Number(rawItem.flags ?? 0);
     const creationDate = rawItem.creationDate || rawItem.creation_date || 0;
-    const ownerId = String(rawItem.ownerId || rawItem.owner_id || '');
-    const groupId = String(rawItem.groupId || rawItem.group_id || '');
-    const permissions = rawItem.permissions || rawItem.permissions_base || {};
+    const rawPerms = rawItem.permissions || rawItem.permissions_base || {};
+    const creatorId = String(
+      rawItem.creatorId || rawItem.creator_id || rawPerms.creatorId || rawPerms.creator_id || '',
+    );
+    const ownerId = String(
+      rawItem.ownerId || rawItem.owner_id || rawPerms.ownerId || rawPerms.owner_id || '',
+    );
+    const lastOwnerId = String(
+      rawItem.lastOwnerId ||
+        rawItem.last_owner_id ||
+        rawPerms.lastOwnerId ||
+        rawPerms.last_owner_id ||
+        '',
+    );
+    const groupId = String(
+      rawItem.groupId || rawItem.group_id || rawPerms.groupId || rawPerms.group_id || '',
+    );
+    const groupOwned = Boolean(
+      rawItem.groupOwned ??
+      rawItem.group_owned ??
+      rawPerms.groupOwned ??
+      rawPerms.is_owner_group ??
+      false,
+    );
+    const saleType = Number(rawItem.saleType ?? rawItem.sale_type ?? 0);
+    const salePrice = Number(rawItem.salePrice ?? rawItem.sale_price ?? 0);
+    const normalizedPerms = normalizeItemPermissions({
+      groupOwned,
+      permissions: {
+        baseMask: rawPerms.baseMask ?? rawPerms.base_mask,
+        ownerMask: rawPerms.ownerMask ?? rawPerms.owner_mask,
+        groupMask: rawPerms.groupMask ?? rawPerms.group_mask,
+        everyoneMask: rawPerms.everyoneMask ?? rawPerms.everyone_mask,
+        nextOwnerMask: rawPerms.nextOwnerMask ?? rawPerms.next_owner_mask,
+        groupOwned,
+        copy: rawPerms.copy,
+        modify: rawPerms.modify,
+        transfer: rawPerms.transfer,
+      },
+    });
+    const permissions = {
+      ...rawPerms,
+      ...normalizedPerms,
+    };
     const data = rawItem.data || null;
 
     return {
@@ -244,8 +295,13 @@ export class InventoryManager extends Utils.EventEmitter {
       invType,
       flags,
       creationDate,
+      creatorId,
       ownerId,
+      lastOwnerId,
       groupId,
+      groupOwned,
+      saleType,
+      salePrice,
       permissions,
       data,
     };
@@ -1515,5 +1571,320 @@ export class InventoryManager extends Utils.EventEmitter {
   async getFolderContentsPage(folderId: string, page = 1, pageSize = 50) {
     const agentId = this.auth?.user?.id || this.protocol?.agentId || 'current';
     return localCache.getFolderContentsPage(agentId, folderId, page, pageSize);
+  }
+
+  private resolveDirectCapabilityUrl(name: string): string | null {
+    const proto = this.protocol as unknown as {
+      getCapability?: (cap: string) => string | undefined | null;
+      capabilities?: Record<string, string | undefined>;
+    };
+    if (typeof proto?.getCapability === 'function') {
+      const url = proto.getCapability(name);
+      if (url) return String(url);
+    }
+    const fromMap = proto?.capabilities?.[name];
+    return fromMap ? String(fromMap) : null;
+  }
+
+  /**
+   * Resolves creator/owner avatar UUIDs into human-readable names without fabricating placeholders.
+   */
+  async resolveAvatarNames(
+    ids: string[],
+    knownLookup?: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const resolved: Record<string, string> = {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return resolved;
+    }
+
+    const selfUser = this.auth?.user as
+      { id?: string; name?: string; displayName?: string; username?: string } | undefined;
+    const selfId = selfUser?.id || this.protocol?.agentId || '';
+    const selfLabel = selfUser?.displayName || selfUser?.name || selfUser?.username || '';
+    if (selfId && !isPlaceholderAvatarName(selfLabel)) {
+      this.avatarNameCache.set(selfId, selfLabel.trim());
+    }
+
+    if (knownLookup) {
+      for (const [k, v] of Object.entries(knownLookup)) {
+        if (k && k !== ZERO_UUID && !isPlaceholderAvatarName(v)) {
+          this.avatarNameCache.set(k, v.trim());
+        }
+      }
+    }
+
+    const unresolved: string[] = [];
+    const deduped = Array.from(
+      new Set(ids.map((id) => String(id || '').trim()).filter((id) => id && id !== ZERO_UUID)),
+    );
+
+    for (const id of deduped) {
+      const cached = this.avatarNameCache.get(id);
+      if (cached && !isPlaceholderAvatarName(cached)) {
+        resolved[id] = cached;
+      } else {
+        unresolved.push(id);
+      }
+    }
+
+    if (unresolved.length === 0) {
+      return resolved;
+    }
+
+    // 1. Direct GetDisplayNames capability when available in browser capability table
+    const displayNamesCap = this.resolveDirectCapabilityUrl('GetDisplayNames');
+    if (displayNamesCap) {
+      try {
+        const sep = displayNamesCap.includes('?') ? '&' : '?';
+        const query = unresolved.map((id) => `ids=${encodeURIComponent(id)}`).join('&');
+        const response = await corsHandler.makeRequest(`${displayNamesCap}${sep}${query}`, {
+          method: 'GET',
+          headers: { Accept: 'application/llsd+xml, application/json' },
+        });
+        if (response && response.ok) {
+          const text = await response.text();
+          const parsed = LLSD.parseXML(text) as {
+            agents?: Array<{
+              id?: string;
+              display_name?: string;
+              username?: string;
+              legacy_first_name?: string;
+              legacy_last_name?: string;
+            }>;
+          } | null;
+          const agents = Array.isArray(parsed?.agents) ? parsed.agents : [];
+          for (const agent of agents) {
+            const id = String(agent?.id || '');
+            const legacy =
+              agent?.legacy_first_name && agent?.legacy_last_name
+                ? `${agent.legacy_first_name} ${agent.legacy_last_name}`.trim()
+                : '';
+            const label = agent?.display_name || legacy || agent?.username || '';
+            if (id && !isPlaceholderAvatarName(label)) {
+              this.avatarNameCache.set(id, label.trim());
+              resolved[id] = label.trim();
+            }
+          }
+        }
+      } catch {
+        // Proceed to bridge fallback
+      }
+    }
+
+    // 2. SLBridge session resolution (GetDisplayNames + UUIDNameRequest)
+    const stillUnresolved = unresolved.filter((id) => !resolved[id]);
+    if (stillUnresolved.length > 0 && slBridge.connected) {
+      const bridgeResult = await slBridge.resolveAvatarNames(stillUnresolved);
+      if (bridgeResult?.names) {
+        for (const [id, name] of Object.entries(bridgeResult.names)) {
+          if (id && !isPlaceholderAvatarName(name)) {
+            this.avatarNameCache.set(id, name.trim());
+            resolved[id] = name.trim();
+          }
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Executes single or batch inventory item property & permission updates (max 100 items).
+   * Routes to region `UpdateInventoryItem` capability when supported, falling back to
+   * chunked reliable UDP `UpdateInventoryItemMessage` batches. Updates local caches
+   * immediately upon confirmation and rolls back modified items on error.
+   */
+  async batchUpdateItemProperties(
+    updates: InventoryItemUpdatePayload[],
+    options?: {
+      onProgress?: (progress: BatchUpdateProgress) => void;
+    },
+  ): Promise<{
+    success: boolean;
+    transport: 'capability' | 'udp';
+    chunkCount: number;
+    updatedIds: string[];
+  }> {
+    assertValidBatchSize(Array.isArray(updates) ? updates.length : 0);
+
+    const total = updates.length;
+    const report = (completed: number, phase: BatchUpdateProgress['phase'], statusText: string) => {
+      const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+      options?.onProgress?.({ completed, total, percent, phase, statusText });
+    };
+
+    // Snapshot pre-batch items for atomic rollback if transport fails
+    const snapshots = new Map<string, Record<string, unknown> | undefined>();
+    for (const u of updates) {
+      const existing = this.items.get(u.itemId);
+      snapshots.set(u.itemId, existing ? JSON.parse(JSON.stringify(existing)) : undefined);
+    }
+
+    report(0, 'preparing', `Preparing ${total} item${total === 1 ? '' : 's'}…`);
+
+    // Stage optimistic state in memory so rollback restores exact prior state on failure
+    for (const u of updates) {
+      const existing = this.items.get(u.itemId) || { id: u.itemId };
+      const normalizedPerms = normalizeItemPermissions({
+        groupOwned: u.groupOwned,
+        permissions: u.permissions,
+      });
+      this.items.set(u.itemId, {
+        ...existing,
+        id: u.itemId,
+        name: u.name,
+        description: u.description,
+        groupOwned: u.groupOwned,
+        permissions: {
+          ...(existing.permissions || {}),
+          ...normalizedPerms,
+        },
+      });
+    }
+
+    try {
+      let transport: 'capability' | 'udp' = 'capability';
+      let chunkCount = 1;
+
+      const directCapUrl = this.resolveDirectCapabilityUrl('UpdateInventoryItem');
+      const protoWithUdp = this.protocol as unknown as {
+        sendPacket?: (
+          name: string,
+          payload: Record<string, unknown>,
+          reliable?: boolean,
+        ) => Promise<unknown> | unknown;
+      };
+
+      if (directCapUrl) {
+        report(
+          Math.max(1, Math.floor(total * 0.25)),
+          'updating',
+          `Dispatching UpdateInventoryItem capability (${total} item${total === 1 ? '' : 's'})…`,
+        );
+
+        const llsdBody = LLSD.buildXML({
+          updates: updates.map((u) => ({
+            item_id: new LLSDUUID(u.itemId || ZERO_UUID),
+            parent_id: new LLSDUUID(u.parentId || ZERO_UUID),
+            name: u.name,
+            desc: u.description,
+            group_owned: u.groupOwned,
+            base_mask: u.permissions.baseMask,
+            owner_mask: u.permissions.ownerMask,
+            group_mask: u.permissions.groupMask,
+            everyone_mask: u.permissions.everyoneMask,
+            next_owner_mask: u.permissions.nextOwnerMask,
+          })),
+        });
+
+        const response = await corsHandler.makeRequest(directCapUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/llsd+xml' },
+          body: llsdBody,
+        });
+
+        if (!response || !response.ok) {
+          throw new Error(
+            `UpdateInventoryItem capability failed (HTTP ${response?.status ?? 'unavailable'})`,
+          );
+        }
+        transport = 'capability';
+        chunkCount = 1;
+        report(total, 'persisting', 'Capability confirmed. Updating inventory cache…');
+      } else if (slBridge.connected) {
+        report(
+          Math.max(1, Math.floor(total * 0.3)),
+          'updating',
+          `Applying permissions to ${total} item${total === 1 ? '' : 's'}…`,
+        );
+        const bridgeRes = await slBridge.updateInventoryItems(updates);
+        if (!bridgeRes?.success) {
+          throw new Error('Simulator rejected inventory item update');
+        }
+        transport = bridgeRes.transport || 'udp';
+        chunkCount = bridgeRes.chunkCount || 1;
+        report(total, 'persisting', 'Batch confirmed. Updating inventory cache…');
+      } else if (typeof protoWithUdp?.sendPacket === 'function') {
+        const chunks = chunkUpdatesForUdp(updates);
+        transport = 'udp';
+        chunkCount = chunks.length;
+        let sentCount = 0;
+
+        for (let idx = 0; idx < chunks.length; idx += 1) {
+          const chunk = chunks[idx];
+          report(
+            sentCount,
+            'updating',
+            `Sending reliable UDP batch ${idx + 1} of ${chunks.length}…`,
+          );
+          await protoWithUdp.sendPacket(
+            'UpdateInventoryItem',
+            {
+              AgentData: {
+                AgentID: this.protocol?.agentId || ZERO_UUID,
+                SessionID: this.protocol?.sessionId || ZERO_UUID,
+                TransactionID: Utils.generateUUID(),
+              },
+              InventoryData: chunk.map((u, blockIdx) => ({
+                ItemID: u.itemId,
+                FolderID: u.parentId || ZERO_UUID,
+                CallbackID: blockIdx + 1,
+                CreatorID: u.creatorId || ZERO_UUID,
+                OwnerID: u.ownerId || ZERO_UUID,
+                GroupID: u.groupId || ZERO_UUID,
+                BaseMask: u.permissions.baseMask,
+                OwnerMask: u.permissions.ownerMask,
+                GroupMask: u.permissions.groupMask,
+                EveryoneMask: u.permissions.everyoneMask,
+                NextOwnerMask: u.permissions.nextOwnerMask,
+                GroupOwned: u.groupOwned,
+                TransactionID: ZERO_UUID,
+                Type: u.assetType ?? 0,
+                InvType: u.inventoryType ?? 0,
+                Flags: u.flags ?? 0,
+                SaleType: u.saleType ?? 0,
+                SalePrice: u.salePrice ?? 0,
+                Name: u.name,
+                Description: u.description,
+                CreationDate: u.creationDate ?? 0,
+              })),
+            },
+            true,
+          );
+          sentCount += chunk.length;
+          report(sentCount, 'updating', `Confirmed UDP batch ${idx + 1} of ${chunks.length}`);
+        }
+        report(total, 'persisting', 'Updating inventory cache…');
+      } else {
+        throw new Error('Not connected to Second Life simulator');
+      }
+
+      const updatedIds = updates.map((u) => u.itemId);
+      await this.persistToCache();
+      report(total, 'completed', `Updated ${total} item${total === 1 ? '' : 's'}`);
+      this.emit('inventory_updated', { updatedIds, transport, chunkCount });
+
+      return {
+        success: true,
+        transport,
+        chunkCount,
+        updatedIds,
+      };
+    } catch (error) {
+      // Roll back modified items in memory and cache (Acceptance Criterion 4)
+      for (const [itemId, snapshot] of snapshots.entries()) {
+        if (snapshot === undefined) {
+          this.items.delete(itemId);
+        } else {
+          this.items.set(itemId, snapshot);
+        }
+      }
+      await this.persistToCache();
+      const rolledBackIds = Array.from(snapshots.keys());
+      report(0, 'rolled_back', 'Update failed — changes rolled back');
+      this.emit('inventory_updated', { rolledBackIds, error });
+      throw error;
+    }
   }
 }

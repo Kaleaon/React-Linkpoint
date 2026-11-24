@@ -13,6 +13,7 @@ import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskSt
 import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 import NotecardFloater from './NotecardFloater.jsx';
+import ItemPropertiesFloater from './ItemPropertiesFloater.tsx';
 import LandmarkFloater from './LandmarkFloater.jsx';
 import TeleportHistoryFloater from './TeleportHistoryFloater.jsx';
 
@@ -114,12 +115,16 @@ export default function FloatersDesktop() {
   const regionRead = `${currentRegion}${avatarPos ? ` · ${Math.round(avatarPos[0])},${Math.round(avatarPos[1])},${Math.round(avatarPos[2])}` : ''}${heading ? ` · ${heading}` : ''}`;
 
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
+  const extraPropertyWindows = Object.values(state.itemPropertiesWindows || {}).filter(
+    (win) => win && win.windowId !== 'ItemPropertiesFloater' && state.flOpen[win.windowId],
+  );
+  const isCustomFloater =
+    state.screen === 'Notecard' ||
+    state.screen === 'CreateLandmark' ||
+    state.screen === 'Teleport History' ||
+    String(state.screen || '').startsWith('ItemPropertiesFloater');
   const flFocused =
-    state.screen !== 'Notecard' &&
-    state.screen !== 'CreateLandmark' &&
-    state.screen !== 'Teleport History' &&
-    state.flOpen[state.screen] &&
-    !state.flMin[state.screen]
+    !isCustomFloater && state.flOpen[state.screen] && !state.flMin[state.screen]
       ? actions.flR(state.screen)
       : null;
 
@@ -384,6 +389,15 @@ export default function FloatersDesktop() {
         }
         if (f.id === 'Teleport History') {
           return <TeleportHistoryFloater key={f.id} onOpenLayoutDialog={openLayoutDialog} />;
+        }
+        if (f.id === 'ItemPropertiesFloater') {
+          return (
+            <ItemPropertiesFloater
+              key={f.id}
+              windowId={f.id}
+              onOpenLayoutDialog={openLayoutDialog}
+            />
+          );
         }
         const r = actions.flR(f.id);
         const act = f.id === state.screen;
@@ -841,6 +855,16 @@ export default function FloatersDesktop() {
         );
       })}
 
+      {extraPropertyWindows
+        .filter((win) => !state.flMin[win.windowId])
+        .map((win) => (
+          <ItemPropertiesFloater
+            key={win.windowId}
+            windowId={win.windowId}
+            onOpenLayoutDialog={openLayoutDialog}
+          />
+        ))}
+
       {flFocused ? (
         <div
           style={{
@@ -947,10 +971,16 @@ export default function FloatersDesktop() {
         {FLOATERS.filter((f) => state.flOpen[f.id]).map((f) => {
           const min = !!state.flMin[f.id];
           const act = f.id === state.screen && !min;
+          const chipLabel =
+            f.id === 'ItemPropertiesFloater' &&
+            state.itemPropertiesWindows?.ItemPropertiesFloater?.title
+              ? state.itemPropertiesWindows.ItemPropertiesFloater.title
+              : f.title;
           return (
             <button
               key={f.id}
               type="button"
+              data-floater-chip={f.id}
               aria-pressed={act}
               onClick={() => actions.flToggle(f.id)}
               onKeyDown={(e) => {
@@ -965,7 +995,34 @@ export default function FloatersDesktop() {
                 ...chipStyle(kind, { V, t, on: act, ink, dim: min }),
               }}
             >
-              {f.title}
+              {chipLabel}
+            </button>
+          );
+        })}
+
+        {extraPropertyWindows.map((win) => {
+          const min = !!state.flMin[win.windowId];
+          const act = win.windowId === state.screen && !min;
+          return (
+            <button
+              key={win.windowId}
+              type="button"
+              data-floater-chip={win.windowId}
+              aria-pressed={act}
+              onClick={() => actions.flToggle(win.windowId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.flToggle(win.windowId);
+                }
+              }}
+              style={{
+                flex: 'none',
+                whiteSpace: 'nowrap',
+                ...chipStyle(kind, { V, t, on: act, ink, dim: min }),
+              }}
+            >
+              {win.title || 'Item Properties'}
             </button>
           );
         })}

@@ -68,6 +68,15 @@ const INITIAL_FLOATERS = [
     minH: 340,
   },
   {
+    id: 'ItemPropertiesFloater',
+    title: 'Item Properties',
+    icon: 'sliders-horizontal',
+    x: 640,
+    y: 72,
+    w: 392,
+    h: 500,
+  },
+  {
     id: 'CreateLandmark',
     title: 'Create Landmark',
     icon: 'map-pin',

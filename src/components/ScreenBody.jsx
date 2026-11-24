@@ -43,6 +43,7 @@ import {
   TeleportScreen,
   TransactionsScreen,
 } from '../screens/LumiyaTools.jsx';
+import ItemPropertiesFloater from './ItemPropertiesFloater.tsx';
 import TeleportHistoryFloater from './TeleportHistoryFloater.jsx';
 
 // Ported from the big content column inside `shellStyle` (headers -> segTabs
@@ -129,6 +130,9 @@ export default function ScreenBody() {
           {norm && scr === 'Transactions' && <TransactionsScreen />}
           {norm && scr === 'Diagnostics' && <DiagnosticsContainer />}
           {norm && scr === 'AO' && <AOScreen />}
+          {norm && String(scr).startsWith('ItemPropertiesFloater') && (
+            <ItemPropertiesFloater windowId={scr} inline />
+          )}
           {scr === 'CreateLandmark' && <LandmarkFloater embedded />}
           {scr === 'Login' && <Login />}
           {scr === 'Search' && <Search />}
