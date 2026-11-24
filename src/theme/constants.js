@@ -67,6 +67,15 @@ const INITIAL_FLOATERS = [
     minW: 420,
     minH: 340,
   },
+  {
+    id: 'CreateLandmark',
+    title: 'Create Landmark',
+    icon: 'map-pin',
+    x: 340,
+    y: 96,
+    w: 420,
+    h: 420,
+  },
 ];
 export const FLOATERS = INITIAL_FLOATERS.concat(
   NAV_ALL.filter(({ id }) => id !== '3D View' && !INITIAL_FLOATERS.some((f) => f.id === id)).map(
@@ -104,6 +113,7 @@ export const FMENU = [
   {
     label: 'World',
     items: [
+      ['Landmark Here', 'Ctrl+Shift+D'],
       ['Teleport Home', '⇧⌘H'],
       ['Teleport History…', '⇧⌘T'],
       ['Set Home to Here', ''],

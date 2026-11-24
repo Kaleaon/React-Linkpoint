@@ -32,6 +32,7 @@ import {
   SearchScreen,
 } from '../screens/LiveScreens.jsx';
 import DiagnosticsContainer from '../screens/DiagnosticsContainer.jsx';
+import LandmarkFloater from './LandmarkFloater.jsx';
 import {
   AOScreen,
   AccountsScreen,
@@ -128,6 +129,7 @@ export default function ScreenBody() {
           {norm && scr === 'Transactions' && <TransactionsScreen />}
           {norm && scr === 'Diagnostics' && <DiagnosticsContainer />}
           {norm && scr === 'AO' && <AOScreen />}
+          {scr === 'CreateLandmark' && <LandmarkFloater embedded />}
           {scr === 'Login' && <Login />}
           {scr === 'Search' && <Search />}
           {!norm && <StateBlock />}

@@ -75,6 +75,12 @@ export default function MenuBar() {
     } else if (itemLabel === 'Network Diagnostics…') {
       actions.flFocus('Diagnostics');
       actions.setScreen('Diagnostics');
+    } else if (itemLabel === 'Landmark Here' || itemLabel === 'Create Landmark…') {
+      if (actions.openLandmarkFloater) {
+        actions.openLandmarkFloater();
+      } else {
+        actions.flFocus('CreateLandmark');
+      }
     } else if (itemLabel === 'Teleport History…' || itemLabel === 'Teleport History') {
       actions.flFocus('Teleport History');
       actions.setScreen('Teleport History');

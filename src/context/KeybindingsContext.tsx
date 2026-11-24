@@ -15,6 +15,7 @@ export const KEYBINDINGS_STORAGE_KEY = 'linkpoint_keybindings';
 export const DEFAULT_CUSTOM_BINDINGS: Record<string, string> = {
   toggleMouselook: 'KeyM',
   toggleOverlays: 'KeyH',
+  createLandmark: 'Ctrl+Shift+KeyD',
 };
 
 export interface KeybindingsRestoreSnapshot {

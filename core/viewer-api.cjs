@@ -60,6 +60,7 @@ const METHODS = new Set([
   'fetchSound',
   'fetchNotecard',
   'saveNotecard',
+  'createLandmark',
   'fetchGesture',
   'activateGestures',
   'deactivateGestures',

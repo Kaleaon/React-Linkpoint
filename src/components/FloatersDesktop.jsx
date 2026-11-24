@@ -13,6 +13,7 @@ import { deskKind, deskGeometry, floaterStyle, chipStyle } from '../theme/deskSt
 import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 import NotecardFloater from './NotecardFloater.jsx';
+import LandmarkFloater from './LandmarkFloater.jsx';
 import TeleportHistoryFloater from './TeleportHistoryFloater.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
@@ -73,6 +74,7 @@ export default function FloatersDesktop() {
     worldEvents.forEach((event) => app.world.on(event, refresh));
     protocolEvents.forEach((event) => app.protocol.on(event, refresh));
     app.inventory.on('inventory_loaded', refresh);
+    app.inventory.on('inventory_updated', refresh);
     app.notifications.on('notification_received', refresh);
     app.teleportHistory?.on?.('history_updated', refresh);
     app.ao?.on?.('change', refresh);
@@ -80,6 +82,7 @@ export default function FloatersDesktop() {
       worldEvents.forEach((event) => app.world.off(event, refresh));
       protocolEvents.forEach((event) => app.protocol.off(event, refresh));
       app.inventory.off('inventory_loaded', refresh);
+      app.inventory.off('inventory_updated', refresh);
       app.notifications.off('notification_received', refresh);
       app.teleportHistory?.off?.('history_updated', refresh);
       app.ao?.off?.('change', refresh);
@@ -113,6 +116,7 @@ export default function FloatersDesktop() {
   const openFloaters = FLOATERS.filter((f) => state.flOpen[f.id] && !state.flMin[f.id]);
   const flFocused =
     state.screen !== 'Notecard' &&
+    state.screen !== 'CreateLandmark' &&
     state.screen !== 'Teleport History' &&
     state.flOpen[state.screen] &&
     !state.flMin[state.screen]
@@ -374,6 +378,9 @@ export default function FloatersDesktop() {
       {openFloaters.map((f) => {
         if (f.id === 'Notecard') {
           return <NotecardFloater key={f.id} />;
+        }
+        if (f.id === 'CreateLandmark') {
+          return <LandmarkFloater key={f.id} />;
         }
         if (f.id === 'Teleport History') {
           return <TeleportHistoryFloater key={f.id} onOpenLayoutDialog={openLayoutDialog} />;

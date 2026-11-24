@@ -7,8 +7,18 @@ import { LLSD, LLSDUUID } from './llsd';
 import { SLConnectionFull } from './sl-connection-full';
 import { AuthManager } from './auth';
 import { corsHandler } from './cors-handler';
-import { slBridge } from './sl-bridge';
+import { slBridge, type CreateLandmarkParams, type CreateLandmarkResult } from './sl-bridge';
 import { localCache } from './local-cache';
+import { truncateUtf8Bytes, MAX_LANDMARK_DESC_BYTES, MAX_LANDMARK_NAME_BYTES } from './landmark';
+
+export interface InventoryFolderOption {
+  id: string;
+  name: string;
+  depth: number;
+  pathLabel: string;
+  folderType: number;
+  parent: string;
+}
 
 export enum LLAssetType {
   Texture = 0,
@@ -174,6 +184,7 @@ export class InventoryManager extends Utils.EventEmitter {
     const rawParent = String(
       rawFolder.parent ||
         rawFolder.parent_id ||
+        rawFolder.parentId ||
         (id === defaultParentId ? '' : defaultParentId) ||
         '',
     );
@@ -181,9 +192,11 @@ export class InventoryManager extends Utils.EventEmitter {
       rawParent === id || rawParent === '00000000-0000-0000-0000-000000000000' ? '' : rawParent;
     const rawFolderType =
       rawFolder.folderType ??
+      rawFolder.preferredType ??
       rawFolder.preferred_type ??
+      rawFolder.typeDefault ??
       rawFolder.type_default ??
-      rawFolder.type ??
+      (rawFolder.type !== 'folder' ? rawFolder.type : undefined) ??
       -1;
     const folderType = parseLLFolderType(rawFolderType);
     const version = Number(rawFolder.version ?? 0);
@@ -700,6 +713,27 @@ export class InventoryManager extends Utils.EventEmitter {
     return true;
   }
 
+  private resolveFolderType(folder: any): number {
+    if (!folder || typeof folder !== 'object') return -1;
+    if (typeof folder.folderType === 'number' && folder.folderType !== -1) {
+      return folder.folderType;
+    }
+    return parseLLFolderType(
+      folder.preferredType ??
+        folder.preferred_type ??
+        folder.typeDefault ??
+        folder.type_default ??
+        (typeof folder.type === 'number' ? folder.type : (folder.folderType ?? -1)),
+    );
+  }
+
+  private resolveFolderParent(folder: any): string {
+    if (!folder || typeof folder !== 'object') return '';
+    const raw = folder.parent ?? folder.parentId ?? folder.parent_id ?? '';
+    const str = String(raw || '');
+    return str === '00000000-0000-0000-0000-000000000000' ? '' : str;
+  }
+
   getTrashFolder(): any | null {
     for (const folder of this.folders.values()) {
       const name = String(folder.name || '')
@@ -708,7 +742,7 @@ export class InventoryManager extends Utils.EventEmitter {
       if (name === 'snapshots' || name === 'photo album') {
         continue;
       }
-      const folderType = folder.folderType ?? folder.typeDefault ?? -1;
+      const folderType = this.resolveFolderType(folder);
       if (
         folderType === LLFolderType.Trash ||
         folderType === 13 ||
@@ -719,6 +753,242 @@ export class InventoryManager extends Utils.EventEmitter {
       }
     }
     return null;
+  }
+
+  getLandmarksFolder(): any | null {
+    const trashId = this.getTrashFolder()?.id;
+    let nameFallback: any = null;
+    for (const folder of this.folders.values()) {
+      if (!folder || folder.id === trashId || this.isItemInTrash(folder.id)) continue;
+      const folderType = this.resolveFolderType(folder);
+      if (folderType === LLFolderType.Landmark || folderType === 3) {
+        return folder;
+      }
+      const name = String(folder.name || '')
+        .trim()
+        .toLowerCase();
+      if (!nameFallback && name === 'landmarks') {
+        nameFallback = folder;
+      }
+    }
+    return nameFallback || this.rootFolder || null;
+  }
+
+  isSelectableDestinationFolder(folder: any): boolean {
+    if (!folder || typeof folder !== 'object') return false;
+    if (folder.type === 'item' || folder.folder === false) return false;
+    const trashFolder = this.getTrashFolder();
+    if (trashFolder && (folder.id === trashFolder.id || this.isItemInTrash(folder.id))) {
+      return false;
+    }
+    const folderType = this.resolveFolderType(folder);
+    const lowerName = String(folder.name || '')
+      .trim()
+      .toLowerCase();
+    if (
+      folderType === LLFolderType.Trash ||
+      folderType === 13 ||
+      (lowerName === 'trash' && folderType !== LLFolderType.None) ||
+      lowerName === 'trash'
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Builds a flat, depth-indented list of all valid inventory folders from the skeleton
+   * without blocking the main UI thread when traversing large folder trees.
+   */
+  async getFolderHierarchyOptions(options?: { chunkSize?: number; signal?: AbortSignal }): Promise<{
+    options: InventoryFolderOption[];
+    defaultFolderId: string;
+  }> {
+    const chunkSize = Math.max(25, options?.chunkSize ?? 150);
+    const signal = options?.signal;
+    const allFolders = Array.from(this.folders.values()).filter((f) =>
+      this.isSelectableDestinationFolder(f),
+    );
+
+    if (allFolders.length === 0) {
+      return { options: [], defaultFolderId: '' };
+    }
+
+    const byId = new Map<string, any>();
+    const childrenByParent = new Map<string, any[]>();
+    for (let i = 0; i < allFolders.length; i++) {
+      if (signal?.aborted) return { options: [], defaultFolderId: '' };
+      if (i > 0 && i % chunkSize === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      const f = allFolders[i];
+      byId.set(f.id, f);
+    }
+
+    const roots: any[] = [];
+    for (let i = 0; i < allFolders.length; i++) {
+      if (signal?.aborted) return { options: [], defaultFolderId: '' };
+      if (i > 0 && i % chunkSize === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      const f = allFolders[i];
+      const rawParent = this.resolveFolderParent(f);
+      const parentId = rawParent && rawParent !== f.id && byId.has(rawParent) ? rawParent : '';
+      if (!parentId) {
+        roots.push(f);
+      } else {
+        const list = childrenByParent.get(parentId) || [];
+        list.push(f);
+        childrenByParent.set(parentId, list);
+      }
+    }
+
+    const sortFolders = (list: any[]) =>
+      list.sort((a, b) => {
+        if (this.rootFolder?.id) {
+          if (a.id === this.rootFolder.id) return -1;
+          if (b.id === this.rootFolder.id) return 1;
+        }
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+
+    sortFolders(roots);
+    for (const list of childrenByParent.values()) {
+      sortFolders(list);
+    }
+
+    const result: InventoryFolderOption[] = [];
+    const visited = new Set<string>();
+    const stack: Array<{ folder: any; depth: number; ancestors: string[] }> = [];
+    for (let i = roots.length - 1; i >= 0; i--) {
+      stack.push({ folder: roots[i], depth: 0, ancestors: [] });
+    }
+
+    let processed = 0;
+    while (stack.length > 0) {
+      if (signal?.aborted) return { options: [], defaultFolderId: '' };
+      if (processed > 0 && processed % chunkSize === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      processed += 1;
+
+      const { folder, depth, ancestors } = stack.pop()!;
+      if (visited.has(folder.id)) continue;
+      visited.add(folder.id);
+
+      const displayName = String(folder.name || 'Unnamed Folder');
+      const nextAncestors = [...ancestors, displayName];
+      const indent = depth > 0 ? `${'\u00A0\u00A0'.repeat(depth)}└ ` : '';
+      result.push({
+        id: folder.id,
+        name: displayName,
+        depth,
+        pathLabel: `${indent}${displayName}`,
+        folderType: this.resolveFolderType(folder),
+        parent: this.resolveFolderParent(folder),
+      });
+
+      const kids = childrenByParent.get(folder.id) || [];
+      for (let i = kids.length - 1; i >= 0; i--) {
+        if (!visited.has(kids[i].id)) {
+          stack.push({ folder: kids[i], depth: depth + 1, ancestors: nextAncestors });
+        }
+      }
+    }
+
+    // Include any orphaned folders (if cycle/missing root) so all valid folders remain selectable
+    for (const f of allFolders) {
+      if (!visited.has(f.id)) {
+        result.push({
+          id: f.id,
+          name: String(f.name || 'Unnamed Folder'),
+          depth: 0,
+          pathLabel: String(f.name || 'Unnamed Folder'),
+          folderType: f.folderType ?? f.typeDefault ?? -1,
+          parent: f.parent || '',
+        });
+      }
+    }
+
+    const landmarksFolder = this.getLandmarksFolder();
+    const defaultFolderId =
+      (landmarksFolder && byId.has(landmarksFolder.id) ? landmarksFolder.id : '') ||
+      (this.rootFolder && byId.has(this.rootFolder.id) ? this.rootFolder.id : '') ||
+      result[0]?.id ||
+      '';
+
+    return { options: result, defaultFolderId };
+  }
+
+  /**
+   * Creates a landmark via the viewer session (capability or UDP fallback) and immediately
+   * inserts the confirmed landmark item into the client inventory cache.
+   */
+  async createLandmark(
+    params: CreateLandmarkParams,
+  ): Promise<CreateLandmarkResult & { item: any }> {
+    const defaultFolder = this.getLandmarksFolder();
+    const requestedFolderId = params.folderId || defaultFolder?.id || this.rootFolder?.id || '';
+    const cleanName =
+      truncateUtf8Bytes(params.name || 'Landmark', MAX_LANDMARK_NAME_BYTES) || 'Landmark';
+    const cleanDescription = truncateUtf8Bytes(params.description || '', MAX_LANDMARK_DESC_BYTES);
+
+    const requestPayload: CreateLandmarkParams = {
+      ...params,
+      name: cleanName,
+      description: cleanDescription,
+      folderId: requestedFolderId,
+    };
+
+    let response: CreateLandmarkResult;
+    if (
+      this.protocol &&
+      typeof (this.protocol as any).createLandmark === 'function' &&
+      this.protocol.connected
+    ) {
+      response = await (this.protocol as any).createLandmark(requestPayload);
+    } else {
+      response = await slBridge.createLandmark(requestPayload);
+    }
+
+    const finalFolderId = response.folderId || requestedFolderId || this.rootFolder?.id || '';
+    const finalItemId = response.itemId || response.item?.id || Utils.generateUUID();
+    const rawConfirmedItem = {
+      ...(response.item || {}),
+      id: finalItemId,
+      name: response.item?.name || cleanName,
+      description: response.item?.description ?? cleanDescription,
+      parent: finalFolderId,
+      folderId: finalFolderId,
+      assetType: LLAssetType.Landmark,
+      invType: 3,
+      assetId: response.assetId || response.item?.assetId || '',
+      creationDate: response.item?.creationDate || Math.floor(Date.now() / 1000),
+    };
+
+    if (finalFolderId && !this.folders.has(finalFolderId)) {
+      this._addNormalizedFolder(
+        {
+          id: finalFolderId,
+          name: finalFolderId === defaultFolder?.id ? 'Landmarks' : 'Folder',
+          parent: this.rootFolder?.id || '',
+          folderType: LLFolderType.Landmark,
+        },
+        this.rootFolder?.id || '',
+      );
+    }
+
+    const insertedItem = this._addNormalizedItem(rawConfirmedItem, finalFolderId);
+    await this.persistToCache();
+    this.emit('inventory_updated', { items: [insertedItem] });
+    this.emit('inventory_loaded');
+
+    return {
+      ...response,
+      itemId: finalItemId,
+      folderId: finalFolderId,
+      item: insertedItem,
+    };
   }
 
   isProtectedFolder(idOrFolder: string | any): boolean {
