@@ -7,7 +7,12 @@
  */
 
 import { Utils } from './utils';
-import { indexedDBStore } from './indexeddb-store';
+import {
+  indexedDBStore,
+  LINKPOINT_DB_NAME,
+  LINKPOINT_DB_VERSION,
+  upgradeLinkpointDatabase,
+} from './indexeddb-store';
 import { idbWorkerBridge } from './idb-worker';
 import { migrationUtility } from './migration';
 import { errorRecovery } from './errorRecovery';
@@ -63,8 +68,6 @@ export function validateMountPath(path: string): MountPathValidationResult {
   return { valid: true, message: 'Valid mount path format' };
 }
 
-const DB_NAME = 'linkpoint_sl_cache_db';
-const DB_VERSION = 5;
 const STORE_INVENTORY = 'inventory';
 const STORE_TEXTURES = 'textures';
 const STORE_META = 'metadata';
@@ -223,26 +226,19 @@ class LocalCacheManager extends Utils.EventEmitter {
 
     return new Promise((resolve) => {
       try {
-        const req = window.indexedDB.open(DB_NAME, DB_VERSION);
+        const req = window.indexedDB.open(LINKPOINT_DB_NAME, LINKPOINT_DB_VERSION);
         req.onupgradeneeded = (e: any) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains(STORE_INVENTORY)) {
-            db.createObjectStore(STORE_INVENTORY, { keyPath: 'id' });
-          }
-          if (!db.objectStoreNames.contains(STORE_TEXTURES)) {
-            db.createObjectStore(STORE_TEXTURES, { keyPath: 'uuid' });
-          }
-          if (!db.objectStoreNames.contains(STORE_META)) {
-            db.createObjectStore(STORE_META, { keyPath: 'key' });
-          }
-          if (!db.objectStoreNames.contains(STORE_TRANSACTIONS)) {
-            const txStore = db.createObjectStore(STORE_TRANSACTIONS, { keyPath: 'id' });
-            txStore.createIndex('agentId', 'agentId', { unique: false });
-            txStore.createIndex('timestamp', 'timestamp', { unique: false });
-          }
+          upgradeLinkpointDatabase(e.target.result, e.target.transaction);
         };
         req.onsuccess = (e: any) => {
-          this.idb = e.target.result;
+          const database: IDBDatabase = e.target.result;
+          database.onversionchange = () => {
+            database.close();
+            if (this.idb === database) {
+              this.idb = null;
+            }
+          };
+          this.idb = database;
           resolve(this.idb);
         };
         req.onerror = () => resolve(null);

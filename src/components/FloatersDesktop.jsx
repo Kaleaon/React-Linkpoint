@@ -14,6 +14,7 @@ import FormField from './FormField.jsx';
 import WindowLayoutDialog from './WindowLayoutDialog.jsx';
 import NotecardFloater from './NotecardFloater.jsx';
 import ItemPropertiesFloater from './ItemPropertiesFloater.tsx';
+import TeleportHistoryFloater from './TeleportHistoryFloater.jsx';
 
 // Ported from the `isFloat` block: desktop SL isn't a screen stack, it's N
 // resizable windows over one scene (the `FLOATERS` window model — position,
@@ -74,12 +75,14 @@ export default function FloatersDesktop() {
     protocolEvents.forEach((event) => app.protocol.on(event, refresh));
     app.inventory.on('inventory_loaded', refresh);
     app.notifications.on('notification_received', refresh);
+    app.teleportHistory?.on?.('history_updated', refresh);
     app.ao?.on?.('change', refresh);
     return () => {
       worldEvents.forEach((event) => app.world.off(event, refresh));
       protocolEvents.forEach((event) => app.protocol.off(event, refresh));
       app.inventory.off('inventory_loaded', refresh);
       app.notifications.off('notification_received', refresh);
+      app.teleportHistory?.off?.('history_updated', refresh);
       app.ao?.off?.('change', refresh);
     };
   }, []);
@@ -113,7 +116,9 @@ export default function FloatersDesktop() {
     (win) => win && win.windowId !== 'ItemPropertiesFloater' && state.flOpen[win.windowId],
   );
   const isCustomFloater =
-    state.screen === 'Notecard' || String(state.screen || '').startsWith('ItemPropertiesFloater');
+    state.screen === 'Notecard' ||
+    state.screen === 'Teleport History' ||
+    String(state.screen || '').startsWith('ItemPropertiesFloater');
   const flFocused =
     !isCustomFloater && state.flOpen[state.screen] && !state.flMin[state.screen]
       ? actions.flR(state.screen)
@@ -374,6 +379,9 @@ export default function FloatersDesktop() {
       {openFloaters.map((f) => {
         if (f.id === 'Notecard') {
           return <NotecardFloater key={f.id} />;
+        }
+        if (f.id === 'Teleport History') {
+          return <TeleportHistoryFloater key={f.id} onOpenLayoutDialog={openLayoutDialog} />;
         }
         if (f.id === 'ItemPropertiesFloater') {
           return (
@@ -1162,7 +1170,12 @@ function buildFBody(state) {
       a: item.title || item.message,
       b: item.type || '',
     })),
-    Teleport: [],
+    Teleport: (app.teleportHistory?.entries || []).slice(0, 8).map((entry) => ({
+      a: entry.parcelName ? `${entry.regionName} · ${entry.parcelName}` : entry.regionName,
+      b: entry.position
+        ? `${Math.round(entry.position[0])},${Math.round(entry.position[1])},${Math.round(entry.position[2])}`
+        : '—',
+    })),
     Settings: [
       { a: 'Connection', b: app.protocol.connected ? 'connected' : 'disconnected' },
       { a: 'Resident', b: app.auth.user?.fullName || 'not connected' },

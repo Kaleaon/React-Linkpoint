@@ -15,6 +15,7 @@ import Toggle from '../components/Toggle.jsx';
 import { FocusRing } from '@linkpoint/design-system';
 import AccessibleInput from '../components/AccessibleInput';
 import AccessibleSelect from '../components/AccessibleSelect';
+import TeleportHistoryFloater from '../components/TeleportHistoryFloater.jsx';
 import { decodeLindenText } from '../linkpoint/notecard.ts';
 import AOFloater from './AOFloater.jsx';
 
@@ -1961,6 +1962,9 @@ export function TransactionsScreen() {
 }
 
 export function TeleportScreen() {
+  const { state, actions } = useApp();
+  const { isFloat, V } = useTheme();
+  const activeSub = subView(state, 'Teleport');
   const [destination, setDestination] = useState('');
   const [status, setStatus] = useState('');
   const teleport = async () => {
@@ -1977,9 +1981,47 @@ export function TeleportScreen() {
       }
     }
   };
+  const openHistoryFloater = () => {
+    if (isFloat && actions.flFocus) {
+      actions.flFocus('Teleport History');
+    } else if (actions.setScreen) {
+      actions.setScreen('Teleport History');
+    }
+  };
   return (
-    <div className="tool-page">
-      <h2>Teleport</h2>
+    <div
+      className="tool-page"
+      style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, minHeight: 0 }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Teleport</h2>
+        <button
+          type="button"
+          onClick={openHistoryFloater}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 10px',
+            background: V.surf,
+            color: V.ink,
+            border: `1px solid ${V.outv}`,
+            borderRadius: V.rs,
+            fontSize: '12px',
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="history" size={13} />
+          <span>Open Teleport History</span>
+        </button>
+      </div>
       <div className="inline-tool">
         <input
           aria-label="Teleport destination URI"
@@ -1992,6 +2034,7 @@ export function TeleportScreen() {
         </button>
       </div>
       {status ? <p className="tool-status">{status}</p> : null}
+      {activeSub === 'HISTORY' ? <TeleportHistoryFloater embedded /> : null}
     </div>
   );
 }

@@ -999,7 +999,7 @@ export class InventoryManager extends Utils.EventEmitter {
       this.items.delete(id);
     }
 
-    await this.persistToCache();
+    void this.persistToCache();
     this.emit('inventory_updated');
     return true;
   }
@@ -1023,7 +1023,7 @@ export class InventoryManager extends Utils.EventEmitter {
     this.purgeFolderDescendants(trashFolder.id);
 
     // Persist updated inventory to cache
-    await this.persistToCache();
+    void this.persistToCache();
 
     // Emit update event
     this.emit('inventory_updated');

@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { app } from '../linkpoint/app.ts';
 import Icon from '../components/Icon.jsx';
-import SecondaryViewLoader from '../components/SecondaryViewLoader';
+import SecondaryViewLoader from '../components/SecondaryViewLoader.tsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import { slBridge } from '../linkpoint/sl-bridge.ts';
 import SHAPE_PARAMS from '../linkpoint/avatar-data/shape-params.json';
 import TouchTarget from '../components/TouchTarget.tsx';
-import SyncActionButton from '../components/SyncActionButton.tsx';
 import FocusTrap from '../components/FocusTrap.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
 import { isTypingTarget } from '../linkpoint/keyboard-motion.ts';
@@ -753,6 +753,7 @@ export default function OutfitViewer() {
                   </button>
                   <SyncActionButton
                     type="button"
+                    variant="primary"
                     loading={outfitState.loading}
                     disabled={!loggedIn}
                     onClick={() => void loadOutfit()}
