@@ -25,6 +25,11 @@ on:
       - 'android-kotlin/core/**'
       - 'android-kotlin/mockgrid/**'
       - 'android-kotlin/tools/opensim/**'
+      - 'android-kotlin/build.gradle.kts'
+      - 'android-kotlin/settings.gradle.kts'
+      - 'android-kotlin/gradle.properties'
+      - 'android-kotlin/gradle/**'
+      - '.github/actions/setup-android-kotlin/**'
       - '.github/workflows/live.yml'
 
 permissions:
