@@ -845,6 +845,11 @@ export class SLBridge extends Utils.EventEmitter {
   fetchAnimation(id: string): Promise<{ id: string; data: string }> {
     return this.call('fetchAnimation', { id });
   }
+  sendAgentAnimations(
+    animations: Array<{ id: string; start: boolean }>,
+  ): Promise<{ sent: boolean; count: number }> {
+    return this.call('sendAgentAnimations', { animations });
+  }
   fetchSound(id: string): Promise<{ requested: boolean }> {
     return this.call('fetchSound', { id });
   }

@@ -758,6 +758,13 @@ export class SLConnectionFull extends Utils.EventEmitter {
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
+  async sendAgentAnimations(
+    animations: Array<{ id: string; start: boolean }>,
+  ): Promise<{ sent: boolean; count: number }> {
+    if (!this.connected) throw new Error('Not connected to a grid');
+    return await slBridge.sendAgentAnimations(animations);
+  }
+
   async fetchNotecard(id: string, itemId?: string) {
     if (!this.connected) throw new Error('Not connected to a grid');
     return await slBridge.fetchNotecard(id, itemId);

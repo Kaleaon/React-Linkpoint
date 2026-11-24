@@ -166,6 +166,7 @@ export function useAppState() {
     Inventory: true,
     Map: true,
     Settings: false,
+    AO: false,
     Notecard: false,
   });
   const [notecardItem, setNotecardItem] = useState(null);
@@ -938,15 +939,17 @@ export function useAppState() {
           : dhOpt || 0;
       const { availW, availH } = getDesktopBounds();
       const r = flR(id);
-      const maxW = Math.max(216, availW - r.x);
-      const maxH = Math.max(96, availH - r.y);
-      const newW = Math.max(216, Math.min(maxW, r.w + dw));
-      const newH = Math.max(96, Math.min(maxH, r.h + dh));
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
+      const maxW = Math.max(minW, availW - r.x);
+      const maxH = Math.max(minH, availH - r.y);
+      const newW = Math.max(minW, Math.min(maxW, r.w + dw));
+      const newH = Math.max(minH, Math.min(maxH, r.h + dh));
       const next = { ...r, w: newW, h: newH };
       setFlRect((st) => ({ ...st, [id]: next }));
       setFlMax((m) => ({ ...m, [id]: false }));
       flFocus(id);
-      const f = FLOATERS.find((x) => x.id === id);
       const title = f?.title || id;
       announceGeometry(`${title} resized to ${newW} by ${newH}`);
       return next;
@@ -1024,6 +1027,9 @@ export function useAppState() {
       e.preventDefault();
       e.stopPropagation();
       const { availW, availH } = getDesktopBounds();
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
       const r = flR(id),
         sx = e.clientX,
         sy = e.clientY;
@@ -1035,8 +1041,8 @@ export function useAppState() {
             ? {
                 x: r.x,
                 y: r.y,
-                w: Math.max(216, Math.min(availW - r.x, r.w + dx)),
-                h: Math.max(96, Math.min(availH - r.y, r.h + dy)),
+                w: Math.max(minW, Math.min(availW - r.x, r.w + dx)),
+                h: Math.max(minH, Math.min(availH - r.y, r.h + dy)),
               }
             : {
                 x: Math.max(0, Math.min(Math.max(0, availW - r.w), r.x + dx)),
@@ -1093,10 +1099,17 @@ export function useAppState() {
       const availW = Math.max(300, vpW - G.rail);
       const availH = Math.max(200, vpH - G.top - G.dock);
 
+      const f = FLOATERS.find((x) => x.id === id);
+      const minW = f?.minW || 216;
+      const minH = f?.minH || 96;
       const rawW = rect.w !== undefined ? Number(rect.w) : r.w;
       const rawH = rect.h !== undefined ? Number(rect.h) : r.h;
-      const nextW = Number.isFinite(rawW) ? Math.max(216, Math.min(availW, Math.round(rawW))) : r.w;
-      const nextH = Number.isFinite(rawH) ? Math.max(96, Math.min(availH, Math.round(rawH))) : r.h;
+      const nextW = Number.isFinite(rawW)
+        ? Math.max(minW, Math.min(availW, Math.round(rawW)))
+        : r.w;
+      const nextH = Number.isFinite(rawH)
+        ? Math.max(minH, Math.min(availH, Math.round(rawH)))
+        : r.h;
 
       const rawX = rect.x !== undefined ? Number(rect.x) : r.x;
       const rawY = rect.y !== undefined ? Number(rect.y) : r.y;
@@ -1250,8 +1263,9 @@ export function useAppState() {
       const b = CBTN[k];
       if (!b) return;
       if (k === 'ao') {
-        setCReason(b.label + ' — NOT AVAILABLE IN THIS VIEWER YET');
-        notify('Animation Overrider is not available yet.');
+        if (navMode() === 'floaters') flToggle('AO');
+        else setScreen('AO');
+        setCReason('');
         return;
       }
       if (b.nav) {
@@ -1262,7 +1276,7 @@ export function useAppState() {
       }
       setCReason(b.label + ' — NOT AVAILABLE IN THIS VIEWER YET');
     },
-    [navMode, flFocus, setScreen, notify],
+    [navMode, flToggle, flFocus, setScreen],
   );
 
   // ---- console dock hold-to-edit / radar long-press ----------------------

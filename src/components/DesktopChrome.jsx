@@ -16,6 +16,7 @@ const TOOLBAR = [
   ['radar', 'Nearby', 'Radar'],
   ['map', 'Map', 'Map'],
   ['folder', 'Inventory', 'Inventory'],
+  ['person-standing', 'Animation Overrider', 'AO'],
   ['settings', 'Preferences', 'Settings'],
   ['menu', 'All screens', 'Screens'],
 ];

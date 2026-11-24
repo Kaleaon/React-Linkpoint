@@ -33,6 +33,7 @@ import {
 } from '../screens/LiveScreens.jsx';
 import DiagnosticsContainer from '../screens/DiagnosticsContainer.jsx';
 import {
+  AOScreen,
   AccountsScreen,
   GridsScreen,
   MediaScreen,
@@ -124,6 +125,7 @@ export default function ScreenBody() {
           {norm && scr === 'Parcel' && <ParcelScreen />}
           {norm && scr === 'Transactions' && <TransactionsScreen />}
           {norm && scr === 'Diagnostics' && <DiagnosticsContainer />}
+          {norm && scr === 'AO' && <AOScreen />}
           {scr === 'Login' && <Login />}
           {scr === 'Search' && <Search />}
           {!norm && <StateBlock />}
