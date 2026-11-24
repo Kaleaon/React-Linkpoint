@@ -332,6 +332,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
+    minWidth: '24px',
     minHeight: '26px',
     padding: '3px 8px',
     background: active ? V.pri : V.surf2 || V.surf,
@@ -415,9 +416,9 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
             padding: '6px 8px',
             borderRadius: V.rs,
             fontSize: '10px',
-            background: statusMessage.isError ? '#ef444420' : '#22c55e20',
-            border: `1px solid ${statusMessage.isError ? '#ef4444' : '#22c55e'}`,
-            color: statusMessage.isError ? '#f87171' : '#4ade80',
+            background: `${statusMessage.isError ? V.err : V.ok}14`,
+            border: `1px solid ${statusMessage.isError ? V.err : V.ok}`,
+            color: statusMessage.isError ? V.err : V.ok,
             fontWeight: 600,
           }}
         >
@@ -486,6 +487,8 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        minWidth: '24px',
+                        minHeight: '24px',
                         padding: '6px 4px',
                         background: isSelected ? V.pri : V.surf,
                         color: isSelected ? V.onpri : V.ink,
@@ -662,7 +665,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
               onClick={handleLink}
               aria-label="Link selected primitives into linkset"
               style={{
-                ...actionBtnStyle(V.onpri, '#0284c7'),
+                ...actionBtnStyle(V.onpri, V.pri),
               }}
             >
               <Icon name="link" size={12} />
@@ -686,7 +689,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
               onClick={handleDerez}
               aria-label="Derez selected object"
               style={{
-                ...actionBtnStyle('#ffffff', '#dc2626'),
+                ...actionBtnStyle(V.onpri, V.err),
                 width: '100%',
                 minHeight: '32px',
               }}
