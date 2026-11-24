@@ -114,6 +114,19 @@ describe('SecondaryViewLoader Adoption in Secondary Views', () => {
       vi.spyOn(app.world, 'destroyRenderer').mockImplementation(() => {});
 
       const host = await mount(createElement(World3D));
+
+      // Collapsed status output displays inline SecondaryViewLoader during startup
+      const collapsedLoader = host.querySelector(
+        'output [data-testid="secondary-view-loader"]',
+      ) as HTMLElement | null;
+      expect(collapsedLoader).not.toBeNull();
+      expect(collapsedLoader?.getAttribute('data-layout')).toBe('inline');
+      expect(collapsedLoader?.getAttribute('role')).toBe('status');
+      expect(collapsedLoader?.textContent).toContain('Starting renderer…');
+      const collapsedCrystal = collapsedLoader?.querySelector('[data-testid="crystal-loader"]');
+      expect(collapsedCrystal).not.toBeNull();
+      expect(collapsedCrystal?.getAttribute('data-variant')).toBe('inline');
+
       const expandBtn = host.querySelector('[aria-label="Expand scene statistics"]') as HTMLElement;
       expect(expandBtn).not.toBeNull();
 

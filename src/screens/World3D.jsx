@@ -665,7 +665,14 @@ export default function World3D({ desktopBackdrop = false }) {
                 </div>
                 {!ready && !error ? (
                   <div style={{ marginTop: 4 }}>
-                    <SecondaryViewLoader layout="inline" size={14} label="Starting renderer…" />
+                    <SecondaryViewLoader
+                      as="span"
+                      role="status"
+                      layout="inline"
+                      size={14}
+                      label="Starting renderer…"
+                      style={{ padding: 0 }}
+                    />
                   </div>
                 ) : null}
                 {error ? (
@@ -707,6 +714,16 @@ export default function World3D({ desktopBackdrop = false }) {
                 >
                   <strong>{region}</strong> · {position.join(', ')}
                 </span>
+                {!ready && !error ? (
+                  <SecondaryViewLoader
+                    as="span"
+                    role="status"
+                    layout="inline"
+                    size={12}
+                    label="Starting renderer…"
+                    style={{ padding: 0, gap: 4, fontSize: 10 }}
+                  />
+                ) : null}
                 <FocusRing ringColor={V.pri} borderRadius={V.rs}>
                   <TouchTarget
                     minSize={24}
