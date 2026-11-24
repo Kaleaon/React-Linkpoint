@@ -8,6 +8,7 @@ import { ChatProtocolAdapter } from './chat-protocol-adapter';
 import { ChatType } from './sl-message-types';
 import { CHAT_SOURCE, type RlvHandler } from './rlv-handler';
 import { RLV_STRINGS } from './rlv-data';
+import type { GestureRuntimeEngine } from './gesture-runtime-engine';
 
 export interface AutoReplyConfig {
   enabled: boolean;
@@ -34,6 +35,25 @@ export class ChatManager extends Utils.EventEmitter {
     this.rlv = rlv;
   }
   private rlv: RlvHandler | null = null;
+  private gestureEngine: GestureRuntimeEngine | null = null;
+  private chatCommandsEnabled: boolean = true;
+
+  /** Attach the gesture runtime engine to evaluate outbound chat triggers on channel 0. */
+  setGestureEngine(engine: GestureRuntimeEngine | null) {
+    this.gestureEngine = engine;
+  }
+
+  getGestureEngine(): GestureRuntimeEngine | null {
+    return this.gestureEngine;
+  }
+
+  setChatCommandsEnabled(enabled: boolean) {
+    this.chatCommandsEnabled = Boolean(enabled);
+  }
+
+  isChatCommandsEnabled(): boolean {
+    return this.chatCommandsEnabled;
+  }
   public autoReplyEnabled: boolean = false;
   public awayMessage: string =
     'I am currently away. Your message has been received and I will reply as soon as possible.';
@@ -320,9 +340,36 @@ export class ChatManager extends Utils.EventEmitter {
     }
   }
 
-  async sendMessage(message: string, channel: number = 0, type: ChatType = ChatType.NORMAL) {
+  async sendMessage(
+    message: string,
+    channel: number = 0,
+    type: ChatType = ChatType.NORMAL,
+    options?: { skipGestureTriggers?: boolean },
+  ) {
     if (!message.trim()) throw new Error('Message cannot be empty');
     if (!this.auth.isLoggedIn()) throw new Error('Not connected to a grid');
+
+    // Forward outbound public spatial chat streams to the gesture runtime engine for trigger matching
+    if (
+      !options?.skipGestureTriggers &&
+      channel === 0 &&
+      (type === ChatType.WHISPER || type === ChatType.NORMAL || type === ChatType.SHOUT) &&
+      this.gestureEngine &&
+      this.chatCommandsEnabled
+    ) {
+      const triggerResult = this.gestureEngine.processOutboundChat(message, { channel, type });
+      if (triggerResult.triggered) {
+        this.emit('gesture_triggered', {
+          matchedGestureIds: triggerResult.matchedGestureIds,
+          consumed: triggerResult.consumed,
+          text: triggerResult.text,
+        });
+      }
+      if (triggerResult.consumed) {
+        return;
+      }
+      message = triggerResult.text;
+    }
 
     // RLV decides what actually leaves the avatar: filtered, redirected to a channel, or not at all
     if (this.rlv?.isEnabled() && type !== ChatType.START && type !== ChatType.STOP) {

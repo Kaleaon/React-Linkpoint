@@ -70,6 +70,64 @@ function watchAnimations(getRegion, send, intervalMs = 2000) {
 
 const MAX_ANIMATION_BYTES = 2 * 1024 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+const MAX_ANIMATION_LIST_CHUNK = 64;
+
+/**
+ * Send outbound AgentAnimation start/stop packets on the region circuit so the simulator
+ * broadcasts custom avatar poses (such as client-side AO overrides) to nearby residents.
+ */
+function sendAgentAnimations(bot, region, animations) {
+  if (!bot) throw new Error('Not connected to a simulator');
+  const circuit = region?.circuit || bot?.circuit;
+  const rawAgentId = bot?.agent?.agentID;
+  const rawSessionId = circuit?.sessionID || bot?.sessionID;
+  if (!circuit || typeof circuit.sendMessage !== 'function' || !rawAgentId || !rawSessionId) {
+    throw new Error('Region circuit unavailable for AgentAnimation');
+  }
+  if (!Array.isArray(animations) || animations.length === 0) {
+    throw new Error('animations must be a non-empty array');
+  }
+
+  const { UUID } = require('@caspertech/node-metaverse/dist/lib/classes/UUID');
+  const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
+  const {
+    AgentAnimationMessage,
+  } = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentAnimation');
+
+  const normalized = animations.map((item, idx) => {
+    const id = String(item?.id || '')
+      .trim()
+      .toLowerCase();
+    if (!UUID_PATTERN.test(id) || id === ZERO_UUID) {
+      throw new Error(`animations[${idx}].id must be a valid non-zero UUID`);
+    }
+    if (typeof item?.start !== 'boolean') {
+      throw new Error(`animations[${idx}].start must be a boolean`);
+    }
+    return { id, start: item.start };
+  });
+
+  const agentUUID = rawAgentId instanceof UUID ? rawAgentId : new UUID(String(rawAgentId));
+  const sessionUUID = rawSessionId instanceof UUID ? rawSessionId : new UUID(String(rawSessionId));
+
+  for (let offset = 0; offset < normalized.length; offset += MAX_ANIMATION_LIST_CHUNK) {
+    const slice = normalized.slice(offset, offset + MAX_ANIMATION_LIST_CHUNK);
+    const msg = new AgentAnimationMessage();
+    msg.AgentData = {
+      AgentID: agentUUID,
+      SessionID: sessionUUID,
+    };
+    msg.AnimationList = slice.map((entry) => ({
+      AnimID: new UUID(entry.id),
+      StartAnim: entry.start,
+    }));
+    msg.PhysicalAvatarEventList = [];
+    circuit.sendMessage(msg, PacketFlags.Reliable);
+  }
+
+  return { sent: true, count: normalized.length };
+}
 
 /** Download an animation asset from the simulator's asset service and return it base64-encoded. */
 async function downloadAnimation(bot, id) {
@@ -110,4 +168,5 @@ module.exports = {
   subscribeAnimations,
   watchAnimations,
   downloadAnimation,
+  sendAgentAnimations,
 };

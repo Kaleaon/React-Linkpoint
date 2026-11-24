@@ -5,6 +5,7 @@ import { Utils } from '../utils';
 class ProtocolStub extends Utils.EventEmitter {
   respondScriptDialog = vi.fn().mockResolvedValue({ answered: true });
   acceptLure = vi.fn().mockResolvedValue({ accepted: true, message: 'Arrived' });
+  teleportHome = vi.fn().mockResolvedValue({ requested: 'home' });
   acceptInventoryOffer = vi.fn().mockResolvedValue({ accepted: true });
   declineInventoryOffer = vi.fn().mockResolvedValue({ declined: true });
   acceptGroupInvite = vi.fn().mockResolvedValue({ accepted: true });
@@ -151,11 +152,46 @@ describe('InteractionsManager', () => {
     expect(manager.items).toHaveLength(1);
     expect(accepted).not.toHaveBeenCalled();
     await expect(manager.acceptLure('l1')).resolves.toBe(true);
+    expect(protocol.acceptLure).toHaveBeenLastCalledWith('l1', 'f', 'Sam');
     expect(accepted).toHaveBeenCalledWith({
       lure: expect.objectContaining({ id: 'l1', fromName: 'Sam' }),
       message: 'Arrived',
     });
     expect(manager.items).toHaveLength(0);
+  });
+
+  it('emits teleport_tick at 100% and holds activeTeleport for 500ms, calling teleportHome on retryHomeTeleport', () => {
+    vi.useFakeTimers();
+    try {
+      const { protocol, manager } = setup();
+      const ticks: any[] = [];
+      manager.on('teleport_tick', (payload: any) => ticks.push(payload));
+
+      manager.startTeleportSession('Ahern');
+      manager.completeTeleportSession('Ahern');
+
+      expect(ticks.at(-1)).toMatchObject({
+        phase: 'completed',
+        stepPercent: 100,
+        statusText: 'Arrived at destination',
+        regionName: 'Ahern',
+      });
+      expect(manager.teleportSession).toMatchObject({
+        phase: 'completed',
+        stepPercent: 100,
+      });
+
+      vi.advanceTimersByTime(499);
+      expect(manager.teleportSession).not.toBeNull();
+
+      vi.advanceTimersByTime(1);
+      expect(manager.teleportSession).toBeNull();
+
+      manager.retryHomeTeleport();
+      expect(protocol.teleportHome).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('dismisses locally even if the server call fails', async () => {

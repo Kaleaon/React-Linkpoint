@@ -74,11 +74,13 @@ export default function FloatersDesktop() {
     protocolEvents.forEach((event) => app.protocol.on(event, refresh));
     app.inventory.on('inventory_loaded', refresh);
     app.notifications.on('notification_received', refresh);
+    app.ao?.on?.('change', refresh);
     return () => {
       worldEvents.forEach((event) => app.world.off(event, refresh));
       protocolEvents.forEach((event) => app.protocol.off(event, refresh));
       app.inventory.off('inventory_loaded', refresh);
       app.notifications.off('notification_received', refresh);
+      app.ao?.off?.('change', refresh);
     };
   }, []);
 
@@ -131,6 +133,21 @@ export default function FloatersDesktop() {
       actions.notify('Chat error: ' + (err.message || String(err)));
     }
     setQuickMsg('');
+  };
+
+  const voiceActionLabel =
+    voice.state === 'connected'
+      ? voice.muted
+        ? 'Unmute Microphone'
+        : 'Mute Microphone'
+      : 'Connect Voice Microphone';
+
+  const handleVoiceToggle = () => {
+    if (voice.state === 'connected') {
+      app.voice.setMuted(!voice.muted);
+    } else {
+      void app.voice.connect().catch(() => {});
+    }
   };
 
   return (
@@ -746,7 +763,7 @@ export default function FloatersDesktop() {
               aria-roledescription="window resize grip"
               aria-label={`${f.title} resize grip`}
               aria-valuenow={r.w}
-              aria-valuemin={216}
+              aria-valuemin={f.minW || 216}
               aria-valuemax={availW}
               aria-orientation="horizontal"
               onMouseDown={(e) => actions.flDrag(f.id, e, 'size')}
@@ -945,10 +962,18 @@ export default function FloatersDesktop() {
               ? state.itemPropertiesWindows.ItemPropertiesFloater.title
               : f.title;
           return (
-            <div
+            <button
               key={f.id}
+              type="button"
               data-floater-chip={f.id}
+              aria-pressed={act}
               onClick={() => actions.flToggle(f.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.flToggle(f.id);
+                }
+              }}
               style={{
                 flex: 'none',
                 whiteSpace: 'nowrap',
@@ -956,7 +981,7 @@ export default function FloatersDesktop() {
               }}
             >
               {chipLabel}
-            </div>
+            </button>
           );
         })}
 
@@ -964,10 +989,18 @@ export default function FloatersDesktop() {
           const min = !!state.flMin[win.windowId];
           const act = win.windowId === state.screen && !min;
           return (
-            <div
+            <button
               key={win.windowId}
+              type="button"
               data-floater-chip={win.windowId}
+              aria-pressed={act}
               onClick={() => actions.flToggle(win.windowId)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.flToggle(win.windowId);
+                }
+              }}
               style={{
                 flex: 'none',
                 whiteSpace: 'nowrap',
@@ -975,19 +1008,23 @@ export default function FloatersDesktop() {
               }}
             >
               {win.title || 'Item Properties'}
-            </div>
+            </button>
           );
         })}
 
         <div style={{ flex: 1, minWidth: '8px' }} />
 
         {/* Microphone / Voice Control */}
-        <div
-          onClick={() => {
-            if (voice.state === 'connected') {
-              app.voice.setMuted(!voice.muted);
-            } else {
-              void app.voice.connect().catch(() => {});
+        <button
+          type="button"
+          aria-label={voiceActionLabel}
+          aria-pressed={voice.state === 'connected' && !voice.muted}
+          title={voiceActionLabel}
+          onClick={handleVoiceToggle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleVoiceToggle();
             }
           }}
           style={{
@@ -996,22 +1033,26 @@ export default function FloatersDesktop() {
             cursor: 'pointer',
             ...chipStyle(kind, { V, t, on: voice.state === 'connected' && !voice.muted, ink }),
           }}
-          title={
-            voice.state === 'connected'
-              ? voice.muted
-                ? 'Unmute Microphone'
-                : 'Mute Microphone'
-              : 'Connect Voice Microphone'
-          }
         >
-          <Icon name={voice.state === 'connected' && voice.muted ? 'mic-off' : 'mic'} size={13} />
+          <Icon
+            name={voice.state === 'connected' && voice.muted ? 'mic-off' : 'mic'}
+            size={13}
+            aria-hidden="true"
+          />
           {voice.state === 'connected' ? (voice.muted ? 'MIC MUTED' : 'MIC LIVE') : 'JOIN VOICE'}
-        </div>
+        </button>
 
         {/* Toggle Camera HUD Button */}
         <button
           type="button"
+          aria-pressed={showCamHud}
           onClick={() => setShowCamHud((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setShowCamHud((v) => !v);
+            }
+          }}
           style={{
             flex: 'none',
             whiteSpace: 'nowrap',
@@ -1019,29 +1060,43 @@ export default function FloatersDesktop() {
           }}
           title="Toggle Camera HUD"
         >
-          <Icon name="video" size={12} />
+          <Icon name="video" size={12} aria-hidden="true" />
           CAM HUD
         </button>
 
         {state.cDock.map((k) => {
           const b = CBTN[k],
-            lit = !!state.cTog[k],
+            lit =
+              k === 'ao'
+                ? Boolean(app.ao?.enabled || (state.flOpen.AO && !state.flMin.AO))
+                : !!state.cTog[k],
             dis = !!b.off;
-          const bg = lit ? V.pri : V.surf2;
           return (
-            <div
+            <button
               key={k}
-              onClick={() => actions.cPress(k)}
+              type="button"
+              disabled={dis}
+              aria-pressed={lit}
+              onClick={() => {
+                if (!dis) actions.cPress(k);
+              }}
+              onKeyDown={(e) => {
+                if (dis) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  actions.cPress(k);
+                }
+              }}
               style={{
                 flex: 'none',
                 whiteSpace: 'nowrap',
-                cursor: dis ? 'not-allowed' : 'pointer',
                 ...chipStyle(kind, { V, t, on: lit, ink, dim: dis }),
+                cursor: dis ? 'not-allowed' : 'pointer',
               }}
             >
-              <Icon name={b.icon} size={13} />
+              <Icon name={b.icon} size={13} aria-hidden="true" />
               {b.label}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1116,6 +1171,12 @@ function buildFBody(state) {
     Diagnostics: [
       { a: 'Connection', b: app.protocol.connected ? 'connected' : 'disconnected' },
       { a: 'Capabilities', b: String(Object.keys(app.protocol.capabilities || {}).length) },
+    ],
+    AO: [
+      { a: 'Overrider', b: app.ao?.enabled ? 'enabled' : 'disabled' },
+      { a: 'Profile', b: app.ao?.getActiveProfile?.()?.name || '—' },
+      { a: 'Locomotion', b: app.ao?.getSnapshot?.()?.currentStateLabel || 'Standing' },
+      { a: 'Active Pose', b: app.ao?.getSnapshot?.()?.activeAnimationName || 'Default Linden' },
     ],
   };
 }

@@ -203,14 +203,19 @@ export default function Search() {
   };
 
   const teleportTo = (destination) => {
-    if (!slBridge.connected) {
+    if (!app.protocol.connected && !slBridge.connected) {
       actions.notify('Connect to a grid to teleport.');
       return;
     }
-    slBridge.teleport({ destination }).then(
+    app.protocol.teleportTo(destination).then(
       () => actions.notify(`Teleport to ${destination} requested`),
-      (err) =>
-        actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
+      (err) => {
+        if (!app.interactions.teleportSession) {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not teleport to ${destination}`,
+          );
+        }
+      },
     );
   };
 
@@ -273,21 +278,29 @@ export default function Search() {
           padding: '14px 16px 10px',
         }}
       >
-        <div
+        <TouchTarget
+          type="button"
+          aria-label="Back"
+          title="Back"
+          minSize={36}
           onClick={() => actions.setScreen(state.searchFrom || 'Friends')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              actions.setScreen(state.searchFrom || 'Friends');
+            }
+          }}
           style={{
             width: '36px',
             height: '36px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            background: 'none',
+            border: 'none',
+            padding: 0,
             color: V.pri,
-            cursor: 'pointer',
           }}
-          title="Back"
         >
-          <Icon name="chevron-left" size={22} />
-        </div>
+          <Icon name="chevron-left" size={22} aria-hidden="true" />
+        </TouchTarget>
         <div>
           <div style={{ font: '700 18px/1 ' + t.dfont, letterSpacing: '.16em', color: V.pri }}>
             GRID DIRECTORY

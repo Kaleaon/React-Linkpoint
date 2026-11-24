@@ -1,9 +1,11 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { app } from '../linkpoint/app.ts';
 import { economyService } from '../services/EconomyService.ts';
 import { GRIDS, subView } from '../theme/constants.js';
 import Icon from '../components/Icon.jsx';
 import AssetContainer from '../components/AssetContainer.jsx';
+import SkeletonLoader from '../components/SkeletonLoader.jsx';
+import SyncActionButton from '../components/SyncActionButton.tsx';
 import PayDialog from '../components/PayDialog.jsx';
 import FocusTrap from '../components/FocusTrap.jsx';
 import CrystalLoader from '../components/CrystalLoader.jsx';
@@ -14,6 +16,7 @@ import { FocusRing } from '@linkpoint/design-system';
 import AccessibleInput from '../components/AccessibleInput';
 import AccessibleSelect from '../components/AccessibleSelect';
 import { decodeLindenText } from '../linkpoint/notecard.ts';
+import AOFloater from './AOFloater.jsx';
 
 function Empty({ icon, children }) {
   return (
@@ -63,9 +66,46 @@ export function GridsScreen() {
   );
 }
 
+/**
+ * @param {MediaError | { code?: number } | null | undefined} mediaError
+ * @returns {string}
+ */
+function getMediaErrorMessage(mediaError) {
+  switch (mediaError?.code) {
+    case 1:
+      return 'Stream playback was aborted.';
+    case 2:
+      return 'A network error interrupted stream playback.';
+    case 3:
+      return 'The audio stream could not be decoded.';
+    case 4:
+      return 'The stream format is unsupported or the source could not be reached.';
+    default:
+      return 'Unable to play audio stream. Check the stream URL and try again.';
+  }
+}
+
 export function MediaScreen() {
+  const { V } = useTheme();
   const [url, setUrl] = useState('');
   const [active, setActive] = useState('');
+  const [error, setError] = useState('');
+  const [lastUrl, setLastUrl] = useState('');
+  const [attempt, setAttempt] = useState(0);
+
+  const trimmedUrl = url.trim();
+  const isValidHttpsUrl = /^https:\/\//i.test(trimmedUrl);
+
+  /** @param {string} targetUrl */
+  const startPlayback = (targetUrl) => {
+    const nextUrl = targetUrl.trim();
+    if (!/^https:\/\//i.test(nextUrl)) return;
+    setError('');
+    setLastUrl(nextUrl);
+    setAttempt((c) => c + 1);
+    setActive(nextUrl);
+  };
+
   return (
     <div className="tool-page">
       <h2>Streaming media</h2>
@@ -74,66 +114,271 @@ export function MediaScreen() {
           type="url"
           aria-label="HTTPS audio stream URL"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (error) {
+              setError('');
+            }
+          }}
           placeholder="HTTPS audio stream URL"
         />
-        <button onClick={() => setActive(url.trim())} disabled={!/^https:\/\//i.test(url.trim())}>
+        <button type="button" onClick={() => startPlayback(url)} disabled={!isValidHttpsUrl}>
           Play
         </button>
       </div>
+      {error ? (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            margin: '0 12px 12px',
+            padding: '12px 14px',
+            border: `1px solid ${V.err}`,
+            borderRadius: V.rs,
+            background: V.surf,
+            color: V.err,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            fontSize: 13,
+          }}
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => startPlayback(isValidHttpsUrl ? trimmedUrl : lastUrl)}
+            style={{
+              minHeight: 28,
+              padding: '0 12px',
+              border: `1px solid ${V.err}`,
+              borderRadius: V.rs,
+              background: 'transparent',
+              color: V.err,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       {active ? (
         <audio
+          key={`${active}-${attempt}`}
           className="media-player"
           src={active}
           controls
           autoPlay
-          onError={() => setActive('')}
+          onError={(e) => {
+            setError(getMediaErrorMessage(e.currentTarget?.error));
+            setActive('');
+          }}
         />
-      ) : (
+      ) : !error ? (
         <Empty icon="radio">
           Enter an HTTPS stream supplied by the current parcel or broadcaster.
         </Empty>
-      )}
+      ) : null}
     </div>
   );
 }
 
+function decodeNotecardPayload(raw) {
+  const rawString =
+    typeof raw === 'string'
+      ? raw
+      : raw instanceof ArrayBuffer || ArrayBuffer.isView(raw)
+        ? new TextDecoder('utf-8').decode(raw)
+        : '';
+  if (rawString.startsWith('Linden text version')) {
+    return decodeLindenText(rawString).text;
+  }
+  return rawString;
+}
+
 export function NotecardsScreen() {
-  const { actions } = useApp();
-  const { V } = useTheme();
-  const cards = useMemo(
-    () => Array.from(app.inventory.items.values()).filter((item) => Number(item.assetType) === 7),
-    [],
-  );
+  const { state, actions } = useApp();
+  const { V, isFloat } = useTheme();
+  const [isLoading, setIsLoading] = useState(() => app.inventory.isLoading);
+  const [refreshing, setRefreshing] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState(null);
 
-  const decodedContent = useMemo(() => {
-    if (!selected) return '';
-    const raw = selected.data || selected.text;
-    if (typeof raw === 'string') {
-      if (raw.startsWith('Linden text version')) {
+  const draftsRef = useRef(state?.notecardDrafts);
+  draftsRef.current = state?.notecardDrafts;
+
+  useEffect(() => {
+    const refresh = () => setRevision((n) => n + 1);
+    const startLoading = () => setIsLoading(true);
+    const stopLoading = () => setIsLoading(false);
+
+    app.inventory.on('inventory_loaded', refresh);
+    app.inventory.on('inventory_updated', refresh);
+    app.inventory.on('inventory_loading_start', startLoading);
+    app.inventory.on('inventory_loading_end', stopLoading);
+
+    return () => {
+      app.inventory.off('inventory_loaded', refresh);
+      app.inventory.off('inventory_updated', refresh);
+      app.inventory.off('inventory_loading_start', startLoading);
+      app.inventory.off('inventory_loading_end', stopLoading);
+    };
+  }, []);
+
+  const cards = useMemo(() => {
+    void revision;
+    return Array.from(app.inventory.items.values()).filter((item) => Number(item.assetType) === 7);
+  }, [revision]);
+
+  const activeSelected = useMemo(
+    () => (selected ? cards.find((card) => card.id === selected.id) || null : null),
+    [cards, selected],
+  );
+
+  useEffect(() => {
+    if (selected && !activeSelected) {
+      setSelected(null);
+    }
+  }, [selected, activeSelected]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setIsLoading(true);
+    try {
+      await app.inventory.load();
+    } catch (err) {
+      console.warn('[NotecardsScreen] Inventory refresh failed:', err);
+    } finally {
+      setRefreshing(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetchNotecard = useCallback(async (card, onProgress) => {
+    if (!card) return { text: '' };
+    const itemId = card.id || card.itemId || '';
+    const assetId = card.assetId || card.id || '';
+
+    const drafts = draftsRef.current;
+    if (drafts && itemId && drafts[itemId] !== undefined) {
+      return { text: drafts[itemId] };
+    }
+
+    if (typeof card.text === 'string') {
+      let decoded = card.text;
+      if (decoded.startsWith('Linden text version')) {
         try {
-          return decodeLindenText(raw).text;
+          decoded = decodeLindenText(decoded).text;
+          card.text = decoded;
         } catch {
-          return raw;
+          // Keep existing string when already plain text
         }
       }
-      return raw;
+      return { text: decoded };
     }
-    return selected.description || '';
-  }, [selected]);
+
+    if (card.data) {
+      try {
+        const decoded = decodeNotecardPayload(card.data);
+        card.text = decoded;
+        return { text: decoded };
+      } catch (decodeErr) {
+        console.warn('[NotecardsScreen] Local payload decode failed:', decodeErr);
+      }
+    }
+
+    if (!app.protocol?.fetchNotecard) {
+      return { text: '' };
+    }
+
+    const res = await app.protocol.fetchNotecard(assetId, itemId);
+    if (typeof res?.size === 'number' && res.size > 0) {
+      onProgress?.(res.size, res.size);
+    }
+
+    const rawPayload =
+      typeof res === 'string' || res instanceof ArrayBuffer || ArrayBuffer.isView(res)
+        ? res
+        : (res?.data ?? '');
+    const dataString =
+      typeof rawPayload === 'string'
+        ? rawPayload
+        : rawPayload instanceof ArrayBuffer || ArrayBuffer.isView(rawPayload)
+          ? new TextDecoder('utf-8').decode(rawPayload)
+          : '';
+    const decodedText = dataString.startsWith('Linden text version')
+      ? decodeLindenText(dataString).text
+      : dataString;
+
+    if (dataString && !card.data) {
+      card.data = dataString;
+    }
+    card.text = decodedText;
+
+    const invItem = itemId ? app.inventory.items.get(itemId) : null;
+    if (invItem && invItem !== card) {
+      if (dataString && !invItem.data) {
+        invItem.data = dataString;
+      }
+      invItem.text = decodedText;
+    }
+
+    return { text: decodedText };
+  }, []);
+
+  const showSkeletons = (isLoading || refreshing) && cards.length === 0;
 
   return (
     <div className="tool-page">
-      <h2>Notecards</h2>
-      {cards.length ? (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Notecards</h2>
+        <SyncActionButton
+          type="button"
+          onClick={() => void handleRefresh()}
+          loading={refreshing || isLoading}
+          disabled={!app.auth.isLoggedIn()}
+          iconName="rotate-cw"
+          size={14}
+          idleText="REFRESH"
+          loadingText="FETCHING…"
+          title="Reload Second Life inventory"
+          style={{
+            height: '36px',
+            padding: '0 12px',
+            background: V?.surf,
+            border: `1px solid ${V?.outv}`,
+            borderRadius: V?.rs,
+            color: V?.pri,
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            flex: 'none',
+          }}
+        />
+      </div>
+      {showSkeletons ? (
+        <SkeletonLoader type="row" count={5} />
+      ) : cards.length ? (
         cards.map((card) => (
           <button
+            type="button"
             className="runtime-card runtime-card-button"
             key={card.id}
             onClick={() => {
               setSelected(card);
-              actions?.openNotecard?.(card);
+              if (isFloat) {
+                actions?.openNotecard?.(card);
+              }
             }}
           >
             <Icon name="file-text" size={18} />
@@ -143,40 +388,77 @@ export function NotecardsScreen() {
       ) : (
         <Empty icon="file-text">No notecards have been loaded from inventory.</Empty>
       )}
-      {selected ? (
-        <AssetContainer asset={selected} title={selected.name}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '8px',
-            }}
-          >
-            <h3 style={{ margin: 0 }}>{selected.name}</h3>
-            <button
-              type="button"
-              className="sync-action-btn"
-              onClick={() => actions?.openNotecard?.(selected)}
-              style={{
-                background: V?.pri,
-                color: V?.onpri || V?.bg,
-                border: 'none',
-                borderRadius: V?.rs,
-                padding: '4px 10px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Open in Floater
-            </button>
-          </div>
-          <p style={{ whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
-            {decodedContent || selected.description || '―'}
-          </p>
-          <small>{selected.id}</small>
-        </AssetContainer>
+      {activeSelected ? (
+        <AssetContainer
+          key={activeSelected.id}
+          asset={activeSelected}
+          title={activeSelected.name}
+          onFetch={handleFetchNotecard}
+          renderContent={(loadedData, currentAsset) => {
+            const card = currentAsset || activeSelected;
+            const itemId = card?.id || card?.itemId || '';
+            let resolvedText = '';
+            if (state?.notecardDrafts && itemId && state.notecardDrafts[itemId] !== undefined) {
+              resolvedText = state.notecardDrafts[itemId];
+            } else if (
+              loadedData &&
+              typeof loadedData === 'object' &&
+              typeof loadedData.text === 'string'
+            ) {
+              resolvedText = loadedData.text;
+            } else if (typeof card?.text === 'string') {
+              resolvedText = card.text;
+            } else if (
+              typeof loadedData === 'string' ||
+              loadedData instanceof ArrayBuffer ||
+              ArrayBuffer.isView(loadedData)
+            ) {
+              try {
+                resolvedText = decodeNotecardPayload(loadedData);
+              } catch {
+                resolvedText = typeof loadedData === 'string' ? loadedData : '';
+              }
+            }
+
+            return (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
+                  }}
+                >
+                  <h3 style={{ margin: 0 }}>{card.name}</h3>
+                  {isFloat ? (
+                    <button
+                      type="button"
+                      className="sync-action-btn"
+                      onClick={() => actions?.openNotecard?.(card)}
+                      style={{
+                        background: V?.pri,
+                        color: V?.onpri || V?.bg,
+                        border: 'none',
+                        borderRadius: V?.rs,
+                        padding: '4px 10px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Open in Floater
+                    </button>
+                  ) : null}
+                </div>
+                <p style={{ whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto' }}>
+                  {resolvedText || '—'}
+                </p>
+                <small>{card.id}</small>
+              </>
+            );
+          }}
+        />
       ) : null}
     </div>
   );
@@ -1742,17 +2024,6 @@ export function DiagnosticsScreen() {
     </div>
   );
 }
-
-// The animation overrider is a worn attachment with its own scripts. The grid
-// does not tell the viewer which attachments, scripts or animations are running,
-// so there is nothing real to list here yet.
 export function AOScreen() {
-  return (
-    <div className="tool-page">
-      <Empty icon="person-standing">
-        Animation overrider status is not available. The viewer does not receive worn-attachment or
-        script information from the grid yet.
-      </Empty>
-    </div>
-  );
+  return <AOFloater />;
 }

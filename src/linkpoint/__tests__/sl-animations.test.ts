@@ -7,9 +7,15 @@ const {
   subscribeAnimations,
   watchAnimations,
   downloadAnimation,
+  sendAgentAnimations,
 } = require('../../../core/sl-animations.cjs');
 const { Message } = require('@caspertech/node-metaverse/dist/lib/enums/Message');
-const { serializeObject } = require('../../../core/viewer-session.cjs');
+const { PacketFlags } = require('@caspertech/node-metaverse/dist/lib/enums/PacketFlags');
+const {
+  AgentAnimationMessage,
+} = require('@caspertech/node-metaverse/dist/lib/classes/messages/AgentAnimation');
+const { callViewer } = require('../../../core/viewer-api.cjs');
+const { ViewerSession, serializeObject } = require('../../../core/viewer-session.cjs');
 
 const uuid = (value: string) => ({ toString: () => value });
 
@@ -144,5 +150,65 @@ describe('animation asset downloads', () => {
     await expect(downloadAnimation(bot, id)).resolves.toBe(bytes.toString('base64'));
     expect(transfer).toHaveBeenCalledTimes(1);
     expect(transfer.mock.calls[0][3].subarray(0, 16)).toHaveLength(16);
+  });
+});
+
+describe('outbound AgentAnimation packets (sendAgentAnimations)', () => {
+  const AGENT_ID = 'aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb';
+  const SESSION_ID = 'cccccccc-4444-5555-6666-dddddddddddd';
+  const ANIM_STOP = '11111111-2222-3333-4444-555555555501';
+  const ANIM_START = '11111111-2222-3333-4444-555555555502';
+
+  it('serializes valid AgentAnimationMessage packets on the reliable circuit and round-trips wire bytes', () => {
+    const sendMessage = vi.fn();
+    const region = { circuit: { sessionID: SESSION_ID, sendMessage } };
+    const bot = { agent: { agentID: AGENT_ID } };
+
+    const res = sendAgentAnimations(bot, region, [
+      { id: ANIM_STOP.toUpperCase(), start: false },
+      { id: ANIM_START, start: true },
+    ]);
+    expect(res).toEqual({ sent: true, count: 2 });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [msg, flags] = sendMessage.mock.calls[0];
+    expect(flags).toBe(PacketFlags.Reliable);
+    expect(msg).toBeInstanceOf(AgentAnimationMessage);
+
+    // Round-trip wire binary serialization to prove simulator packet integrity
+    const buf = Buffer.alloc(msg.getSize());
+    msg.writeToBuffer(buf, 0);
+    const decoded = new AgentAnimationMessage();
+    decoded.readFromBuffer(buf, 0);
+    expect(decoded.AgentData.AgentID.toString()).toBe(AGENT_ID);
+    expect(decoded.AgentData.SessionID.toString()).toBe(SESSION_ID);
+    expect(decoded.AnimationList).toHaveLength(2);
+    expect(decoded.AnimationList[0].AnimID.toString()).toBe(ANIM_STOP);
+    expect(decoded.AnimationList[0].StartAnim).toBe(false);
+    expect(decoded.AnimationList[1].AnimID.toString()).toBe(ANIM_START);
+    expect(decoded.AnimationList[1].StartAnim).toBe(true);
+  });
+
+  it('dispatches through ViewerSession and callViewer, rejecting malformed UUIDs or disconnected sessions', async () => {
+    const sendMessage = vi.fn();
+    const session = new ViewerSession(() => {});
+    (session as any).bot = {
+      agent: { agentID: AGENT_ID },
+      currentRegion: { circuit: { sessionID: SESSION_ID, sendMessage } },
+    };
+
+    await expect(
+      callViewer(session, 'sendAgentAnimations', {
+        animations: [{ id: ANIM_START, start: true }],
+      }),
+    ).resolves.toEqual({ sent: true, count: 1 });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    expect(() =>
+      sendAgentAnimations(
+        { agent: { agentID: AGENT_ID } },
+        { circuit: { sessionID: SESSION_ID, sendMessage } },
+        [{ id: '00000000-0000-0000-0000-000000000000', start: true }],
+      ),
+    ).toThrow(/valid non-zero UUID/);
   });
 });

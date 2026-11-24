@@ -7,12 +7,14 @@ import {
   type KeyMotion,
 } from './keyboard-motion';
 import { cameraRates, heldCameraCommands, isCameraKey } from './camera-keyboard';
-import { matchesKeyBinding, type KeyMode } from './key-bindings';
+import { matchesKeyBinding, type KeyMode, type KeyOverrides } from './key-bindings';
 
 /** Hooks the viewer gives the controls for the standard Second Life camera shortcuts. */
 export interface CameraControlOptions {
   /** Binding table in force (third person, first person, sitting). */
   keyMode?: () => KeyMode;
+  /** Optional custom camera-mode key mapping overrides. */
+  overrides?: () => KeyOverrides;
   /** Esc: put the camera back behind the avatar. */
   resetView?: () => void;
   /** M: switch between the third-person camera and mouselook. */
@@ -327,7 +329,7 @@ export class CameraControls {
     // While sitting the unmodified movement keys drive the camera (the sitting binding table), since the avatar cannot walk.
     if (
       (event.altKey || event.ctrlKey || this.keyMode() === 'sitting') &&
-      isCameraKey(event.code, this.mods, this.keyMode())
+      isCameraKey(event.code, this.mods, this.keyMode(), this.options.overrides?.())
     ) {
       event.preventDefault();
       this.cameraKeys.add(event.code);
@@ -382,7 +384,14 @@ export class CameraControls {
       const seconds = Math.min((time - (this.lastFrame || time)) / 1000, 0.05);
       this.lastFrame = time;
       if (this.cameraKeys.size) {
-        const rates = cameraRates(heldCameraCommands(this.cameraKeys, this.mods, this.keyMode()));
+        const rates = cameraRates(
+          heldCameraCommands(
+            this.cameraKeys,
+            this.mods,
+            this.keyMode(),
+            this.options.overrides?.(),
+          ),
+        );
         if (rates.yaw || rates.pitch)
           this.camera.rotate(rates.pitch * seconds, rates.yaw * seconds);
         if (rates.zoom) this.camera.zoom(rates.zoom * seconds);

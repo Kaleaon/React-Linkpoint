@@ -3,15 +3,19 @@ import {
   ArrowUp,
   ArrowDown,
   FolderInput,
+  FolderPlus,
   Trash2,
   X,
   FileText,
   SlidersHorizontal,
+  AlertCircle,
 } from 'lucide-react';
 import { app } from '../linkpoint/app';
 import { AppContext } from '../context/AppContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import FocusTrap from './FocusTrap';
+import TouchTarget from './TouchTarget';
+import CreateFolderModal from './CreateFolderModal';
 import type { InspectableInventoryItem } from '../linkpoint/services/inventory-properties-service';
 
 function useSafeTheme() {
@@ -32,6 +36,8 @@ export interface InventoryTreeProps {
   className?: string;
   filter?: string;
   onItemActivate?: (item: any) => void;
+  expandRequest?: { folderId: string; seq: number } | null;
+  onRequestCreateFolder?: (parentFolderId: string) => void;
 }
 
 export interface FlatTreeNode {
@@ -143,6 +149,7 @@ interface TreeNodeRowProps {
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
   openMoveModal: (item: any) => void;
+  openCreateFolderModal?: (folder: any) => void;
   openEmptyTrashModal?: () => void;
   onDeleteNode?: (flatNode: FlatTreeNode) => void;
   announce: (message: string) => void;
@@ -171,6 +178,7 @@ interface TreeNodeActionMenuProps {
   V: ReturnType<typeof useSafeTheme>['V'];
   setOpenMenuId: (id: string | null) => void;
   openMoveModal: (item: any) => void;
+  openCreateFolderModal?: (folder: any) => void;
   openEmptyTrashModal?: () => void;
   onDeleteNode?: (flatNode: FlatTreeNode) => void;
   onInspectProperties?: (flatNode: FlatTreeNode, newWindow?: boolean) => void;
@@ -183,6 +191,7 @@ const TreeNodeActionMenu: React.FC<TreeNodeActionMenuProps> = ({
   V,
   setOpenMenuId,
   openMoveModal,
+  openCreateFolderModal,
   openEmptyTrashModal,
   onDeleteNode,
   onInspectProperties,
@@ -190,13 +199,15 @@ const TreeNodeActionMenu: React.FC<TreeNodeActionMenuProps> = ({
   announce,
 }) => {
   const { id, isFolder, node } = flatNode;
-  const firstMenuItemRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    firstMenuItemRef.current?.focus();
+    const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    firstItem?.focus();
   }, []);
 
   const isProtected = isFolder ? app.inventory.isProtectedFolder(node) : false;
+  const canCreateSubfolder = isFolder ? app.inventory.canCreateFolderIn(node) : false;
   const isTrashFolder = isFolder
     ? node.folderType === 13 ||
       node.folderType === 14 ||
@@ -226,6 +237,7 @@ const TreeNodeActionMenu: React.FC<TreeNodeActionMenuProps> = ({
 
   return (
     <div
+      ref={menuRef}
       role="menu"
       aria-label={`Actions menu for ${node.name}`}
       style={{
@@ -237,12 +249,33 @@ const TreeNodeActionMenu: React.FC<TreeNodeActionMenuProps> = ({
         border: `1px solid ${V.bdg || '#334155'}`,
         borderRadius: '6px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-        minWidth: '150px',
+        minWidth: '160px',
         padding: '4px 0',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
+      {canCreateSubfolder && (
+        <TouchTarget
+          type="button"
+          role="menuitem"
+          minSize={44}
+          enhanced
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenMenuId(null);
+            openCreateFolderModal?.(node);
+          }}
+          style={{
+            ...menuItemStyle,
+            justifyContent: 'flex-start',
+            width: '100%',
+          }}
+        >
+          <FolderPlus size={14} style={{ color: V.pri || '#38bdf8' }} aria-hidden="true" />
+          New Folder
+        </TouchTarget>
+      )}
       {!isFolder && Number(node.assetType) === 7 && (
         <button
           type="button"
@@ -261,7 +294,6 @@ const TreeNodeActionMenu: React.FC<TreeNodeActionMenuProps> = ({
       <button
         type="button"
         role="menuitem"
-        ref={firstMenuItemRef}
         onClick={(e) => {
           e.stopPropagation();
           setOpenMenuId(null);
@@ -383,6 +415,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
     openMenuId,
     setOpenMenuId,
     openMoveModal,
+    openCreateFolderModal,
     openEmptyTrashModal,
     onDeleteNode,
     announce,
@@ -485,6 +518,12 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
         aria-level={depth + 1}
         tabIndex={isFocused ? 0 : -1}
         onClick={handleSelect}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onFocusNode(id);
+          setOpenMenuId(isMenuOpen ? null : id);
+        }}
         onDoubleClick={() => {
           if (!isFolder) {
             onItemActivate?.(node);
@@ -577,6 +616,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = React.memo(
               V={V}
               setOpenMenuId={setOpenMenuId}
               openMoveModal={openMoveModal}
+              openCreateFolderModal={openCreateFolderModal}
               openEmptyTrashModal={openEmptyTrashModal}
               onDeleteNode={onDeleteNode}
               onInspectProperties={onInspectProperties}
@@ -600,6 +640,8 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   className,
   filter,
   onItemActivate,
+  expandRequest,
+  onRequestCreateFolder,
 }) => {
   const { V } = useSafeTheme();
   const appCtx = useContext(AppContext);
@@ -609,6 +651,8 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [moveTargetItem, setMoveTargetItem] = useState<any | null>(null);
+  const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
+  const [folderErrorAlert, setFolderErrorAlert] = useState<string>('');
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<any | null>(null);
   const [emptyTrashModalOpen, setEmptyTrashModalOpen] = useState(false);
   const [selectedTargetFolderId, setSelectedTargetFolderId] = useState<string>('');
@@ -655,6 +699,13 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
       setExpandedMap((prev) => ({ ...prev, [effectiveRootId]: true }));
     }
   }, [effectiveRootId]);
+
+  // Expand requested parent folder (e.g., when toolbar creates a subfolder)
+  useEffect(() => {
+    if (expandRequest?.folderId) {
+      setExpandedMap((prev) => ({ ...prev, [expandRequest.folderId]: true }));
+    }
+  }, [expandRequest]);
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedMap((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -790,6 +841,49 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
       setSelectedTargetFolderId(initialTarget);
     },
     [candidateFolders],
+  );
+
+  const handleOpenCreateFolderModal = useCallback(
+    (folder: any) => {
+      if (!folder?.id) return;
+      if (onRequestCreateFolder) {
+        onRequestCreateFolder(folder.id);
+        return;
+      }
+      setFolderErrorAlert('');
+      setCreateFolderParentId(folder.id);
+    },
+    [onRequestCreateFolder],
+  );
+
+  const handleCreateFolderSubmit = useCallback(
+    async ({ parentId, name }: { parentId: string; name: string }) => {
+      setCreateFolderParentId(null);
+      setFolderErrorAlert('');
+      setExpandedMap((prev) => ({ ...prev, [parentId]: true }));
+
+      try {
+        const created = await app.inventory.createInventoryFolder({
+          parentId,
+          name,
+          onOptimisticCreate: (optFolder) => {
+            setFocusedId(optFolder.id);
+            onSelect?.(optFolder);
+          },
+        });
+        if (created) {
+          setFocusedId(created.id);
+          onSelect?.(created);
+          announce(`Created folder ${created.name}`);
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : 'Simulator network error';
+        const alertMsg = `Failed to create folder: ${reason}`;
+        setFolderErrorAlert(alertMsg);
+        announce(alertMsg);
+      }
+    },
+    [announce, onSelect],
   );
 
   const handleDeleteNode = useCallback(
@@ -1205,6 +1299,45 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
         {announcement}
       </div>
 
+      {folderErrorAlert && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            padding: '8px 12px',
+            marginBottom: '8px',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            border: `1px solid ${V.err || '#ef4444'}`,
+            color: V.ink || '#fecaca',
+            fontSize: '0.8125rem',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={16} style={{ color: V.err || '#ef4444', flexShrink: 0 }} />
+            <span>{folderErrorAlert}</span>
+          </span>
+          <TouchTarget
+            type="button"
+            minSize={44}
+            enhanced
+            aria-label="Dismiss error alert"
+            onClick={() => setFolderErrorAlert('')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: V.ink || '#fecaca',
+              borderRadius: '4px',
+            }}
+          >
+            <X size={16} />
+          </TouchTarget>
+        </div>
+      )}
+
       {/* Multi-Selection Action Bar */}
       {selectedItemNodes.length > 1 && (
         <div
@@ -1302,6 +1435,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
                 openMoveModal={openMoveModal}
+                openCreateFolderModal={handleOpenCreateFolderModal}
                 openEmptyTrashModal={handleOpenEmptyTrashModal}
                 onDeleteNode={handleDeleteNode}
                 announce={announce}
@@ -1651,6 +1785,15 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({
             </div>
           </div>
         </FocusTrap>
+      )}
+
+      {createFolderParentId !== null && (
+        <CreateFolderModal
+          isOpen={true}
+          initialParentId={createFolderParentId || undefined}
+          onClose={() => setCreateFolderParentId(null)}
+          onSubmit={handleCreateFolderSubmit}
+        />
       )}
     </div>
   );

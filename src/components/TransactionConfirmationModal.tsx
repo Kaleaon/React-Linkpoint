@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { economyService, PendingTransactionRequest } from '../services/EconomyService';
+import { useTheme } from '../context/ThemeContext.jsx';
+import AccessibleButton from './AccessibleButton';
+import FocusRing from './FocusRing';
 import FocusTrap from './FocusTrap.jsx';
 import Icon from './Icon.jsx';
 import CrystalLoader from './CrystalLoader.jsx';
 
 export default function TransactionConfirmationModal() {
+  const { V, t } = useTheme();
   const [pendingRequests, setPendingRequests] = useState<PendingTransactionRequest[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,25 +86,27 @@ export default function TransactionConfirmationModal() {
         aria-describedby="tx-confirmation-desc"
         className="tx-confirmation-container"
         style={{
-          backgroundColor: '#111827',
-          color: '#f3f4f6',
-          borderRadius: '12px',
+          backgroundColor: V.surf,
+          color: V.ink,
+          fontFamily: t.font,
+          borderRadius: V.rl,
           width: '100%',
           maxWidth: '440px',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
-          border: '1px solid #374151',
+          border: `1px solid ${V.outv}`,
           overflow: 'hidden',
         }}
       >
         {/* Header */}
         <div
+          className="tx-confirmation-header"
           style={{
             padding: '16px 20px',
-            borderBottom: '1px solid #1f2937',
+            borderBottom: `1px solid ${V.outv}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: '#1f2937',
+            backgroundColor: V.surf2,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -109,11 +115,12 @@ export default function TransactionConfirmationModal() {
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(234, 179, 8, 0.2)',
+                backgroundColor: V.surf,
+                border: `1px solid ${V.outv}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#facc15',
+                color: V.pri,
               }}
             >
               <Icon name="banknote" size={18} />
@@ -121,94 +128,114 @@ export default function TransactionConfirmationModal() {
             <div>
               <h3
                 id="tx-confirmation-title"
-                style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#f9fafb' }}
+                style={{
+                  margin: 0,
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: V.ink,
+                  fontFamily: t.font,
+                }}
               >
                 Confirm Transaction
               </h3>
-              <small style={{ color: '#9ca3af', fontSize: '12px' }}>
+              <small style={{ color: V.ink2, fontSize: '12px', fontFamily: t.font }}>
                 WCAG 2.2 Financial Safety Verification
               </small>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isProcessing}
-            aria-label="Cancel transaction"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#9ca3af',
-              cursor: isProcessing ? 'not-allowed' : 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <Icon name="x" size={18} />
-          </button>
+          <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+            <AccessibleButton
+              as="button"
+              onClick={handleCancel}
+              disabled={isProcessing}
+              aria-label="Cancel transaction"
+              style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: V.ink2,
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                opacity: isProcessing ? 0.5 : 1,
+                padding: '4px',
+                borderRadius: V.rs,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <Icon name="x" size={18} />
+            </AccessibleButton>
+          </FocusRing>
         </div>
 
         {/* Content */}
         <div style={{ padding: '20px' }}>
           <p
             id="tx-confirmation-desc"
-            style={{ marginTop: 0, marginBottom: '16px', fontSize: '14px', color: '#d1d5db' }}
+            style={{
+              marginTop: 0,
+              marginBottom: '16px',
+              fontSize: '14px',
+              color: V.ink2,
+              fontFamily: t.font,
+            }}
           >
             Please review the details below before authorizing this payment.
           </p>
 
           {error && (
             <div
+              role="alert"
               style={{
                 marginBottom: '16px',
                 padding: '10px 12px',
-                backgroundColor: 'rgba(225, 29, 72, 0.15)',
-                border: '1px solid #f43f5e',
-                borderRadius: '6px',
-                color: '#fecdd3',
+                backgroundColor: V.surf2,
+                border: `1px solid ${V.err}`,
+                borderRadius: V.rs,
+                color: V.err,
+                fontFamily: t.font,
                 fontSize: '13px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
               }}
             >
-              <Icon name="alert-circle" size={16} style={{ flexShrink: 0, color: '#f43f5e' }} />
+              <Icon name="alert-circle" size={16} style={{ flexShrink: 0, color: V.err }} />
               <span>{error}</span>
             </div>
           )}
 
           {/* Details Card */}
           <div
+            className="tx-confirmation-details"
             style={{
-              backgroundColor: '#1f2937',
-              borderRadius: '8px',
-              border: '1px solid #374151',
+              backgroundColor: V.surf2,
+              borderRadius: V.rp,
+              border: `1px solid ${V.outv}`,
               padding: '14px 16px',
               display: 'flex',
               flexDirection: 'column',
               gap: '12px',
               fontSize: '14px',
+              fontFamily: t.font,
             }}
           >
             {/* Recipient */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#9ca3af', fontSize: '13px' }}>Recipient Name:</span>
-              <span style={{ fontWeight: '600', color: '#f9fafb' }}>{targetName}</span>
+              <span style={{ color: V.ink2, fontSize: '13px' }}>Recipient Name:</span>
+              <span style={{ fontWeight: '600', color: V.ink }}>{targetName}</span>
             </div>
 
             {/* Target Type */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#9ca3af', fontSize: '13px' }}>Type:</span>
+              <span style={{ color: V.ink2, fontSize: '13px' }}>Type:</span>
               <span
                 style={{
                   fontWeight: '500',
-                  color: '#e5e7eb',
+                  color: V.ink,
                   textTransform: 'capitalize',
-                  backgroundColor: '#374151',
+                  backgroundColor: V.surf,
+                  border: `1px solid ${V.outv}`,
                   padding: '2px 8px',
-                  borderRadius: '4px',
+                  borderRadius: V.rs,
                   fontSize: '12px',
                 }}
               >
@@ -222,12 +249,12 @@ export default function TransactionConfirmationModal() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderTop: '1px solid #374151',
+                borderTop: `1px solid ${V.outv}`,
                 paddingTop: '10px',
               }}
             >
-              <span style={{ color: '#9ca3af', fontSize: '13px' }}>Transaction Amount:</span>
-              <span style={{ fontWeight: '700', fontSize: '16px', color: '#38bdf8' }}>
+              <span style={{ color: V.ink2, fontSize: '13px' }}>Transaction Amount:</span>
+              <span style={{ fontWeight: '700', fontSize: '16px', color: V.pri }}>
                 {currencySymbol} {amount}
               </span>
             </div>
@@ -241,10 +268,10 @@ export default function TransactionConfirmationModal() {
                   alignItems: 'flex-start',
                 }}
               >
-                <span style={{ color: '#9ca3af', fontSize: '13px' }}>Description:</span>
+                <span style={{ color: V.ink2, fontSize: '13px' }}>Description:</span>
                 <span
                   style={{
-                    color: '#d1d5db',
+                    color: V.ink,
                     fontSize: '13px',
                     maxWidth: '200px',
                     textAlign: 'right',
@@ -262,28 +289,27 @@ export default function TransactionConfirmationModal() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderTop: '1px solid #374151',
+                borderTop: `1px solid ${V.outv}`,
                 paddingTop: '10px',
               }}
             >
-              <span style={{ color: '#9ca3af', fontSize: '13px' }}>Current Balance:</span>
-              <span style={{ color: '#e5e7eb' }}>
+              <span style={{ color: V.ink2, fontSize: '13px' }}>Current Balance:</span>
+              <span style={{ color: V.ink }}>
                 {currentBalance !== null ? `${currencySymbol} ${currentBalance}` : 'N/A'}
               </span>
             </div>
 
             {/* Expected Remaining Balance */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#9ca3af', fontSize: '13px' }}>
-                Expected Remaining Balance:
-              </span>
+              <span style={{ color: V.ink2, fontSize: '13px' }}>Expected Remaining Balance:</span>
               <span
+                data-testid="expected-remaining-balance"
                 style={{
                   fontWeight: '600',
                   color:
                     expectedRemainingBalance !== null && expectedRemainingBalance < 0
-                      ? '#f87171'
-                      : '#34d399',
+                      ? V.err
+                      : V.ok,
                 }}
               >
                 {expectedRemainingBalance !== null
@@ -295,53 +321,61 @@ export default function TransactionConfirmationModal() {
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={isProcessing}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: '1px solid #4b5563',
-                backgroundColor: '#1f2937',
-                color: '#e5e7eb',
-                fontWeight: '600',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-              }}
-            >
-              Cancel Payment
-            </button>
-            <button
-              type="button"
-              onClick={handleApprove}
-              disabled={isProcessing}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: isProcessing ? '#4b5563' : '#0284c7',
-                color: '#ffffff',
-                fontWeight: '600',
-                cursor: isProcessing ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              {isProcessing ? (
-                <>
-                  <CrystalLoader size={16} variant="inline" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <span>Approve Payment</span>
-              )}
-            </button>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <AccessibleButton
+                as="button"
+                onClick={handleCancel}
+                disabled={isProcessing}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  borderRadius: V.rs,
+                  border: `1px solid ${V.outv}`,
+                  backgroundColor: isProcessing ? V.surf : V.surf2,
+                  color: isProcessing ? V.ink2 : V.ink,
+                  fontFamily: t.font,
+                  fontWeight: '600',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.6 : 1,
+                  fontSize: '14px',
+                }}
+              >
+                Cancel Payment
+              </AccessibleButton>
+            </FocusRing>
+            <FocusRing ringColor={V.pri} borderRadius={V.rs}>
+              <AccessibleButton
+                as="button"
+                onClick={handleApprove}
+                disabled={isProcessing}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  borderRadius: V.rs,
+                  border: isProcessing ? `1px solid ${V.outv}` : 'none',
+                  backgroundColor: isProcessing ? V.surf2 : V.pri,
+                  color: isProcessing ? V.ink2 : V.onpri,
+                  fontFamily: t.font,
+                  fontWeight: '600',
+                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                  opacity: isProcessing ? 0.65 : 1,
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                {isProcessing ? (
+                  <>
+                    <CrystalLoader size={16} variant="inline" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>Approve Payment</span>
+                )}
+              </AccessibleButton>
+            </FocusRing>
           </div>
         </div>
       </div>

@@ -83,6 +83,95 @@ describe('viewer actions on the client', () => {
     );
     vi.unstubAllGlobals();
   });
+
+  it('enforces requireConnected and actionGuard before emitting teleport_started across all four teleport methods', async () => {
+    const disconnected = new SLConnectionFull();
+    const startedDisconnected = vi.fn();
+    disconnected.on('teleport_started', startedDisconnected);
+    await expect(disconnected.teleportTo('Ahern')).rejects.toThrow(/Not connected/);
+    await expect(
+      disconnected.teleportCoordinate({ region: 'Ahern', x: 10, y: 20, z: 30 }),
+    ).rejects.toThrow(/Not connected/);
+    await expect(disconnected.teleportHome()).rejects.toThrow(/Not connected/);
+    await expect(disconnected.acceptLure('lure-1', 'sender-1', 'Sam')).rejects.toThrow(
+      /Not connected/,
+    );
+    expect(startedDisconnected).not.toHaveBeenCalled();
+
+    const guarded = connected();
+    guarded.actionGuard = (action, detail) =>
+      action === 'teleport'
+        ? 'Blocked by @tploc'
+        : action === 'acceptLure' && detail?.senderId === 'blocked-sender'
+          ? 'Blocked by @tplure'
+          : null;
+    const startedGuarded = vi.fn();
+    guarded.on('teleport_started', startedGuarded);
+
+    await expect(guarded.teleportTo('Ahern')).rejects.toThrow('Blocked by @tploc');
+    await expect(
+      guarded.teleportCoordinate({ region: 'Ahern', x: 10, y: 20, z: 30 }),
+    ).rejects.toThrow('Blocked by @tploc');
+    await expect(guarded.teleportHome()).rejects.toThrow('Blocked by @tploc');
+    await expect(guarded.acceptLure('lure-1', 'blocked-sender', 'Sam')).rejects.toThrow(
+      'Blocked by @tplure',
+    );
+    expect(startedGuarded).not.toHaveBeenCalled();
+  });
+
+  it('runs shared session lifecycle and yields one animation frame at 90% arriving for teleportCoordinate, teleportHome, and acceptLure', async () => {
+    const call = vi.fn(async (method: string, params?: any) => {
+      if (method === 'teleport') {
+        return { requested: { region: params.region || 'Ahern', x: 1, y: 2, z: 3 }, message: 'ok' };
+      }
+      if (method === 'teleportHome') {
+        return { requested: 'home' };
+      }
+      return { accepted: true, message: 'Arrived' };
+    });
+    (window as any).linkpointDesktop = { call };
+
+    const c = connected();
+    const events: string[] = [];
+    c.on('teleport_started', (d: any) => events.push(`start:${d.destination}`));
+    c.on('teleport_progress', (d: any) => events.push(`${d.phase}:${d.percent}`));
+    c.on('teleport_completed', (d: any) => events.push(`done:${d.regionName}`));
+
+    await c.teleportCoordinate({ region: 'Morris', x: 10, y: 20, z: 31 });
+    expect(call).toHaveBeenCalledWith('teleport', { region: 'Morris', x: 10, y: 20, z: 31 });
+    expect(events).toEqual([
+      'start:Morris/10/20/31',
+      'initiating:15',
+      'contacting:40',
+      'preparing:65',
+      'arriving:90',
+      'done:Morris',
+    ]);
+
+    events.length = 0;
+    await c.teleportHome();
+    expect(call).toHaveBeenCalledWith('teleportHome', undefined);
+    expect(events).toEqual([
+      'start:Home',
+      'initiating:15',
+      'contacting:40',
+      'preparing:65',
+      'arriving:90',
+      'done:Home',
+    ]);
+
+    events.length = 0;
+    await c.acceptLure('lure-7', 'sender-7', 'Pat Resident');
+    expect(call).toHaveBeenCalledWith('acceptLure', { id: 'lure-7' });
+    expect(events).toEqual([
+      'start:Pat Resident',
+      'initiating:15',
+      'contacting:40',
+      'preparing:65',
+      'arriving:90',
+      'done:Pat Resident',
+    ]);
+  });
 });
 
 describe('L$ balance', () => {

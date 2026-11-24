@@ -12,15 +12,38 @@ export class LLSDBinaryParser {
   private offset: number = 0;
 
   /**
-   * Parse LLSD from binary data
+   * Parse LLSD from binary data (supports optional `<?llsd/binary?>` header)
    */
   parse(data: Uint8Array): LLSD {
     this.data = data;
     this.offset = 0;
 
-    // Check for binary header (if any)
-    // LLSD binary usually starts with '<?llsd/binary?>' or just the binary data
-    // For simplicity, we assume the data is the raw binary content
+    if (this.data.length >= 15 && this.data[0] === 0x3c && this.data[1] === 0x3f) {
+      let endHeader = 2;
+      while (endHeader + 1 < this.data.length) {
+        if (this.data[endHeader] === 0x3f && this.data[endHeader + 1] === 0x3e) {
+          break;
+        }
+        endHeader++;
+      }
+      if (endHeader + 1 >= this.data.length) {
+        throw new LLSDException('Unterminated LLSD binary header');
+      }
+      const headerLabel = new TextDecoder()
+        .decode(this.data.subarray(2, endHeader))
+        .trim()
+        .toLowerCase();
+      if (headerLabel !== 'llsd/binary') {
+        throw new LLSDException(`Unsupported LLSD binary header: <?${headerLabel}?>`);
+      }
+      this.offset = endHeader + 2;
+      if (this.offset < this.data.length && this.data[this.offset] === 0x0d) {
+        this.offset++;
+      }
+      if (this.offset < this.data.length && this.data[this.offset] === 0x0a) {
+        this.offset++;
+      }
+    }
 
     return new LLSD(this.parseValue());
   }
