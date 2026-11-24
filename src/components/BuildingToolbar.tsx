@@ -850,7 +850,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
                   background: V.bg,
                   color: V.ink,
                   fontFamily: t.font,
-                  border: '1px solid #dc2626',
+                  border: `1px solid ${V.err}`,
                   borderRadius: V.rs,
                   padding: '14px',
                   width: '100%',
@@ -867,7 +867,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
                     marginBottom: '6px',
                   }}
                 >
-                  <Icon name="trash-2" size={14} color="#ef4444" />
+                  <Icon name="trash-2" size={14} color={V.err} />
                   <h3
                     id={derezTitleId}
                     style={{
@@ -964,7 +964,7 @@ export const BuildingToolbar: React.FC<BuildingToolbarProps> = ({
                     onClick={handleConfirmDerez}
                     aria-label="Confirm object derez"
                     style={{
-                      ...actionBtnStyle('#ffffff', '#dc2626'),
+                      ...actionBtnStyle(V.onpri, V.err),
                       minHeight: '32px',
                     }}
                   >
