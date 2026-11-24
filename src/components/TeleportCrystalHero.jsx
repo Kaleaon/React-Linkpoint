@@ -56,8 +56,8 @@ function TeleportCrystalHeroRender(
     const rawPct = typeof pct === 'number' && Number.isFinite(pct) ? pct : Number(pct) || 0;
     const validPct = Math.min(100, Math.max(0, rawPct));
     const currentGap = (256 / 3) * (1 - validPct / 100);
-    const curTopY = -currentGap / 2;
-    const curBotY = currentGap / 2;
+    const curTopY = currentGap === 0 ? 0 : -currentGap / 2;
+    const curBotY = currentGap === 0 ? 0 : currentGap / 2;
     const curRadius = isFailed
       ? (14 * 512) / 120
       : (8 * 512) / 120 + (validPct / 100) * ((8 * 512) / 120);

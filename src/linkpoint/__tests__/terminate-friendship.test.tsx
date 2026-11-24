@@ -49,11 +49,11 @@ describe('TerminateFriendship Protocol, Session RPC & Dual-Scope Confirmation Mo
     vi.restoreAllMocks();
   });
 
-  describe('TerminateFriendshipMessage Class & Binary Wire Format (0xFFFF0053)', () => {
-    it('defines TerminateFriendshipMessage with ID 0xFFFF0053, FrequencyLow, and 48-byte payload', () => {
+  describe('TerminateFriendshipMessage Class & Binary Wire Format (0xFFFF012C)', () => {
+    it('defines TerminateFriendshipMessage with ID 0xFFFF012C, FrequencyLow, and 48-byte payload', () => {
       const msg = new TerminateFriendshipMessage();
       expect(msg.name).toBe('TerminateFriendship');
-      expect(msg.id).toBe(0xffff0053 >>> 0);
+      expect(msg.id).toBe(0xffff012c >>> 0);
       expect(msg.id).toBe(MessageIDs.TERMINATE_FRIENDSHIP);
       expect(msg.messageFlags).toBe(MessageFlags.FrequencyLow);
       expect(msg.getSize()).toBe(48);
@@ -90,7 +90,7 @@ describe('TerminateFriendship Protocol, Session RPC & Dual-Scope Confirmation Mo
       );
 
       expect(packet.messageName).toBe('TerminateFriendship');
-      expect(packet.messageId).toBe(0xffff0053);
+      expect(packet.messageId).toBe(0xffff012c);
       expect(packet.agentId).toBe(TEST_AGENT_ID);
       expect(packet.sessionId).toBe(TEST_SESSION_ID);
       expect(packet.otherId).toBe(TEST_TARGET_ID);
@@ -161,14 +161,14 @@ describe('TerminateFriendship Protocol, Session RPC & Dual-Scope Confirmation Mo
         otherId: TEST_TARGET_ID,
         agentId: TEST_AGENT_ID,
         sessionId: TEST_SESSION_ID,
-        messageId: '0xFFFF0053',
+        messageId: '0xFFFF012C',
       });
 
       expect(sendMessage).toHaveBeenCalledTimes(1);
       const [dispatchedMsg, dispatchedFlags] = sendMessage.mock.calls[0];
       expect(dispatchedFlags).toBe(PacketFlags.Reliable);
       expect(dispatchedMsg).toBeInstanceOf(TerminateFriendshipMessage);
-      expect(dispatchedMsg.id).toBe(0xffff0053 >>> 0);
+      expect(dispatchedMsg.id).toBe(0xffff012c >>> 0);
       expect(dispatchedMsg.AgentData.AgentID.toString()).toBe(TEST_AGENT_ID);
       expect(dispatchedMsg.AgentData.SessionID.toString()).toBe(TEST_SESSION_ID);
       expect(dispatchedMsg.ExBlock.OtherID.toString()).toBe(TEST_TARGET_ID);
@@ -219,7 +219,7 @@ describe('TerminateFriendship Protocol, Session RPC & Dual-Scope Confirmation Mo
         success: true,
         terminated: true,
         targetId: TEST_TARGET_ID,
-        messageId: '0xFFFF0053',
+        messageId: '0xFFFF012C',
       });
 
       const connection = new SLConnectionFull();
@@ -267,7 +267,7 @@ describe('TerminateFriendship Protocol, Session RPC & Dual-Scope Confirmation Mo
       });
 
       const packet = await manager.terminateFriendship(TEST_TARGET_ID);
-      expect(packet?.messageId).toBe(0xffff0053);
+      expect(packet?.messageId).toBe(0xffff012c);
       expect(packet?.payload.byteLength).toBe(48);
       expect(terminateFriendship).toHaveBeenCalledTimes(1);
 

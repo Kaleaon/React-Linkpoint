@@ -120,7 +120,7 @@ export function serializeDeclineTeleportPacket(
 
   return {
     messageName: 'DeclineTeleport',
-    messageId: MessageIDs.DECLINE_TELEPORT ?? 0xffff007a,
+    messageId: MessageIDs.DECLINE_TELEPORT ?? 0xffff0048,
     agentId: normAgentId,
     sessionId: normSessionId,
     payload,
@@ -131,7 +131,7 @@ export function serializeDeclineTeleportPacket(
 export const serializeDeclineTeleport = serializeDeclineTeleportPacket;
 
 /**
- * Serializes a GrantUserRights UDP packet according to SL protocol standards (0xFFFF0054).
+ * Serializes a GrantUserRights UDP packet according to SL protocol standards (0xFFFF0140).
  * Returns a 52-byte payload containing 16-byte AgentID, 16-byte SessionID, 16-byte TargetID,
  * and 4-byte little-endian rights bitmask.
  */
@@ -175,7 +175,7 @@ export function serializeGrantUserRightsPacket(
 
   return {
     messageName: 'GrantUserRights',
-    messageId: MessageIDs.GRANT_USER_RIGHTS ?? 0xffff0054,
+    messageId: MessageIDs.GRANT_USER_RIGHTS ?? 0xffff0140,
     agentId: normAgentId,
     sessionId: normSessionId,
     targetId: normTargetId,
@@ -188,7 +188,7 @@ export function serializeGrantUserRightsPacket(
 export const serializeGrantUserRights = serializeGrantUserRightsPacket;
 
 /**
- * Serializes a TerminateFriendship UDP packet according to SL protocol standards (0xFFFF0053).
+ * Serializes a TerminateFriendship UDP packet according to SL protocol standards (0xFFFF012C).
  * Validates AgentID, SessionID, and OtherID before allocating the 48-byte payload buffer.
  */
 export function serializeTerminateFriendshipPacket(
@@ -227,7 +227,7 @@ export function serializeTerminateFriendshipPacket(
 
   return {
     messageName: 'TerminateFriendship',
-    messageId: MessageIDs.TERMINATE_FRIENDSHIP ?? 0xffff0053,
+    messageId: MessageIDs.TERMINATE_FRIENDSHIP ?? 0xffff012c,
     agentId: normAgentId,
     sessionId: normSessionId,
     otherId: normOtherId,

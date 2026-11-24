@@ -203,14 +203,19 @@ export default function Search() {
   };
 
   const teleportTo = (destination) => {
-    if (!slBridge.connected) {
+    if (!app.protocol.connected && !slBridge.connected) {
       actions.notify('Connect to a grid to teleport.');
       return;
     }
-    slBridge.teleport({ destination }).then(
+    app.protocol.teleportTo(destination).then(
       () => actions.notify(`Teleport to ${destination} requested`),
-      (err) =>
-        actions.notify(err instanceof Error ? err.message : `Could not teleport to ${destination}`),
+      (err) => {
+        if (!app.interactions.teleportSession) {
+          actions.notify(
+            err instanceof Error ? err.message : `Could not teleport to ${destination}`,
+          );
+        }
+      },
     );
   };
 

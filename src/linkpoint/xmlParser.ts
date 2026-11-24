@@ -80,38 +80,86 @@ export class LLSDXMLParser {
       case 'undef':
         return null;
 
-      case 'boolean':
-        const boolText = this.getElementText(element).toLowerCase();
-        return boolText === 'true' || boolText === '1';
+      case 'boolean': {
+        const boolText = this.getElementText(element).trim().toLowerCase();
+        if (boolText === '' || boolText === 'false' || boolText === '0') {
+          return false;
+        }
+        if (boolText === 'true' || boolText === '1') {
+          return true;
+        }
+        throw new LLSDException(`Invalid boolean value: ${boolText}`);
+      }
 
-      case 'integer':
-        const intText = this.getElementText(element);
+      case 'integer': {
+        const intText = this.getElementText(element).trim();
+        if (intText === '') {
+          return 0;
+        }
+        if (!/^[-+]?\d+$/.test(intText)) {
+          throw new LLSDException(`Invalid integer value: ${intText}`);
+        }
         const intValue = parseInt(intText, 10);
         if (isNaN(intValue)) {
           throw new LLSDException(`Invalid integer value: ${intText}`);
         }
+        if (intValue > 2147483647) return 2147483647;
+        if (intValue < -2147483648) return -2147483648;
         return intValue;
+      }
 
-      case 'real':
-        const realText = this.getElementText(element);
+      case 'real': {
+        const realText = this.getElementText(element).trim();
+        if (realText === '' || realText === '+Zero') {
+          return 0.0;
+        }
+        if (realText === '-0' || realText === '-0.0' || realText === '-Zero') {
+          return -0.0;
+        }
+        const lowerReal = realText.toLowerCase();
+        if (
+          lowerReal === 'inf' ||
+          lowerReal === '+inf' ||
+          lowerReal === 'infinity' ||
+          lowerReal === '+infinity'
+        ) {
+          return Infinity;
+        }
+        if (lowerReal === '-inf' || lowerReal === '-infinity') {
+          return -Infinity;
+        }
+        if (
+          lowerReal === 'nan' ||
+          lowerReal === '+nan' ||
+          lowerReal === '-nan' ||
+          lowerReal === 'nans' ||
+          lowerReal === 'nanq'
+        ) {
+          return NaN;
+        }
+        if (!/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(realText)) {
+          throw new LLSDException(`Invalid real value: ${realText}`);
+        }
         const realValue = parseFloat(realText);
         if (isNaN(realValue)) {
           throw new LLSDException(`Invalid real value: ${realText}`);
         }
         return realValue;
+      }
 
       case 'string':
         return this.getElementText(element);
 
-      case 'uuid':
-        const uuidText = this.getElementText(element);
+      case 'uuid': {
+        const uuidText = this.getElementText(element).trim();
         if (!LLSDUtils.isUUIDString(uuidText) && uuidText !== '') {
           throw new LLSDException(`Invalid UUID value: ${uuidText}`);
         }
-        return uuidText || '00000000-0000-0000-0000-000000000000';
+        return uuidText ? uuidText.toLowerCase() : '00000000-0000-0000-0000-000000000000';
+      }
 
-      case 'date':
-        const dateText = this.getElementText(element);
+      case 'date': {
+        const dateText = this.getElementText(element).trim();
         if (!dateText) {
           return new Date(0); // Unix epoch
         }
@@ -120,22 +168,43 @@ export class LLSDXMLParser {
           throw new LLSDException(`Invalid date value: ${dateText}`);
         }
         return date;
+      }
 
-      case 'uri':
-        const uriText = this.getElementText(element);
+      case 'uri': {
+        const uriText = this.getElementText(element).trim();
+        if (!uriText) {
+          return '';
+        }
         try {
           return new URL(uriText);
         } catch (error) {
           throw new LLSDException(`Invalid URI value: ${uriText}`, error as Error);
         }
+      }
 
-      case 'binary':
-        const binaryText = this.getElementText(element);
+      case 'binary': {
+        const binaryText = this.getElementText(element).replace(/\s+/g, '');
         if (!binaryText) {
           return new Uint8Array(0);
         }
+        const encodingAttr = (element.getAttribute?.('encoding') || 'base64').trim().toLowerCase();
+        if (encodingAttr === 'base16') {
+          if (binaryText.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(binaryText)) {
+            throw new LLSDException(`Invalid binary data: ${binaryText}`);
+          }
+          const bytes = new Uint8Array(binaryText.length / 2);
+          for (let i = 0; i < binaryText.length; i += 2) {
+            bytes[i / 2] = parseInt(binaryText.slice(i, i + 2), 16);
+          }
+          return bytes;
+        }
+        if (encodingAttr !== 'base64') {
+          throw new LLSDException(`Invalid binary data encoding: ${encodingAttr}`);
+        }
+        if (binaryText.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(binaryText)) {
+          throw new LLSDException(`Invalid binary data: ${binaryText}`);
+        }
         try {
-          // Decode base64
           const binaryString = atob(binaryText);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
@@ -145,6 +214,7 @@ export class LLSDXMLParser {
         } catch (error) {
           throw new LLSDException(`Invalid binary data: ${binaryText}`, error as Error);
         }
+      }
 
       case 'array':
         const array: LLSDArray = [];

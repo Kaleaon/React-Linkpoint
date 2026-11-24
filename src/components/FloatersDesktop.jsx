@@ -73,11 +73,13 @@ export default function FloatersDesktop() {
     protocolEvents.forEach((event) => app.protocol.on(event, refresh));
     app.inventory.on('inventory_loaded', refresh);
     app.notifications.on('notification_received', refresh);
+    app.ao?.on?.('change', refresh);
     return () => {
       worldEvents.forEach((event) => app.world.off(event, refresh));
       protocolEvents.forEach((event) => app.protocol.off(event, refresh));
       app.inventory.off('inventory_loaded', refresh);
       app.notifications.off('notification_received', refresh);
+      app.ao?.off?.('change', refresh);
     };
   }, []);
 
@@ -746,7 +748,7 @@ export default function FloatersDesktop() {
               aria-roledescription="window resize grip"
               aria-label={`${f.title} resize grip`}
               aria-valuenow={r.w}
-              aria-valuemin={216}
+              aria-valuemin={f.minW || 216}
               aria-valuemax={availW}
               aria-orientation="horizontal"
               onMouseDown={(e) => actions.flDrag(f.id, e, 'size')}
@@ -1006,7 +1008,10 @@ export default function FloatersDesktop() {
 
         {state.cDock.map((k) => {
           const b = CBTN[k],
-            lit = !!state.cTog[k],
+            lit =
+              k === 'ao'
+                ? Boolean(app.ao?.enabled || (state.flOpen.AO && !state.flMin.AO))
+                : !!state.cTog[k],
             dis = !!b.off;
           return (
             <button
@@ -1108,6 +1113,12 @@ function buildFBody(state) {
     Diagnostics: [
       { a: 'Connection', b: app.protocol.connected ? 'connected' : 'disconnected' },
       { a: 'Capabilities', b: String(Object.keys(app.protocol.capabilities || {}).length) },
+    ],
+    AO: [
+      { a: 'Overrider', b: app.ao?.enabled ? 'enabled' : 'disabled' },
+      { a: 'Profile', b: app.ao?.getActiveProfile?.()?.name || '—' },
+      { a: 'Locomotion', b: app.ao?.getSnapshot?.()?.currentStateLabel || 'Standing' },
+      { a: 'Active Pose', b: app.ao?.getSnapshot?.()?.activeAnimationName || 'Default Linden' },
     ],
   };
 }

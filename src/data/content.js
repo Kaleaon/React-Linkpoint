@@ -29,6 +29,7 @@ export const NAV_ALL = [
     ['Environment', 'sun'],
     ['Snapshot', 'camera'],
     ['Search', 'search'],
+    ['AO', 'person-standing'],
     ['Cache', 'hard-drive'],
     ['Diagnostics', 'activity'],
   ].map(([id, icon]) => ({ id, label: id.toUpperCase(), tile: id.toLowerCase(), icon })),
@@ -100,6 +101,10 @@ export const HEAD = (layoutName, paletteName) => {
     Diagnostics: [
       'DIAGNOSTICS',
       `> ${app.protocol.state.toLowerCase()} · ${Object.keys(app.protocol.capabilities || {}).length} capabilities`,
+    ],
+    AO: [
+      'ANIMATION OVERRIDER',
+      `> ${app.ao?.enabled ? 'enabled' : 'disabled'} · ${app.ao?.getActiveProfile?.()?.name || 'no active set'}`,
     ],
     Outfits: ['OUTFITS', `> ${inventoryItems} inventory items available to inspect`],
     Objects: ['OBJECTS', `> ${app.world.objects.length} simulator objects`],

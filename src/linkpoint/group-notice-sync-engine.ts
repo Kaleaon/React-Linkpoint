@@ -216,6 +216,15 @@ export class GroupNoticeSyncEngine extends Utils.EventEmitter {
   }
 
   /**
+   * Remove a group from the pending notice sync queue (e.g. when leaving a group).
+   */
+  dequeueGroup(groupId: string): void {
+    if (!groupId) return;
+    const target = groupId.trim().toLowerCase();
+    this.queue = this.queue.filter((item) => item.groupId.toLowerCase() !== target);
+  }
+
+  /**
    * Priority queue sorting: HIGH priority items first, then FIFO by addedAt timestamp.
    */
   private sortQueue(): void {

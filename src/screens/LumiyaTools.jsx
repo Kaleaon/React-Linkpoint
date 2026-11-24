@@ -16,6 +16,7 @@ import { FocusRing } from '@linkpoint/design-system';
 import AccessibleInput from '../components/AccessibleInput';
 import AccessibleSelect from '../components/AccessibleSelect';
 import { decodeLindenText } from '../linkpoint/notecard.ts';
+import AOFloater from './AOFloater.jsx';
 
 function Empty({ icon, children }) {
   return (
@@ -2022,4 +2023,7 @@ export function DiagnosticsScreen() {
       ) : null}
     </div>
   );
+}
+export function AOScreen() {
+  return <AOFloater />;
 }

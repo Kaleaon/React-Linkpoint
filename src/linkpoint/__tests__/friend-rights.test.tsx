@@ -50,7 +50,7 @@ describe('Friend Rights Synchronization Protocol & Bridge RPC', () => {
   });
 
   describe('GrantUserRights Packet Serializer', () => {
-    it('serializes GrantUserRights packet with low-frequency message ID 0xFFFF0054', () => {
+    it('serializes GrantUserRights packet with low-frequency message ID 0xFFFF0140', () => {
       const packet = serializeGrantUserRightsPacket(
         TEST_AGENT_ID,
         TEST_SESSION_ID,
@@ -59,7 +59,7 @@ describe('Friend Rights Synchronization Protocol & Bridge RPC', () => {
       );
 
       expect(packet.messageName).toBe('GrantUserRights');
-      expect(packet.messageId).toBe(0xffff0054);
+      expect(packet.messageId).toBe(0xffff0140);
       expect(packet.messageId).toBe(MessageIDs.GRANT_USER_RIGHTS);
       expect(packet.agentId).toBe(TEST_AGENT_ID);
       expect(packet.sessionId).toBe(TEST_SESSION_ID);
@@ -262,7 +262,7 @@ describe('Friend Rights Synchronization Protocol & Bridge RPC', () => {
         'GrantUserRights',
         expect.objectContaining({
           messageName: 'GrantUserRights',
-          messageId: 0xffff0054,
+          messageId: 0xffff0140,
           agentId: TEST_AGENT_ID,
           sessionId: TEST_SESSION_ID,
           targetId: TEST_TARGET_ID,

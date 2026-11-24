@@ -664,6 +664,7 @@ export function GroupsScreen() {
   const [detailStatus, setDetailStatus] = useState('');
   const [listError, setListError] = useState('');
   const [detailRefresh, setDetailRefresh] = useState(0);
+  const [, refreshStoreSnapshot] = useState(0);
   const [, refreshNotices] = useState(0);
   const [groups, setGroups] = useState(() => app.groups.getGroups());
   const [query, setQuery] = useState('');
@@ -673,6 +674,9 @@ export function GroupsScreen() {
   const [activeGroupId, setActiveGroupId] = useState(() => app.groups.getActiveGroupId());
   const [activating, setActivating] = useState(false);
   const [lastActivateTime, setLastActivateTime] = useState(0);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [ejectTarget, setEjectTarget] = useState(null);
   const [rolesTarget, setRolesTarget] = useState(null);
@@ -681,23 +685,41 @@ export function GroupsScreen() {
   const [showNoticeModal, setShowNoticeModal] = useState(false);
 
   useEffect(() => {
-    const handleUpdate = () => {
+    setConfirmLeave(false);
+    setLeaveError('');
+  }, [selectedId]);
+
+  useEffect(() => {
+    const handleStoreUpdate = () => {
       setGroups(app.groups.getGroups());
-      refreshNotices((v) => v + 1);
+      refreshStoreSnapshot((v) => v + 1);
     };
-    app.groups.on('roles_updated', handleUpdate);
-    app.groups.on('role_updated', handleUpdate);
-    app.groups.on('members_updated', handleUpdate);
-    app.groups.on('member_ejected', handleUpdate);
-    app.groups.on('member_removed', handleUpdate);
-    app.groups.on('member_invited', handleUpdate);
+    const handleGroupsListChanged = () => {
+      const next = app.groups.getGroups();
+      setGroups(next);
+      setActiveGroupId(app.groups.getActiveGroupId());
+      setSelectedId((current) =>
+        next.some((group) => group.id === current) ? current : next[0]?.id || '',
+      );
+      refreshStoreSnapshot((v) => v + 1);
+    };
+    app.groups.on('roles_updated', handleStoreUpdate);
+    app.groups.on('role_updated', handleStoreUpdate);
+    app.groups.on('members_updated', handleStoreUpdate);
+    app.groups.on('member_ejected', handleStoreUpdate);
+    app.groups.on('member_removed', handleStoreUpdate);
+    app.groups.on('member_invited', handleStoreUpdate);
+    app.groups.on('groups_updated', handleGroupsListChanged);
+    app.groups.on('group_left', handleGroupsListChanged);
     return () => {
-      app.groups.off('roles_updated', handleUpdate);
-      app.groups.off('role_updated', handleUpdate);
-      app.groups.off('members_updated', handleUpdate);
-      app.groups.off('member_ejected', handleUpdate);
-      app.groups.off('member_removed', handleUpdate);
-      app.groups.off('member_invited', handleUpdate);
+      app.groups.off('roles_updated', handleStoreUpdate);
+      app.groups.off('role_updated', handleStoreUpdate);
+      app.groups.off('members_updated', handleStoreUpdate);
+      app.groups.off('member_ejected', handleStoreUpdate);
+      app.groups.off('member_removed', handleStoreUpdate);
+      app.groups.off('member_invited', handleStoreUpdate);
+      app.groups.off('groups_updated', handleGroupsListChanged);
+      app.groups.off('group_left', handleGroupsListChanged);
     };
   }, []);
 
@@ -812,14 +834,67 @@ export function GroupsScreen() {
   const members = selected ? Array.from(app.groups.getGroupMembers(selected.id).values()) : [];
   const roles = selected ? Array.from(app.groups.getGroupRoles(selected.id).values()) : [];
 
+  const ZERO_GROUP_UUID = '00000000-0000-0000-0000-000000000000';
   const currentAgentId = app.protocol?.agentId || app.auth?.agentId || '';
-  const myMemberRecord = selected ? members.find((m) => m.id === currentAgentId) : null;
-  const isOwner = Boolean(
-    selected?.isOwner ||
-    myMemberRecord?.isOwner ||
-    (selected?.role && String(selected.role).toLowerCase() === 'owner') ||
-    (selected?.founderId && currentAgentId && selected.founderId === currentAgentId),
-  );
+  const myMemberRecord = selected
+    ? members.find((m) => String(m.id || '').toLowerCase() === String(currentAgentId).toLowerCase())
+    : null;
+  const explicitlyNotOwner =
+    selected?.isOwner === false || (myMemberRecord && myMemberRecord.isOwner === false);
+  const isOwner =
+    !explicitlyNotOwner &&
+    Boolean(
+      selected?.isOwner ||
+      myMemberRecord?.isOwner ||
+      (selected?.role && String(selected.role).toLowerCase() === 'owner') ||
+      (selected?.founderId &&
+        currentAgentId &&
+        String(selected.founderId).toLowerCase() !== ZERO_GROUP_UUID &&
+        String(selected.founderId).toLowerCase() === String(currentAgentId).toLowerCase()),
+    );
+  const explicitCoOwners =
+    Number(selected?.ownerCount) > 1 ||
+    selected?.isSoleOwner === false ||
+    members.filter((m) => Boolean(m.isOwner)).length > 1 ||
+    roles.some(
+      (r) =>
+        String(r.name || '').toLowerCase() === 'owners' &&
+        (Number(r.memberCount) > 1 || (Array.isArray(r.members) && r.members.length > 1)),
+    );
+  const isSoleOwner = Boolean(selected?.isSoleOwner) || (isOwner && !explicitCoOwners);
+
+  const handleLeaveGroup = async () => {
+    if (!selected || leaving || isSoleOwner) return;
+    const departingId = selected.id;
+    const departingName = selected.name || 'group';
+    const currentIndex = groups.findIndex((g) => g.id === departingId);
+    setLeaving(true);
+    setLeaveError('');
+    try {
+      await app.leaveGroup(departingId);
+      if (app.groups.getGroupInfo(departingId)) {
+        app.groups.removeGroup(departingId);
+      }
+      const next = app.groups.getGroups();
+      setGroups(next);
+      setActiveGroupId(app.groups.getActiveGroupId());
+      setConfirmLeave(false);
+      setShowAdminFloater(false);
+      const fallbackIndex = currentIndex >= 0 ? Math.min(currentIndex, next.length - 1) : 0;
+      const nextSelectedId = next[fallbackIndex]?.id || next[0]?.id || '';
+      setSelectedId(nextSelectedId);
+      if (!nextSelectedId) {
+        setShowDetail(false);
+      }
+      Utils.showToast(`Left ${departingName}.`, 'success');
+    } catch (err) {
+      const msg = err?.message || 'Failed to leave group.';
+      setLeaveError(msg);
+      Utils.showToast(msg, 'error');
+    } finally {
+      setLeaving(false);
+    }
+  };
   const userPowers = isOwner
     ? GROUP_POWERS.All
     : (selected?.powers ?? myMemberRecord?.powers ?? 0n);
@@ -1133,7 +1208,16 @@ export function GroupsScreen() {
                   {selected.name || 'Unnamed group'}
                 </h2>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                  flexShrink: 0,
+                }}
+              >
                 {selected?.id?.toLowerCase() === (activeGroupId || '').toLowerCase() &&
                 activeGroupId !== '00000000-0000-0000-0000-000000000000' ? (
                   <button
@@ -1196,6 +1280,35 @@ export function GroupsScreen() {
                 </button>
                 <button
                   type="button"
+                  disabled={leaving || isSoleOwner}
+                  aria-expanded={confirmLeave}
+                  onClick={() => {
+                    if (leaving || isSoleOwner) return;
+                    setLeaveError('');
+                    setConfirmLeave((prev) => !prev);
+                  }}
+                  aria-label="Leave Group"
+                  title={
+                    isSoleOwner ? 'Sole group owners cannot leave the group.' : 'Leave this group'
+                  }
+                  style={{
+                    ...button,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: V.surf,
+                    borderColor: V.warn || V.err || '#f59e0b',
+                    color: V.warn || V.err || '#f59e0b',
+                    cursor: leaving || isSoleOwner ? 'not-allowed' : 'pointer',
+                    opacity: leaving || isSoleOwner ? 0.5 : 1,
+                  }}
+                >
+                  <Icon name="log-out" size={14} style={{ color: V.warn || V.err || '#f59e0b' }} />
+                  LEAVE GROUP
+                </button>
+                <button
+                  type="button"
                   onClick={openChat}
                   style={{
                     ...button,
@@ -1212,6 +1325,87 @@ export function GroupsScreen() {
                 </button>
               </div>
             </header>
+            {confirmLeave && !isSoleOwner ? (
+              <div
+                role="region"
+                aria-label="Confirm group departure"
+                className="leave-group-confirm"
+                style={{
+                  padding: '10px clamp(14px, 3vw, 24px)',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  borderBottom: `1px solid ${V.warn || V.err || '#f59e0b'}`,
+                  background: V.surf,
+                }}
+              >
+                <div style={{ display: 'grid', gap: 4, minWidth: 200, flex: 1 }}>
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      color: V.warn || V.err || '#f59e0b',
+                      font: `700 12px/1.35 ${t.font}`,
+                    }}
+                  >
+                    <Icon name="alert-triangle" size={15} />
+                    Leave {selected.name || 'this group'}?
+                  </span>
+                  <small style={{ color: V.ink2, fontSize: 11.5, lineHeight: 1.4 }}>
+                    {selected?.id?.toLowerCase() === (activeGroupId || '').toLowerCase() &&
+                    activeGroupId !== ZERO_GROUP_UUID
+                      ? 'Your active group title will be cleared and you will exit this group immediately.'
+                      : 'You will immediately exit this group and lose its roles and notices.'}
+                  </small>
+                  {leaveError ? (
+                    <span role="alert" style={{ color: V.err, fontSize: 11.5, fontWeight: 600 }}>
+                      {leaveError}
+                    </span>
+                  ) : null}
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    disabled={leaving}
+                    onClick={() => {
+                      setConfirmLeave(false);
+                      setLeaveError('');
+                    }}
+                    style={{
+                      ...button,
+                      background: 'transparent',
+                      borderColor: V.outv,
+                      color: V.ink,
+                      opacity: leaving ? 0.6 : 1,
+                    }}
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="button"
+                    disabled={leaving}
+                    onClick={handleLeaveGroup}
+                    style={{
+                      ...button,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: V.surf,
+                      borderColor: V.err || V.warn || '#ef4444',
+                      color: V.err || V.warn || '#ef4444',
+                      cursor: leaving ? 'not-allowed' : 'pointer',
+                      opacity: leaving ? 0.6 : 1,
+                    }}
+                  >
+                    <Icon name="log-out" size={14} />
+                    {leaving ? 'LEAVING…' : 'CONFIRM LEAVE'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <nav
               aria-label="Group information sections"
               style={{
@@ -2096,8 +2290,10 @@ export function NoticeAttachmentBanner({ notice, V: propV = undefined, t: propT 
       await app.protocol.teleportTo(destination);
       Utils.showToast(`Teleporting to ${destination}...`, 'info');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err || 'Teleport failed');
-      Utils.showToast(`Teleport failed: ${msg}`, 'error');
+      if (!app.interactions.teleportSession) {
+        const msg = err instanceof Error ? err.message : String(err || 'Teleport failed');
+        Utils.showToast(`Teleport failed: ${msg}`, 'error');
+      }
     }
   };
 

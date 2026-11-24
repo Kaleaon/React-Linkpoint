@@ -8,18 +8,37 @@
  * Handles special inventory item types (gestures, animations, scripts, sounds, textures).
  */
 
+import {
+  GestureRuntimeEngine,
+  type CompiledGestureGraph,
+  type GestureExecutionResult,
+} from '../gesture-runtime-engine';
+
 export class InventorySpecialTypes {
   private gestures: Map<string, any> = new Map();
   private animations: Map<string, any> = new Map();
   private scripts: Map<string, any> = new Map();
   private sounds: Map<string, any> = new Map();
   private textures: Map<string, any> = new Map();
+  private gestureRuntime: GestureRuntimeEngine = new GestureRuntimeEngine();
+
+  /**
+   * Binds a shared GestureRuntimeEngine instance so inventory gesture registration,
+   * compilation, activation, and execution share one bounded runtime graph.
+   */
+  setGestureRuntime(runtime: GestureRuntimeEngine) {
+    this.gestureRuntime = runtime;
+  }
+
+  getGestureRuntime(): GestureRuntimeEngine {
+    return this.gestureRuntime;
+  }
 
   /**
    * Feature 31: Gestures
-   * Register and manage gesture assets
+   * Register, compile, and manage gesture step sequences
    */
-  registerGesture(gestureId: string, gestureData: any) {
+  registerGesture(gestureId: string, gestureData: any): CompiledGestureGraph {
     if (!gestureId || typeof gestureId !== 'string') {
       throw new Error('Valid gesture ID required');
     }
@@ -27,18 +46,47 @@ export class InventorySpecialTypes {
       throw new Error('Valid gesture data required');
     }
 
+    const active = Boolean(gestureData.active);
+    const compiled = this.gestureRuntime.registerGesture(gestureId, {
+      ...gestureData,
+      active,
+    });
+
     const gesture = {
       id: gestureId,
-      name: gestureData.name || 'Gesture',
-      trigger: gestureData.trigger || '',
+      name: compiled.name || gestureData.name || 'Gesture',
+      trigger: compiled.trigger || gestureData.trigger || '',
+      replaceWith: compiled.replaceWith,
+      hotkey: compiled.hotkey,
       animations: gestureData.animations || [],
       sounds: gestureData.sounds || [],
-      active: gestureData.active || false,
       ...gestureData,
+      active,
+      steps: compiled.steps,
+      compiled,
     };
 
     this.gestures.set(gestureId, gesture);
     console.log(`[InventoryTypes] Registered gesture: ${gesture.name}`);
+    return compiled;
+  }
+
+  getGesture(gestureId: string) {
+    return this.gestures.get(gestureId) || null;
+  }
+
+  unregisterGesture(gestureId: string): boolean {
+    const removedRuntime = this.gestureRuntime.unregisterGesture(gestureId);
+    const removedLocal = this.gestures.delete(gestureId);
+    return removedRuntime || removedLocal;
+  }
+
+  executeGesture(gestureId: string): Promise<GestureExecutionResult> {
+    return this.gestureRuntime.executeGesture(gestureId);
+  }
+
+  getGestureMemoryBytes(): number {
+    return this.gestureRuntime.memoryUsageBytes;
   }
 
   setGestureActive(gestureId: string, active: boolean = true) {
@@ -47,6 +95,7 @@ export class InventorySpecialTypes {
       gesture.active = active;
       console.log(`[InventoryTypes] Gesture ${gestureId} ${active ? 'activated' : 'deactivated'}`);
     }
+    this.gestureRuntime.setGestureActive(gestureId, active);
   }
 
   /**
